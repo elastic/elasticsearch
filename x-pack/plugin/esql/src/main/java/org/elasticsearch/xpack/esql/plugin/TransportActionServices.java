@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 public record TransportActionServices(
     TransportService transportService,
     SearchService searchService,
-    SearchTransportService searchTransportService,
     ExchangeService exchangeService,
     ClusterService clusterService,
     ProjectResolver projectResolver,

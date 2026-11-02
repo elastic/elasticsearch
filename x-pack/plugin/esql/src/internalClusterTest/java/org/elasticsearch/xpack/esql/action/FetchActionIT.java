@@ -15,7 +15,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -214,7 +213,7 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
         SearchService searchService = internalCluster().getInstance(SearchService.class, node);
         FetchContextService contextService = new FetchContextService(
             searchService,
-            internalCluster().getInstance(SearchTransportService.class, node),
+            internalCluster().getInstance(TransportService.class, node),
             () -> clusterService(node).state().nodes()
         );
         NodeFetchContexts contexts = contextService.newNodeContexts(

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -125,7 +124,7 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         for (String node : nodes) {
             MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
             count(transport, node, FetchService.FETCH_ACTION_NAME, fetches);
-            count(transport, node, SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME, frees);
+            count(transport, node, FetchContextService.FREE_ACTION_NAME, frees);
             count(transport, node, FetchContextService.KEEP_ALIVE_ACTION_NAME, keepAlives);
         }
     }
@@ -144,7 +143,7 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A {@code TopN} cut of one page sends one fetch request to each node with winners, which frees its contexts once it
-     * answered. The coordinator frees the contexts of the losers once the cut ended, with a request for each.
+     * answered. The coordinator frees the contexts of the losers once the cut ended, with one request for their node.
      */
     public void testATopNCut() throws Exception {
         List<List<Object>> rows = runQuery(randomCoordinator(), "FROM " + PREFIX + "* | SORT ts DESC | LIMIT 10 | KEEP ts, payload", 0);
@@ -152,7 +151,7 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         assertThat(rows, equalTo(newestWinners(10)));
         assertAllContextsFreed();
         assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1, otherWinnerNode, 1)));
-        assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
+        assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 1)));
         assertThat("keep-alives", counts(keepAlives), anEmptyMap());
     }
 
@@ -166,13 +165,13 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         assertThat(rows, equalTo(newestWinners(10)));
         assertAllContextsFreed();
         assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1, otherWinnerNode, 1)));
-        assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
+        assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 1)));
         assertThat("keep-alives", counts(keepAlives), anEmptyMap());
     }
 
     /**
      * Every winner sits on the coordinator, so the only fetch request stays on the coordinator, and frees its contexts.
-     * The node of the losers gets a free for each of its contexts.
+     * The node of the losers gets one free for its contexts.
      */
     public void testATopNCutWhoseWinnersAllSitOnTheCoordinator() throws Exception {
         String query = "FROM " + PREFIX + "winner_*," + PREFIX + "loser_* | SORT ts DESC | LIMIT 10 | KEEP ts, payload";
@@ -187,7 +186,7 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
         assertThat(rows, equalTo(expected));
         assertAllContextsFreed();
         assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1)));
-        assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 2)));
+        assertThat("frees", counts(frees), equalTo(Map.of(loserNode, 1)));
         assertThat("keep-alives", counts(keepAlives), anEmptyMap());
     }
 
@@ -217,7 +216,7 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
             Set.of(winnerNode, otherWinnerNode).containsAll(freeCounts.keySet())
         );
         for (int freesOfNode : freeCounts.values()) {
-            assertThat("frees of a node", freesOfNode, lessThanOrEqualTo(2));
+            assertThat("frees of a node", freesOfNode, lessThanOrEqualTo(1));
         }
         assertThat("keep-alives", counts(keepAlives), anEmptyMap());
     }

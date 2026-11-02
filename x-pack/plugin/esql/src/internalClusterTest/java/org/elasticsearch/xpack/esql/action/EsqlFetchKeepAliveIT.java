@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -162,7 +161,7 @@ public class EsqlFetchKeepAliveIT extends AbstractEsqlIntegTestCase {
         AtomicInteger lostFrees = new AtomicInteger();
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             ((MockTransportService) transportService).<TransportRequest>addRequestHandlingBehavior(
-                SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
+                FetchContextService.FREE_ACTION_NAME,
                 (handler, request, channel, task) -> {
                     lostFrees.incrementAndGet();
                     channel.sendResponse(new ElasticsearchException("the free got lost"));

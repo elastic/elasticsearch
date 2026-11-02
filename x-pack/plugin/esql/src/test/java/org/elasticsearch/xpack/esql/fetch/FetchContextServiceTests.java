@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * The keep-alive requests that a data node serves for the coordinators of the fetch phase.
+ * The keep-alive and free requests that a data node serves for the coordinators of the fetch phase.
  */
 public class FetchContextServiceTests extends FetchContextsTestCase {
     private static final String OTHER_INDEX = "fetch-contexts-other";
@@ -193,14 +193,9 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
      * The answer is the same whether the contexts exist or not, so it tells nobody which ones do.
      */
     public void testTheAnswerIsTheSameForContextsThatDontExist() throws Exception {
-        registerKeepAliveHandler();
         createIndexWithDocs(INDEX);
         List<ShardSearchContextId> open = respond(INDEX);
-        List<ShardSearchContextId> missing = new ArrayList<>();
-        for (ShardSearchContextId id : open) {
-            missing.add(new ShardSearchContextId(id.getSessionId(), id.getId() + 1000));
-        }
-        missing.add(new ShardSearchContextId("another-node", 1));
+        List<ShardSearchContextId> missing = missing(open);
 
         assertThat(sendKeepAlive(open), sameInstance(ActionResponse.Empty.INSTANCE));
         assertThat(sendKeepAlive(missing), sameInstance(ActionResponse.Empty.INSTANCE));
@@ -212,13 +207,126 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
      * pool could reject the request when it is busy, which is when slow queries need their contexts the most.
      */
     public void testKeepAlivesRunOffTheTransportThreads() {
-        registerKeepAliveHandler();
         TransportService transportService = getInstanceFromNode(TransportService.class);
 
         assertThat(
             transportService.getRequestHandler(FetchContextService.KEEP_ALIVE_ACTION_NAME).getExecutor(),
             sameInstance(getInstanceFromNode(ThreadPool.class).generic())
         );
+    }
+
+    /**
+     * One free request frees every context it names.
+     */
+    public void testAFreeFreesEveryContextItNames() throws Exception {
+        createIndexWithDocs(INDEX);
+        List<ShardSearchContextId> open = respond(INDEX);
+
+        service.serveFree(new FetchContextFreeRequest(QUERY_INDICES, open));
+
+        assertAllFreed();
+    }
+
+    /**
+     * The lookup ignores the searcher id, and the context of another searcher isn't the one the request names.
+     */
+    public void testAFreeSkipsAContextOfAnotherSearcher() throws Exception {
+        createIndexWithDocs(INDEX);
+        List<ShardSearchContextId> open = respond(INDEX);
+        ShardSearchContextId id = randomFrom(open);
+        ShardSearchContextId otherSearcher = new ShardSearchContextId(id.getSessionId(), id.getId(), "another-searcher");
+
+        service.serveFree(new FetchContextFreeRequest(QUERY_INDICES, List.of(otherSearcher)));
+
+        assertTrue(isOpen(id));
+        free(open);
+    }
+
+    /**
+     * A scroll or a point in time isn't a context of the fetch phase, so a free must not close it.
+     */
+    public void testAFreeSkipsAScrollOrAPointInTime() throws Exception {
+        createIndexWithDocs(INDEX);
+        ShardId shardId = new ShardId(resolveIndex(INDEX), 0);
+        PlainActionFuture<ShardSearchContextId> opened = new PlainActionFuture<>();
+        searchService().openReaderContext(shardId, TimeValue.timeValueMinutes(5), SplitShardCountSummary.IRRELEVANT, opened);
+        ShardSearchContextId pointInTime = opened.actionGet(TimeValue.timeValueSeconds(10));
+        try {
+            service.serveFree(new FetchContextFreeRequest(QUERY_INDICES, List.of(pointInTime)));
+
+            assertTrue("the point in time stays open", isOpen(pointInTime));
+        } finally {
+            searchService().freeReaderContext(pointInTime);
+        }
+        assertAllFreed();
+    }
+
+    /**
+     * A context of an index the request may not read stays open, and the other contexts of the request are freed.
+     */
+    public void testAFreeSkipsAContextOfAnIndexTheRequestMayNotRead() throws Exception {
+        createIndexWithDocs(INDEX);
+        createIndexWithDocs(OTHER_INDEX);
+        List<ShardSearchContextId> readable = respond(INDEX);
+        List<ShardSearchContextId> forbidden = respond(OTHER_INDEX);
+        List<ShardSearchContextId> both = new ArrayList<>(readable);
+        both.addAll(forbidden);
+        ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
+
+        try (var ignored = threadContext.stashContext()) {
+            IndicesAccessControl onlyIndex = new IndicesAccessControl(
+                true,
+                Map.of(INDEX, IndicesAccessControl.IndexAccessControl.ALLOW_ALL)
+            );
+            AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.set(threadContext, onlyIndex);
+            service.serveFree(new FetchContextFreeRequest(QUERY_INDICES, randomFrom(both, both.reversed())));
+        }
+
+        for (ShardSearchContextId id : readable) {
+            assertBusy(() -> assertFalse(isOpen(id)));
+        }
+        for (ShardSearchContextId id : forbidden) {
+            assertTrue("may not read " + id, isOpen(id));
+        }
+        free(forbidden);
+    }
+
+    /**
+     * The answer to a free is the same whether the contexts exist or not, so it tells nobody which ones do.
+     */
+    public void testTheAnswerToAFreeIsTheSameForContextsThatDontExist() throws Exception {
+        createIndexWithDocs(INDEX);
+        List<ShardSearchContextId> open = respond(INDEX);
+
+        assertThat(sendFree(missing(open)), sameInstance(ActionResponse.Empty.INSTANCE));
+        assertThat(sendFree(open), sameInstance(ActionResponse.Empty.INSTANCE));
+        assertAllFreed();
+    }
+
+    /**
+     * Freeing a context can close its reader, which must not happen on a transport thread. The search pool could reject
+     * the request when it is busy, which is when freeing contexts helps the most.
+     */
+    public void testFreesRunOffTheTransportThreads() {
+        TransportService transportService = getInstanceFromNode(TransportService.class);
+
+        assertThat(
+            transportService.getRequestHandler(FetchContextService.FREE_ACTION_NAME).getExecutor(),
+            sameInstance(getInstanceFromNode(ThreadPool.class).generic())
+        );
+    }
+
+    /**
+     * Ids of contexts that don't exist: those of the session of {@code open} that nothing registered, and one of another
+     * session.
+     */
+    private static List<ShardSearchContextId> missing(List<ShardSearchContextId> open) {
+        List<ShardSearchContextId> missing = new ArrayList<>();
+        for (ShardSearchContextId id : open) {
+            missing.add(new ShardSearchContextId(id.getSessionId(), id.getId() + 1000));
+        }
+        missing.add(new ShardSearchContextId("another-node", 1));
+        return missing;
     }
 
     private long keepAliveOf(ShardSearchContextId id) {
@@ -239,6 +347,21 @@ public class FetchContextServiceTests extends FetchContextsTestCase {
             localNode(),
             FetchContextService.KEEP_ALIVE_ACTION_NAME,
             new FetchContextKeepAliveRequest(QUERY_INDICES, ids, TimeValue.timeValueMinutes(5)),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(answered, in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+        );
+        return answered.actionGet(TimeValue.timeValueSeconds(10));
+    }
+
+    /**
+     * Sends a free for {@code ids} to this node, through its handler, and returns the answer.
+     */
+    private ActionResponse.Empty sendFree(List<ShardSearchContextId> ids) {
+        PlainActionFuture<ActionResponse.Empty> answered = new PlainActionFuture<>();
+        getInstanceFromNode(TransportService.class).sendRequest(
+            localNode(),
+            FetchContextService.FREE_ACTION_NAME,
+            new FetchContextFreeRequest(QUERY_INDICES, ids),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(answered, in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );

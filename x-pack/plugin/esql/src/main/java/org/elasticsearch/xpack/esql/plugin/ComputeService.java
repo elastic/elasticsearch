@@ -268,7 +268,7 @@ public class ComputeService {
         this.lookupFromIndexService = lookupFromIndexService;
         FetchContextService fetchContextService = new FetchContextService(
             searchService,
-            transportActionServices.searchTransportService(),
+            transportService,
             () -> transportActionServices.clusterService().state().nodes()
         );
         fetchContextService.registerTaskListener();

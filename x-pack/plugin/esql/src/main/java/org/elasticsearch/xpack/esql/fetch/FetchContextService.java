@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
@@ -29,7 +28,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -46,10 +45,11 @@ import java.util.function.Supplier;
  * The reader contexts of the fetch phase of ES|QL queries, on both sides.
  * <p>
  * On a data node, a request of the query phase opens a single-session reader context per shard, like the query phase of
- * {@code _search}, and keeps the ones whose rows leave the node. On a coordinator, it keeps one {@link FetchContextLease}
- * per running query, which refreshes the keep-alive of each context while the query may read it, and frees it with the
- * free action of {@code _search} once its execution no longer reads it, and at the latest when the query ends. It is the
- * {@link FetchContextTransport} of the leases, and reaches the nodes of the local cluster.
+ * {@code _search}, and keeps the ones whose rows leave the node. It serves the keep-alive and free requests of the
+ * coordinators. On a coordinator, it keeps one {@link FetchContextLease} per running query, which refreshes the keep-alive
+ * of each context while the query may read it, and frees it once its execution no longer reads it, and at the latest when
+ * the query ends. It is the {@link FetchContextTransport} of the leases, and reaches the nodes of the local cluster, with
+ * one request for the contexts of an execution on a node.
  */
 public final class FetchContextService implements FetchContextTransport {
     /**
@@ -58,19 +58,25 @@ public final class FetchContextService implements FetchContextTransport {
      */
     public static final String KEEP_ALIVE_ACTION_NAME = FetchService.FETCH_ACTION_NAME + "/keep_alive";
 
+    /**
+     * Frees fetch contexts. Its requests carry the index expressions of the query, so they are authorized like the fetch
+     * requests.
+     */
+    public static final String FREE_ACTION_NAME = FetchService.FETCH_ACTION_NAME + "/free";
+
     private static final Logger logger = LogManager.getLogger(FetchContextService.class);
 
     private final SearchService searchService;
-    private final SearchTransportService searchTransportService;
+    private final TransportService transportService;
     private final Supplier<DiscoveryNodes> nodes;
     private final Map<Long, FetchContextLease> leases = new ConcurrentHashMap<>();
 
     /**
      * @param nodes the nodes of the local cluster, as of now
      */
-    public FetchContextService(SearchService searchService, SearchTransportService searchTransportService, Supplier<DiscoveryNodes> nodes) {
+    public FetchContextService(SearchService searchService, TransportService transportService, Supplier<DiscoveryNodes> nodes) {
         this.searchService = searchService;
-        this.searchTransportService = searchTransportService;
+        this.transportService = transportService;
         this.nodes = nodes;
     }
 
@@ -78,16 +84,16 @@ public final class FetchContextService implements FetchContextTransport {
      * Closes the lease of a query when its task goes away, whichever action ran the query and however it ended.
      */
     public void registerTaskListener() {
-        transportService().getTaskManager().registerRemovedTaskListener(task -> closeLease(task.getId()));
+        transportService.getTaskManager().registerRemovedTaskListener(task -> closeLease(task.getId()));
     }
 
     /**
-     * Serves the keep-alive requests of the coordinators on the generic pool. Dropping a reference to a context can close
-     * its reader, which must not happen on a transport thread. The search pool could reject the request when it is busy,
-     * which is when slow queries need their contexts the most.
+     * Serves the keep-alive and free requests of the coordinators on the generic pool. Dropping a reference to a context
+     * can close its reader, which must not happen on a transport thread. The search pool could reject the request when it
+     * is busy, which is when slow queries need their contexts the most, and when freeing them helps the most.
      */
     public void registerHandlers() {
-        transportService().registerRequestHandler(
+        transportService.registerRequestHandler(
             KEEP_ALIVE_ACTION_NAME,
             generic(),
             FetchContextKeepAliveRequest::new,
@@ -96,6 +102,10 @@ public final class FetchContextService implements FetchContextTransport {
                 channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         );
+        transportService.registerRequestHandler(FREE_ACTION_NAME, generic(), FetchContextFreeRequest::new, (request, channel, task) -> {
+            serveFree(request);
+            channel.sendResponse(ActionResponse.Empty.INSTANCE);
+        });
     }
 
     /**
@@ -120,7 +130,7 @@ public final class FetchContextService implements FetchContextTransport {
         if (existing != null) {
             return existing;
         }
-        ThreadContext threadContext = transportService().getThreadPool().getThreadContext();
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         FetchContextLease created = new FetchContextLease(
             this,
             this,
@@ -152,7 +162,7 @@ public final class FetchContextService implements FetchContextTransport {
     }
 
     /**
-     * Frees each context with a request of the free action of {@code _search}.
+     * Frees the contexts with one request of {@link #FREE_ACTION_NAME}.
      */
     @Override
     public void free(FetchNode node, OriginalIndices indices, List<ShardSearchContextId> ids) {
@@ -160,24 +170,19 @@ public final class FetchContextService implements FetchContextTransport {
         if (target == null) {
             return;
         }
-        Transport.Connection connection;
-        try {
-            connection = transportService().getConnection(target);
-        } catch (Exception e) {
-            // the reaper frees the contexts once their keep-alive passes
-            logger.debug(() -> Strings.format("can't free [%s] fetch contexts on [%s]", ids.size(), target), e);
-            return;
-        }
-        for (ShardSearchContextId id : ids) {
-            searchTransportService.sendFreeContext(
-                connection,
-                id,
+        transportService.sendRequest(
+            target,
+            FREE_ACTION_NAME,
+            new FetchContextFreeRequest(indices, ids),
+            TransportRequestOptions.EMPTY,
+            TransportResponseHandler.empty(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 ActionListener.wrap(
-                    response -> {},
-                    e -> logger.debug(() -> Strings.format("failed to free fetch context [%s] on [%s]", id, target), e)
+                    ignored -> {},
+                    e -> logger.debug(() -> Strings.format("failed to free [%s] fetch contexts on [%s]", ids.size(), target), e)
                 )
-            );
-        }
+            )
+        );
     }
 
     /**
@@ -189,11 +194,10 @@ public final class FetchContextService implements FetchContextTransport {
         if (target == null) {
             return;
         }
-        FetchContextKeepAliveRequest request = new FetchContextKeepAliveRequest(indices, ids, keepAlive);
-        transportService().sendChildRequest(
+        transportService.sendChildRequest(
             target,
             KEEP_ALIVE_ACTION_NAME,
-            request,
+            new FetchContextKeepAliveRequest(indices, ids, keepAlive),
             rootTask,
             TransportRequestOptions.EMPTY,
             TransportResponseHandler.empty(
@@ -230,9 +234,9 @@ public final class FetchContextService implements FetchContextTransport {
      */
     @Nullable
     Scheduler.Cancellable scheduleRefresh(Runnable refresh, TimeValue interval) {
-        ThreadContext threadContext = transportService().getThreadPool().getThreadContext();
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-            return transportService().getThreadPool().scheduleWithFixedDelay(refresh, interval, generic());
+            return transportService.getThreadPool().scheduleWithFixedDelay(refresh, interval, generic());
         } catch (EsRejectedExecutionException e) {
             logger.debug("can't refresh fetch contexts", e);
             return null;
@@ -241,25 +245,57 @@ public final class FetchContextService implements FetchContextTransport {
 
     /**
      * Keeps every context of {@code request} open for at least the keep-alive of the request, from now. Skips a context
-     * that is gone, isn't a fetch context, or belongs to an index the request may not read: the fetch that needs it reports
-     * it. The response is the same either way, so it tells nobody which contexts exist.
+     * that {@link #fetchContext} doesn't find: the fetch that needs it reports it. The response is the same either way, so
+     * it tells nobody which contexts exist.
      */
     void serveKeepAlive(FetchContextKeepAliveRequest request) {
         assert Transports.assertNotTransportThread("dropping a reference to a fetch context can close its reader");
-        IndicesAccessControl accessControl = ShardAccess.of(transportService().getThreadPool().getThreadContext());
+        IndicesAccessControl accessControl = ShardAccess.of(transportService.getThreadPool().getThreadContext());
         for (ShardSearchContextId id : request.contextIds()) {
             try {
-                ReaderContext context = searchService.findReaderContext(id, request, null);
-                // the lookup ignores the searcher id, and a scroll or a point in time isn't a context of the fetch phase
-                if (context.id().equals(id) == false || context.singleSession() == false) {
-                    throw new SearchContextMissingException(id);
-                }
-                ShardAccess.check(accessControl, context.indexShard().shardId(), KEEP_ALIVE_ACTION_NAME);
-                context.markAsUsed(request.keepAlive().millis()).close();
+                fetchContext(id, request, accessControl, KEEP_ALIVE_ACTION_NAME).markAsUsed(request.keepAlive().millis()).close();
             } catch (SearchContextMissingException | ElasticsearchSecurityException e) {
                 logger.debug("can't keep fetch context [{}] alive: {}", id, e.getMessage());
             }
         }
+    }
+
+    /**
+     * Frees every context of {@code request}. Skips a context that {@link #fetchContext} doesn't find, which the reaper frees
+     * once its keep-alive passed if it exists. The response is the same either way, so it tells nobody which contexts exist.
+     */
+    void serveFree(FetchContextFreeRequest request) {
+        assert Transports.assertNotTransportThread("freeing a fetch context can close its reader");
+        IndicesAccessControl accessControl = ShardAccess.of(transportService.getThreadPool().getThreadContext());
+        for (ShardSearchContextId id : request.contextIds()) {
+            try {
+                searchService.freeReaderContext(fetchContext(id, request, accessControl, FREE_ACTION_NAME).id());
+            } catch (SearchContextMissingException | ElasticsearchSecurityException e) {
+                logger.debug("can't free fetch context [{}]: {}", id, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * The fetch context {@code id} that {@code request} may use.
+     *
+     * @throws SearchContextMissingException when the context is gone, has another searcher id, or is a scroll or a point in
+     *                                       time, which isn't a context of the fetch phase
+     * @throws ElasticsearchSecurityException when the request may not read the index of the context
+     */
+    private ReaderContext fetchContext(
+        ShardSearchContextId id,
+        TransportRequest request,
+        IndicesAccessControl accessControl,
+        String action
+    ) {
+        ReaderContext context = searchService.findReaderContext(id, request, null);
+        // the lookup ignores the searcher id
+        if (context.id().equals(id) == false || context.singleSession() == false) {
+            throw new SearchContextMissingException(id);
+        }
+        ShardAccess.check(accessControl, context.indexShard().shardId(), action);
+        return context;
     }
 
     SearchService searchService() {
@@ -267,10 +303,6 @@ public final class FetchContextService implements FetchContextTransport {
     }
 
     Executor generic() {
-        return transportService().getThreadPool().generic();
-    }
-
-    private TransportService transportService() {
-        return searchTransportService.transportService();
+        return transportService.getThreadPool().generic();
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.fetch;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -341,11 +340,9 @@ public class QueryFetchClientTests extends ComputeTestCase {
         // keep-alive of a test. A real one would need a node.
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
-        SearchTransportService searchTransport = mock(SearchTransportService.class);
-        when(searchTransport.transportService()).thenReturn(transportService);
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = new FetchContextLease(
-            new FetchContextService(null, searchTransport, () -> DiscoveryNodes.EMPTY_NODES),
+            new FetchContextService(null, transportService, () -> DiscoveryNodes.EMPTY_NODES),
             transport,
             rootTask,
             threadContext.newRestorableContext(false),

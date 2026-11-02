@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
@@ -74,9 +73,10 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
     public void createService() {
         service = new FetchContextService(
             searchService(),
-            getInstanceFromNode(SearchTransportService.class),
+            getInstanceFromNode(TransportService.class),
             () -> getInstanceFromNode(ClusterService.class).state().nodes()
         );
+        registerHandlers();
     }
 
     @After
@@ -163,10 +163,10 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
     }
 
     /**
-     * Serves keep-alive requests on this node, as the ES|QL plugin does on a real one. The node outlives a test, so the
-     * first test to need the handler registers it.
+     * Serves keep-alive and free requests on this node, as the ES|QL plugin does on a real one. The node outlives a test, so
+     * the first test registers them, with the same search service and transport as every later one.
      */
-    protected void registerKeepAliveHandler() {
+    private void registerHandlers() {
         if (getInstanceFromNode(TransportService.class).getRequestHandler(FetchContextService.KEEP_ALIVE_ACTION_NAME) == null) {
             service.registerHandlers();
         }

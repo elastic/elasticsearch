@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.fetch;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -76,18 +75,68 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * Each context goes in its own request, to the free action of {@code _search}.
+     * The contexts of a node go in one request, whatever their number.
      */
-    public void testFreesEachContextWithTheFreeActionOfSearch() throws Exception {
+    public void testFreesTheContextsOfANodeWithOneRequest() throws Exception {
         createIndexWithDocs(INDEX);
         CancellableTask task = rootTask();
         service.leaseFor(task).newExecution(QUERY_INDICES).add(localFetchNode(), respond(INDEX));
-        AtomicInteger freeRequests = countFreeRequests();
+        List<ReceivedFree> received = captureFrees();
 
         service.closeLease(task.getId());
 
         assertAllFreed();
-        assertThat(freeRequests.get(), equalTo(SHARDS));
+        assertThat(received, hasSize(1));
+        assertThat(received.getFirst().request().contextIds(), hasSize(SHARDS));
+    }
+
+    /**
+     * Each execution frees with the index expressions of its own query, so its request is authorized like its fetch.
+     */
+    public void testAFreeCarriesTheIndexExpressionsOfItsExecution() throws Exception {
+        createIndexWithDocs(INDEX);
+        List<ReceivedFree> received = captureFrees();
+        CancellableTask task = rootTask();
+        FetchContextLease lease = service.leaseFor(task);
+        OriginalIndices otherIndices = new OriginalIndices(new String[] { "fetch-*", "-fetch-old" }, IndicesOptions.lenientExpandOpen());
+        List<ShardSearchContextId> queryContexts = respond(INDEX);
+        lease.newExecution(QUERY_INDICES).add(localFetchNode(), queryContexts);
+        lease.newExecution(otherIndices).add(localFetchNode(), respond(INDEX));
+
+        lease.close();
+
+        assertAllFreed();
+        assertThat(received, hasSize(2));
+        for (ReceivedFree free : received) {
+            OriginalIndices expected = free.request().contextIds().containsAll(queryContexts) ? QUERY_INDICES : otherIndices;
+            assertThat(free.request().indices(), equalTo(expected.indices()));
+            assertThat(free.request().indicesOptions(), equalTo(expected.indicesOptions()));
+        }
+    }
+
+    /**
+     * An administrator can cancel the query of another user. The lease still frees its contexts as the user who ran the
+     * query, so the request is authorized for the indices of that user.
+     */
+    public void testAFreeRunsAsTheUserWhoRanTheQuery() throws Exception {
+        createIndexWithDocs(INDEX);
+        List<ReceivedFree> received = captureFrees();
+        Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
+        Authentication administrator = AuthenticationTestHelper.builder().user(new User("administrator")).build();
+        CancellableTask task = rootTask();
+        as(owner, () -> {
+            service.leaseFor(task).newExecution(QUERY_INDICES).add(localFetchNode(), respond(INDEX));
+            return null;
+        });
+
+        as(administrator, () -> {
+            TaskCancelHelper.cancel(task, "an administrator cancelled the query");
+            return null;
+        });
+
+        assertAllFreed();
+        assertThat(received, hasSize(1));
+        assertThat(received.getFirst().authentication(), equalTo(owner.encode()));
     }
 
     /**
@@ -120,7 +169,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
 
         execution.cutEnded(read);
 
-        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS - read.size())));
+        assertBusy(() -> assertThat("one request for the node", freeRequests.get(), equalTo(1)));
         for (ShardSearchContextId id : open) {
             assertBusy(() -> assertThat(isOpen(id), equalTo(read.contains(id))));
         }
@@ -142,7 +191,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
 
         execution.add(localFetchNode(), open);
 
-        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS - read.size())));
+        assertBusy(() -> assertThat("one request for the node", freeRequests.get(), equalTo(1)));
         for (ShardSearchContextId id : open) {
             assertBusy(() -> assertThat(isOpen(id), equalTo(read.contains(id))));
         }
@@ -182,13 +231,17 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
         execution.add(localFetchNode(), open);
         List<ShardSearchContextId> freedByTheNode = randomSubsetOf(between(1, SHARDS), open);
         freedByTheNode.forEach(id -> searchService().freeReaderContext(id));
-        AtomicInteger freeRequests = countFreeRequests();
+        List<ReceivedFree> received = captureFrees();
 
         execution.freedByTheirNode(localFetchNode(), freedByTheNode);
         execution.fetchEnded();
 
         assertAllFreed();
-        assertThat(freeRequests.get(), equalTo(SHARDS - freedByTheNode.size()));
+        Set<ShardSearchContextId> freedByTheLease = new HashSet<>();
+        received.forEach(free -> freedByTheLease.addAll(free.request().contextIds()));
+        Set<ShardSearchContextId> stillHeld = new HashSet<>(open);
+        freedByTheNode.forEach(stillHeld::remove);
+        assertThat(freedByTheLease, equalTo(stillHeld));
         service.closeLease(task.getId());
     }
 
@@ -502,28 +555,6 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * An administrator can cancel the query of another user. The lease still frees the contexts, as the user who ran the
-     * query.
-     */
-    public void testCancelledByAnotherUserFreesTheContexts() throws Exception {
-        createIndexWithDocs(INDEX);
-        Authentication owner = AuthenticationTestHelper.builder().user(new User("owner")).build();
-        Authentication administrator = AuthenticationTestHelper.builder().user(new User("administrator")).build();
-        CancellableTask task = rootTask();
-        as(owner, () -> {
-            service.leaseFor(task).newExecution(QUERY_INDICES).add(localFetchNode(), respond(INDEX));
-            return null;
-        });
-
-        as(administrator, () -> {
-            TaskCancelHelper.cancel(task, "an administrator cancelled the query");
-            return null;
-        });
-
-        assertAllFreed();
-    }
-
-    /**
      * The lease keeps the contexts of each node apart by the cluster and the id of the node, so a node of another cluster
      * with the same id is another node. It frees them through its transport, with one request per execution and node.
      */
@@ -638,7 +669,7 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
 
         AtomicInteger freeRequests = countFreeRequests();
         service.free(localFetchNode(), QUERY_INDICES, open);
-        assertBusy(() -> assertThat(freeRequests.get(), equalTo(SHARDS)));
+        assertBusy(() -> assertThat(freeRequests.get(), equalTo(1)));
         assertAllFreed();
     }
 
@@ -677,7 +708,6 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
      * The keep-alive requests that this node receives from now on. It serves them as usual.
      */
     private List<ReceivedKeepAlive> captureKeepAlives() {
-        registerKeepAliveHandler();
         List<ReceivedKeepAlive> received = new CopyOnWriteArrayList<>();
         ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
         ((MockTransportService) getInstanceFromNode(TransportService.class)).<FetchContextKeepAliveRequest>addRequestHandlingBehavior(
@@ -693,22 +723,45 @@ public class FetchContextLeaseTests extends FetchContextsTestCase {
     }
 
     /**
-     * Answers every request of the free action of {@code _search} with a failure, and frees nothing.
+     * A free request this node received, and the user it came as.
+     *
+     * @param authentication the encoded authentication header of the request, {@code null} without one
+     */
+    private record ReceivedFree(FetchContextFreeRequest request, @Nullable String authentication) {}
+
+    /**
+     * The free requests that this node receives from now on. It serves them as usual.
+     */
+    private List<ReceivedFree> captureFrees() {
+        List<ReceivedFree> received = new CopyOnWriteArrayList<>();
+        ThreadContext threadContext = getInstanceFromNode(ThreadPool.class).getThreadContext();
+        ((MockTransportService) getInstanceFromNode(TransportService.class)).<FetchContextFreeRequest>addRequestHandlingBehavior(
+            FetchContextService.FREE_ACTION_NAME,
+            (handler, request, channel, task) -> {
+                received.add(new ReceivedFree(request, threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY)));
+                handler.messageReceived(request, channel, task);
+            }
+        );
+        return received;
+    }
+
+    /**
+     * Answers every free request with a failure, and frees nothing.
      */
     private void loseFreeRequests() {
         ((MockTransportService) getInstanceFromNode(TransportService.class)).<TransportRequest>addRequestHandlingBehavior(
-            SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
+            FetchContextService.FREE_ACTION_NAME,
             (handler, request, channel, task) -> channel.sendResponse(new ElasticsearchException("the free got lost"))
         );
     }
 
     /**
-     * Counts the requests of the free action of {@code _search} that this node receives from now on.
+     * Counts the free requests that this node receives from now on.
      */
     private AtomicInteger countFreeRequests() {
         AtomicInteger freeRequests = new AtomicInteger();
         ((MockTransportService) getInstanceFromNode(TransportService.class)).<TransportRequest>addRequestHandlingBehavior(
-            SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME,
+            FetchContextService.FREE_ACTION_NAME,
             (handler, request, channel, task) -> {
                 freeRequests.incrementAndGet();
                 handler.messageReceived(request, channel, task);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -661,7 +660,6 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
         TransportActionServices transport = new TransportActionServices(
             transportService,
             null,
-            new SearchTransportService(transportService, null, null),
             exchangeService,
             clusterService,
             null,

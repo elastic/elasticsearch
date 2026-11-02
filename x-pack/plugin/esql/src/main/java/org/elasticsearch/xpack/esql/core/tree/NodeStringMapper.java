@@ -54,6 +54,15 @@ public interface NodeStringMapper {
      */
     String opaque(String text);
 
+    /**
+     * Map an external storage location string — typically the object name (last path segment) of
+     * a dataset path. Returns the text verbatim under {@link #IDENTITY}; an anonymizing mapper
+     * returns a redaction marker to prevent any path component from appearing in anonymized plan
+     * strings. Separate from {@link #opaque} to give implementations fine-grained control over
+     * whether location identifiers should be treated differently from other opaque fragments.
+     */
+    String location(String text);
+
     /** Pass-through. The default for raw rendering. */
     NodeStringMapper IDENTITY = new NodeStringMapper() {
         @Override
@@ -86,6 +95,11 @@ public interface NodeStringMapper {
 
         @Override
         public String opaque(String text) {
+            return text;
+        }
+
+        @Override
+        public String location(String text) {
             return text;
         }
     };

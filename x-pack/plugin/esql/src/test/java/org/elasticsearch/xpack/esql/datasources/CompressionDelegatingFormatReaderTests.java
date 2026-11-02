@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -294,7 +295,7 @@ public class CompressionDelegatingFormatReaderTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class BytesStorageObject implements StorageObject {
+    private static class BytesStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final StoragePath path;
 

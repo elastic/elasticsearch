@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.BufferingPageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
@@ -865,11 +866,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                 RestStatus.BAD_REQUEST,
                 ExceptionsHelper.status(ex)
             );
-            assertThat(
-                "the original IOException must remain reachable as the cause",
-                ex.getCause(),
-                Matchers.instanceOf(IOException.class)
-            );
+            assertNull("the IOException is logged, not chained, so storage locations in it cannot leak", ex.getCause());
             assertThat("the injected detail must survive end-to-end", ex.getMessage(), Matchers.containsString("injected"));
         } finally {
             exec.shutdown();
@@ -2255,7 +2252,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         public void close() {}
     }
 
-    private static class InMemoryStorageObject implements StorageObject {
+    private static class InMemoryStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
 
         InMemoryStorageObject(byte[] data) {
@@ -2300,7 +2297,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * lingers a few ms so overlapping threads coincide -- a plain delay, not a barrier, so it cannot
      * deadlock. The whole-file {@code newStream()} overload is not counted (segment workers never use it).
      */
-    private static class StreamCountingStorageObject implements StorageObject {
+    private static class StreamCountingStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final AtomicInteger open = new AtomicInteger();
         private final AtomicInteger peak = new AtomicInteger();

@@ -16,12 +16,16 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalServerException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class ExternalFailuresTests extends ESTestCase {
 
@@ -33,16 +37,22 @@ public class ExternalFailuresTests extends ESTestCase {
 
     public void testExternalExceptionsPassThroughWithTheirStatus() {
         var client = new ExternalClientException("bad file", new IOException("truncated"));
-        assertSame(client, ExternalFailures.classify(client));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(client)));
+        assertDetached(client, ExternalFailures.classify(client), RestStatus.BAD_REQUEST);
 
         var server = new ExternalServerException("invariant violated", new IllegalStateException());
-        assertSame(server, ExternalFailures.classify(server));
-        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(ExternalFailures.classify(server)));
+        assertDetached(server, ExternalFailures.classify(server), RestStatus.INTERNAL_SERVER_ERROR);
 
         var unavailable = new ExternalUnavailableException("store 503", new IOException());
-        assertSame(unavailable, ExternalFailures.classify(unavailable));
-        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ExceptionsHelper.status(ExternalFailures.classify(unavailable)));
+        assertDetached(unavailable, ExternalFailures.classify(unavailable), RestStatus.SERVICE_UNAVAILABLE);
+    }
+
+    /** classify returns a new copy of an ExternalException: same type, status and message, but no cause. */
+    private static void assertDetached(ExternalException original, RuntimeException classified, RestStatus status) {
+        assertNotSame(original, classified);
+        assertSame(original.getClass(), classified.getClass());
+        assertEquals(status, ExceptionsHelper.status(classified));
+        assertEquals(original.getMessage(), classified.getMessage());
+        assertNull(classified.getCause());
     }
 
     public void testCircuitBreakingAndCancellationKeepTheirStatus() {
@@ -80,8 +90,18 @@ public class ExternalFailuresTests extends ESTestCase {
 
     public void testIllegalArgumentExceptionKeptAs400() {
         var iae = new IllegalArgumentException("bad arg");
-        assertSame(iae, ExternalFailures.classify(iae));
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(ExternalFailures.classify(iae)));
+        RuntimeException classified = ExternalFailures.classify(iae);
+        assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertEquals("Malformed external data: bad arg", classified.getMessage());
+        assertNull(classified.getCause());
+        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+
+        var located = new IllegalArgumentException("cannot parse s3://bucket/key.csv");
+        RuntimeException locatedClassified = ExternalFailures.classify(located);
+        assertThat(locatedClassified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
+        assertThat(locatedClassified.getMessage(), org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("bucket")));
+        assertThat(locatedClassified.getMessage(), org.hamcrest.Matchers.containsString("IllegalArgumentException"));
+        assertNull(locatedClassified.getCause());
     }
 
     public void testIoErrorsBecomeClientException() {
@@ -91,7 +111,8 @@ public class ExternalFailuresTests extends ESTestCase {
             new UncheckedIOException(new IOException("wrapped")) }) {
             RuntimeException classified = ExternalFailures.classify(io);
             assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
-            assertSame(io, classified.getCause());
+            assertNull(classified.getCause());
+            assertThat(classified.getMessage(), org.hamcrest.Matchers.startsWith("Failed to read external source: "));
             assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
         }
     }
@@ -116,7 +137,8 @@ public class ExternalFailuresTests extends ESTestCase {
             new Exception("checked, non-IO") }) {
             RuntimeException classified = ExternalFailures.classify(bug);
             assertThat(classified, org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
-            assertSame(bug, classified.getCause());
+            assertNull(classified.getCause());
+            assertThat(classified.getMessage(), org.hamcrest.Matchers.startsWith("Unexpected failure reading external source: "));
             assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
         }
     }
@@ -159,7 +181,7 @@ public class ExternalFailuresTests extends ESTestCase {
         IOException ioe = new IOException("record exceeded max_record_size");
         RuntimeException surfaced = ExternalFailures.surface(ioe, "Streaming parallel parsing failed");
         assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
-        assertSame(ioe, surfaced.getCause());
+        assertNull(surfaced.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Streaming parallel parsing failed"));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("record exceeded max_record_size"));
@@ -172,7 +194,7 @@ public class ExternalFailuresTests extends ESTestCase {
         UncheckedIOException uioe = new UncheckedIOException("wrapped", cause);
         RuntimeException surfaced = ExternalFailures.surface(uioe, "Failed to read CSV batch");
         assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalClientException.class));
-        assertSame(uioe, surfaced.getCause());
+        assertNull(surfaced.getCause());
         assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(surfaced));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Failed to read CSV batch"));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("wrapped"));
@@ -191,8 +213,7 @@ public class ExternalFailuresTests extends ESTestCase {
         InterruptedException interrupted = new InterruptedException("worker interrupted");
         RuntimeException surfaced = ExternalFailures.surface(interrupted, "Parallel parsing failed");
         RuntimeException classified = ExternalFailures.classify(surfaced);
-        assertSame(surfaced, classified);
-        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(classified));
+        assertDetached((ExternalException) surfaced, classified, RestStatus.INTERNAL_SERVER_ERROR);
     }
 
     public void testSurfaceWrapsCheckedNonIoAsExternalServer() {
@@ -201,7 +222,7 @@ public class ExternalFailuresTests extends ESTestCase {
         InterruptedException interrupted = new InterruptedException("worker interrupted");
         RuntimeException surfaced = ExternalFailures.surface(interrupted, "Parallel parsing failed");
         assertThat(surfaced, org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
-        assertSame(interrupted, surfaced.getCause());
+        assertNull(surfaced.getCause());
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, ExceptionsHelper.status(surfaced));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("Parallel parsing failed"));
         assertThat(surfaced.getMessage(), org.hamcrest.Matchers.containsString("worker interrupted"));
@@ -224,7 +245,68 @@ public class ExternalFailuresTests extends ESTestCase {
         IOException ioe = new IOException("truncated");
         RuntimeException surfaced = ExternalFailures.surface(ioe, "Failed to read NDJSON page");
         RuntimeException classified = ExternalFailures.classify(surfaced);
-        assertSame("classify must pass an already-typed surface() result through unchanged", surfaced, classified);
-        assertEquals(RestStatus.BAD_REQUEST, ExceptionsHelper.status(classified));
+        assertDetached((ExternalException) surfaced, classified, RestStatus.BAD_REQUEST);
+    }
+
+    public void testDetachCopiesAndKeepsOnlyExternalSuppressed() {
+        var original = new ExternalClientException("bad file", new IOException("s3://bucket/key"));
+        original.addSuppressed(new ExternalServerException("kept"));
+        original.addSuppressed(new IOException("dropped"));
+        ExternalException detached = ExternalFailures.detach(original);
+        assertNotSame(original, detached);
+        assertNull(detached.getCause());
+        assertEquals("bad file", detached.getMessage());
+        assertEquals(1, detached.getSuppressed().length);
+        assertThat(detached.getSuppressed()[0], org.hamcrest.Matchers.instanceOf(ExternalServerException.class));
+        assertEquals("kept", detached.getSuppressed()[0].getMessage());
+    }
+
+    public void testWithoutCausePreservesThrottlingAndRetryAfter() {
+        var unavailable = new ExternalUnavailableException(true, 1500L, new IOException("cause"), "slow down");
+        ExternalUnavailableException copy = unavailable.withoutCause();
+        assertNotSame(unavailable, copy);
+        assertNull(copy.getCause());
+        assertTrue(copy.throttling());
+        assertEquals(1500L, copy.retryAfterMs());
+        assertEquals("slow down", copy.getMessage());
+    }
+
+    public void testSafeForUserMessage() {
+        assertFalse(ExternalFailures.safeForUserMessage("failed s3://bucket/key.csv"));
+        assertFalse(ExternalFailures.safeForUserMessage("failed https://example.com/key.csv"));
+        assertFalse(ExternalFailures.safeForUserMessage("bucket.s3.amazonaws.com: Name or service not known"));
+        assertFalse(ExternalFailures.safeForUserMessage("cannot open /data/x.csv"));
+        assertTrue(ExternalFailures.safeForUserMessage("column [id] missing"));
+    }
+
+    public void testBuriedCancellationAndBreakerTripSurviveClassify() {
+        TaskCancelledException cancelled = new TaskCancelledException("cancelled");
+        assertSame(cancelled, ExternalFailures.classify(new IOException("read failed", cancelled)));
+        assertSame(cancelled, ExternalFailures.surface(new UncheckedIOException(new IOException("read failed", cancelled)), "ctx"));
+        CircuitBreakingException tripped = new CircuitBreakingException("too big", CircuitBreaker.Durability.TRANSIENT);
+        assertSame(tripped, ExternalFailures.classify(new IllegalStateException("wrapped", tripped)));
+    }
+
+    public void testNetworkFailuresNamingAnEndpointAreNotForwarded() {
+        RuntimeException result = ExternalFailures.classify(
+            new IOException("Unable to resolve host minio.internal", new java.net.UnknownHostException("minio.internal"))
+        );
+        assertThat(result.getMessage(), not(containsString("minio.internal")));
+        result = ExternalFailures.classify(new java.net.ConnectException("Connect to minio.internal:9000 failed"));
+        assertThat(result.getMessage(), not(containsString("minio.internal")));
+    }
+
+    public void testValidationReasonKeepsAValidatorMessageWithTheUriRedacted() {
+        IllegalArgumentException validator = new IllegalArgumentException("endpoint [http://minio.internal:9000/x] must use https");
+        String reason = ExternalFailures.validationReason(
+            new IllegalArgumentException("Failed to resolve metadata for [f.csv]", validator)
+        );
+        assertEquals("endpoint [<location>] must use https", reason);
+        // A storage failure is not a validator: its message is never taken, even when it looks harmless.
+        assertEquals(
+            "wrapper",
+            ExternalFailures.validationReason(new IllegalArgumentException("wrapper", new IOException("connection reset")))
+        );
+        assertNull(ExternalFailures.validationReason(new RuntimeException("wrapper", new IOException("connection reset"))));
     }
 }

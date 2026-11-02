@@ -167,19 +167,11 @@ public class ExternalParquetCountPushdownIT extends AbstractExternalDataSourceIT
             var request = syncEsqlQueryRequest(query);
 
             Exception e = expectThrows(Exception.class, () -> { run(request).close(); });
-            // The validator's IllegalArgumentException is wrapped on the way up
-            // (DatasetRewriter → resolveSingleSource → ExternalSourceResolver). Walk the cause chain to find it.
-            Throwable validatorIae = null;
-            for (Throwable t = e; t != null; t = t.getCause()) {
-                if (t instanceof IllegalArgumentException
-                    && t.getMessage() != null
-                    && t.getMessage().contains("obviously_not_a_real_key")) {
-                    validatorIae = t;
-                    break;
-                }
-            }
-            assertNotNull("expected validator IAE mentioning 'obviously_not_a_real_key' in cause chain of: " + e, validatorIae);
-            assertThat(validatorIae.getMessage(), containsString("unknown option"));
+            // The validator's IllegalArgumentException is wrapped on the way up (DatasetRewriter → resolveSingleSource →
+            // ExternalSourceResolver), which logs the cause chain instead of forwarding it (a storage-client cause can name
+            // the bucket). The validator's message is location-free, so it must survive in the surfaced message.
+            assertThat(e.getMessage(), containsString("obviously_not_a_real_key"));
+            assertThat(e.getMessage(), containsString("unknown option"));
         } finally {
             Files.deleteIfExists(parquetFile);
         }

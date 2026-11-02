@@ -143,10 +143,7 @@ public class DataNodeRequestDatasetRebindIT extends AbstractExternalDataSourceIT
             } catch (Exception e) {
                 failure = ExceptionsHelper.unwrapCause(e).getMessage();
             }
-            assertThat(
-                failure,
-                containsString("external dataset [" + dataset + "] does not cover split [" + StoragePath.fileUri(outside) + "]")
-            );
+            assertThat(failure, containsString("external dataset [" + dataset + "] does not cover split [" + outside.getFileName() + "]"));
         } finally {
             exchange.finishSinkHandler(sessionId, null);
         }

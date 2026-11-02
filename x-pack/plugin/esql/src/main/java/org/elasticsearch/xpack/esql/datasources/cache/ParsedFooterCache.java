@@ -22,7 +22,7 @@ import java.util.concurrent.ExecutionException;
  * JVM-wide cache for parsed file metadata (e.g. Parquet {@code ParquetMetadata}, ORC
  * {@code OrcTail}). Sits at the same architectural layer as {@link FooterByteCache} but stores
  * the result of the format-specific footer parse rather than its raw bytes, so the (typically
- * Thrift/protobuf) deserialization runs at most once per {@code (path, fileLength)} key across:
+ * Thrift/protobuf) deserialization runs at most once per {@code (storageIdentity, path, fileLength)} key across:
  * <ul>
  *   <li>concurrent splits of the same file taken by N producer threads;</li>
  *   <li>back-to-back queries against the same file within the access TTL.</li>
@@ -37,7 +37,7 @@ import java.util.concurrent.ExecutionException;
  * are not full-footer parses, and because format readers fall back to byte reads on a cold cache.
  *
  * <h2>Sharing keys with {@link FooterByteCache}</h2>
- * The cache is keyed by {@link FooterByteCache.Key} ({@code (path, fileLength)}) so that the same
+ * The cache is keyed by {@link FooterByteCache.Key} ({@code (storageIdentity, path, fileLength)}) so that the same
  * key construction logic used to hit the byte cache also hits this cache; both caches stay aligned
  * without an extra key type. Per-format singletons (one for Parquet, one for ORC, etc.) keep the
  * value type concrete and the cache's ownership unambiguous.
@@ -154,7 +154,7 @@ public final class ParsedFooterCache<T> {
      * @return the original cause (or the {@code ExecutionException} itself if the cause is null),
      *         for the caller to either rethrow or wrap
      * @throws IOException             if the cause is an {@link IOException}
-     * @throws CircuitBreakingException if the cause is a {@link CircuitBreakingException}
+     * @throws CircuitBreakingException a new copy, per caller, if the cause is a {@link CircuitBreakingException}
      * @throws ElasticsearchException  if the cause is an {@link ElasticsearchException}
      */
     public static Throwable rethrowStructural(ExecutionException e) throws IOException {
@@ -164,11 +164,31 @@ public final class ParsedFooterCache<T> {
             throw io;
         }
         if (cause instanceof CircuitBreakingException cbe) {
-            throw cbe;
+            throw copyOf(cbe);
         }
         if (cause instanceof ElasticsearchException ese) {
             throw ese;
         }
         return cause != null ? cause : e;
+    }
+
+    /**
+     * Every waiter on a failed load receives the loader's own exception. A breaker trip is the failure most likely to
+     * arrive in many splits at once, and splits suppress failures onto one another, so each caller gets its own copy
+     * rather than one instance live in dozens of exception graphs. The copy keeps the shared exception's cause but not
+     * its suppressed failures.
+     */
+    private static CircuitBreakingException copyOf(CircuitBreakingException shared) {
+        CircuitBreakingException copy = new CircuitBreakingException(
+            shared.getMessage(),
+            shared.getBytesWanted(),
+            shared.getByteLimit(),
+            shared.getDurability()
+        );
+        if (shared.getCause() != null) {
+            copy.initCause(shared.getCause());
+        }
+        copy.setStackTrace(shared.getStackTrace());
+        return copy;
     }
 }

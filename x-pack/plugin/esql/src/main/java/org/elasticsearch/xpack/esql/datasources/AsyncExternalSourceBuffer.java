@@ -455,7 +455,9 @@ public final class AsyncExternalSourceBuffer {
      * surfaces the failure via {@link org.elasticsearch.compute.operator.SourceOperator#getOutput()}.
      */
     public void onFailure(Throwable t) {
-        this.failure = t;
+        // Classified here, once, so the stored failure is detached from storage-client causes (which name the bucket and
+        // key): it is serialised into the operator status and rethrown to the coordinator. An Error stays fatal.
+        this.failure = t instanceof Error ? t : ExternalFailures.classify(t);
         noMoreInputs.set(true);
         notifyNotEmpty();
         notifyNotFull();

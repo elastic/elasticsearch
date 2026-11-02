@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -233,6 +234,11 @@ public class ParquetRsFormatReaderTests extends ESTestCase {
     private static StorageObject localFileStorageObject(Path path) {
         String uriString = path.toUri().toString();
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return StorageIdentity.unique();
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return Files.newInputStream(path);

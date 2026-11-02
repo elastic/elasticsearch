@@ -113,7 +113,8 @@ public class FlightSplitTests extends ESTestCase {
         FlightSplit split = new FlightSplit(new byte[] { 1, 2, 3 }, "grpc://host:1234", 5000);
         String str = split.toString();
         assertTrue(str.contains("3B"));
-        assertTrue(str.contains("grpc://host:1234"));
+        assertFalse(str.contains("grpc://host:1234"));
+        assertFalse(str.contains("host"));
         assertTrue(str.contains("5000"));
     }
 }

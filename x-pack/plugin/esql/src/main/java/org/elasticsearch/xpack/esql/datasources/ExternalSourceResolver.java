@@ -521,7 +521,8 @@ public class ExternalSourceResolver {
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
      */
-    private RuntimeException mapResolveFailure(String path, Exception e) {
+    private RuntimeException mapResolveFailure(String path, Exception failure) {
+        Exception e = peelWrappers(failure);
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
             return tce;
@@ -540,12 +541,12 @@ public class ExternalSourceResolver {
         if (unavailable != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            // The cause is logged above, not chained: storage-client causes name the bucket and key.
             return new ExternalUnavailableException(
                 unavailable.throttling(),
-                unavailable,
                 "Failed to resolve external source [{}]: {}",
-                path,
-                unavailable.getMessage()
+                StoragePath.objectName(path),
+                ExternalFailures.safeDetail(unavailable)
             );
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
@@ -560,20 +561,63 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
-                String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, rejected.getMessage())
+                String.format(
+                    Locale.ROOT,
+                    "Failed to resolve external source [%s]: %s",
+                    StoragePath.objectName(path),
+                    ExternalFailures.safeDetail(rejected)
+                )
             );
-            wrapped.initCause(rejected);
             return wrapped;
         }
         if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
             recordDiscoveryFailure();
             LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return (RuntimeException) e;
+            // Rebuilt without the cause chain (which can name the bucket and key); the message is kept only if it names
+            // no location. The type, and so the HTTP status, is unchanged.
+            String message = e.getMessage() != null && ExternalFailures.safeForUserMessage(e.getMessage())
+                ? e.getMessage()
+                : "Failed to resolve external source [" + StoragePath.objectName(path) + "]";
+            // The reason (a validator's, or a storage failure's when it names no location) lives in the dropped cause chain.
+            String reason = ExternalFailures.failureReason(e);
+            if (reason != null && message.contains(reason) == false) {
+                message = message + ": " + reason;
+            }
+            return e instanceof IllegalArgumentException
+                ? new IllegalArgumentException(message)
+                : new UnsupportedOperationException(message);
         }
         recordDiscoveryFailure();
         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-        String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-        return new ElasticsearchException(String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, detail), e);
+        String reason = ExternalFailures.failureReason(e);
+        return new ElasticsearchException(
+            String.format(
+                Locale.ROOT,
+                "Failed to resolve external source [%s]: %s",
+                StoragePath.objectName(path),
+                reason != null ? reason : ExternalFailures.safeDetail(e)
+            )
+        );
+    }
+
+    /**
+     * Strips the plain wrappers a failure picks up on its way here (a bare {@code RuntimeException} around a cause, a
+     * {@code CompletionException} or {@code ExecutionException} from the schema cache) so the branches of
+     * {@link #mapResolveFailure} see the failure's own type instead of the wrapper's.
+     */
+    private static Exception peelWrappers(Exception e) {
+        Exception current = e;
+        for (int depth = 0; depth < 12; depth++) {
+            boolean wrapper = current.getClass() == RuntimeException.class
+                || current instanceof java.util.concurrent.ExecutionException
+                || current instanceof java.util.concurrent.CompletionException;
+            if (wrapper && current.getCause() instanceof Exception cause && cause != current) {
+                current = cause;
+            } else {
+                break;
+            }
+        }
+        return current;
     }
 
     private void resolveSource(
@@ -717,7 +761,7 @@ public class ExternalSourceResolver {
                 FileList raw = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
                 recordDiscovery(raw, discoveryStartNanos, storagePath.scheme());
                 if (raw.fileCount() == 0) {
-                    throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+                    throw new IllegalArgumentException("Glob pattern matched no files");
                 }
                 resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable, listener);
                 return;
@@ -733,7 +777,7 @@ public class ExternalSourceResolver {
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
 
             if (listing.fileCount() == 0) {
-                throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+                throw new IllegalArgumentException("Glob pattern matched no files");
             }
 
             int anchor = 0;
@@ -1985,12 +2029,12 @@ public class ExternalSourceResolver {
             }
         }
         if (lastFailure != null) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure);
+            throw new IllegalArgumentException("Failed to resolve metadata for [" + StoragePath.objectName(path) + "]", lastFailure);
         }
         var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
         throw new UnsupportedOperationException(
             "No handler found for source at path ["
-                + path
+                + StoragePath.objectName(path)
                 + "]. "
                 + "Please ensure the appropriate data source plugin is installed. "
                 + "Known handlers: ["
@@ -2055,14 +2099,16 @@ public class ExternalSourceResolver {
     ) {
         if (index >= candidates.size()) {
             if (lastFailure != null) {
-                listener.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure));
+                listener.onFailure(
+                    new IllegalArgumentException("Failed to resolve metadata for [" + StoragePath.objectName(path) + "]", lastFailure)
+                );
                 return;
             }
             var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
             listener.onFailure(
                 new UnsupportedOperationException(
                     "No handler found for source at path ["
-                        + path
+                        + StoragePath.objectName(path)
                         + "]. "
                         + "Please ensure the appropriate data source plugin is installed. "
                         + "Known handlers: ["
@@ -2544,7 +2590,7 @@ public class ExternalSourceResolver {
         }
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         if (listing.fileCount() == 0) {
-            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+            throw new IllegalArgumentException("Glob pattern matched no files");
         }
 
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the

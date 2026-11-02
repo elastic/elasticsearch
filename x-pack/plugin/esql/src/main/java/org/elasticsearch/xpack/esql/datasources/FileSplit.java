@@ -486,6 +486,6 @@ public class FileSplit implements ExternalSplit {
 
     @Override
     public String toString() {
-        return "FileSplit[" + path + ", offset=" + offset + ", length=" + length + ", partitions=" + partitionValues + "]";
+        return "FileSplit[" + path.objectName() + ", offset=" + offset + ", length=" + length + ", partitions=" + partitionValues + "]";
     }
 }

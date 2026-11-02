@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -139,7 +138,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             pages = formatReader.rowPositionStrategy().apply(pages, SyntheticColumns.rowPositionIndexInNames(projectedColumns));
             return new ExternalSourceOperator(pages, path);
         } catch (Exception e) {
-            throw new ElasticsearchException("Failed to create external source operator for [" + path + "]", e);
+            throw ExternalFailures.wrapWithoutCause("Failed to create external source operator for [" + path.objectName() + "]", e);
         }
     }
 
@@ -151,7 +150,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
             + ", format="
             + formatReader.formatName()
             + ", path="
-            + path
+            + path.objectName()
             + ", batchSize="
             + batchSize
             + "]";
@@ -179,7 +178,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 return pages.next();
             } catch (Exception e) {
                 finished = true;
-                throw new ElasticsearchException("Error reading from external source [" + path + "]", e);
+                throw ExternalFailures.wrapWithoutCause("Error reading from external source [" + path.objectName() + "]", e);
             }
         }
 
@@ -281,8 +280,8 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                 }
             } catch (Exception e) {
                 finished = true;
-                String loc = currentSplitPath != null ? currentSplitPath.toString() : "unknown";
-                throw new ElasticsearchException("Error reading from external source split [" + loc + "]", e);
+                String loc = currentSplitPath != null ? currentSplitPath.objectName() : "unknown";
+                throw ExternalFailures.wrapWithoutCause("Error reading from external source split [" + loc + "]", e);
             }
         }
 

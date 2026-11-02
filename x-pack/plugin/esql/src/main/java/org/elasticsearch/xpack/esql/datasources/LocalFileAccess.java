@@ -124,7 +124,7 @@ public class LocalFileAccess {
         String localPath = path.isPattern() ? path.patternPrefix().localPath() : path.localPath();
         Path resolved = PathUtils.get(allowedRoots, localPath);
         if (resolved == null) {
-            throw new IllegalArgumentException(PATH_OUTSIDE_ALLOWLIST_PREFIX + path);
+            throw new IllegalArgumentException(PATH_OUTSIDE_ALLOWLIST_PREFIX + path.objectName());
         }
     }
 

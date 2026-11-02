@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -1510,7 +1511,7 @@ public class TwoPhaseReaderTests extends ESTestCase {
      * {@link StorageObject#supportsNativeAsync()} as true so two-phase activates; otherwise it
      * stays on the single-phase path.
      */
-    private static final class CountingStorageObject implements StorageObject {
+    private static final class CountingStorageObject extends AbstractTestStorageObject {
         private final byte[] data;
         private final boolean nativeAsync;
         final AtomicLong totalBytesRead = new AtomicLong();

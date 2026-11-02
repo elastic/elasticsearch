@@ -77,7 +77,7 @@ class FlightConnector implements Connector {
             client = defaultClient(request);
             FlightInfo info = client.getInfo(FlightDescriptor.path(request.target()));
             if (info.getEndpoints().isEmpty()) {
-                throw new IllegalStateException("Flight server returned no endpoints for target: " + request.target());
+                throw new IllegalStateException("Flight server returned no endpoints for the requested target");
             }
             ticket = info.getEndpoints().get(0).getTicket();
         }
@@ -96,7 +96,7 @@ class FlightConnector implements Connector {
         URI uri = URI.create(loc);
         String host = uri.getHost();
         if (host == null || host.isBlank()) {
-            throw new IllegalArgumentException("Invalid location URI: missing host: " + loc);
+            throw new IllegalArgumentException("Invalid location URI: missing host");
         }
         int port = getPort(uri);
         String key = host + ":" + port;

@@ -121,7 +121,8 @@ public class FileSplitTests extends ESTestCase {
         StoragePath path = StoragePath.of("s3://bucket/file.parquet");
         FileSplit split = new FileSplit("file", path, 0, 100, null, null, Map.of("year", 2024));
         String str = split.toString();
-        assertTrue(str.contains("s3://bucket/file.parquet"));
+        assertTrue(str.contains("file.parquet"));
+        assertFalse(str.contains("bucket"));
         assertTrue(str.contains("year"));
     }
 

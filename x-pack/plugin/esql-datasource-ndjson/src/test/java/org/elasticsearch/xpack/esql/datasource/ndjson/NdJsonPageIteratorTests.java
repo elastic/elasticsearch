@@ -41,10 +41,12 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
@@ -113,6 +115,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** Minimal {@link StorageObject} that only reports a length — all the fast-path decision inspects. */
     private static StorageObject fixedLengthObject(long length) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
@@ -765,7 +772,7 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             {{{not-an-object
             {"id":3}
             """;
-        var object = new BytesStorageObject("memory://warn.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var object = new BytesStorageObject("memory://bucket/dir/warn.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
         var reader = new NdJsonFormatReader(null, blockFactory);
         try (
             var iterator = reader.read(
@@ -781,7 +788,9 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         // 1 summary + 1 detail
         assertEquals(2, warnings.size());
         assertTrue("Summary should mention skip_row, got: " + warnings.get(0), warnings.get(0).contains("policy: skip_row"));
-        assertTrue("Summary should mention the file path, got: " + warnings.get(0), warnings.get(0).contains("memory://warn.ndjson"));
+        assertTrue("Summary should mention the object name, got: " + warnings.get(0), warnings.get(0).contains("warn.ndjson"));
+        assertFalse("Summary should not mention the directory, got: " + warnings.get(0), warnings.get(0).contains("dir/"));
+        assertFalse("Summary should not mention the bucket, got: " + warnings.get(0), warnings.get(0).contains("bucket"));
         assertTrue("Detail should mention the malformed row, got: " + warnings.get(1), warnings.get(1).contains("Malformed NDJSON"));
     }
 
@@ -3053,6 +3062,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
         StorageObject lengthUnsupported = new StorageObject() {
             @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
+            @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(bytes);
             }
@@ -3102,6 +3116,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testLargeObjectFallsBackToStreaming() throws IOException {
         byte[] payload = "{\"id\":42}\n".getBytes(StandardCharsets.UTF_8);
         StorageObject oversized = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(payload);
@@ -3185,6 +3204,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         int start = "{\"a\":1}\n".getBytes(StandardCharsets.UTF_8).length;
         int length = all.length - start;
         StorageObject tailAlignedStart = new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() throws IOException {
                 return new ByteArrayInputStream(all, start, length);
@@ -3488,6 +3512,11 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     /** A {@link StorageObject} that streams its bytes but reports no length, forcing the streaming read path. */
     private static StorageObject streamOnlyObject(String path, byte[] data) {
         return new StorageObject() {
+            @Override
+            public StorageIdentity storageIdentity() {
+                return AbstractTestStorageObject.NOOP;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

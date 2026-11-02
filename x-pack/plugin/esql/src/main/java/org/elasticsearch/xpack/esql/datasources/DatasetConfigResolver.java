@@ -166,7 +166,7 @@ public final class DatasetConfigResolver {
             "external dataset [{}] does not cover split [{}]",
             RestStatus.BAD_REQUEST,
             datasetName,
-            split instanceof FileSplit file ? file.path() : split.getClass().getSimpleName()
+            split instanceof FileSplit file ? file.path().objectName() : split.getClass().getSimpleName()
         );
     }
 

@@ -98,7 +98,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         try {
             this.length = storageObject.length();
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path() + "]", e);
+            throw new UncheckedIOException("Failed to read storage object length for [" + storageObject.path().objectName() + "]", e);
         }
         this.cacheKey = FooterByteCache.Key.keyFor(storageObject, this.length);
     }
@@ -115,6 +115,15 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      */
     FooterByteCache.Key cacheKey() {
         return cacheKey;
+    }
+
+    /**
+     * The object name (last path segment only). parquet-mr interpolates the {@code InputFile} straight into
+     * user-facing failures, so the full storage path must never be printed here.
+     */
+    @Override
+    public String toString() {
+        return storageObject.path().objectName();
     }
 
     @Override

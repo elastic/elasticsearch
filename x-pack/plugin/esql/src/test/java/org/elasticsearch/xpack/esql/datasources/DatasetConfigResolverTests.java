@@ -188,7 +188,11 @@ public class DatasetConfigResolverTests extends ESTestCase {
                 ElasticsearchStatusException.class,
                 () -> resolver.rebind(exec(HOSTILE_CONFIG, DATASET).withSplits(splits("s3://bucket/data/a.parquet", outside)))
             );
-            assertThat(e.getMessage(), containsString("external dataset [logs] does not cover split [" + outside + "]"));
+            assertThat(
+                e.getMessage(),
+                containsString("external dataset [logs] does not cover split [" + StoragePath.objectName(outside) + "]")
+            );
+            assertThat(e.getMessage(), not(containsString("://")));
         }
         // Nested inside a coalesced group too.
         List<ExternalSplit> hidden = List.of(
@@ -198,7 +202,7 @@ public class DatasetConfigResolverTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> resolver.rebind(exec(HOSTILE_CONFIG, DATASET).withSplits(hidden))
         );
-        assertThat(e.getMessage(), containsString("does not cover split [s3://bucket/secret/x.parquet]"));
+        assertThat(e.getMessage(), containsString("does not cover split [x.parquet]"));
     }
 
     /**
@@ -221,7 +225,7 @@ public class DatasetConfigResolverTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> resolver.rebind(exec(HOSTILE_CONFIG, DATASET).withSplits(splits("s3://bucket/a/f.parquet", "s3://bucket/c/f.parquet")))
         );
-        assertThat(e.getMessage(), containsString("external dataset [logs] does not cover split [s3://bucket/c/f.parquet]"));
+        assertThat(e.getMessage(), containsString("external dataset [logs] does not cover split [f.parquet]"));
 
         assertTrue(isWithin("http://host/a,b.csv", StoragePath.of("http://host/a,b.csv")));
     }

@@ -100,7 +100,7 @@ public class StorageObjectMetricsTests extends ESTestCase {
     }
 
     /** Minimal StorageObject impl that exists purely to assert the default {@link StorageObject#metrics()} accessor. */
-    private static final class MinimalStorageObject implements StorageObject {
+    private static final class MinimalStorageObject extends AbstractTestStorageObject {
         @Override
         public java.io.InputStream newStream() {
             throw new UnsupportedOperationException();

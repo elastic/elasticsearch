@@ -13,12 +13,14 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -289,14 +291,14 @@ public final class SplitDiscoveryPhase {
         SplitDiscoveryResult result;
         try {
             result = splitProvider.discoverSplits(context);
+        } catch (ExternalException e) {
+            throw ExternalFailures.detach(e);
         } catch (ElasticsearchException e) {
             throw e;
         } catch (Exception e) {
-            throw new ElasticsearchException(
-                "failed to discover splits for external source [{}] of type [{}]",
-                e,
-                exec.sourcePath(),
-                exec.sourceType()
+            throw ExternalFailures.wrapWithoutCause(
+                "failed to discover splits for external source [" + sourceLabel(exec) + "] of type [" + exec.sourceType() + "]",
+                e
             );
         }
         List<ExternalSplit> splits = result.splits();
@@ -341,5 +343,9 @@ public final class SplitDiscoveryPhase {
             }
         }
         return bound;
+    }
+
+    private static String sourceLabel(ExternalSourceExec exec) {
+        return StoragePath.objectName(exec.sourcePath());
     }
 }

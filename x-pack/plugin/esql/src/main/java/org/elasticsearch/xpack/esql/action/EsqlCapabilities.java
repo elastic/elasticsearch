@@ -2682,7 +2682,8 @@ public class EsqlCapabilities {
 
         /**
          * Initial support for simple binary comparisons in PromQL.
-         * Only top-level comparisons are supported where the right-hand side is a scalar.
+         * Unmatched comparisons require a scalar literal on the right-hand side; nesting under
+         * aggregations / {@code label_replace} / reductions is supported.
          */
         PROMQL_BINARY_COMPARISON_V0,
 
@@ -2752,12 +2753,23 @@ public class EsqlCapabilities {
         PROMQL_WITHOUT_GROUPING,
 
         /**
+         * Typed time-series metadata: {@code _timeseries} as a typed column, the {@code TS_*} functions over it, and the
+         * PromQL shapes that modify it. Snapshot-only until released; also the release gate for that behavior.
+         */
+        PROMQL_ENABLE_TIMESERIES_TYPE(Build.current().isSnapshot()),
+
+        /**
          * Corrected output shape for PromQL {@code without}: a {@code without} over a concrete-output child (e.g.
          * {@code sum without(pod) (sum by(cluster,region,pod) (...))}) projects the child's concrete grouping columns
          * minus the excluded labels, rather than the opaque {@code _timeseries} column. Gates the affected csv-spec
          * tests so mixed-version clusters skip them on older nodes that still emit {@code _timeseries}.
          */
         FIX_PROMQL_WITHOUT_OUTPUT,
+
+        /**
+         * PromQL WITHOUT drops the metric name while retaining every other grouping label, including for WITHOUT ().
+         */
+        FIX_PROMQL_WITHOUT_METRIC_NAME,
 
         /**
          * PromQL label matchers that accept the empty string (e.g. {@code {label=""}} or {@code {label!="foo"}})
@@ -2767,9 +2779,28 @@ public class EsqlCapabilities {
 
         /**
          * Support for the PromQL {@code offset} modifier, implemented as a constant time shift of the evaluation
-         * timestamp. Heterogeneous offsets within a single source-backed binary operator remain unsupported.
+         * timestamp. When the two sides of an arithmetic/comparison binary carry different offsets, the operator joins
+         * independent pipelines (see {@link #PROMQL_BINARY_INDEPENDENT_JOIN}) rather than folding into one frame.
          */
         PROMQL_OFFSET_MODIFIER(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * PromQL arithmetic/comparison binaries join independent operand pipelines when {@code getType} refuses a shared
+         * fold frame: different {@code offset}s, nested across-series next to another operand, aggregated×raw, and
+         * {@code scalar()}×labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/
+         * {@code limit_ratio} join under typed {@code _timeseries}; the keyword path keeps its pre-typed rejection.
+         * Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_INDEPENDENT_JOIN(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Under typed {@code _timeseries}, a vector match's signature slot leaves the named key labels out and a side
+         * without metadata packs the empty signature, so an opaque operand matches a concrete or promoted-label sibling
+         * under {@code ignoring(...)} / default matching the way Prometheus signatures do, and a raw source serves two
+         * metadata views that neither contain each other ({@code a * ignoring(pod) group_left(region) b}).
+         * Gates csv-spec coverage of those shapes.
+         */
+        PROMQL_BINARY_OPAQUE_SIGNATURE_MATCH(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results

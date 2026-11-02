@@ -88,7 +88,9 @@ public class RetentionLeaseActions {
 
         @Override
         protected ShardsIterator shards(final ProjectState state, final InternalRequest request) {
-            return state.routingTable().shardRoutingTable(request.concreteIndex(), request.request().getShardId().id()).primaryShardIt();
+            // resolve through the shard id's Index rather than the name in the request: a remote caller (CCR) may hold the name
+            // the index had before a rename, and RoutingTable#index(Index) falls back to the uuid
+            return state.routingTable().shardRoutingTable(request.request().getShardId()).primaryShardIt();
         }
 
         @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -26,6 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
  * How a rename interacts with snapshots: refused while the index is being snapshotted or restored (the prototype's current
  * choice, see T6 in docs/internal/atomic-index-rename.md), and a renamed index can be snapshotted and restored under its new name.
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public void testRenameRefusedWhileSnapshotting() throws Exception {
@@ -76,7 +78,8 @@ public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen("source");
 
         rename("source", "renamed");
-        ElasticsearchAssertions.assertHitCount(prepareSearch("renamed").setSize(0), docCount("renamed"));
+        refresh("renamed");
+        ElasticsearchAssertions.assertHitCount(prepareSearch("renamed").setSize(0), 1L);
     }
 
     /**
@@ -89,6 +92,7 @@ public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startDataOnlyNode();
         createRepository("repo", "fs");
         createIndexWithContent("source");
+        refresh("source");
         final long docs = docCount("source");
         createFullSnapshot("repo", "snap-before");
 
@@ -118,7 +122,12 @@ public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private long docCount(String index) {
-        return prepareSearch(index).setSize(0).get().getHits().getTotalHits().value();
+        final long[] count = new long[1];
+        ElasticsearchAssertions.assertResponse(
+            prepareSearch(index).setSize(0),
+            response -> count[0] = response.getHits().getTotalHits().value()
+        );
+        return count[0];
     }
 
     private void rename(String source, String target) {

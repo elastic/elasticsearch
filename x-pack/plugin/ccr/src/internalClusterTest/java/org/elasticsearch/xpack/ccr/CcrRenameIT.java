@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Renaming a leader or a follower index keeps its UUID, which is what cross-cluster replication identifies indices by, so
  * replication must carry on across a rename on either side, and the follower must stay manageable under its new name.
  */
+@TestLogging(value = "org.elasticsearch.xpack.ccr:DEBUG", reason = "diagnose replication after a rename")
 public class CcrRenameIT extends CcrIntegTestCase {
 
     public void testRenameLeaderWhileFollowing() throws Exception {
@@ -167,6 +169,10 @@ public class CcrRenameIT extends CcrIntegTestCase {
         final String leaderIndexSettings = getIndexSettings(1, 0);
         assertAcked(leaderClient().admin().indices().prepareCreate("logs-1").setSource(leaderIndexSettings, XContentType.JSON));
         assertBusy(() -> assertTrue(followerIndexExists("copy-logs-1")));
+        // let the follower finish bootstrapping from the leader before renaming it
+        ensureFollowerGreen("copy-logs-1");
+        leaderClient().prepareIndex("logs-1").setSource("{\"f\": 0}", XContentType.JSON).get();
+        assertIndexFullyReplicatedToFollower("logs-1", "copy-logs-1");
 
         rename(leaderClient(), "logs-1", "logs-2");
 
@@ -174,11 +180,8 @@ public class CcrRenameIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("logs-3").setSource(leaderIndexSettings, XContentType.JSON));
         assertBusy(() -> assertTrue(followerIndexExists("copy-logs-3")));
         assertFalse(followerIndexExists("copy-logs-2"));
-        final AutoFollowMetadata autoFollowMetadata = followerClient().admin()
-            .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .get()
-            .getState()
+        final AutoFollowMetadata autoFollowMetadata = getFollowerCluster().clusterService()
+            .state()
             .metadata()
             .getProject()
             .custom(AutoFollowMetadata.TYPE);

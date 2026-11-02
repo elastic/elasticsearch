@@ -26,7 +26,12 @@ public class SearchableSnapshotsRenameIT extends BaseSearchableSnapshotsIntegTes
         final String mounted = "mounted";
         final String renamed = "mounted-renamed";
         createAndPopulateIndex(index, Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true));
-        final long docs = client().prepareSearch(index).setSize(0).get().getHits().getTotalHits().value();
+        final long[] counted = new long[1];
+        ElasticsearchAssertions.assertResponse(
+            client().prepareSearch(index).setSize(0),
+            response -> counted[0] = response.getHits().getTotalHits().value()
+        );
+        final long docs = counted[0];
         createRepository("repo", "fs");
         createFullSnapshot("repo", "snap");
         assertAcked(indicesAdmin().prepareDelete(index));

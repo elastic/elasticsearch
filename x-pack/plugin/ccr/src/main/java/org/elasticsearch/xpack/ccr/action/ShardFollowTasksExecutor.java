@@ -178,6 +178,22 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
             /** The leader index as currently known; updated when a request by name misses and the UUID resolves to a new name. */
             private volatile Index leaderIndex = params.getLeaderShardId().getIndex();
 
+            @Override
+            protected String currentLeaderIndexName() {
+                return leaderIndex.getName();
+            }
+
+            @Override
+            protected String currentFollowerIndexName() {
+                final IndexMetadata followerIndexMetadata = clusterService.state()
+                    .metadata()
+                    .getProject()
+                    .index(params.getFollowShardId().getIndex());
+                return followerIndexMetadata == null
+                    ? params.getFollowShardId().getIndexName()
+                    : followerIndexMetadata.getIndex().getName();
+            }
+
             /**
              * Runs {@code attempt} with the leader index as currently known. A rename keeps the leader's UUID, so when the attempt
              * fails with an {@link IndexNotFoundException} the current name is looked up by UUID on the remote cluster and the

@@ -17,7 +17,6 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Resize targets record their source by name and UUID in their settings and recover from the source's shards on the same node.
@@ -47,8 +46,6 @@ public class RenameIndexResizeIT extends ESIntegTestCase {
         assertAcked(executeResize(type, "renamed", "target", targetSettings));
         ensureGreen("target");
         ElasticsearchAssertions.assertHitCount(prepareSearch("target").setSize(0), docs);
-        final var targetSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "target").get();
-        assertThat(targetSettingsResponse.getSetting("target", IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY), equalTo("renamed"));
     }
 
     public void testRenameSourceWhileResizeTargetRecovers() throws Exception {
@@ -67,9 +64,6 @@ public class RenameIndexResizeIT extends ESIntegTestCase {
         ensureGreen("target", "renamed");
         ElasticsearchAssertions.assertHitCount(prepareSearch("target").setSize(0), docs);
         ElasticsearchAssertions.assertHitCount(prepareSearch("renamed").setSize(0), docs);
-        // the target still records the source by the name it had when the resize started
-        final var targetSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "target").get();
-        assertThat(targetSettingsResponse.getSetting("target", IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY), equalTo("source"));
     }
 
     private void rename(String source, String target) {

@@ -216,15 +216,18 @@ public final class SimdJsonDirectWalker {
                         handler.endArray();
                     }
                     case '"' -> {
+                        // One stringField call site on purpose. With a call in each branch, C2 inlines the handler twice,
+                        // which doubles the compiled size of this method and slows the field loop.
+                        byte[] strBuf = buffer;
+                        int strOff = valIdx + 1;
                         int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                        if (len >= 0) {
-                            handler.stringField(fieldName, buffer, valIdx + 1, len);
-                        } else {
+                        if (len < 0) {
                             int rawLen = scalarStringLength(buffer, valIdx + 1);
-                            byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                            int parsed = stringParser.parseString(buffer, valIdx, unescaped);
-                            handler.stringField(fieldName, unescaped, 0, parsed);
+                            strBuf = new byte[rawLen + StringParser.DESTINATION_PADDING];
+                            len = stringParser.parseString(buffer, valIdx, strBuf);
+                            strOff = 0;
                         }
+                        handler.stringField(fieldName, strBuf, strOff, len);
                     }
                     case 't' -> {
                         validateTrue(buffer, valIdx);
@@ -353,15 +356,16 @@ public final class SimdJsonDirectWalker {
 
             switch (valByte) {
                 case '"' -> {
+                    byte[] strBuf = buffer;
+                    int strOff = valIdx + 1;
                     int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                    if (len >= 0) {
-                        handler.stringField(fieldName, buffer, valIdx + 1, len);
-                    } else {
+                    if (len < 0) {
                         int rawLen = scalarStringLength(buffer, valIdx + 1);
-                        byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                        int parsed = stringParser.parseString(buffer, valIdx, unescaped);
-                        handler.stringField(fieldName, unescaped, 0, parsed);
+                        strBuf = new byte[rawLen + StringParser.DESTINATION_PADDING];
+                        len = stringParser.parseString(buffer, valIdx, strBuf);
+                        strOff = 0;
                     }
+                    handler.stringField(fieldName, strBuf, strOff, len);
                 }
                 case 't' -> {
                     validateTrue(buffer, valIdx);

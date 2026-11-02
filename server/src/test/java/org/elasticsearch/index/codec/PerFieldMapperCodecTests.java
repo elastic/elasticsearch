@@ -823,6 +823,14 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertEquals(MetricRole.GAUGE, context.metricRole());
     }
 
+    public void testResolveFieldContextMarksDimensions() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_DOUBLE_GAUGE_MAPPING);
+        assertTrue(supplier.resolveFieldContext("field", 512).isDimension());
+        assertFalse(supplier.resolveFieldContext("cpu_usage", 512).isDimension());
+        assertFalse(supplier.resolveFieldContext("@timestamp", 512).isDimension());
+        assertFalse(supplier.resolveFieldContext("absent_field", 512).isDimension());
+    }
+
     public void testResolveFieldContextForTimestampDateField() throws IOException {
         final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
         final FieldContext context = supplier.resolveFieldContext("@timestamp", 512);

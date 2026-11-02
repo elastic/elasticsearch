@@ -332,15 +332,16 @@ public class PerFieldFormatSupplier {
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {
         final Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
+        final boolean isDimension = mapper instanceof FieldMapper fieldMapper && fieldMapper.fieldType().isDimension();
         if (mapper instanceof NumberFieldMapper numberFieldMapper) {
             final PipelineDescriptor.DataType dataType = toPipelineDataType(numberFieldMapper.type());
             final MetricRole metricRole = toMetricRole(numberFieldMapper.fieldType().getMetricType());
-            return new FieldContext(blockSize, fieldName, dataType, metricRole);
+            return new FieldContext(blockSize, fieldName, dataType, metricRole, isDimension);
         }
         if (mapper instanceof DateFieldMapper) {
-            return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null);
+            return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null, isDimension);
         }
-        return new FieldContext(blockSize, fieldName, null, null);
+        return new FieldContext(blockSize, fieldName, null, null, isDimension);
     }
 
     private static PipelineDescriptor.DataType toPipelineDataType(final NumberFieldMapper.NumberType type) {

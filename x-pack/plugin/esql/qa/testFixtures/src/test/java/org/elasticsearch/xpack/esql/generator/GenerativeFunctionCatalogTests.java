@@ -11,6 +11,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -77,5 +81,41 @@ public class GenerativeFunctionCatalogTests extends ESTestCase {
         for (GenerativeFunctionDefinition fn : GenerativeFunctionCatalog.all()) {
             assertThat(fn.name(), capabilities, hasItem(GenerativeFunctionCatalog.capabilityName(fn)));
         }
+    }
+
+    /**
+     * A release-branch run loads that branch's definitions, which may have fewer signatures than this build's, and the
+     * catalog must offer exactly those, with the same filtering as the definitions on the classpath.
+     */
+    public void testLoadFromDefinitionsDir() throws IOException {
+        Path dir = createTempDir();
+        Files.writeString(dir.resolve("to_range.json"), """
+            {"name": "to_range", "type": "scalar", "signatures": [
+              {"params": [{"name": "from", "type": "date", "optional": false}, {"name": "to", "type": "date", "optional": false}],
+               "returnType": "date_range", "variadic": false}]}""");
+        Files.writeString(dir.resolve("match.json"), """
+            {"name": "match", "type": "scalar", "signatures": [
+              {"params": [{"name": "field", "type": "keyword", "optional": false}], "returnType": "boolean", "variadic": false}]}""");
+        Files.writeString(dir.resolve("count.json"), """
+            {"name": "count", "type": "agg", "signatures": [
+              {"params": [{"name": "field", "type": "keyword", "optional": false}], "returnType": "long", "variadic": false}]}""");
+
+        List<GenerativeFunctionDefinition> loaded = GenerativeFunctionCatalog.loadFromDefinitionsDir(dir.toString());
+
+        assertThat(loaded.stream().map(GenerativeFunctionDefinition::name).toList(), equalTo(List.of("to_range")));
+        List<GenerativeFunctionSignature> signatures = loaded.getFirst().signatures();
+        assertThat(signatures.size(), equalTo(1));
+        assertThat(signatures.getFirst().params().stream().map(GenerativeFunctionParam::type).toList(), equalTo(List.of("date", "date")));
+        assertThat(signatures.getFirst().returnType(), equalTo("date_range"));
+    }
+
+    /**
+     * A wrong or empty directory must fail the run instead of leaving the generator without functions.
+     */
+    public void testLoadFromDefinitionsDirWithoutDefinitions() {
+        Path empty = createTempDir();
+        expectThrows(IllegalStateException.class, () -> GenerativeFunctionCatalog.loadFromDefinitionsDir(empty.toString()));
+        String missing = empty.resolve("missing").toString();
+        expectThrows(IllegalStateException.class, () -> GenerativeFunctionCatalog.loadFromDefinitionsDir(missing));
     }
 }

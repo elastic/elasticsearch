@@ -229,22 +229,14 @@ public final class GenerativeFunctionCatalog {
     // ---- loading ----
 
     private static List<GenerativeFunctionDefinition> loadAll() {
+        String definitionsDir = System.getProperty(DEFINITIONS_DIR_PROPERTY);
+        if (definitionsDir != null) {
+            return loadFromDefinitionsDir(definitionsDir);
+        }
+
         boolean isSnapshot = Build.current().isSnapshot();
         ObjectMapper mapper = new ObjectMapper();
         List<GenerativeFunctionDefinition> result = new ArrayList<>();
-
-        String definitionsDir = System.getProperty(DEFINITIONS_DIR_PROPERTY);
-        if (definitionsDir != null) {
-            try {
-                loadFromDirectory(new File(definitionsDir), mapper, isSnapshot, result);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to load ES|QL function definitions from [" + definitionsDir + "]", e);
-            }
-            if (result.isEmpty()) {
-                throw new IllegalStateException("No ES|QL function definitions found in [" + definitionsDir + "]");
-            }
-            return result;
-        }
 
         URL dirUrl = GenerativeFunctionCatalog.class.getClassLoader().getResource(RESOURCE_DIR);
         if (dirUrl == null) {
@@ -267,6 +259,23 @@ public final class GenerativeFunctionCatalog {
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to load ES|QL function definitions from '" + RESOURCE_DIR + "'", e);
+        }
+        return result;
+    }
+
+    /**
+     * Loads the definitions in {@code definitionsDir}, the value of {@link #DEFINITIONS_DIR_PROPERTY}. Fails rather than
+     * returning nothing, because an empty catalog would quietly stop the generator from calling any function.
+     */
+    static List<GenerativeFunctionDefinition> loadFromDefinitionsDir(String definitionsDir) {
+        List<GenerativeFunctionDefinition> result = new ArrayList<>();
+        try {
+            loadFromDirectory(new File(definitionsDir), new ObjectMapper(), Build.current().isSnapshot(), result);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load ES|QL function definitions from [" + definitionsDir + "]", e);
+        }
+        if (result.isEmpty()) {
+            throw new IllegalStateException("No ES|QL function definitions found in [" + definitionsDir + "]");
         }
         return result;
     }

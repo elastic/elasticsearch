@@ -172,9 +172,21 @@ tasks.register('generativeTests', StandaloneRestIntegTestTask) {
 buildParams.bwcVersions.unreleasedWireCompatible
   .findAll { it.onOrAfter(Version.fromString("9.4.0")) && it != VersionProperties.elasticsearchVersion }
   .each { bwcVersion ->
+    // The release branch's own function definitions, so the generator only uses signatures that branch supports.
+    def bwcProject = project(buildParams.bwcVersions.unreleasedInfo(bwcVersion).gradleProjectPath)
+    def functionDefinitions = tasks.register("v${bwcVersion}#copyEsqlFunctionDefinitions", Sync) {
+      dependsOn "${bwcProject.path}:checkoutBwcBranch"
+      def checkoutDir = bwcProject.extensions.getByName('bwcGitConfig').checkoutDir
+      // 9.4 has them under kibana/definition, later branches under kibana/generated/x-pack-esql/definition.
+      from(checkoutDir.map { new File(it, 'docs/reference/query-languages/esql/kibana/definition/functions') })
+      from(checkoutDir.map { new File(it, 'docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/functions') })
+      into layout.buildDirectory.dir("bwc-esql-functions/${bwcVersion}")
+    }
     tasks.register("v${bwcVersion}#generativeTests", StandaloneRestIntegTestTask) {
       usesBwcDistribution(bwcVersion)
       systemProperty("tests.old_cluster_version", bwcVersion)
+      inputs.files(functionDefinitions)
+      nonInputProperties.systemProperty('tests.esql.function_definitions', "${-> functionDefinitions.get().destinationDir}")
       generativeTestsConfig(it)
     }
   }

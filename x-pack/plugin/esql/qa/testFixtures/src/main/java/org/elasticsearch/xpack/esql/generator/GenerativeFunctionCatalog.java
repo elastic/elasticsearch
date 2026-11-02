@@ -15,6 +15,7 @@ import org.elasticsearch.Build;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -104,6 +105,12 @@ public final class GenerativeFunctionCatalog {
     );
 
     private static final String RESOURCE_DIR = "esql-functions";
+
+    /**
+     * Directory of function definitions to load instead of {@link #RESOURCE_DIR}. Set when the cluster under test runs an
+     * older version, whose functions may lack signatures the test's own build added.
+     */
+    static final String DEFINITIONS_DIR_PROPERTY = "tests.esql.function_definitions";
 
     private static final List<GenerativeFunctionDefinition> ALL = loadAll();
 
@@ -225,6 +232,19 @@ public final class GenerativeFunctionCatalog {
         boolean isSnapshot = Build.current().isSnapshot();
         ObjectMapper mapper = new ObjectMapper();
         List<GenerativeFunctionDefinition> result = new ArrayList<>();
+
+        String definitionsDir = System.getProperty(DEFINITIONS_DIR_PROPERTY);
+        if (definitionsDir != null) {
+            try {
+                loadFromDirectory(new File(definitionsDir), mapper, isSnapshot, result);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to load ES|QL function definitions from [" + definitionsDir + "]", e);
+            }
+            if (result.isEmpty()) {
+                throw new IllegalStateException("No ES|QL function definitions found in [" + definitionsDir + "]");
+            }
+            return result;
+        }
 
         URL dirUrl = GenerativeFunctionCatalog.class.getClassLoader().getResource(RESOURCE_DIR);
         if (dirUrl == null) {

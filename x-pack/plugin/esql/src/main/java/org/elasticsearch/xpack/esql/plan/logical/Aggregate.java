@@ -334,7 +334,7 @@ public class Aggregate extends UnaryPlan
         forEachExpression(FilteredExpression.class, fe -> {
             if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
                 for (Expression field : aggregateFunction.fields()) {
-                    if (field instanceof MetadataAttribute metadataAttribute && MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                    if (MetadataAttribute.isScoreAttribute(field)) {
                         if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
                             failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
                         }

@@ -8,19 +8,25 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -86,6 +92,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -99,11 +106,14 @@ import org.mockito.stubbing.Answer;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -762,6 +772,34 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertEquals(0L, context.getQueryConstructionMemoryUsed());
     }
 
+    public void testReleaseDrainsPoolWhenReleasableThrows() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.addCircuitBreakerMemory(100L, "label");
+        context.addQueryConstructionReleasable(() -> { throw new IllegalStateException("boom"); });
+        expectThrows(IllegalStateException.class, context::releaseQueryConstructionMemory);
+
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testReleasableRunsOnceWhenReleasedTwice() {
+        SearchExecutionContext context = new SearchExecutionContext(
+            createSearchExecutionContext("uuid", null),
+            new TrackingCircuitBreaker()
+        );
+        AtomicInteger runs = new AtomicInteger();
+        assertFalse(context.hasQueryConstructionReleasables());
+        context.addQueryConstructionReleasable(runs::incrementAndGet);
+        assertTrue(context.hasQueryConstructionReleasables());
+
+        context.releaseQueryConstructionMemory();
+        assertFalse(context.hasQueryConstructionReleasables());
+        context.releaseQueryConstructionMemory();
+        assertEquals(1, runs.get());
+    }
+
     public void testSwapLeavesReservationHeldWhenDeltaChargeTrips() {
         // Under the delta-based swap, a trip on the net charge (bytes - held) leaves the
         // previously charged reservation in place on both the breaker and the request counter.
@@ -950,6 +988,138 @@ public class SearchExecutionContextTests extends ESTestCase {
         return asInstanceOf(SharedAutomatonQuery.class, query).getSharedAutomaton();
     }
 
+    // ------------------------------------------------------------------
+    // script field decode-buffer accounting routing (see ScriptFieldMemoryEstimator)
+    // ------------------------------------------------------------------
+
+    public void testScriptFieldMemoryAttributedToSearcherLeavesAndReleasedPerLeaf() throws IOException {
+        try (Directory directory = newDirectory()) {
+            IndexWriterConfig config = new IndexWriterConfig(null).setMergePolicy(NoMergePolicy.INSTANCE);
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                writer.addDocument(new Document());
+                writer.commit();
+                writer.addDocument(new Document());
+                writer.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                assertEquals("the fixture needs two leaves to show per-leaf attribution", 2, reader.leaves().size());
+                TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+                try (ContextIndexSearcher searcher = newContextIndexSearcher(reader)) {
+                    searcher.setCircuitBreaker(breaker);
+                    SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(searcher), breaker);
+
+                    context.accountScriptFieldMemory(100L, "field", reader.leaves().get(0));
+                    context.accountScriptFieldMemory(200L, "other", reader.leaves().get(1));
+                    assertEquals(300L, breaker.used);
+                    assertEquals(
+                        "the searcher's per-leaf accounting must take the memory, not the request-scoped pool",
+                        0L,
+                        context.getQueryConstructionMemoryUsed()
+                    );
+
+                    // scoring a leaf releases what was accounted against it, well before the request ends
+                    searcher.search(Queries.ALL_DOCS_INSTANCE, new CountingCollectorManager());
+                    assertEquals("scoring the leaves must release the accounted memory", 0L, breaker.used);
+
+                    // memory accounted against a leaf that is never scored again is released when the searcher closes
+                    context.accountScriptFieldMemory(100L, "field", reader.leaves().get(0));
+                    assertEquals(100L, breaker.used);
+                }
+                assertEquals("closing the searcher must release the residual accounted memory", 0L, breaker.used);
+            }
+        }
+    }
+
+    public void testScriptFieldMemoryFallsBackToRequestPoolWithoutSearcher() {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext("uuid", null), breaker);
+
+        context.accountScriptFieldMemory(100L, "field", null);
+        assertEquals("the memory is charged to the breaker exactly once", 100L, breaker.used);
+        assertEquals(
+            "the request-scoped pool must record the same single charge so it can refund it",
+            100L,
+            context.getQueryConstructionMemoryUsed()
+        );
+
+        context.releaseQueryConstructionMemory();
+        assertEquals(0L, breaker.used);
+        assertEquals(0L, context.getQueryConstructionMemoryUsed());
+    }
+
+    public void testScriptFieldMemoryFallsBackToRequestPoolWhenSearcherHasNoBreaker() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(null))) {
+                writer.addDocument(new Document());
+            }
+            TrackingCircuitBreaker breaker = new TrackingCircuitBreaker();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context;
+                try (ContextIndexSearcher searcher = newContextIndexSearcher(reader)) {
+                    context = new SearchExecutionContext(createSearchExecutionContext(searcher), breaker);
+
+                    context.accountScriptFieldMemory(100L, "field", reader.leaves().get(0));
+                    assertEquals("the memory is charged to the breaker exactly once", 100L, breaker.used);
+
+                    // unlike a searcher with a breaker, this searcher cannot release per leaf: scoring the leaf and
+                    // closing the searcher must both leave the charge in place
+                    searcher.search(Queries.ALL_DOCS_INSTANCE, new CountingCollectorManager());
+                    assertEquals("a searcher without a breaker must not own the charge", 100L, breaker.used);
+                }
+                assertEquals("closing a searcher without a breaker must not release the charge", 100L, breaker.used);
+
+                // the request-scoped pool owns the charge instead, and is the only thing that can refund it
+                assertEquals(
+                    "the request-scoped pool must record the same single charge so it can refund it",
+                    100L,
+                    context.getQueryConstructionMemoryUsed()
+                );
+                context.releaseQueryConstructionMemory();
+                assertEquals(0L, breaker.used);
+                assertEquals(0L, context.getQueryConstructionMemoryUsed());
+            }
+        }
+    }
+
+    private static ContextIndexSearcher newContextIndexSearcher(DirectoryReader reader) throws IOException {
+        return new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            null,
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            false
+        );
+    }
+
+    /** Counts hits per leaf; unlike {@link IndexSearcher#count} it always drives {@code searchLeaf} for every leaf. */
+    private static class CountingCollectorManager implements CollectorManager<Collector, Integer> {
+        @Override
+        public Collector newCollector() {
+            return new Collector() {
+                @Override
+                public LeafCollector getLeafCollector(LeafReaderContext context) {
+                    return new LeafCollector() {
+                        @Override
+                        public void setScorer(Scorable scorer) {}
+
+                        @Override
+                        public void collect(int doc) {}
+                    };
+                }
+
+                @Override
+                public ScoreMode scoreMode() {
+                    return ScoreMode.COMPLETE_NO_SCORES;
+                }
+            };
+        }
+
+        @Override
+        public Integer reduce(Collection<Collector> collectors) {
+            return collectors.size();
+        }
+    }
+
     /**
      * Minimal in-process breaker that tracks {@code used} and counts refund calls. Sufficient for
      * exercising the swap accounting in {@link SearchExecutionContext#addCircuitBreakerMemory(long, long, String)};
@@ -1059,6 +1229,39 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, Object> runtimeMappings
     ) {
         return createSearchExecutionContext(indexUuid, clusterAlias, mappingLookup, runtimeMappings, null);
+    }
+
+    /** For tests that need the context to hold a searcher, e.g. the script-field decode-buffer accounting routing. */
+    private static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
+        IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
+        indexMetadataBuilder.settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, "uuid"));
+        IndexMetadata indexMetadata = indexMetadataBuilder.build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        MapperService mapperService = createMapperServiceWithNamespaceValidator(indexSettings, MappingLookup.EMPTY, null);
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
+            mapperService,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            XContentParserConfiguration.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            searcher,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            Map.of(),
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
+        );
     }
 
     /** For tests that need to control index settings, e.g. the index mode or the default field. */
@@ -1277,7 +1480,6 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext, Query query) throws IOException {
-        List<String> result = new ArrayList<>();
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             indexWriter.addDocument(List.of(new KeywordField("indexed_field", "first", Field.Store.YES)));
             indexWriter.addDocument(List.of(new KeywordField("indexed_field", "second", Field.Store.YES)));
@@ -1290,39 +1492,82 @@ public class SearchExecutionContextTests extends ESTestCase {
                 } else {
                     indexFieldData = searchExecutionContext.lookup().getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 }
-                searcher.search(query, new Collector() {
+                boolean useDocLookup = randomBoolean();
+                return searcher.search(query, new CollectorManager<ValueCollector, List<String>>() {
                     @Override
-                    public ScoreMode scoreMode() {
-                        return ScoreMode.COMPLETE_NO_SCORES;
+                    public ValueCollector newCollector() {
+                        return new ValueCollector(field, searchExecutionContext, indexFieldData, useDocLookup);
                     }
 
                     @Override
-                    public LeafCollector getLeafCollector(LeafReaderContext context) {
-                        return new LeafCollector() {
-                            @Override
-                            public void setScorer(Scorable scorer) {}
-
-                            @Override
-                            public void collect(int doc) throws IOException {
-                                ScriptDocValues<?> scriptDocValues;
-                                if (randomBoolean()) {
-                                    LeafDocLookup leafDocLookup = searchExecutionContext.lookup().getLeafSearchLookup(context).doc();
-                                    leafDocLookup.setDocument(doc);
-                                    scriptDocValues = leafDocLookup.get(field);
-                                } else {
-                                    scriptDocValues = indexFieldData.load(context).getScriptFieldFactory("test").toScriptDocValues();
-                                    ;
-                                }
-                                scriptDocValues.getSupplier().setNextDocId(doc);
-                                for (int i = 0; i < scriptDocValues.size(); i++) {
-                                    result.add(scriptDocValues.get(i).toString());
-                                }
-                            }
-                        };
+                    public List<String> reduce(Collection<ValueCollector> collectors) {
+                        List<CollectedValue> values = new ArrayList<>();
+                        for (ValueCollector collector : collectors) {
+                            values.addAll(collector.values);
+                        }
+                        values.sort(Comparator.comparingInt(CollectedValue::doc));
+                        return values.stream().map(CollectedValue::value).toList();
                     }
                 });
             }
-            return result;
+        }
+    }
+
+    private record CollectedValue(int doc, String value) {}
+
+    /**
+     * One collector per slice: each owns its leaf lookup / script doc values and the hits it collected.
+     */
+    private static final class ValueCollector extends SimpleCollector {
+        private final String field;
+        private final SearchExecutionContext searchExecutionContext;
+        private final IndexFieldData<?> indexFieldData;
+        private final boolean useDocLookup;
+        private final List<CollectedValue> values = new ArrayList<>();
+        private int docBase;
+        private LeafDocLookup leafDocLookup;
+        private ScriptDocValues<?> scriptDocValues;
+
+        ValueCollector(
+            String field,
+            SearchExecutionContext searchExecutionContext,
+            IndexFieldData<?> indexFieldData,
+            boolean useDocLookup
+        ) {
+            this.field = field;
+            this.searchExecutionContext = searchExecutionContext;
+            this.indexFieldData = indexFieldData;
+            this.useDocLookup = useDocLookup;
+        }
+
+        @Override
+        protected void doSetNextReader(LeafReaderContext context) {
+            docBase = context.docBase;
+            if (useDocLookup) {
+                leafDocLookup = searchExecutionContext.lookup().getLeafSearchLookup(context).doc();
+            } else {
+                scriptDocValues = indexFieldData.load(context).getScriptFieldFactory("test").toScriptDocValues();
+            }
+        }
+
+        @Override
+        public void collect(int doc) throws IOException {
+            final ScriptDocValues<?> docValues;
+            if (useDocLookup) {
+                leafDocLookup.setDocument(doc);
+                docValues = leafDocLookup.get(field);
+            } else {
+                scriptDocValues.getSupplier().setNextDocId(doc);
+                docValues = scriptDocValues;
+            }
+            for (int i = 0; i < docValues.size(); i++) {
+                values.add(new CollectedValue(docBase + doc, docValues.get(i).toString()));
+            }
+        }
+
+        @Override
+        public ScoreMode scoreMode() {
+            return ScoreMode.COMPLETE_NO_SCORES;
         }
     }
 }

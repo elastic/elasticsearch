@@ -150,6 +150,66 @@ final class ByteArrayUtils {
         return false;
     }
 
+    /** The walk of {@link #contains} with both sides folded onto one case as they are compared. */
+    static boolean mayContainIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        return indexOfCandidateIgnoringAsciiCase(value, valueOffset, valueLength, term, termOffset, termLength) >= 0;
+    }
+
+    /** The same walk, reporting the index instead of a yes or no. */
+    static int indexOfCandidateIgnoringAsciiCase(
+        byte[] value,
+        int valueOffset,
+        int valueLength,
+        byte[] term,
+        int termOffset,
+        int termLength
+    ) {
+        final byte first = foldAsciiCase(term[termOffset]);
+        final int max = valueOffset + valueLength - termLength;
+        for (int i = valueOffset; i <= max; i++) {
+            if (foldAsciiCase(value[i]) != first) {
+                while (++i <= max && foldAsciiCase(value[i]) != first)
+                    ;
+            }
+            if (i <= max && restFoldsOnto(value, i, term, termOffset, termLength)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** A byte outside ASCII has its sign bit set. */
+    static boolean anyNonAscii(byte[] value, int offset, int length) {
+        for (int i = offset, to = offset + length; i < to; i++) {
+            if (value[i] < 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the term's bytes after its first fold onto the value's at {@code valuePos}. */
+    private static boolean restFoldsOnto(byte[] value, int valuePos, byte[] term, int termOffset, int termLength) {
+        for (int k = 1; k < termLength; k++) {
+            if (foldAsciiCase(value[valuePos + k]) != foldAsciiCase(term[termOffset + k])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Sets bit {@code 0x20}, which folds an ASCII letter onto its lower case. */
+    static byte foldAsciiCase(byte b) {
+        return (byte) (b | 0x20);
+    }
+
     private static long readLongNative(byte[] arr, int offset) {
         return (long) VH_NATIVE_LONG.get(arr, offset);
     }

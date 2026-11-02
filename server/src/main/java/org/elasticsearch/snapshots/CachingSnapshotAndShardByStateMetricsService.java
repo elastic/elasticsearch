@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.ArrayList;
@@ -46,18 +47,24 @@ public class CachingSnapshotAndShardByStateMetricsService {
         this.clusterService = clusterService;
     }
 
-    public Collection<LongWithAttributes> getShardsByState() {
-        return maybeGetCachedSnapshotStateMetrics().map(CachedSnapshotStateMetrics::shardStateMetrics).orElse(List.of());
+    public void recordShardsByState(LongAsyncMeasurement measurement) {
+        maybeGetCachedSnapshotStateMetrics().ifPresent(metrics -> recordAll(metrics.shardStateMetrics(), measurement));
     }
 
-    public Collection<LongWithAttributes> getSnapshotsByState() {
-        return maybeGetCachedSnapshotStateMetrics().map(CachedSnapshotStateMetrics::snapshotStateMetrics).orElse(List.of());
+    public void recordSnapshotsByState(LongAsyncMeasurement measurement) {
+        maybeGetCachedSnapshotStateMetrics().ifPresent(metrics -> recordAll(metrics.snapshotStateMetrics(), measurement));
+    }
+
+    private static void recordAll(Collection<LongWithAttributes> values, LongAsyncMeasurement measurement) {
+        for (LongWithAttributes value : values) {
+            measurement.record(value.value(), value.attributes());
+        }
     }
 
     /// If this node is reporting metrics (i.e. it is master and the cluster service is started), returns a single long value giving the
     /// longest time that any shard snapshot has been in the [org.elasticsearch.cluster.SnapshotsInProgress.ShardState#WAITING] state (in
     /// milliseconds, with some caveats). That value will be zero if no shard snapshots are waiting. If this node is not reporting metrics,
-    /// returns an empty collection.
+    /// records nothing.
     ///
     /// Caveats:
     /// - The precision of this value is no greater than the interval between calls to this method (because the state is only inspected when
@@ -65,9 +72,10 @@ public class CachingSnapshotAndShardByStateMetricsService {
     /// - This value is reset if the master changes or restarts (because the timestamps are held in-memory on the master). Exception: If a
     /// node loses the master assignment without shutting down (e.g. because of a network partition or coordination timeout) and then
     /// regains it, it will remember the age of any shard snapshot that was waiting before and still is now.
-    public Collection<LongWithAttributes> getLongestWaitingTimeMillis() {
-        return maybeGetCachedSnapshotStateMetrics().map(metrics -> metrics.longestWaitingTimeMillisMetrics(currentTimeMillis()))
-            .orElse(List.of());
+    public void recordLongestWaitingTimeMillis(LongAsyncMeasurement measurement) {
+        maybeGetCachedSnapshotStateMetrics().ifPresent(
+            metrics -> measurement.record(metrics.longestWaitingTimeMillis(currentTimeMillis()))
+        );
     }
 
     private Optional<CachedSnapshotStateMetrics> maybeGetCachedSnapshotStateMetrics() {
@@ -132,7 +140,7 @@ public class CachingSnapshotAndShardByStateMetricsService {
         synchronized (waitingTimestamps) {
             if (waitingShards.isEmpty()) {
                 waitingTimestamps.clear();
-                return Long.MAX_VALUE; // ensures that CachedSnapshotStateMetrics.longestWaitingTimeMillisMetrics() will compute zero value
+                return Long.MAX_VALUE; // ensures that CachedSnapshotStateMetrics.longestWaitingTimeMillis() will compute zero value
             } else {
                 waitingShards.forEach(shardSnapshot -> waitingTimestamps.putIfAbsent(shardSnapshot, nowMillis));
                 waitingTimestamps.keySet().retainAll(waitingShards);
@@ -145,7 +153,7 @@ public class CachingSnapshotAndShardByStateMetricsService {
         // We use absoluteTimeInMillis rather than relativeTimeInMillis because the latter has an arbitrary zero point, so there's a chance
         // (though very small!) that it could wrap around while we're running, and then the minimum timestamp wouldn't be the earliest.
         // We deal with the (also very small) chance that we could observe time going backwards in
-        // CachedSnapshotStateMetrics.longestWaitingTimeMillisMetrics().
+        // CachedSnapshotStateMetrics.longestWaitingTimeMillis().
         long currentTimeMillis = clusterService.threadPool().absoluteTimeInMillis();
         assert currentTimeMillis >= 0 : "Current time is before epoch start: " + currentTimeMillis;
         return currentTimeMillis;
@@ -187,9 +195,8 @@ public class CachingSnapshotAndShardByStateMetricsService {
             return System.identityHashCode(SnapshotsInProgress.get(currentClusterState)) != snapshotsInProgressIdentityHashcode;
         }
 
-        public List<LongWithAttributes> longestWaitingTimeMillisMetrics(long nowMillis) {
-            long longestWaitingTimeMillis = Math.max(nowMillis - earliestWaitingShardTimestampMillis, 0L);
-            return List.of(new LongWithAttributes(longestWaitingTimeMillis));
+        public long longestWaitingTimeMillis(long nowMillis) {
+            return Math.max(nowMillis - earliestWaitingShardTimestampMillis, 0L);
         }
     }
 }

@@ -40,4 +40,9 @@ public abstract class AnalyzerTestCase extends ESTestCase {
     protected TestAnalyzer analyzer() {
         return EsqlTestUtils.analyzer().minimumTransportVersion(minimumVersion);
     }
+
+    /** This instance's version, or {@code floor} when it does not support it, for analyzers that need a version-gated feature. */
+    protected TransportVersion minimumVersionAtLeast(TransportVersion floor) {
+        return minimumVersion.supports(floor) ? minimumVersion : floor;
+    }
 }

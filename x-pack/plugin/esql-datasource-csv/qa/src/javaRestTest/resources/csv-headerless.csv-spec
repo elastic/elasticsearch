@@ -11,6 +11,11 @@
 // now live in a `dataset:` directive. The harness registers the dataset on every storage backend and
 // runs FROM verbatim. Dataset names are distinct per option set so each query's settings are unambiguous.
 
+// Headerless inference also samples columns beyond col1: the bracket multi-value syntax is not
+// bracket-aware during schema sampling, so a handful of other columns' comma-split fragments
+// disagree in type across sampled rows and widen to KEYWORD (or merge long+double) — pre-existing
+// behavior, now reported instead of silent. The path segment is wildcarded since it differs per
+// storage backend/compression variant this spec runs against.
 headerRowFalse
 required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
@@ -21,12 +26,21 @@ FROM employees_headerless
 | KEEP col1
 | LIMIT 2
 ;
+warningRegex:A column mixing \[long\] and \[double\] within the schema sample is read as \[double\], losing precision above 2\^53; set \[schema_resolution\] to \[strict\] to fail instead
+warningRegex:A column's inferred type changed partway through the schema sample and is read as \[keyword\]; set \[schema_resolution\] to \[strict\] to fail instead
+warningRegex:column \[col28\] at sample row \[6\] of \[.*\]: value \[\[-2.14\] forced type \[keyword\] \(was \[integer\]\)
+warningRegex:column \[col31\] at sample row \[8\] of \[.*\]: value \[\[-7.06\] forced type \[keyword\] \(was \[integer\]\)
+warningRegex:column \[col32\] at sample row \[11\] of \[.*\]: value \[12\]\] forced type \[keyword\] \(was \[double\]\)
+warningRegex:column \[col32\] at sample row \[9\] of \[.*\]: value \[3\] forced type \[double\] \(was \[long\]\)
+warningRegex:column \[col35\] at sample row \[9\] of \[.*\]: value \[\[12.68\] forced type \[keyword\] \(was \[double\]\)
+warningRegex:column \[col36\] at sample row \[11\] of \[.*\]: value \[12\]\] forced type \[keyword\] \(was \[double\]\)
 
 col1:keyword
 "emp_no:integer"
 "10001"
 ;
 
+// Same within-sample widening as headerRowFalse above, on the "f"-prefixed synthesized columns.
 headerRowFalseWithCustomPrefix
 required_capability: dataset_in_from_command
 required_capability: external_csv_header_row_option
@@ -37,6 +51,14 @@ FROM employees_headerless_prefixed
 | KEEP f1
 | LIMIT 2
 ;
+warningRegex:A column mixing \[long\] and \[double\] within the schema sample is read as \[double\], losing precision above 2\^53; set \[schema_resolution\] to \[strict\] to fail instead
+warningRegex:A column's inferred type changed partway through the schema sample and is read as \[keyword\]; set \[schema_resolution\] to \[strict\] to fail instead
+warningRegex:column \[f28\] at sample row \[6\] of \[.*\]: value \[\[-2.14\] forced type \[keyword\] \(was \[integer\]\)
+warningRegex:column \[f31\] at sample row \[8\] of \[.*\]: value \[\[-7.06\] forced type \[keyword\] \(was \[integer\]\)
+warningRegex:column \[f32\] at sample row \[11\] of \[.*\]: value \[12\]\] forced type \[keyword\] \(was \[double\]\)
+warningRegex:column \[f32\] at sample row \[9\] of \[.*\]: value \[3\] forced type \[double\] \(was \[long\]\)
+warningRegex:column \[f35\] at sample row \[9\] of \[.*\]: value \[\[12.68\] forced type \[keyword\] \(was \[double\]\)
+warningRegex:column \[f36\] at sample row \[11\] of \[.*\]: value \[12\]\] forced type \[keyword\] \(was \[double\]\)
 
 f1:keyword
 "emp_no:integer"

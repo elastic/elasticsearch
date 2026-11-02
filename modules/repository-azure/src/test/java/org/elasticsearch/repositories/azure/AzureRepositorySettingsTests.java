@@ -80,8 +80,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             Map.of(),
             repositoryServiceThreadPool,
             client,
-            List.of(),
-            SnapshotMetrics.NOOP
+            List.of()
         );
         repositoryServiceClusterService.start();
         repositoriesService.start();
@@ -286,7 +285,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     public void testChunkSize() {
         // default chunk size
         AzureRepository azureRepository = azureRepository(Settings.EMPTY);
-        assertEquals(AzureStorageService.MAX_CHUNK_SIZE, azureRepository.chunkSize());
+        assertEquals(AzureRepository.Repository.MAX_CHUNK_SIZE, azureRepository.chunkSize());
 
         // chunk size in settings
         int size = randomIntBetween(1, 256);
@@ -307,7 +306,9 @@ public class AzureRepositorySettingsTests extends ESTestCase {
         // greater than max chunk size not allowed
         e = expectThrows(IllegalArgumentException.class, () -> azureRepository(Settings.builder().put("chunk_size", "6tb").build()));
         assertEquals(
-            "failed to parse value [6tb] for setting [chunk_size], must be <= [" + AzureStorageService.MAX_CHUNK_SIZE.getStringRep() + "]",
+            "failed to parse value [6tb] for setting [chunk_size], must be <= ["
+                + AzureRepository.Repository.MAX_CHUNK_SIZE.getStringRep()
+                + "]",
             e.getMessage()
         );
     }

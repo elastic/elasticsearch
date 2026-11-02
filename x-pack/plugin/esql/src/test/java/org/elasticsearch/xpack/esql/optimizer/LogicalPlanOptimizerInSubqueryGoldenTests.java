@@ -1033,9 +1033,9 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             """, STAGES);
     }
 
-    // -- EVAL IN subquery: name-collision flush --
+    // -- EVAL IN subquery: name-collision --
 
-    public void testInSubqueryInEvalNameCollisionFlushesInterveningAlias() {
+    public void testInSubqueryInEvalNameCollisionInterveningAlias() {
         assumeTrue("Requires IN subquery in EVAL support", EsqlCapabilities.Cap.EVAL_IN_SUBQUERY.isEnabled());
         runGoldenTest("""
             FROM employees
@@ -1500,6 +1500,57 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
         runGoldenTest("""
             FROM employees
             | INLINE STATS c = COUNT(*) WHERE (emp_no IN (ROW a = 1 | KEEP a)) IS NOT NULL
+            """, STAGES);
+    }
+
+    public void testForkMarkJoinUnmappedEvalNullifyDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees
+            | FORK
+                (WHERE emp_no IN (FROM employees | KEEP emp_no) OR false)
+                (WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testForkMarkJoinUnmappedEvalLoadDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM employees
+            | FORK
+                (WHERE emp_no IN (FROM employees | KEEP emp_no) OR false)
+                (WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testUnionAllMarkJoinUnmappedEvalNullifyDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR false),
+                 (FROM employees | WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testUnionAllMarkJoinUnmappedEvalLoadDoesNotLeakMark() {
+        runGoldenTest("""
+            SET unmapped_fields="load";
+            FROM (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR false),
+                 (FROM employees | WHERE first_name IN (FROM employees | KEEP first_name) OR false)
+            | EVAL y = does_not_exist_field
+            """, STAGES);
+    }
+
+    public void testForkFoldableLhsUnmappedEvalNullifyDoesNotLeakConst() {
+        runGoldenTest("""
+            SET unmapped_fields="nullify";
+            FROM employees
+            | FORK
+                (WHERE 10001 IN (ROW x = 10001) OR false)
+                (WHERE "Georgi" IN (ROW x = "Georgi") OR false)
+            | EVAL y = does_not_exist_field
             """, STAGES);
     }
 }

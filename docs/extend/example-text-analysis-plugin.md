@@ -120,7 +120,7 @@ Elastic provides a Grade plugin, `elasticsearch.stable-esplugin`, that makes it 
 
     This builds the JAR file, generates the metadata files, and bundles them into a plugin ZIP file. The resulting ZIP file will be written to the `build/distributions` directory.
 
-8. [Install the plugin](/reference/elasticsearch-plugins/plugin-management.md).
+8. Install the plugin from the ZIP file, using the method that matches your deployment type. Refer to [Plugins and custom configuration files](docs-content://deploy-manage/plugins-and-custom-configuration-files.md#plugins-by-deployment-type).
 9. You can use the `_analyze` API to verify that the `hello_world` token filter works as expected:
 
     ```console

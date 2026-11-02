@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +25,7 @@ import java.util.Set;
 
 import static org.elasticsearch.health.node.HealthInfoTests.randomDlmFrozenTransitionsHealthInfo;
 import static org.elasticsearch.health.node.HealthInfoTests.randomDslHealthInfo;
+import static org.elasticsearch.health.node.HealthInfoTests.randomLocalRecoveryRetriesHealthInfo;
 import static org.elasticsearch.health.node.HealthInfoTests.randomRepoHealthInfo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -54,13 +56,16 @@ public class HealthInfoCacheTests extends ESTestCase {
         DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
         var repoHealthInfo = randomRepoHealthInfo();
         DlmFrozenTransitionsHealthInfo latestDlmFrozenTransitionsHealthInfo = randomDlmFrozenTransitionsHealthInfo();
+        LocalRecoveryRetriesHealthInfo latestLocalRecoveryRetriesHealthInfo = randomLocalRecoveryRetriesHealthInfo();
         healthInfoCache.updateNodeHealth(
             node1.getId(),
             GREEN,
             latestDslHealthInfo,
             repoHealthInfo,
             FileSettingsHealthInfo.INDETERMINATE,
-            latestDlmFrozenTransitionsHealthInfo
+            latestDlmFrozenTransitionsHealthInfo,
+            null,
+            latestLocalRecoveryRetriesHealthInfo
         );
         healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
 
@@ -74,6 +79,11 @@ public class HealthInfoCacheTests extends ESTestCase {
         assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(latestDslHealthInfo));
         // same for the DLM frozen transitions health info
         assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), is(latestDlmFrozenTransitionsHealthInfo));
+        // local recovery retries are kept per node
+        assertThat(
+            healthInfoCache.getHealthInfo().localRecoveryRetriesHealthInfoByNode(),
+            equalTo(Map.of(node1.getId(), latestLocalRecoveryRetriesHealthInfo))
+        );
     }
 
     public void testRemoveNodeFromTheCluster() {
@@ -86,6 +96,27 @@ public class HealthInfoCacheTests extends ESTestCase {
         // DSL health info is published by the master (node1), disk/repo health from node2
         healthInfoCache.updateNodeHealth(node1.getId(), GREEN, latestDslHealthInfo, repoHealthInfo, FileSettingsHealthInfo.INDETERMINATE);
         healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
+        var node1LocalRecoveryRetries = randomLocalRecoveryRetriesHealthInfo();
+        healthInfoCache.updateNodeHealth(
+            node1.getId(),
+            GREEN,
+            null,
+            null,
+            FileSettingsHealthInfo.INDETERMINATE,
+            null,
+            null,
+            node1LocalRecoveryRetries
+        );
+        healthInfoCache.updateNodeHealth(
+            node2.getId(),
+            RED,
+            null,
+            null,
+            FileSettingsHealthInfo.INDETERMINATE,
+            null,
+            null,
+            randomLocalRecoveryRetriesHealthInfo()
+        );
 
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node1, new DiscoveryNode[] { node1 });
         healthInfoCache.clusterChanged(new ClusterChangedEvent("test", current, previous));
@@ -95,6 +126,50 @@ public class HealthInfoCacheTests extends ESTestCase {
         assertThat(diskHealthInfo.get(node2.getId()), nullValue());
         // the dsl info is not removed when a non-master node leaves the cluster; it is only reset when the health node changes
         assertThat(healthInfoCache.getHealthInfo().dslHealthInfo(), is(latestDslHealthInfo));
+        // the local recovery retries for the node which left are removed, but those for the remaining node are kept
+        assertThat(
+            healthInfoCache.getHealthInfo().localRecoveryRetriesHealthInfoByNode(),
+            equalTo(Map.of(node1.getId(), node1LocalRecoveryRetries))
+        );
+    }
+
+    public void testLocalRecoveryRetriesAreReplacedByLatestReportFromNode() {
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", state, state));
+
+        healthInfoCache.updateNodeHealth(
+            node1.getId(),
+            GREEN,
+            null,
+            null,
+            FileSettingsHealthInfo.INDETERMINATE,
+            null,
+            null,
+            randomLocalRecoveryRetriesHealthInfo()
+        );
+        var node2Report = randomLocalRecoveryRetriesHealthInfo();
+        healthInfoCache.updateNodeHealth(node2.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, null, null, node2Report);
+
+        // A report which does not contain local recovery retries (e.g. from an older node) leaves the previous one in place:
+        healthInfoCache.updateNodeHealth(node2.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, null, null, null);
+        assertThat(healthInfoCache.getHealthInfo().localRecoveryRetriesHealthInfoByNode().get(node2.getId()), equalTo(node2Report));
+
+        // An empty report means the node no longer has any recoveries being retried, and replaces the previous report in its entirety:
+        healthInfoCache.updateNodeHealth(
+            node1.getId(),
+            GREEN,
+            null,
+            null,
+            FileSettingsHealthInfo.INDETERMINATE,
+            null,
+            null,
+            LocalRecoveryRetriesHealthInfo.EMPTY
+        );
+        assertThat(
+            healthInfoCache.getHealthInfo().localRecoveryRetriesHealthInfoByNode(),
+            equalTo(Map.of(node1.getId(), LocalRecoveryRetriesHealthInfo.EMPTY, node2.getId(), node2Report))
+        );
     }
 
     public void testFileSettingsHealthInfoOnlyAcceptedFromMaster() {
@@ -161,12 +236,30 @@ public class HealthInfoCacheTests extends ESTestCase {
         );
 
         // update from master (node1) is accepted
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, fromMaster);
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, fromMaster, null, null);
         assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), equalTo(fromMaster));
 
         // update from non-master (node2) is rejected; old value is preserved
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, fromNonMaster);
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, fromNonMaster, null, null);
         assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), equalTo(fromMaster));
+    }
+
+    public void testDataRecoveryHealthInfoOnlyAcceptedFromMaster() {
+        HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
+        // node1 is local node, master, and health node
+        ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
+        healthInfoCache.clusterChanged(new ClusterChangedEvent("test", state, state));
+
+        DataRecoveryHealthInfo fromMaster = HealthInfoTests.randomDataRecoveryHealthInfo();
+        DataRecoveryHealthInfo fromNonMaster = randomValueOtherThan(fromMaster, HealthInfoTests::randomDataRecoveryHealthInfo);
+
+        // update from master (node1) is accepted
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, null, fromMaster, null);
+        assertThat(healthInfoCache.getHealthInfo().dataRecoveryHealthInfo(), equalTo(fromMaster));
+
+        // update from non-master (node2) is rejected; old value is preserved
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, null, fromNonMaster, null);
+        assertThat(healthInfoCache.getHealthInfo().dataRecoveryHealthInfo(), equalTo(fromMaster));
     }
 
     public void testNotAHealthNode() {
@@ -177,7 +270,9 @@ public class HealthInfoCacheTests extends ESTestCase {
             randomDslHealthInfo(),
             randomRepoHealthInfo(),
             FileSettingsHealthInfo.INDETERMINATE,
-            randomDlmFrozenTransitionsHealthInfo()
+            randomDlmFrozenTransitionsHealthInfo(),
+            HealthInfoTests.randomDataRecoveryHealthInfo(),
+            randomLocalRecoveryRetriesHealthInfo()
         );
         healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
 
@@ -191,6 +286,8 @@ public class HealthInfoCacheTests extends ESTestCase {
         Map<String, RepositoriesHealthInfo> repoHealthInfo = healthInfoCache.getHealthInfo().repositoriesInfoByNode();
         assertThat(repoHealthInfo.isEmpty(), equalTo(true));
         assertThat(healthInfoCache.getHealthInfo().dlmFrozenTransitionsHealthInfo(), is(nullValue()));
+        assertThat(healthInfoCache.getHealthInfo().dataRecoveryHealthInfo(), is(nullValue()));
+        assertThat(healthInfoCache.getHealthInfo().localRecoveryRetriesHealthInfoByNode().isEmpty(), equalTo(true));
     }
 
 }

@@ -14,15 +14,17 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public final class TimedRunnableTests extends ESTestCase {
 
     public void testTimedRunnableDelegatesToAbstractRunnable() {
         final boolean isForceExecution = randomBoolean();
-        final AtomicBoolean onAfter = new AtomicBoolean();
+        final AtomicInteger onAfter = new AtomicInteger();
         final AtomicReference<Exception> onRejection = new AtomicReference<>();
         final AtomicBoolean doRun = new AtomicBoolean();
 
@@ -34,7 +36,7 @@ public final class TimedRunnableTests extends ESTestCase {
 
             @Override
             public void onAfter() {
-                onAfter.set(true);
+                onAfter.incrementAndGet();
             }
 
             @Override
@@ -61,11 +63,11 @@ public final class TimedRunnableTests extends ESTestCase {
 
         timedRunnable.run();
         assertTrue(doRun.get());
-        assertTrue(onAfter.get());
+        assertThat(onAfter.get(), equalTo(1));
     }
 
     public void testTimedRunnableDelegatesRunInFailureCase() {
-        final AtomicBoolean onAfter = new AtomicBoolean();
+        final AtomicInteger onAfter = new AtomicInteger();
         final AtomicReference<Exception> onFailure = new AtomicReference<>();
         final AtomicBoolean doRun = new AtomicBoolean();
 
@@ -74,7 +76,7 @@ public final class TimedRunnableTests extends ESTestCase {
         final AbstractRunnable runnable = new AbstractRunnable() {
             @Override
             public void onAfter() {
-                onAfter.set(true);
+                onAfter.incrementAndGet();
             }
 
             @Override
@@ -93,7 +95,8 @@ public final class TimedRunnableTests extends ESTestCase {
         timedRunnable.run();
         assertTrue(doRun.get());
         assertThat(onFailure.get(), equalTo(exception));
-        assertTrue(onAfter.get());
+        assertThat(onAfter.get(), equalTo(1));
+        assertThat(timedRunnable.getTotalExecutionNanos(), greaterThanOrEqualTo(0L));
     }
 
     public void testTimedRunnableRethrowsExceptionWhenNotAbstractRunnable() {
@@ -109,6 +112,7 @@ public final class TimedRunnableTests extends ESTestCase {
         final RuntimeException thrown = expectThrows(RuntimeException.class, () -> timedRunnable.run());
         assertTrue(hasRun.get());
         assertSame(exception, thrown);
+        assertThat(timedRunnable.getTotalExecutionNanos(), greaterThanOrEqualTo(0L));
     }
 
     public void testTimedRunnableRethrowsRejectionWhenNotAbstractRunnable() {
@@ -122,13 +126,16 @@ public final class TimedRunnableTests extends ESTestCase {
 
         final TimedRunnable timedRunnable = new TimedRunnable(runnable);
         final RuntimeException thrown = expectThrows(RuntimeException.class, () -> timedRunnable.onRejection(exception));
+        timedRunnable.onAfter();
         assertFalse(hasRun.get());
         assertSame(exception, thrown);
+        // on rejection the start timer isn't set
+        assertThat(timedRunnable.getTotalExecutionNanos(), equalTo(-1L));
     }
 
     public void testTimedRunnableExecutesNestedOnAfterOnce() {
         final AtomicBoolean afterRan = new AtomicBoolean(false);
-        new TimedRunnable(new AbstractRunnable() {
+        final TimedRunnable timedRunnable = new TimedRunnable(new AbstractRunnable() {
 
             @Override
             public void onFailure(final Exception e) {}
@@ -142,8 +149,10 @@ public final class TimedRunnableTests extends ESTestCase {
                     fail("onAfter should have only been called once");
                 }
             }
-        }).run();
+        });
+        timedRunnable.run();
         assertTrue(afterRan.get());
+        assertThat(timedRunnable.getTotalExecutionNanos(), greaterThanOrEqualTo(0L));
     }
 
     public void testNestedOnFailureTriggersOnlyOnce() {

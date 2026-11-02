@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.not;
  * <p>Behavior against <em>pre-existing</em> federation state (executing {@code FROM <dataset>} against an existing
  * dataset) cannot be exercised here, because a node that boots without federation cannot create that state; it is
  * covered by {@link FederationKillSwitchRestartRestIT} and {@link FederationSettingRestartRestIT}, which create state
- * while enabled and then restart the node with one lever off. The complementary enabled-path CRUD coverage lives in
- * {@link DataSourceCrudRestIT}.
+ * while enabled, restart the node with one lever off, and then restart it with the lever on again. The complementary
+ * enabled-path CRUD coverage lives in {@link DataSourceCrudRestIT}.
  */
 public abstract class AbstractFederationUnavailableRestTestCase extends ESRestTestCase {
 

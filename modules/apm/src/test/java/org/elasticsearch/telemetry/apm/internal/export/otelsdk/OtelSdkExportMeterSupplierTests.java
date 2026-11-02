@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.metrics.spi.MetricReaderProvider;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -99,6 +100,20 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir(), (MetricReaderProvider) null);
         assertThat(supplier.getMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
         supplier.close();
+    }
+
+    public void testGetMeterProviderAfterSecureSettingsClosed() throws IOException {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("telemetry.secret_token", "tok");
+        Settings settings = Settings.builder()
+            .put(OtelSdkSettings.TELEMETRY_EXPORT_ENDPOINT.getKey(), "http://127.0.0.1:9")
+            .setSecureSettings(secureSettings)
+            .build();
+        try (var supplier = new OtelSdkExportMeterSupplier(settings, createTempDir(), (MetricReaderProvider) null)) {
+            secureSettings.close();
+            assertThat(supplier.getMeterProvider(), org.hamcrest.Matchers.instanceOf(SdkMeterProvider.class));
+            assertThat(supplier.authHeader, equalTo("Bearer tok"));
+        }
     }
 
     public void testCloseWithoutGetDoesNotThrow() {

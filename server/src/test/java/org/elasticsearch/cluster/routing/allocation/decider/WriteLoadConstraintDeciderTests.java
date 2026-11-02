@@ -46,6 +46,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecisionWithExplanationMatching;
+import static org.elasticsearch.cluster.routing.allocation.AllocationDecisionMatcher.isNotPreferredDecisionWithNoExplanation;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -312,6 +314,55 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
         );
     }
 
+    /**
+     * NOT_PREFERRED decisions must keep the decider label when debug is off, so that callers can identify the decider, but carry no
+     * explanation.
+     */
+    public void testNotPreferredDecisionsHaveLabelWithoutDebug() {
+        final String indexName = "test-index";
+        final var testHarness = createClusterStateAndRoutingAllocation(indexName);
+        final var decider = createWriteLoadConstraintDecider(createSettings(null, null, null, null, -1.0));
+        final var indexMetadata = testHarness.clusterState.metadata().getProject().index(indexName);
+
+        // node above the allocation utilization threshold
+        assertThat(
+            decider.canAllocate(
+                testHarness.shardRoutingOnNodeBelowUtilThreshold,
+                testHarness.exceedingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ),
+            isNotPreferredDecisionWithNoExplanation(WriteLoadConstraintDecider.NAME)
+        );
+        // hot-spotting node with low utilisation
+        assertThat(
+            decider.canAllocate(
+                testHarness.unassignedShardRouting,
+                testHarness.aboveQueueingThresholdWithLowUtilisationNode,
+                testHarness.routingAllocation
+            ),
+            isNotPreferredDecisionWithNoExplanation(WriteLoadConstraintDecider.NAME)
+        );
+        // allocation would push the node over the utilization threshold
+        assertThat(
+            decider.canAllocate(
+                testHarness.shardRoutingOnNodeExceedingUtilThreshold,
+                testHarness.nearThresholdRoutingNode,
+                testHarness.routingAllocation
+            ),
+            isNotPreferredDecisionWithNoExplanation(WriteLoadConstraintDecider.NAME)
+        );
+        // shard should move away from hot-spotting node
+        assertThat(
+            decider.canRemain(
+                indexMetadata,
+                testHarness.shardRoutingOnNodeAboveQueueThreshold,
+                testHarness.aboveQueuingThresholdRoutingNode,
+                testHarness.routingAllocation
+            ),
+            isNotPreferredDecisionWithNoExplanation(WriteLoadConstraintDecider.NAME)
+        );
+    }
+
     public void testWriteLoadDeciderShouldPreventBalancerMovingShardsBack() {
         final var indexName = randomIdentifier();
         final int numThreads = randomIntBetween(1, 10);
@@ -456,15 +507,16 @@ public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
             .shardsWithState(ShardRoutingState.STARTED)
             .findFirst()
             .orElseThrow();
-        Decision decision = writeLoadConstraintDecider.canAllocate(shardRouting, overloadedRoutingNode, routingAllocation);
-        assertEquals(decision.type(), Decision.NOT_PREFERRED.type());
         assertThat(
-            decision.getExplanation(),
-            equalTo(
-                "Node ["
-                    + overloadedNode.getId()
-                    + "] is currently hot-spotting or in a waiting "
-                    + "period, and does not prefer shards moved onto it"
+            writeLoadConstraintDecider.canAllocate(shardRouting, overloadedRoutingNode, routingAllocation),
+            isNotPreferredDecisionWithExplanationMatching(
+                WriteLoadConstraintDecider.NAME,
+                equalTo(
+                    "Node ["
+                        + overloadedNode.getId()
+                        + "] is currently hot-spotting or in a waiting "
+                        + "period, and does not prefer shards moved onto it"
+                )
             )
         );
     }

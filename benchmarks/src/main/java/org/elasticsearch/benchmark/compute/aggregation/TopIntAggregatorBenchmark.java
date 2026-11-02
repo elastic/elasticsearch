@@ -79,7 +79,7 @@ public class TopIntAggregatorBenchmark {
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("bench"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     private static final BufferAllocator arrowAllocator = new RootAllocator(Long.MAX_VALUE);

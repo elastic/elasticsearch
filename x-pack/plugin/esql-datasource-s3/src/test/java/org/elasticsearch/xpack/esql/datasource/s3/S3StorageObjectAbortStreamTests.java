@@ -7,10 +7,19 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.MeteredInputStream;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -20,7 +29,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link S3StorageObject#abortStream(InputStream)} dispatch.
@@ -81,6 +92,116 @@ public class S3StorageObjectAbortStreamTests extends ESTestCase {
         obj.abortStream(stream);
 
         assertTrue("close() must be invoked on non-Abortable streams as a fallback", closeCalled.get());
+    }
+
+    /**
+     * MeteredInputStream is not AWS {@link Abortable}. abortStream must dispatch on Metered
+     * first; {@code instanceof Abortable} would miss it and fall through to close(), which drains.
+     */
+    public void testAbortStreamCallsMeteredAbort() throws IOException {
+        AtomicBoolean abortCalled = new AtomicBoolean(false);
+        AtomicBoolean closeCalled = new AtomicBoolean(false);
+        AbortableInputStream inner = new AbortableInputStream(
+            new ByteArrayInputStream("partial".getBytes(StandardCharsets.UTF_8)),
+            abortCalled,
+            closeCalled
+        );
+        MeteredInputStream metered = new MeteredInputStream(inner, new StorageObjectMetricsCounters(), inner::abort);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        obj.abortStream(metered);
+
+        assertTrue("Metered abort must reach the inner Abortable", abortCalled.get());
+        assertFalse("close() must not drain after Metered abort", closeCalled.get());
+    }
+
+    public void testAbortStreamOnNewStreamUsesTypedAbort() throws IOException {
+        GetObjectResponse resp = GetObjectResponse.builder().contentLength(7L).build();
+        when(mockS3.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(
+                resp,
+                software.amazon.awssdk.http.AbortableInputStream.create(
+                    new ByteArrayInputStream("partial".getBytes(StandardCharsets.UTF_8))
+                )
+            )
+        );
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        InputStream stream = obj.newStream();
+        assertTrue("leaf newStream must return Metered so abortStream does not drain", stream instanceof MeteredInputStream);
+        obj.abortStream(stream);
+    }
+
+    public void testAbortStreamOnTransientTypingInputStreamCallsAbortNotClose() throws IOException {
+        AtomicBoolean abortCalled = new AtomicBoolean(false);
+        AtomicBoolean closeCalled = new AtomicBoolean(false);
+        AbortableInputStream inner = new AbortableInputStream(
+            new ByteArrayInputStream("partial".getBytes(StandardCharsets.UTF_8)),
+            abortCalled,
+            closeCalled
+        );
+        TransientTypingInputStream wrapped = new TransientTypingInputStream(inner, PATH, 1000);
+
+        S3StorageObject obj = new S3StorageObject(mockS3, BUCKET, KEY, PATH);
+        obj.abortStream(wrapped);
+
+        assertTrue("abortStream on the wrapped stream must call abort(), not Apache close()", abortCalled.get());
+        assertFalse("close() must not be called when abort() is available — close would drain", closeCalled.get());
+    }
+
+    public void testCloseDrainCountsRemainderAtOrBelow64KiB() throws IOException {
+        int leftover = TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES;
+        int read = 8;
+        byte[] payload = new byte[read + leftover];
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.attach(metrics, "s3");
+        TransientTypingInputStream typed = new TransientTypingInputStream(
+            new ByteArrayInputStream(payload),
+            PATH,
+            payload.length,
+            leftoverBytes -> counters.publishDrainedBytes(leftoverBytes)
+        );
+        MeteredInputStream metered = new MeteredInputStream(typed, counters, typed::abort);
+        assertEquals(read, metered.read(new byte[read]));
+        metered.close();
+        assertEquals(payload.length, counters.snapshot().bytesRead());
+        assertEquals("profile and APM must both include leftover drain", payload.length, apmBytesReadTotal(registry));
+    }
+
+    public void testCloseAbortsRemainderAbove64KiB() throws IOException {
+        int leftover = TransientTypingInputStream.MAX_TRAILING_DRAIN_BYTES + 1;
+        int read = 8;
+        byte[] payload = new byte[read + leftover];
+        AtomicBoolean abortCalled = new AtomicBoolean();
+        AtomicBoolean closeCalled = new AtomicBoolean();
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        ExternalSourceMetrics metrics = new ExternalSourceMetrics(registry);
+        StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+        counters.attach(metrics, "s3");
+        AbortableInputStream inner = new AbortableInputStream(new ByteArrayInputStream(payload), abortCalled, closeCalled);
+        TransientTypingInputStream typed = new TransientTypingInputStream(
+            inner,
+            PATH,
+            payload.length,
+            leftoverBytes -> counters.publishDrainedBytes(leftoverBytes)
+        );
+        MeteredInputStream metered = new MeteredInputStream(typed, counters, typed::abort);
+        assertEquals(read, metered.read(new byte[read]));
+        metered.close();
+        assertEquals(read, counters.snapshot().bytesRead());
+        assertEquals("abort skips leftover; APM is delivered-to-caller only", read, apmBytesReadTotal(registry));
+        assertTrue(abortCalled.get());
+        assertFalse(closeCalled.get());
+    }
+
+    private static long apmBytesReadTotal(RecordingMeterRegistry registry) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
     }
 
     /**

@@ -1,0 +1,6 @@
+area: Distributed
+issues:
+ - 158303
+pr: 162378
+summary: Handle `IndexShardClosedException` and shutdown in `ReplicationOperation::updateCheckPoints`
+type: bug

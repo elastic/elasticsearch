@@ -72,7 +72,9 @@ Units are configured at registration time of the metric.
 
 ## Metric attributes
 
-**WARNING** Do not use **high cardinality** attributes / dimensions. This might result in the APM Java agent dropping events.
+**WARNING** Do not use **high cardinality** attributes / dimensions.  Each metric is limited to 1000 distinct
+combinations of attribute values. Beyond that, new combinations are merged into a single series with the
+`otel.metric.overflow: true` attribute, losing their attribute values.
 
 It is not always straight forward to decide if something should be part of the metric name or an attribute (dimension) of that metric.  As a rule of thumb:
 - any aggregation across any dimensions of a metric should be meaningful, and

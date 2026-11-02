@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 161406
+summary: Bump lz4 to 1.11.4
+type: upgrade

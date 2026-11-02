@@ -249,7 +249,9 @@ public class PlainRunMergeTests extends ESTestCase {
             DictionaryPolicy.NONE,
             SummaryPolicy.NONE,
             randomFrom(ChunkCodec.IDENTITY, ChunkCodec.ZSTD),
-            sizes
+            sizes,
+            StringColumnOptions.DEFAULT_SINGLE_VALUED,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
         );
         return new ColumNARDocValuesFormat(
             (f, t) -> NumericPipeline::defaultPipeline,

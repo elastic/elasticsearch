@@ -992,3 +992,47 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "1" }
   - match: { hits.hits.1._id: "11" }
+
+---
+"Test wrapped queries on inference fields used as automatic prefilters do not overflow the stack":
+  # Regression test for https://github.com/elastic/elasticsearch/issues/162295
+  # A knn query used as an automatic prefilter, wrapped in script_score, used to recurse infinitely until the stack
+  # overflowed.
+  - requires:
+      cluster_features: "semantic.auto_prefilter_recursion_fix"
+      reason: auto prefiltering no longer recurses infinitely on wrapped inference field queries
+
+  - do:
+      search:
+        index: test-index
+        body: >
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "script_score": {
+                      "query": { "match": { "dense_field_1": { "query": "violins" } } },
+                      "script": {
+                        "source": "_score >= params.min_score ? 5 * _score : 0",
+                        "params": { "min_score": 0.0 }
+                      }
+                    }
+                  },
+                  {
+                    "script_score": {
+                      "query": { "match": { "dense_field_2": { "query": "cats" } } },
+                      "script": {
+                        "source": "_score >= params.min_score ? 5 * _score : 0",
+                        "params": { "min_score": 0.0 }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+
+  # violins matches documents 1-10 and cats matches documents 1 and 11, so only document 1 matches both
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }

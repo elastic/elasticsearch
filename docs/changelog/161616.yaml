@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161616
+summary: Skip loading unmapped fields from indices that cannot hold any
+type: enhancement

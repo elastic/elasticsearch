@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.instanceOf;
 @ThreadLeakFilters(filters = { AzureReactorThreadFilter.class, AzureStorageObjectTests.ReactorParallelThreadFilter.class })
 public class AzureStorageObjectAsyncTests extends ESTestCase {
 
-    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(new NoopCircuitBreaker("test"));
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
 
     private static final String CONNECTION_STRING = "DefaultEndpointsProtocol=http;"
         + "AccountName=devstoreaccount1;"

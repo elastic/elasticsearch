@@ -73,7 +73,7 @@ public class StatisticsRowGroupFilterParityTests extends ESTestCase {
 
     @Before
     public void initBlockFactoryAndCodec() throws Exception {
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         breaker = blockFactory.breaker();
         codecFactory = new PlainCompressionCodecFactory();
     }

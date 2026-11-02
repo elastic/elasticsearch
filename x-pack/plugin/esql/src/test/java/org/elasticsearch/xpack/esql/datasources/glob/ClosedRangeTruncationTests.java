@@ -55,7 +55,8 @@ public class ClosedRangeTruncationTests extends ESTestCase {
             Integer.MAX_VALUE,
             ExclusionConfig.fromConfig(Map.of()).compile(),
             FileOrderConfig.DEFAULT,
-            3
+            new ListingExtents(3),
+            PlanningMemory.NONE
         );
 
         assertEquals(0, result.fileCount());

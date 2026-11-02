@@ -93,10 +93,16 @@ interface SnapshotInfoCollector {
         private final int offset;
         private int collectedCount;
 
+        /// User might request gigantic size and/or offset, so we can't just allocate a queue of the requested capacity straight away. If
+        /// the repository has fewer matching snapshots than the requested size/offset then it's more efficient to grow the queue on demand.
+        /// This bound on the initial allocation is still fairly large, avoiding a good deal of queue-growing in most cases.
+        private static final int MAX_INITIAL_CAPACITY = 1000;
+
         BoundedSnapshotInfoCollector(Comparator<SnapshotInfo> comparator, int offset, int size) {
             assert size > 0;
             this.capacity = offset + size;
-            this.snapshotInfos = new PriorityQueue<>(capacity, comparator.reversed()); // throws IAE if size+offset overflowed
+            final var initialCapacity = Math.min(capacity, MAX_INITIAL_CAPACITY);
+            this.snapshotInfos = new PriorityQueue<>(initialCapacity, comparator.reversed()); // throws IAE if size+offset overflowed
             this.comparator = comparator;
             this.offset = offset;
         }

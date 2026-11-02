@@ -40,7 +40,7 @@ public class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
         if (hasDocValues(fieldMapping, false)) {
             var stream = ((List<Object>) value).stream().map(v -> convert(v, nullValue, format)).filter(Objects::nonNull);
             // Columnar index modes preserve arrival order via offsets
-            boolean preserveOrder = params.indexMode().isColumnar();
+            boolean preserveOrder = params.indexMode().isStrictColumnar();
             var resultList = preserveOrder ? stream.toList() : stream.sorted().toList();
             return maybeFoldList(resultList);
         }

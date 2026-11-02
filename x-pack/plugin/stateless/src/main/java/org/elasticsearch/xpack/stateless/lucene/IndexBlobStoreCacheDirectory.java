@@ -22,12 +22,17 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
+import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 
 public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
+
+    private volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
+    private volatile long currentDataSetSizeInBytes = 0L;
 
     public IndexBlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
         super(cacheService, shardId);
@@ -41,6 +46,30 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         @Nullable LongFunction<BlobContainer> blobContainerFunction
     ) {
         super(cacheService, shardId, totalBytesRead, totalBytesWarmed, blobContainerFunction);
+    }
+
+    @Override
+    protected Map<String, BlobFileRanges> getCurrentMetadata() {
+        return currentMetadata;
+    }
+
+    @Override
+    public long estimateDataSetSizeInBytes() {
+        // data set size is equal to the size of the last commit uploaded to the object store
+        return currentDataSetSizeInBytes;
+    }
+
+    /**
+     * Replaces this directory's file metadata and data set size with a complete snapshot of the latest uploaded commit.
+     */
+    public void updateMetadata(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
+        assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+        try {
+            currentMetadata = Map.copyOf(metadata);
+            currentDataSetSizeInBytes = dataSetSizeInBytes;
+        } finally {
+            assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
+        }
     }
 
     @Override
@@ -132,6 +161,47 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
                 );
             }
         };
+    }
+
+    /**
+     * Reads of the returned directory do not claim the missing cache ranges on the reading thread. They queue a task on the shard read
+     * pool that claims them when it runs. If a region 0 prewarm has claimed and filled a range by then, the task has nothing left to
+     * fetch and the read completes from the prewarm's fill.
+     * <p>
+     * When the task does claim a range, it must also fetch and fill it in that same task, so that a read queues on the shard read pool
+     * only once. This holds because the blob reader fetches in-thread ({@code DIRECT}) and the cache service fills claimed ranges
+     * inline (its io executor is {@code DIRECT}). If either dispatched to the shard read pool, the read would queue a second time
+     * behind the other tasks in that pool. Nothing enforces this except
+     * {@code SharedBlobCacheWarmingServiceTests#testColdBccHeaderReadRunsAsOneShardReadTaskPerBlob}.
+     */
+    @Override
+    public IndexBlobStoreCacheDirectory createPerBccMetadataReadDirectory(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
+        IndexBlobStoreCacheDirectory directory = new IndexBlobStoreCacheDirectory(
+            cacheService,
+            shardId,
+            totalBytesReadFromObjectStore,
+            totalBytesWarmedFromObjectStore,
+            blobContainer.get()
+        ) {
+            @Override
+            protected CacheBlobReader getCacheBlobReader(String fileName, BlobFile blobFile) {
+                return createCacheBlobReader(
+                    fileName,
+                    getBlobContainer(blobFile.primaryTerm()),
+                    blobFile.blobName(),
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    totalBytesWarmedFromObjectStore,
+                    BlobCacheMetrics.CachePopulationReason.Warming
+                );
+            }
+
+            @Override
+            protected Executor claimExecutor() {
+                return getCacheService().getShardReadThreadPoolExecutor();
+            }
+        };
+        directory.updateMetadata(Map.copyOf(metadata), dataSetSizeInBytes);
+        return directory;
     }
 
     public static IndexBlobStoreCacheDirectory unwrapDirectory(final Directory directory) {

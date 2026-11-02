@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 161310
+summary: Bump snappy-java to 1.1.10.11
+type: upgrade

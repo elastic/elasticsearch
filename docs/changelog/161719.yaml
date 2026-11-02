@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 161719
+summary: Support running auto calibration with byte vectors
+type: enhancement

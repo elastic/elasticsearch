@@ -103,6 +103,7 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -130,6 +131,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -143,6 +145,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
@@ -163,6 +166,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -1839,6 +1843,26 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testIndexingErrorsDueToTooManyDocs() throws IOException {
+        final int maxDocs = randomIntBetween(5, 20);
+        IndexShard shard = newStartedShard(true, Settings.EMPTY, config -> EngineTestCase.createEngine(config, maxDocs));
+        for (int id = 0; id < maxDocs; id++) {
+            assertThat(indexDoc(shard, "_doc", "accepted" + id).isCreated(), is(true));
+        }
+        final int rejectedCount = randomIntBetween(1, 10);
+        for (int id = 0; id < rejectedCount; id++) {
+            Engine.IndexResult indexResult = indexDoc(shard, "_doc", "rejected" + id);
+            assertThat(indexResult.getFailure(), instanceOf(IllegalArgumentException.class));
+            assertThat(InternalEngine.isTooManyDocsFailure(indexResult.getFailure()), is(true));
+        }
+        IndexingStats.Stats stats = shard.indexingStats().getTotal();
+        assertThat(stats.getIndexCount(), equalTo((long) maxDocs));
+        assertThat(stats.getIndexFailedCount(), equalTo((long) rejectedCount));
+        assertThat(stats.getIndexFailedDueToTooManyDocsCount(), equalTo((long) rejectedCount));
+        assertThat(stats.getIndexFailedDueToVersionConflictCount(), equalTo(0L));
+        closeShards(shard);
+    }
+
     public void testRefreshMetric() throws IOException {
         IndexShard shard = newStartedShard();
         // refresh on: finalize and end of recovery
@@ -2991,7 +3015,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(getResult.exists());
             assertNotNull(getResult.searcher());
         }
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs search = searcher.search(new TermQuery(new Term("foo", "bar")), 10);
             assertEquals(search.totalHits.value(), 1);
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
@@ -3018,7 +3042,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         recoverShardFromStore(newShard);
 
-        try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = newShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             TopDocs search = searcher.search(new TermQuery(new Term("foo", "bar")), 10);
             assertEquals(search.totalHits.value(), 0);
             search = searcher.search(new TermQuery(new Term("foobar", "bar")), 10);
@@ -3061,7 +3085,7 @@ public class IndexShardTests extends IndexShardTestCase {
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertThat("we have to have more than one segment", searcher.getDirectoryReader().leaves().size(), greaterThan(1));
             ifd.loadGlobal(searcher.getDirectoryReader());
             after = shard.fieldData().stats("foo");
@@ -3158,7 +3182,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoverShardFromStore(newShard);
 
         try {
-            newShard.acquireSearcher("test");
+            newShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
             fail("exception expected");
         } catch (RuntimeException ex) {
             //
@@ -3263,6 +3287,76 @@ public class IndexShardTests extends IndexShardTestCase {
             primary.recoveryState().getTranslog()::incrementRecoveredOperations
         );
         assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numTotalEntries - numCorruptEntries));
+
+        closeShards(primary);
+    }
+
+    public void testTranslogReplayUsesMeteringParserDecoratorOfEngine() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test")
+            .putMapping("""
+                { "properties": { "foo":  { "type": "text"}}}""")
+            .settings(settings)
+            .primaryTerm(0, randomLongBetween(1, Long.MAX_VALUE))
+            .build();
+        ShardId shardId = new ShardId(metadata.getIndex(), 0);
+        ShardRouting routing = shardRoutingBuilder(shardId, "n1", true, ShardRoutingState.INITIALIZING).withRecoverySource(
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE
+        ).build();
+
+        final long meteredSize = randomLongBetween(1, 1000);
+        final List<Long> normalizedSizes = new CopyOnWriteArrayList<>();
+        EngineFactory engineFactory = config -> new InternalEngine(config) {
+            @Override
+            public XContentMeteringParserDecorator newMeteringParserDecorator() {
+                return new XContentMeteringParserDecorator() {
+                    @Override
+                    public long meteredDocumentSize() {
+                        return meteredSize;
+                    }
+
+                    @Override
+                    public XContentParser decorate(XContentParser xContentParser, Mapping mapping) {
+                        return xContentParser;
+                    }
+                };
+            }
+
+            @Override
+            public IndexResult index(Index index) throws IOException {
+                normalizedSizes.add(index.parsedDoc().getNormalizedSize());
+                return super.index(index);
+            }
+        };
+        IndexShard primary = newShard(routing, null, metadata, null, engineFactory);
+        Translog.Snapshot snapshot = TestTranslog.newSnapshotFromOperations(
+            List.of(
+                new Translog.Index(
+                    "1",
+                    0,
+                    primary.getPendingPrimaryTerm(),
+                    1,
+                    new BytesArray("{\"foo\" : \"bar\"}".getBytes(StandardCharsets.UTF_8)),
+                    null,
+                    -1
+                )
+            )
+        );
+        primary.markAsRecovering("store");
+        recoverFromStore(primary);
+
+        primary.recoveryState().getTranslog().totalOperations(snapshot.totalOperations());
+        primary.recoveryState().getTranslog().totalOperationsOnStart(snapshot.totalOperations());
+        primary.state = IndexShardState.RECOVERING; // translog recovery on the next line would otherwise fail as we are in POST_RECOVERY
+        primary.runTranslogRecovery(
+            primary.getEngine(),
+            snapshot,
+            Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY,
+            primary.recoveryState().getTranslog()::incrementRecoveredOperations
+        );
+
+        // the replayed document is parsed with the decorator provided by the engine
+        assertThat(normalizedSizes, equalTo(List.of(meteredSize)));
 
         closeShards(primary);
     }
@@ -3880,7 +3974,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 final DocsStats docsStats = indexShard.docStats();
                 assertThat("searcher was marked as accessed", shard.getLastSearcherAccess(), equalTo(prevAccessTime));
                 assertThat(docsStats.getCount(), equalTo(numDocs));
-                try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     assertTrue(searcher.getIndexReader().numDocs() <= docsStats.getCount());
                 }
                 assertThat(docsStats.getDeleted(), equalTo(0L));
@@ -3939,7 +4033,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
             {
                 final DocsStats docStats = indexShard.docStats();
-                try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
+                try (Engine.Searcher searcher = indexShard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                     assertTrue(searcher.getIndexReader().numDocs() <= docStats.getCount());
                 }
                 assertThat(docStats.getCount(), equalTo(numDocs));
@@ -4448,7 +4542,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertBusy(() -> assertTrue(primary.isSearchIdle()));
         do {
             // now loop until we are fast enough... shouldn't take long
-            primary.acquireSearcher("test").close();
+            primary.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT).close();
             if (primary.isSearchIdle()) {
                 assertTrue(primary.searchIdleTime() >= tenMillis.millis());
             }
@@ -4497,7 +4591,7 @@ public class IndexShardTests extends IndexShardTestCase {
             primary.getLastSearcherAccess()
         );
         assertTrue(lastSearchAccess < primary.getLastSearcherAccess());
-        try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = primary.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(2, searcher.getIndexReader().numDocs());
         }
 
@@ -4506,7 +4600,7 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         primary.ensureShardSearchActive(registered -> {
             assertFalse(registered);
-            try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+            try (Engine.Searcher searcher = primary.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 assertEquals(2, searcher.getIndexReader().numDocs());
             } finally {
                 latch.countDown();
@@ -4534,7 +4628,7 @@ public class IndexShardTests extends IndexShardTestCase {
         logger.info("--> scheduledRefresh(future5)");
         primary.scheduledRefresh(ActionListener.noop());
         assertBusy(() -> assertThat(primary.refreshStats().getExternalTotal(), equalTo(externalRefreshesBefore + 1)));
-        try (Engine.Searcher searcher = primary.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = primary.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             assertEquals(3, searcher.getIndexReader().numDocs());
         }
         closeShards(primary);
@@ -6280,7 +6374,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void onRecoveryFailure(RecoveryFailedException e, FailureStrategy failureStrategy) {
+            public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, FailureStrategy failureStrategy) {
                 assert false : "Unexpected failure";
             }
         };

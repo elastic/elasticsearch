@@ -133,14 +133,16 @@ public class PlainRunCopyTests extends ColumnarStringTestCase {
                         null,
                         dir,
                         IOContext.DEFAULT,
-                        out.outputs()
+                        out.outputs(),
+                        out.skipIndex()
                     );
                 }
                 final StringColumnMetadata.Plain midMeta;
                 try (ColumnTestFiles.Inputs in = ColumnTestFiles.open(dir, "src", segmentId)) {
                     final PlainStringColumnReader reader = (PlainStringColumnReader) StringColumnReader.open(
                         plainOf(sourceMeta),
-                        in.inputs()
+                        in.inputs(),
+                        in.skipIndex()
                     );
                     final PlainRun run = new PlainRun(reader.plainValues(), 0, reader.numValues(), reader.valuesSorted());
                     midMeta = writeAndCheck(dir, "mid", segmentId, middle, options, prefix.length, run, null);
@@ -152,7 +154,11 @@ public class PlainRunCopyTests extends ColumnarStringTestCase {
                 assertTrue(from < to);
                 final BytesRef[][] target = concat(prefix2, Arrays.copyOfRange(middle, from, to));
                 try (ColumnTestFiles.Inputs in = ColumnTestFiles.open(dir, "mid", segmentId)) {
-                    final PlainStringColumnReader reader = (PlainStringColumnReader) StringColumnReader.open(midMeta, in.inputs());
+                    final PlainStringColumnReader reader = (PlainStringColumnReader) StringColumnReader.open(
+                        midMeta,
+                        in.inputs(),
+                        in.skipIndex()
+                    );
                     final PlainRun run = new PlainRun(
                         reader.plainValues(),
                         reader.firstValueAddress(from),
@@ -236,13 +242,15 @@ public class PlainRunCopyTests extends ColumnarStringTestCase {
                     null,
                     dir,
                     IOContext.DEFAULT,
-                    out.outputs()
+                    out.outputs(),
+                    out.skipIndex()
                 );
             }
             try (ColumnTestFiles.Inputs sourceInputs = ColumnTestFiles.open(dir, "src", segmentId)) {
                 final PlainStringColumnReader sourceReader = (PlainStringColumnReader) StringColumnReader.open(
                     plainOf(sourceMeta),
-                    sourceInputs.inputs()
+                    sourceInputs.inputs(),
+                    sourceInputs.skipIndex()
                 );
                 // Every document holds a slot, so a document's rank is its id.
                 final long runFrom = sourceReader.firstValueAddress(from);
@@ -293,12 +301,13 @@ public class PlainRunCopyTests extends ColumnarStringTestCase {
                 dir,
                 IOContext.DEFAULT,
                 out.outputs(),
+                out.skipIndex(),
                 infoStream == null ? InfoStream.NO_OUTPUT : infoStream
             );
         }
         final StringColumnMetadata.Plain plain = plainOf(written);
         try (ColumnTestFiles.Inputs inputs = ColumnTestFiles.open(dir, name, segmentId)) {
-            final StringColumnReader reader = StringColumnReader.open(plain, inputs.inputs());
+            final StringColumnReader reader = StringColumnReader.open(plain, inputs.inputs(), inputs.skipIndex());
             for (int doc = 0; doc < target.length; doc++) {
                 final long first = reader.firstValueAddress(doc);
                 assertEquals("slots of document " + doc, target[doc].length, reader.valueCount(doc));
@@ -325,7 +334,7 @@ public class PlainRunCopyTests extends ColumnarStringTestCase {
             }
 
             @Override
-            public int valueCount() {
+            public int valueCount() throws IOException {
                 return values.valueCount();
             }
 
@@ -368,7 +377,14 @@ public class PlainRunCopyTests extends ColumnarStringTestCase {
 
     /** A plain column's options: no dictionary to take the column over, small chunks and random block sizes. */
     private static StringColumnOptions options(ChunkCodec codec) {
-        return new StringColumnOptions(DictionaryPolicy.NONE, SummaryPolicy.NONE, codec, sizes(randomFrom(64, 256, 1024)));
+        return new StringColumnOptions(
+            DictionaryPolicy.NONE,
+            SummaryPolicy.NONE,
+            codec,
+            sizes(randomFrom(64, 256, 1024)),
+            StringColumnOptions.DEFAULT_SINGLE_VALUED,
+            StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
+        );
     }
 
     private static StringColumnOptions.Sizes sizes(int chunkBytes) {

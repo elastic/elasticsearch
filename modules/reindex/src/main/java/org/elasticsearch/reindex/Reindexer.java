@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -54,6 +55,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
@@ -103,15 +105,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
@@ -368,8 +369,10 @@ public class Reindexer {
         String[] indices = searchRequest.indices();
 
         // The routing and preference parameters can be set for a PIT request. However, scroll currently does not use these,
-        // so for parity we assert here in case that changes
-        assert searchRequest.routing() == null : "Routing is set in the search request, but is not being used when opening the PIT.";
+        // so for parity we assert here in case that changes. A source [_slice] is the exception: it sets routing to scope the read to a
+        // slice and is forwarded to the PIT so the point-in-time is opened over the correct shards.
+        assert searchRequest.routing() == null || searchRequest.isRoutingFromSlice()
+            : "Routing is set in the search request, but is not being used when opening the PIT.";
         assert searchRequest.preference() == null : "Preference is set in the search request, but is not being used when opening the PIT.";
         assert searchRequest.allowPartialSearchResults() == null || searchRequest.allowPartialSearchResults() == false
             : "allow_partial_search_results must be false when opening a PIT to match scroll search behavior";
@@ -377,6 +380,9 @@ public class Reindexer {
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(indices).indicesOptions(searchRequest.indicesOptions())
             .keepAlive(reindexSettings.pitKeepAlive())
             .allowPartialSearchResults(false);
+        if (searchRequest.isRoutingFromSlice()) {
+            pitRequest.searchSlice(searchRequest.searchSlice());
+        }
         if (searchRequest.getProjectRouting() != null) {
             pitRequest.projectRouting(searchRequest.getProjectRouting());
         }
@@ -752,17 +758,24 @@ public class Reindexer {
                 l.onResponse(response);
                 return;
             }
-            final String nodeToRelocateTo = task.isLeader()
-                ? task.getLeaderState().getNodeToRelocateTo().orElse(null)
-                : task.getWorkerState().getNodeToRelocateTo().orElse(null);
-            assert nodeToRelocateTo != null : "node to relocate to should be set if taskResumeInfo is present";
-            final DiscoveryNode nodeToRelocateToNode = clusterService.state().nodes().get(nodeToRelocateTo);
+            final ClusterState clusterState = clusterService.state();
+            final DiscoveryNode nodeToRelocateToNode = relocationNodePicker.pickNode(
+                clusterState.nodes(),
+                clusterState.metadata().nodeShutdowns()
+            ).or(() -> {
+                // Hail-mary: during normal graceful conditions this shouldn't be reachable because we should always have a node to relocate
+                // to when we're shutting down. But outside of those, the available node(s) to relocate to that made reindex stop to
+                // relocate could've died or gotten a shutdown request. Do best-effort relocation to a shutting-down node which might
+                // wait for reindex to complete or relocate again.
+                logger.warn("no node available to relocate reindex task [{}] to, trying nodes marked for shutdown", task.getId());
+                return relocationNodePicker.pickNode(clusterState.nodes(), NodesShutdownMetadata.EMPTY);
+            }).map(clusterState.nodes()::get).orElse(null);
             if (nodeToRelocateToNode == null) {
-                final var nodeToRelocateToNotFound = new IllegalStateException(
-                    Strings.format("Node %s to relocate to left cluster before relocation", nodeToRelocateTo)
+                final var noNodeToRelocateTo = new IllegalStateException(
+                    Strings.format("no node available to relocate reindex task [%s] to", task.getId())
                 );
-                onRelocationResponseListener.onFailure(nodeToRelocateToNotFound);
-                l.onFailure(nodeToRelocateToNotFound);
+                onRelocationResponseListener.onFailure(noNodeToRelocateTo);
+                l.onFailure(noNodeToRelocateTo);
                 return;
             }
             final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
@@ -820,57 +833,49 @@ public class Reindexer {
     private void initTaskForRelocationIfEnabled(final BulkByPaginatedSearchTask task) {
         // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        // set up reindex relocation, specifically the supplier which says which node to relocate to.
+        // set up reindex relocation, specifically the supplier which says whether there is a node to relocate to.
         // we have 3 states to handle:
-        // 1. leader which has >= 2 subslices: initialized with a centralized node picker. workers will fetch this and use it.
-        // 2. worker which is one of many subslices: fetch the leader node picker and use it for relocation decisions.
-        // 3. worker which is the only slice, no leader: set up its own node picker, call that, and when it's done, relocate itself.
+        // 1. leader which has >= 2 subslices: initialized with a centralized supplier. workers will fetch this and use it.
+        // 2. worker which is one of many subslices: fetch the leader supplier and use it to decide whether to stop.
+        // 3. worker which is the only slice, no leader: set up its own supplier, call that, and when it's done, relocate itself.
         // n.b.
-        // - workers with a leader only need the supplier to see if there is a node to relocate to, therefore, whether they should stop.
+        // - the supplier only says whether a node exists, therefore, whether slices should stop. the node itself is picked in
+        // listenerWithRelocations when the hand-off request is sent.
         // - leader then relocates the entire reindex once workers have completed.
         // - approach relies on the entire reindex (including subtasks) existing on the same node.
         if (task.isLeader()) {
-            task.getLeaderState().setNodeToRelocateToSupplier(new NodeToRelocateToSupplier(clusterService, relocationNodePicker));
+            task.getLeaderState().setHasNodeToRelocateToSupplier(new HasNodeToRelocateToSupplier(clusterService, relocationNodePicker));
         } else {
-            task.getWorkerState().setNodeToRelocateToSupplier(getWorkerNodeToRelocateToSupplier(task));
+            task.getWorkerState().setHasNodeToRelocateToSupplier(getWorkerHasNodeToRelocateToSupplier(task));
         }
     }
 
-    /**
-     * Thread-safe supplier of a possible node to relocate to, for the slice(s) of a reindex task.
-     * Once a node is selected for relocation, it will be returned to all invocations.
-     */
-    private static class NodeToRelocateToSupplier implements Supplier<Optional<String>> {
+    /// Thread-safe supplier of whether a node to relocate to exists, for the slice(s) of a reindex task.
+    /// Once true, it stays true so all slices stop, so we never enter some strange state where one slice sees a cluster state with a node
+    /// to relocate to, and another slice doesn't see any nodes to relocate to and continues.
+    private static class HasNodeToRelocateToSupplier implements BooleanSupplier {
 
         private final ClusterService clusterService;
         private final ReindexRelocationNodePicker relocationNodePicker;
-        private final AtomicReference<String> nodeToRelocateTo;
+        private final AtomicBoolean hasNodeToRelocateTo;
 
-        NodeToRelocateToSupplier(final ClusterService clusterService, final ReindexRelocationNodePicker relocationNodePicker) {
+        HasNodeToRelocateToSupplier(final ClusterService clusterService, final ReindexRelocationNodePicker relocationNodePicker) {
             this.clusterService = Objects.requireNonNull(clusterService);
             this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
-            this.nodeToRelocateTo = new AtomicReference<>();
+            this.hasNodeToRelocateTo = new AtomicBoolean(false);
         }
 
         @Override
-        public Optional<String> get() {
-            final String currentNodeToRelocateTo = this.nodeToRelocateTo.get();
-            if (currentNodeToRelocateTo != null) { // node already selected
-                return Optional.of(currentNodeToRelocateTo);
+        public boolean getAsBoolean() {
+            if (hasNodeToRelocateTo.get()) {
+                return true;
             }
             final ClusterState clusterState = clusterService.state(); // capture so isn't updated while we read both nodes and metadata
-            final String newNodeToRelocateTo = relocationNodePicker.pickNode(clusterState.nodes(), clusterState.metadata().nodeShutdowns())
-                .orElse(null);
-            if (newNodeToRelocateTo == null) { // we didn't find a node to relocate to, but maybe another thread did by racing.
-                return Optional.ofNullable(this.nodeToRelocateTo.get());
+            if (relocationNodePicker.pickNode(clusterState.nodes(), clusterState.metadata().nodeShutdowns()).isPresent()) {
+                hasNodeToRelocateTo.set(true);
+                return true;
             }
-            return Optional.of(
-                this.nodeToRelocateTo.updateAndGet(
-                    current -> current == null
-                        ? newNodeToRelocateTo // this thread set the value so return that
-                        : current // another thread set the value, so return that
-                )
-            );
+            return hasNodeToRelocateTo.get(); // another thread may have set it while we were picking
         }
     }
 
@@ -902,11 +907,11 @@ public class Reindexer {
         return () -> task != null && getReindexParent(task).isPresent();
     }
 
-    private Supplier<Optional<String>> getWorkerNodeToRelocateToSupplier(final BulkByPaginatedSearchTask workerTask) {
+    private BooleanSupplier getWorkerHasNodeToRelocateToSupplier(final BulkByPaginatedSearchTask workerTask) {
         assert workerTask.isWorker() : "task should be a worker";
-        return getReindexParent(workerTask).map(leader -> (Supplier<Optional<String>>) leader.getLeaderState()::getNodeToRelocateTo)
-            // we don't need a thread-safe nodeToRelocateToSupplier for non-sliced, but re-using leads to less code
-            .orElseGet(() -> new NodeToRelocateToSupplier(clusterService, relocationNodePicker));
+        return getReindexParent(workerTask).map(leader -> (BooleanSupplier) leader.getLeaderState()::hasNodeToRelocateTo)
+            // we don't need a thread-safe supplier for non-sliced, but re-using leads to less code
+            .orElseGet(() -> new HasNodeToRelocateToSupplier(clusterService, relocationNodePicker));
     }
 
     /**
@@ -972,6 +977,12 @@ public class Reindexer {
         private final Function<String, String> destinationIndexIdMapper;
 
         /**
+         * Whether the destination index (or the template that would create it) is slice-enabled. When {@code true} and no destination
+         * {@code slice} was provided, documents read in slice mode preserve the slice they were read from.
+         */
+        private final boolean destinationSliceEnabled;
+
+        /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
          * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
          * {@linkplain ThreadPool}s because it uses httpasyncclient. It'd be a ton of trouble to work around creating those threads. So
@@ -1023,6 +1034,24 @@ public class Reindexer {
                 "reindex_bulk_batch"
             );
             this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
+            this.destinationSliceEnabled = SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() && destinationSliceEnabled(state);
+        }
+
+        private boolean destinationSliceEnabled(ProjectState state) {
+            ProjectMetadata projectMetadata = state.metadata();
+            IndexMetadata destMeta = projectMetadata.index(mainRequest.getDestination().index());
+            if (destMeta != null) {
+                return IndexSettings.SLICE_ENABLED.get(destMeta.getSettings());
+            }
+            String template = MetadataIndexTemplateService.findV2Template(projectMetadata, mainRequest.getDestination().index(), false);
+            if (template != null) {
+                return IndexSettings.SLICE_ENABLED.get(MetadataIndexTemplateService.resolveSettings(projectMetadata, template));
+            }
+            var v1Templates = MetadataIndexTemplateService.findV1Templates(projectMetadata, mainRequest.getDestination().index(), null);
+            if (v1Templates.isEmpty()) {
+                return false;
+            }
+            return IndexSettings.SLICE_ENABLED.get(MetadataIndexTemplateService.resolveSettings(v1Templates));
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -1198,7 +1227,33 @@ public class Reindexer {
          */
         @Override
         protected void copyRouting(RequestWrapper<?> request, String routing) {
-            String routingSpec = mainRequest.getDestination().routing();
+            final IndexRequest dest = mainRequest.getDestination();
+            // A destination [_slice] routes every reindexed document to the given slice value.
+            if (dest.isRoutingFromSlice()) {
+                super.copyRouting(request, dest.routing());
+                request.setRoutingFromSlice(true);
+                return;
+            }
+            // When the source is read in slice mode and the user did not explicitly request a [routing] behavior, decide based on the
+            // destination: a slice-enabled destination preserves each document's source slice; a non-slice-enabled destination drops the
+            // slice value so it is not silently persisted as ordinary routing.
+            if (mainRequest.getSearchRequest().isRoutingFromSlice() && dest.routing() == null) {
+                if (destinationSliceEnabled) {
+                    super.copyRouting(request, routing);
+                    request.setRoutingFromSlice(true);
+                } else {
+                    // Dropping the slice value means documents that were kept distinct by their slice in the source (a slice-enabled
+                    // index prevents id collisions across slices) may now collide on _id in the non-slice-enabled destination and
+                    // overwrite each other. This is expected: reindexing several source slices into a single unsliced index cannot
+                    // preserve that separation, and it differs from the [routing: discard] case below where collisions only happen
+                    // when the colliding ids route to the same shard.
+                    super.copyRouting(request, null);
+                    request.setRoutingFromSlice(false);
+                }
+                return;
+            }
+            // Otherwise fall back to the standard [routing] handling. Slice provenance never applies on this path.
+            String routingSpec = dest.routing();
             if (routingSpec == null) {
                 super.copyRouting(request, routing);
                 // Prevent saying "routing from slice" on empty routing on write, as this is invalid
@@ -1206,14 +1261,14 @@ public class Reindexer {
                 return;
             }
             if (routingSpec.startsWith("=")) {
-                super.copyRouting(request, mainRequest.getDestination().routing().substring(1));
-                request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                super.copyRouting(request, routingSpec.substring(1));
+                request.setRoutingFromSlice(false);
                 return;
             }
             switch (routingSpec) {
                 case "keep" -> {
                     super.copyRouting(request, routing);
-                    request.setRoutingFromSlice(mainRequest.getDestination().isRoutingFromSlice());
+                    request.setRoutingFromSlice(false);
                 }
                 case "discard" -> {
                     super.copyRouting(request, null);

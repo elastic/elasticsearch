@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161901
+summary: "ES|QL|DS: share a bounded glob listing instead of copying it per query"
+type: bug

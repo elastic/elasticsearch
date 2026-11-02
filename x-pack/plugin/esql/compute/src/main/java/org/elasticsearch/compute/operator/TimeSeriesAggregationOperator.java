@@ -68,7 +68,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int aggregationBatchSize,
-        int targetChunkRows
+        int targetChunkRows,
+        int partialEmitKeysThreshold
     ) implements OperatorFactory {
 
         public Factory(
@@ -79,7 +80,16 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
             List<GroupingAggregator.Factory> aggregators,
             int aggregationBatchSize
         ) {
-            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, Integer.MAX_VALUE);
+            this(
+                timeBucket,
+                dateNanos,
+                groups,
+                aggregatorMode,
+                aggregators,
+                aggregationBatchSize,
+                Integer.MAX_VALUE,
+                DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD
+            );
         }
 
         @Override
@@ -105,6 +115,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                     return BlockHash.build(groups, dc.blockFactory(), aggregationBatchSize, true);
                 },
                 targetChunkRows,
+                partialEmitKeysThreshold,
                 driverContext
             );
         }
@@ -131,9 +142,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<GroupingAggregator.Factory> aggregators,
         Function<DriverContext, BlockHash> blockHash,
         int targetChunkRows,
+        int partialEmitKeysThreshold,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, driverContext, null, false);
+        // Time-series keys (_tsid, timestamp) are sorted per segment, so the uniqueness ratio is not a
+        // meaningful signal here and would mostly just prevent periodic emit. Always pass 0.
+        super(aggregatorMode, aggregators, blockHash, partialEmitKeysThreshold, 0.0, targetChunkRows, null, driverContext, null, false);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
     }
@@ -151,7 +165,15 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     @Override
     protected boolean shouldEmitPartialResultsPeriodically() {
-        return false;
+        if (super.shouldEmitPartialResultsPeriodically() == false) {
+            return false;
+        }
+        for (GroupingAggregator aggregator : aggregators) {
+            if (aggregator.aggregatorFunction().canEmitPartialResultsPeriodically() == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private long largestWindowMillis() {

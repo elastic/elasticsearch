@@ -157,7 +157,16 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testEsqlAckTrialOrEnterpriseToNotTrialOrEnterprise() {
         for (OperationMode to : List.of(BASIC, STANDARD, GOLD, PLATINUM)) {
-            assertAckMessages(XPackField.ESQL, randomFrom(TRIAL, ENTERPRISE), to, Set.of("ES|QL cross-cluster search will be disabled."));
+            assertAckMessages(
+                XPackField.ESQL,
+                randomFrom(TRIAL, ENTERPRISE),
+                to,
+                Set.of(
+                    "ES|QL cross-cluster search will be disabled.",
+                    "Creating and querying ES|QL datasets and data sources will be disabled."
+                        + " Existing datasets and data sources can still be listed and deleted."
+                )
+            );
         }
     }
 

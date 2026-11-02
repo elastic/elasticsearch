@@ -13,12 +13,17 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Set;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public abstract class GrantRequest extends UntypedActionRequest {
     protected final Grant grant;
+    private final Set<String> supportedGrantTypes;
 
-    public GrantRequest() {
+    protected GrantRequest(Set<String> supportedGrantTypes) {
         this.grant = new Grant();
+        this.supportedGrantTypes = Set.copyOf(supportedGrantTypes);
     }
 
     public Grant getGrant() {
@@ -27,7 +32,14 @@ public abstract class GrantRequest extends UntypedActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return grant.validate(null);
+        return validate(null);
+    }
+
+    protected final ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (grant.getType() != null && supportedGrantTypes.contains(grant.getType()) == false) {
+            return addValidationError("grant_type [" + grant.getType() + "] is not supported", validationException);
+        }
+        return grant.validate(validationException);
     }
 
     @Override

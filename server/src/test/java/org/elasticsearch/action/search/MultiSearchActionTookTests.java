@@ -176,7 +176,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 expected::get,
                 client,
                 DefaultProjectResolver.INSTANCE,
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             ) {
                 @Override
                 void executeSearch(
@@ -200,7 +200,7 @@ public class MultiSearchActionTookTests extends ESTestCase {
                 System::nanoTime,
                 client,
                 DefaultProjectResolver.INSTANCE,
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             ) {
                 @Override
                 void executeSearch(

@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 
 /**
  * Golden (characterization) tests for the analyzed plans produced by subquery-in-{@code FROM} scenarios (the {@code UnionAll} /
- * {@code ViewUnionAll} planning). These were migrated from the per-node structural assertions in {@code AnalyzerSubqueryTests}.
+ * {@code BranchPlan} planning). These were migrated from the per-node structural assertions in {@code AnalyzerSubqueryTests}.
  */
 public class AnalyzerSubqueryGoldenTests extends GoldenTestCase {
 

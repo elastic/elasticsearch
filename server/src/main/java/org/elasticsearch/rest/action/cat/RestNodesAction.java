@@ -63,12 +63,17 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesAction extends AbstractCatAction {
 
     private static final String CAPABILITY_AVAILABLE_PROCESSORS_AVAILABILITY = "available_processors_availability";
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
+        Sets.union(COMMON_QUERY_PARAMETERS, Set.of("full_id", REST_MASTER_TIMEOUT_PARAM, "include_unloaded_segments"))
+    );
 
     @Override
     public List<Route> routes() {
@@ -78,6 +83,11 @@ public class RestNodesAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_nodes_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

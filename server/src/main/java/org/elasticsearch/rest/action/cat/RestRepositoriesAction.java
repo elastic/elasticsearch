@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -22,8 +23,10 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
@@ -31,6 +34,10 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
  */
 @ServerlessScope(Scope.INTERNAL)
 public class RestRepositoriesAction extends AbstractCatAction {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
+        Sets.union(COMMON_QUERY_PARAMETERS, Set.of(REST_MASTER_TIMEOUT_PARAM, "local"))
+    );
 
     @Override
     public List<Route> routes() {
@@ -54,6 +61,11 @@ public class RestRepositoriesAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_repositories_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

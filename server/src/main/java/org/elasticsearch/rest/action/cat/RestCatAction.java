@@ -19,6 +19,7 @@ import org.elasticsearch.rest.ServerlessScope;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -46,6 +47,11 @@ public class RestCatAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "cat_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
     }
 
     @Override

@@ -29,6 +29,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -47,12 +48,30 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndicesAction extends AbstractCatAction {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "local", "health");
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
+        Sets.union(
+            COMMON_QUERY_PARAMETERS,
+            Set.of(
+                REST_MASTER_TIMEOUT_PARAM,
+                "include_unloaded_segments",
+                "local",
+                "health",
+                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
+            )
+        )
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("index")));
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
 
     private final ProjectIdResolver projectIdResolver;
@@ -69,6 +88,16 @@ public class RestIndicesAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_indices_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

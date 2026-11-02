@@ -283,6 +283,24 @@ What was name-based and is now resolved through the UUID:
   it now takes the current name from the metadata found by UUID.
 - Pause, unfollow and follow-stats matched tasks to the requested follower by
   name; they now match by UUID after resolving the requested name.
+- Retention lease renewals. The follower keeps a retention lease on the leader
+  shard alive with a background request, and the server-side
+  `RetentionLeaseActions` resolved the shard by the name in the request, so
+  after a leader rename every renewal failed with `IndexNotFoundException` and
+  the lease would have expired after the retention period (12 hours by
+  default), at which point the leader could discard history the follower still
+  needs. It now resolves through the shard id's `Index`. This one is not
+  CCR-specific: any remote caller of the retention lease actions with a stale
+  name hit it.
+- The follow-stats status reported the names captured when following started;
+  it now reports the leader name learned after a rename and the follower's
+  current name resolved by UUID.
+
+Not changed, by design: a leader rename while the follower is still
+bootstrapping (restoring from the leader through the CCR repository) fails
+that bootstrap, because the repository addresses the leader by the name in the
+snapshot index id; the follow request has to be retried. The test waits for the
+bootstrap to finish before renaming.
 
 Not changed: the follower's `leader_index_name` custom metadata keeps the name
 the leader had when following started, and `_ccr/info` shows that. The

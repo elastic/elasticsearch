@@ -385,6 +385,11 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
       noCache = buildParams.ci
+      if (buildParams.ci) {
+        // Without the build cache, every build would give identical layers (e.g. the JDK) new digests, as
+        // they contain timestamps that differ between builds, so registries could not deduplicate them.
+        sourceDateEpoch.set(0L)
+      }
       tags = variant.tags(VersionProperties.elasticsearch, Architecture.current())
       platforms.add(architecture.dockerPlatform)
 

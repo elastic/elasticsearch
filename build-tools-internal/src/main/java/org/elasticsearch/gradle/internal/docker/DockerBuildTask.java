@@ -102,6 +102,7 @@ public abstract class DockerBuildTask extends DefaultTask {
             params.getDockerExecutable().set(dockerExecutable);
             params.getOciImageLayout().set(getOciImageLayout());
             params.getBuildContexts().set(getBuildContexts());
+            params.getSourceDateEpoch().set(getSourceDateEpoch());
         });
     }
 
@@ -188,6 +189,18 @@ public abstract class DockerBuildTask extends DefaultTask {
     @Optional
     public abstract MapProperty<String, String> getBuildContexts();
 
+    /**
+     * When set, all file timestamps in the layers of the built image are rewritten to this value (in seconds
+     * since the epoch). Layers otherwise contain timestamps that differ from build to build, even when all
+     * files in the build context have identical timestamps, so without a build cache two builds of identical
+     * content produce different layer digests, and registries can not deduplicate the layers. A constant
+     * value, rather than one derived from the commit, is needed for layers to be identical across commits.
+     * Note that this also sets the {@code created} date of the image to this value.
+     */
+    @Input
+    @Optional
+    public abstract Property<Long> getSourceDateEpoch();
+
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;
@@ -250,6 +263,8 @@ public abstract class DockerBuildTask extends DefaultTask {
 
             final List<String> tags = parameters.getTags().get();
             final boolean isCrossPlatform = isCrossPlatform();
+            final boolean rewriteTimestamps = parameters.getSourceDateEpoch().isPresent();
+            final String rewriteTimestampOption = rewriteTimestamps ? ",rewrite-timestamp=true" : "";
 
             LoggedExec.exec(execOperations, spec -> {
                 maybeConfigureDockerConfig(spec);
@@ -279,8 +294,17 @@ public abstract class DockerBuildTask extends DefaultTask {
 
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
 
+                if (rewriteTimestamps) {
+                    spec.args("--build-arg", "SOURCE_DATE_EPOCH=" + parameters.getSourceDateEpoch().get());
+                }
+
                 if (parameters.getPush().getOrElse(false)) {
-                    spec.args("--push");
+                    if (rewriteTimestamps) {
+                        // --push is shorthand for --output type=image,push=true
+                        spec.args("--output", "type=image,push=true" + rewriteTimestampOption);
+                    } else {
+                        spec.args("--push");
+                    }
                 } else if (parameters.getPlatforms().get().size() == 1) {
                     if (isCrossPlatform && parameters.getOciImageLayout().isPresent()) {
                         // Load the image into the daemon (see the --load comment below) and additionally
@@ -289,10 +313,12 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // named build context. This is required with the docker-container buildx driver,
                         // whose isolated image store cannot see daemon images in FROM instructions.
                         // Multiple --output flags require buildx >= 0.13.
-                        spec.args("--output", "type=docker");
+                        spec.args("--output", "type=docker" + rewriteTimestampOption);
                         spec.args(
                             "--output",
-                            "type=oci,tar=false,dest=" + parameters.getOciImageLayout().get().getAsFile().getAbsolutePath()
+                            "type=oci,tar=false,dest="
+                                + parameters.getOciImageLayout().get().getAsFile().getAbsolutePath()
+                                + rewriteTimestampOption
                         );
                     } else {
                         // Add --load to ensure the image ends up in the local Docker daemon as a
@@ -304,7 +330,12 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // "no such object". It also prevents issues with newer Docker versions
                         // (23.0+) that may create manifest lists even for single-platform builds
                         // when BuildKit is enabled.
-                        spec.args("--load");
+                        if (rewriteTimestamps) {
+                            // --load is shorthand for --output type=docker
+                            spec.args("--output", "type=docker" + rewriteTimestampOption);
+                        } else {
+                            spec.args("--load");
+                        }
                     }
                 }
             });
@@ -395,5 +426,7 @@ public abstract class DockerBuildTask extends DefaultTask {
         DirectoryProperty getOciImageLayout();
 
         MapProperty<String, String> getBuildContexts();
+
+        Property<Long> getSourceDateEpoch();
     }
 }

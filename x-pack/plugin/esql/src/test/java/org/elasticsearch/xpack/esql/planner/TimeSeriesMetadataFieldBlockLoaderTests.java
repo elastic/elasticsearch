@@ -403,9 +403,15 @@ public class TimeSeriesMetadataFieldBlockLoaderTests extends MapperServiceTestCa
         return TimeSeriesMetadataFieldBlockLoader.fromDocValues(
             context,
             excludedFields,
-            PromqlLabels::labelName,
+            TimeSeriesMetadataFieldBlockLoaderTests::labelName,
             TimeSeriesMetadataEncoder::new
         );
+    }
+
+    /** PromQL label naming: a {@code labels.} passthrough field is named without its prefix. */
+    private static String labelName(String field) {
+        String prefix = PromqlLabels.PROMETHEUS_LABELS_PREFIX;
+        return field.startsWith(prefix) ? field.substring(prefix.length()) : field;
     }
 
     private static BlockLoader.Docs docs(int... ids) {

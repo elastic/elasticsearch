@@ -21,7 +21,10 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 | [Get](#get-a-data-source) | `GET /_query/data_source/{name}` | [Get ES\|QL data sources]({{es-apis}}operation/operation-esql-get-data-source) |
 | [List all](#list-all-data-sources) | `GET /_query/data_source` | [Get ES\|QL data sources]({{es-apis}}operation/operation-esql-get-data-source) |
 | [Delete](#delete-a-data-source) | `DELETE /_query/data_source/{name}` | [Delete ES\|QL data sources]({{es-apis}}operation/operation-esql-delete-data-source) |
-| [Test connection](#test-a-connection) {applies_to}`stack: preview 9.6+` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection]({{es-apis}}operation/operation-esql-data-source-test-connection) |
+
+<!-- Restore this table row when the test connection API is released:
+| [Test connection](#test-a-connection) {applies_to}`stack: preview 9.7+` | `POST /_query/data_source/_test` | [Test an ES\|QL data source connection]({{es-apis}}operation/operation-esql-data-source-test-connection) |
+-->
 
 ## Create or update a data source
 
@@ -29,7 +32,9 @@ Data sources are managed under the `/_query/data_source` endpoint. All data sour
 
 The create request does not validate connectivity to the external system.
 
-{applies_to}`stack: preview 9.6+` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
+<!--
+{applies_to}`stack: preview 9.7+` To verify that credentials and endpoint are correct before saving, use the [test connection](#test-a-connection) endpoint.
+-->
 
 ::::{tab-set}
 :group: api-ref
@@ -158,9 +163,11 @@ curl -X DELETE "${ELASTICSEARCH_URL}/_query/data_source/prod_s3_logs" \
 A data source cannot be deleted while datasets still reference it. Delete the dependent datasets first, or the request returns a `409 Conflict` error.
 :::
 
+<!-- The test connection API is behind a feature flag that is off in release builds.
+
 ## Test a connection
 ```{applies_to}
-stack: preview 9.6+
+stack: preview 9.7+
 ```
 
 Use `POST /_query/data_source/_test` to verify that a configuration can reach its backend before saving it. The data source does not need to exist in cluster state — the endpoint accepts the same `type` and `settings` fields as the `PUT` request.
@@ -229,6 +236,7 @@ Example responses:
 :::{note}
 An unknown `type` value returns a `400 Bad Request` rather than a `failure` status, because the type is not registered — it is a client error, not a connectivity problem.
 :::
+-->
 
 ## Next steps
 

@@ -823,7 +823,7 @@ redirects:
           'get-a-data-source': 'get-a-data-source'
           'list-all-data-sources': 'list-all-data-sources'
           'delete-a-data-source': 'delete-a-data-source'
-          'test-a-connection': 'test-a-connection'
+          # 'test-a-connection': 'test-a-connection'  # restore when the test connection API is released
 
   # Node-scoped settings moved out of index-settings into configuration-reference.
   # The cluster.routing.allocation.total_shards_per_node setting is now documented

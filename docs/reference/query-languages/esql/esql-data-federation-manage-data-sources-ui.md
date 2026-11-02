@@ -54,7 +54,9 @@ Some connection options are available only with the [API](esql-data-federation-m
 
 Connecting a data source doesn't test whether it can read your files. To check the connection, [create a dataset](esql-data-federation-manage-datasets.md) that reads from it and query the dataset.
 
-{applies_to}`stack: preview 9.6+` You can also check the connection with the [test a connection](esql-data-federation-manage-data-sources-api.md#test-a-connection) API.
+<!--
+{applies_to}`stack: preview 9.7+` You can also check the connection with the [test a connection](esql-data-federation-manage-data-sources-api.md#test-a-connection) API.
+-->
 
 ## Edit a data source
 

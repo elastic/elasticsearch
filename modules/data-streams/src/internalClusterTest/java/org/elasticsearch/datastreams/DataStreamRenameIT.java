@@ -24,8 +24,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.datastreams.DataStreamIT.putComposableIndexTemplate;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -86,7 +88,8 @@ public class DataStreamRenameIT extends ESIntegTestCase {
         dataStream = getDataStream(dataStreamName);
         assertThat(dataStream.getIndices().size(), equalTo(3));
         assertThat(dataStream.getGeneration(), equalTo(generation + 1));
-        assertThat(dataStream.getWriteIndex().getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, generation + 1)));
+        // the next backing index name is derived from the unchanged generation, not from the renamed write index
+        assertThat(dataStream.getWriteIndex().getName(), endsWith(String.format(Locale.ROOT, "-%06d", generation + 1)));
 
         // The documents are still reachable through the data stream and report the new index names
         ElasticsearchAssertions.assertResponse(client().prepareSearch(dataStreamName).addSort("@timestamp", SortOrder.ASC), response -> {

@@ -20,7 +20,7 @@ import java.io.IOException;
  * consumer wire-format code drives {@link #writeOrdinals} to emit the per-field metadata and the
  * encoded ordinal stream. Mirrors {@link SortedOrdinalWriter}, but the stream carries multiple ordinals
  * per document, so the writer also owns however each document's slice of it is delimited: the blocked
- * layout appends a per-doc addresses table, while a layout whose
+ * layout appends a per-doc addresses table through {@link MultiValueAddresses}, while a layout whose
  * slices are self-delimiting writes nothing more. The consumer does not know which it is.
  */
 public interface SortedSetOrdinalWriter {

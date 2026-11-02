@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 162512
+pr: 164237
+summary: Fix LOAD_ALL with nested subqueries
+type: bug

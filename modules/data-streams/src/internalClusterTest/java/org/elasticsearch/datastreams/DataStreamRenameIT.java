@@ -17,6 +17,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
@@ -25,7 +26,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.datastreams.DataStreamIT.putComposableIndexTemplate;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -61,10 +61,6 @@ public class DataStreamRenameIT extends ESIntegTestCase {
         final long generation = dataStream.getGeneration();
         final String renamed = "metrics-foo-renamed-000001";
 
-        // The write index cannot be renamed
-        var e = expectThrows(IllegalArgumentException.class, () -> rename(writeIndex, "metrics-foo-write-renamed"));
-        assertThat(e.getMessage(), containsString("write index"));
-
         rename(firstBackingIndex, renamed);
 
         dataStream = getDataStream(dataStreamName);
@@ -72,13 +68,31 @@ public class DataStreamRenameIT extends ESIntegTestCase {
         assertThat(dataStream.getIndices().get(0).getName(), equalTo(renamed));
         assertThat(dataStream.getIndices().get(0).getUUID(), equalTo(firstBackingIndexUuid));
         assertThat(dataStream.getWriteIndex().getName(), equalTo(writeIndex));
-        // TODO: the prototype bumps the generation because it reuses DataStream#replaceBackingIndex; a rename should not do that
-        assertThat(dataStream.getGeneration(), equalTo(generation + 1));
+        assertThat(dataStream.getGeneration(), equalTo(generation));
 
-        // The document is still reachable through the data stream and reports the new index name
-        ElasticsearchAssertions.assertResponse(client().prepareSearch(dataStreamName), response -> {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
+        // The write index can be renamed too, and the data stream keeps accepting writes and rolling over afterwards
+        final String renamedWriteIndex = "metrics-foo-write-renamed";
+        rename(writeIndex, renamedWriteIndex);
+        dataStream = getDataStream(dataStreamName);
+        assertThat(dataStream.getWriteIndex().getName(), equalTo(renamedWriteIndex));
+        assertThat(dataStream.getGeneration(), equalTo(generation));
+        client().prepareIndex(dataStreamName)
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .setSource("{\"@timestamp\": \"2020-12-13\", \"field\": \"value2\"}", XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch(renamedWriteIndex), 1L);
+        ElasticsearchAssertions.assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).get());
+        dataStream = getDataStream(dataStreamName);
+        assertThat(dataStream.getIndices().size(), equalTo(3));
+        assertThat(dataStream.getGeneration(), equalTo(generation + 1));
+        assertThat(dataStream.getWriteIndex().getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, generation + 1)));
+
+        // The documents are still reachable through the data stream and report the new index names
+        ElasticsearchAssertions.assertResponse(client().prepareSearch(dataStreamName).addSort("@timestamp", SortOrder.ASC), response -> {
+            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getAt(0).getIndex(), equalTo(renamed));
+            assertThat(response.getHits().getAt(1).getIndex(), equalTo(renamedWriteIndex));
         });
         ElasticsearchAssertions.assertHitCount(client().prepareSearch(renamed), 1L);
     }

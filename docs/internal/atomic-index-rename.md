@@ -83,8 +83,8 @@ POST /my-index/_rename/my-index-renamed
 GET  /my-index-renamed/_search
 ```
 
-The index must not be a system index, must not be in a running snapshot or
-restore, and must not be the write index of a data stream. The cluster must
+The index must not be a system index and must not be in a running snapshot or
+restore. The cluster must
 consist only of nodes that publish the `index.rename` feature.
 
 ## Tradeoffs taken to get the prototype working
@@ -165,14 +165,17 @@ shard keep the old name until the shard is reallocated. The production change
 should say so in the rename API documentation rather than try to chase every
 copy.
 
-### T5. Data stream membership reuses `replaceBackingIndex`
+### T5. Data streams (resolved)
 
-Renaming a backing index updates the data stream through
-`DataStream#replaceBackingIndex`/`replaceFailureStoreIndex`. Those methods bump
-the data stream generation, which a rename should not do, and they refuse to
-replace the write index, so the prototype refuses to rename a write index.
-Production code needs a dedicated `DataStream#renameIndex` that keeps the
-generation and allows the write index.
+Renaming a backing or failure index updates the data stream through a new
+`DataStream#renameIndex`, which replaces the index in place, allows either
+write index, and keeps the generation. The generation counts rollovers and
+names the next backing index, so a rename must not move it; the integration
+test renames the write index and then rolls over to check that the next
+backing index name is still derived from the unchanged generation. The
+existing `replaceBackingIndex`/`replaceFailureStoreIndex` remain for ILM's
+shrink and downsample flows, which really do swap in an index with different
+data and a new UUID.
 
 ### T6. Snapshot repositories key indices by name
 
@@ -198,8 +201,8 @@ The request is validated against the state the master received it with and
 again inside the cluster state task. The checks are: feature gate, source
 exists, source is not a system index, destination passes
 `MetadataCreateIndexService#validateIndexName` (valid name, no existing index,
-alias, ESQL view or dataset), no snapshot or restore in flight for the source,
-and source is not a data stream write index. Not checked: CCR (a follower whose
+alias, ESQL view or dataset), and no snapshot or restore in flight for the
+source. Not checked: CCR (a follower whose
 leader is renamed stops following, and a renamed follower keeps its leader
 settings), searchable snapshot mounts (settings move with the metadata, so
 these should keep working but are untested), shrink/split/clone with the source
@@ -259,8 +262,8 @@ Decided in favour of mutation; see T4 for the reasoning and the caveats
 
 ### D4. Preconditions for a first release
 
-Proposed: allow open and closed plain indices and non-write data stream
-backing/failure indices; refuse system indices, indices with a snapshot,
+Proposed: allow open and closed plain indices and any data stream backing or
+failure index, write indices included; refuse system indices, indices with a snapshot,
 restore or resize in flight, and CCR followers. Do not require the index to be
 read-only: the zero-downtime reindex use case depends on renaming a live index,
 and nothing in the write path keys on the name. The prototype does respect
@@ -355,6 +358,6 @@ rename being reachable until the last one.
 5. Randomized rename-on-create in `ESIntegTestCase` (T11), extended to the
    module and x-pack internal cluster test suites.
 6. The master-side rename in the aliases executor plus the REST endpoint and
-   security tests (D1, T10), with the data stream handling done properly (T5).
+   security tests (D1, T10).
 7. Follow-ups: `RepositoryData` matching by UUID (D6); ILM and Upgrade
    Assistant adopting the rename.

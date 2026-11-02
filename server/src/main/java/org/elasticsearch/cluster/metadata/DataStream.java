@@ -1146,6 +1146,43 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
+     * Returns a copy of this data stream in which {@code existingIndex}, a backing or failure index including either write index,
+     * is replaced by {@code renamedIndex}. Unlike {@link #replaceBackingIndex} this is a rename, not a swap for an index holding
+     * different data: both indices must share a UUID, and the generation is kept, because the generation counts rollovers and
+     * names the next backing index, neither of which a rename changes.
+     *
+     * @throws IllegalArgumentException if the UUIDs differ or {@code existingIndex} is not part of this data stream
+     */
+    public DataStream renameIndex(Index existingIndex, Index renamedIndex) {
+        if (existingIndex.getUUID().equals(renamedIndex.getUUID()) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot rename index [%s] to [%s] in data stream [%s] because the index uuids differ",
+                    existingIndex.getName(),
+                    renamedIndex.getName(),
+                    name
+                )
+            );
+        }
+        int position = backingIndices.indices.indexOf(existingIndex);
+        if (position != -1) {
+            List<Index> indices = new ArrayList<>(backingIndices.indices);
+            indices.set(position, renamedIndex);
+            return copy().setBackingIndices(backingIndices.copy().setIndices(indices).build()).build();
+        }
+        position = failureIndices.indices.indexOf(existingIndex);
+        if (position != -1) {
+            List<Index> indices = new ArrayList<>(failureIndices.indices);
+            indices.set(position, renamedIndex);
+            return copy().setFailureIndices(failureIndices.copy().setIndices(indices).build()).build();
+        }
+        throw new IllegalArgumentException(
+            String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", existingIndex.getName(), name)
+        );
+    }
+
+    /**
      * Replaces the specified failure store index with a new index and returns a new {@code DataStream} instance with
      * the modified backing indices. An {@code IllegalArgumentException} is thrown if the index to be replaced
      * is not a failure store index for this data stream or if it is the {@code DataStream}'s failure store write index.

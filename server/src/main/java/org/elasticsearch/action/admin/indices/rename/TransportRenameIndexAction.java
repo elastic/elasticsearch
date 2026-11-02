@@ -194,21 +194,6 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
         if (RestoreService.restoringIndices(projectState, Set.of(index)).isEmpty() == false) {
             throw new IllegalStateException("cannot rename index [" + originalName + "] because it is being restored");
         }
-        final DataStream dataStream = parentDataStream(project, originalName);
-        if (dataStream != null && dataStream.getWriteIndex().equals(index)) {
-            throw new IllegalArgumentException(
-                "cannot rename index [" + originalName + "] because it is the write index of data stream [" + dataStream.getName() + "]"
-            );
-        }
-        if (dataStream != null && dataStream.getWriteFailureIndex() != null && dataStream.getWriteFailureIndex().equals(index)) {
-            throw new IllegalArgumentException(
-                "cannot rename index ["
-                    + originalName
-                    + "] because it is the failure store write index of data stream ["
-                    + dataStream.getName()
-                    + "]"
-            );
-        }
     }
 
     private static DataStream parentDataStream(ProjectMetadata project, String indexName) {
@@ -255,12 +240,8 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
 
         final DataStream dataStream = parentDataStream(currentProject, originalName);
         if (dataStream != null) {
-            // TODO: replaceBackingIndex/replaceFailureStoreIndex bump the data stream generation, which a rename should not do
-            if (dataStream.isFailureStoreIndex(originalName)) {
-                projectBuilder.put(dataStream.replaceFailureStoreIndex(index, newIndex));
-            } else {
-                projectBuilder.put(dataStream.replaceBackingIndex(index, newIndex));
-            }
+            // any backing or failure index may be renamed, including the write indices; the generation is unchanged
+            projectBuilder.put(dataStream.renameIndex(index, newIndex));
         }
 
         logger.debug("renaming index [{}] to [{}] in project [{}]", originalName, destinationName, projectId);

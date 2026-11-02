@@ -254,15 +254,46 @@ test by two extra cluster state updates and a health check, and it makes
 unrelated test failures look rename-related. Production should make it a
 randomized or opt-in behavior, like other `ESIntegTestCase` randomizations.
 
-### T12. Stateless: writes to a renamed index hang (under investigation)
+### T12. Stateless: writes to a renamed index hung, fixed by T13
 
 In a stateless cluster (one index node, one search node) the first bulk after a
-rename never completes. The master applies the dynamic mapping update for the
-renamed index, the index node's bulk then waits for its local cluster state to
-show the new mapping version, and that wait never ends; no node thread is busy
-and nothing is logged. `StatelessRenameIndexIT` reproduces it with timeouts
-and debug logging; its outcome on the current branch is recorded here once
-known.
+rename never completed. `StatelessRenameIndexIT` reproduced it with debug
+logging: `TranslogReplicator` holds the shard's creation-time `Index`, resolves
+it through `Metadata#lookupProject(Index)` and `ProjectMetadata#index(Index)`,
+both of which looked up by name first and found nothing after the rename, so it
+logged "index not found while checking if shard is red", reported the primary
+term as unknown, and skipped the translog sync notification that acknowledges
+the write. The same pattern exists in roughly twenty-five other stateless call
+sites (`StatelessCommitService`, `HollowShardsService`, recovery and reshard
+services) and in eleven server ones. Fixing them one by one is the
+whack-a-mole that T4 warned about; T13 fixes the lookup instead.
+
+### T13. Lookups by `Index` fall back to the UUID
+
+`ProjectMetadata#index(Index)`, `hasIndex(Index)` and `getIndexSafe(Index)`,
+and `RoutingTable#index(Index)` and `hasIndex(Index)`, resolve by name first
+and, when the name is missing or belongs to an index with a different UUID,
+fall back to the by-UUID map (`ProjectMetadata#indexByUuid`, and a matching
+lazily built map on `RoutingTable`). `Metadata#lookupProject(Index)` and
+`projectFor(Index)` get this for free: the single-project lookup delegates to
+`ProjectMetadata#hasIndex(Index)`, and the multi-project lookup was already
+keyed by UUID. `ClusterState#routingTable(..).shardRoutingTable(ShardId)` goes
+through `index(Index)` too.
+
+This is the decision that makes stale `Index` copies acceptable (T4): a
+component that captured an `Index` before a rename keeps finding its metadata
+and routing under the new name, and the only thing it gets wrong is the name
+it prints. The common path is unchanged, since the fallback only runs after a
+name miss. The one semantic change is that a stale `Index` for an index that
+was deleted and recreated under the same name still resolves to nothing, as
+before, while a stale `Index` whose name was later reused by a different index
+now resolves to the renamed index rather than to nothing. `StaleIndexLookupTests`
+covers both.
+
+Two fixes ride along: `RecoveryState` is renamed with its shard so that
+`GET _recovery` groups the index under its current name, and
+`index.provided_name` is updated to the new name, since tooling (including the
+stateless test base class) reads it back as the index name.
 
 ## Decisions that need to be made
 
@@ -396,10 +427,11 @@ The x-pack failures outside stateless:
 
 Stateless is the one area where the trick found a hard problem rather than
 artifacts: 15 suites hit the 20 minute suite timeout, every one blocked in the
-first write to a renamed index. The other stateless failures are
-`findIndexShard` lookups in the test base class that resolve the index through
-`index.provided_name`, which still held the temporary creation name; the
-prototype now updates that setting on rename. See T12 for the write hang.
+first write to a renamed index. See T12 for the cause and T13 for the fix. The
+other stateless failures are `findIndexShard` lookups in the test base class
+that resolve the index through `index.provided_name`, which still held the
+temporary creation name; the prototype now updates that setting on rename.
+The stateless suites have not been rerun with the fix yet.
 
 Not yet run with the trick: REST tests, and the unit test suites that
 construct `Index` objects by hand. Niels's last CI run of the trick extended to

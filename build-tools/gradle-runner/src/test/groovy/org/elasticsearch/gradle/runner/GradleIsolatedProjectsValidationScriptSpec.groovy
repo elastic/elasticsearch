@@ -251,6 +251,7 @@ query="$2"
 json_file="$3"
 python3 - "$query" "$json_file" <<'PY'
 import json
+import re
 import sys
 from collections import defaultdict
 
@@ -259,7 +260,10 @@ json_file = sys.argv[2]
 with open(json_file, 'r', encoding='utf-8') as f:
     report = json.load(f)
 
-problems = [p for p in report.get('problems', []) if p.get('id', '').startswith(('validation:configuration-cache:', 'Gradle:Isolated Projects:'))]
+# Honour the actual filter the production script passes rather than hard-coding the
+# prefixes, so this test fails if the production jq filter stops matching an id prefix.
+prefixes = tuple(re.findall(r'startswith\\("([^"]*)"\\)', query))
+problems = [p for p in report.get('problems', []) if prefixes and p.get('id', '').startswith(prefixes)]
 if 'add // 0' in query:
     print(sum(int(p.get('count', 0)) for p in problems))
 else:

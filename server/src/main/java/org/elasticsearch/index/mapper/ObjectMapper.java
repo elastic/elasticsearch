@@ -288,7 +288,8 @@ public class ObjectMapper extends Mapper {
         }
 
         /**
-         * Builds the children of this builder. Requires that {@link #normalize} has already been applied.
+         * Builds the children of this builder. Requires that {@link #normalize} has already been applied to the tree. That is done
+         * once, when the root is built.
          */
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext childContext) {
             Map<String, Mapper> mappers = new HashMap<>();
@@ -450,6 +451,7 @@ public class ObjectMapper extends Mapper {
         ) {
             String fullName = parentContext.buildFullName(path.pathAsText(leafName()));
             ensureBuilderFlattenable(parentContext, fullName);
+            prefixProperties.forEach((prefix, properties) -> collector.merge(prefix, properties, PrefixProperties::merge));
             if (parentContext.isStrictColumnar()) {
                 if (dynamic != null) {
                     collector.merge(fullName, new PrefixProperties(dynamic, null, null), PrefixProperties::merge);
@@ -595,7 +597,6 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
-            normalize(context);
             return new ObjectMapper(
                 leafName(),
                 context.buildFullName(leafName()),

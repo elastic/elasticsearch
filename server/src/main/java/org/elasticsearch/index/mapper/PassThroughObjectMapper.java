@@ -111,7 +111,6 @@ public final class PassThroughObjectMapper extends ObjectMapper implements PassT
 
         @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
-            normalize(context);
             return new PassThroughObjectMapper(
                 leafName(),
                 context.buildFullName(leafName()),

@@ -50,6 +50,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
         private Explicit<Boolean> includeInRoot = Explicit.IMPLICIT_FALSE;
         private Explicit<Boolean> includeInParent = Explicit.IMPLICIT_FALSE;
+        private boolean parentIncludedInRoot = true;
         private final IndexVersion indexCreatedVersion;
         private final Function<Query, BitSetProducer> bitSetProducer;
         private final IndexSettings indexSettings;
@@ -144,8 +145,8 @@ public class NestedObjectMapper extends ObjectMapper {
                         + "]"
                 );
             }
-            normalize(context);
             NestedMapperBuilderContext nestedContext = childContext(context);
+            normalizeIncludes();
             final Query parentTypeFilter = context instanceof NestedMapperBuilderContext nc
                 ? nc.nestedTypeFilter
                 : Queries.newNonNestedFilter(indexCreatedVersion);
@@ -167,25 +168,26 @@ public class NestedObjectMapper extends ObjectMapper {
             );
         }
 
-        private String nestedTypePath(String fullPath) {
-            return indexCreatedVersion.before(IndexVersions.V_8_0_0) ? "__" + fullPath : fullPath;
-        }
-
-        /**
-         * Normalize child mappers and include_in_root directive
-         */
         @Override
         public void normalize(MapperBuilderContext context) {
+            // normalization of index templates can drop parent includes, so we record
+            // any here before normalizing.
+            recordParentIncludes(context);
             super.normalize(context);
-            if (context instanceof NestedMapperBuilderContext nc) {
-                // we're already inside a nested mapper, so adjust our includes
-                if (nc.parentIncludedInRoot && this.includeInParent.value()) {
-                    this.includeInRoot = Explicit.IMPLICIT_FALSE;
-                }
-            } else if (this.includeInParent.value()) {
-                // this is a top-level nested mapper, so include_in_parent = include_in_root
+        }
+
+        private void recordParentIncludes(MapperBuilderContext context) {
+            parentIncludedInRoot = context instanceof NestedMapperBuilderContext nc ? nc.parentIncludedInRoot : true;
+        }
+
+        private void normalizeIncludes() {
+            if (parentIncludedInRoot && this.includeInParent.value()) {
                 this.includeInRoot = Explicit.IMPLICIT_FALSE;
             }
+        }
+
+        private String nestedTypePath(String fullPath) {
+            return indexCreatedVersion.before(IndexVersions.V_8_0_0) ? "__" + fullPath : fullPath;
         }
 
         @Override

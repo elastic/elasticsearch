@@ -10,6 +10,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -174,8 +177,8 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
     }
 
     /**
-     * The suppression of {@code include_in_root} only ever sets it to false, so a second pass, which reads the already
-     * suppressed value of each ancestor, must keep every suppression the first pass applied.
+     * The suppression of {@code include_in_root} happens when the mapping is built and only ever sets it to false, so
+     * building again, which reads the already suppressed value of each ancestor, must keep every suppression of the first build.
      */
     public void testIncludeInRootSuppressionSurvivesRepeatedNormalization() throws IOException {
         String once = built(parse(NESTED_IN_NESTED));
@@ -250,5 +253,66 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
 
         Exception e = expectThrows(Exception.class, () -> built(parse(nestedInsideDissolvedObject)));
         assertThat(e.getMessage(), containsString("mapper [m.n.b.x] cannot be changed from type [keyword] to [text]"));
+    }
+
+    /**
+     * Two declarations of the same nested object, one through object notation and one through a dotted key, are merged
+     * before {@code include_in_root} is suppressed, so an explicit {@code include_in_root} that the merged object no longer
+     * copies to its parent is kept.
+     */
+    public void testExplicitIncludeInRootSurvivesMergeOfDuplicateNestedDeclarations() throws IOException {
+        String duplicateNested = """
+            {
+              "_doc": {
+                "properties": {
+                  "p": {
+                    "properties": {
+                      "n": {
+                        "type": "nested", "include_in_parent": true, "include_in_root": true,
+                        "properties": { "x": { "type": "keyword" } }
+                      }
+                    }
+                  },
+                  "p.n": { "type": "nested", "include_in_parent": false }
+                }
+              }
+            }
+            """;
+
+        Mapping mapping = parse(duplicateNested).build(MergeReason.INDEX_TEMPLATE);
+
+        NestedObjectMapper nested = (NestedObjectMapper) ((ObjectMapper) mapping.getRoot().getMapper("p")).getMapper("n");
+        assertFalse(nested.isIncludeInParent());
+        assertTrue(nested.isIncludeInRoot());
+    }
+
+    /**
+     * Objects that are flattened away in a columnar index record their {@code dynamic} setting by prefix on the root. That
+     * includes the settings of objects inside an object that is flattened away itself.
+     */
+    public void testPrefixPropertiesOfObjectsInsideAFlattenedObjectReachTheRoot() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        String nestedObjects = """
+            {
+              "_doc": {
+                "properties": {
+                  "foo": {
+                    "dynamic": "false", "subobjects": false,
+                    "properties": {
+                      "bar": { "dynamic": "true", "properties": { "x": { "type": "keyword" } } }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        RootObjectMapper root = mapperService.parseMappings(new CompressedXContent(nestedObjects))
+            .build(MergeReason.MAPPING_UPDATE)
+            .getRoot();
+
+        assertThat(root.getPrefixProperties().get("foo").dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
+        assertThat(root.getPrefixProperties().get("foo.bar").dynamic(), equalTo(ObjectMapper.Dynamic.TRUE));
     }
 }

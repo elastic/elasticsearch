@@ -209,8 +209,8 @@ public class RootObjectMapper extends ObjectMapper {
                         + " this would prevent all fields from being indexed"
                 );
             }
-            // Normalize and build child mappers first so that flattening has a chance to populate
-            // prefixProperties before we pass them to the RootObjectMapper constructor.
+            // Normalize first so that flattening has a chance to populate prefixProperties before we pass them to the
+            // RootObjectMapper constructor.
             normalize(context);
             Map<String, Mapper> mappers = buildMappers(childContext(context));
             return new RootObjectMapper(

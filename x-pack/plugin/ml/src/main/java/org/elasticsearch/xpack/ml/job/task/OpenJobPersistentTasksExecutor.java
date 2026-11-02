@@ -294,6 +294,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         OpenJobAction.JobParams params,
         ActionListener<Boolean> listener
     ) {
+        ResultsWriteAliasCheck.logIfUnexpectedTarget(params.getJobId(), clusterState);
         JobState jobState = jobTaskState == null ? null : jobTaskState.getState();
         ActionListener<Boolean> checkSnapshotVersionListener = ActionListener.wrap(
             mappingsUpdate -> jobResultsProvider.setRunningForecastsToFailed(

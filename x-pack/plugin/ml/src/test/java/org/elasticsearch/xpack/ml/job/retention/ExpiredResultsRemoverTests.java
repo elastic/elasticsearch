@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.xpack.ml.job.persistence.JobScopedDeleteCheckTests.assertNoMissingJobScopeEvent;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -98,6 +99,16 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         dbqRequest = capturedDeleteByQueryRequests.get(1);
         assertThat(dbqRequest.indices(), equalTo(new String[] { AnomalyDetectorsIndex.jobResultsAliasedName("results-2") }));
         verify(listener).onResponse(true);
+    }
+
+    public void testRemoveJobWithRetentionShouldNotLogMissingJobScope() {
+        givenDBQRequestsSucceed();
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+        List<Job> jobs = List.of(JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build());
+
+        assertNoMissingJobScopeEvent(() -> createExpiredResultsRemover(jobs.iterator()).remove(1.0f, listener, () -> false));
+
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(1));
     }
 
     public void testRemove_GivenTimeout() {

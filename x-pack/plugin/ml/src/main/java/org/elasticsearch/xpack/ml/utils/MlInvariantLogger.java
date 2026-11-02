@@ -21,7 +21,11 @@ public final class MlInvariantLogger {
     /** One entry per invariant; the token appears nowhere else. */
     public enum Kind {
         /** A job update that changes groups was dropped from the full process-update queue (calendar API changes bypass that queue). */
-        CALENDAR_UPDATE_DROPPED("calendar_update_dropped");
+        CALENDAR_UPDATE_DROPPED("calendar_update_dropped"),
+        /** A delete-by-query issued for one job has no {@code job_id} filter for that job. */
+        DELETE_MISSING_JOB_ID_FILTER("delete_missing_job_id_filter"),
+        /** A job's results write alias does not resolve to a single index named like a results index. */
+        RESULTS_ALIAS_UNEXPECTED_TARGET("results_alias_unexpected_target");
 
         private final String token;
 

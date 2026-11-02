@@ -3139,7 +3139,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     var ashConfig = IvfSegmentConfig.AshConfig.of(
                         bits,
                         IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
-                        IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION
+                        IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION,
+                        IvfSegmentConfig.AshConfig.DEFAULT_MAX_PROJECTED_DIMS
                     );
                     return new ESNextDiskASHVectorsFormat(
                         ashConfig,

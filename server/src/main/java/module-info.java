@@ -453,6 +453,7 @@ module org.elasticsearch.server {
             org.elasticsearch.features.InfrastructureFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.rest.action.admin.cluster.GetSnapshotsFeatures,
+            org.elasticsearch.snapshots.SnapshotEncryptedDataFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.search.SearchFeatures,

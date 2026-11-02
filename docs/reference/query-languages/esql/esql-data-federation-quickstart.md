@@ -21,7 +21,8 @@ The example uses the [Ookla Open Speedtest dataset](https://registry.opendata.aw
 
 Make sure you have the following:
 
-- An {{es}} deployment running version 9.5 or later, with [ES|QL Data Federation enabled](esql-data-federation.md#enable-the-feature).
+- An {{es}} deployment running version 9.5 or later.
+- {applies_to}`stack: experimental =9.5` [{{esql}} Data Federation enabled](esql-data-federation.md#enable-the-feature) in {{es}} and {{kib}}.
 - An [Enterprise subscription](https://www.elastic.co/subscriptions) for {{ech}}, {{ece}}, {{eck}}, or self-managed deployments.
 - The cluster `manage` privilege to create data sources.
 - The index `manage` privilege to create datasets.

@@ -169,6 +169,25 @@ public abstract class EscfColumn implements SliceableColumn {
     /** The {@link SourceValueType} byte for document {@code row}, which is known to be present. */
     abstract byte typeByteForPresent(int row);
 
+    /**
+     * The size in bytes of document {@code row}'s value in this column, as a proxy for the bytes the
+     * value took in the original source: the payload length of a variable-length value, the element
+     * sizes of a columnar array, {@link SourceValueType#elemDataSize} for a fixed-width scalar, and
+     * {@code 0} for an absent, null or boolean value. {@link #addSizesInBytes} sums the same number
+     * for every document in one column sweep, so both must apply exactly the same formula.
+     */
+    public abstract int sizeInBytes(int row);
+
+    /**
+     * Adds {@link #sizeInBytes(int)} of every document to {@code sizes[row]}, in one sweep over this
+     * column. This is the column-major counterpart of summing {@code sizeInBytes(row)} over the columns of
+     * a row: a batch that sizes every row touches each column once instead of once per document, and
+     * each subtype sizes its documents from its offsets or type vector without materializing values.
+     *
+     * @param sizes an array of at least {@link #docCount()} entries; only entries of present documents are changed
+     */
+    public abstract void addSizesInBytes(int[] sizes);
+
     /** Returns {@code true} if document {@code row} holds an explicit JSON {@code null}. */
     public final boolean isNull(int row) {
         return getTypeByte(row) == SourceValueType.NULL;

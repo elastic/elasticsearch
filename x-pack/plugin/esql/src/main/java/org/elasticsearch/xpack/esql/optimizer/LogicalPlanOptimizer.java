@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggs;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistOrderByBeforeInlineJoin;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistProjects;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLimit;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.InsertEmptyBucketsAfterAggregate;
@@ -60,7 +61,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterAndLim
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFilterIntoInlineJoinAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownFiltersIntoFork;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownInferencePlan;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownJoinPastProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownLimitAndOrderByIntoMergePlan;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushLimitToKnn;
@@ -285,7 +285,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownRegexExtract(),
             new PushDownCompoundOutputEval(),
             new PushDownEnrich(),
-            new PushDownJoinPastProject(),
+            new HoistProjects(),
             new PushDownAndCombineOrderBy(),
             new PushDownFilterAndLimitIntoUnionAll(),
             new PushAggregateThroughUnionAll(),

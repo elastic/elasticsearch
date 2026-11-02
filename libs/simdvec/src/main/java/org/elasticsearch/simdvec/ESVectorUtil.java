@@ -19,6 +19,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 
 import java.io.IOException;
+import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -74,7 +75,7 @@ public class ESVectorUtil {
     }
 
     /** Creates an ASH integer-query scorer. */
-    public static AshScorer<byte[]> getAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
+    public static AshScorer<ScoringQuery> getAshIntegerVectorsScorer(IndexInput input, int nDims, int bitsPerDim, int queryBitsPerDim)
         throws IOException {
         return SCORERS.newESNextAshIntegerVectorsScorer(input, nDims, bitsPerDim, queryBitsPerDim);
     }
@@ -1235,7 +1236,7 @@ public class ESVectorUtil {
     /**
      * Computes {@code C = A @ B} where A is (n x k), B is (k x n) and C is (n x n), all row-major, for a product that
      * is known to be symmetric, such as {@code A^T A}. It computes only the entries on and above the diagonal, about half
-     * of the work of {@link #matrixMultiply}, and copies them into the lower triangle. The result is undefined if the
+     * of the work of {@link #matrixMultiplyI8}, and copies them into the lower triangle. The result is undefined if the
      * product is not symmetric. Whatever {@code result} held before is overwritten.
      */
     public static void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor) {
@@ -1249,6 +1250,25 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("Invalid result array size [" + result.length + "] for matrix multiplication");
         }
         IMPL.matrixMultiplySymmetric(a, b, n, k, result, executor);
+    }
+
+    /**
+     * Computes {@code C = A @ B} where A is (m x k) and B is (k x n), both row-major signed bytes.
+     * Result C is (m x n), accumulated in exact int32 arithmetic.
+     */
+    public static void matrixMultiplyI8(
+        MemorySegment a,
+        MemorySegment b,
+        int m,
+        int k,
+        int n,
+        MemorySegment result,
+        TaskExecutor executor
+    ) {
+        if (!a.isNative()) throw new IllegalArgumentException("a must be a native memory segment");
+        if (!b.isNative()) throw new IllegalArgumentException("b must be a native memory segment");
+        if (!result.isNative()) throw new IllegalArgumentException("result must be a native memory segment");
+        IMPL.matrixMultiplyI8(a, b, m, k, n, result, executor);
     }
 
     /**

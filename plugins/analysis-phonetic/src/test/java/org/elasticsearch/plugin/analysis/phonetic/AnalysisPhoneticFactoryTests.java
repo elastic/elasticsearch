@@ -92,6 +92,26 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
         );
     }
 
+    /**
+     * The haasephonetik legacy mode is derived from the index creation version rather than a setting, so
+     * the settings contract above cannot probe it. Assert directly that the version changes the key for
+     * haasephonetik only; HaasePhonetikSharingTests proves the registry honors it end to end.
+     */
+    public void testHaaseLegacyVariationsIsKeyed() {
+        IndexVersion previous = IndexVersionUtils.getPreviousVersion(IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS);
+        IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, previous);
+        IndexVersion onOrAfterGate = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.HAASE_PHONETIK_ANCHORED_VARIATIONS,
+            IndexVersion.current()
+        );
+        Settings haase = Settings.builder().put("encoder", "haasephonetik").build();
+        assertNotEquals(phoneticKey(haase, beforeGate), phoneticKey(haase, onOrAfterGate));
+        assertEquals(phoneticKey(haase, beforeGate), phoneticKey(haase, previous));
+        assertEquals(phoneticKey(haase, onOrAfterGate), phoneticKey(haase, IndexVersion.current()));
+        Settings koelner = Settings.builder().put("encoder", "koelnerphonetik").build();
+        assertEquals(phoneticKey(koelner, beforeGate), phoneticKey(koelner, onOrAfterGate));
+    }
+
     /** caverphone is an alias for caverphone2, and the language set is used as a set. */
     public void testEquivalentSettingsShareKey() {
         assertEquals(
@@ -105,7 +125,14 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
     }
 
     private Object phoneticKey(Settings settings) {
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
+        return phoneticKey(settings, IndexVersion.current());
+    }
+
+    private Object phoneticKey(Settings settings, IndexVersion created) {
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, created).build()
+        );
         return new PhoneticTokenFilterFactory(idxSettings, null, "phonetic", settings).sharingKey();
     }
 

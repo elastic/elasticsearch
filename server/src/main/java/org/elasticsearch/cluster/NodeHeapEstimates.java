@@ -26,7 +26,7 @@ import java.io.IOException;
  * @param hostedShardsHeapUsage The estimated heap usage attributable to hosted shards only, populated for both indexing and search nodes.
  * @param nonShardHeapUsage Heap usage that does not move with shard placement. For the indexing tier, this includes cluster-wide
  *                          index-metadata overhead, a floor of {@code StatelessMemoryMetricsService#WORKLOAD_MEMORY_OVERHEAD},
- *                          merge memory, and heap reserved for large indexing operations.
+ *                          merge memory, heap reserved for large indexing operations, and ingest-model heap.
  */
 public record NodeHeapEstimates(long totalHeapUsage, long hostedShardsHeapUsage, long nonShardHeapUsage) implements Writeable {
 

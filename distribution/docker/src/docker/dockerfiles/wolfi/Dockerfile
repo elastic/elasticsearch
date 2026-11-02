@@ -63,6 +63,9 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 #  8. Make some directories writable. `bin` must be writable because
 #     plugins can install their own CLI utilities.
 #  9. Make some files writable
+# 10. Move the JDK out of the way, so that it is copied to the final image in its own layer. It rarely
+#     changes, unlike the rest of the distribution, so the layer can be reused by the Docker build cache
+#     and does not have to be pushed or pulled again.
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
@@ -71,7 +74,9 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -type f -perm /111 -exec chmod 0555 {} + && \\
     find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
-    find config -type f -exec chmod 0664 {} +
+    find config -type f -exec chmod 0664 {} + && \\
+    mkdir /jdk-layer && \\
+    mv jdk /jdk-layer/
 
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
@@ -107,6 +112,8 @@ ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 
+COPY --from=builder --chown=0:0 /jdk-layer/jdk /usr/share/elasticsearch/jdk
+
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH
@@ -124,10 +131,12 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # 6. You can't install plugins that include configuration when running as `elasticsearch` and the `config`
 #    dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
 #    config directory.
+# 7. Restore the permissions of the JDK directory, as COPY creates the destination directory with the defaults
 RUN chmod g=u /etc/passwd && \\
     chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
     chmod 0775 /usr/share/elasticsearch && \\
+    chmod 0555 jdk && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
 
 RUN ln -sf /etc/ssl/certs/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts

@@ -86,11 +86,12 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
                     .allMatch(r -> ((IndexRequest) r.request()).isRetry() == false)
             );
             // We need to wait for the cluster state to advance to the version of the request, otherwise the request will be retried in the
-            // reroute phase.
+            // reroute phase. The transport layer releases the request once this behaviour returns, so keep it until the handler has run.
+            request.mustIncRef();
             ClusterServiceUtils.addTemporaryStateListener(
                 internalCluster().clusterService(node2),
                 state -> state.version() >= getRoutedBasedOnClusterVersion(bulkShardRequest)
-            ).addListener(new ActionListener<>() {
+            ).addListener(ActionListener.runAfter(new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     try {
@@ -104,7 +105,7 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
                 public void onFailure(Exception e) {
                     fail("failed to wait for node2 cluster state to advance: " + e.getMessage());
                 }
-            });
+            }, request::decRef));
 
         });
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), "index1");

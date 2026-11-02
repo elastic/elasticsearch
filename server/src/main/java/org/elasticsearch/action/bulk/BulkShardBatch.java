@@ -35,6 +35,8 @@ public class BulkShardBatch implements Writeable {
     }
 
     public BulkShardBatch(StreamInput in) throws IOException {
+        // readBytesReference copies the bytes into a new heap array rather than retaining the (pooled) inbound network buffer, so the
+        // parsed batch has nothing to release. It is still closed along with the request that carries it, after which reads fail.
         this.batch = EscfBatch.parse(in.readBytesReference(), () -> {});
     }
 

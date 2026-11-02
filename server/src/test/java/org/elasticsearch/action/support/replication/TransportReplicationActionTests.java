@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -51,8 +52,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -76,6 +81,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -88,6 +95,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
@@ -1438,6 +1446,331 @@ public class TransportReplicationActionTests extends ESTestCase {
     }
 
     /**
+     * The transport layer releases its reference to a primary request once {@code handlePrimaryRequest} returns, but the primary phase
+     * completes later, as it does for a primary on the coordinating node that outlives the coordinator's interest in its request. The
+     * handler must keep the request referenced until the response or failure has been sent, and then release it exactly once.
+     */
+    public void testPrimaryRequestReferencedUntilPrimaryPhaseCompletes() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED);
+        setState(clusterService, state);
+        final ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
+        final long primaryTerm = state.metadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
+
+        final RefCountedRequest request = new RefCountedRequest(shardId);
+        final List<Runnable> capturedTasks = new ArrayList<>();
+        final AtomicReference<ActionListener<TransportReplicationAction.PrimaryResult<Request, TestResponse>>> primaryListener =
+            new AtomicReference<>();
+        final AtomicBoolean referencedWhenResponding = new AtomicBoolean();
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
+
+        new TestAction(Settings.EMPTY, "internal:testPrimaryRequestRef", transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected Executor handlerExecutor(IndexShard shard) {
+                return capturedTasks::add;
+            }
+
+            @Override
+            protected void shardOperationOnPrimary(
+                Request shardRequest,
+                IndexShard primary,
+                ActionListener<PrimaryResult<Request, TestResponse>> listener
+            ) {
+                // complete the primary operation later, from the test
+                primaryListener.set(listener);
+            }
+        }.handlePrimaryRequest(
+            new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getId(), primaryTerm),
+            new TestTransportChannel(ActionListener.runBefore(future, () -> referencedWhenResponding.set(request.hasReferences()))),
+            maybeTask()
+        );
+
+        // the transport layer's reference, released once the handler has returned
+        assertFalse(request.decRef());
+        assertTrue(request.hasReferences());
+
+        assertThat(capturedTasks.size(), equalTo(1));
+        capturedTasks.get(0).run();
+        assertNotNull(primaryListener.get());
+        assertTrue("referenced while the primary operation runs", request.hasReferences());
+        assertFalse(future.isDone());
+
+        final boolean fail = randomBoolean();
+        if (fail) {
+            primaryListener.get().onFailure(new ElasticsearchException("simulated"));
+        } else {
+            primaryListener.get().onResponse(new TransportReplicationAction.PrimaryResult<>(request, new TestResponse()));
+        }
+
+        assertTrue(future.isDone());
+        if (fail) {
+            assertListenerThrows("primary failed", future, ElasticsearchException.class);
+        } else {
+            assertThat(future.actionGet(), instanceOf(TestResponse.class));
+        }
+        assertTrue("referenced until the response is sent", referencedWhenResponding.get());
+        assertFalse(request.hasReferences());
+        assertThat(request.releaseCount(), equalTo(1));
+    }
+
+    /**
+     * A primary request that fails before its primary phase starts, because its task was cancelled before submission or the executor
+     * rejected it, is released once the failure has been sent.
+     */
+    public void testPrimaryRequestReleasedWhenFailedBeforePrimaryPhase() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED);
+        setState(clusterService, state);
+        final ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
+        final long primaryTerm = state.metadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
+
+        final RefCountedRequest request = new RefCountedRequest(shardId);
+        final ReplicationTask task = new ReplicationTask(0, null, null, null, null, null);
+        final int failureMode = randomIntBetween(0, 2);
+        final Class<? extends Exception> expectedFailure;
+        final Executor dispatchExecutor;
+        switch (failureMode) {
+            case 0 -> {
+                // cancelled pre-submission: the handler fails the request before dispatching it
+                TaskCancelHelper.cancel(task, "simulated");
+                expectedFailure = TaskCancelledException.class;
+                dispatchExecutor = command -> fail("a cancelled request must not be dispatched");
+            }
+            case 1 -> {
+                // the executor rejects the primary phase, which fails it through its onRejection
+                expectedFailure = EsRejectedExecutionException.class;
+                dispatchExecutor = command -> ((AbstractRunnable) command).onRejection(
+                    new EsRejectedExecutionException("simulated", false)
+                );
+            }
+            case 2 -> {
+                // dispatching throws, which the handler catches and fails the request with
+                expectedFailure = EsRejectedExecutionException.class;
+                dispatchExecutor = command -> { throw new EsRejectedExecutionException("simulated", false); };
+            }
+            default -> throw new AssertionError("unexpected failure mode " + failureMode);
+        }
+        final AtomicBoolean referencedWhenResponding = new AtomicBoolean();
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
+
+        new TestAction(
+            Settings.EMPTY,
+            "internal:testPrimaryRequestRelease",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        ) {
+            @Override
+            protected Executor handlerExecutor(IndexShard shard) {
+                return dispatchExecutor;
+            }
+
+            @Override
+            protected void shardOperationOnPrimary(
+                Request shardRequest,
+                IndexShard primary,
+                ActionListener<PrimaryResult<Request, TestResponse>> listener
+            ) {
+                fail("the primary phase must not start");
+            }
+        }.handlePrimaryRequest(
+            new TransportReplicationAction.ConcreteShardRequest<>(request, primaryShard.allocationId().getId(), primaryTerm),
+            new TestTransportChannel(ActionListener.runBefore(future, () -> referencedWhenResponding.set(request.hasReferences()))),
+            task
+        );
+
+        assertListenerThrows("failed before the primary phase", future, expectedFailure);
+        assertTrue(referencedWhenResponding.get());
+        // only the transport layer's reference is left, and releasing it releases the request
+        assertThat(request.releaseCount(), equalTo(0));
+        assertTrue(request.decRef());
+        assertThat(request.releaseCount(), equalTo(1));
+    }
+
+    /**
+     * Like {@link #testPrimaryRequestReferencedUntilPrimaryPhaseCompletes} for the replica phase: the replica request stays referenced
+     * after the transport layer releases it, until the response or failure has been sent, and is then released exactly once.
+     */
+    public void testReplicaRequestReferencedUntilReplicaPhaseCompletes() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
+        setState(clusterService, state);
+        // AsyncReplicaAction.doRun() only checks allocation ID equality, not the primary/replica role,
+        // so we use the local (primary) shard's allocation ID to pass that check deterministically.
+        final ShardRouting localShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
+        final long primaryTerm = state.metadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
+
+        final RefCountedRequest request = new RefCountedRequest(shardId);
+        final List<Runnable> capturedTasks = new ArrayList<>();
+        final AtomicReference<ActionListener<TransportReplicationAction.ReplicaResult>> replicaListener = new AtomicReference<>();
+        final AtomicBoolean referencedWhenResponding = new AtomicBoolean();
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
+
+        new TestAction(Settings.EMPTY, "internal:testReplicaRequestRef", transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected Executor handlerExecutor(IndexShard shard) {
+                return capturedTasks::add;
+            }
+
+            @Override
+            protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+                // complete the replica operation later, from the test
+                replicaListener.set(listener);
+            }
+        }.handleReplicaRequest(
+            new TransportReplicationAction.ConcreteReplicaRequest<>(
+                request,
+                localShard.allocationId().getId(),
+                primaryTerm,
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            new TestTransportChannel(ActionListener.runBefore(future, () -> referencedWhenResponding.set(request.hasReferences()))),
+            maybeTask()
+        );
+
+        // the transport layer's reference, released once the handler has returned
+        assertFalse(request.decRef());
+        assertTrue(request.hasReferences());
+
+        assertThat(capturedTasks.size(), equalTo(1));
+        capturedTasks.get(0).run();
+        assertNotNull(replicaListener.get());
+        assertTrue("referenced while the replica operation runs", request.hasReferences());
+        assertFalse(future.isDone());
+
+        final boolean fail = randomBoolean();
+        if (fail) {
+            replicaListener.get().onFailure(new ElasticsearchException("simulated"));
+        } else {
+            replicaListener.get().onResponse(new TransportReplicationAction.ReplicaResult());
+        }
+
+        assertTrue(future.isDone());
+        if (fail) {
+            assertListenerThrows("replica failed", future, ElasticsearchException.class);
+        } else {
+            assertThat(future.actionGet(), instanceOf(ReplicaResponse.class));
+        }
+        assertTrue("referenced until the response is sent", referencedWhenResponding.get());
+        assertFalse(request.hasReferences());
+        assertThat(request.releaseCount(), equalTo(1));
+    }
+
+    /** A replica request whose dispatch to the executor fails is released once the failure has been sent. */
+    public void testReplicaRequestReleasedWhenDispatchFails() {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
+        setState(clusterService, state);
+        final ShardRouting localShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
+        final long primaryTerm = state.metadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
+
+        final RefCountedRequest request = new RefCountedRequest(shardId);
+        final PlainActionFuture<TransportResponse> future = new PlainActionFuture<>();
+
+        new TestAction(
+            Settings.EMPTY,
+            "internal:testReplicaRequestRelease",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        ) {
+            @Override
+            protected Executor handlerExecutor(IndexShard shard) {
+                return command -> { throw new EsRejectedExecutionException("simulated", false); };
+            }
+
+            @Override
+            protected void shardOperationOnReplica(Request shardRequest, IndexShard replica, ActionListener<ReplicaResult> listener) {
+                fail("the replica phase must not start");
+            }
+        }.handleReplicaRequest(
+            new TransportReplicationAction.ConcreteReplicaRequest<>(
+                request,
+                localShard.allocationId().getId(),
+                primaryTerm,
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            ),
+            createTransportChannel(future),
+            maybeTask()
+        );
+
+        assertListenerThrows("dispatch failed", future, EsRejectedExecutionException.class);
+        // only the transport layer's reference is left, and releasing it releases the request
+        assertThat(request.releaseCount(), equalTo(0));
+        assertTrue(request.decRef());
+        assertThat(request.releaseCount(), equalTo(1));
+    }
+
+    /**
+     * A request rerouted to this node is handled by the operation handler, whose reroute phase outlives the handler while it waits for
+     * the primary's response, so it keeps the request referenced until it has responded.
+     */
+    public void testRerouteRequestReferencedUntilReroutePhaseCompletes() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, state(index, randomBoolean(), ShardRoutingState.STARTED));
+        final String primaryNodeId = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard().currentNodeId();
+
+        final RefCountedRequest request = new RefCountedRequest(shardId);
+        final PlainActionFuture<TestResponse> future = new PlainActionFuture<>();
+        // the operation handler of the test action registered by initServices()
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            "internal:testAction",
+            request,
+            new ActionListenerResponseHandler<>(future, TestResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
+        );
+
+        // the sender's reference
+        assertFalse(request.decRef());
+        assertTrue("referenced while waiting for the primary", request.hasReferences());
+
+        final List<CapturingTransport.CapturedRequest> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear()
+            .get(primaryNodeId);
+        assertThat(capturedRequests, notNullValue());
+        assertThat(capturedRequests.size(), equalTo(1));
+        assertFalse(future.isDone());
+        transport.handleResponse(capturedRequests.get(0).requestId(), new TestResponse());
+
+        assertThat(future.actionGet(), instanceOf(TestResponse.class));
+        assertFalse(request.hasReferences());
+        assertThat(request.releaseCount(), equalTo(1));
+    }
+
+    /** The wrappers that carry a request to a specific shard copy share its ref-count rather than having one of their own. */
+    public void testConcreteShardRequestSharesRefCountOfWrappedRequest() {
+        final RefCountedRequest request = new RefCountedRequest(new ShardId("test", "_na_", 0));
+        final TransportReplicationAction.ConcreteShardRequest<Request> wrapper = randomBoolean()
+            ? new TransportReplicationAction.ConcreteShardRequest<>(request, randomAlphaOfLength(10), randomNonNegativeLong())
+            : new TransportReplicationAction.ConcreteReplicaRequest<>(
+                request,
+                randomAlphaOfLength(10),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
+
+        // three references: the request's initial one, and one each from incRef and tryIncRef on the wrapper
+        wrapper.incRef();
+        assertTrue(wrapper.tryIncRef());
+        assertFalse(request.decRef());
+        assertFalse(wrapper.decRef());
+        assertTrue(wrapper.hasReferences());
+        assertTrue(request.hasReferences());
+        assertThat(request.releaseCount(), equalTo(0));
+
+        assertTrue(wrapper.decRef());
+        assertFalse(wrapper.hasReferences());
+        assertFalse(request.hasReferences());
+        assertFalse(wrapper.tryIncRef());
+        assertThat(request.releaseCount(), equalTo(1));
+    }
+
+    /**
      * This test ensures that replication operations adhere to the {@link IndexMetadata#SETTING_WAIT_FOR_ACTIVE_SHARDS} setting
      * when the request is using the default value for waitForActiveShards.
      */
@@ -1821,6 +2154,43 @@ public class TransportReplicationActionTests extends ESTestCase {
         @Override
         public String toString() {
             return "Request{}";
+        }
+    }
+
+    /**
+     * A {@link Request} with real ref-counting, standing in for a request that owns resources until its last reference is released,
+     * such as a {@code BulkShardRequest} carrying a source batch. It counts how often it was released.
+     */
+    private static class RefCountedRequest extends Request {
+        private final AtomicInteger releases = new AtomicInteger();
+        private final RefCounted refCounted = AbstractRefCounted.of(releases::incrementAndGet);
+
+        RefCountedRequest(ShardId shardId) {
+            super(shardId);
+        }
+
+        int releaseCount() {
+            return releases.get();
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
         }
     }
 

@@ -445,8 +445,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     /**
-     * Sends one shard request per entry of {@code requestsByShard}. Takes ownership of {@code shardBatches}: each batch is released
-     * when its shard request completes, or before returning if it is never dispatched.
+     * Sends one shard request per entry of {@code requestsByShard}. Takes ownership of {@code shardBatches}: each batch's ownership moves
+     * to its shard request, which releases it once its last reference is released (the coordinator's own reference is dropped when the
+     * shard request completes, but a primary on this node may still hold another), and a batch that is never attached is released
+     * before returning.
      */
     private void executeBulkRequestsByShard(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
@@ -479,12 +481,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     }
 
                     boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
-                    // Releases the batch when its shard request completes, ahead of the ref that may start the next phase.
+                    // The shard request now owns the batch. Dropping the coordinator's reference when the shard request completes
+                    // releases the batch unless a primary on this node is still running on the same request, and does so ahead of
+                    // the ref that may start the next phase.
                     undispatchedBatches.remove(shardId);
                     Releasable ref = bulkItemRequestCompleteRefCount.acquire();
                     Releasable releaseOnFinish = () -> {
                         try {
-                            Releasables.close(shardBatch);
+                            bulkShardRequest.decRef();
                         } finally {
                             ref.close();
                         }
@@ -575,7 +579,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     /**
      * Item failures are processed before {@code releaseOnFinish} runs, so a failure-store redirect can still materialize its row from
-     * the shard batch.
+     * the shard batch: until then the coordinator's reference to {@code bulkShardRequest} keeps its batch open.
      */
     private void executeBulkShardRequest(
         BulkShardRequest bulkShardRequest,

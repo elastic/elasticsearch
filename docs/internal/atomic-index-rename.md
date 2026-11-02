@@ -3,30 +3,251 @@
 Status: proof of concept. This document records what the prototype does, every
 shortcut taken to get it working end to end, and the decisions that need to be
 made before any of it is production quality. Tracking issue:
-elastic/elasticsearch-team#1743 (public ask: #37880).
+elastic/elasticsearch-team#1743 (public ask: elastic/elasticsearch#37880).
+
+The prototype builds on Niels Bauman's and Mary Gouseti's 2025 spikes. Their
+hand-off notes are in the tracking issue.
 
 ## What the prototype does
 
-A new master action, `indices:admin/rename` (`TransportRenameIndexAction`),
-renames an index in a single cluster state update by rewriting the entry in
-`ProjectMetadata`, `RoutingTable` and `ClusterBlocks` under the new name while
-keeping the index UUID. Data nodes recognise the rename and update their
-in-memory `IndexService` and `IndexShard` objects in place; no shard is closed,
-recovered or relocated.
+`POST /{index}/_rename/{target}` (transport action `indices:admin/rename`,
+`TransportRenameIndexAction`) renames an index in a single cluster state update.
+The index keeps its UUID, shards, settings, mappings, aliases, blocks, ILM state
+and data stream membership; only the name under which it is addressed changes.
+No shard is closed, recovered or relocated, and indexing and search continue
+across the rename.
 
-The index UUID is the identity of an index throughout. Everything keyed on the
-UUID (node data paths, persisted cluster state, the stateless object store,
-`IndicesService#indices`) survives a rename untouched. Everything keyed on the
-name (`ProjectMetadata#indices`, `RoutingTable`, `ClusterBlocks`, snapshot
-`IndexId`) has to be rewritten or tolerated.
+The index UUID is treated as the identity of an index throughout. Everything
+already keyed on the UUID survives a rename untouched: node data paths
+(`NodeEnvironment`), persisted cluster state (`PersistedClusterStateService`),
+the stateless object store (`ObjectStoreService`), and the data node's
+`IndicesService#indices` map. Everything keyed on the name has to be rewritten
+in the cluster state update (`ProjectMetadata#indices`, `RoutingTable`,
+`ClusterBlocks`, `DataStream` backing index lists) or tolerated (snapshot
+repository `IndexId`, see below).
+
+### Master side
+
+`TransportRenameIndexAction` validates the request, then submits a cluster state
+update that:
+
+1. builds a new `IndexRoutingTable` for `new Index(target, uuid)` by rewriting
+   the `ShardId` of every `ShardRouting` (`ShardRouting#updateIndex`), and
+   removes the old one;
+2. moves the index blocks from the old name to the new name;
+3. puts the `IndexMetadata` under the new name and removes the old entry,
+   tagging the new entry with the custom metadata `index_rename`
+   (`{original_name, new_name}`);
+4. if the index is a backing or failure index of a data stream, replaces it in
+   the data stream.
+
+A second cluster state update then removes the `index_rename` tag. The request
+is acknowledged after the second update.
+
+### Data node side
+
+`IndicesClusterStateService#deleteIndices` sees the old name disappear and, before
+treating that as a deletion, looks for an `index_rename` tag whose
+`original_name` matches. If it finds one it calls `IndicesService#renameIndex`
+instead, which updates the `IndexService` metadata and calls
+`IndexShard#renameTo` on every shard. That swaps the shard's `ShardId` and its
+`ShardRouting` in place.
+
+To make that possible, `Index#equals`/`hashCode` compare only the UUID (the
+name is used only when the UUID is the `_na_` placeholder), `ShardId` therefore
+compares by UUID and shard number, `AbstractIndexShardComponent#shardId` is
+`volatile`, and `IndexSettings#getIndex()` returns the index of the current
+`IndexMetadata` rather than a final field captured at construction.
+
+### Test coverage trick
+
+`ESIntegTestCase#createIndex` creates a temporary index and renames it to the
+requested name, unless the name matches a composable template, starts with `.`
+or `<`, or the caller opts out. Every integration test that creates an index
+through that helper therefore exercises the rename. The suite-wide result of
+running `:server:internalClusterTest` with this enabled is recorded under
+"Failure inventory" below.
 
 ## Tradeoffs taken to get the prototype working
 
-Each item names the shortcut, why it was taken, and what the production answer
-would need to be.
+Each item names the shortcut, why it was taken, and what a production
+implementation would need instead.
 
-(filled in as the prototype evolves; see the sections below)
+### T1. `Index` identity is the UUID alone
+
+`Index#equals` and `hashCode` ignore the name whenever the UUID is known. This
+is what lets data node structures keyed on `Index` or `ShardId` (routing nodes,
+shard maps, search contexts, replication groups, pending deletes) keep working
+after a rename without being rebuilt.
+
+Cost: an `Index` object's `getName()` may be stale. Any code that reads the
+name from a cached `Index` (log lines, exception messages, `ShardId#toString`)
+can print the old name for a while. Tests that construct two `Index` objects
+with the same UUID and different names and expect them to differ now break;
+Mary's elastic/elasticsearch#132443 cleans up the tests that relied on `_na_`
+collisions and should land first.
+
+Alternative considered: keep name-and-UUID equality and swap every `Index`
+instance on rename. That means finding every map keyed on `Index`/`ShardId`
+across server, modules and x-pack and is why previous attempts stalled.
+
+### T2. The rename signal is a two-step custom metadata tag
+
+The `index_rename` custom metadata is how `IndicesClusterStateService`
+distinguishes a rename from a delete-and-create, and it has to be removed in a
+second cluster state update. Between the two updates the tag is visible in
+`GET _cluster/state` and `GET {index}`, and a master failover between the two
+updates leaves the tag in place (harmless, but it is never cleaned up).
+
+Alternative (Mary's branch `space-time-aug-2025/atomic-index-rename`): detect a
+rename by looking the deleted index's UUID up in the new state. That needs a
+by-UUID index map in `ProjectMetadata` (cheap, one extra map per project) and
+makes the rename a single cluster state update. It is the better design; the
+prototype keeps the tag because it already worked end to end.
+
+### T3. Unbatched cluster state tasks
+
+Both cluster state updates use `submitUnbatchedStateUpdateTask`. Production code
+should use a `MasterServiceTaskQueue`, ideally the one in
+`MetadataIndexAliasesService`, so that renames batch with alias changes and
+`remove_index` actions (see D1).
+
+### T4. Data node state is mutated in place
+
+`AbstractIndexShardComponent#shardId` became `volatile` and `IndexShard#renameTo`
+replaces `shardId` and `shardRouting` under the shard's monitor. Every read of
+`shardId()` on the hot path is now a volatile read. On x86 and arm64 that is a
+plain load, so the cost is negligible, but the semantic change is that
+`shardId()` can return different values across two calls. Nothing in the
+prototype re-reads it in a way that matters, but this has not been audited
+beyond "the integration tests pass". `IndexSettings#getIndex()` likewise became
+a read through the volatile `indexMetadata` field.
+
+Alternative: leave the data node's `ShardId` immutable with the original name
+and rely on UUID equality for every lookup, treating the name on data nodes as
+advisory. That avoids the volatile field but makes stale names permanent until
+the shard is reallocated. The failure inventory below is the input for choosing
+between the two.
+
+### T5. Data stream membership reuses `replaceBackingIndex`
+
+Renaming a backing index updates the data stream through
+`DataStream#replaceBackingIndex`/`replaceFailureStoreIndex`. Those methods bump
+the data stream generation, which a rename should not do, and they refuse to
+replace the write index, so the prototype refuses to rename a write index.
+Production code needs a dedicated `DataStream#renameIndex` that keeps the
+generation and allows the write index.
+
+### T6. Snapshot repositories key indices by name
+
+`RepositoryData` resolves `IndexId` by index name. The first snapshot after a
+rename therefore sees a "new" index and uploads all of its segments again
+instead of only the delta. Restoring older snapshots is unaffected (they restore
+under the name they were taken with, or a `rename_pattern`). The prototype
+refuses to rename an index while it is being snapshotted or restored, mirroring
+`MetadataDeleteIndexService`. Fixing the re-upload requires `RepositoryData` to
+match on index UUID as well as name, which is a repository format change and out
+of scope for the prototype.
+
+### T7. The `index_rename` tag survives in persisted index metadata
+
+Because the tag is custom `IndexMetadata`, it is written to disk by every node
+between the two cluster state updates. Nodes that restart in that window reload
+it and remove it when the second update arrives. There is no scenario in which
+a stale tag causes a wrong decision, because the applier only consults it for
+indices whose old name disappeared in the same cluster state diff.
+
+### T8. Validation is done twice and is not exhaustive
+
+The request is validated against the state the master received it with and
+again inside the cluster state task. The checks are: feature gate, source
+exists, source is not a system index, destination passes
+`MetadataCreateIndexService#validateIndexName` (valid name, no existing index,
+alias, ESQL view or dataset), no snapshot or restore in flight for the source,
+and source is not a data stream write index. Not checked: CCR (a follower whose
+leader is renamed stops following, and a renamed follower keeps its leader
+settings), searchable snapshot mounts (settings move with the metadata, so
+these should keep working but are untested), shrink/split/clone with the source
+as resize source, and the enrich, ML, transform and watcher references that
+store index names in their own configuration (these are the user's problem, as
+they are today with reindex).
+
+### T9. The REST API is a dedicated endpoint, not an `_aliases` action
+
+`POST /{index}/_rename/{target}` is the simplest surface for the prototype. The
+ILM and Upgrade Assistant use cases need the rename to be atomic with deleting
+the source index and swapping aliases, which only the `_aliases` executor can
+offer today. See D1.
+
+### T10. Security authorizes both names, nothing more
+
+`RenameIndexAction.Request#indices()` reports both the source and the
+destination, so the caller needs `manage` (any privilege matching
+`indices:admin/*`) on both names. That is the same bar as creating the
+destination and deleting the source. Document-level and field-level security
+rules are attached to index name patterns in roles, so a rename can move an
+index into or out of a user's DLS/FLS scope exactly as creating it under that
+name would. Niels's last CI run failed on security tests when the rename trick
+was extended to `assertAcked`; those failures have not been re-examined.
+
+### T11. The `createIndex` rename trick is always on
+
+In the prototype every `ESIntegTestCase#createIndex` call renames. That is what
+produces the failure inventory, but it cannot be merged as is: it slows every
+test by two extra cluster state updates and a health check, and it makes
+unrelated test failures look rename-related. Production should make it a
+randomized or opt-in behavior, like other `ESIntegTestCase` randomizations.
 
 ## Decisions that need to be made
 
-(filled in as the prototype evolves; see the sections below)
+### D1. Where the API lives
+
+Options: (a) dedicated `_rename` endpoint only; (b) a `rename` action inside
+`POST _aliases` only; (c) both, with the endpoint delegating to the aliases
+executor. The ILM shrink and searchable snapshot steps and Upgrade Assistant
+need rename, `remove_index` and alias moves to be one atomic cluster state
+update, which argues for (b) or (c). (c) is the recommendation: discoverability
+for the simple case, atomicity for the automated ones.
+
+### D2. Rename signal: metadata tag or UUID diff
+
+See T2. Recommendation: UUID diff, with `ClusterChangedEvent` gaining an
+`indicesRenamed()` accessor so that every applier (not only
+`IndicesClusterStateService`) can tell renames from deletions. Candidates that
+need to care: `IndicesStore` (deletes shard folders for indices not in the
+routing table), `SearchService` (frees contexts on index removal), and the
+ILM/SLM/CCR/enrich cluster state listeners that key work by index name.
+
+### D3. Data node mutation versus advisory names
+
+See T4. Decide after reviewing the failure inventory.
+
+### D4. Preconditions for a first release
+
+Proposed: allow open and closed plain indices and non-write data stream
+backing/failure indices; refuse system indices, indices with a snapshot,
+restore or resize in flight, and CCR followers. Do not require the index to be
+read-only: the zero-downtime reindex use case depends on renaming a live index,
+and nothing in the write path keys on the name.
+
+### D5. Mixed-version clusters
+
+A node without the `index.rename` feature treats a renamed index as deleted
+(`ClusterChangedEvent#indicesDeletedFromClusterState` compares by name) and
+deletes its shard data. The prototype refuses renames until every node publishes
+`index.rename`. A node that joins a cluster after a rename is safe, because it
+starts from a tombstone-based diff rather than a name diff. Whether this gate
+should also block serverless rollouts in some way needs a check with the
+control plane owners; the stateless object store is keyed by UUID, so the
+object store itself is unaffected.
+
+### D6. Snapshot `IndexId` by UUID
+
+See T6. Decide whether the full re-upload after a rename is acceptable for a
+first release (it is a cost, not a correctness problem) and schedule the
+repository change separately.
+
+## Failure inventory
+
+(filled in from the `:server:internalClusterTest` run with the rename trick
+enabled)

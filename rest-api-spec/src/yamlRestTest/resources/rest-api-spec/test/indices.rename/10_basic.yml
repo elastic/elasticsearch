@@ -1,0 +1,94 @@
+---
+setup:
+  - requires:
+      cluster_features: ["index.rename"]
+      reason: "index rename is only available once every node supports it"
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            index.number_of_shards: 2
+            index.number_of_replicas: 0
+          mappings:
+            properties:
+              foo:
+                type: keyword
+          aliases:
+            source_alias: {}
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+---
+"Rename an index keeps its documents, mappings and aliases":
+  - do:
+      indices.rename:
+        index: source
+        target: target
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      indices.get:
+        index: source
+
+  - do:
+      search:
+        index: target
+        body:
+          query:
+            match: { foo: "hello world" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._index: target }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      indices.get_mapping:
+        index: target
+  - match: { target.mappings.properties.foo.type: keyword }
+
+  - do:
+      indices.get_alias:
+        name: source_alias
+  - is_true: target.aliases.source_alias
+
+  - do:
+      search:
+        index: source_alias
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._index: target }
+
+  - do:
+      index:
+        index: target
+        id:    "2"
+        body:  { "foo": "after rename" }
+        refresh: true
+  - do:
+      count:
+        index: target
+  - match: { count: 2 }
+
+---
+"Rename to an existing index name fails":
+  - do:
+      indices.create:
+        index: other
+  - do:
+      catch: /already exists/
+      indices.rename:
+        index: source
+        target: other
+
+---
+"Rename a missing index fails":
+  - do:
+      catch: missing
+      indices.rename:
+        index: does_not_exist
+        target: whatever

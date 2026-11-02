@@ -20,13 +20,23 @@ public class IndexFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
+        Set<NodeFeature> features = new HashSet<>();
+        // INDEX_RENAME must be advertised by real nodes: a node without it treats a renamed index as deleted and wipes its shards.
+        features.add(INDEX_RENAME);
         // SLICE_INDEXING gates slice-routing support (e.g. reindex source/dest [_slice]) and must be advertised by real nodes, not only
         // in the test framework, so it is published here when the feature flag is enabled.
         if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
-            return Set.of(SLICE_INDEXING);
+            features.add(SLICE_INDEXING);
         }
-        return Set.of();
+        return Set.copyOf(features);
     }
+
+    /**
+     * Published by every node that understands an index rename, i.e. one that keeps the shards of an index whose name changed but
+     * whose UUID did not. Renames are refused until every node in the cluster publishes this feature, because an older node would
+     * treat the renamed index as deleted and delete its shard data.
+     */
+    public static final NodeFeature INDEX_RENAME = new NodeFeature("index.rename");
 
     public static final NodeFeature LOGSDB_NO_HOST_NAME_FIELD = new NodeFeature("index.logsdb_no_host_name_field");
 

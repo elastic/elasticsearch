@@ -7,10 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.aliases;
+package org.elasticsearch.action.admin.indices.rename;
 
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @TestLogging(value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG", reason = "log index renames")
-public class IndexAliasRenameIT extends ESIntegTestCase {
+public class RenameIndexIT extends ESIntegTestCase {
 
     /**
      * Tests a simple index rename operation and verifies that documents are only accessible

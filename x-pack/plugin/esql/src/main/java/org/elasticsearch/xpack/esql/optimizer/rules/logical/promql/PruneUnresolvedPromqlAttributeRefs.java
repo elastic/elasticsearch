@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.HashJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
@@ -65,9 +66,6 @@ import java.util.function.Predicate;
  * {@link TimeSeriesUnset} only), or to null for a label no series has; anything else is not supported.
  */
 public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
-
-    /** Same wire name emitters use for empty signatures; kept local so this PR does not touch plan operators. */
-    private static final String EMPTY_SIGNATURE_KEY = "$empty_prom_sig";
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
@@ -581,7 +579,7 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
                     nulls.add(metadata);
                     column = metadata.toAttribute();
                 }
-                if (column == null && typed && EMPTY_SIGNATURE_KEY.equals(ref.name())) {
+                if (column == null && typed && VectorBinaryOperator.EMPTY_SIGNATURE_KEY.equals(ref.name())) {
                     // the signature slot of an operand without metadata: the empty label set, which an opaque sibling's
                     // view equals once it has no label left outside the named key slots
                     UnresolvedPromqlAttribute read = ownByName.get(ref.name());

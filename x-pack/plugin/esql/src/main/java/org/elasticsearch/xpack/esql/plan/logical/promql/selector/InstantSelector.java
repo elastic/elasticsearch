@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -19,8 +18,10 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlAttribute;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a PromQL instant vector selector.
@@ -96,7 +97,7 @@ public final class InstantSelector extends Selector {
     public List<Attribute> output() {
         if (output == null) {
             // returns values grouped per time series
-            output = List.of(FieldAttribute.timeSeriesAttribute(source()));
+            output = List.of(UnresolvedPromqlAttribute.metadata(source(), Set.of()));
         }
         return output;
     }

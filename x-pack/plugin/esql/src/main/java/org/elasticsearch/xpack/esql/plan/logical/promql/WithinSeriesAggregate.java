@@ -9,15 +9,17 @@ package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a PromQL aggregate function call that operates on range vectors.
@@ -37,7 +39,8 @@ import java.util.List;
  * </pre>
  *
  * These functions operate independently on each time series selected by the range vector.
- * The result contains one sample per series at the evaluation timestamp.
+ * The result contains one sample per series at the evaluation timestamp. Like Prometheus, they
+ * drop {@code __name__} except {@code first_over_time}/{@code last_over_time}.
  */
 public final class WithinSeriesAggregate extends PromqlFunctionCall {
 
@@ -60,10 +63,15 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
     @Override
     public List<Attribute> output() {
         if (output == null) {
-            // returns values grouped per time series
-            output = List.of(FieldAttribute.timeSeriesAttribute(source()));
+            List<Attribute> full = List.of(UnresolvedPromqlAttribute.metadata(source(), Set.of()));
+            output = keepsMetricName(definition()) ? full : ValueTransformationFunction.withoutMetricName(source(), full);
         }
         return output;
+    }
+
+    /** {@code first_over_time}/{@code last_over_time} keep the metric name; other range functions drop it. */
+    private static boolean keepsMetricName(PromqlFunctionDefinition definition) {
+        return definition == FirstOverTime.PROMQL_DEFINITION || definition == LastOverTime.PROMQL_DEFINITION;
     }
 
     @Override
@@ -73,12 +81,13 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
 
     @Override
     public boolean isIdentityTransparent() {
-        // Per-series aggregation (e.g. rate): series identity passes through unchanged.
+        // Per-series aggregation: non-name labels pass through; only __name__ may drop.
         return true;
     }
 
     @Override
     public IntermediateResult translate(TranslationContext context) {
+        // Name drop is declared in {@link #output()}; see ValueTransformationFunction.translate.
         return translateValueFunction(context);
     }
 }

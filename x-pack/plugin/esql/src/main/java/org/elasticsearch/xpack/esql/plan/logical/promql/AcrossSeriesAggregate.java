@@ -11,28 +11,26 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry.PromqlContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.Grouping.WITHOUT;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.subtract;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.labelName;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.labelNames;
 
 /**
  * Represents a PromQL aggregate function call that operates across multiple time series.
@@ -64,7 +62,6 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
 
     private final Grouping grouping;
     private final List<Attribute> groupings;
-    private final Attribute timeseriesAttribute;
 
     public AcrossSeriesAggregate(
         Source source,
@@ -77,7 +74,6 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         super(source, child, definition, parameters);
         this.grouping = grouping;
         this.groupings = groupings;
-        this.timeseriesAttribute = FieldAttribute.timeSeriesAttribute(source);
     }
 
     public Grouping grouping() {
@@ -103,11 +99,6 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         return new AcrossSeriesAggregate(source(), newChild, definition(), parameters(), grouping(), groupings());
     }
 
-    // @Override
-    // public String telemetryLabel() {
-    // return "PROMQL_ACROSS_SERIES_AGGREGATION";
-    // }
-
     @Override
     public boolean equals(Object o) {
         if (super.equals(o)) {
@@ -118,43 +109,47 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     /**
-     * {@code WITHOUT} over a child with a packed identity (a selector, a function over one) uses a dynamic
-     * {@code _timeseries} output, because the concrete retained labels are not known until lowering time.
-     * {@code WITHOUT} over a child that names every label it exposes (a {@code BY}/{@code NONE} aggregate, a binary
-     * operator between two of them) instead exposes those labels minus the excluded ones - the {@code WITHOUT} is a plain
-     * re-grouping over known columns, so it must NOT claim a {@code _timeseries} the plan never produces. {@code BY} and
-     * {@code NONE} export concrete labels or nothing.
+     * WITHOUT preserves the child's label representation: metadata stays metadata, while named labels lose the
+     * exclusions and metric name. BY exposes only its named grouping labels; NONE exposes no labels.
      */
     @Override
     public List<Attribute> output() {
-        // Output `_timeseries` if grouping is not constant, e.g. `without(...)`
-        if (grouping == Grouping.WITHOUT) {
-            List<Attribute> childOutput = child().output();
-            if (childOutput.stream().noneMatch(a -> MetadataAttribute.isTimeSeriesAttributeName(a.name()))) {
-                Set<String> excluded = new HashSet<>();
-                for (Attribute label : groupings) {
-                    excluded.add(labelKey(label));
+        if (grouping == WITHOUT) {
+            var output = child().output();
+            var dropping = dropping();
+            var ml = PromqlLabels.metadataLabel(output);
+            if (ml != null) {
+                // Compose child's dropping (e.g. label_replace dst) with this without(...);
+                // dropping child dropping would let those labels re-enter the blob.
+                var unset = new LinkedHashSet<>(ml.unset());
+                unset.addAll(dropping);
+                var result = new ArrayList<Attribute>();
+                result.add(UnresolvedPromqlAttribute.metadata(source(), unset));
+                for (var attr : output) {
+                    if (PromqlLabels.isMetadataLabel(attr) == false && dropping.contains(labelName(attr)) == false) {
+                        result.add(attr);
+                    }
                 }
-                return childOutput.stream().filter(a -> excluded.contains(labelKey(a)) == false).toList();
+                return result;
             }
-            return List.of(timeseriesAttribute);
+            return output.stream().filter(not(a -> dropping.contains(labelName(a)))).toList();
         }
-        // A label that resolved to a metric field is not a real label, so translation drops it from the
-        // aggregate; exclude it from the output too, otherwise the command projection references a column the
-        // plan never produces. Absent labels are already excluded by the resolved() check.
+        // absent labels and metric fields cannot supply grouping columns to the command output.
         return groupings.stream()
             .filter(a -> a.resolved() && a.dataType() != DataType.NULL)
-            .filter(a -> (a instanceof FieldAttribute fa && fa.isMetric()) == false)
+            .filter(not(a -> a instanceof FieldAttribute fa && fa.isMetric()))
             .toList();
     }
 
-    /**
-     * The PromQL label key of an attribute: a {@link FieldAttribute}'s backing field name with the Prometheus
-     * {@code labels.} passthrough prefix stripped (so {@code labels.pod} compares equal to a bare {@code pod}).
-     */
-    private static String labelKey(Attribute attr) {
-        String name = attr instanceof FieldAttribute fieldAttribute ? fieldAttribute.fieldName().string() : attr.name();
-        return name.startsWith("labels.") ? name.substring("labels.".length()) : name;
+    /** Labels this without(...) drops from metadata (listed labels + __name__, even if the list is empty). */
+    private List<String> dropping() {
+        List<String> labels = labelNames(groupings);
+        if (labels.contains(LabelMatcher.NAME)) {
+            return labels;
+        }
+        var drop = new ArrayList<>(labels);
+        drop.add(LabelMatcher.NAME);
+        return drop;
     }
 
     @Override
@@ -174,42 +169,26 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     }
 
     /**
-     * Translates {@code AcrossSeriesAggregate} to an ESQL {@code Aggregate}. The schema transposed below the
-     * aggregate names every column the subtree must expose, so the child translates once and the aggregate's own
-     * columns are read off the returned schema. Only {@code AcrossSeriesAggregate} creates plan-level aggregation
-     * nodes; within-series aggregates and function calls lower to expressions.
+     * Translates the child once, then aggregates it keyed by this node's result labels ({@link #output()}), read from the
+     * child as references. Within-series functions remain expressions in the first aggregate.
      */
     @Override
-    public IntermediateResult translate(TranslationContext context) {
-        List<String> keys = TranslationContext.mapFinite(groupings());
-        TranslationSchema childRequired = switch (grouping()) {
-            case BY -> finite(keys);
-            // without () keeps the child's label set; without (K) declares its own and widens every pending one by K
-            case WITHOUT -> keys.isEmpty() ? context.required() : union(subtract(context.required(), keys), open(keys));
-            case NONE -> TranslationSchema.EMPTY;
-        };
-        TranslationContext childTranslation = context.withRequired(childRequired);
-        IntermediateResult ir = childTranslation.translate(child());
+    public IntermediateResult translate(TranslationContext ctx) {
+        IntermediateResult ir = ctx.translate(child());
         if (ir.kind().constant) {
             return ir;
         }
-        TranslationSchema schema = switch (grouping()) {
-            case BY -> finite(TranslationContext.mapFinite(output()));
-            case WITHOUT -> context.regroupWithout(ir.schema(), keys);
-            case NONE -> TranslationSchema.EMPTY;
-        };
 
-        var promqlCtx = new PromqlContext(context.time(), AggregateFunction.NO_WINDOW, ir.step(), context.configuration());
+        var promqlCtx = new PromqlContext(ctx.time(), AggregateFunction.NO_WINDOW, ir.step(), ctx.configuration());
         Expression function = buildEsqlFunction(ir.value(), promqlCtx);
+
         // A raw operand collapses once, with the operator's function fused into the per-series aggregate; a table regroups.
-        IntermediateResult result = ir.kind().afterInitialAggregation
-            ? context.regroup(ir, schema, grouping() == WITHOUT, function)
-            : context.collapse(ir, schema, function);
-        // A count is at least 1 for an element. A group none of whose series has a value - every series of an operator
-        // left without a partner, say - is no element in Prometheus, not a count of 0.
-        if (function instanceof Count) {
-            result = context.eval(result, TranslationContext.zeroCountAsNull(result.valueColumn()));
+        List<Attribute> keys = UnresolvedPromqlAttribute.tsIdentity(source(), output());
+
+        if (ir.kind().afterInitialAggregation) {
+            return ctx.emitAggregate(ir, keys, grouping == WITHOUT, function);
         }
-        return result;
+
+        return ctx.emitInitialAggregate(ir, keys, function);
     }
 }

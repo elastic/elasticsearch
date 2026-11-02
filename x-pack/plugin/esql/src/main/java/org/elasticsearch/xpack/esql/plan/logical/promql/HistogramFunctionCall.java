@@ -7,29 +7,19 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
 
+import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels.PROMETHEUS_LABELS_PREFIX;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.finite;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.open;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.subtract;
-import static org.elasticsearch.xpack.esql.plan.logical.promql.TranslationSchema.union;
+import java.util.Set;
 
 /**
  * Base class for PromQL histogram functions that evaluate classic histogram buckets grouped by their {@code le} label.
@@ -52,12 +42,31 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
     @Override
     public final List<Attribute> output() {
         if (output == null) {
-            output = child().output()
-                .stream()
-                .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()) || LE_LABEL.equals(labelName(attr)) == false)
-                .toList();
+            var keys = new ArrayList<Attribute>();
+            for (Attribute attr : child().output()) {
+                if (PromqlLabels.isMetadataLabel(attr)) {
+                    keys.add(UnresolvedPromqlAttribute.metadata(source(), Set.of(LE_LABEL)));
+                } else if (MetadataAttribute.isTimeSeriesAttributeName(attr.name())
+                    || LE_LABEL.equals(PromqlLabels.labelName(attr)) == false) {
+                        keys.add(attr);
+                    }
+            }
+            output = List.copyOf(keys);
         }
         return output;
+    }
+
+    /**
+     * The labels the bucket rows of a raw child key by: every label of the child but {@code le} as one view, and
+     * {@code le} itself, so each row is one bucket series.
+     */
+    private List<Attribute> bucketKeys(TranslationContext context) {
+        var keys = new ArrayList<Attribute>();
+        if (PromqlLabels.metadataLabel(child().output()) != null) {
+            keys.add(UnresolvedPromqlAttribute.metadata(source(), Set.of(LE_LABEL)));
+        }
+        keys.add(UnresolvedPromqlAttribute.label(source(), LE_LABEL));
+        return keys;
     }
 
     @Override
@@ -72,57 +81,35 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
         return true;
     }
 
-    private static String labelName(Attribute attribute) {
-        String fieldName;
-        if (attribute instanceof FieldAttribute fieldAttribute) {
-            fieldName = fieldAttribute.fieldName().string();
-        } else {
-            fieldName = attribute.name();
-        }
-        if (fieldName.startsWith(PROMETHEUS_LABELS_PREFIX)) {
-            return fieldName.substring(PROMETHEUS_LABELS_PREFIX.length());
-        }
-        return fieldName;
-    }
-
     @Override
     public IntermediateResult translate(TranslationContext context) {
-        // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would, and read the
-        // bucket bound off the `le` column itself, so the child must also expose it by name.
-        List<String> le = List.of(HistogramFunctionCall.LE_LABEL);
-        TranslationSchema childRequired = union(union(subtract(context.required(), le), open(le)), finite(le));
-        IntermediateResult result = context.withRequired(childRequired).translate(child());
+        // Classic histogram functions collapse the `le` bucket dimension like a `without (le)` would (see output()), and
+        // read the bucket bound off the `le` column itself (see bucketKeys).
+        IntermediateResult result = context.translate(child());
         if (result.kind().constant) {
             return result;
         }
 
-        // native histograms - distinguishable only at this point in planning are regular value transformations.
+        // Native histograms - distinguishable only by the value type - are regular value transformations. They carry no
+        // `le`, so the inferred identity holds for them too.
         if (result.value().resolved() && result.value().dataType().isHistogram()) {
-            return new ValueTransformationFunction(source(), child(), definition(), parameters()).translate(context);
+            return applyValueFunction(context, result);
         }
 
-        // Classic counter-backed histograms need the special treatment below.
-        Attribute leColumn = result.label(HistogramFunctionCall.LE_LABEL);
-        if (leColumn == null) {
-            // like prometheus, return warning and drop series w/o `le`
-            HeaderWarning.addWarning(functionName() + ": input vector has no le label; no buckets to evaluate");
-            var skipAllFilter = new Filter(source(), result.plan(), Literal.FALSE);
-            var nullGrouping = new Values(source(), new Literal(source(), null, DataType.DOUBLE));
-            IntermediateResult skipped = result.with(skipAllFilter, result.schema(), result.value());
-            return skipped.kind().afterInitialAggregation
-                ? context.regroup(skipped, result.schema(), false, nullGrouping)
-                : context.collapse(skipped, result.schema(), nullGrouping);
-        }
-
+        // Classic counter-backed histograms evaluate their buckets by `le`. An input without it has a null `le` and evaluates
+        // to nothing; the verifier warns, like Prometheus.
         if (result.kind().afterInitialAggregation == false) {
-            result = context.collapse(result, result.schema(), result.value());
-            leColumn = result.label(HistogramFunctionCall.LE_LABEL);
-            assert leColumn != null : "invariant: [ " + HistogramFunctionCall.LE_LABEL + " ] required";
+            result = context.emitInitialAggregate(result, bucketKeys(context), result.value());
         }
 
         // Bucket counts are consumed as doubles; counter buckets are frequently integer/long typed, so cast explicitly.
-        TranslationSchema schema = context.regroupWithout(result.schema(), le);
         Expression count = new ToDouble(source(), result.value());
-        return context.regroup(result, schema, true, buildAggregateFunction(count, leColumn));
+        Attribute le = UnresolvedPromqlAttribute.label(source(), LE_LABEL);
+        return context.emitAggregate(
+            result,
+            UnresolvedPromqlAttribute.tsIdentity(source(), output()),
+            true,
+            buildAggregateFunction(count, le)
+        );
     }
 }

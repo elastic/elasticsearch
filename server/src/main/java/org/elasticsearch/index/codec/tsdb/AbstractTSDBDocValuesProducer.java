@@ -1723,7 +1723,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
+    public abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
 
         final SortedSetEntry entry;
         final IndexInput data;
@@ -1737,6 +1737,14 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             this.merging = merging;
             this.termsDictBlockLz4Shift = termsDictBlockLz4Shift;
             this.termsEnum = termsEnum();
+        }
+
+        /**
+         * The reader the field's ordinal codec returned for this field, which tells which layout the codec chose
+         * when it wrote the field.
+         */
+        public SortedSetOrdinalReader ordinalsReaderForTesting() {
+            return entry.ordinalsReader;
         }
 
         @Override

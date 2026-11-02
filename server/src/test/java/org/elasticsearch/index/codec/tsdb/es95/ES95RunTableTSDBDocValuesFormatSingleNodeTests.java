@@ -44,8 +44,9 @@ public class ES95RunTableTSDBDocValuesFormatSingleNodeTests extends ES95TSDBDocV
     }
 
     /**
-     * Through the real mapping and codec wiring, dimensions and {@code _ts_routing_hash} are written as run
-     * tables, while {@code _tsid}, the primary sort field, keeps its own layout.
+     * Through the real mapping and codec wiring, single-valued and multi-valued dimensions and
+     * {@code _ts_routing_hash} are written as run tables, while {@code _tsid}, the primary sort field, keeps its
+     * own layout.
      */
     public void testDimensionsAreWrittenAsRunTables() throws Exception {
         final String indexName = "run-table";
@@ -57,6 +58,8 @@ public class ES95RunTableTSDBDocValuesFormatSingleNodeTests extends ES95TSDBDocV
             "hostname",
             "type=keyword,time_series_dimension=true",
             "region",
+            "type=keyword,time_series_dimension=true",
+            "tags",
             "type=keyword,time_series_dimension=true",
             "gauge",
             "type=long,time_series_metric=gauge"
@@ -74,6 +77,7 @@ public class ES95RunTableTSDBDocValuesFormatSingleNodeTests extends ES95TSDBDocV
                             .field("@timestamp", baseTimestamp + i * 1000L)
                             .field("hostname", "host-" + host)
                             .field("region", "region-" + (host % 2))
+                            .array("tags", "tag-" + (host % 3), "tag-z")
                             .field("gauge", randomLong())
                             .endObject()
                     )
@@ -89,6 +93,7 @@ public class ES95RunTableTSDBDocValuesFormatSingleNodeTests extends ES95TSDBDocV
             final LeafReader leaf = searcher.getLeafContexts().get(0).reader();
             assertTrue("hostname", ES95RunTableTSDBDocValuesFormatTests.isRunTable(sorted(leaf, "hostname")));
             assertTrue("region", ES95RunTableTSDBDocValuesFormatTests.isRunTable(sorted(leaf, "region")));
+            assertTrue("tags", ES95RunTableTSDBDocValuesFormatTests.isRunTable(leaf.getSortedSetDocValues("tags")));
             assertTrue(
                 TimeSeriesRoutingHashFieldMapper.NAME,
                 ES95RunTableTSDBDocValuesFormatTests.isRunTable(sorted(leaf, TimeSeriesRoutingHashFieldMapper.NAME))

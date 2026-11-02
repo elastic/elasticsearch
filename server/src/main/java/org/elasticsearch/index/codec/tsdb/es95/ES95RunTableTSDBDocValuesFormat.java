@@ -15,8 +15,9 @@ import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 /**
- * Variant of {@link ES95TSDBDocValuesFormat} that writes single-valued dimension fields in the run-table
- * ordinal layout of {@link RunTableSortedCodec}; multi-valued {@code SortedSet} fields keep the blocked layout.
+ * Variant of {@link ES95TSDBDocValuesFormat} that writes dimension fields in the run-table ordinal layout:
+ * single-valued ones through {@link RunTableSortedCodec} and multi-valued {@code SortedSet} ones through
+ * {@link RunTableSortedSetCodec}.
  *
  * <p>It needs its own name ({@value #CODEC_NAME}) because Lucene picks the reading format from the name
  * stored in the segment, and every sorted ordinal stream this format writes starts with the layout
@@ -58,7 +59,7 @@ public final class ES95RunTableTSDBDocValuesFormat extends ES95TSDBDocValuesForm
             ES95NumericFieldReader::defaultFallbackDecoder,
             fieldContextResolver,
             new RunTableSortedCodec(SORTED_CODEC, fieldContextResolver),
-            SORTED_SET_CODEC
+            new RunTableSortedSetCodec(SORTED_SET_CODEC, fieldContextResolver)
         );
     }
 }

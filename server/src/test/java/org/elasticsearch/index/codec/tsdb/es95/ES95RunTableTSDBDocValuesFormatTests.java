@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -40,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.IntUnaryOperator;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
@@ -92,10 +94,19 @@ public class ES95RunTableTSDBDocValuesFormatTests extends AbstractTSDBDocValuesF
         String of(int series, int seq);
     }
 
+    /** The expected values, ascending, of a multi-valued field for the {@code seq}-th doc of series {@code series}. */
+    @FunctionalInterface
+    private interface ExpectedSet {
+        String[] of(int series, int seq);
+    }
+
+    private static final String[] NO_VALUES = new String[0];
+
     /**
      * Series-shaped data spread over several segments and then force-merged: a dense dimension, a sparse one
-     * missing for whole series, a single-valued {@code SortedSet} dimension, and one that changes on every doc
-     * of a few series, so the run table, its sentinel runs and the fallback all occur in one segment.
+     * missing for whole series, a single-valued {@code SortedSet} dimension, a multi-valued one, and one that
+     * changes on every doc of a few series, so the run tables of both codecs, their runs of docs without a
+     * value and the fallback all occur in one segment.
      */
     public void testDimensionsAcrossSegmentsAndMerges() throws IOException {
         final int numSeries = randomIntBetween(1, 30);
@@ -117,6 +128,11 @@ public class ES95RunTableTSDBDocValuesFormatTests extends AbstractTSDBDocValuesF
         final ExpectedValue region = (series, seq) -> hasRegion[series] ? "region-" + (series % 3) : null;
         final ExpectedValue ip = (series, seq) -> "10.0.0." + (series % 7);
         final ExpectedValue state = (series, seq) -> flapping[series] ? (seq % 2 == 0 ? "up" : "down") : "steady-" + (series % 2);
+        // a quarter of the series has no tags and another quarter a single one, so a segment may hold the field
+        // as single-valued, which the sorted codec writes, or as multi-valued with empty runs
+        final ExpectedSet tags = (series, seq) -> series % 4 == 0 ? NO_VALUES
+            : series % 4 == 1 ? new String[] { "tag-a" }
+            : new String[] { "tag-" + (series % 3), "tag-z" };
 
         try (
             Directory dir = newDirectory();
@@ -133,6 +149,9 @@ public class ES95RunTableTSDBDocValuesFormatTests extends AbstractTSDBDocValuesF
                 }
                 document.add(new SortedSetDocValuesField("ip", new BytesRef(ip.of(series, seq))));
                 document.add(new SortedDocValuesField("state", new BytesRef(state.of(series, seq))));
+                for (String tag : tags.of(series, seq)) {
+                    document.add(new SortedSetDocValuesField("tags", new BytesRef(tag)));
+                }
                 writer.addDocument(document);
                 if (random().nextInt(commitEvery) == 0) {
                     writer.commit();
@@ -159,6 +178,7 @@ public class ES95RunTableTSDBDocValuesFormatTests extends AbstractTSDBDocValuesF
                         assertSortedValues(leaf, leafReader -> DocValues.getSorted(leafReader, "region"), region);
                         assertSortedValues(leaf, ipValues, ip);
                         assertSortedValues(leaf, leafReader -> DocValues.getSorted(leafReader, "state"), state);
+                        assertSortedSetValues(leaf, "tags", tags);
                     }
                 }
             }
@@ -292,6 +312,116 @@ public class ES95RunTableTSDBDocValuesFormatTests extends AbstractTSDBDocValuesF
         }
     }
 
+    /**
+     * The sorted set counterpart of {@link #testMergeRunTableSegmentIntoFallbackLayout}: the merged field falls
+     * back to the blocked layout with its addresses table, which the optimized merge sizes from the value and
+     * document counts recorded for each source segment.
+     */
+    public void testMergeRunTableSortedSetSegmentIntoFallbackLayout() throws IOException {
+        final int runShapedDocs = randomIntBetween(64, 2000);
+        final int flappingDocs = 6 * runShapedDocs;
+        // series 0 and 2: {x, y}, then no value, then {y, z}; series 1: alternates on every doc
+        final ExpectedSet dims = (series, seq) -> {
+            if (series == 1) {
+                return seq % 2 == 0 ? new String[] { "x", "y" } : new String[] { "y", "z" };
+            }
+            if (seq < runShapedDocs / 2) {
+                return new String[] { "x", "y" };
+            }
+            return seq < 3 * runShapedDocs / 4 ? NO_VALUES : new String[] { "y", "z" };
+        };
+
+        try (
+            Directory dir = newDirectory();
+            IndexWriter writer = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(TSID_FIELD, TIMESTAMP_FIELD))
+        ) {
+            indexSeries(writer, new int[][] { { 0, 2 }, { 1 } }, series -> series == 1 ? flappingDocs : runShapedDocs, dims);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(2));
+                for (LeafReaderContext context : reader.leaves()) {
+                    final LeafReader leaf = context.reader();
+                    final NumericDocValues series = DocValues.getNumeric(leaf, SERIES_FIELD);
+                    assertTrue(series.advanceExact(0));
+                    final boolean flappingSegment = series.longValue() == 1;
+                    assertThat(isRunTable(leaf.getSortedSetDocValues("dims")), equalTo(flappingSegment == false));
+                }
+            }
+
+            writer.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                assertSortedSetValues(leaf, "dims", dims);
+                assertFalse(isRunTable(leaf.getSortedSetDocValues("dims")));
+            }
+        }
+    }
+
+    /**
+     * Run-table sorted set segments merged by the optimized merge into a field that stays a multi-valued run
+     * table. The merge decides from the summed value and document counts of the source segments whether the
+     * merged field is single-valued, so those counts must be exact for the field to stay multi-valued.
+     */
+    public void testMergeKeepsRunTableSortedSetMultiValued() throws IOException {
+        final int docsPerSeries = randomIntBetween(32, 500);
+        // series 3 has no value, so the merged field has a run of docs without a value
+        final ExpectedSet dims = (series, seq) -> series == 3 ? NO_VALUES : new String[] { "a-" + (series % 2), "b" };
+
+        try (
+            Directory dir = newDirectory();
+            IndexWriter writer = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(TSID_FIELD, TIMESTAMP_FIELD))
+        ) {
+            // series 0 and 2 in one segment and 1 and 3 in the other, so the merge interleaves them
+            indexSeries(writer, new int[][] { { 0, 2 }, { 1, 3 } }, series -> docsPerSeries, dims);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(2));
+                for (LeafReaderContext context : reader.leaves()) {
+                    assertTrue(isRunTable(context.reader().getSortedSetDocValues("dims")));
+                }
+            }
+
+            writer.forceMerge(1);
+            try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                assertThat(reader.leaves().size(), equalTo(1));
+                final LeafReader leaf = reader.leaves().get(0).reader();
+                final SortedSetDocValues merged = leaf.getSortedSetDocValues("dims");
+                assertThat("merged field must stay multi-valued", DocValues.unwrapSingleton(merged), nullValue());
+                assertTrue(isRunTable(merged));
+                assertSortedSetValues(leaf, "dims", dims);
+            }
+        }
+    }
+
+    /**
+     * Indexes {@code numDocs} docs for every series, with {@code dims} as a multi-valued field, committing a
+     * segment after each group of {@code segments}.
+     */
+    private static void indexSeries(
+        final IndexWriter writer,
+        final int[][] segments,
+        final IntUnaryOperator numDocs,
+        final ExpectedSet dims
+    ) throws IOException {
+        for (int[] segmentSeries : segments) {
+            for (int series : segmentSeries) {
+                for (int seq = 0; seq < numDocs.applyAsInt(series); seq++) {
+                    final Document document = seriesDocument(series, seq);
+                    for (String value : dims.of(series, seq)) {
+                        document.add(new SortedSetDocValuesField("dims", new BytesRef(value)));
+                    }
+                    writer.addDocument(document);
+                }
+            }
+            writer.commit();
+        }
+    }
+
+    /** Whether {@code values} were read from the multi-valued run-table layout. */
+    static boolean isRunTable(final SortedSetDocValues values) {
+        return values instanceof AbstractTSDBDocValuesProducer.BaseSortedSetDocValues base
+            && base.ordinalsReaderForTesting() instanceof RunTableSortedSetCodec.RunTableReader;
+    }
+
     /** Whether {@code values} were read from the run-table layout. */
     static boolean isRunTable(final SortedDocValues values) {
         return values instanceof AbstractTSDBDocValuesProducer.BaseSortedDocValues base
@@ -354,6 +484,67 @@ public class ES95RunTableTSDBDocValuesFormatTests extends AbstractTSDBDocValuesF
             assertThat("doc " + doc, advanced.lookupOrd(advanced.ordValue()).utf8ToString(), equalTo(expected[doc]));
             target = doc + randomIntBetween(1, 100);
         }
+    }
+
+    /**
+     * Checks the multi-valued field's values on every doc of {@code leaf} through {@code nextDoc},
+     * {@code advanceExact} and {@code advance}, each on a fresh instance.
+     */
+    private static void assertSortedSetValues(final LeafReader leaf, final String field, final ExpectedSet expectedSet) throws IOException {
+        final int maxDoc = leaf.maxDoc();
+        final String[][] expected = new String[maxDoc][];
+        final NumericDocValues series = DocValues.getNumeric(leaf, SERIES_FIELD);
+        final NumericDocValues seq = DocValues.getNumeric(leaf, SEQ_FIELD);
+        for (int doc = 0; doc < maxDoc; doc++) {
+            assertTrue(series.advanceExact(doc));
+            assertTrue(seq.advanceExact(doc));
+            expected[doc] = expectedSet.of((int) series.longValue(), (int) seq.longValue());
+        }
+
+        final SortedSetDocValues iterated = DocValues.getSortedSet(leaf, field);
+        int expectedDoc = nextDocWithValues(expected, 0);
+        for (int doc = iterated.nextDoc(); doc != NO_MORE_DOCS; doc = iterated.nextDoc()) {
+            assertThat(doc, equalTo(expectedDoc));
+            assertSet(iterated, expected[doc], doc);
+            expectedDoc = nextDocWithValues(expected, doc + 1);
+        }
+        assertThat("docs with a value left unvisited", expectedDoc, equalTo(NO_MORE_DOCS));
+
+        final SortedSetDocValues exact = DocValues.getSortedSet(leaf, field);
+        for (int doc = randomIntBetween(0, 10); doc < maxDoc; doc += randomIntBetween(1, 50)) {
+            assertThat("doc " + doc, exact.advanceExact(doc), equalTo(expected[doc].length > 0));
+            if (expected[doc].length > 0) {
+                assertSet(exact, expected[doc], doc);
+            }
+        }
+
+        final SortedSetDocValues advanced = DocValues.getSortedSet(leaf, field);
+        int target = randomIntBetween(0, 10);
+        while (target < maxDoc) {
+            final int doc = advanced.advance(target);
+            assertThat("target " + target, doc, equalTo(nextDocWithValues(expected, target)));
+            if (doc == NO_MORE_DOCS) {
+                break;
+            }
+            assertSet(advanced, expected[doc], doc);
+            target = doc + randomIntBetween(1, 100);
+        }
+    }
+
+    private static void assertSet(final SortedSetDocValues values, final String[] expected, int doc) throws IOException {
+        assertThat("doc " + doc, values.docValueCount(), equalTo(expected.length));
+        for (String value : expected) {
+            assertThat("doc " + doc, values.lookupOrd(values.nextOrd()).utf8ToString(), equalTo(value));
+        }
+    }
+
+    private static int nextDocWithValues(final String[][] expected, int from) {
+        for (int doc = from; doc < expected.length; doc++) {
+            if (expected[doc].length > 0) {
+                return doc;
+            }
+        }
+        return NO_MORE_DOCS;
     }
 
     private static int nextDocWithValue(final String[] expected, int from) {

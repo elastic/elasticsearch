@@ -185,7 +185,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     @Override
     public final void close() {
-        finish();
+        // not finish(): a subclass reacts there to the end of its input, which a closing operator never saw
+        finished = true;
         closed = true;
         discardResults();
         responseHeadersCollector.finish();

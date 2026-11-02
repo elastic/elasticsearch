@@ -475,7 +475,7 @@ public class FetchOperatorTests extends ComputeTestCase {
     public void testTheRowBudgetFillsAboutOneTargetPage() {
         List<Attribute> narrow = List.of(attribute("payload", DataType.KEYWORD), attribute("count", DataType.LONG));
         int rowSize = DataType.KEYWORD.estimatedSize() + DataType.LONG.estimatedSize();
-        int maxBatchRows = FetchOperator.Batching.forFetched(narrow).maxBatchRows();
+        int maxBatchRows = FetchOperator.Batching.Streaming.forFetched(narrow).maxBatchRows();
         assertThat("the rows fit a target page", (long) maxBatchRows * rowSize, lessThanOrEqualTo((long) Operator.TARGET_PAGE_SIZE));
         assertThat("one more row doesn't", (long) (maxBatchRows + 1) * rowSize, greaterThan((long) Operator.TARGET_PAGE_SIZE));
 
@@ -488,19 +488,108 @@ public class FetchOperatorTests extends ComputeTestCase {
             Operator.TARGET_PAGE_SIZE / (16 * DataType.TEXT.estimatedSize()),
             lessThan(Operator.MIN_TARGET_PAGE_SIZE)
         );
-        assertThat(FetchOperator.Batching.forFetched(wide).maxBatchRows(), equalTo(Operator.MIN_TARGET_PAGE_SIZE));
+        assertThat(FetchOperator.Batching.Streaming.forFetched(wide).maxBatchRows(), equalTo(Operator.MIN_TARGET_PAGE_SIZE));
     }
 
     /**
      * Batching limits under which no batch could leave, or no page could wait, are rejected.
      */
     public void testBatchingRejectsLimitsThatCantFetch() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching(4, 0, 10));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching.Streaming(4, 0, 10));
         assertThat(e.getMessage(), equalTo("maxBatchesInFlight must be positive but was [0]"));
-        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching(1, 2, 10));
+        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching.Streaming(1, 2, 10));
         assertThat(e.getMessage(), equalTo("maxPagesHeld [1] must be at least maxBatchesInFlight [2]"));
-        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching(4, 2, 0));
+        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching.Streaming(4, 2, 0));
         assertThat(e.getMessage(), equalTo("maxBatchRows must be positive but was [0]"));
+        e = expectThrows(IllegalArgumentException.class, () -> new FetchOperator.Batching.WholeCut(0));
+        assertThat(e.getMessage(), equalTo("maxPagesHeld must be positive but was [0]"));
+    }
+
+    /**
+     * A whole cut sends nothing while its input goes on. Once the input ended, it fetches every page in one batch, with
+     * one request per node that holds some of its documents.
+     */
+    public void testAWholeCutWaitsForTheEndOfItsInput() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, wholeCut()).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
+            List<Ref> second = List.of(new Ref(ORIGINS.get(1), 0, 3), new Ref(ORIGINS.get(2), 0, 4));
+            List<Ref> third = List.of(new Ref(ORIGINS.get(3), 0, 5));
+            for (List<Ref> page : List.of(first, second, third)) {
+                operator.addInput(page(blockFactory, page));
+            }
+            assertThat("the cut goes on", client.requests, empty());
+
+            operator.finish();
+
+            assertThat(releasedRows(takeOutput(operator, 3)), equalTo(concat(first, second, third)));
+            assertThat(client.requests.stream().map(Request::nodeId).toList(), containsInAnyOrder("n1", "n2", "n3"));
+            for (Request request : client.requests) {
+                Set<Ref> expected = switch (request.nodeId()) {
+                    case "n1" -> Set.of(first.get(0), second.get(0));
+                    case "n2" -> Set.of(first.get(1), second.get(1));
+                    case "n3" -> Set.copyOf(third);
+                    default -> throw new AssertionError("no documents on [" + request.nodeId() + "]");
+                };
+                assertThat(documents(request), equalTo(expected));
+            }
+        } finally {
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * The operator can't take another page while it holds as many as it may. A whole cut of more pages sends a batch each
+     * time that many wait, and the rest once the input ended.
+     */
+    public void testAWholeCutOfMorePagesThanTheOperatorHoldsSendsWhenFull() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, new FetchOperator.Batching.WholeCut(2)).get(driverContext);
+        try {
+            List<Ref> first = List.of(new Ref(ORIGINS.get(0), 0, 1));
+            List<Ref> second = List.of(new Ref(ORIGINS.get(0), 0, 2));
+            List<Ref> third = List.of(new Ref(ORIGINS.get(0), 0, 3));
+            operator.addInput(page(blockFactory, first));
+            assertThat("one page waits", client.requests, empty());
+            operator.addInput(page(blockFactory, second));
+            assertThat("two pages fill the operator", requestedDocuments(client), equalTo(List.of(Set.copyOf(concat(first, second)))));
+            List<Page> output = new ArrayList<>(takeOutput(operator, 2));
+            assertTrue("the operator takes a page again", operator.needsInput());
+
+            operator.addInput(page(blockFactory, third));
+            operator.finish();
+
+            output.addAll(takeOutput(operator, 1));
+            assertThat(releasedRows(output), equalTo(concat(first, second, third)));
+            assertThat(requestedDocuments(client), equalTo(List.of(Set.copyOf(concat(first, second)), Set.copyOf(third))));
+        } finally {
+            operator.close();
+            awaitResponses(driverContext);
+        }
+    }
+
+    /**
+     * An operator that closes before its input ended, because the query failed or was cancelled, sends none of the pages
+     * of a whole cut that wait.
+     */
+    public void testAWholeCutThatClosesBeforeItsInputEndedSendsNothing() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        Operator operator = factory(client, wholeCut()).get(driverContext);
+        operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
+
+        operator.close();
+        awaitResponses(driverContext);
+
+        assertThat(client.requests, empty());
+        assertThat(client.ends, contains("fetch"));
     }
 
     /**
@@ -533,8 +622,8 @@ public class FetchOperatorTests extends ComputeTestCase {
     }
 
     /**
-     * Closing the operator ends its fetch, also when it closes before its input ended. Its cut then ends first, so the
-     * contexts its rows read so far go as well.
+     * Closing the operator ends its fetch, also when it closes before its input ended. Its cut didn't end then, and the end
+     * of the fetch lets every context go.
      */
     public void testClosingEndsTheFetch() throws Exception {
         BlockFactory blockFactory = blockFactory();
@@ -557,18 +646,22 @@ public class FetchOperatorTests extends ComputeTestCase {
             client.holdResponses.countDown();
             awaitResponses(driverContext);
         }
-        assertThat(client.ends, contains("cut", "fetch"));
-        assertThat(client.cutsEnded, contains(Set.of(ORIGINS.get(0).contextId(), ORIGINS.get(2).contextId())));
+        if (inputEnded) {
+            assertThat(client.ends, contains("cut", "fetch"));
+            assertThat(client.cutsEnded, contains(Set.of(ORIGINS.get(0).contextId(), ORIGINS.get(2).contextId())));
+        } else {
+            assertThat(client.ends, contains("fetch"));
+        }
     }
 
     /**
-     * A page of the cut sends its requests as soon as it arrives, without waiting for the rest of the cut.
+     * A page of a streamed cut sends its requests as soon as it arrives, without waiting for the rest of the cut.
      */
     public void testFetchesEachPageAsItArrives() throws Exception {
         BlockFactory blockFactory = blockFactory();
         FakeClient client = new FakeClient(blockFactory);
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
-        Operator operator = factory(client).get(driverContext);
+        Operator operator = factory(client, batching(between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT), 100)).get(driverContext);
         try {
             operator.addInput(page(blockFactory, List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2))));
             assertThat(client.requests.stream().map(Request::nodeId).toList(), containsInAnyOrder("n1", "n2"));
@@ -1069,16 +1162,33 @@ public class FetchOperatorTests extends ComputeTestCase {
         return new FetchOperator.Factory(0, FETCHED_TYPES, null, batching, client, failures);
     }
 
+    /**
+     * Either kind of batching. The behavior the tests that use it check doesn't depend on how the pages group.
+     */
     private static FetchOperator.Batching randomBatching() {
+        if (randomBoolean()) {
+            return new FetchOperator.Batching.WholeCut(between(1, FetchOperator.MAX_PAGES_HELD));
+        }
         int maxBatchesInFlight = between(1, FetchOperator.MAX_BATCHES_IN_FLIGHT);
-        return new FetchOperator.Batching(between(maxBatchesInFlight, FetchOperator.MAX_PAGES_HELD), maxBatchesInFlight, between(1, 100));
+        return new FetchOperator.Batching.Streaming(
+            between(maxBatchesInFlight, FetchOperator.MAX_PAGES_HELD),
+            maxBatchesInFlight,
+            between(1, 100)
+        );
     }
 
     /**
-     * Batching with room for every page a test holds.
+     * Streaming batching with room for every page a test holds.
      */
     private static FetchOperator.Batching batching(int maxBatchesInFlight, int maxBatchRows) {
-        return new FetchOperator.Batching(FetchOperator.MAX_PAGES_HELD, maxBatchesInFlight, maxBatchRows);
+        return new FetchOperator.Batching.Streaming(FetchOperator.MAX_PAGES_HELD, maxBatchesInFlight, maxBatchRows);
+    }
+
+    /**
+     * Whole-cut batching with room for every page a test holds.
+     */
+    private static FetchOperator.Batching wholeCut() {
+        return new FetchOperator.Batching.WholeCut(FetchOperator.MAX_PAGES_HELD);
     }
 
     /**

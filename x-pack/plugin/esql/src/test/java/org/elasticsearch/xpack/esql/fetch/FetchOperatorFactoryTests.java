@@ -12,15 +12,20 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
 import java.util.Map;
@@ -62,6 +67,48 @@ public class FetchOperatorFactoryTests extends ESTestCase {
         FetchSourceExec source = (FetchSourceExec) extract.child();
         assertTrue(EsQueryExec.isDocAttribute(source.doc()));
         assertThat("the data node sizes its pages for the fetched columns", source.estimatedRowSize(), notNullValue());
+    }
+
+    /**
+     * A {@code TopN} emits its cut once its input ended, so the fetch waits for the whole cut.
+     */
+    public void testATopNCutIsFetchedWhole() {
+        Attribute doc = docAttribute();
+        Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        Order order = new Order(Source.EMPTY, doc, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        PhysicalPlan cut = new TopNExec(
+            Source.EMPTY,
+            new ExchangeSourceExec(Source.EMPTY, List.of(doc), false),
+            List.of(order),
+            limit,
+            null
+        );
+
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(fetchOver(cut, doc), 0, null, new FetchFailures(false));
+
+        assertThat(factory.batching(), equalTo(new FetchOperator.Batching.WholeCut(FetchOperator.MAX_PAGES_HELD)));
+    }
+
+    /**
+     * A {@code LIMIT} passes on its pages as they arrive, so the fetch streams them.
+     */
+    public void testALimitCutIsStreamed() {
+        Attribute doc = docAttribute();
+        Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        PhysicalPlan cut = new LimitExec(Source.EMPTY, new ExchangeSourceExec(Source.EMPTY, List.of(doc), false), limit, null);
+        FetchExec exec = fetchOver(cut, doc);
+
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false));
+
+        assertThat(factory.batching(), equalTo(FetchOperator.Batching.Streaming.forFetched(exec.fetchedAttributes())));
+    }
+
+    private static FetchExec fetchOver(PhysicalPlan cut, Attribute doc) {
+        return new FetchExec(Source.EMPTY, cut, doc, List.of(field("message", DataType.KEYWORD)), "idx", List.of("idx"), null);
+    }
+
+    private static Attribute docAttribute() {
+        return new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
     }
 
     private static FieldAttribute field(String name, DataType type) {

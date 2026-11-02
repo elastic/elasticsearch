@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
@@ -72,11 +73,12 @@ import java.util.concurrent.atomic.LongAdder;
  * per batch to each node that holds some of the batch's documents, and appends the fetched columns to the rows, in the
  * order of the cut.
  * <p>
- * A {@code TopN} cut is usually one page, so one batch. A {@code LIMIT} cut passes on the pages of the exchange as they
- * arrive, and those can be small, down to the matches of one segment each. A page leaves at once when no batch fetches.
- * While batches fetch, the pages that arrive wait, and leave together once they fill a batch or a batch ends. So a stream
- * of small pages costs a few requests instead of one per page, and full pages still fetch up to
- * {@link Batching#maxBatchesInFlight} at the same time.
+ * A {@code TopN} cut is complete before its first page arrives, so the operator fetches it as one batch once its input
+ * ended ({@link Batching.WholeCut}). A {@code LIMIT} cut passes on the pages of the exchange as they arrive, and those can
+ * be small, down to the matches of one segment each ({@link Batching.Streaming}). A page leaves at once when no batch
+ * fetches. While batches fetch, the pages that arrive wait, and leave together once they fill a batch or a batch ends. So a
+ * stream of small pages costs a few requests instead of one per page, and full pages still fetch up to
+ * {@link Batching.Streaming#maxBatchesInFlight} at the same time.
  * <p>
  * {@link AsyncOperator} keeps the pages in order and limits how many the operator holds. The responses arrive on other
  * threads, which only store them. The driver thread then puts the fetched columns next to the rows, with the block factory
@@ -108,38 +110,71 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
 
     /**
      * How the operator groups the pages of the cut into batches.
-     *
-     * @param maxPagesHeld       the pages it holds at once: fetching, waiting for a batch, or fetched and not out yet
-     * @param maxBatchesInFlight the batches that fetch at the same time
-     * @param maxBatchRows       the rows a batch takes from the pages that wait, and the rows that must wait before a batch
-     *                           leaves while others fetch. A batch takes at least one page, so a larger page goes alone.
      */
-    public record Batching(int maxPagesHeld, int maxBatchesInFlight, int maxBatchRows) {
-        public Batching {
-            if (maxBatchesInFlight < 1) {
-                throw new IllegalArgumentException("maxBatchesInFlight must be positive but was [" + maxBatchesInFlight + "]");
-            }
-            if (maxPagesHeld < maxBatchesInFlight) {
-                throw new IllegalArgumentException(
-                    "maxPagesHeld [" + maxPagesHeld + "] must be at least maxBatchesInFlight [" + maxBatchesInFlight + "]"
-                );
-            }
-            if (maxBatchRows < 1) {
-                throw new IllegalArgumentException("maxBatchRows must be positive but was [" + maxBatchRows + "]");
+    public sealed interface Batching {
+        /**
+         * The pages the operator holds at once: fetching, waiting for a batch, or fetched and not out yet.
+         */
+        int maxPagesHeld();
+
+        /**
+         * The batching of the cut that {@code exec} fetches the rows of. A {@code TopN} emits its pages only once its input
+         * ended, so its cut is complete when the first page arrives. Every other cut streams, which is right for any cut.
+         */
+        static Batching forExec(FetchExec exec) {
+            return exec.child() instanceof TopNExec ? new WholeCut(MAX_PAGES_HELD) : Streaming.forFetched(exec.fetchedAttributes());
+        }
+
+        /**
+         * For a cut that is complete before its first page arrives. The operator waits for the end of its input and fetches
+         * the whole cut as one batch, so each node gets one request, like the fetch phase of {@code _search}. The cut holds no
+         * more rows than its limit. A cut of more pages than the operator holds sends a batch each time that many wait,
+         * because the operator can't take another page before it sends some.
+         */
+        record WholeCut(int maxPagesHeld) implements Batching {
+            public WholeCut {
+                if (maxPagesHeld < 1) {
+                    throw new IllegalArgumentException("maxPagesHeld must be positive but was [" + maxPagesHeld + "]");
+                }
             }
         }
 
         /**
-         * Batches whose fetched columns fill about one page of {@link Operator#TARGET_PAGE_SIZE}, the size the source
-         * operators aim for, so the responses of a batch stay about as large as a page.
+         * For a cut whose pages arrive over time, like a {@code LIMIT}. A page leaves at once when no batch fetches, and the
+         * pages that arrive while batches fetch wait until they fill a batch or a batch ends.
+         *
+         * @param maxBatchesInFlight the batches that fetch at the same time
+         * @param maxBatchRows       the rows a batch takes from the pages that wait, and the rows that must wait before a
+         *                           batch leaves while others fetch. A batch takes at least one page, so a larger page goes
+         *                           alone.
          */
-        static Batching forFetched(List<Attribute> fetched) {
-            int rowSize = 0;
-            for (Attribute attribute : fetched) {
-                rowSize += attribute.dataType().estimatedSize();
+        record Streaming(int maxPagesHeld, int maxBatchesInFlight, int maxBatchRows) implements Batching {
+            public Streaming {
+                if (maxBatchesInFlight < 1) {
+                    throw new IllegalArgumentException("maxBatchesInFlight must be positive but was [" + maxBatchesInFlight + "]");
+                }
+                if (maxPagesHeld < maxBatchesInFlight) {
+                    throw new IllegalArgumentException(
+                        "maxPagesHeld [" + maxPagesHeld + "] must be at least maxBatchesInFlight [" + maxBatchesInFlight + "]"
+                    );
+                }
+                if (maxBatchRows < 1) {
+                    throw new IllegalArgumentException("maxBatchRows must be positive but was [" + maxBatchRows + "]");
+                }
             }
-            int maxBatchRows = Math.max(Operator.MIN_TARGET_PAGE_SIZE, Operator.TARGET_PAGE_SIZE / Math.max(1, rowSize));
-            return new Batching(MAX_PAGES_HELD, MAX_BATCHES_IN_FLIGHT, maxBatchRows);
+
+            /**
+             * Batches whose fetched columns fill about one page of {@link Operator#TARGET_PAGE_SIZE}, the size the source
+             * operators aim for, so the responses of a batch stay about as large as a page.
+             */
+            static Streaming forFetched(List<Attribute> fetched) {
+                int rowSize = 0;
+                for (Attribute attribute : fetched) {
+                    rowSize += attribute.dataType().estimatedSize();
+                }
+                int maxBatchRows = Math.max(Operator.MIN_TARGET_PAGE_SIZE, Operator.TARGET_PAGE_SIZE / Math.max(1, rowSize));
+                return new Streaming(MAX_PAGES_HELD, MAX_BATCHES_IN_FLIGHT, maxBatchRows);
+            }
         }
     }
 
@@ -215,7 +250,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             List<ElementType> fetchedTypes = fetched.stream()
                 .map(a -> PlannerUtils.toElementType(a.dataType(), MappedFieldType.FieldExtractPreference.NONE))
                 .toList();
-            return new Factory(docChannel, fetchedTypes, fetchPlan, Batching.forFetched(fetched), client, failures);
+            return new Factory(docChannel, fetchedTypes, fetchPlan, Batching.forExec(exec), client, failures);
         }
 
         @Override
@@ -271,11 +306,13 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
      */
     private final Queue<NodeRequest> requests = ConcurrentCollections.newQueue();
     /**
-     * The pages that wait for a batch, in the order of the cut. Guards {@link #queuedRows} and {@link #batchesInFlight} too.
+     * The pages that wait for a batch, in the order of the cut. Guards {@link #queuedRows}, {@link #batchesInFlight} and
+     * {@link #inputEnded} too.
      */
     private final Deque<QueuedPage> queued = new ArrayDeque<>();
     private int queuedRows;
     private int batchesInFlight;
+    private boolean inputEnded;
     // a batch can go out from the thread that ended the batch before it
     private final LongAdder documents = new LongAdder();
     private final LongAdder planNanos = new LongAdder();
@@ -345,34 +382,37 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     }
 
     /**
-     * Once the input ends, the cut is complete, so the reader contexts that none of its rows read can go.
+     * Once the input ends, the cut is complete, so the reader contexts that none of its rows read can go before the pages
+     * that wait leave.
      */
     @Override
     public void finish() {
         if (cutEnded == false) {
             cutEnded = true;
             client.cutEnded(contextsRead);
+            synchronized (queued) {
+                inputEnded = true;
+            }
+            sendQueuedPages();
         }
         super.finish();
     }
 
     /**
-     * Sends the pages that wait as batches. A batch takes the next pages in the order of the cut while their rows fit
-     * {@link Batching#maxBatchRows}. It leaves at once when no batch fetches. While batches fetch, it leaves only once the
-     * pages that wait fill it, up to {@link Batching#maxBatchesInFlight} batches at once. Otherwise the pages wait for a
-     * batch to end. Runs on the driver thread when a page arrives, and on the thread that ended a batch.
+     * Sends the pages that wait as batches, as long as the batching lets the next one leave. Runs on the driver thread when
+     * a page arrives or the input ends, and on the thread that ended a batch.
      */
     private void sendQueuedPages() {
         while (true) {
             List<QueuedPage> pages;
             synchronized (queued) {
-                if (queued.isEmpty() || batchesInFlight >= batching.maxBatchesInFlight()) {
+                pages = switch (batching) {
+                    case Batching.WholeCut wholeCut -> takeWholeCut(wholeCut);
+                    case Batching.Streaming streaming -> takeStreamingBatch(streaming);
+                };
+                if (pages.isEmpty()) {
                     return;
                 }
-                if (batchesInFlight > 0 && queuedRows < batching.maxBatchRows()) {
-                    return;
-                }
-                pages = takeBatch();
                 batchesInFlight++;
             }
             sendBatch(pages);
@@ -380,17 +420,40 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     }
 
     /**
-     * Takes the next pages that wait while their rows fit {@link Batching#maxBatchRows}, and at least one.
+     * Takes every page that waits once the input ended, or once the operator holds as many as it can. Otherwise none.
      */
-    private List<QueuedPage> takeBatch() {
+    private List<QueuedPage> takeWholeCut(Batching.WholeCut wholeCut) {
         assert Thread.holdsLock(queued);
+        if (queued.isEmpty() || (inputEnded == false && queued.size() < wholeCut.maxPagesHeld())) {
+            return List.of();
+        }
+        List<QueuedPage> pages = new ArrayList<>(queued);
+        queued.clear();
+        queuedRows = 0;
+        return pages;
+    }
+
+    /**
+     * Takes the next pages in the order of the cut while their rows fit {@link Batching.Streaming#maxBatchRows}, and at
+     * least one. They leave at once when no batch fetches. While batches fetch, they leave only once the pages that wait
+     * fill a batch, up to {@link Batching.Streaming#maxBatchesInFlight} batches at once. Otherwise they wait for a batch to
+     * end, and this takes none.
+     */
+    private List<QueuedPage> takeStreamingBatch(Batching.Streaming streaming) {
+        assert Thread.holdsLock(queued);
+        if (queued.isEmpty() || batchesInFlight >= streaming.maxBatchesInFlight()) {
+            return List.of();
+        }
+        if (batchesInFlight > 0 && queuedRows < streaming.maxBatchRows()) {
+            return List.of();
+        }
         List<QueuedPage> pages = new ArrayList<>();
         int rows = 0;
         do {
             QueuedPage page = queued.removeFirst();
             pages.add(page);
             rows += page.cut().getPositionCount();
-        } while (queued.isEmpty() == false && rows + queued.peekFirst().cut().getPositionCount() <= batching.maxBatchRows());
+        } while (queued.isEmpty() == false && rows + queued.peekFirst().cut().getPositionCount() <= streaming.maxBatchRows());
         queuedRows -= rows;
         return pages;
     }
@@ -802,7 +865,8 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         while ((gathered = gatheredForLaterPages.pollFirst()) != null) {
             gathered.releaseBlocks();
         }
-        // a batch still in flight finds its contexts gone, and its result is dropped anyway
+        // a batch still in flight finds its contexts gone, and its result is dropped anyway. An operator that closes before its
+        // input ended never ended its cut, and this lets every context go.
         client.fetchEnded();
         nodeHeaders.finish();
     }

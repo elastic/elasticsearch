@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -104,6 +106,37 @@ public class FetchResponseTests extends ComputeTestCase {
 
         response.close();
         assertThat(factory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The node that reads a response accounts its pages on its own breaker until they are released.
+     */
+    public void testTheReceiverAccountsThePagesItReads() throws IOException {
+        BlockFactory sender = blockFactory();
+        BlockFactory receiver = blockFactory();
+        try (
+            FetchResponse response = new FetchResponse(sender, List.of(), randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0);
+            FetchResponse copy = copy(receiver, response)
+        ) {
+            List<Page> taken = copy.takePages();
+            long bytes = taken.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
+            assertThat(receiver.breaker().getUsed(), equalTo(bytes));
+            FetchResponse.releasePages(taken);
+        }
+        assertThat(receiver.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * A response too large for the breaker of the node that reads it fails to read, and leaves nothing on that breaker.
+     * That is what bounds a response, since one request carries every document a node holds for the cut.
+     */
+    public void testAResponseTooLargeForTheReceiverLeavesNothingOnItsBreaker() throws IOException {
+        BlockFactory sender = blockFactory();
+        BlockFactory receiver = blockFactory(ByteSizeValue.ofBytes(between(1, 100)));
+        try (FetchResponse response = new FetchResponse(sender, List.of(), randomPages(sender), DriverCompletionInfo.EMPTY, 0, 0)) {
+            expectThrows(CircuitBreakingException.class, () -> copy(receiver, response));
+        }
+        assertThat(receiver.breaker().getUsed(), equalTo(0L));
     }
 
     public void testReleasesThePagesNobodyTook() {

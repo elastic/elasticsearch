@@ -159,14 +159,14 @@ public class EsqlFetchRoundTripsIT extends AbstractEsqlIntegTestCase {
 
     /**
      * The coordinator's {@code TopN} emits its cut in pages of five rows here, and each page holds winners of both nodes.
-     * Each page goes in a fetch request of its own.
+     * The cut is complete before its first page arrives, so it still sends one fetch request to each node with winners.
      */
     public void testATopNCutOfSeveralPages() throws Exception {
         List<List<Object>> rows = runQuery(randomCoordinator(), "FROM " + PREFIX + "* | SORT ts DESC | LIMIT 10 | KEEP ts, payload", 5);
 
         assertThat(rows, equalTo(newestWinners(10)));
         assertAllContextsFreed();
-        assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 2, otherWinnerNode, 2)));
+        assertThat("fetches", counts(fetches), equalTo(Map.of(winnerNode, 1, otherWinnerNode, 1)));
         assertThat("frees", counts(frees), equalTo(Map.of(winnerNode, 2, otherWinnerNode, 2, loserNode, 2)));
         assertThat("keep-alives", counts(keepAlives), anEmptyMap());
     }

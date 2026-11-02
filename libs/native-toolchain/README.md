@@ -132,9 +132,10 @@ Steps 3 and 4 are needed because the sysroot is baked into the image.
    - where each platform's output is collected from (`collect`), and its debug info (`debugInfoCollect`).
 4. Build it with `<LIBRARY>_NATIVE_BUILD=docker`. If a system header is missing, follow
    *Add a system header* above.
-5. Add the library to `libs/native/libraries/build.gradle`:
-   `libs project(path: ':libs:<library>', configuration: 'nativeLibraryElements')`. There is no
-   version to declare: every build resolves the library by the hash of its sources.
+
+Nothing else is needed: applying the plugin registers the project as a native library producer, and
+the project that gathers the binaries picks it up from there. There is no version to declare
+either: every build resolves the library by the hash of its sources.
 
 ## Bump the sysroot components
 

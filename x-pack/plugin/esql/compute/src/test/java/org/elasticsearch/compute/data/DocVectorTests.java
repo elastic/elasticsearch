@@ -11,8 +11,11 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.BreakerTestUtil;
 
@@ -449,6 +452,121 @@ public class DocVectorTests extends ComputeTestCase {
             Exception e = expectThrows(CircuitBreakingException.class, () -> docs.filter(false, 1, 2, 3));
             assertThat(e.getMessage(), equalTo("over test limit"));
         }
+    }
+
+    /**
+     * A {@link DocVector} increments the ref count of the shard of each position, or of its
+     * shard once if the shard vector is constant. Closing it decrements them again.
+     */
+    public void testShardRefCounts() {
+        AbstractRefCounted shard0 = AbstractRefCounted.of(() -> {});
+        AbstractRefCounted shard1 = AbstractRefCounted.of(() -> {});
+        AbstractRefCounted shard2 = AbstractRefCounted.of(() -> {});
+        IndexedByShardId<AbstractRefCounted> refCounteds = new IndexedByShardIdFromList<>(List.of(shard0, shard1, shard2));
+        BlockFactory blockFactory = blockFactory();
+        try (
+            DocVector perPosition = new DocVector(
+                refCounteds,
+                blockFactory.newIntArrayVector(new int[] { 0, 1, 0 }, 3),
+                blockFactory.newConstantIntVector(0, 3),
+                blockFactory.newIntArrayVector(new int[] { 0, 0, 1 }, 3),
+                DocVector.config()
+            );
+            DocVector constant = new DocVector(
+                refCounteds,
+                blockFactory.newConstantIntVector(2, 3),
+                blockFactory.newConstantIntVector(0, 3),
+                blockFactory.newIntArrayVector(new int[] { 0, 1, 2 }, 3),
+                DocVector.config()
+            )
+        ) {
+            assertThat(shard0.refCount(), equalTo(3));
+            assertThat(shard1.refCount(), equalTo(2));
+            assertThat(shard2.refCount(), equalTo(2));
+        }
+        assertThat(shard0.refCount(), equalTo(1));
+        assertThat(shard1.refCount(), equalTo(1));
+        assertThat(shard2.refCount(), equalTo(1));
+    }
+
+    /**
+     * Building a {@link DocVector} over a constant shard that is already closed fails.
+     * The failed constructor must give back its circuit breaker charge.
+     */
+    public void testClosedConstantShard() {
+        AbstractRefCounted closed = AbstractRefCounted.of(() -> {});
+        closed.decRef();
+        IndexedByShardId<AbstractRefCounted> refCounteds = new IndexedByShardIdFromList<>(List.of(closed));
+        BlockFactory blockFactory = blockFactory();
+        try (
+            IntVector shards = blockFactory.newConstantIntVector(0, 2);
+            IntVector segments = blockFactory.newConstantIntVector(0, 2);
+            IntVector docs = blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2)
+        ) {
+            expectAlreadyClosed(() -> new DocVector(refCounteds, shards, segments, docs, DocVector.config()));
+        }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Building a {@link DocVector} that references a closed shard after open ones fails.
+     * The failed constructor must give back the refs it took on the open shards and its
+     * circuit breaker charge.
+     */
+    public void testClosedShardAfterOpenShards() {
+        AbstractRefCounted open0 = AbstractRefCounted.of(() -> {});
+        AbstractRefCounted open1 = AbstractRefCounted.of(() -> {});
+        AbstractRefCounted closed = AbstractRefCounted.of(() -> {});
+        closed.decRef();
+        IndexedByShardId<AbstractRefCounted> refCounteds = new IndexedByShardIdFromList<>(List.of(open0, open1, closed));
+        BlockFactory blockFactory = blockFactory();
+        // Shard 0 comes twice before the closed shard 2. Shard 1 comes once before it and once after it.
+        try (
+            IntVector shards = blockFactory.newIntArrayVector(new int[] { 0, 1, 0, 2, 1 }, 5);
+            IntVector segments = blockFactory.newConstantIntVector(0, 5);
+            IntVector docs = blockFactory.newIntArrayVector(new int[] { 0, 0, 1, 0, 1 }, 5)
+        ) {
+            expectAlreadyClosed(() -> new DocVector(refCounteds, shards, segments, docs, DocVector.config()));
+        }
+        assertThat(open0.refCount(), equalTo(1));
+        assertThat(open1.refCount(), equalTo(1));
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Building a {@link DocVector} that trips the circuit breaker fails. The failed constructor
+     * must leave the shard ref counts unchanged. This guards against incrementing them before
+     * the breaker charge without decrementing them when the charge fails.
+     */
+    public void testBreakKeepsShardRefCounts() {
+        AbstractRefCounted open = AbstractRefCounted.of(() -> {});
+        IndexedByShardId<AbstractRefCounted> refCounteds = new IndexedByShardIdFromList<>(List.of(open));
+        BlockFactory blockFactory = blockFactory();
+        // The DocVector charges the factory of its shards vector. Leave room there for the shards vector but not for the DocVector.
+        BlockFactory shardsBlockFactory = blockFactory(
+            ByteSizeValue.ofBytes(ConstantIntVector.RAM_BYTES_USED + DocVector.BASE_RAM_BYTES_USED - 1)
+        );
+        try (
+            IntVector shards = shardsBlockFactory.newConstantIntVector(0, 2);
+            IntVector segments = blockFactory.newConstantIntVector(0, 2);
+            IntVector docs = blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2)
+        ) {
+            expectThrows(
+                CircuitBreakingException.class,
+                equalTo("over test limit"),
+                () -> new DocVector(refCounteds, shards, segments, docs, DocVector.config())
+            );
+        }
+        assertThat(open.refCount(), equalTo(1));
+        assertThat(shardsBlockFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /**
+     * {@link AbstractRefCounted#mustIncRef} on a closed shard throws an {@link AssertionError}
+     * when assertions are enabled and an {@link IllegalStateException} when they are not.
+     */
+    private static void expectAlreadyClosed(ThrowingRunnable buildDocVector) {
+        expectThrows(Throwable.class, equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE), buildDocVector);
     }
 
     IntVector intRange(int startInclusive, int endExclusive) {

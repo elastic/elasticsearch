@@ -22,8 +22,9 @@ esplugin {
 GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
 
 tasks.named('javaRestTest').configure {
-  def buildParams = project.rootProject.extensions.getByName('buildParams')
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  // Captured at configuration time: the configuration cache detaches onlyIf closures from the build script.
+  def isSnapshotBuild = buildParams.snapshotBuild
+  it.onlyIf("snapshot build") { isSnapshotBuild }
   usesDefaultDistribution("OtelAuditLogsIT requires xpack security + audit (default distribution)")
 }
 

@@ -140,6 +140,16 @@ public interface FileList {
 
     long lastModifiedMillis(int i);
 
+    /**
+     * Object version of file {@code i} as the listing reported it (ETag, generation or modification time), or
+     * {@code null} when the listing did not report one. Carried to the storage object so its footer is cached under
+     * that version; see {@link StorageObject#version()}.
+     */
+    @Nullable
+    default String version(int i) {
+        return null;
+    }
+
     @Nullable
     String originalPattern();
 

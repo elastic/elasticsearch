@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161683
+summary: Retry enrich lookups on another shard copy
+type: bug

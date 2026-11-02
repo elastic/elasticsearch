@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.request.elastic;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.inference.DataFormat;
 import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
@@ -30,7 +29,6 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.apiKey;
 import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequestTests.randomElasticInferenceServiceRequestMetadata;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTestCase {
@@ -43,8 +41,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         var request = createRequest(url, modelId, documents);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         var traceParent = request.getTraceContext().traceParent();
         var traceState = request.getTraceContext().traceState();
@@ -61,10 +58,9 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         var request = createRequest(url, modelId, documents);
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("model"), is(modelId));
         assertThat(
@@ -79,10 +75,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(
             "http://eis-gateway.com",
             modelId,
-            new ElasticInferenceServiceDocumentExtractionTaskSettings(
-                "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), null)
-            )
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "ocr", "page", 2))
         );
 
         var request = new ElasticInferenceServiceDocumentExtractionRequest(
@@ -95,14 +88,13 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("model"), is(modelId));
         assertThat(requestMap.get("output_format"), is("markdown"));
-        assertThat(requestMap.get("css"), is(Map.of("extract_only", List.of(".main-content"))));
+        assertThat(requestMap.get("parameters"), is(Map.of("preset", "ocr", "page", 2)));
         assertThat(
             requestMap.get("input"),
             is(documents.stream().map(document -> Map.of("content", InferenceStringTests.inferenceStringToMap(document))).toList())
@@ -136,8 +128,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
 
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         var headers = httpPost.getHeaders(HttpHeaders.AUTHORIZATION);
         assertThat(headers.length, is(1));

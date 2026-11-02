@@ -12,8 +12,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
 
+import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -37,17 +41,17 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testKeyRejectsNullIdentity() {
-        NullPointerException e = expectThrows(NullPointerException.class, () -> new FooterByteCache.Key(null, "file.parquet", 1000));
+        NullPointerException e = expectThrows(NullPointerException.class, () -> new FooterByteCache.Key(null, "file.parquet", 1000, "v1"));
         assertThat(e.getMessage(), containsString("storageIdentity"));
     }
 
     public void testGetReturnsNullOnMiss() {
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         assertNull(cache.get(key));
     }
 
     public void testPutAndGet() {
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         byte[] data = randomByteArrayOfLength(256);
         cache.put(key, data);
         assertArrayEquals(data, cache.get(key));
@@ -55,14 +59,14 @@ public class FooterByteCacheTests extends ESTestCase {
 
     public void testPutSkipsOversizedEntries() {
         FooterByteCache cache = new FooterByteCache(1024 * 1024, 100, TTL);
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         byte[] oversized = randomByteArrayOfLength(200);
         cache.put(key, oversized);
         assertNull(cache.get(key));
     }
 
     public void testGetOrLoadPopulatesCache() throws ExecutionException {
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         byte[] expected = randomByteArrayOfLength(256);
         byte[] result = cache.getOrLoad(key, k -> expected);
         assertArrayEquals(expected, result);
@@ -71,7 +75,7 @@ public class FooterByteCacheTests extends ESTestCase {
 
     public void testGetOrLoadEvictsOversizedEntries() throws ExecutionException {
         FooterByteCache smallMaxEntry = new FooterByteCache(1024 * 1024, 100, TTL);
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         byte[] oversized = randomByteArrayOfLength(200);
 
         byte[] result = smallMaxEntry.getOrLoad(key, k -> oversized);
@@ -80,7 +84,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testGetOrLoadEvictsEmptyEntries() throws ExecutionException {
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         byte[] result = cache.getOrLoad(key, k -> new byte[0]);
         assertEquals(0, result.length);
         assertNull("Empty entry should be evicted after getOrLoad", cache.get(key));
@@ -92,9 +96,9 @@ public class FooterByteCacheTests extends ESTestCase {
         byte[] data2 = randomByteArrayOfLength(150);
         byte[] data3 = randomByteArrayOfLength(150);
 
-        FooterByteCache.Key key1 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "a.parquet", 1000);
-        FooterByteCache.Key key2 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "b.parquet", 2000);
-        FooterByteCache.Key key3 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "c.parquet", 3000);
+        FooterByteCache.Key key1 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "a.parquet", 1000, "v1");
+        FooterByteCache.Key key2 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "b.parquet", 2000, "v1");
+        FooterByteCache.Key key3 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "c.parquet", 3000, "v1");
 
         tinyCache.put(key1, data1);
         tinyCache.put(key2, data2);
@@ -105,7 +109,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testInvalidateAll() {
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         cache.put(key, randomByteArrayOfLength(100));
         assertNotNull(cache.get(key));
         cache.invalidateAll();
@@ -113,8 +117,8 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testSamePathDifferentLengthAreDifferentKeys() {
-        FooterByteCache.Key key1 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
-        FooterByteCache.Key key2 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 2000);
+        FooterByteCache.Key key1 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
+        FooterByteCache.Key key2 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 2000, "v1");
         byte[] data1 = randomByteArrayOfLength(100);
         byte[] data2 = randomByteArrayOfLength(100);
 
@@ -126,8 +130,8 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testSamePathSameLengthSharesCacheEntry() throws ExecutionException {
-        FooterByteCache.Key key1 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
-        FooterByteCache.Key key2 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key1 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
+        FooterByteCache.Key key2 = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         byte[] data = randomByteArrayOfLength(100);
 
         cache.getOrLoad(key1, k -> data);
@@ -146,7 +150,7 @@ public class FooterByteCacheTests extends ESTestCase {
      * invoke the loader exactly once.
      */
     public void testThunderingHerdCoalescesConcurrentLoads() throws Exception {
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "shared.parquet", 5000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "shared.parquet", 5000, "v1");
         byte[] expected = randomByteArrayOfLength(256);
         AtomicInteger loadCount = new AtomicInteger();
         CountDownLatch start = new CountDownLatch(1);
@@ -187,7 +191,7 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     public void testGetOrLoadPropagatesLoaderException() {
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "bad.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "bad.parquet", 1000, "v1");
         ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(key, k -> {
             throw new RuntimeException("simulated I/O failure");
         }));
@@ -204,7 +208,7 @@ public class FooterByteCacheTests extends ESTestCase {
     public void testReadingAnEntryRenewsIt() {
         TimeValue ttl = TimeValue.timeValueSeconds(2);
         FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         byte[] data = randomByteArrayOfLength(64);
 
         shortLived.put(key, data);
@@ -223,7 +227,7 @@ public class FooterByteCacheTests extends ESTestCase {
     public void testAnEntryNobodyReadsExpires() {
         TimeValue ttl = TimeValue.timeValueSeconds(2);
         FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
 
         shortLived.put(key, randomByteArrayOfLength(64));
         assertNotNull("the entry must be stored to begin with, or the assertion below passes vacuously", shortLived.get(key));
@@ -233,8 +237,8 @@ public class FooterByteCacheTests extends ESTestCase {
     }
 
     /**
-     * The write cap expires an entry even when it is being continuously read, so a same-length-overwrite
-     * staleness window is bounded. TTL=500ms → write cap=3s (6×). Reads every 50ms keep the access clock
+     * The write cap expires an entry even when it is being continuously read, so a hot entry does not hold its
+     * memory forever. TTL=500ms → write cap=3s (6×). Reads every 50ms keep the access clock
      * alive for five TTLs before the cap fires; the entry must be present at 2.5s (access clock renewal
      * confirmed, cap not yet fired) and absent at 3.5s (cap fired; continuous reads cannot keep it alive).
      * A cache with only an access clock would still serve the entry at 3.5s, so the final assertion
@@ -243,7 +247,7 @@ public class FooterByteCacheTests extends ESTestCase {
     public void testWriteCapExpiresAnEntryDespiteContinuousReads() {
         TimeValue ttl = TimeValue.timeValueMillis(500);
         FooterByteCache shortLived = new FooterByteCache(1024 * 1024, 512 * 1024, ttl);
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         byte[] data = randomByteArrayOfLength(64);
 
         shortLived.put(key, data);
@@ -329,8 +333,62 @@ public class FooterByteCacheTests extends ESTestCase {
     public void testEachConstructionIsIndependent() {
         // Distinct cache instances must not share entries.
         FooterByteCache other = new FooterByteCache(1024 * 1024, 512 * 1024, TTL);
-        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000);
+        FooterByteCache.Key key = new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, "v1");
         cache.put(key, randomByteArrayOfLength(100));
         assertNull("distinct cache instances must not share entries", other.get(key));
+    }
+
+    /** The same path and length at another version is another key, so a rewritten object misses its old footer. */
+    public void testKeyForUsesTheObjectVersion() throws Exception {
+        FooterByteCache.Key first = FooterByteCache.Key.keyFor(versionedObject("s3://bucket/file.parquet", 1000, "e1"));
+        FooterByteCache.Key second = FooterByteCache.Key.keyFor(versionedObject("s3://bucket/file.parquet", 1000, "e2"));
+        assertEquals("e1", first.version());
+        assertNotEquals(first, second);
+        assertEquals(first, FooterByteCache.Key.keyFor(versionedObject("s3://bucket/file.parquet", 1000, "e1")));
+    }
+
+    /** An object with no version has no key, so its footer is never cached. */
+    public void testKeyForUnversionedObjectIsNull() throws Exception {
+        assertNull(FooterByteCache.Key.keyFor(versionedObject("s3://bucket/file.parquet", 1000, null)));
+        assertNull(FooterByteCache.Key.keyFor(versionedObject("s3://bucket/file.parquet", 1000, null), 1000));
+    }
+
+    public void testKeyRejectsNullVersion() {
+        expectThrows(NullPointerException.class, () -> new FooterByteCache.Key(AbstractTestStorageObject.NOOP, "file.parquet", 1000, null));
+    }
+
+    /** A storage object at {@code path} with the given version. Only what key building reads is implemented. */
+    private static StorageObject versionedObject(String path, long length, String version) {
+        return new AbstractTestStorageObject() {
+            @Override
+            public InputStream newStream(long position, long readLength) {
+                throw new UnsupportedOperationException("key building reads no bytes");
+            }
+
+            @Override
+            public long length() {
+                return length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return null;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of(path);
+            }
+
+            @Override
+            public String version() {
+                return version;
+            }
+        };
     }
 }

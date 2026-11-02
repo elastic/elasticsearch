@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry.GA_TEXT_CODECS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -164,7 +165,8 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertSplitDiscoveryCpuNanos("csv");
         assertPlanningCpuNanos("csv");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThanOrEqualTo(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
         // TODO: does not work for CVS for now: assertThat(lastMetrics.get(QueryMetricsListener.BYTES_READ), greaterThan(0L));
     }
 
@@ -335,7 +337,8 @@ public class EsqlQueryMetricsCollectorIT extends AbstractExternalDataSourceIT {
         assertSplitDiscoveryCpuNanos("streaming-ndjson");
         assertPlanningCpuNanos("streaming-ndjson");
         assertThat(lastMetrics.get(QueryMetricsListener.PLANNING_NANOS), greaterThan(0L));
-        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThan(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.CPU_NANOS), greaterThanOrEqualTo(0L));
+        assertThat(lastMetrics.get(QueryMetricsListener.DRIVER_NANOS), greaterThan(0L));
     }
 
     /**

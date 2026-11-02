@@ -150,3 +150,73 @@ book_no:keyword | _score:double
 2675            | 2.0
 2714            | 3.0
 ;
+
+matchOnExternalRuntimeTextThenScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE match(content, "Tolkien Rings")
+| WHERE _score > 1.5
+| SORT book_no
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+1463            | 2.0
+2714            | 2.0
+4023            | 2.0
+5335            | 2.0
+7140            | 2.0
+7350            | 2.0
+;
+
+matchOnExternalRuntimeTextAfterScoreFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+// the two filters combine, so as with an indexed field the _score filter sees the match's score, at least 1.0
+FROM books_ds METADATA _score
+| EVAL content = to_text(concat(title, " ", description))
+| WHERE _score < 0.5
+| WHERE match(content, "Tolkien Rings")
+| STATS c = COUNT(*), min_score = MIN(_score), max_score = MAX(_score)
+;
+
+c:long | min_score:double | max_score:double
+0      | null             | null
+;
+
+matchOnExternalFieldThenEarlierScoreAliasFilter
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_runtime_score
+required_capability: dataset_in_from_command
+required_capability: external_source_standard_metadata_columns
+required_capability: external_source_score_fix
+required_capability: runtime_score_fix
+dataset: books_ds: "{{books}}"
+
+FROM books_ds METADATA _score
+| EVAL s = _score
+| WHERE match(book_no, "2714")
+| WHERE s > 0.5
+| KEEP book_no, _score
+;
+
+book_no:keyword | _score:double
+2714            | 1.0
+;

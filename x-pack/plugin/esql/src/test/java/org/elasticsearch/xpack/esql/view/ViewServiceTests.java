@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -18,17 +20,26 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -55,7 +66,7 @@ public class ViewServiceTests extends ESTestCase {
             threadPool,
             ProjectId.DEFAULT,
             Settings.EMPTY,
-            Set.of(ViewService.MAX_VIEWS_COUNT_SETTING, ViewService.MAX_VIEW_LENGTH_SETTING)
+            Set.of(ViewService.MAX_VIEWS_COUNT_SETTING, ViewService.MAX_VIEW_LENGTH_SETTING, EsqlFlags.ESQL_MAX_COMMAND_COUNT)
         );
         // The default test publisher never acknowledges, so acked tasks would not complete their listeners.
         var publisher = ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService());
@@ -66,7 +77,7 @@ public class ViewServiceTests extends ESTestCase {
                 event.getNewState().nodes().forEach(node -> ackListener.onNodeAck(node, null));
             }), ackListener);
         });
-        viewService = new ViewService(clusterService, TEST_PARSER);
+        viewService = new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onResponse(null));
     }
 
     @After
@@ -230,6 +241,109 @@ public class ViewServiceTests extends ESTestCase {
         assertThat(viewService.get(ProjectId.DEFAULT, "reserved-view").query(), equalTo("FROM other-index"));
     }
 
+    public void testAcceptsTsWithStats() {
+        validatePutView("ts-view", "TS metrics | STATS max(rate(requests)) BY host");
+        validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | STATS max(cpu) | KEEP `max(cpu)`");
+    }
+
+    public void testAcceptsViewWithoutTs() {
+        validatePutView("from-view", "FROM metrics | KEEP cpu");
+        validatePutView("from-view", "FROM metrics | STATS avg(cpu)");
+    }
+
+    public void testRejectsTsWithoutStats() {
+        expectThrows(
+            IllegalArgumentException.class,
+            containsString("view [ts-view] uses TS, which must be followed by a STATS command"),
+            () -> validatePutView("ts-view", "TS metrics | WHERE cpu > 1 | KEEP cpu")
+        );
+    }
+
+    public void testAcceptsPromql() {
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu))");
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | WHERE cpu_avg > 1 | KEEP cpu_avg");
+        validatePutView("promql-view", "PROMQL index=metrics step=1m cpu_avg=(avg(cpu)) | STATS max(cpu_avg)");
+    }
+
+    public void testIgnoresTsInSubquery() {
+        validatePutView("subquery-view", "FROM (TS metrics | KEEP cpu), (FROM other)");
+    }
+
+    private void validatePutView(String name, String query) {
+        viewService.validatePutView(clusterService.state().metadata().getProject(ProjectId.DEFAULT), new View(name, query, null, false));
+    }
+
+    /**
+     * A PUT request carries no pragmas, so the cluster setting is the only source of the command limit when a view is validated.
+     */
+    public void testPutViewValidatesAgainstConfiguredCommandLimit() {
+        int defaultLimit = EsqlFlags.ESQL_MAX_COMMAND_COUNT.getDefault(Settings.EMPTY);
+        // Each pipeline stays below the per-pipeline depth limit, only their sum exceeds the command limit.
+        String pipes = " | WHERE a > 0".repeat(defaultLimit / 2 + 1);
+        View view = new View("big-view", "FROM some-index, (FROM foo" + pipes + "), (FROM bar" + pipes + ")", null);
+        var project = clusterService.state().metadata().getProject(ProjectId.DEFAULT);
+
+        expectThrows(
+            ParsingException.class,
+            containsString(
+                "ES|QL statement exceeded the maximum of [" + defaultLimit + "] commands allowed, including the commands in its subqueries"
+            ),
+            () -> viewService.validatePutView(project, view)
+        );
+
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey(), defaultLimit + 100).build());
+        viewService.validatePutView(project, view);
+    }
+
+    public void testValidateViewWarnsWhenQueryIsNotValid() {
+        var service = viewServiceFailingAnalysisWith(new VerificationException("Found 1 problem\nline 1:6: Unknown index [missing]"));
+
+        validateView(service, new View("v", "FROM missing", null, false));
+
+        assertWarnings("view [v] query is not valid: Found 1 problem line 1:6: Unknown index [missing]");
+        assertThat(service.get(ProjectId.DEFAULT, "v"), nullValue());
+    }
+
+    /**
+     * These failures say nothing about the query, so they must not look like a problem with it.
+     */
+    public void testValidateViewDoesNotWarnWhenAnalysisFailsForOtherReasons() {
+        for (Exception failure : List.<Exception>of(
+            new EsRejectedExecutionException("rejected"),
+            new TaskCancelledException("Cancelled"),
+            new CircuitBreakingException("too big", CircuitBreaker.Durability.TRANSIENT),
+            new ElasticsearchSecurityException("not allowed", RestStatus.FORBIDDEN),
+            new ElasticsearchStatusException("something broke", RestStatus.INTERNAL_SERVER_ERROR)
+        )) {
+            validateView(viewServiceFailingAnalysisWith(failure), new View("v", "FROM missing", null, false));
+            ensureNoWarnings();
+        }
+    }
+
+    public void testValidateViewDoesNotWarnWhenQueryIsValid() {
+        validateView(viewService, new View("v", "FROM some-index", null, false));
+        ensureNoWarnings();
+    }
+
+    public void testPutViewDoesNotAnalyze() {
+        var service = new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> fail("must not analyze"));
+
+        putView(service, new View("v", "FROM missing", null, false));
+
+        assertThat(service.get(ProjectId.DEFAULT, "v"), notNullValue());
+    }
+
+    private ViewService viewServiceFailingAnalysisWith(Exception failure) {
+        return new ViewService(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onFailure(failure));
+    }
+
+    private void validateView(ViewService service, View view) {
+        var future = new PlainActionFuture<Void>();
+        service.validateView(ProjectId.DEFAULT, view, future);
+        future.actionGet(10, TimeUnit.SECONDS);
+    }
+
     private PlainActionFuture<AcknowledgedResponse> ensureReservedViewExists(String name, String query, String description) {
         var future = new PlainActionFuture<AcknowledgedResponse>();
         viewService.ensureReservedViewExists(ProjectId.DEFAULT, new View(name, query, description, true), future);
@@ -237,8 +351,12 @@ public class ViewServiceTests extends ESTestCase {
     }
 
     private void putView(View view) {
+        putView(viewService, view);
+    }
+
+    private void putView(ViewService service, View view) {
         var future = new PlainActionFuture<AcknowledgedResponse>();
-        viewService.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
+        service.putView(ProjectId.DEFAULT, new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, view), future);
         future.actionGet(10, TimeUnit.SECONDS);
     }
 

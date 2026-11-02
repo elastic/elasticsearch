@@ -277,9 +277,12 @@ public class GzipDecompressionCodecTests extends ESTestCase {
     }
 
     public void testTruncatedMemberThrows() throws IOException {
-        byte[] all = concat(gzip(compressibleBytes(5000)), gzip(compressibleBytes(5000)));
-        byte[] truncated = Arrays.copyOf(all, between(1, all.length - 1));
-        expectThrows(IOException.class, () -> readAll(truncated));
+        byte[] first = gzip(compressibleBytes(5000));
+        byte[] second = gzip(compressibleBytes(5000));
+        byte[] all = concat(first, second);
+        // A cut exactly at the end of the first member is a complete gzip stream and must not throw.
+        int cut = randomBoolean() ? between(1, first.length - 1) : between(first.length + 1, all.length - 1);
+        expectThrows(IOException.class, () -> readAll(Arrays.copyOf(all, cut)));
     }
 
     public void testCorruptTrailerThrows() throws IOException {

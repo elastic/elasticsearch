@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalObjectChangedException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -44,6 +46,8 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
+    /** The modification time the listing reported, when this object was made from a listing entry. */
+    private volatile String seededVersion;
 
     public LocalStorageObject(Path filePath) {
         if (filePath == null) {
@@ -71,9 +75,39 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         this.cachedLastModified = lastModified;
     }
 
+    /**
+     * The version a local file is addressed by: its modification time, at the precision the filesystem keeps. It is the
+     * only validator a local file has, and {@link #version()} reads the same value from the listing as from the file.
+     */
+    static String versionOf(BasicFileAttributes attributes) {
+        return attributes.lastModifiedTime().toInstant().toString();
+    }
+
+    /** Seeds the version the listing reported; set before the object is shared. */
+    void seedVersion(String version) {
+        this.seededVersion = version;
+    }
+
+    /**
+     * The seeded listing version, or else the file's current modification time. A file that cannot be stat'ed has no
+     * version, and is not footer-cached.
+     */
+    @Override
+    @Nullable
+    public String version() {
+        if (seededVersion != null) {
+            return seededVersion;
+        }
+        try {
+            return versionOf(Files.readAttributes(filePath, BasicFileAttributes.class));
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     @Override
     public InputStream newStream() throws IOException {
-        checkFileExists();
+        checkCurrentVersion();
         if (Files.isRegularFile(filePath) == false) {
             throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
@@ -99,7 +133,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             // rejected rather than yielding an empty stream, so the precondition is uniform across providers.
             throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
-        checkFileExists();
+        checkCurrentVersion();
         if (Files.isRegularFile(filePath) == false) {
             throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
@@ -122,7 +156,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         if (target.hasRemaining() == false) {
             return 0;
         }
-        checkFileExists();
+        checkCurrentVersion();
         long startNanos = System.nanoTime();
         long bytes = 0L;
         try (FileChannel ch = FileChannel.open(filePath, StandardOpenOption.READ)) {
@@ -176,9 +210,21 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         return LOCAL_FILE_IDENTITY;
     }
 
-    private void checkFileExists() throws NoSuchFileException {
-        if (Files.exists(filePath) == false) {
+    /**
+     * A read of a listed file is only valid for the version the listing reported: the footer cache is addressed by it, so
+     * bytes from a rewritten file must not be read under the old footer. A rewrite since the listing is refused, as an
+     * object-store read is refused by its conditional request. One stat both finds the file and checks its version.
+     */
+    private void checkCurrentVersion() throws IOException {
+        BasicFileAttributes attrs;
+        try {
+            attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
+        } catch (IOException e) {
+            // Any failure to stat the file reads as not found, as Files.exists did, and the message names only the object.
             throw new NoSuchFileException(storagePath.objectName());
+        }
+        if (seededVersion != null && seededVersion.equals(versionOf(attrs)) == false) {
+            throw new ExternalObjectChangedException(storagePath);
         }
     }
 

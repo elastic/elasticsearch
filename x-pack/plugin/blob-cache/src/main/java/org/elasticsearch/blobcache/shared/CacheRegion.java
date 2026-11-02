@@ -27,4 +27,9 @@ public interface CacheRegion<KeyType extends SharedBlobCacheService.KeyBase> {
      * if it's unknown (temporarily or inexistent).
      */
     long timestampMillis();
+
+    /**
+     * Returns the byte offset where this region begins in the blob.
+     */
+    long startOffset();
 }

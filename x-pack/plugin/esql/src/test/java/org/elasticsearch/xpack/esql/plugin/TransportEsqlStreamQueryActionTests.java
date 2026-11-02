@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -223,6 +224,13 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(fa), AttributeMap.emptyAttributeMap());
         assertEquals(1, names.length);
         assertNull("non-aggregatable field must not be a drop candidate", names[0]);
+    }
+
+    public void testResolveIndexFieldNamesPotentiallyUnmappedIsNotDroppable() {
+        FieldAttribute fa = new FieldAttribute(Source.EMPTY, "unmapped_message", new PotentiallyUnmappedKeywordEsField("unmapped_message"));
+        String[] names = TransportEsqlStreamQueryAction.resolveIndexFieldNames(List.of(fa), AttributeMap.emptyAttributeMap());
+        assertEquals(1, names.length);
+        assertNull("a field loaded from _source is invisible to field_caps and must not be a drop candidate", names[0]);
     }
 
     public void testResolveIndexFieldNamesAggregateMetricDoubleIsNotDroppable() {
@@ -424,6 +432,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             0,
             0,
             0,
+            0,
             List.of(),
             List.of(),
             Map.of(),
@@ -439,6 +448,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
     public void testFooterWarningsFromCompletionInfoOnly() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         DriverCompletionInfo completionInfo = new DriverCompletionInfo(
+            0,
             0,
             0,
             0,
@@ -469,6 +479,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning(sharedWarning));
         DriverCompletionInfo completionInfo = new DriverCompletionInfo(
+            0,
             0,
             0,
             0,
@@ -673,6 +684,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
             100,
             50,
             200,
+            300,
             List.of(),
             List.of(),
             Map.of(),
@@ -697,6 +709,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         threadContext.addResponseHeader("Warning", HeaderWarning.formatWarning("limit warning"));
 
         DriverCompletionInfo completedWork = new DriverCompletionInfo(
+            0,
             0,
             0,
             0,
@@ -729,6 +742,7 @@ public class TransportEsqlStreamQueryActionTests extends ESTestCase {
         assertFalse(executionInfo.isPartial());
 
         DriverCompletionInfo partialWork = new DriverCompletionInfo(
+            0,
             0,
             0,
             0,

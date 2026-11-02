@@ -141,7 +141,7 @@ public final class CountingStorageProvider implements StorageProvider {
             while (inner.hasNext()) {
                 StorageEntry entry = inner.next();
                 // Hand the key back under the scheme the query asked for, or the glob will not match it.
-                entries.add(new StorageEntry(toCountScheme(entry.path()), entry.length(), entry.lastModified()));
+                entries.add(new StorageEntry(toCountScheme(entry.path()), entry.length(), entry.lastModified(), entry.version()));
             }
         }
         entries.sort(Comparator.comparing(e -> e.path().toString()));
@@ -178,7 +178,7 @@ public final class CountingStorageProvider implements StorageProvider {
         // path component. Both read as working, which is what makes this worth stating rather than just fixing.
         List<StorageEntry> files = new ArrayList<>(children.files().size());
         for (StorageEntry file : children.files()) {
-            files.add(new StorageEntry(toCountScheme(file.path()), file.length(), file.lastModified()));
+            files.add(new StorageEntry(toCountScheme(file.path()), file.length(), file.lastModified(), file.version()));
         }
         List<StoragePath> directories = new ArrayList<>(children.directories().size());
         for (StoragePath directory : children.directories()) {
@@ -218,6 +218,13 @@ public final class CountingStorageProvider implements StorageProvider {
     @Override
     public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
         return counting(path, delegate.newObject(toFileScheme(path), length, lastModified));
+    }
+
+    // Forwarded so the version a listing reported reaches the object, as it does in production: an unversioned object is
+    // not footer-cached, which would change how many files a query reads.
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return counting(path, delegate.newObject(toFileScheme(path), length, lastModified, version));
     }
 
     /**
@@ -264,6 +271,16 @@ public final class CountingStorageProvider implements StorageProvider {
             @Override
             public String contentGeneration() {
                 return object.contentGeneration();
+            }
+
+            @Override
+            public String version() {
+                return object.version();
+            }
+
+            @Override
+            public String probedVersion() {
+                return object.probedVersion();
             }
 
             @Override

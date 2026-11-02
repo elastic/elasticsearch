@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 
@@ -30,6 +31,16 @@ public interface StorageProvider extends Closeable {
 
     /** Creates a StorageObject with pre-known length and modification time. */
     StorageObject newObject(StoragePath path, long length, Instant lastModified);
+
+    /**
+     * Creates a StorageObject whose version is already known from a listing or a probe, so that its first read is
+     * conditional on that version and its footer is cached under it. A provider that cannot condition on a version
+     * ignores it, and the object is then not footer-cached. Decorators must forward this overload, or the version
+     * is lost before it reaches the footer key.
+     */
+    default StorageObject newObject(StoragePath path, long length, @Nullable Instant lastModified, @Nullable String version) {
+        return newObject(path, length, lastModified);
+    }
 
     /**
      * Lists objects under a prefix. For blob storage, lists all objects with the given prefix.
@@ -86,7 +97,7 @@ public interface StorageProvider extends Closeable {
      */
     default StorageEntry objectMetadata(StoragePath path) throws IOException {
         StorageObject object = newObject(path);
-        return new StorageEntry(path, object.length(), object.lastModified());
+        return new StorageEntry(path, object.length(), object.lastModified(), object.probedVersion());
     }
 
     /** Returns the URI schemes this provider handles (e.g., ["http", "https"]). */

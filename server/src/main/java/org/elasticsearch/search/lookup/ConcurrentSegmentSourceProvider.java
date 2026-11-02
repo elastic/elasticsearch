@@ -34,6 +34,7 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
     private final SourceLoader sourceLoader;
     private final StoredFieldLoader storedFieldLoader;
     private final Map<Object, Leaf> leaves = ConcurrentCollections.newConcurrentMap();
+    private volatile TransientLeaf transientLeaf;
     private final boolean isStoredSource;
 
     ConcurrentSegmentSourceProvider(
@@ -63,6 +64,9 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
         final Object id = ctx.id();
         var leaf = leaves.get(id);
         if (leaf == null) {
+            if (ctx.reader().getCoreCacheHelper() == null) {
+                return getTransientSource(ctx, id, doc);
+            }
             leaf = new Leaf(sourceLoader.leaf(ctx, null), storedFieldLoader.getLoader(ctx, null));
             var existing = leaves.put(id, leaf);
             assert existing == null : "unexpected source provider [" + existing + "]";
@@ -74,6 +78,23 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
             // To handle this, we detect lower docIds and create a new doc value reader for each clause.
             leaf = new Leaf(sourceLoader.leaf(ctx, null), storedFieldLoader.getLoader(ctx, null));
             leaves.put(id, leaf);
+        }
+        return leaf.getSource(ctx, doc);
+    }
+
+    /**
+     * Readers without a core cache helper are short-lived wrappers, such as the per-document readers the unified highlighter
+     * builds for every hit and field. Their contexts are not seen again once the caller is done with them, so caching a leaf
+     * per context would grow without bound for the lifetime of the request. Only the leaf of the most recent one is kept.
+     */
+    private Source getTransientSource(LeafReaderContext ctx, Object id, int doc) throws IOException {
+        TransientLeaf current = transientLeaf;
+        Leaf leaf;
+        if (current != null && current.id() == id && (isStoredSource || doc >= current.leaf().doc)) {
+            leaf = current.leaf();
+        } else {
+            leaf = new Leaf(sourceLoader.leaf(ctx, null), storedFieldLoader.getLoader(ctx, null));
+            transientLeaf = new TransientLeaf(id, leaf);
         }
         return leaf.getSource(ctx, doc);
     }
@@ -108,4 +129,6 @@ class ConcurrentSegmentSourceProvider implements SourceProvider {
             return source = sourceLoader.source(storedFieldLoader, doc);
         }
     }
+
+    private record TransientLeaf(Object id, Leaf leaf) {}
 }

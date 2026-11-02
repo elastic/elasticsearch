@@ -17,6 +17,8 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -25,7 +27,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.IndexType;
@@ -199,40 +200,99 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         // a third doc with no value for either field
         w.addDocument(new Document());
         try (DirectoryReader reader = DirectoryReader.open(w)) {
+            LeafReader leaf = getOnlyLeafReader(reader);
+
             // single-valued
-            ScaledFloatFieldMapper.ScaledFloatFieldType f1 = new ScaledFloatFieldMapper.ScaledFloatFieldType(
-                "scaled_float1",
-                scalingFactor
-            );
-            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
-                .build(null, null);
-            assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
-            LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
-            SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
+            assertEquals(IndexNumericFieldData.NumericType.DOUBLE, scaledFloatFieldData("scaled_float1", scalingFactor).getNumericType());
+            SortedNumericDoubleValues values = doubleValues(leaf, "scaled_float1", scalingFactor);
+            assertNotNull(values.docIdIterator());
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
-            assertEquals(10 / f1.getScalingFactor(), values.nextValue(), 10e-5);
+            assertEquals(10 / scalingFactor, values.nextValue(), 10e-5);
             assertTrue(values.advanceExact(1));
             assertEquals(1, values.docValueCount());
-            assertEquals(20 / f1.getScalingFactor(), values.nextValue(), 10e-5);
+            assertEquals(20 / scalingFactor, values.nextValue(), 10e-5);
             assertFalse(values.advanceExact(2));
 
             // multi-valued
-            ScaledFloatFieldMapper.ScaledFloatFieldType f2 = new ScaledFloatFieldMapper.ScaledFloatFieldType(
-                "scaled_float2",
-                scalingFactor
-            );
-            fielddata = (IndexNumericFieldData) f2.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test")).build(null, null);
-            leafFieldData = fielddata.load(reader.leaves().get(0));
-            values = leafFieldData.getDoubleValues();
+            values = doubleValues(leaf, "scaled_float2", scalingFactor);
             assertTrue(values.advanceExact(0));
             assertEquals(2, values.docValueCount());
-            assertEquals(5 / f2.getScalingFactor(), values.nextValue(), 10e-5);
-            assertEquals(12 / f2.getScalingFactor(), values.nextValue(), 10e-5);
+            assertEquals(5 / scalingFactor, values.nextValue(), 10e-5);
+            assertEquals(12 / scalingFactor, values.nextValue(), 10e-5);
             assertFalse(values.advanceExact(1));
             assertFalse(values.advanceExact(2));
         }
         IOUtils.close(w, dir);
+    }
+
+    /**
+     * The {@link SortedNumericDoubleValues#docIdIterator()} must be the one that backs the values, so that positioning it
+     * with {@code advance} makes {@code nextValue()} return that doc's value. This checks that for both the
+     * single-valued path (which reads straight off the unwrapped singleton) and the multi-valued path, using sparse fields.
+     */
+    public void testFieldDataDocIdIteratorIsInSyncWithValues() throws IOException {
+        double scalingFactor = 0.1 + randomDouble() * 100;
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null))) {
+            // docs 0, 2 and 4 have values; docs 1 and 3 have none, which keeps the fields sparse
+            for (int doc = 0; doc < 5; doc++) {
+                Document document = new Document();
+                if (doc % 2 == 0) {
+                    document.add(new SortedNumericDocValuesField("scaled_float1", 10L * (doc + 1)));
+                    document.add(new SortedNumericDocValuesField("scaled_float2", 5L * (doc + 1)));
+                    document.add(new SortedNumericDocValuesField("scaled_float2", 12L * (doc + 1)));
+                }
+                w.addDocument(document);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(w)) {
+                LeafReader leaf = getOnlyLeafReader(reader);
+
+                // single-valued
+                SortedNumericDoubleValues values = doubleValues(leaf, "scaled_float1", scalingFactor);
+                assertNotNull(SortedNumericDoubleValues.unwrapSingleton(values));
+                DocIdSetIterator iterator = values.docIdIterator();
+                assertNotNull(iterator);
+                assertSame("the same iterator instance is returned on every call", iterator, values.docIdIterator());
+
+                assertEquals(0, iterator.nextDoc());
+                assertEquals(10 / scalingFactor, values.nextValue(), 10e-5);
+                assertEquals(2, iterator.advance(1));
+                assertEquals(30 / scalingFactor, values.nextValue(), 10e-5);
+                assertTrue(values.advanceExact(4));
+                assertEquals(4, iterator.docID());
+                assertEquals(50 / scalingFactor, values.nextValue(), 10e-5);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
+
+                // multi-valued
+                values = doubleValues(leaf, "scaled_float2", scalingFactor);
+                assertNull(SortedNumericDoubleValues.unwrapSingleton(values));
+                iterator = values.docIdIterator();
+                assertNotNull(iterator);
+
+                assertEquals(0, iterator.nextDoc());
+                assertEquals(2, values.docValueCount());
+                assertEquals(5 / scalingFactor, values.nextValue(), 10e-5);
+                assertEquals(12 / scalingFactor, values.nextValue(), 10e-5);
+                assertEquals(2, iterator.advance(1));
+                assertEquals(2, values.docValueCount());
+                assertEquals(15 / scalingFactor, values.nextValue(), 10e-5);
+                assertEquals(36 / scalingFactor, values.nextValue(), 10e-5);
+                assertTrue(values.advanceExact(4));
+                assertEquals(4, iterator.docID());
+                assertEquals(25 / scalingFactor, values.nextValue(), 10e-5);
+                assertEquals(60 / scalingFactor, values.nextValue(), 10e-5);
+                assertEquals(DocIdSetIterator.NO_MORE_DOCS, iterator.nextDoc());
+            }
+        }
+    }
+
+    private static IndexNumericFieldData scaledFloatFieldData(String field, double scalingFactor) {
+        ScaledFloatFieldMapper.ScaledFloatFieldType fieldType = new ScaledFloatFieldMapper.ScaledFloatFieldType(field, scalingFactor);
+        return (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test")).build(null, null);
+    }
+
+    private static SortedNumericDoubleValues doubleValues(LeafReader leaf, String field, double scalingFactor) {
+        return scaledFloatFieldData(field, scalingFactor).load(leaf.getContext()).getDoubleValues();
     }
 
     public void testFetchSourceValue() throws IOException {

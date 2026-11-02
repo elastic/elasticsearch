@@ -716,13 +716,12 @@ count_over_time_null_values_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
+required_capability: fix_promql_empty_range_is_no_element
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:14:00.000Z" events=(sum by (pod) (count_over_time(events_received[1m])))
 | SORT events, pod, step | LIMIT 10;
 
 events:double | step:datetime            | pod:keyword
-0.0           | 2024-05-10T00:13:00.000Z | one
-0.0           | 2024-05-10T00:14:00.000Z | two
 1.0           | 2024-05-10T00:12:00.000Z | one
 1.0           | 2024-05-10T00:12:00.000Z | three
 1.0           | 2024-05-10T00:11:00.000Z | two
@@ -731,6 +730,8 @@ events:double | step:datetime            | pod:keyword
 3.0           | 2024-05-10T00:14:00.000Z | one
 3.0           | 2024-05-10T00:13:00.000Z | three
 3.0           | 2024-05-10T00:14:00.000Z | three
+3.0           | 2024-05-10T00:13:00.000Z | two
+10.0          | 2024-05-10T00:10:00.000Z | two
 ;
 
 count_over_time_all_value_types

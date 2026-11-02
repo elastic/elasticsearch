@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
@@ -69,6 +70,9 @@ class TransformFailureHandler {
             handleBulkIndexingException(e, unattended, numFailureRetries);
         } else if (unwrappedException instanceof ClusterBlockException e) {
             // gh#89802 always retry for a cluster block exception, because a cluster block should be temporary.
+            retry(e, e.getDetailedMessage(), unattended, numFailureRetries);
+        } else if (unwrappedException instanceof ShardRestoringException e) {
+            // A shard that is being restored from a snapshot is temporarily unavailable, like a cluster block, so handle it the same way.
             retry(e, e.getDetailedMessage(), unattended, numFailureRetries);
         } else if (unwrappedException instanceof SearchPhaseExecutionException e) {
             // The reason of a SearchPhaseExecutionException unfortunately contains a full stack trace.
@@ -171,6 +175,15 @@ class TransformFailureHandler {
     private void handleBulkIndexingException(BulkIndexingException bulkIndexingException, boolean unattended, int numFailureRetries) {
         if (bulkIndexingException.getCause() instanceof ClusterBlockException) {
             context.setIsWaitingForIndexToUnblock(true);
+            retryWithoutIncrementingFailureCount(
+                bulkIndexingException,
+                bulkIndexingException.getDetailedMessage(),
+                unattended,
+                numFailureRetries
+            );
+        } else if (bulkIndexingException.getCause() instanceof ShardRestoringException) {
+            // A restore opens the index and sets no cluster block, so there is no block to wait on: do not set the waiting flag.
+            // The restore is transient and can be long, so retry without counting it against the failure retries.
             retryWithoutIncrementingFailureCount(
                 bulkIndexingException,
                 bulkIndexingException.getDetailedMessage(),

@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -667,7 +668,18 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             mock(PlannerSettings.Holder.class),
             null
         );
-        return new ComputeService(transport, null, null, threadPool, BigArrays.NON_RECYCLING_INSTANCE, blockFactory, operators, readers);
+        return new ComputeService(
+            transport,
+            null,
+            null,
+            threadPool,
+            new ComputeExecutor(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.getThreadContext()),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            blockFactory,
+            operators,
+            readers,
+            null
+        );
     }
 
     private static FormatReaderRegistry parquetRegistry() {
@@ -1048,6 +1060,11 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             return new StorageObject() {
                 @Override
                 public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+                @Override
+                public String version() {
+                    return "v1";
+                }
 
                 @Override
                 public StorageIdentity storageIdentity() {

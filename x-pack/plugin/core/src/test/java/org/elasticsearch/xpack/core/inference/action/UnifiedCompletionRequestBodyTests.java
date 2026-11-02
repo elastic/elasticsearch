@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.inference.completion.CacheControl;
 import org.elasticsearch.inference.completion.CacheControlTests;
@@ -32,6 +33,8 @@ import org.elasticsearch.inference.completion.Reasoning;
 import org.elasticsearch.inference.completion.ReasoningDetail;
 import org.elasticsearch.inference.completion.ReasoningDetailTests;
 import org.elasticsearch.inference.completion.ReasoningTests;
+import org.elasticsearch.inference.completion.Template;
+import org.elasticsearch.inference.completion.TemplateTests;
 import org.elasticsearch.inference.completion.Tool;
 import org.elasticsearch.inference.completion.ToolCall;
 import org.elasticsearch.inference.completion.ToolChoice;
@@ -52,7 +55,10 @@ import java.util.Map;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_TEMPLATE_ADDED;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionRequestBodyTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionRequestBody> {
@@ -503,23 +509,142 @@ public class UnifiedCompletionRequestBodyTests extends AbstractBWCWireSerializat
     }
 
     /**
-     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} throw an exception when serializing
-     * non-text content, so we filter those out of the bwc versions to avoid test failures.
-     * The logic is tested directly by {@link #testMultimodalContentIsNotBackwardsCompatible}
+     * Versions before {@link UnifiedCompletionUtils#MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED} refuse to serialize non-text content
+     * and versions before {@link UnifiedCompletionUtils#CHAT_COMPLETION_TEMPLATE_ADDED} refuse to serialize a template, so the
+     * generic BWC test only covers versions that accept every random instance. Older versions, including the ones in between,
+     * are covered by {@link #testUnsupportedFieldsAreNotBackwardsCompatible}.
      */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
-        return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
+        return super.bwcVersions().stream().filter(version -> version.supports(CHAT_COMPLETION_TEMPLATE_ADDED)).toList();
     }
 
-    public void testMultimodalContentIsNotBackwardsCompatible() throws IOException {
-        testSerializationIsNotBackwardsCompatible(
-            MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED,
-            UnifiedCompletionRequestBody::containsMultimodalContent,
-            """
-                Cannot send a multimodal chat completion request to an older node. \
-                Please wait until all nodes are upgraded before using multimodal chat completion inputs"""
+    /**
+     * A body carries either messages or a template, so at most one refusal applies to an instance at a given version. Instances
+     * that an older version does accept must still round trip through it, which keeps the reasoning, cache control and session id
+     * down-casting covered for the versions {@link #bwcVersions()} leaves out.
+     */
+    public void testUnsupportedFieldsAreNotBackwardsCompatible() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var instance = createTestInstance();
+            for (var version : DEFAULT_BWC_VERSIONS) {
+                var expectedError = expectedSerializationError(instance, version);
+                if (expectedError == null) {
+                    assertBwcSerialization(instance, version);
+                } else {
+                    var e = expectThrows(
+                        ElasticsearchStatusException.class,
+                        () -> copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), version)
+                    );
+                    assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+                    assertThat(e.getMessage(), is(expectedError));
+                }
+            }
+        }
+    }
+
+    /**
+     * The error {@link UnifiedCompletionRequestBody#writeTo} raises for the body at the given version, or {@code null} when the
+     * version accepts it. Shared with the tests of the requests that wrap the body.
+     */
+    @Nullable
+    public static String expectedSerializationError(UnifiedCompletionRequestBody body, TransportVersion version) {
+        if (body.containsTemplate() && version.supports(CHAT_COMPLETION_TEMPLATE_ADDED) == false) {
+            return "Cannot send a chat completion request with a template to an older node. "
+                + "Please wait until all nodes are upgraded before using templates";
+        }
+        if (body.containsMultimodalContent() && version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED) == false) {
+            return "Cannot send a multimodal chat completion request to an older node. "
+                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs";
+        }
+        return null;
+    }
+
+    public void testParsing_TemplateOnly() throws IOException {
+        String requestJson = """
+            {
+                "template": {
+                    "id": ".attack-discovery",
+                    "version": 1,
+                    "variables": { "time_range": "24h", "alerts": [] }
+                },
+                "temperature": 0.1
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = UnifiedCompletionRequestBody.PARSER.apply(parser, null);
+            var expected = new UnifiedCompletionRequestBody(
+                null,
+                null,
+                null,
+                null,
+                0.1f,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new Template(".attack-discovery", 1, Map.of("time_range", "24h", "alerts", List.of()))
+            );
+
+            assertThat(request, is(expected));
+            assertNull(request.messages());
+            assertTrue(request.containsTemplate());
+        }
+    }
+
+    /**
+     * The parser accepts both fields; exclusivity is enforced by {@code UnifiedCompletionAction.Request#validate()}.
+     */
+    public void testParsing_MessagesAndTemplate_IsAcceptedByParser() throws IOException {
+        String requestJson = """
+            {
+                "messages": [ { "role": "user", "content": "hello" } ],
+                "template": { "id": ".summarize", "version": 2, "variables": {} }
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = UnifiedCompletionRequestBody.PARSER.apply(parser, null);
+            assertThat(request.messages(), is(List.of(new Message(new ContentString("hello"), "user", null, null))));
+            assertThat(request.template(), is(new Template(".summarize", 2, Map.of())));
+        }
+    }
+
+    public void testParsing_TemplateWithUnknownField_ThrowsException() throws IOException {
+        String requestJson = """
+            {
+                "template": { "id": ".summarize", "version": 2, "variables": {}, "messages": [] }
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var e = expectThrows(XContentParseException.class, () -> UnifiedCompletionRequestBody.PARSER.apply(parser, null));
+            assertThat(e.getMessage(), containsString("failed to parse field [template]"));
+            assertThat(e.getCause().getMessage(), containsString("unknown field [messages]"));
+        }
+    }
+
+    public void testToXContent_TemplateOnly_OmitsMessages() {
+        var body = new UnifiedCompletionRequestBody(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "session",
+            new Template(".summarize", 2, Map.of("k", "v"))
         );
+
+        assertThat(Strings.toString(body), is("""
+            {"session_id":"session","template":{"id":".summarize","version":2,"variables":{"k":"v"}}}"""));
     }
 
     public void testContainsMultimodalContentWithNullContent() {
@@ -542,7 +667,34 @@ public class UnifiedCompletionRequestBodyTests extends AbstractBWCWireSerializat
         assertTrue(request.containsMultimodalContent());
     }
 
+    /**
+     * A body with either messages or a template, never both, as {@code validate()} requires.
+     */
     public static UnifiedCompletionRequestBody randomUnifiedCompletionRequest() {
+        return randomBoolean() ? randomUnifiedCompletionRequestWithMessages() : randomUnifiedCompletionRequestWithTemplate();
+    }
+
+    /**
+     * A template-only body. Tools are left out because a template rejects them.
+     */
+    public static UnifiedCompletionRequestBody randomUnifiedCompletionRequestWithTemplate() {
+        return new UnifiedCompletionRequestBody(
+            null,
+            randomAlphaOfLengthOrNull(10),
+            randomNonNegativeLongOrNull(),
+            randomStopOrNull(),
+            randomFloatOrNull(),
+            null,
+            null,
+            randomFloatOrNull(),
+            randomReasoningOrNull(),
+            randomCacheControlOrNull(),
+            randomAlphaOfLengthOrNull(10),
+            TemplateTests.randomTemplate()
+        );
+    }
+
+    public static UnifiedCompletionRequestBody randomUnifiedCompletionRequestWithMessages() {
         return new UnifiedCompletionRequestBody(
             randomList(5, UnifiedCompletionRequestBodyTests::randomMessage),
             randomAlphaOfLengthOrNull(10),
@@ -692,23 +844,28 @@ public class UnifiedCompletionRequestBodyTests extends AbstractBWCWireSerializat
         UnifiedCompletionRequestBody instance,
         TransportVersion version
     ) {
-        // Unsupported content types cause an exception to be thrown when serializing to older nodes,
-        // so there is no need to mutate the instance for backwards compatibility for versions that don't support multimodal content.
-        // This is tested in testMultimodalContentIsNotBackwardsCompatible
-
+        // Multimodal content and templates cause an exception to be thrown when serializing to versions that don't support them,
+        // so there is no need to mutate the instance for those versions. This is tested in
+        // testUnsupportedFieldsAreNotBackwardsCompatible; the template is simply carried through here.
         if (version.supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED) == false) {
             instance = new UnifiedCompletionRequestBody(
-                instance.messages()
-                    .stream()
-                    .map(message -> new Message(message.content(), message.role(), message.toolCallId(), message.toolCalls()))
-                    .toList(),
+                instance.messages() == null
+                    ? null
+                    : instance.messages()
+                        .stream()
+                        .map(message -> new Message(message.content(), message.role(), message.toolCallId(), message.toolCalls()))
+                        .toList(),
                 instance.model(),
                 instance.maxCompletionTokens(),
                 instance.stop(),
                 instance.temperature(),
                 instance.toolChoice(),
                 instance.tools(),
-                instance.topP()
+                instance.topP(),
+                null,
+                instance.cacheControl(),
+                instance.sessionId(),
+                instance.template()
             );
         }
         if (version.supports(CHAT_COMPLETION_CACHE_CONTROL_AND_SESSION_ID_ADDED) == false) {
@@ -723,7 +880,8 @@ public class UnifiedCompletionRequestBodyTests extends AbstractBWCWireSerializat
                 instance.topP(),
                 instance.reasoning(),
                 null,
-                null
+                null,
+                instance.template()
             );
         }
         return instance;
@@ -752,7 +910,10 @@ public class UnifiedCompletionRequestBodyTests extends AbstractBWCWireSerializat
         Reasoning reasoning = instance.reasoning();
         CacheControl cacheControl = instance.cacheControl();
         String sessionId = instance.sessionId();
-        switch (between(0, 10)) {
+        Template template = instance.template();
+        // A mutation may leave the body with both messages and a template, or neither. The record carries whatever it is
+        // given; only the action request's validate() enforces exactly one, and that is tested separately.
+        switch (between(0, 11)) {
             case 0 -> messages = randomValueOtherThan(messages, () -> randomList(5, UnifiedCompletionRequestBodyTests::randomMessage));
             case 1 -> model = randomValueOtherThan(model, () -> randomAlphaOfLength(10));
             case 2 -> maxCompletionTokens = randomValueOtherThan(maxCompletionTokens, ESTestCase::randomNonNegativeLongOrNull);
@@ -764,6 +925,7 @@ public class UnifiedCompletionRequestBodyTests extends AbstractBWCWireSerializat
             case 8 -> reasoning = randomValueOtherThan(reasoning, UnifiedCompletionRequestBodyTests::randomReasoningOrNull);
             case 9 -> cacheControl = randomValueOtherThan(cacheControl, UnifiedCompletionRequestBodyTests::randomCacheControlOrNull);
             case 10 -> sessionId = randomValueOtherThan(sessionId, () -> randomBoolean() ? randomAlphaOfLength(10) : null);
+            case 11 -> template = randomValueOtherThan(template, () -> randomBoolean() ? TemplateTests.randomTemplate() : null);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new UnifiedCompletionRequestBody(
@@ -777,7 +939,8 @@ public class UnifiedCompletionRequestBodyTests extends AbstractBWCWireSerializat
             topP,
             reasoning,
             cacheControl,
-            sessionId
+            sessionId,
+            template
         );
     }
 

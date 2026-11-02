@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -38,8 +39,38 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * needs a different cluster topology.
  */
 public abstract class HeapAttackTestCase extends HeapAttackRestHelpers {
+    private static final long ATTACKS_SIZED_FOR_HEAP_BYTES = ByteSizeValue.ofMb(512).getBytes();
+
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.buildCluster();
+
+    /**
+     * Scales {@code size}, chosen to trip the request breaker on a 512mb heap, up to the smallest heap in the cluster under test.
+     * Serverless runs the suite on larger nodes, where an unscaled attack fits under the breaker and the query succeeds. Never
+     * returns less than {@code size}.
+     */
+    protected final int scaleToHeap(int size) throws IOException {
+        long heap = smallestNodeHeapBytes();
+        int scaled = Math.toIntExact(size * heap / ATTACKS_SIZED_FOR_HEAP_BYTES);
+        logger.info("scaled attack size {} to {} for a {} byte heap", size, scaled, heap);
+        return Math.max(size, scaled);
+    }
+
+    /**
+     * The smallest max heap of any node in the cluster under test. Read from the cluster rather than
+     * {@link Clusters#HEAP_SIZE_IN_MB}: that constant is inlined when the tests are compiled, so the {@link Clusters} that
+     * serverless substitutes would not change it.
+     */
+    protected final long smallestNodeHeapBytes() throws IOException {
+        Response response = adminClient().performRequest(new Request("GET", "/_nodes/stats?filter_path=nodes.*.jvm.mem.heap_max_in_bytes"));
+        Map<?, ?> nodes = (Map<?, ?>) responseAsMap(response).get("nodes");
+        long minHeapMax = Long.MAX_VALUE;
+        for (Object node : nodes.values()) {
+            Map<?, ?> mem = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) node).get("jvm")).get("mem");
+            minHeapMax = Math.min(minHeapMax, ((Number) mem.get("heap_max_in_bytes")).longValue());
+        }
+        return minHeapMax;
+    }
 
     @Override
     protected String getTestRestCluster() {

@@ -142,6 +142,17 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
 
     /**
+     * Cap on how many commands a statement may have, counting the main query and all its subqueries together. The parser enforces it.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_COMMAND_COUNT} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     * <p>
+     * The main pipeline is also bounded by {@code LogicalPlanBuilder#MAX_QUERY_DEPTH} (500), a fixed recursion guard in the parser, so
+     * values above 500 only apply to subqueries and expanded views.
+     */
+    public static final Setting<Integer> MAX_COMMAND_COUNT = Setting.intSetting("max_command_count", 500, 1);
+
+    /**
      * Inclusive upper bound of {@link #MAX_BRANCH_COUNT_PER_MERGE} and {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE}. Parse-time
      * checks use this as the hard ceiling.
      */
@@ -238,11 +249,6 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> MIN_DOCS_PER_SLICE = Setting.intSetting("min_docs_per_slice", -1, -1);
 
-    /**
-     *  When {@code true}, it allows KNN function to be used on runtime expressions and fields.
-     */
-    public static final Setting<Boolean> KNN_RUNTIME_FIELD = Setting.boolSetting("knn_runtime_field", false);
-
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     public static final List<String> VALID_PRAGMA_NAMES = Stream.of(
@@ -264,6 +270,7 @@ public final class QueryPragmas implements Writeable {
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
         MAX_BRANCH_COUNT,
+        MAX_COMMAND_COUNT,
         MAX_BRANCH_COUNT_PER_MERGE,
         MAX_BRANCH_LEVEL,
         PARSING_PARALLELISM,
@@ -272,7 +279,6 @@ public final class QueryPragmas implements Writeable {
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
-        KNN_RUNTIME_FIELD,
         SINGLE_NODE_OPTIMIZATIONS
 
     ).map(Setting::getKey).toList();
@@ -442,6 +448,13 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * Effective statement size cap: an explicit {@link #MAX_COMMAND_COUNT} pragma overrides {@code clusterDefault}.
+     */
+    public int maxCommandCount(int clusterDefault) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey()) ? MAX_COMMAND_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
      * Label for the source of {@link #maxBranchCount(int)}, used in verification messages.
      */
     public String maxBranchCountLimitSource(String clusterSettingKey) {
@@ -551,13 +564,6 @@ public final class QueryPragmas implements Writeable {
     public int minDocsPerSlice(int defaultMinDocsPerSlice) {
         int override = MIN_DOCS_PER_SLICE.get(settings);
         return override > 0 ? override : defaultMinDocsPerSlice;
-    }
-
-    /**
-     * When {@code true}, it allows KNN function to be used with expressions that are not indexed fields.
-     */
-    public boolean knnRuntimeField() {
-        return KNN_RUNTIME_FIELD.get(settings);
     }
 
     public boolean isEmpty() {

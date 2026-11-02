@@ -448,8 +448,7 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
     }
 
-    protected void assertNotificationsContain(String modelId, String... auditMessages) throws IOException {
-        client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
+    protected void assertNotificationsContain(String modelId, String... auditMessages) throws Exception {
         Request search = new Request("POST", ".ml-notifications-*/_search");
         search.setJsonEntity(Strings.format("""
             {
@@ -464,14 +463,17 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                 }
             }
             """, modelId));
-        String response = EntityUtils.toString(client().performRequest(search).getEntity());
-        for (String msg : auditMessages) {
-            assertThat(response, containsString(msg));
-        }
+        // Audit messages are indexed asynchronously, so they may not be searchable yet when the API call returns
+        assertBusy(() -> {
+            client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
+            String response = EntityUtils.toString(client().performRequest(search).getEntity());
+            for (String msg : auditMessages) {
+                assertThat(response, containsString(msg));
+            }
+        });
     }
 
-    protected void assertSystemNotificationsContain(String... auditMessages) throws IOException {
-        client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
+    protected void assertSystemNotificationsContain(String... auditMessages) throws Exception {
         Request search = new Request("POST", ".ml-notifications-*/_search");
         search.setJsonEntity("""
             {
@@ -485,9 +487,13 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
                 }
             }
             """);
-        String response = EntityUtils.toString(client().performRequest(search).getEntity());
-        for (String msg : auditMessages) {
-            assertThat(response, containsString(msg));
-        }
+        // Audit messages are indexed asynchronously, so they may not be searchable yet when the API call returns
+        assertBusy(() -> {
+            client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
+            String response = EntityUtils.toString(client().performRequest(search).getEntity());
+            for (String msg : auditMessages) {
+                assertThat(response, containsString(msg));
+            }
+        });
     }
 }

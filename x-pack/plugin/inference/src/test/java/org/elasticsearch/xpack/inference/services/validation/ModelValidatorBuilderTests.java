@@ -132,6 +132,34 @@ public class ModelValidatorBuilderTests extends ESTestCase {
         verify(mockService, never()).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
     }
 
+    @SuppressWarnings("unchecked")
+    public void testBuildModelValidator_Decision_CallsAppropriateDecisionMethod() {
+        var mockService = mock(InferenceService.class);
+        // The test explicitly expects that we don't call infer() but mock the return to prevent the listener from hanging if we do
+        doAnswer(ans -> {
+            ((ActionListener<InferenceServiceResults>) ans.getArgument(6)).onResponse(mock());
+            return null;
+        }).when(mockService).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
+
+        doAnswer(ans -> {
+            ((ActionListener<InferenceServiceResults>) ans.getArgument(3)).onResponse(mock());
+            return null;
+        }).when(mockService).decisionInfer(any(), any(), any(), any());
+
+        var modelValidator = ModelValidatorBuilder.buildModelValidator(TaskType.DECISION, mockService);
+
+        var decisionModel = mock(Model.class);
+        when(decisionModel.getTaskType()).thenReturn(TaskType.DECISION);
+
+        var timeout = randomPositiveTimeValue();
+        var listener = new TestPlainActionFuture<ModelValidationResult>();
+        modelValidator.validate(mockService, decisionModel, timeout, listener);
+        listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+        verify(mockService).decisionInfer(any(), any(), any(), any());
+        verify(mockService, never()).infer(any(), any(), anyBoolean(), any(), any(), any(), any());
+    }
+
     private Map<TaskType, Class<? extends ModelValidator>> taskTypeToModelValidatorClassMap() {
         return Map.of(
             TaskType.TEXT_EMBEDDING,
@@ -139,6 +167,8 @@ public class ModelValidatorBuilderTests extends ESTestCase {
             TaskType.SPARSE_EMBEDDING,
             SimpleModelValidator.class,
             TaskType.RERANK,
+            SimpleModelValidator.class,
+            TaskType.DECISION,
             SimpleModelValidator.class,
             TaskType.DOCUMENT_EXTRACTION,
             SimpleModelValidator.class,

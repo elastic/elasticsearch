@@ -59,7 +59,7 @@ public interface TableCatalog extends ExternalSourceFactory, Closeable {
         try {
             return metadata(location, config);
         } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + location + "]", e);
+            throw new IllegalArgumentException("Failed to resolve metadata for [" + StoragePath.objectName(location) + "]", e);
         }
     }
 

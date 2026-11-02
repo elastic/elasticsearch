@@ -75,7 +75,7 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
                 break;
             }
         }
-        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path);
+        return new ExternalUnavailableException(throttling, retryAfterMs, e, "transient read failure for [{}]", path.objectName());
     }
 
     @Override

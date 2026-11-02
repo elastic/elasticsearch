@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.compute.operator.SuppressedFailures;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -130,7 +131,7 @@ final class CoalescedRangeReader {
                         // through instead would deliver a spurious success with truncated slices.
                         Exception e = t instanceof Exception ex ? ex : new ElasticsearchException(t);
                         if (firstFailure.compareAndSet(null, e) == false) {
-                            firstFailure.get().addSuppressed(e);
+                            SuppressedFailures.attach(firstFailure.get(), e);
                         }
                     } finally {
                         complete();
@@ -143,7 +144,7 @@ final class CoalescedRangeReader {
                     // to clean up for this merged range. Siblings that succeeded are released by
                     // complete() below.
                     if (firstFailure.compareAndSet(null, e) == false) {
-                        firstFailure.get().addSuppressed(e);
+                        SuppressedFailures.attach(firstFailure.get(), e);
                     }
                     complete();
                 }

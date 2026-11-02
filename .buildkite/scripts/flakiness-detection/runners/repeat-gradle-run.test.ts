@@ -1,4 +1,4 @@
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { analyzeReports } from "../analyzer/junit-reports-analyzer.ts";
 
-const REPEAT_SCRIPT = resolve(`${import.meta.dirname}/repeat-rest-test.sh`);
+const REPEAT_SCRIPT = resolve(`${import.meta.dirname}/repeat-gradle-run.sh`);
 
 // A single passing JUnit testcase. The runner relocates whatever TEST-*.xml a
 // "gradle" invocation leaves behind, so the fake gradle below just has to write
@@ -20,11 +20,11 @@ const PASSING_XML = `<?xml version="1.0" encoding="UTF-8"?>
 // Where the real gradle yamlRestTest task writes its report, relative to cwd.
 const LIVE_XML = "p/build/test-results/yamlRestTest/TEST-org.example.FooIT.xml";
 
-describe("repeat-rest-test.sh", () => {
+describe("repeat-gradle-run.sh", () => {
   let dir: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "repeat-rest-test-"));
+    dir = mkdtempSync(join(tmpdir(), "repeat-gradle-run-"));
     // Fake "gradle": overwrites the same TEST-*.xml on every call, exactly like a
     // real re-run does. Mirrors the overwrite behaviour that made the analyzer see
     // only the final iteration before per-iteration snapshots were added.
@@ -88,7 +88,7 @@ describe("repeat-rest-test.sh", () => {
         `fi\n`
     );
 
-    // Fails on iteration 2, so repeat-rest-test.sh exits non-zero overall; the
+    // Fails on iteration 2, so repeat-gradle-run.sh exits non-zero overall; the
     // per-iteration XML is still relocated regardless of the run's exit code.
     expect(() =>
       execFileSync("bash", [REPEAT_SCRIPT, "3", "bash", "fake-gradle.sh"], { cwd: dir })
@@ -136,5 +136,31 @@ describe("repeat-rest-test.sh", () => {
     expect(existsSync(join(dir, `flakiness-iters/iter-2/${LIVE_XML}`))).toBe(true);
     // iter-1's report must not have been relocated into iter-2's tree.
     expect(existsSync(join(dir, `flakiness-iters/iter-2/flakiness-iters/iter-1/${LIVE_XML}`))).toBe(false);
+  });
+
+  // The analyzer derives the outcome from this exit code, so a kernel OOM-kill (137) in one
+  // run must not be reported as a plain test failure (1).
+  test.each([
+    { name: "every run passes", codes: [0, 0, 0], expected: 0 },
+    { name: "a test failure", codes: [0, 1, 0], expected: 1 },
+    { name: "the first of several ordinary failures", codes: [3, 1, 0], expected: 3 },
+    { name: "a signal death over an earlier test failure", codes: [1, 137, 1], expected: 137 },
+    { name: "the first of several signal deaths", codes: [137, 143, 0], expected: 137 },
+  ])("exits with $name", ({ codes, expected }) => {
+    // Fake gradle that exits with codes[n - 1] on its n-th call.
+    writeFileSync(
+      join(dir, "fake-gradle.sh"),
+      `#!/bin/bash\n` +
+        `n=$(cat .callcount 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > .callcount\n` +
+        `codes=(${codes.join(" ")})\n` +
+        `exit "\${codes[$((n - 1))]}"\n`
+    );
+
+    const result = spawnSync("bash", [REPEAT_SCRIPT, String(codes.length), "bash", "fake-gradle.sh"], { cwd: dir });
+
+    expect(result.status).toBe(expected);
+    expect(result.stdout.toString()).toContain(
+      `Results: ${codes.filter((c) => c === 0).length}/${codes.length} Gradle runs passed`
+    );
   });
 });

@@ -30,6 +30,11 @@ public final class ExternalServerException extends ExternalException {
     }
 
     @Override
+    public ExternalServerException withoutCause() {
+        return new ExternalServerException(getMessage(), (Throwable) null);
+    }
+
+    @Override
     public RestStatus status() {
         return RestStatus.INTERNAL_SERVER_ERROR;
     }

@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import com.azure.identity.CredentialUnavailableException;
+import com.azure.storage.blob.models.BlobStorageException;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.CredentialPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -144,5 +148,14 @@ public class AzureDataSourcePluginTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), equalTo(FileDataSourceValidator.FEDERATED_IDENTITY_DISABLED_MESSAGE));
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote's refusal (the tenant and identity it was refused) in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(new BlobStorageException("AuthorizationPermissionMismatch", null, null)));
+        assertTrue(ExternalFailures.composedByStorageClient(new CredentialUnavailableException("no managed identity")));
     }
 }

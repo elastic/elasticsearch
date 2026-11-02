@@ -11,10 +11,15 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.LogThrottle;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -45,6 +50,15 @@ import java.util.concurrent.Executor;
  * </ul>
  */
 public final class HttpStorageObject extends AbstractMeteredStorageObject {
+
+    private static final Logger logger = LogManager.getLogger(HttpStorageObject.class);
+
+    /**
+     * Bounds WARN lines for HTTP error-response bodies: the body is withheld from the user-facing message (it often
+     * names the bucket or object), so the node log is the only place it survives. Shared across every HTTP object on
+     * the node — anyone who can query a failing dataset can repeat the failure.
+     */
+    static final LogThrottle ERROR_BODY_WARN = new LogThrottle(TimeValue.timeValueMinutes(1));
 
     private final HttpClient client;
     private final StoragePath path;
@@ -139,7 +153,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         }
     }
 
-    /** Cap on the error-response body snippet folded into a failure message, in bytes. */
+    /** Cap on the error-response body snippet read for the debug log, in bytes. */
     private static final int MAX_ERROR_BODY_BYTES = 512;
 
     /**
@@ -151,18 +165,26 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * so both the synchronous and async read paths can route it.
      */
     private Exception mapReadFailure(String context, int statusCode, String detail) {
-        String suffix = (detail == null || detail.isEmpty()) ? "" : ", body: " + detail;
+        // The error body is logged, not folded into the message: an S3- or GCS-compatible endpoint answers with XML/JSON
+        // naming the bucket, key and host, and the message reaches users who may only read the dataset.
+        if (detail != null && detail.isEmpty() == false) {
+            String location = ExternalFailures.redactHttpUrl(path.toString());
+            if (ERROR_BODY_WARN.tryAcquire()) {
+                logger.warn("HTTP read of [{}] failed with status [{}], body: {}", location, statusCode, detail);
+            } else {
+                logger.debug("HTTP read of [{}] failed with status [{}], body: {}", location, statusCode, detail);
+            }
+        }
         if (ExternalUnavailableException.isRetryableStatus(statusCode)) {
             boolean throttling = ExternalUnavailableException.isThrottlingStatus(statusCode);
             return new ExternalUnavailableException(
                 throttling,
-                "HTTP store unavailable reading [{}] (HTTP {}){}",
-                path,
-                statusCode,
-                suffix
+                "HTTP store unavailable reading [{}] (HTTP {})",
+                path.objectName(),
+                statusCode
             );
         }
-        return new IOException(context + " " + path + ", HTTP status: " + statusCode + suffix);
+        return new IOException(context + " " + path.objectName() + ", HTTP status: " + statusCode);
     }
 
     /**
@@ -254,7 +276,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLength;
     }
@@ -265,7 +287,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLastModified;
     }
@@ -335,7 +357,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     // Wrap with path context so stack-trace-only triage names the offending URL.
                     // The original cause (CompletionException, body subscriber's IOException,
                     // transport error, etc.) is preserved in the cause chain.
-                    listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
+                    listener.onFailure(new IOException("HTTP read failed for " + path.objectName(), throwable));
                     return;
                 }
 
@@ -349,7 +371,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // Discarding subscriber returned no allocator-backed memory but close()-ing is a no-op safe call.
                     response.body().close();
-                    listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
+                    listener.onFailure(new IOException("Range request failed for " + path.objectName() + ", HTTP status: " + statusCode));
                 }
             }
         );
@@ -438,7 +460,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             return responseHandler.apply(response);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("HTTP request interrupted for " + path, e);
+            throw new IOException("HTTP request interrupted for " + path.objectName(), e);
         }
     }
 
@@ -461,7 +483,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             return responseHandler.apply(response);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("HTTP request interrupted for " + path, e);
+            throw new IOException("HTTP request interrupted for " + path.objectName(), e);
         }
     }
 
@@ -477,7 +499,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 // Extract Content-Length
                 OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
                 if (contentLength.isPresent() == false) {
-                    throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + path);
+                    throw new IOException("Server did not return " + HttpHeaders.CONTENT_LENGTH + " for " + path.objectName());
                 }
                 cachedLength = contentLength.getAsLong();
 
@@ -489,7 +511,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 cachedLength = 0L;
                 cachedLastModified = null;
             } else {
-                throw new IOException("HEAD request failed for " + path + ", HTTP status: " + statusCode);
+                throw new IOException("HEAD request failed for " + path.objectName() + ", HTTP status: " + statusCode);
             }
             return null;  // Void return
         });

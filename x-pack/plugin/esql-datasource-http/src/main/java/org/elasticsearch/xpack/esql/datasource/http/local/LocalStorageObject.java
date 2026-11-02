@@ -75,7 +75,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
     public InputStream newStream() throws IOException {
         checkFileExists();
         if (Files.isRegularFile(filePath) == false) {
-            throw new IOException("Path is not a regular file: " + filePath);
+            throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
         long startNanos = System.nanoTime();
         long bytes = 0L;
@@ -103,7 +103,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
         }
         checkFileExists();
         if (Files.isRegularFile(filePath) == false) {
-            throw new IOException("Path is not a regular file: " + filePath);
+            throw new IOException("Path is not a regular file: " + storagePath.objectName());
         }
         long startNanos = System.nanoTime();
         try {
@@ -144,7 +144,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists == Boolean.FALSE) {
-            throw new NoSuchFileException(filePath.toString());
+            throw new NoSuchFileException(storagePath.objectName());
         }
         return cachedLength;
     }
@@ -155,7 +155,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists == Boolean.FALSE) {
-            throw new NoSuchFileException(filePath.toString());
+            throw new NoSuchFileException(storagePath.objectName());
         }
         return cachedLastModified;
     }
@@ -180,7 +180,7 @@ public final class LocalStorageObject extends AbstractMeteredStorageObject {
 
     private void checkFileExists() throws NoSuchFileException {
         if (Files.exists(filePath) == false) {
-            throw new NoSuchFileException(filePath.toString());
+            throw new NoSuchFileException(storagePath.objectName());
         }
     }
 

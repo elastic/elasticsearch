@@ -116,6 +116,6 @@ public class FlightSplit implements ExternalSplit {
 
     @Override
     public String toString() {
-        return "FlightSplit[ticket=" + ticketBytes.length + "B, location=" + location + ", rows=" + estimatedRows + "]";
+        return "FlightSplit[ticket=" + ticketBytes.length + "B, rows=" + estimatedRows + "]";
     }
 }

@@ -138,7 +138,13 @@ public final class SimpleSourceMetadata implements SourceMetadata {
 
     @Override
     public String toString() {
-        return "SimpleSourceMetadata{sourceType='" + sourceType + "', location='" + location + "', fields=" + schema.size() + "}";
+        return "SimpleSourceMetadata{sourceType='"
+            + sourceType
+            + "', location='"
+            + StoragePath.objectName(location)
+            + "', fields="
+            + schema.size()
+            + "}";
     }
 
     /**

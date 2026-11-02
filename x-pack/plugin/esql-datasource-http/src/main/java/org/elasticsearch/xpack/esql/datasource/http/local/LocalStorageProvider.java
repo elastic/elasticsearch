@@ -75,11 +75,11 @@ public final class LocalStorageProvider implements StorageProvider {
         Path dirPath = toFilePath(prefix);
 
         if (Files.exists(dirPath) == false) {
-            throw new IOException("Directory does not exist: " + dirPath);
+            throw new IOException("Directory does not exist: " + prefix.objectName());
         }
 
         if (Files.isDirectory(dirPath) == false) {
-            throw new IOException("Path is not a directory: " + dirPath);
+            throw new IOException("Path is not a directory: " + prefix.objectName());
         }
 
         return new LocalStorageIterator(dirPath, recursive);
@@ -127,7 +127,7 @@ public final class LocalStorageProvider implements StorageProvider {
         if (storagePath.isPattern()) {
             throw new IllegalArgumentException(
                 "LocalStorageProvider received a glob pattern: ["
-                    + pathStr
+                    + storagePath.objectName()
                     + "]; glob expansion must be performed via listObjects() before resolving a single object"
             );
         }

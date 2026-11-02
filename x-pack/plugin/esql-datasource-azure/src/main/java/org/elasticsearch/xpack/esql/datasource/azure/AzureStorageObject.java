@@ -189,11 +189,11 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 retryAfterMs,
                 cause,
                 "Azure store unavailable reading [{}] (HTTP {})",
-                path,
+                path.objectName(),
                 bse.getStatusCode()
             );
         }
-        return new IOException(context + " " + path, cause);
+        return new IOException(context + " " + path.objectName(), cause);
     }
 
     /**
@@ -241,7 +241,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLength;
     }
@@ -284,7 +284,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             } else if (e instanceof BlobStorageException bse && bse.getStatusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("Failed to get metadata for " + path, e);
+                throw new IOException("Failed to get metadata for " + path.objectName(), e);
             }
         }
     }
@@ -298,7 +298,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             Long total = ContentRangeParser.parseTotalLength(headers.getContentRange());
             if (total == null) {
                 throw new IOException(
-                    "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
+                    "Failed to determine object size for " + path.objectName() + ": Content-Range header missing from range GET response"
                 );
             }
             cachedLength = total;
@@ -309,7 +309,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             if (e instanceof BlobStorageException bse && bse.getStatusCode() == 404) {
                 setNotFound();
             } else {
-                throw new IOException("Failed to get metadata for " + path + " (properties denied, range GET also failed)", e);
+                throw new IOException("Failed to get metadata for " + path.objectName() + " (properties denied, range GET also failed)", e);
             }
         }
     }
@@ -397,6 +397,6 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "AzureStorageObject{container=" + container + ", blobName=" + blobName + ", path=" + path + "}";
+        return "AzureStorageObject{name=" + path.objectName() + "}";
     }
 }

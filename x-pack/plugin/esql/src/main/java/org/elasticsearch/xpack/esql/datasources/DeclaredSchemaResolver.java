@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -54,6 +55,26 @@ public final class DeclaredSchemaResolver {
             cols.put(logical, new ColSpec(physical, resolveType(logical, f.type())));
         }
         return cols;
+    }
+
+    /**
+     * Refuses a declared {@code mappings} block with more than {@code maxFields} columns. A declared schema is held to
+     * the same cap as an inferred one, so a runaway declaration cannot build an unbounded schema on the coordinating
+     * node; the user raises the cap if a wide declaration is intended. A dataset with no {@code mappings} block passes.
+     *
+     * @throws ExternalClientException (400) when the declaration has more than {@code maxFields} columns
+     */
+    public static void checkDeclaredWidth(DatasetMapping mapping, int maxFields) {
+        DatasetMapping.Mappings mappings = mapping == null ? null : mapping.mappings();
+        if (mappings != null && mappings.properties() != null && mappings.properties().size() > maxFields) {
+            throw ExternalClientException.schemaTooWide(
+                "the dataset declares [" + mappings.properties().size() + "] columns, more than the [" + maxFields + "] allowed; "
+                // At the ceiling raising the cap is rejected too, so the only remedy is a narrower declaration.
+                    + (maxFields >= ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS
+                        ? "declare fewer columns"
+                        : "raise [esql.external.schema_max_fields] or the dataset's [schema_max_fields]")
+            );
+        }
     }
 
     /**

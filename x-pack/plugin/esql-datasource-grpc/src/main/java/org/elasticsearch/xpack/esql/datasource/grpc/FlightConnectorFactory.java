@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.net.URI;
 import java.util.List;
@@ -70,9 +71,9 @@ class FlightConnectorFactory implements ConnectorFactory {
             return new SimpleSourceMetadata(attributes, "flight", location, null, null, null, resolvedConfig);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while resolving Flight schema for [" + location + "]", e);
+            throw new IllegalStateException("Interrupted while resolving Flight schema for [" + StoragePath.objectName(location) + "]", e);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to resolve Flight schema for [" + location + "]: " + e.getMessage(), e);
+            throw new IllegalStateException("Failed to resolve Flight schema for [" + StoragePath.objectName(location) + "]", e);
         }
     }
 

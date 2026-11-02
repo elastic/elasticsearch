@@ -249,7 +249,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 retryAfterMs,
                 cause,
                 "S3 store unavailable reading [{}] (HTTP {})",
-                path,
+                path.objectName(),
                 s3.statusCode()
             );
         }
@@ -258,15 +258,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             && "RequestTimeTooSkewed".equals(clockSkew.awsErrorDetails().errorCode())) {
             return new IOException(
                 "S3 request rejected due to clock skew reading ["
-                    + path
+                    + path.objectName()
                     + "]: the server clock differs too much from S3. Check that the host clock is NTP-synchronized.",
                 cause
             );
         }
         if (cause instanceof NoSuchKeyException) {
-            return new IOException("Object not found: " + path, cause);
+            return new IOException("Object not found: " + path.objectName(), cause);
         }
-        return new IOException(context + " " + path, cause);
+        return new IOException(context + " " + path.objectName(), cause);
     }
 
     /**
@@ -332,7 +332,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             fetchMetadata();
         }
         if (cachedExists != null && cachedExists == false) {
-            throw new IOException("Object not found: " + path);
+            throw new IOException("Object not found: " + path.objectName());
         }
         return cachedLength;
     }
@@ -426,7 +426,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 fetchMetadataViaRangeGet();
             } else {
-                throw new IOException("HeadObject request failed for " + path, e);
+                throw new IOException("HeadObject request failed for " + path.objectName(), e);
             }
         }
     }
@@ -441,7 +441,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
                 if (total == null) {
                     throw new IOException(
-                        "Failed to determine object size for " + path + ": Content-Range header missing from range GET response"
+                        "Failed to determine object size for "
+                            + path.objectName()
+                            + ": Content-Range header missing from range GET response"
                     );
                 }
                 cachedLength = total;
@@ -452,7 +454,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (e instanceof NoSuchKeyException) {
                 setNotFound();
             } else {
-                throw new IOException("Failed to get metadata for " + path + " (HEAD denied, range GET also failed)", e);
+                throw new IOException("Failed to get metadata for " + path.objectName() + " (HEAD denied, range GET also failed)", e);
             }
         }
     }
@@ -770,6 +772,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     @Override
     public String toString() {
-        return "S3StorageObject{bucket=" + bucket + ", key=" + key + ", path=" + path + "}";
+        return "S3StorageObject{name=" + path.objectName() + "}";
     }
 }

@@ -510,7 +510,7 @@ public class S3StorageProvider implements StorageProvider {
             if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
                 return existsViaRangeGet(bucket, key, path);
             }
-            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+            throw new IOException("Failed to check existence of " + path.objectName() + credentialHint(), e);
         }
     }
 
@@ -523,7 +523,10 @@ public class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            throw new IOException("Failed to check existence of " + path + " (HEAD denied, range GET also failed)" + credentialHint(), e);
+            throw new IOException(
+                "Failed to check existence of " + path.objectName() + " (HEAD denied, range GET also failed)" + credentialHint(),
+                e
+            );
         }
     }
 
@@ -657,14 +660,10 @@ public class S3StorageProvider implements StorageProvider {
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
                 String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
-                    ? "Access denied listing objects in bucket ["
-                        + bucket
-                        + "] with prefix ["
-                        + prefix
-                        + "]. "
+                    ? "Access denied listing objects. "
                         + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
                         + "or use exact file paths instead of glob patterns."
-                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                    : "Failed to list objects";
                 throw new RuntimeException(msg, e);
             }
         }

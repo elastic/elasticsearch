@@ -54,4 +54,12 @@ public abstract class ExternalException extends QlException {
     protected ExternalException(String message, Object... args) {
         super(message, args);
     }
+
+    /**
+     * Returns a fresh copy of the same type and status carrying this exception's message but no cause. Storage
+     * SDK causes (e.g. AWS {@code NoSuchKey}) name the bucket and key, and the REST layer renders the whole cause
+     * chain as {@code caused_by}, so a failure must be detached before it can reach a caller who may only read the
+     * dataset. Always a new instance, so the caller can annotate it even if this one is shared.
+     */
+    public abstract ExternalException withoutCause();
 }

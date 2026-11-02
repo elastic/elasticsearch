@@ -90,6 +90,18 @@ public final class ExternalUnavailableException extends ExternalException {
         this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
     }
 
+    /** Copy constructor for {@link #withoutCause()}: the message is already formatted, so it is taken verbatim. */
+    private ExternalUnavailableException(String message, boolean throttling, long retryAfterMs) {
+        super(message, (Throwable) null);
+        this.throttling = throttling;
+        this.retryAfterMs = retryAfterMs;
+    }
+
+    @Override
+    public ExternalUnavailableException withoutCause() {
+        return new ExternalUnavailableException(getMessage(), throttling, retryAfterMs);
+    }
+
     @Override
     public RestStatus status() {
         return RestStatus.SERVICE_UNAVAILABLE;

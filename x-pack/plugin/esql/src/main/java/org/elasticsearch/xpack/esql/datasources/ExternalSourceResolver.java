@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.StorageProviderCache;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DeclaredTypeCoercions;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
@@ -521,10 +522,11 @@ public class ExternalSourceResolver {
      * acquisition arrives the same way as an {@link EsRejectedExecutionException} (429) and is recovered identically so a
      * node-level rejection is not masked as a 400.
      */
-    private RuntimeException mapResolveFailure(String path, Exception e) {
+    RuntimeException mapResolveFailure(String path, Exception failure) {
+        Exception e = peelWrappers(failure);
         if (e instanceof TaskCancelledException tce) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
-            return tce;
+            return ExternalFailures.detach(tce);
         }
         if (isCancelled()) {
             LOGGER.debug("External source resolution cancelled for [{}]", path);
@@ -540,12 +542,12 @@ public class ExternalSourceResolver {
         if (unavailable != null) {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+            // The cause is logged above, not chained: storage-client causes name the bucket and key.
             return new ExternalUnavailableException(
                 unavailable.throttling(),
-                unavailable,
                 "Failed to resolve external source [{}]: {}",
-                path,
-                unavailable.getMessage()
+                StoragePath.objectName(path),
+                ExternalFailures.safeDetail(unavailable)
             );
         }
         // A permit-acquisition interrupt surfaces as an EsRejectedExecutionException (429). The factory loop wraps it
@@ -560,20 +562,73 @@ public class ExternalSourceResolver {
             recordDiscoveryFailure();
             LOGGER.warn("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
             EsRejectedExecutionException wrapped = new EsRejectedExecutionException(
-                String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, rejected.getMessage())
+                String.format(
+                    Locale.ROOT,
+                    "Failed to resolve external source [%s]: %s",
+                    StoragePath.objectName(path),
+                    ExternalFailures.safeDetail(rejected)
+                ),
+                rejected.isExecutorShutdown()
             );
-            wrapped.initCause(rejected);
             return wrapped;
+        }
+        // A typed client failure (e.g., a schema wider than schema_max_fields) keeps its 400 and its message. It is
+        // checked before the IllegalArgumentException arm because the factory loop wraps every factory failure in an
+        // IllegalArgumentException whose generic message would otherwise replace the diagnosis.
+        ExternalClientException clientException = (ExternalClientException) ExceptionsHelper.unwrap(e, ExternalClientException.class);
+        if (clientException != null) {
+            recordDiscoveryFailure();
+            LOGGER.warn("Failed to resolve external source [{}]: {}", path, clientException.getMessage());
+            LOGGER.debug("Failed to resolve external source [{}]", path, e);
+            return clientException.withoutCause();
         }
         if (e instanceof IllegalArgumentException || e instanceof UnsupportedOperationException) {
             recordDiscoveryFailure();
             LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-            return (RuntimeException) e;
+            // Rebuilt without the cause chain (which can name the bucket and key); the message is kept only if it names
+            // no location. The type, and so the HTTP status, is unchanged.
+            String forwardable = ExternalFailures.forwardableDetail(e);
+            String message = forwardable != null ? forwardable : "Failed to resolve external source [" + StoragePath.objectName(path) + "]";
+            // The reason (a validator's, or a storage failure's when it names no location) lives in the dropped cause chain.
+            String reason = ExternalFailures.failureReason(e);
+            if (reason != null && message.contains(reason) == false) {
+                message = message + ": " + reason;
+            }
+            return e instanceof IllegalArgumentException
+                ? new IllegalArgumentException(message)
+                : new UnsupportedOperationException(message);
         }
         recordDiscoveryFailure();
         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-        String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-        return new ElasticsearchException(String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, detail), e);
+        String reason = ExternalFailures.failureReason(e);
+        return new ElasticsearchException(
+            String.format(
+                Locale.ROOT,
+                "Failed to resolve external source [%s]: %s",
+                StoragePath.objectName(path),
+                reason != null ? reason : ExternalFailures.safeDetail(e)
+            )
+        );
+    }
+
+    /**
+     * Strips the plain wrappers a failure picks up on its way here (a bare {@code RuntimeException} around a cause, a
+     * {@code CompletionException} or {@code ExecutionException} from the schema cache) so the branches of
+     * {@link #mapResolveFailure} see the failure's own type instead of the wrapper's.
+     */
+    private static Exception peelWrappers(Exception e) {
+        Exception current = e;
+        for (int depth = 0; depth < 12; depth++) {
+            boolean wrapper = current.getClass() == RuntimeException.class
+                || current instanceof java.util.concurrent.ExecutionException
+                || current instanceof java.util.concurrent.CompletionException;
+            if (wrapper && current.getCause() instanceof Exception cause && cause != current) {
+                current = cause;
+            } else {
+                break;
+            }
+        }
+        return current;
     }
 
     private void resolveSource(
@@ -717,7 +772,7 @@ public class ExternalSourceResolver {
                 FileList raw = GlobExpander.expand(path, provider, hints, config, maxDiscoveredFiles, maxGlobExpansion);
                 recordDiscovery(raw, discoveryStartNanos, storagePath.scheme());
                 if (raw.fileCount() == 0) {
-                    throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+                    throw new IllegalArgumentException("Glob pattern matched no files");
                 }
                 resolveMultiFileWithReconciliation(raw, config, schemaResolution, cacheable, listener);
                 return;
@@ -733,7 +788,7 @@ public class ExternalSourceResolver {
             recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
 
             if (listing.fileCount() == 0) {
-                throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+                throw new IllegalArgumentException("Glob pattern matched no files");
             }
 
             int anchor = 0;
@@ -1362,7 +1417,7 @@ public class ExternalSourceResolver {
                 if (schemaResolution == FormatReader.SchemaResolution.STRICT) {
                     result = SchemaReconciliation.reconcileStrict(firstFile, allMetadata);
                 } else {
-                    result = SchemaReconciliation.reconcileUnionByName(allMetadata);
+                    result = SchemaReconciliation.reconcileUnionByName(allMetadata, schemaMaxFields(config));
                 }
 
                 // Shadow physical columns that collide with Hive partition keys: the partition (path-derived)
@@ -1440,6 +1495,19 @@ public class ExternalSourceResolver {
                 listener.onFailure(e);
             }
         }, listener::onFailure));
+    }
+
+    /**
+     * The most columns a dataset's schema may have: its {@code schema_max_fields} key when set, otherwise the
+     * {@code esql.external.schema_max_fields} node setting. Held to the declared mapping and to the merged
+     * {@code union_by_name} schema, as the format readers hold each file's own schema to it.
+     */
+    private int schemaMaxFields(Map<String, Object> config) {
+        return ExternalSourceSettings.parseDatasetSchemaMaxFields(
+            config == null ? null : config.get("schema_max_fields"),
+            "schema_max_fields",
+            ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(settings)
+        );
     }
 
     /**
@@ -1985,12 +2053,12 @@ public class ExternalSourceResolver {
             }
         }
         if (lastFailure != null) {
-            throw new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure);
+            throw new IllegalArgumentException("Failed to resolve metadata for [" + StoragePath.objectName(path) + "]", lastFailure);
         }
         var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
         throw new UnsupportedOperationException(
             "No handler found for source at path ["
-                + path
+                + StoragePath.objectName(path)
                 + "]. "
                 + "Please ensure the appropriate data source plugin is installed. "
                 + "Known handlers: ["
@@ -2055,14 +2123,16 @@ public class ExternalSourceResolver {
     ) {
         if (index >= candidates.size()) {
             if (lastFailure != null) {
-                listener.onFailure(new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure));
+                listener.onFailure(
+                    new IllegalArgumentException("Failed to resolve metadata for [" + StoragePath.objectName(path) + "]", lastFailure)
+                );
                 return;
             }
             var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
             listener.onFailure(
                 new UnsupportedOperationException(
                     "No handler found for source at path ["
-                        + path
+                        + StoragePath.objectName(path)
                         + "]. "
                         + "Please ensure the appropriate data source plugin is installed. "
                         + "Known handlers: ["
@@ -2347,6 +2417,7 @@ public class ExternalSourceResolver {
         FileMetadata meta = fileMetadataOf(storagePath, provider, config);
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
         // sourceType drives operator-factory dispatch (OperatorFactoryRegistry keys on it), so it must equal the
         // reader's formatName() the inferred path would have produced — derive it without reading the file via
@@ -2544,11 +2615,12 @@ public class ExternalSourceResolver {
         }
         recordDiscovery(listing, discoveryStartNanos, storagePath.scheme());
         if (listing.fileCount() == 0) {
-            throw new IllegalArgumentException("Glob pattern matched no files: " + path);
+            throw new IllegalArgumentException("Glob pattern matched no files");
         }
 
         // Declared mapping is the whole schema, in LOGICAL names; a `path` rename is applied at the reader, so the
         // operator (and file schema) work purely in logical names.
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(config));
         List<Attribute> logicalSchema = DeclaredSchemaResolver.declaredAttributes(declaredMapping);
         // Same compound-extension-aware dispatch as the single-file strict path above. Derive from a CONCRETE listed
         // object name (listing.path(0)), not the raw glob string: a pattern like `*.csv.gz` and a comma-separated path
@@ -2691,10 +2763,27 @@ public class ExternalSourceResolver {
         if (sourceType == null || FILE_TYPED_FORMATS.contains(sourceType) == false || declaredMapping.mappings() == null) {
             return;
         }
+        Map<String, Object> probeConfig = declaredProbeConfig(sourceType, config);
         List<Attribute> physicalSchema = (isCacheable(provider)
-            ? cachedResolveSingleSource(anchor, anchorMtime, config)
-            : resolveSingleSource(anchor.toString(), config)).schema();
+            ? cachedResolveSingleSource(anchor, anchorMtime, probeConfig)
+            : resolveSingleSource(anchor.toString(), probeConfig)).schema();
         rejectUncoercibleFileTypedRetypes(physicalSchema, sourceType, declaredMapping);
+    }
+
+    /**
+     * The config the strict declared probe reads the anchor's footer with. A declared dataset is not capped by how many
+     * columns its files have, so for Parquet, the only file-typed reader that enforces {@code schema_max_fields}, the
+     * probe raises the cap to its ceiling; the reader charges the schema it flattens to the breaker instead. The key is
+     * part of the reader's config identity, so the probe's schema cache entry is kept apart from the inferred one, which
+     * stays capped.
+     */
+    private static Map<String, Object> declaredProbeConfig(String sourceType, Map<String, Object> config) {
+        if ("parquet".equals(sourceType) == false) {
+            return config;
+        }
+        Map<String, Object> probeConfig = config == null ? new HashMap<>() : new HashMap<>(config);
+        probeConfig.put("schema_max_fields", ExternalSourceSettings.MAX_SCHEMA_MAX_FIELDS);
+        return probeConfig;
     }
 
     /**
@@ -2794,6 +2883,7 @@ public class ExternalSourceResolver {
         if (fileTyped) {
             rejectUncoercibleFileTypedRetypes(inferred.schema(), inferred.sourceType(), declaredMapping);
         }
+        DeclaredSchemaResolver.checkDeclaredWidth(declaredMapping, schemaMaxFields(inferred.config()));
         DeclaredSchemaResolver.Overlaid unified = DeclaredSchemaResolver.overlayNonStrict(inferred.schema(), declaredMapping, false);
         // S1 boundary: the warm-aggregate _stats.* map on sourceMetadata is keyed PHYSICAL and holds INFERRED-type values;
         // the declared overlay renames/retypes the plan afterwards. Rekey renames (a pure `path` move changes no value, so

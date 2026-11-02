@@ -7,16 +7,25 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests the generic parsed-footer cache without depending on any specific format. The cache treats
@@ -136,6 +145,76 @@ public class ParsedFooterCacheTests extends ESTestCase {
             throw err;
         }
         assertEquals("loader invoked exactly once across all concurrent callers", 1, loadCount.get());
+    }
+
+    /**
+     * Every caller of a load that trips a breaker receives the loader's own exception from {@link ParsedFooterCache#getOrLoad};
+     * {@link ParsedFooterCache#rethrowStructural} is where the sharing is broken, so each caller is routed through it and must
+     * get its own instance.
+     */
+    public void testCopiedBreakerFailureKeepsItsCause() {
+        IllegalStateException cause = new IllegalStateException("cause");
+        CircuitBreakingException shared = new CircuitBreakingException("[parent] Data too large", CircuitBreaker.Durability.TRANSIENT);
+        shared.initCause(cause);
+
+        CircuitBreakingException copy = expectThrows(
+            CircuitBreakingException.class,
+            () -> ParsedFooterCache.rethrowStructural(new ExecutionException(shared))
+        );
+
+        assertNotSame(shared, copy);
+        assertSame(cause, copy.getCause());
+    }
+
+    public void testConcurrentCallersOnAFailedLoadReceiveTheirOwnException() throws Exception {
+        FooterByteCache.Key k = key("tripped.parquet", 1000);
+        CircuitBreakingException boom = new CircuitBreakingException(
+            "[parent] Data too large, data for [parquet reader]",
+            1024,
+            512,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        int threadCount = randomIntBetween(4, 16);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<AssertionError> failure = new AtomicReference<>();
+        Queue<CircuitBreakingException> thrown = new ConcurrentLinkedQueue<>();
+        List<Thread> threads = new ArrayList<>(threadCount);
+        for (int i = 0; i < threadCount; i++) {
+            Thread t = new Thread(() -> {
+                try {
+                    start.await(10, TimeUnit.SECONDS);
+                    ExecutionException ex = expectThrows(ExecutionException.class, () -> cache.getOrLoad(k, ignore -> { throw boom; }));
+                    thrown.add(expectThrows(CircuitBreakingException.class, () -> ParsedFooterCache.rethrowStructural(ex)));
+                } catch (AssertionError e) {
+                    failure.compareAndSet(null, e);
+                } catch (Exception e) {
+                    failure.compareAndSet(null, new AssertionError("Unexpected exception", e));
+                }
+            }, "herd-cbe-" + i);
+            t.start();
+            threads.add(t);
+        }
+        start.countDown();
+        for (Thread t : threads) {
+            t.join(TimeUnit.SECONDS.toMillis(10));
+            assertFalse("Thread " + t.getName() + " did not finish in time", t.isAlive());
+        }
+        AssertionError err = failure.get();
+        if (err != null) {
+            throw err;
+        }
+
+        assertThat(thrown, hasSize(threadCount));
+        Set<CircuitBreakingException> distinct = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (CircuitBreakingException e : thrown) {
+            assertNotSame(boom, e);
+            assertTrue("each caller must get its own instance", distinct.add(e));
+            assertEquals(boom.getMessage(), e.getMessage());
+            assertEquals(boom.getBytesWanted(), e.getBytesWanted());
+            assertEquals(boom.getByteLimit(), e.getByteLimit());
+            assertEquals(boom.getDurability(), e.getDurability());
+            assertArrayEquals(boom.getStackTrace(), e.getStackTrace());
+        }
     }
 
     public void testGetOrLoadPropagatesLoaderException() {

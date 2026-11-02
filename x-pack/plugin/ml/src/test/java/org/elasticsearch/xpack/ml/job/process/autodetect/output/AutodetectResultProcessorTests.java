@@ -18,6 +18,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,6 +45,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.ml.job.process.autodetect.ForecastTelemetry;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
@@ -97,6 +101,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
     private FlushListener flushListener;
     private AutodetectResultProcessor processorUnderTest;
     private ScheduledThreadPoolExecutor executor;
+    private RecordingMeterRegistry meterRegistry;
 
     @Before
     public void setUpMocks() {
@@ -116,6 +121,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         when(annotationPersister.bulkPersisterBuilder(eq(JOB_ID), any())).thenReturn(bulkAnnotationsPersister);
         process = mock(AutodetectProcess.class);
         flushListener = mock(FlushListener.class);
+        meterRegistry = new RecordingMeterRegistry();
         processorUnderTest = new AutodetectResultProcessor(
             client,
             auditor,
@@ -127,13 +133,15 @@ public class AutodetectResultProcessorTests extends ESTestCase {
             new ModelSizeStats.Builder(JOB_ID).setTimestamp(new Date(BUCKET_SPAN_MS)).build(),
             new TimingStats(JOB_ID),
             Clock.fixed(CURRENT_TIME, ZoneId.systemDefault()),
-            flushListener
+            flushListener,
+            new ForecastTelemetry(meterRegistry)
         );
     }
 
     @After
     public void cleanup() {
         verify(annotationPersister).bulkPersisterBuilder(eq(JOB_ID), any());
+        verify(persister).bulkPersisterBuilder(eq(JOB_ID), any());
         verifyNoMoreInteractions(auditor, renormalizer, persister, annotationPersister);
         executor.shutdown();
     }
@@ -603,4 +611,93 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         assertThat(stats.get(1).getStatus(), equalTo(ForecastRequestStats.ForecastRequestStatus.FINISHED));
     }
 
+    public void testFinishedForecastStatsRepeatedShouldCountFinishedOnce() {
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.STARTED);
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        processorUnderTest.handleOpenForecasts();
+
+        assertThat(forecastCount(ForecastTelemetry.FINISHED_METRIC), equalTo(1L));
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), equalTo(0L));
+    }
+
+    public void testFailedForecastStatsRepeatedShouldCountFailedOnce() {
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.FAILED);
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.FAILED);
+        processorUnderTest.handleOpenForecasts();
+
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), equalTo(1L));
+        assertThat(forecastCount(ForecastTelemetry.FINISHED_METRIC), equalTo(0L));
+    }
+
+    public void testDistinctForecastsShouldCountEachOutcomeSeparately() {
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        processForecastStats("forecast_2", ForecastRequestStats.ForecastRequestStatus.FAILED);
+        processForecastStats("forecast_3", ForecastRequestStats.ForecastRequestStatus.FINISHED);
+
+        assertThat(forecastCount(ForecastTelemetry.FINISHED_METRIC), equalTo(2L));
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), equalTo(1L));
+    }
+
+    public void testNonTerminalForecastStatsShouldNotCountOutcomes() {
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.SCHEDULED);
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.STARTED);
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.OK);
+
+        assertThat(forecastCount(ForecastTelemetry.FINISHED_METRIC), equalTo(0L));
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), equalTo(0L));
+    }
+
+    public void testRunningForecastAtProcessEndShouldCountFailed() {
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.STARTED);
+        processForecastStats("forecast_2", ForecastRequestStats.ForecastRequestStatus.OK);
+        processForecastStats("forecast_3", ForecastRequestStats.ForecastRequestStatus.FINISHED);
+
+        processorUnderTest.handleOpenForecasts();
+        processorUnderTest.handleOpenForecasts();
+
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), equalTo(2L));
+        assertThat(forecastCount(ForecastTelemetry.FINISHED_METRIC), equalTo(1L));
+    }
+
+    public void testStoppedForecastStatsShouldCountFailedOnlyWhenProcessEnds() {
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.STOPPED);
+
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), equalTo(0L));
+        assertThat(forecastCount(ForecastTelemetry.FINISHED_METRIC), equalTo(0L));
+
+        processorUnderTest.handleOpenForecasts();
+
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), equalTo(1L));
+    }
+
+    public void testForecastStatsAfterProcessKilledShouldBeCountedAsFailedNotFinished() throws Exception {
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.STARTED);
+        processorUnderTest.setProcessKilled();
+        processForecastStats("forecast_1", ForecastRequestStats.ForecastRequestStatus.FINISHED);
+
+        processorUnderTest.handleOpenForecasts();
+
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), equalTo(1L));
+        assertThat(forecastCount(ForecastTelemetry.FINISHED_METRIC), equalTo(0L));
+        verify(renormalizer).shutdown();
+    }
+
+    private void processForecastStats(String forecastId, ForecastRequestStats.ForecastRequestStatus status) {
+        when(bulkResultsPersister.persistForecastRequestStats(any(ForecastRequestStats.class))).thenReturn(bulkResultsPersister);
+        ForecastRequestStats forecastRequestStats = new ForecastRequestStats(JOB_ID, forecastId);
+        forecastRequestStats.setStatus(status);
+        AutodetectResult result = mock(AutodetectResult.class);
+        when(result.getForecastRequestStats()).thenReturn(forecastRequestStats);
+        processorUnderTest.setDeleteInterimRequired(false);
+        processorUnderTest.processResult(result);
+    }
+
+    private long forecastCount(String metricName) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, metricName)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
+    }
 }

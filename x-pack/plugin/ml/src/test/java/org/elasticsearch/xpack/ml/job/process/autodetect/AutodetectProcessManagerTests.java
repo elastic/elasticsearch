@@ -38,6 +38,9 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -69,6 +72,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.task.JobTask;
@@ -150,6 +154,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private ClusterState clusterState;
     private ClusterService clusterService;
     private NativeStorageProvider nativeStorageProvider;
+    private RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
 
     private DataCounts dataCounts = new DataCounts("foo");
     private ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("foo").build();
@@ -994,6 +999,53 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertSame(rnfe, holder.get());
     }
 
+    public void testForecastJobGivenNoProcessShouldCountFailed() {
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        AtomicReference<Exception> handlerException = new AtomicReference<>();
+
+        manager.forecastJob(jobTask, ForecastParams.builder().build(), handlerException::set);
+
+        assertThat(handlerException.get(), notNullValue());
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), is(1L));
+        assertThat(forecastCount(ForecastTelemetry.FINISHED_METRIC), is(0L));
+    }
+
+    public void testForecastJobGivenFlushFailureAfterCommandWrittenShouldLeaveOutcomeToResultProcessor() {
+        AutodetectProcessManager manager = createSpyManager();
+        JobTask jobTask = mock(JobTask.class);
+        when(jobTask.getJobId()).thenReturn("foo");
+        manager.openJob(jobTask, clusterState, TEST_REQUEST_TIMEOUT, (e, b) -> {});
+        manager.processData(
+            jobTask,
+            analysisRegistry,
+            createInputStream(""),
+            randomFrom(XContentType.values()),
+            mock(DataLoadParams.class),
+            (dataCounts1, e) -> {}
+        );
+        doAnswer(invocation -> {
+            invocation.<BiConsumer<Void, Exception>>getArgument(1).accept(null, new ElasticsearchException("flush failed"));
+            return null;
+        }).when(autodetectCommunicator).forecastJob(any(), any());
+        AtomicReference<Exception> handlerException = new AtomicReference<>();
+
+        manager.forecastJob(jobTask, ForecastParams.builder().build(), handlerException::set);
+
+        assertThat(handlerException.get(), notNullValue());
+        assertThat(forecastCount(ForecastTelemetry.FAILED_METRIC), is(0L));
+        assertThat(forecastCount(ForecastTelemetry.FINISHED_METRIC), is(0L));
+    }
+
+    private long forecastCount(String metricName) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, metricName)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
+    }
+
     public void testStartProcess_preProcessError_doesNotSetJobStateFailed() {
         // When getAutodetectParams fails (pre-process error), setJobState(FAILED) should NOT be called.
         // The error should be propagated directly to closeHandler.
@@ -1136,7 +1188,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             autodetectFactory,
             normalizerFactory,
             nativeStorageProvider,
-            TestIndexNameExpressionResolver.newInstance()
+            TestIndexNameExpressionResolver.newInstance(),
+            new ForecastTelemetry(meterRegistry)
         );
     }
 

@@ -172,4 +172,17 @@ public class RecoveryPriorityTests extends ESTestCase {
             }
         }
     }
+
+    public void testRecoveryPriorityHighest() {
+        for (final var first : RecoveryPriority.values()) {
+            assertEquals(first, RecoveryPriority.highest(first, first));
+            for (final var second : RecoveryPriority.values()) {
+                final var highest = RecoveryPriority.highest(first, second);
+                assertEquals(highest, RecoveryPriority.highest(second, first));
+                assertTrue(highest == first || highest == second);
+                // The highest priority comes first in the enum
+                assertTrue(highest.compareTo(first) <= 0 && highest.compareTo(second) <= 0);
+            }
+        }
+    }
 }

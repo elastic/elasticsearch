@@ -937,7 +937,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         // A reshard split target primary takes over writes for its share at [IndexReshardingState.Split.TargetShardState#HANDOFF],
         // before it becomes active. Its failure from then on does reduce availability, so it should also take priority
-        // [ShardRouting.RecoveryPriority#UNASSIGNED_UNEXPECTED] rather than queueing behind other deferrable recoveries
+        // [RecoveryPriority#UNASSIGNED_UNEXPECTED] rather than queueing behind other deferrable recoveries
         // such as pending split clones.
         if (failedShard.primary() && failedShard.recoverySource().getType() == RecoverySource.Type.RESHARD_SPLIT) {
             final IndexReshardingMetadata reshardingMetadata = metadata.indexMetadata(failedShard.index()).getReshardingMetadata();

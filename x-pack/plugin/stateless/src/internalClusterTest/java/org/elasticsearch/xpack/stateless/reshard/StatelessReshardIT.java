@@ -80,6 +80,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -2773,7 +2774,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         awaitClusterState(state -> getTargetPrimary(state, index).unassigned());
         final var unassignedTargetPrimary = getTargetPrimary(index);
         // The target failed before HANDOFF, so the source still serves its documents and its recovery stays deferrable
-        assertThat(unassignedTargetPrimary.recoveryPriority(), equalTo(ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+        assertThat(unassignedTargetPrimary.recoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
 
         MockLog.awaitLogger(
             proceedAfterShardFailure::countDown,

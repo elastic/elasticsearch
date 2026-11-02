@@ -11,11 +11,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -29,6 +36,8 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.expression.function.aggregate.Count.zeroCountAsNull;
 
 /**
  * Represents a PromQL function call in the logical plan.
@@ -160,7 +169,11 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      * {@link #translate} so a new family cannot inherit this lowering by accident.
      */
     protected final IntermediateResult translateValueFunction(TranslationContext context) {
-        IntermediateResult child = context.translate(child());
+        return applyValueFunction(context, context.translate(child()));
+    }
+
+    /** Applies this function to the value of its already translated child. */
+    protected final IntermediateResult applyValueFunction(TranslationContext context, IntermediateResult child) {
         if (child.kind().constant) {
             return child;
         }
@@ -169,6 +182,44 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
             window = context.cmd().resolveRangeWindow(rangeSelector.range());
         }
         var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration());
-        return context.eval(child, TranslationContext.emptyRangeAsNull(buildEsqlFunction(child.value(), promqlCtx), context.time()));
+        return context.eval(child, emptyRangeAsNull(buildEsqlFunction(child.value(), promqlCtx), context.time()));
+    }
+
+    /**
+     * A range function over a series without a sample in the window has no element in Prometheus. A series can still
+     * reach the aggregate without one: its rows carry only other fields, or an operand's matchers reject them inside an
+     * aggregate shared with another operand. There {@code count_over_time} reads 0 and {@code present_over_time} false;
+     * both map to null so the element drops like any other without a value.
+     * <p>
+     * {@code absent_over_time} is the mirror: it has an element only for a series without a sample, so only true stays.
+     * A series the operand never selects reads true too - its matchers reject every row, or only another operand's metric
+     * has values - so true stays only for a series the operand selects.
+     */
+    private static Expression emptyRangeAsNull(Expression function, Expression time) {
+        if (function instanceof CountOverTime) {
+            return zeroCountAsNull(function);
+        }
+        if (function instanceof PresentOverTime present) {
+            return new Case(present.source(), present, List.of(Literal.TRUE, Literal.NULL));
+        }
+        if (function instanceof AbsentOverTime absent) {
+            Expression absentFromSelected = new And(absent.source(), selectedBy(absent, time), absent);
+            return new Case(absent.source(), absentFromSelected, List.of(Literal.TRUE, Literal.NULL));
+        }
+        return function;
+    }
+
+    /**
+     * Whether the operand of {@code absent} reads a row of the series in the window; the operand's matchers apply once its
+     * filter attaches to its time-series functions. A metric selector selects a series only where the metric has a value:
+     * rows are read for every metric the aggregate references
+     * ({@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics}), so a row without a value of
+     * this one can come from another operand's metric. For a metric field {@code absent} therefore never stays true.
+     */
+    private static Expression selectedBy(AbsentOverTime absent, Expression time) {
+        if (absent.field() instanceof Attribute field && field.resolved() && field.isMetric()) {
+            return new Not(absent.source(), absent);
+        }
+        return new PresentOverTime(absent.source(), time, Literal.TRUE, absent.window());
     }
 }

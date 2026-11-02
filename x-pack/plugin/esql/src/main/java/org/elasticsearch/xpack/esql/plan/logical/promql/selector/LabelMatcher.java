@@ -12,7 +12,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
@@ -132,16 +131,12 @@ public class LabelMatcher implements NodeStringRenderable {
             result = Operations.union(automata);
         } else if (isMultiValue()) {
             // Multi-value regex: union of all regex patterns
-            List<Automaton> automata = values.stream().map(v -> new RegExp(v).toAutomaton()).toList();
+            List<Automaton> automata = values.stream().map(LabelMatcher::promqlRegexp).map(RegExp::toAutomaton).toList();
             result = Operations.union(automata);
         } else {
             // Single value
             String v = getFirstValue();
-            try {
-                result = matcher.isRegex() ? new RegExp(v).toAutomaton() : Automata.makeString(v);
-            } catch (IllegalArgumentException ex) {
-                throw new QlIllegalArgumentException(ex, "Cannot parse regex {}", v);
-            }
+            result = matcher.isRegex() ? promqlRegexp(v).toAutomaton() : Automata.makeString(v);
         }
         result = MinimizationOperations.minimize(result, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         // negate if needed
@@ -150,6 +145,17 @@ public class LabelMatcher implements NodeStringRenderable {
         }
         automaton = result;
         return automaton;
+    }
+
+    /**
+     * Lucene {@link RegExp} with PromQL/RE2-compatible syntax: Lucene-only operators
+     * ({@code < > # @ &} and named automata) stay ordinary literals.
+     */
+    static RegExp promqlRegexp(String pattern) {
+        return new RegExp(
+            pattern,
+            RegExp.ALL & ~RegExp.INTERVAL & ~RegExp.INTERSECTION & ~RegExp.EMPTY & ~RegExp.ANYSTRING & ~RegExp.AUTOMATON
+        );
     }
 
     public boolean matchesAll() {

@@ -1456,18 +1456,18 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                         BytesRef b = lookupOrd(Math.toIntExact(startValue));
                         return factory.constantBytes(BytesRef.deepCopyOf(b), docCount - offset);
                     }
-                    var ordinalReader = denseOrds.sortedOrdinalReader();
-                    if (ordinalReader != null) {
+                    var rangeOrdinalReader = denseOrds.rangeOrdinalReader();
+                    if (rangeOrdinalReader != null) {
                         try (var builder = factory.singletonOrdinalsBuilder(this, docCount - offset, true)) {
                             int docIndex = offset;
                             while (docIndex < docCount) {
-                                int ord = Math.toIntExact(ordinalReader.readValueAndAdvance(docs.get(docIndex)));
-                                if (lastDoc < ordinalReader.rangeEndExclusive) {
+                                int ord = Math.toIntExact(rangeOrdinalReader.readValueAndAdvance(docs.get(docIndex)));
+                                if (lastDoc < rangeOrdinalReader.rangeEndExclusive) {
                                     builder.appendOrds(ord, docCount - docIndex);
                                     break;
                                 }
                                 final int startIndex = docIndex;
-                                while (docIndex < docCount && docs.get(docIndex) < ordinalReader.rangeEndExclusive) {
+                                while (docIndex < docCount && docs.get(docIndex) < rangeOrdinalReader.rangeEndExclusive) {
                                     ++docIndex;
                                 }
                                 builder.appendOrds(ord, docIndex - startIndex);
@@ -1640,7 +1640,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Nullable
-        abstract SortedOrdinalReader sortedOrdinalReader();
+        abstract RangeOrdinalReader rangeOrdinalReader();
     }
 
     abstract static class BaseSparseNumericValues extends NumericDocValues implements BlockLoader.OptionalColumnAtATimeReader {
@@ -2476,13 +2476,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    static final class SortedOrdinalReader {
+    static final class RangeOrdinalReader {
         final long maxOrd;
         final DirectMonotonicReader startDocs;
         private long currentIndex = -1;
         long rangeEndExclusive = -1;
 
-        SortedOrdinalReader(long maxOrd, DirectMonotonicReader startDocs) {
+        RangeOrdinalReader(long maxOrd, DirectMonotonicReader startDocs) {
             this.maxOrd = maxOrd;
             this.startDocs = startDocs;
         }
@@ -2537,7 +2537,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    SortedOrdinalReader sortedOrdinalReader() {
+                    RangeOrdinalReader rangeOrdinalReader() {
                         return null;
                     }
                 };
@@ -2717,7 +2717,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                SortedOrdinalReader sortedOrdinalReader() {
+                RangeOrdinalReader rangeOrdinalReader() {
                     return null;
                 }
             };
@@ -2827,7 +2827,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private NumericDocValues getRangeEncodedNumericDocValues(NumericEntry entry, long maxOrd) throws IOException {
-        final var ordinalsReader = new SortedOrdinalReader(
+        final var rangeOrdinalsReader = new RangeOrdinalReader(
             maxOrd,
             DirectMonotonicReader.getInstance(entry.sortedOrdinals, data.randomAccessSlice(entry.valuesOffset, entry.valuesLength), true)
         );
@@ -2835,17 +2835,17 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return new BaseDenseNumericValues(maxDoc) {
                 @Override
                 long lookAheadValueAt(int targetDoc) {
-                    return ordinalsReader.lookAheadValue(targetDoc);
+                    return rangeOrdinalsReader.lookAheadValue(targetDoc);
                 }
 
                 @Override
                 public long longValue() {
-                    return ordinalsReader.readValueAndAdvance(doc);
+                    return rangeOrdinalsReader.readValueAndAdvance(doc);
                 }
 
                 @Override
-                SortedOrdinalReader sortedOrdinalReader() {
-                    return ordinalsReader;
+                RangeOrdinalReader rangeOrdinalReader() {
+                    return rangeOrdinalsReader;
                 }
             };
         } else {
@@ -2860,7 +2860,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return new BaseSparseNumericValues(disi) {
                 @Override
                 public long longValue() {
-                    return ordinalsReader.readValueAndAdvance(disi.docID());
+                    return rangeOrdinalsReader.readValueAndAdvance(disi.docID());
                 }
             };
         }

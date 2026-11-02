@@ -642,7 +642,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 163046
-    summary: Bump bundled JDK to 27.0.1.0.2
+    summary: Bump bundled JDK to 27.0.1.0.2 to address CVE-2026-91403 (compromised eMudhra intermediate CAs)
     area: Infra/Core
     type: upgrade
     issues: []
@@ -714,12 +714,6 @@ changelogs:
     area: Infra/Core
     type: upgrade
     issues: []
-    highlight:
-      notable: true
-      title: Security advisory
-      body: |-
-        This release contains security fixes. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
-      pr: 163710
   - pr: 163732
     summary: Fix NPE in datafeed delayed data check
     area: Machine Learning

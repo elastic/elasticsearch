@@ -159,6 +159,7 @@ public class PlainRunCopyTests extends ColumnarStringTestCase {
                         in.inputs(),
                         in.skipIndex()
                     );
+                    assertRepeatsAreSound(reader.plainValues());
                     final PlainRun run = new PlainRun(
                         reader.plainValues(),
                         reader.firstValueAddress(from),
@@ -167,6 +168,34 @@ public class PlainRunCopyTests extends ColumnarStringTestCase {
                     );
                     writeAndCheck(dir, "dst", segmentId, target, options(codec), prefix2.length, run, null);
                 }
+            }
+        }
+    }
+
+    /**
+     * A repeat is always of equal values, and every slot starting over bytes already behind it is one, whether the
+     * column stored it as a repeat or, on a block start of its lengths, as the length of the value it repeats. A slot
+     * holding the value before it without being a repeat is fine: a copy does not compare where it meets the values
+     * before it.
+     */
+    private static void assertRepeatsAreSound(PlainValues.Reader plain) throws IOException {
+        final BytesRef previous = new BytesRef();
+        final BytesRef current = new BytesRef();
+        for (long v = 1; v < plain.numValues(); v++) {
+            if (plain.isNull(v) || plain.isNull(v - 1)) {
+                assertFalse("slot " + v, plain.repeatsPrevious(v));
+                continue;
+            }
+            final boolean repeats = plain.repeatsPrevious(v);
+            if (repeats) {
+                plain.get(v - 1, previous);
+                final BytesRef before = BytesRef.deepCopyOf(previous);
+                plain.get(v, current);
+                assertEquals("slot " + v, before, current);
+            }
+            final boolean startsBehind = plain.start(v) < plain.start(v - 1) + plain.length(v - 1);
+            if (startsBehind) {
+                assertTrue("slot " + v, repeats);
             }
         }
     }

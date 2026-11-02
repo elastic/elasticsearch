@@ -59,6 +59,7 @@ import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -898,6 +899,43 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return;
         }
         throw new UnsupportedOperationException("cache is not an LFUCache");
+    }
+
+    /**
+     * One fully populated cache region for a shard. {@code frequency} is the region's LFU frequency at snapshot time and may already
+     * be stale. Regions are ordered by frequency descending, then by region index.
+     */
+    public record ResidentRegion<KeyType extends KeyBase>(KeyType key, int region, int length, long timestampMillis, int frequency) {}
+
+    /**
+     * Bytes copied out of one resident region. {@code timestampMillis} is the timestamp stored on the source region.
+     */
+    public record CopiedResidentRegion(int length, long timestampMillis) {}
+
+    /**
+     * Fully populated regions for {@code shardId}, highest LFU frequency first. A region that is still filling or has no IO slot yet is
+     * omitted. The snapshot is not a consistent cut of the cache: a region can be evicted after it is returned, and
+     * {@link #copyResidentRegion} then returns {@code null}.
+     */
+    public List<ResidentRegion<KeyType>> snapshotResidentRegions(ShardId shardId) {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.snapshotResidentRegions(shardId);
+        }
+        return List.of();
+    }
+
+    /**
+     * Copies one resident region into {@code destination}. The buffer's remaining capacity must be at least the region length.
+     *
+     * @return the copied length and source timestamp, or {@code null} when the region is missing, not fully populated, or evicted during
+     *         the read
+     */
+    @Nullable
+    public CopiedResidentRegion copyResidentRegion(KeyType key, int region, ByteBuffer destination) throws IOException {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.copyResidentRegion(key, region, destination);
+        }
+        return null;
     }
 
     // used by periodic metrics and tests
@@ -2972,6 +3010,66 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     consumer.accept(entry.chunk, entry.freq);
                 }
             });
+        }
+
+        List<ResidentRegion<KeyType>> snapshotResidentRegions(ShardId shardId) {
+            final List<ResidentRegion<KeyType>> regions = new ArrayList<>();
+            keyMapping.forEach(shardId, (regionKey, entry) -> {
+                CacheFileRegion<KeyType> chunk = entry.chunk;
+                if (chunk.isEvicted() || chunk.volatileIO() == null) {
+                    return;
+                }
+                int length = Math.toIntExact(chunk.tracker.getLength());
+                if (length <= 0 || chunk.tracker.checkAvailable(length) == false) {
+                    return;
+                }
+                regions.add(new ResidentRegion<>(regionKey.file(), regionKey.region(), length, chunk.timestampMillis(), entry.freq));
+            });
+            regions.sort(Comparator.comparingInt(ResidentRegion<KeyType>::frequency).reversed().thenComparingInt(ResidentRegion::region));
+            return regions;
+        }
+
+        @Nullable
+        CopiedResidentRegion copyResidentRegion(KeyType key, int region, ByteBuffer destination) throws IOException {
+            LFUCacheEntry entry = keyMapping.get(key.shardId(), new RegionKey<>(key, region));
+            if (entry == null) {
+                return null;
+            }
+            CacheFileRegion<KeyType> chunk = entry.chunk;
+            if (chunk.tryIncRefEnsureOpen() == false) {
+                return null;
+            }
+            try {
+                int length = Math.toIntExact(chunk.tracker.getLength());
+                if (length <= 0 || destination.remaining() < length || chunk.tracker.checkAvailable(length) == false) {
+                    return null;
+                }
+                int oldLimit = destination.limit();
+                destination.limit(destination.position() + length);
+                try {
+                    long regionStart = getRegionStart(region);
+                    int start = destination.position();
+                    while (destination.hasRemaining()) {
+                        int before = destination.position();
+                        if (chunk.tryRead(destination, regionStart + (before - start)) == false) {
+                            return null;
+                        }
+                        if (destination.position() == before) {
+                            return null;
+                        }
+                    }
+                } finally {
+                    destination.limit(oldLimit);
+                }
+                if (chunk.isEvicted()) {
+                    return null;
+                }
+                return new CopiedResidentRegion(length, chunk.timestampMillis());
+            } catch (AlreadyClosedException e) {
+                return null;
+            } finally {
+                chunk.decRef();
+            }
         }
 
         // used by tests

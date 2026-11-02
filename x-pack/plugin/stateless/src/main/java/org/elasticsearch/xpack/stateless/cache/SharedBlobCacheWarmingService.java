@@ -458,6 +458,7 @@ public class SharedBlobCacheWarmingService {
     private volatile boolean prewarmIndexShardForIdLookupsEnabled;
     private volatile long maxUploadPrewarmSize;
     private volatile int warmByteRangePerFileConcurrency;
+    private volatile SearchRelocationCacheTransplant cacheTransplant;
     private final SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
     public SharedBlobCacheWarmingService(
@@ -591,6 +592,14 @@ public class SharedBlobCacheWarmingService {
             WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
             value -> this.warmByteRangePerFileConcurrency = value
         );
+    }
+
+    /**
+     * Installed by {@code StatelessPlugin} on nodes that can relocate search shards. Tests that construct this service directly leave it
+     * unset, which keeps recovery warming on the object-store path.
+     */
+    public void setCacheTransplant(SearchRelocationCacheTransplant cacheTransplant) {
+        this.cacheTransplant = cacheTransplant;
     }
 
     public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
@@ -827,6 +836,40 @@ public class SharedBlobCacheWarmingService {
             : SearchRecoveryTimeout.skip();
         if (plan.awaitWarming()) {
             assert endTargetsToWarm != null;
+            final SearchRelocationCacheTransplant transplant = cacheTransplant;
+            if (transplant != null && transplant.isEnabled() && isRelocationTarget(indexShard)) {
+                final SearchRecoveryWarmWait wait = openSearchRecoveryWarmWait(
+                    plan,
+                    clusterStateSupplier,
+                    indexShard,
+                    directory,
+                    totalBytesToWarm,
+                    resumeRecoveryListener
+                );
+                SearchRelocationCacheTransplant.coordinate(
+                    indexShard.shardId(),
+                    transplant.ordering(),
+                    wait.finished(),
+                    (stopped, transplantListener) -> transplant.run(
+                        indexShard.shardId(),
+                        indexShard.routingEntry().relocatingNodeId(),
+                        stopped,
+                        transplantListener
+                    ),
+                    warmListener -> warmCacheAndTimeIt(
+                        Type.SEARCH,
+                        indexShard,
+                        commit,
+                        directory,
+                        warmingRatioProvider,
+                        endTargetsToWarm,
+                        false,
+                        warmListener
+                    ),
+                    wait.warmingCompleted()
+                );
+                return;
+            }
             warmCacheAndTimeIt(
                 Type.SEARCH,
                 indexShard,
@@ -1056,7 +1099,29 @@ public class SharedBlobCacheWarmingService {
      * {@link IndexShard#storeStats}, because the latter calls {@code ensureOpen()} and fails the shard on {@link IOException}; neither is
      * acceptable while logging on a path where the store may already be closing.
      */
+       /**
+        * The warming-completion listener and a view of whether the recovery wait has already finished (timed out or warming completed).
+        */
+    public record SearchRecoveryWarmWait(ActionListener<Void> warmingCompleted, BooleanSupplier finished) {}
+
+    private static boolean isRelocationTarget(IndexShard indexShard) {
+        var routing = indexShard.routingEntry();
+        return routing.initializing() && routing.relocatingNodeId() != null;
+    }
+
     public ActionListener<Void> searchRecoveryWarmingListener(
+        SearchRecoveryTimeout initialPlan,
+        Supplier<ClusterState> clusterStateSupplier,
+        IndexShard indexShard,
+        BlobStoreCacheDirectory directory,
+        long bytesToWarm,
+        ActionListener<Void> resumeRecoveryListener
+    ) {
+        return openSearchRecoveryWarmWait(initialPlan, clusterStateSupplier, indexShard, directory, bytesToWarm, resumeRecoveryListener)
+            .warmingCompleted();
+    }
+
+    private SearchRecoveryWarmWait openSearchRecoveryWarmWait(
         SearchRecoveryTimeout initialPlan,
         Supplier<ClusterState> clusterStateSupplier,
         IndexShard indexShard,
@@ -1131,7 +1196,7 @@ public class SharedBlobCacheWarmingService {
         recoveryWait.addListener(ActionListener.runBefore(recordOutcomeThenForkResumeToGeneric, timeoutTask::cancel));
 
         // warming finishing wins with WARMING_COMPLETE; warming failures propagate (after recording the wait metric).
-        return recoveryWait.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE);
+        return new SearchRecoveryWarmWait(recoveryWait.map(ignored -> SearchRecoveryWaitOutcome.WARMING_COMPLETE), recoveryWait::isDone);
     }
 
     private class ReevaluatingTimeoutTask implements Runnable {

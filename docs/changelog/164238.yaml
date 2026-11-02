@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164238
+summary: Charge held unmapped field values
+type: bug

@@ -19,6 +19,8 @@ import java.util.Set;
 
 public final class VectorBinarySet extends VectorBinaryOperator {
 
+    public static final String OR_MATCH_KEY = "$_or_match";
+
     public enum SetOp implements BinaryOp {
         INTERSECT("and"),
         SUBTRACT("unless"),

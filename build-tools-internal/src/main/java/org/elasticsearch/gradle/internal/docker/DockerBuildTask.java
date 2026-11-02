@@ -190,12 +190,10 @@ public abstract class DockerBuildTask extends DefaultTask {
     public abstract MapProperty<String, String> getBuildContexts();
 
     /**
-     * When set, all file timestamps in the layers of the built image are rewritten to this value (in seconds
-     * since the epoch). Layers otherwise contain timestamps that differ from build to build, even when all
-     * files in the build context have identical timestamps, so without a build cache two builds of identical
-     * content produce different layer digests, and registries can not deduplicate the layers. A constant
-     * value, rather than one derived from the commit, is needed for layers to be identical across commits.
-     * Note that this also sets the {@code created} date of the image to this value.
+     * When set, rewrites all timestamps in the layers of the image, and its creation date, to this value in seconds
+     * since the epoch. Layers otherwise contain timestamps that differ from build to build, so without a build cache
+     * identical content gets different layer digests and registries cannot deduplicate it. The value must be
+     * constant for layers to be identical across commits.
      */
     @Input
     @Optional

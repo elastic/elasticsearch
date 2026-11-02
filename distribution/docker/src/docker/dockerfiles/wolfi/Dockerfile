@@ -63,12 +63,9 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 #  8. Make some directories writable. `bin` must be writable because
 #     plugins can install their own CLI utilities.
 #  9. Make some files writable
-# 10. Move the JDK out of the way, so that it is copied to the final image in its own layer. It rarely
-#     changes, unlike the rest of the distribution, so the layer can be reused by the Docker build cache
-#     and does not have to be pushed or pulled again.
-# 11. Do the same for the libraries of the native machine learning code, which only change when the native
-#     code is updated. The distribution only contains the libraries of the architecture being built, so find
-#     them by wildcard and keep their path, so that they are copied back to the same place.
+# 10. Move the JDK and the native machine learning libraries out of the way, so that they are copied to the
+#     final image in layers of their own. The distribution only contains the libraries of the architecture
+#     being built, hence the wildcard.
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\

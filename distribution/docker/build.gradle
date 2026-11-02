@@ -386,8 +386,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
       noCache = buildParams.ci
       if (buildParams.ci) {
-        // Without the build cache, every build would give identical layers (e.g. the JDK) new digests, as
-        // they contain timestamps that differ between builds, so registries could not deduplicate them.
+        // Without the build cache, unchanged layers would get new digests on every build because of their timestamps
         sourceDateEpoch.set(0L)
       }
       tags = variant.tags(VersionProperties.elasticsearch, Architecture.current())

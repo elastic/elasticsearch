@@ -66,14 +66,11 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
 # config directory.
     chown 1000:1000 bin config config/jvm.options.d data logs plugins && \\
-# Move the JDK out of the way, so that it is copied to the final image in its own layer. It rarely
-# changes, unlike the rest of the distribution, so the layer can be reused by the Docker build cache
-# and does not have to be pushed or pulled again.
+# Move the JDK and the native machine learning libraries out of the way, so that they are copied to the final
+# image in layers of their own. The distribution only contains the libraries of the architecture being built,
+# hence the wildcard.
     mkdir /jdk-layer && \\
     mv jdk /jdk-layer/ && \\
-# Do the same for the libraries of the native machine learning code, which only change when the native
-# code is updated. The distribution only contains the libraries of the architecture being built, so find
-# them by wildcard and keep their path, so that they are copied back to the same place.
     mkdir /ml-layer && \\
     for lib in modules/x-pack-ml/platform/*/lib; do \\
         [ -d "\$lib" ] || continue; \\

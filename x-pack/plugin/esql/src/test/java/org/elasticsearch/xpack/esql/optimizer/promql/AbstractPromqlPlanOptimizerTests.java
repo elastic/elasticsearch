@@ -87,9 +87,6 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
      * {@code SubstituteTransportVersionAwareExpressionsTests}.
      */
     protected LogicalPlan planPromql(String query, boolean allowEmptyReferences, boolean optimize) {
-        // Keyword _timeseries cannot leave labels out (rate/arith/without/…).
-        // That path is unsupported; plans need typed metadata.
-        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
         var now = Instant.now();
         query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
         query = query.replace("$now", "\"" + now + "\"");

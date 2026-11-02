@@ -641,15 +641,22 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertEquals(Set.of(LabelMatcher.NAME), viewExclusions(plan));
     }
 
+    /** Keyword {@code _timeseries} cannot serve a second view of one source, so a shape needing one requires typed metadata. */
+    private void assertRequiresTypedMetadata(String query) {
+        var e = expectThrows(VerificationException.class, () -> planPromql(query));
+        assertThat(e.getMessage(), containsString("leaving labels out of _timeseries requires typed time-series metadata"));
+    }
+
     /**
-     * Above {@code topk} the metric name cannot be pushed down to the source: typed metadata leaves it out with
-     * {@code ts_unset}, while keyword metadata keeps it, as before the operator dropped it.
+     * Above {@code topk} the metric name cannot be pushed down to the source when the source's metadata is read: typed
+     * metadata reads it whole and leaves the name out with {@code ts_unset}. Keyword metadata keys the per-series
+     * {@code topk} by the view without the name instead, since nothing else reads the whole one.
      */
     public void testScalarArithmeticOverTopk() {
         var plan = planPromql("PROMQL index=k8s step=5m result=(topk(1, network.eth0.tx) * 2)");
         boolean unsets = plan.anyMatch(node -> node.expressions().stream().anyMatch(e -> e.anyMatch(TimeSeriesUnset.class::isInstance)));
         assertEquals(typedTimeSeriesMetadata(), unsets);
-        assertEquals(Set.of(), viewExclusions(plan));
+        assertEquals(typedTimeSeriesMetadata() ? Set.of() : Set.of(LabelMatcher.NAME), viewExclusions(plan));
     }
 
     /**
@@ -803,8 +810,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
                 assertTrue("the match key derives from the shared read for [" + expr + "]", leavesOut(plan, "pod"));
                 assertTrue("the result derives from the shared read for [" + expr + "]", leavesOut(plan, "region"));
             } else {
-                var e = expectThrows(VerificationException.class, () -> planPromql(query));
-                assertThat(e.getMessage(), containsString("regrouping the series of an aggregated input is not supported"));
+                assertRequiresTypedMetadata(query);
             }
         }
     }
@@ -941,11 +947,15 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
      */
     public void testNestedGroupLeftIncludeLabels() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
-        var plan = planPromql(
-            "PROMQL index=k8s step=5m result=("
-                + "network.eth0.tx * on (pod) group_left (region) network.eth0.rx"
-                + " * on (pod) group_left (cluster) network.eth0.rx)"
-        );
+        String query = "PROMQL index=k8s step=5m result=("
+            + "network.eth0.tx * on (pod) group_left (region) network.eth0.rx"
+            + " * on (pod) group_left (cluster) network.eth0.rx)";
+        if (typedTimeSeriesMetadata() == false) {
+            // the inner join's result and the outer match key are two views of one source
+            assertRequiresTypedMetadata(query);
+            return;
+        }
+        var plan = planPromql(query);
         assertThat("two nested group_left joins", plan.collect(HashJoin.class), hasSize(2));
         assertTrue("group_left(region) include", plan.output().stream().anyMatch(a -> "region".equals(a.name())));
         assertTrue("group_left(cluster) include", plan.output().stream().anyMatch(a -> "cluster".equals(a.name())));

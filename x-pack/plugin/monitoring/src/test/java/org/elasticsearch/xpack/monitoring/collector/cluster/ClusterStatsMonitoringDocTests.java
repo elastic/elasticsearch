@@ -437,6 +437,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             ClusterSnapshotStats.EMPTY,
             null,
             false,
+            null,
             null
         );
 

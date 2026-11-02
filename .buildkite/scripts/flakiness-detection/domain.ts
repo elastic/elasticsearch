@@ -118,7 +118,7 @@ export interface PlanUnresolved {
  * TS treats this as opaque - it only needs to swap the gradle binary token (see {@link withGradleBinary}).
  *
  * `command` contains the literal token `__GRADLE__` wherever the gradle binary belongs (both plain
- * invocations and inside the `repeat-rest-test.sh <iters> __GRADLE__ <tasks>` form). Java stays target
+ * invocations and inside the `repeat-gradle-run.sh <runs> __GRADLE__ <args>` form). Java stays target
  * neutral; the TS runner layer substitutes the target-appropriate binary. `kind`, `key` and `label` are all
  * stamped in by the Java side from its own {@code Kinds} tables, so TS never derives them here; see
  * {@link KIND_KEYS} for the one table it still keeps a copy of, and {@link TestKind} for the kind vocabulary.

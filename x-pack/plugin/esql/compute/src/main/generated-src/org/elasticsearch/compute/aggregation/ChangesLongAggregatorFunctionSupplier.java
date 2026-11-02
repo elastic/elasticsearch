@@ -106,6 +106,11 @@ final class ChangesLongGroupingAggregatorFunction extends AbstractRateGroupingFu
     }
 
     @Override
+    public boolean canEmitPartialResultsPeriodically() {
+        return false;
+    }
+
+    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // Nulls are represented by missing reduced states.
     }

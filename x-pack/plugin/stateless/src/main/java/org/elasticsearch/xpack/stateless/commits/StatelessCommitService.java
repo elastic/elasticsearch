@@ -449,18 +449,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     /// completes it.
     ///
     /// @throws AlreadyClosedException if the shard commit state is already closed
-    public void installUploadBoundListener(ShardId shardId, SubscribableListener<Long> uploadBoundListener) {
-        assert assertIndexingBlocked(shardId);
-        getSafe(shardsCommitsStates, shardId).installUploadBoundListener(uploadBoundListener);
+    public void installUploadBoundListener(IndexShard shard, SubscribableListener<Long> uploadBoundListener) {
+        assert assertIndexingBlocked(shard);
+        getSafe(shardsCommitsStates, shard.shardId()).installUploadBoundListener(uploadBoundListener);
     }
 
-    private boolean assertIndexingBlocked(ShardId shardId) {
-        final var indexService = indicesService.indexService(shardId.getIndex());
-        assert indexService != null : shardId + " index service expected to be non-null";
-        final var shard = indexService.getShardOrNull(shardId.id());
-        assert shard != null : shardId + " shard expected to be non-null";
+    private boolean assertIndexingBlocked(IndexShard shard) {
+        assert shard != null : "shard expected to be non-null";
         assert shard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
-            : shardId + " installUploadBoundListener must be called while holding all operation permits";
+            : shard.shardId() + " installUploadBoundListener must be called while holding all operation permits";
         return true;
     }
 
@@ -969,6 +966,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
         metrics.recordBccUpload(
             virtualBcc.getTotalSizeInBytes(),
+            virtualBcc.headersSizeInBytes(),
+            virtualBcc.replicatedContentSizeInBytes(),
+            virtualBcc.copiedGenerationalFilesSizeInBytes(),
             virtualBcc.size(),
             threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(),
             Iterators.map(

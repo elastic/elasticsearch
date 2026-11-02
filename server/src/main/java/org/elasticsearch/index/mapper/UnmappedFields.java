@@ -19,6 +19,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -68,14 +70,17 @@ public final class UnmappedFields {
      * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
      * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
      * has an {@code _ignored} field. When the segments cannot be inspected it returns {@code true} unless the index mode
-     * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still
-     * hold no unmapped field.
+     * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still hold
+     * no unmapped field. It returns {@code true} when a segment has the keyed field of the {@code _unmapped} sink, whatever the source.
      */
     public boolean mayExist() {
         if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
             return false;
         }
         if (existsInSegments == null) {
+            return true;
+        }
+        if (existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX)) {
             return true;
         }
         if (mappingLookup.isSourceSynthetic()) {
@@ -595,12 +600,22 @@ public final class UnmappedFields {
     /**
      * Loads the unmapped field {@code name}, one of the names of {@code walk}, as keywords, read by the walk of each
      * document that the loaders made with {@code walk} share. Loads nothing where {@link #mayExist(String)} rules it out.
+     * Where the {@code _unmapped} sink absorbs unmapped fields, a field that is not below a nested object is read from the sink's doc
+     * values instead (see {@link UnmappedSinkFieldMapper#blockLoader(String)}).
      */
     public BlockLoader blockLoader(String name, Walk walk) {
         assert walk.names.contains(name) : name + " is not read by the walk";
         if (mayExist(name) == false) {
             return ConstantNull.INSTANCE;
         }
+
+        // A field absorbed below a nested object is in the sink of the nested doc, which is never loaded by ESQL (ESQL doesn't currently
+        // support nested docs), so must be read from _source.
+        UnmappedSinkFieldMapper sink = mappingLookup.getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
+        if (sink != null && mappingLookup.nestedLookup().getNestedParent(name) == null) {
+            return sink.blockLoader(name);
+        }
+
         // Naming the paths restricts the read to them; without any, the whole of _source is loaded.
         Set<String> sourcePaths = mappingLookup.isSourceEnabled() ? mappingLookup.sourcePaths(name) : Set.of();
         return new NamedFieldBlockLoader(

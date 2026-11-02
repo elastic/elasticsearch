@@ -43,7 +43,6 @@ import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.sourcebatch.MappedColumns;
 import org.elasticsearch.sourcebatch.SourceSchema;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -105,10 +104,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
 
     /** A strictly columnar index. */
     protected static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     /**

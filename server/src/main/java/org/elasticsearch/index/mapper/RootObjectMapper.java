@@ -545,11 +545,12 @@ public class RootObjectMapper extends ObjectMapper {
                     if (typeParser == null) {
                         throw new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
                     }
-                    validate(
-                        template,
-                        dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.root(false, false))
-                    );
+                    validate(template, dynamicType, (name, mapping) -> {
+                        Mapper.Builder builder = typeParser.parse(name, mapping, parserContext);
+                        MapperBuilderContext builderContext = MapperBuilderContext.root(false, false);
+                        builder.normalize(builderContext);
+                        builder.build(builderContext);
+                    });
                 }
                 lastError = null; // ok, the template is valid for at least one type
                 break;

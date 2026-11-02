@@ -315,4 +315,35 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
         assertThat(root.getPrefixProperties().get("foo").dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
         assertThat(root.getPrefixProperties().get("foo.bar").dynamic(), equalTo(ObjectMapper.Dynamic.TRUE));
     }
+
+    /**
+     * When duplicate declarations of a nested object merge, what the nested objects inside it are told about their parent has to
+     * be what the merged object says, not what the first declaration said.
+     */
+    public void testNestedObjectsSeeTheMergedIncludeInRootOfTheirParent() throws IOException {
+        String duplicateParents = """
+            {
+              "_doc": {
+                "properties": {
+                  "p": {
+                    "properties": {
+                      "n": {
+                        "type": "nested", "include_in_root": true,
+                        "properties": { "c": { "type": "nested", "include_in_parent": true, "include_in_root": true } }
+                      }
+                    }
+                  },
+                  "p.n": { "type": "nested", "include_in_root": false }
+                }
+              }
+            }
+            """;
+
+        Mapping mapping = parse(duplicateParents).build(MergeReason.INDEX_TEMPLATE);
+
+        NestedObjectMapper parent = (NestedObjectMapper) ((ObjectMapper) mapping.getRoot().getMapper("p")).getMapper("n");
+        assertFalse(parent.isIncludeInRoot());
+        NestedObjectMapper child = (NestedObjectMapper) parent.getMapper("c");
+        assertTrue(child.isIncludeInRoot());
+    }
 }

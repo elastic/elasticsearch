@@ -146,6 +146,8 @@ public class NestedObjectMapper extends ObjectMapper {
                 );
             }
             NestedMapperBuilderContext nestedContext = childContext(context);
+            // the context says what the parent is now, which can differ from what was recorded if the parent was merged since
+            recordParentIncludes(context);
             normalizeIncludes();
             final Query parentTypeFilter = context instanceof NestedMapperBuilderContext nc
                 ? nc.nestedTypeFilter

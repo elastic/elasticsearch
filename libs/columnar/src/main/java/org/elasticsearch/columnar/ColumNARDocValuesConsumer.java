@@ -854,7 +854,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
                 // Only our own column's cursor knows where its slots are stored; anything else is written value
                 // by value.
                 if (current.stretches != null && current.values instanceof ColumnarStringBinaryDocValues.DirectValues direct) {
-                    final PlainRun run = direct.plainRun(current.stretches.contiguousEnd(direct.docID()));
+                    final int end = current.stretches.contiguousEnd(direct.docID());
+                    final PlainRun run = MergeStretches.worthOffering(direct.docID(), end) ? direct.plainRun(end) : null;
                     if (run != null) {
                         // A run copied is not stepped through value by value, so the value written before the next
                         // one stepped through is not known to be this input's previous.
@@ -868,7 +869,8 @@ final class ColumNARDocValuesConsumer extends DocValuesConsumer {
             @Override
             public OrdinalRun ordinalRun() throws IOException {
                 if (current.stretches != null && current.values instanceof ColumnarStringBinaryDocValues.DirectValues direct) {
-                    final OrdinalRun run = direct.ordinalRun(current.stretches.contiguousEnd(direct.docID()));
+                    final int end = current.stretches.contiguousEnd(direct.docID());
+                    final OrdinalRun run = MergeStretches.worthOffering(direct.docID(), end) ? direct.ordinalRun(end) : null;
                     if (run != null) {
                         // As for a plain run: the values it covers are not stepped through.
                         previousValueFrom = null;

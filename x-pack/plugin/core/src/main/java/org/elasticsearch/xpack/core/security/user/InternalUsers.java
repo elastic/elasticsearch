@@ -196,7 +196,10 @@ public class InternalUsers {
                         // System data stream for the kibana notification center
                         ".kibana-notifications*",
                         // System data stream for serverless shard recovery history
-                        ".serverless-recovery-history"
+                        ".serverless-recovery-history",
+                        // System data streams for Context Engine session memory
+                        ".context-engine-session-memory",
+                        ".context-engine-session-events"
                     )
                     .privileges(
                         filterNonNull(

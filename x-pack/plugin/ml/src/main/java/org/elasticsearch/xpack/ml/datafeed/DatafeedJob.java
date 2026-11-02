@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -78,6 +79,7 @@ class DatafeedJob {
     private final DataDescription dataDescription;
     private final long frequencyMs;
     private final long queryDelayMs;
+    private final long bucketSpanMs;
     private final Client client;
     private final DataExtractorFactory dataExtractorFactory;
     private final DatafeedTimingStatsReporter timingStatsReporter;
@@ -87,6 +89,7 @@ class DatafeedJob {
     private final Integer maxConsecutiveExtractionFailures;
     private final long delayedDataCheckFreq;
     private final CrossClusterSearchStats crossClusterSearchStats;
+    private final ExtractorType extractorType;
     private final DatafeedFieldConflictTracker fieldConflictTracker = new DatafeedFieldConflictTracker();
 
     private volatile long lookbackStartTimeMs;
@@ -110,6 +113,7 @@ class DatafeedJob {
         DataDescription dataDescription,
         long frequencyMs,
         long queryDelayMs,
+        long bucketSpanMs,
         DataExtractorFactory dataExtractorFactory,
         DatafeedTimingStatsReporter timingStatsReporter,
         Client client,
@@ -123,7 +127,8 @@ class DatafeedJob {
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
         long delayedDataCheckFreq,
-        CrossClusterSearchStats crossClusterSearchStats
+        CrossClusterSearchStats crossClusterSearchStats,
+        ExtractorType extractorType
     ) {
         this.datafeedId = datafeedId;
         this.projectRouting = projectRouting;
@@ -132,6 +137,7 @@ class DatafeedJob {
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
         this.queryDelayMs = queryDelayMs;
+        this.bucketSpanMs = bucketSpanMs;
         this.dataExtractorFactory = dataExtractorFactory;
         this.timingStatsReporter = timingStatsReporter;
         this.client = client;
@@ -149,6 +155,7 @@ class DatafeedJob {
         this.haveEverSeenData = haveSeenDataPreviously;
         this.delayedDataCheckFreq = delayedDataCheckFreq;
         this.crossClusterSearchStats = Objects.requireNonNull(crossClusterSearchStats);
+        this.extractorType = Objects.requireNonNull(extractorType);
     }
 
     void isolate() {
@@ -847,6 +854,23 @@ class DatafeedJob {
 
     CrossClusterSearchStats getCrossClusterSearchStats() {
         return crossClusterSearchStats;
+    }
+
+    /**
+     * Bucket spans between the end of the last search and the real-time horizon ({@code now - query_delay}),
+     * or {@code null} before any search end is known. The end advances after failed analysis as well as successful searches.
+     */
+    @Nullable
+    Double horizonLagRatio() {
+        Long lastEnd = lastEndTimeMs;
+        if (lastEnd == null) {
+            return null;
+        }
+        return (double) (currentTimeSupplier.get() - queryDelayMs - lastEnd) / bucketSpanMs;
+    }
+
+    ExtractorType extractorType() {
+        return extractorType;
     }
 
     static class AnalysisProblemException extends ElasticsearchException implements ElasticsearchWrapperException {

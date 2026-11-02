@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedSearchTelemetry.ExtractorType;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
@@ -104,6 +105,7 @@ import static org.mockito.Mockito.when;
 public class DatafeedJobTests extends ESTestCase {
 
     private static final String jobId = "_job_id";
+    private static final long DEFAULT_BUCKET_SPAN_MS = TimeValue.timeValueMinutes(1).millis();
 
     private static final long DELAYED_DATA_WINDOW = TimeValue.timeValueMinutes(15).millis();
     private static final long DELAYED_DATA_FREQ = TimeValue.timeValueMinutes(2).millis();
@@ -186,6 +188,49 @@ public class DatafeedJobTests extends ESTestCase {
 
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(annotationDocId) }, 0L))).when(client)
             .execute(eq(TransportBulkAction.TYPE), any(), any());
+    }
+
+    public void testHorizonLagRatioShouldBeLagBehindQueryDelayOverBucketSpan() {
+        currentTime = 1_000_000L;
+        DatafeedJob datafeedJob = createHorizonDatafeedJob(60_000L, 120_000L, 640_000L, ExtractorType.AGGREGATION);
+
+        // (1_000_000 - 60_000 - 640_000) / 120_000
+        assertThat(datafeedJob.horizonLagRatio(), equalTo(2.5));
+        assertThat(datafeedJob.extractorType(), equalTo(ExtractorType.AGGREGATION));
+    }
+
+    public void testHorizonLagRatioShouldBeNullBeforeAnyEndTimeIsKnown() {
+        currentTime = 1_000_000L;
+        DatafeedJob datafeedJob = createHorizonDatafeedJob(60_000L, 120_000L, -1L, ExtractorType.SCROLL);
+
+        assertNull(datafeedJob.lastEndTimeMs());
+        assertNull(datafeedJob.horizonLagRatio());
+    }
+
+    public void testHorizonLagRatioShouldGrowWhenClockAdvancesWithoutNewSearch() {
+        currentTime = 1_000_000L;
+        DatafeedJob datafeedJob = createHorizonDatafeedJob(0L, 100_000L, 400_000L, ExtractorType.SCROLL);
+        assertThat(datafeedJob.horizonLagRatio(), equalTo(6.0));
+
+        currentTime = 1_100_000L;
+        assertThat(datafeedJob.horizonLagRatio(), equalTo(7.0));
+    }
+
+    private DatafeedJob createHorizonDatafeedJob(long queryDelayMs, long bucketSpanMs, long lastEndTimeMs, ExtractorType extractorType) {
+        return createDatafeedJob(
+            1000,
+            queryDelayMs,
+            bucketSpanMs,
+            extractorType,
+            -1,
+            lastEndTimeMs,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            "test-datafeed",
+            null,
+            null
+        );
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
@@ -1314,6 +1359,7 @@ public class DatafeedJobTests extends ESTestCase {
             dataDescription.build(),
             frequencyMs,
             500,
+            DEFAULT_BUCKET_SPAN_MS,
             dataExtractorFactory,
             timingStatsReporter,
             client,
@@ -1327,7 +1373,8 @@ public class DatafeedJobTests extends ESTestCase {
             -1,
             false,
             DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
-            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime))
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            ExtractorType.SCROLL
         );
     }
 
@@ -1452,6 +1499,36 @@ public class DatafeedJobTests extends ESTestCase {
         String projectRouting,
         String cloudCredentialId
     ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            DEFAULT_BUCKET_SPAN_MS,
+            ExtractorType.SCROLL,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            delayedDataFreq,
+            crossClusterSearchStats,
+            datafeedId,
+            projectRouting,
+            cloudCredentialId
+        );
+    }
+
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long bucketSpanMs,
+        ExtractorType extractorType,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataFreq,
+        CrossClusterSearchStats crossClusterSearchStats,
+        String datafeedId,
+        String projectRouting,
+        String cloudCredentialId
+    ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
             datafeedId,
@@ -1461,6 +1538,7 @@ public class DatafeedJobTests extends ESTestCase {
             dataDescription.build(),
             frequencyMs,
             queryDelayMs,
+            bucketSpanMs,
             dataExtractorFactory,
             timingStatsReporter,
             client,
@@ -1474,7 +1552,8 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            extractorType
         );
     }
 

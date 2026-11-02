@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -260,11 +262,9 @@ public class RenameIndexIT extends ESIntegTestCase {
         String renamed = "block_test_renamed";
         createIndex(original);
 
-        // The read-only-allow-delete block cannot be added via the add index block API.
-        var randomBlock = randomValueOtherThan(
-            IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE,
-            () -> randomFrom(IndexMetadata.APIBlock.values())
-        );
+        // Blocks at the metadata level (read_only, metadata) reject the rename, see testMetadataBlockRejectsRename, and the
+        // read-only-allow-delete block cannot be added via the add index block API.
+        var randomBlock = randomFrom(IndexMetadata.APIBlock.READ, IndexMetadata.APIBlock.WRITE);
 
         // Add the block to the original index
         ElasticsearchAssertions.assertAcked(client().admin().indices().prepareAddBlock(randomBlock, original));
@@ -286,6 +286,28 @@ public class RenameIndexIT extends ESIntegTestCase {
         // Ensure no blocks exist on the renamed index
         for (var block : IndexMetadata.APIBlock.values()) {
             assertIndexBlock(renamed, block, false);
+        }
+    }
+
+    /**
+     * A rename is a metadata write, so like delete and close it is refused while the index carries a block at the metadata level.
+     */
+    public void testMetadataBlockRejectsRename() {
+        String original = "metadata_block_test_index";
+        createIndex(original);
+        var block = randomFrom(IndexMetadata.APIBlock.READ_ONLY, IndexMetadata.APIBlock.METADATA);
+        ElasticsearchAssertions.assertAcked(client().admin().indices().prepareAddBlock(block, original));
+        try {
+            var e = expectThrows(ClusterBlockException.class, () -> rename(original, "metadata_block_test_renamed"));
+            assertThat(e.getMessage(), containsString(original));
+            // the metadata block also blocks the get index API, so check the cluster state directly
+            final var project = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject(ProjectId.DEFAULT);
+            assertTrue(project.hasIndex(original));
+            assertFalse(project.hasIndex("metadata_block_test_renamed"));
+        } finally {
+            ElasticsearchAssertions.assertAcked(
+                client().admin().indices().prepareRemoveBlock(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, block, original)
+            );
         }
     }
 

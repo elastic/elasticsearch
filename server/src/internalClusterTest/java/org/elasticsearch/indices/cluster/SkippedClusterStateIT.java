@@ -216,9 +216,11 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
     }
 
     private Index createTestIndex() {
+        // Skip the test-framework rename: the commit-state interceptor watches the shard by its final index name from creation.
         createIndex(
             INDEX_NAME,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+            false
         );
         ensureGreen(INDEX_NAME);
         return resolveIndex(INDEX_NAME);

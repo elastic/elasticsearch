@@ -111,6 +111,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return shardsByIndex.containsKey(index);
     }
 
+    /**
+     * @return whether this node holds any shard of the index with the given UUID, regardless of the name the index currently has.
+     */
     public boolean hasIndex(String indexUuid) {
         return indexUuids.contains(indexUuid);
     }

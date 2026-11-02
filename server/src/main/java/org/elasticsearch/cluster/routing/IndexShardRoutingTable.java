@@ -363,6 +363,9 @@ public class IndexShardRoutingTable {
         return sortedShards;
     }
 
+    /**
+     * @return a builder for this shard's routing table under the renamed index; {@code newIndex} must have the same UUID.
+     */
     public Builder rename(Index newIndex) {
         var renamedShardId = new ShardId(newIndex, shardId.id());
         var renameShardRoutings = Arrays.stream(shards).map(shardRouting -> shardRouting.updateIndex(newIndex)).toList();

@@ -474,10 +474,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         assert localNodeId != null;
 
         for (Index index : event.indicesDeleted()) {
-            // TODO: we should come up a more elegant way to find out if an index is being renamed
+            // A renamed index looks like a deleted one from the name-based diff. The rename tag on the new entry tells them apart;
+            // see docs/internal/atomic-index-rename.md (T2) for the alternative of diffing by UUID instead.
             final IndexMetadata beingRenamed = isBeingRenamed(event, index);
             if (beingRenamed != null) {
-                logger.info("--> renaming index service for [{}] to [{}]", index.getName(), beingRenamed);
+                logger.debug("renaming index [{}] to [{}]", index.getName(), beingRenamed.getIndex());
                 indicesService.renameIndex(index, beingRenamed);
                 continue;
             }
@@ -778,6 +779,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
+    /**
+     * @return the {@link IndexMetadata} that {@code index} was renamed to in this event, or {@code null} if {@code index} was deleted.
+     */
+    @Nullable
     private static IndexMetadata isBeingRenamed(ClusterChangedEvent event, Index index) {
         final Optional<ProjectMetadata> previousProject = event.previousState().metadata().lookupProject(index);
         if (previousProject.isEmpty()) {
@@ -798,8 +803,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             if (index.getName().equals(originalName) == false) {
                 continue;
             }
-            // final String newName = renameMetadata.get("new_name");
-            // assert newName != null : "new_name must not be null in rename metadata";
+            assert indexMetadata.getIndexUUID().equals(index.getUUID()) : "rename tag on [" + indexMetadata.getIndex() + "] for " + index;
             return indexMetadata;
         }
         return null;
@@ -1661,7 +1665,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata currentProject);
 
         /**
-         * Renames an index for a new name
+         * Applies a rename of {@code index} (found by UUID) to {@code newIndexMetadata.getIndex()} to the in-memory state of this
+         * node, without closing or recovering any shard.
          */
         void renameIndex(Index index, IndexMetadata newIndexMetadata);
 

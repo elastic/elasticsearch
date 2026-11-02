@@ -277,7 +277,10 @@ public class TransportRenameIndexAction extends TransportMasterNodeAction<Rename
 
         @Override
         public void onFailure(Exception e) {
-            logger.debug(() -> "failed to rename index [" + originalName + "] to [" + destinationName + "] in project [" + projectId + "]", e);
+            logger.debug(
+                () -> "failed to rename index [" + originalName + "] to [" + destinationName + "] in project [" + projectId + "]",
+                e
+            );
             listener.onFailure(e);
         }
     }

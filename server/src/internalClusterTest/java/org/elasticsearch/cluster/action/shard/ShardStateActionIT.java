@@ -40,7 +40,8 @@ public class ShardStateActionIT extends ESIntegTestCase {
         loopingTask.start();
 
         final var indexName = randomIndexName();
-        createIndex(indexName);
+        // Skip the test-framework rename: its health check waits for the master queue to drain, which the looping task prevents.
+        createIndex(false, indexName);
         awaitClusterState(cs -> cs.routingTable(ProjectId.DEFAULT).index(indexName).allShardsActive());
         loopingTask.stop();
         ensureGreen(indexName);
@@ -65,7 +66,12 @@ public class ShardStateActionIT extends ESIntegTestCase {
 
             // Assigning the shards of the index for the first time does not block on any NORMAL/LOW tasks:
             final var indexName = randomIndexName();
-            createIndex(indexName, indexSettings(2, 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", dataNode0).build());
+            // Skip the test-framework rename: its health check waits for the master queue to drain, which the looping task prevents.
+            createIndex(
+                indexName,
+                indexSettings(2, 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", dataNode0).build(),
+                false
+            );
             awaitClusterState(
                 cs -> cs.getRoutingNodes().node(cs.nodes().resolveNode(dataNode0).getId()).size() == 2
                     && cs.getRoutingNodes().node(cs.nodes().resolveNode(dataNode1).getId()).isEmpty()

@@ -12,13 +12,13 @@ package org.elasticsearch.action.admin.indices.rename;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.ValidateActions;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;

@@ -310,10 +310,41 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     public void testPushedWithSingleSplit() {
-        ExternalSourceExec ext = externalSourceWithSplits(statsMetadata(1000L, null, null, null), (SplitStats) null);
+        Map<String, Object> listing = statsMetadata(1000L, null, null, null);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 1L);
+        ExternalSourceExec ext = externalSourceWithSplits(listing, (SplitStats) null);
         var agg = aggregateExec(ext, countStarAlias());
 
         as(applyRule(agg), LocalSourceExec.class);
+    }
+
+    public void testNotPushedForHeadRangeSliceWithListingFileCountOne() {
+        Map<String, Object> listing = statsMetadata(1000L, null, null, null);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 1L);
+        FileSplit head = new FileSplit(
+            "parquet",
+            StoragePath.of("file:///ranged.parquet"),
+            0,
+            50,
+            "parquet",
+            Map.of("_range_split", "true"),
+            Map.of(),
+            null,
+            null
+        );
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///ranged.parquet",
+            "parquet",
+            defaultAttrs(),
+            Map.of(),
+            listing,
+            null,
+            null
+        ).withSplits(List.of(head));
+        var agg = aggregateExec(ext, countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
     }
 
     public void testMinWithoutStatsNotPushed() {
@@ -592,10 +623,9 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
     }
 
     public void testFilteredCountSafeMissesOnPartialWholeFileStats() {
-        // F2 (elastic/elasticsearch#150920): with no per-split stats (e.g. a CoalescedSplit whose stat-less
-        // child collapsed splitStats() to null), a FILTERED count falls back to the whole-file cache stats. If
-        // those are STATS_PARTIAL, it must safe-miss exactly as the unfiltered path (resolveEffectiveStats) does
-        // — serving the partial row_count would emit a wrong COUNT. Pushes the partial 1000 without the guard.
+        // Empty splits (skip-discovery) still fold from whole-file cache stats. STATS_PARTIAL must
+        // safe-miss exactly as resolveEffectiveStats does — serving the partial row_count would emit
+        // a wrong COUNT. A present split without typed stats no longer borrows this map (#161409).
         Map<String, Object> complete = new HashMap<>();
         complete.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 1000L);
         complete.put(SourceStatisticsSerializer.columnMinKey("age"), 30L);
@@ -617,6 +647,20 @@ public class PushStatsToExternalSourceTests extends ESTestCase {
             applyRule(aggregateExec(new FilterExec(Source.EMPTY, externalSource(partial), filterCondition), countStarAlias())),
             AggregateExec.class
         );
+    }
+
+    public void testFilteredInitialCountDoesNotFoldListingMetadataForOneAssignedSplit() {
+        Map<String, Object> listing = new HashMap<>();
+        listing.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 2L);
+        listing.put(SourceStatisticsSerializer.STATS_FILE_COUNT, 2L);
+        listing.put(SourceStatisticsSerializer.columnMinKey("age"), 1L);
+        listing.put(SourceStatisticsSerializer.columnMaxKey("age"), 100L);
+        listing.put(SourceStatisticsSerializer.columnNullCountKey("age"), 0L);
+        listing.put(SourceStatisticsSerializer.columnValueCountKey("age"), 2L);
+        ExternalSourceExec ext = externalSourceWithSplits(listing, (SplitStats) null);
+        var agg = aggregateExec(AggregatorMode.INITIAL, new FilterExec(Source.EMPTY, ext, greaterThanOf(AGE, of(0))), countStarAlias());
+
+        as(applyRule(agg), AggregateExec.class);
     }
 
     public void testCountDoesNotFoldOnVirtualIndexIsNotNull() {

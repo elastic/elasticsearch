@@ -388,7 +388,8 @@ public final class PromqlFunctionDefinition {
     public enum PromqlDocsVersion {
         V_9_4(Version.V_9_4_0),
         V_9_5(Version.V_9_5_0),
-        V_9_6(Version.V_9_6_0);
+        V_9_6(Version.V_9_6_0),
+        V_9_7(Version.V_9_7_0);
 
         private final Version version;
 
@@ -446,6 +447,11 @@ public final class PromqlFunctionDefinition {
      * Stack availability for PromQL functions that ship as generally available in 9.6.
      */
     public static final List<StackAvailability> STACK_GA_9_6 = List.of(ga(PromqlDocsVersion.V_9_6));
+
+    /**
+     * Stack availability for PromQL functions that ship as generally available in 9.7.
+     */
+    public static final List<StackAvailability> STACK_GA_9_7 = List.of(ga(PromqlDocsVersion.V_9_7));
 
     /**
      * Scales a PromQL quantile φ (in the range [0, 1]) to the percentile value (in the range [0, 100]) expected by
@@ -606,6 +612,15 @@ public final class PromqlFunctionDefinition {
                 ctx.timestamp()
             );
             this.params = List.of(paramInfo, RANGE_VECTOR);
+            return this;
+        }
+
+        /** Defines a range-vector function whose scalar parameter follows the range vector. */
+        public PromqlFunctionDefinition.Builder withinSeriesRangeFirst(PromqlParamInfo parameter, FunctionBuilder builder) {
+            this.functionType = FunctionType.WITHIN_SERIES_AGGREGATION;
+            this.arity = PromqlFunctionArity.TWO;
+            this.params = List.of(RANGE_VECTOR, parameter);
+            this.builder = builder;
             return this;
         }
 
@@ -848,6 +863,25 @@ public final class PromqlFunctionDefinition {
             this.builder = (source, target, ctx, extraParams) -> {
                 throw new UnsupportedOperationException(
                     "label metadata-manipulation functions are translated directly, not built via the generic function builder"
+                );
+            };
+            return this;
+        }
+
+        /**
+         * Configures a result-ordering function ({@code sort}, {@code sort_desc}).
+         * <p>
+         * These are not lowered through the generic {@link FunctionBuilder}: they resolve into a dedicated logical node
+         * and ordering is injected by the result-ordering analyzer rule. This method therefore only records the metadata
+         * and installs a builder that fails fast if the generic path is ever invoked.
+         */
+        public PromqlFunctionDefinition.Builder resultOrdering() {
+            this.functionType = FunctionType.RESULT_ORDERING;
+            this.arity = PromqlFunctionArity.ONE;
+            this.params = List.of(INSTANT_VECTOR);
+            this.builder = (source, target, ctx, extraParams) -> {
+                throw new UnsupportedOperationException(
+                    "result-ordering functions are translated directly, not built via the generic function builder"
                 );
             };
             return this;

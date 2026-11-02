@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelationSerializationTests;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,7 +63,7 @@ public class MaterializedLookupJoinSerializationTests extends AbstractLogicalPla
     public void testCannotSerializeToNodeWithoutSubqueryLookupJoinSupport() throws IOException {
         MaterializedLookupJoin join = randomMaterializedLookupJoin();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersion.fromId(Analyzer.ESQL_LOOKUP_JOIN_SUBQUERY.id() - 1));
+            out.setTransportVersion(TransportVersion.fromId(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION.id() - 1));
             IllegalStateException error = expectThrows(IllegalStateException.class, () -> join.writeTo(out));
             assertThat(error.getMessage(), containsString("without subquery join support"));
         }

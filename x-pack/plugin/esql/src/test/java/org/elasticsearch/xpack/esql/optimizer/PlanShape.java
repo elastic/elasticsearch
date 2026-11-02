@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShuffleExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -67,7 +66,6 @@ public final class PlanShape {
             || plan instanceof RegexExtractExec
             || plan instanceof CompoundOutputEvalExec
             || plan instanceof EnrichExec
-            || plan instanceof RemoteFetchBoundaryExec
             || plan instanceof SampleExec;
     }
 

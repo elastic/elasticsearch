@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.AbstractColumnarMapperCompatibilityTestCase;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
@@ -27,10 +26,7 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
     private static final String FIELD = "flat";
 
     private static Settings columnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     public void testSingleKey() throws IOException {
@@ -406,17 +402,44 @@ public class FlattenedFieldMapperColumnarCompatibilityTests extends AbstractColu
         );
     }
 
-    public void testImmenseKeyedValueIsRejectedOnBatchPath() {
-        String immenseValue = "v".repeat(IndexWriter.MAX_TERM_LENGTH);
+    public void testKeyedValueLongerThanMaxTermLengthMatchesRowPath() throws IOException {
+        // Strict columnar mode does not index the field by default, so only binary doc values are written.
+        String longValue = "v".repeat(IndexWriter.MAX_TERM_LENGTH);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            columnarSettings(),
+            batch(
+                "keyed value longer than max term length",
+                1L,
+                doc("d1", 1L, "{\"flat\":{\"k\":\"" + longValue + "\"}}"),
+                doc("d2", 2L, "{\"flat\":{\"k\":\"short\"}}")
+            )
+        );
+    }
+
+    public void testKeyedValueLongerThanNonIndexedFieldLimitIsRejectedOnBatchPath() throws IOException {
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(), "64kb")
+            .build();
+        // The keyed encoding "k\0" + value adds 2 bytes to the value.
+        String valueAtLimit = "v".repeat(64 * 1024 - 2);
+        assertColumnarMatchesXContent(
+            mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
+            settings,
+            batch("keyed value at the limit", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + valueAtLimit + "\"}}"))
+        );
+
+        String immenseValue = valueAtLimit + "v";
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> assertColumnarMatchesXContent(
                 mapping(b -> b.startObject(FIELD).field("type", "flattened").endObject()),
-                columnarSettings(),
+                settings,
                 batch("immense keyed value", 1L, doc("d1", 1L, "{\"flat\":{\"k\":\"" + immenseValue + "\"}}"))
             )
         );
-        assertThat(e.getMessage(), containsString("immense field"));
-        assertThat(e.getMessage(), containsString(String.valueOf(IndexWriter.MAX_TERM_LENGTH)));
+        assertThat(e.getMessage(), containsString("whose keyed encoding is longer than the allowed max length"));
+        assertThat(e.getMessage(), containsString("allowed max length of 65536 bytes"));
     }
 }

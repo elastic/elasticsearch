@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -121,7 +123,7 @@ public class SchemaInternerTests extends ESTestCase {
     }
 
     /**
-     * esql-planning#2143: a flattened nested field is named by its whole dotted path, so a column's cost is its name.
+     * A flattened nested field is named by its whole dotted path, so a column's cost is its name.
      * Two schemas of equal column count must not cost the same, and the new name charge alone is what refuses the long one.
      */
     public void testColumnNameLengthIsCharged() {
@@ -141,6 +143,35 @@ public class SchemaInternerTests extends ESTestCase {
 
         expectThrows(CircuitBreakingException.class, () -> new SchemaInterner(reservation, 0L).canonicalize(longNamed));
         assertThat(reservation.queryHeld(), equalTo(baseline));
+    }
+
+    /**
+     * CI csv/tsv spec leftover {@code 64} is this interned schema-object shell once column/shape
+     * costs filled the listing credit. {@code PlanExecutor.bindPlanningReservation} wraps the session
+     * listener with {@link ActionListener#releaseBefore}; this test uses that wrap so a missing close
+     * leaks the 64 bytes. HeaderBudget {@code SET_ENTRY_BYTES} is also 64 but rides a larger per-column
+     * formula, so it cannot be the always-exactly-64 leftover.
+     */
+    public void testInternedSchemaShellIsSixtyFourPlanningBytesAndCloseRefundsThem() {
+        CircuitBreaker breaker = requestBreaker("1mb");
+        long baseline = breaker.getUsed();
+        ExternalPlanningReservation reservation = new ExternalPlanningReservation(breaker);
+        long column = HeapEstimates.columnBytes(1);
+        long oneColumnShape = 40L;
+        SchemaInterner interner = new SchemaInterner(reservation, column + oneColumnShape);
+        List<Attribute> canonical = interner.canonicalize(List.of(attribute("a", DataType.KEYWORD, Nullability.FALSE, false)));
+        assertThat(reservation.queryHeld(), equalTo(0L));
+
+        PlainActionFuture<Void> done = new PlainActionFuture<>();
+        ActionListener<Void> session = ActionListener.releaseBefore(reservation, done);
+        interner.intern(canonical);
+        assertThat(reservation.queryHeld(), equalTo(64L));
+        assertThat(breaker.getUsed(), equalTo(baseline + 64L));
+
+        session.onResponse(null);
+        done.actionGet();
+        assertThat(reservation.queryHeld(), equalTo(0L));
+        assertThat(breaker.getUsed(), equalTo(baseline));
     }
 
     public void testMaxAllowanceChargesNothing() {

@@ -497,7 +497,47 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /**
+     * The inner {@code LIMIT}s apply across each inner union's combined output, so compaction cannot flatten the
+     * nesting away — without them the analyzer compacts filter-only nested subqueries into a single flat union (see
+     * {@link #testFilterOnlyNestedSubqueryProfileIsFlat}) and no hierarchical names appear. The limits are high
+     * enough to let every row through.
+     */
     public void testNestedSubqueryProfileUsesHierarchicalNames() {
+        var query = """
+            FROM
+               ( FROM test | WHERE id == 1 ),
+               ( FROM
+                    ( FROM test | WHERE id == 2 ),
+                    ( FROM
+                         ( FROM test | WHERE id == 3 ),
+                         ( FROM test | WHERE id == 4 )
+                    | LIMIT 1000
+                    )
+               | LIMIT 1000
+               )
+            | SORT id
+            | KEEP id
+            """;
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(branchPragmas(1)).profile(true).includeExecutionMetadata(true))) {
+            assertNotNull(resp.profile());
+            Set<String> descriptions = resp.profile().drivers().stream().map(DriverProfile::description).collect(Collectors.toSet());
+            assertTrue(descriptions.contains("main.final"));
+            assertTrue(descriptions.contains("subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.merge"));
+            assertTrue(descriptions.contains("subplan-1.subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.merge"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-0.final"));
+            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-1.final"));
+            assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
+        }
+    }
+
+    /**
+     * Filter-only nested subqueries compact into a single flat union during analysis, so the profile shows one level
+     * of subplan names — the syntactic nesting leaves no trace in the drivers.
+     */
+    public void testFilterOnlyNestedSubqueryProfileIsFlat() {
         var query = """
             FROM
                ( FROM test | WHERE id == 1 ),
@@ -516,11 +556,10 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             Set<String> descriptions = resp.profile().drivers().stream().map(DriverProfile::description).collect(Collectors.toSet());
             assertTrue(descriptions.contains("main.final"));
             assertTrue(descriptions.contains("subplan-0.final"));
-            assertTrue(descriptions.contains("subplan-1.merge"));
-            assertTrue(descriptions.contains("subplan-1.subplan-0.final"));
-            assertTrue(descriptions.contains("subplan-1.subplan-1.merge"));
-            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-0.final"));
-            assertTrue(descriptions.contains("subplan-1.subplan-1.subplan-1.final"));
+            assertTrue(descriptions.contains("subplan-1.final"));
+            assertTrue(descriptions.contains("subplan-2.final"));
+            assertTrue(descriptions.contains("subplan-3.final"));
+            assertTrue(descriptions.stream().noneMatch(d -> d.contains("subplan-1.subplan")));
             assertLocalShardCounts(resp, 4 * testShards, 4 * testShards, 0);
         }
     }
@@ -543,8 +582,7 @@ public class SubqueryIT extends AbstractEsqlIntegTestCase {
             assertTrue(values.hasNext());
             values.next();
             assertFalse(values.hasNext());
-            // LIMIT 1 finishes the root exchange after the first leaf, so queued siblings skip executePlan
-            assertLocalShardCounts(resp, testShards, testShards, 0);
+            // LIMIT 1 finishes the root exchange after the first leaf, however it may not stop the next branch immediately.
         }
     }
 

@@ -11,9 +11,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -54,6 +58,38 @@ import static org.mockito.Mockito.when;
 public class QueryBudgetedStorageObjectTests extends ESTestCase {
 
     private static final DirectBufferFactory FACTORY = DirectBufferFactory.forBreaker(NoopCircuitBreaker.INSTANCE);
+
+    /**
+     * Covers the forwarding step in isolation: this decorator over a metered leaf. The full production stack is covered by
+     * {@code StorageProviderRegistryTests#testAttachMetricsReachesMeteredLeafThroughProductionChain}.
+     */
+    public void testAttachMetricsReachesMeteredLeaf() throws Exception {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        byte[] data = "hello".getBytes(StandardCharsets.UTF_8);
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(
+            TestStorageObjects.meteredLeaf(StoragePath.of("s3://bucket/key"), data),
+            budget
+        );
+
+        obj.attachMetrics(new ExternalSourceMetrics(registry), "s3");
+        try (InputStream stream = obj.newStream(0, data.length)) {
+            assertArrayEquals(data, stream.readAllBytes());
+        }
+
+        Measurement requests = TestStorageObjects.singleMeasurement(
+            registry,
+            InstrumentType.LONG_COUNTER,
+            ExternalSourceMetrics.STORAGE_REQUESTS_TOTAL
+        );
+        assertEquals(1L, requests.getLong());
+        assertEquals("s3", requests.attributes().get(ExternalSourceMetrics.TYPE_ATTRIBUTE));
+        assertEquals(
+            5L,
+            TestStorageObjects.singleMeasurement(registry, InstrumentType.LONG_COUNTER, ExternalSourceMetrics.STORAGE_BYTES_READ_TOTAL)
+                .getLong()
+        );
+    }
 
     public void testStreamCloseReleasesBudget() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);

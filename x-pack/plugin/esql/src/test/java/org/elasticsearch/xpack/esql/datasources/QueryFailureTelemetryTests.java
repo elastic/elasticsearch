@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -62,6 +64,23 @@ public class QueryFailureTelemetryTests extends ESTestCase {
         EXPECTED_BY_CONDITION.put(Condition.LISTING_FAILED, "discovery");
         EXPECTED_BY_CONDITION.put(Condition.CLOCK_SKEW, "storage_auth");
         EXPECTED_BY_CONDITION.put(Condition.CLIENT_BUG, "other");
+        EXPECTED_BY_CONDITION.put(Condition.WORKER_NOT_READY, "other");
+    }
+
+    /**
+     * A worker that could not apply the cluster state in time is the node's own lag, not a storage failure: {@code other}, with
+     * the retryable status. Raised without a path, and the condition still crosses the wire.
+     */
+    public void testWorkerNotReadyIsOtherAndRetryable() throws IOException {
+        ExternalUnavailableException notReady = new ExternalUnavailableException(Condition.WORKER_NOT_READY, "waited [10s]", "");
+        assertThat(notReady.objectName(), equalTo(""));
+        assertThat(notReady.getMessage(), equalTo("Node has not yet applied the cluster state this query was planned from (waited [10s])"));
+        Failure expected = new Failure("other", "503");
+        assertThat(QueryFailureTelemetry.classify(notReady), equalTo(expected));
+        Exception received = roundTrip(notReady);
+        assertThat(QueryFailureTelemetry.classify(received), equalTo(expected));
+        assertThat(ExternalException.hasCondition(received, Condition.WORKER_NOT_READY), equalTo(true));
+        assertThat(QueryFailureTelemetry.storeStatus(notReady), nullValue());
     }
 
     public void testEveryConditionHasAnExpectedErrorType() {
@@ -160,6 +179,28 @@ public class QueryFailureTelemetryTests extends ESTestCase {
                 new ElasticsearchException("wrapper", roundTrip(new ExternalClientException(Condition.ACCESS_DENIED, PATH, "", "")))
             ),
             equalTo(new Failure("storage_auth", "400"))
+        );
+    }
+
+    /**
+     * The coordinator invalidates its listing caches when a read fails because the object changed. A class match cannot see that
+     * failure once it has crossed a node boundary, so the check has to be by condition.
+     */
+    public void testObjectChangedIsFoundAfterTheTransportRoundTrip() throws IOException {
+        Exception received = roundTrip(new ExternalObjectChangedException(PATH));
+        assertThat(received, instanceOf(NotSerializableExceptionWrapper.class));
+        assertThat(ExceptionsHelper.unwrap(received, ExternalObjectChangedException.class), nullValue());
+        assertThat(ExternalException.hasCondition(received, Condition.OBJECT_CHANGED), equalTo(true));
+        assertThat(
+            ExternalException.hasCondition(new ElasticsearchException("wrapper", received), Condition.OBJECT_CHANGED),
+            equalTo(true)
+        );
+        assertThat(
+            ExternalException.hasCondition(
+                roundTrip(new ExternalClientException(Condition.ACCESS_DENIED, PATH, "", "")),
+                Condition.OBJECT_CHANGED
+            ),
+            equalTo(false)
         );
     }
 
@@ -305,5 +346,74 @@ public class QueryFailureTelemetryTests extends ESTestCase {
             assertThat(DataSourceUsageAccumulator.ERROR_TYPE_NAMES, hasItem(classified.errorType()));
             assertThat(Integer.parseInt(classified.status()) >= 400, equalTo(true));
         }
+    }
+
+    /** The store's status is the code the provider recorded, and it is not the REST status the exception reports (503). */
+    public void testStoreStatusIsTheStoreHttpCodeNotTheRestStatus() {
+        ExternalUnavailableException throttled = new ExternalUnavailableException(
+            Condition.STORE_THROTTLED,
+            PATH,
+            "HTTP 429 SlowDown",
+            "",
+            true,
+            0L
+        );
+        assertThat(QueryFailureTelemetry.storeStatus(throttled), equalTo("429"));
+        assertThat(QueryFailureTelemetry.classify(throttled).status(), equalTo("503"));
+    }
+
+    /**
+     * The published status is a closed set: the codes a storage read is retried on. A store 403 or 404 is still parsed by
+     * {@link ExternalException#storeHttpStatus}, but it is not published as a give-up status.
+     */
+    public void testStoreStatusIsClosedToTheRetryableCodes() {
+        assertThat(QueryFailureTelemetry.storeStatus(detail("HTTP 429")), equalTo("429"));
+        assertThat(QueryFailureTelemetry.storeStatus(detail("HTTP 500")), equalTo("500"));
+        assertThat(QueryFailureTelemetry.storeStatus(detail("HTTP 502")), equalTo("502"));
+        assertThat(QueryFailureTelemetry.storeStatus(detail("HTTP 503")), equalTo("503"));
+        assertThat(QueryFailureTelemetry.storeStatus(detail("HTTP 504")), equalTo("504"));
+        assertThat(QueryFailureTelemetry.storeStatus(detail("HTTP 403 AccessDenied")), nullValue());
+        assertThat(QueryFailureTelemetry.storeStatus(detail("HTTP 404")), nullValue());
+        assertThat(QueryFailureTelemetry.storeStatus(detail("HTTP 501")), nullValue());
+        assertThat(detail("HTTP 404").storeHttpStatus(), equalTo(OptionalInt.of(404)));
+    }
+
+    public void testStoreStatusLooksThroughTheCauseChain() {
+        Throwable wrapped = new RuntimeException(
+            new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, PATH, "HTTP 502", "", false, 0L)
+        );
+        assertThat(QueryFailureTelemetry.storeStatus(wrapped), equalTo("502"));
+    }
+
+    /** A fault that was not an HTTP response has no store status, so the attribute is omitted rather than guessed. */
+    public void testStoreStatusIsOmittedWithoutAnHttpResponse() {
+        assertThat(QueryFailureTelemetry.storeStatus(new IOException("read timed out")), nullValue());
+        assertThat(
+            QueryFailureTelemetry.storeStatus(new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, PATH, "", "", false, 0L)),
+            nullValue()
+        );
+        assertThat(
+            QueryFailureTelemetry.storeStatus(
+                new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, PATH, "S3Client", "", false, 0L)
+            ),
+            nullValue()
+        );
+        assertThat(QueryFailureTelemetry.storeStatus(null), nullValue());
+    }
+
+    public void testStoreHttpStatusParsesTheProviderDetail() {
+        assertThat(detail("HTTP 429").storeHttpStatus(), equalTo(OptionalInt.of(429)));
+        assertThat(detail("HTTP 403 AccessDenied").storeHttpStatus(), equalTo(OptionalInt.of(403)));
+        assertThat(detail("HTTP 503 SlowDown, retry later").storeHttpStatus(), equalTo(OptionalInt.of(503)));
+        // Anything that is not "HTTP" followed by exactly three digits is not a store status.
+        assertThat(detail("").storeHttpStatus(), equalTo(OptionalInt.empty()));
+        assertThat(detail("AccessDenied").storeHttpStatus(), equalTo(OptionalInt.empty()));
+        assertThat(detail("HTTP 99").storeHttpStatus(), equalTo(OptionalInt.empty()));
+        assertThat(detail("HTTP 4290").storeHttpStatus(), equalTo(OptionalInt.empty()));
+        assertThat(detail("HTTP 999").storeHttpStatus(), equalTo(OptionalInt.empty()));
+    }
+
+    private static ExternalUnavailableException detail(String detailCode) {
+        return new ExternalUnavailableException(Condition.STORE_UNAVAILABLE, PATH, detailCode, "", false, 0L);
     }
 }

@@ -124,6 +124,38 @@ public class StorageObjectAbortChainTests extends ESTestCase {
     }
 
     /**
+     * Multi-member gzip through the production read chain over a raw body that reports {@code available() == 0} and
+     * whose reads stop at every member boundary, like a network body with an empty socket buffer. The JDK gzip
+     * decoder stopped after the first member here (elastic/esql-planning#2121).
+     */
+    public void testMultiMemberGzipThroughDecoratorChainOverStreamReportingNothingAvailable() throws IOException {
+        int members = between(2, 20);
+        ByteArrayOutputStream original = new ByteArrayOutputStream();
+        ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+        int[] boundaries = new int[members];
+        for (int i = 0; i < members; i++) {
+            StringBuilder csv = new StringBuilder();
+            for (int row = between(1, 5_000); row > 0; row--) {
+                csv.append("id_").append(i).append(",name_").append(row).append("\n");
+            }
+            byte[] member = csv.toString().getBytes(StandardCharsets.UTF_8);
+            original.writeBytes(member);
+            compressed.writeBytes(gzip(member));
+            boundaries[i] = compressed.size();
+        }
+
+        NoAvailableAtBoundariesStorageObject raw = new NoAvailableAtBoundariesStorageObject(compressed.toByteArray(), boundaries);
+        StorageObject chain = readChain(new RetryableStorageObject(new ConcurrencyLimitedStorageObject(raw, limiter()), retryPolicy()));
+
+        try (InputStream stream = chain.newStream()) {
+            assertArrayEquals(original.toByteArray(), stream.readAllBytes());
+        }
+
+        assertEquals("abortStream must be invoked exactly once", 1, raw.abortCalls.get());
+        assertTrue("a fully decoded body must reach end-of-body before the abort", raw.endOfBodyBeforeAbort.get());
+    }
+
+    /**
      * The release's end-of-body read is best effort: if the connection resets on it, the retry layer must not
      * resume (backoff sleep plus a new GET inside {@code close()}) for a stream that is aborted right after.
      */
@@ -141,8 +173,8 @@ public class StorageObjectAbortChainTests extends ESTestCase {
 
         InputStream stream = chain.newStream();
         assertArrayEquals(original, stream.readAllBytes());
-        // On JDK 23 to 26 GZIPInputStream probes for a next member while decoding, so that probe (not the release)
-        // hits the reset and the retry layer resumes during the read itself. Only what close() adds is the release's.
+        // The gzip decoder reads its input to -1 itself, so it hits the reset and the retry layer resumes during the
+        // read. Only what close() adds is the release's.
         int opensBeforeClose = raw.opens.get();
         long retriesBeforeClose = retryable.metrics().retryCount();
         stream.close();
@@ -401,6 +433,95 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         @Override
         public StorageObjectMetrics metrics() {
             return new StorageObjectMetrics(opens.get(), 0, 0, 0);
+        }
+    }
+
+    /** Serves {@code bytes} with {@code available() == 0} and bulk reads that never cross an entry of {@code boundaries}. */
+    private static final class NoAvailableAtBoundariesStorageObject extends AbstractTestStorageObject {
+        private final byte[] bytes;
+        private final int[] boundaries;
+        final AtomicInteger abortCalls = new AtomicInteger();
+        final AtomicBoolean endOfBodyReturned = new AtomicBoolean();
+        final AtomicBoolean endOfBodyBeforeAbort = new AtomicBoolean();
+
+        NoAvailableAtBoundariesStorageObject(byte[] bytes, int[] boundaries) {
+            this.bytes = bytes;
+            this.boundaries = boundaries;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new InputStream() {
+                private int pos = 0;
+
+                @Override
+                public int read() {
+                    byte[] one = new byte[1];
+                    int n = read(one, 0, 1);
+                    return n == -1 ? -1 : (one[0] & 0xFF);
+                }
+
+                @Override
+                public int read(byte[] b, int off, int len) {
+                    if (pos >= bytes.length) {
+                        endOfBodyReturned.set(true);
+                        return -1;
+                    }
+                    int limit = bytes.length;
+                    for (int boundary : boundaries) {
+                        if (boundary > pos) {
+                            limit = boundary;
+                            break;
+                        }
+                    }
+                    int n = Math.min(len, limit - pos);
+                    System.arraycopy(bytes, pos, b, off, n);
+                    pos += n;
+                    return n;
+                }
+
+                @Override
+                public int available() {
+                    return 0;
+                }
+            };
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void abortStream(InputStream stream) throws IOException {
+            endOfBodyBeforeAbort.set(endOfBodyReturned.get());
+            abortCalls.incrementAndGet();
+            stream.close();
+        }
+
+        @Override
+        public long length() {
+            return bytes.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("s3://bucket/multi-member.csv.gz");
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
         }
     }
 

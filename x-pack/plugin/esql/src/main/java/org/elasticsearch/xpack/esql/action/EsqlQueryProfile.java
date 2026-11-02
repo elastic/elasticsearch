@@ -40,6 +40,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     public static final String ANALYSIS = "analysis";
     public static final String SPLIT_DISCOVERY = "split_discovery_nanos";
     public static final String SPLIT_DISCOVERY_CPU = "split_discovery_cpu_nanos";
+    public static final String PLANNING_CPU = "planning_cpu_nanos";
     public static final String PLANNING_BYTES_READ = "planning_bytes_read";
     public static final String PLANNING_REQUESTS = "planning_requests";
     public static final String RESOLUTION_BYTES_READ = "external_resolution_bytes_read";
@@ -48,7 +49,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
 
     /** Time elapsed since start of query till the final result rendering */
     private final TimeSpanMarker totalMarker;
-    /** Time elapsed since start of query to calling ComputeService.execute */
+    /**
+     * Time elapsed from the start of the query to the end of logical planning (stopped in
+     * EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning, before physical planning and execution)
+     */
     private final TimeSpanMarker planningMarker;
     /** Time elapsed for query parsing */
     private final TimeSpanMarker parsingMarker;
@@ -77,6 +81,12 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private final AtomicLong splitDiscoveryNanos;
     /** CPU time (nanoseconds) spent discovering external splits; excludes IO wait. */
     private final AtomicLong splitDiscoveryCpuNanos;
+    /**
+     * Thread CPU time consumed by this query's planning code, summed over every thread that ran it. The CPU
+     * counterpart of {@link #planning()}, which is wall time and includes object-store, field caps, enrich and
+     * inference waits. Zero when thread CPU time is unsupported, or when read from a node that predates the field.
+     */
+    private final AtomicLong planningCpuNanos;
     /** Record-boundary probe GETs issued during split discovery. */
     private final AtomicInteger splitDiscoveryProbes;
     /** Physical bytes received during coordinator schema resolution and split-discovery probes. */
@@ -116,6 +126,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
     private static final TransportVersion ESQL_SPLIT_DISCOVERY_CPU_PROFILE = TransportVersion.fromName("esql_split_discovery_cpu_nanos");
     private static final TransportVersion ESQL_EXTERNAL_PLANNING_IO = TransportVersion.fromName("esql_external_planning_io");
     private static final TransportVersion ESQL_SPLIT_DISCOVERY_PROBES = TransportVersion.fromName("esql_split_discovery_probes");
+    // package-private for the BWC test
+    static final TransportVersion ESQL_PLANNING_CPU_NANOS = TransportVersion.fromName("esql_planning_cpu_nanos");
 
     public EsqlQueryProfile() {
         this(null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0L, UnmappedResolution.DEFAULT, 0, 0L, 0L);
@@ -263,7 +275,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             externalPlanningRequests,
             externalResolutionBytesRead,
             externalResolutionRequests,
-            0
+            0,
+            0L
         );
     }
 
@@ -291,7 +304,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         long externalPlanningRequests,
         long externalResolutionBytesRead,
         long externalResolutionRequests,
-        int splitDiscoveryProbes
+        int splitDiscoveryProbes,
+        long planningCpuNanos
     ) {
         this.totalMarker = new TimeSpanMarker(QUERY, true, query);
         this.planningMarker = new TimeSpanMarker(PLANNING, false, planning);
@@ -311,6 +325,7 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         this.externalWarmAggregates = new AtomicInteger(externalWarmAggregates);
         this.splitDiscoveryNanos = new AtomicLong(splitDiscoveryNanos);
         this.splitDiscoveryCpuNanos = new AtomicLong(splitDiscoveryCpuNanos);
+        this.planningCpuNanos = new AtomicLong(planningCpuNanos);
         this.splitDiscoveryProbes = new AtomicInteger(splitDiscoveryProbes);
         this.externalPlanningBytesRead = new AtomicLong(externalPlanningBytesRead);
         this.externalPlanningRequests = new AtomicLong(externalPlanningRequests);
@@ -387,6 +402,10 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROBES)) {
             splitDiscoveryProbes = in.readVInt();
         }
+        long planningCpuNanos = 0L;
+        if (in.getTransportVersion().supports(ESQL_PLANNING_CPU_NANOS)) {
+            planningCpuNanos = in.readVLong();
+        }
         return new EsqlQueryProfile(
             query,
             planning,
@@ -410,7 +429,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             externalPlanningRequests,
             externalResolutionBytesRead,
             externalResolutionRequests,
-            splitDiscoveryProbes
+            splitDiscoveryProbes,
+            planningCpuNanos
         );
     }
 
@@ -471,6 +491,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().supports(ESQL_SPLIT_DISCOVERY_PROBES)) {
             out.writeVInt(splitDiscoveryProbes.get());
         }
+        if (out.getTransportVersion().supports(ESQL_PLANNING_CPU_NANOS)) {
+            out.writeVLong(planningCpuNanos.get());
+        }
     }
 
     @Override
@@ -499,7 +522,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             && externalPlanningBytesRead.get() == that.externalPlanningBytesRead.get()
             && externalPlanningRequests.get() == that.externalPlanningRequests.get()
             && externalResolutionBytesRead.get() == that.externalResolutionBytesRead.get()
-            && externalResolutionRequests.get() == that.externalResolutionRequests.get();
+            && externalResolutionRequests.get() == that.externalResolutionRequests.get()
+            && planningCpuNanos.get() == that.planningCpuNanos.get();
     }
 
     @Override
@@ -527,7 +551,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             externalPlanningBytesRead.get(),
             externalPlanningRequests.get(),
             externalResolutionBytesRead.get(),
-            externalResolutionRequests.get()
+            externalResolutionRequests.get(),
+            planningCpuNanos.get()
         );
     }
 
@@ -580,6 +605,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
             + externalResolutionBytesRead.get()
             + ", externalResolutionRequests="
             + externalResolutionRequests.get()
+            + ", planningCpuNanos="
+            + planningCpuNanos.get()
             + '}';
     }
 
@@ -723,6 +750,19 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         splitDiscoveryCpuNanos.addAndGet(nanos);
     }
 
+    public long planningCpuNanos() {
+        return planningCpuNanos.get();
+    }
+
+    /**
+     * Records the query's planning CPU time (excludes IO wait), as {@link PlanningCpuTracker#finish()} froze it. A set
+     * rather than an add: the tracker already sums every planning thread, and a CCS query that planned and then fails
+     * over to an empty result reports the same frozen total a second time.
+     */
+    public void planningCpuNanos(long nanos) {
+        planningCpuNanos.set(nanos);
+    }
+
     public int splitDiscoveryProbes() {
         return splitDiscoveryProbes.get();
     }
@@ -833,6 +873,9 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         for (TimeSpanMarker timeSpanMarker : timeSpanMarkers()) {
             builder.field(timeSpanMarker.name(), timeSpanMarker.timeSpan());
         }
+        // Always emitted, like field_caps_calls: planning runs for every query, and a > 0 guard would make strict
+        // profile matchers flaky where thread CPU time is coarse or unsupported.
+        builder.field(PLANNING_CPU, planningCpuNanos.get());
         builder.field("field_caps_calls", fieldCapsCalls.get());
         // Only emit external scan accounting for queries that actually scanned an external source.
         // files_scanned and bytes_scanned are source-specific; omit them when the source cannot

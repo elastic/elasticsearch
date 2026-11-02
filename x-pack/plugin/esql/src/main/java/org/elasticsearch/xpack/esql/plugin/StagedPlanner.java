@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShuffleExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.StageSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.StageSourceExec;
@@ -282,7 +281,6 @@ final class StagedPlanner {
     private static Set<PhysicalPlan> ignoredPlans(PhysicalPlan plan) {
         Set<PhysicalPlan> ignored = Collections.newSetFromMap(new IdentityHashMap<>());
         plan.collect(LookupJoinExec.class).forEach(join -> ignored.add(join.right()));
-        plan.collect(RemoteFetchExec.class).forEach(remoteFetch -> ignored.add(remoteFetch.right()));
         return ignored;
     }
 

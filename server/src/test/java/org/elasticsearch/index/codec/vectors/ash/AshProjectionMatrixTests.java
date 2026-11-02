@@ -12,9 +12,13 @@ package org.elasticsearch.index.codec.vectors.ash;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  * Tests for {@link AshProjectionMatrix}.
@@ -42,6 +46,36 @@ public class AshProjectionMatrixTests extends ESTestCase {
         assertEquals(originalDim, restored.originalDim());
         assertEquals(nDims, restored.nDims());
         assertArrayEquals(wT, restored.wT(), 0f);
+    }
+
+    public void testProjectQueryApproximatesFloatProjection() {
+        int originalDim = randomIntBetween(64, 1024);
+        int nDims = randomIntBetween(32, originalDim);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
+        AshUtils.qrOrthogonalize(wT, originalDim, nDims);
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims, true);
+        float[] query = AshUtils.randomGaussians(random(), originalDim);
+
+        float[] expected = ESVectorUtil.matrixVectorMultiply(wT, nDims, originalDim, query);
+        float[] projected = pm.projectQuery(query);
+
+        double errorSq = 0;
+        double expectedSq = 0;
+        for (int j = 0; j < nDims; j++) {
+            errorSq += Math.pow(projected[j] - expected[j], 2);
+            expectedSq += Math.pow(expected[j], 2);
+        }
+        // int8 rounding of both the query and W^T, relative to the largest magnitude in each
+        assertThat(Math.sqrt(errorSq / expectedSq), lessThan(0.03));
+    }
+
+    public void testProjectZeroQuery() {
+        int originalDim = randomIntBetween(4, 100);
+        int nDims = randomIntBetween(2, originalDim);
+        float[] wT = AshUtils.randomGaussians(random(), originalDim * nDims);
+        AshProjectionMatrix pm = new AshProjectionMatrix(wT, originalDim, nDims, true);
+
+        assertThat(pm.projectQuery(new float[originalDim]), equalTo(new float[nDims]));
     }
 
     public void testByteSizeMatchesActualSerialized() throws IOException {

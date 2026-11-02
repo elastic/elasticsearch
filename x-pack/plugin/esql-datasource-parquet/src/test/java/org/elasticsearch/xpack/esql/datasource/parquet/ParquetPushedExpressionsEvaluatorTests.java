@@ -1765,7 +1765,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
      * When the predicate column is absent from the block map, a LIKE-family conjunct promoted to
      * {@code Pushability.YES} (dropped from FilterExec) must produce an empty survivor mask, not
      * the all-survive {@code null} sentinel. The column is null-filled above the reader under
-     * union_by_name, and no pattern matches null. See elastic/esql-planning#2052.
+    * union_by_name, and no pattern matches null.
      */
     public void testWildcardLikeWithMissingColumn() {
         Map<String, Block> blocks = new HashMap<>();
@@ -1885,7 +1885,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
     /**
      * A LIKE on a virtual column (e.g. _file.name) that has no block still yields the conservative
      * all-survive sentinel. Virtual columns are materialized downstream with real values; returning
-     * an empty mask would drop every row of the file. See elastic/esql-planning#2052 and #149393.
+    * an empty mask would drop every row of the file. See and #149393.
      */
     public void testLikeOnVirtualColumnWithNoBlockYieldsNull() {
         Map<String, Block> blocks = new HashMap<>();
@@ -2461,7 +2461,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         return out;
     }
 
-    // ---- Multivalue block tests (esql-planning#1070) ----
+    // ---- Multivalue block tests ----
 
     // Block layout for most MV int tests: pos0=[1,2] (MV), pos1=[3] (SV), pos2=null, pos3=[7,5] (MV)
 

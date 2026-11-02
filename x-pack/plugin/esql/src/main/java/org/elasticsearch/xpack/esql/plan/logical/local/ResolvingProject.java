@@ -81,8 +81,7 @@ public class ResolvingProject extends Project {
 
     /**
      * Runs the resolver against the child output, keeping any {@link UnmappedFieldsAttribute} instances out of the resolver's scope
-     * (so KEEP/DROP/RENAME patterns cannot match the synthetic column), then re-appending them at the end. Where the synthetic column
-     * sits is irrelevant: the response order comes from the replay in {@code UnmappedFieldsOrdering}, which strips it before resolving.
+     * (so KEEP/DROP/RENAME patterns cannot match the column), then re-appending them at the end.
      * <p>
      * At most one ever arrives. Every non-LOOKUP relation is stamped with one, so a multi-input plan starts out holding several, but
      * they all share {@link UnmappedFieldsAttribute#ATTRIBUTE_NAME}: nodes that merge their inputs collapse them by name, while
@@ -105,7 +104,7 @@ public class ResolvingProject extends Project {
         if (unmappedAttrs.isEmpty()) {
             return resolver.apply(childOutput);
         }
-        // See the javadoc for why one is all that can arrive; if that ever breaks, the post-processor's findIndex would use the first.
+        // See the javadoc for why one is all that can arrive; if that ever breaks, the response would hold several columns of that name.
         assert unmappedAttrs.size() <= 1 : "expected at most one " + UnmappedFieldsAttribute.ATTRIBUTE_NAME + ", got " + unmappedAttrs;
         List<? extends NamedExpression> resolved = resolver.apply(resolverInput);
         List<NamedExpression> result = new ArrayList<>(resolved.size() + unmappedAttrs.size());
@@ -126,6 +125,10 @@ public class ResolvingProject extends Project {
 
     public UnmappedFieldsPattern unmappedFieldsPattern() {
         return command.unmappedFieldsPattern();
+    }
+
+    public Kind kind() {
+        return command.kind();
     }
 
     /** Whether KEEP/DROP/RENAME would keep a field named {@code name} that is materialized only after this node was resolved. */
@@ -164,7 +167,7 @@ public class ResolvingProject extends Project {
     @Override
     public ResolvingProject replaceChild(LogicalPlan newChild) {
         ResolvingProject recomputed = new ResolvingProject(source(), newChild, command);
-        // LOAD_ALL stamps $$unmapped_fields. Convert synthetics must survive re-resolution of that KEEP/DROP.
+        // LOAD_ALL stamps _unmapped_fields. Convert synthetics must survive re-resolution of that KEEP/DROP.
         if (newChild.output().stream().anyMatch(a -> a instanceof UnmappedFieldsAttribute) == false) {
             return recomputed;
         }

@@ -59,7 +59,6 @@ public class VectorScorerInt4OperationBenchmark {
     private byte[] unpacked;
     private byte[] packed;
 
-    MemorySegment unpackedHeapSeg, packedHeapSeg;
     MemorySegment unpackedNativeSeg, packedNativeSeg;
 
     Arena arena;
@@ -73,9 +72,6 @@ public class VectorScorerInt4OperationBenchmark {
         randomInt4Bytes(ThreadLocalRandom.current(), unpacked);
         packed = packNibbles(unpacked);
         packedLen = packed.length;
-
-        unpackedHeapSeg = MemorySegment.ofArray(unpacked);
-        packedHeapSeg = MemorySegment.ofArray(packed);
 
         arena = Arena.ofConfined();
         unpackedNativeSeg = arena.allocate(unpacked.length);
@@ -101,12 +97,7 @@ public class VectorScorerInt4OperationBenchmark {
 
     @Benchmark
     public int nativeWithNativeSeg() {
-        return VEC_LIBRARY.dotProductI4(unpackedNativeSeg, packedNativeSeg, packedLen);
-    }
-
-    @Benchmark
-    public int nativeWithHeapSeg() {
-        return VEC_LIBRARY.dotProductI4(unpackedHeapSeg, packedHeapSeg, packedLen);
+        return VEC_LIBRARY.dotProductI4(packedNativeSeg, unpackedNativeSeg, packedLen);
     }
 
     static final SimdVecLibrary VEC_LIBRARY = SimdVecLibrary.instance().orElseThrow();

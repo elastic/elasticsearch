@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+
+import java.util.HashSet;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.logicalOptimizerContext;
@@ -35,28 +38,19 @@ public class TestPlannerOptimizer {
     private final Configuration config;
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
-        this(config, analyzer, new EsqlFlags(true));
-    }
-
-    public TestPlannerOptimizer(Configuration config, Analyzer analyzer, EsqlFlags flags) {
         this(
             config,
             analyzer,
-            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion())),
-            flags
+            new LogicalPlanOptimizer(logicalOptimizerContext(config, FoldContext.small(), analyzer.context().minimumVersion()))
         );
     }
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
-        this(config, analyzer, logicalOptimizer, new EsqlFlags(true));
-    }
-
-    public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer, EsqlFlags flags) {
         this.analyzer = analyzer;
         this.config = config;
         this.logicalOptimizer = logicalOptimizer;
 
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion(), flags));
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config, analyzer.context().minimumVersion()));
         mapper = new Mapper(config.pragmas());
 
     }
@@ -80,6 +74,15 @@ public class TestPlannerOptimizer {
 
     public PhysicalPlan plan(String query, SearchStats stats, EsqlFlags esqlFlags) {
         return optimizedPlan(physicalPlan(query, analyzer), stats, esqlFlags);
+    }
+
+    /**
+     * Plans the right side of the first {@code INLINE STATS}, which runs as its own plan before the main one.
+     */
+    public PhysicalPlan planFirstInlineSubPlan(String query, SearchStats stats, Analyzer analyzer) {
+        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
+        LogicalPlan subPlan = InlineJoin.firstSubPlan(logical, new HashSet<>()).stubReplacedSubPlan();
+        return optimizedPlan(mapper.map(new Versioned<>(subPlan, analyzer.context().minimumVersion())), stats);
     }
 
     /**

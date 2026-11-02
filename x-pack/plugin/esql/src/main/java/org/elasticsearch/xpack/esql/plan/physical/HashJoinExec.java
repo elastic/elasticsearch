@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -33,7 +32,6 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         "HashJoinExec",
         HashJoinExec::new
     );
-    private static final TransportVersion ESQL_LOOKUP_JOIN_SUBQUERY = Analyzer.ESQL_LOOKUP_JOIN_SUBQUERY;
     private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
 
     private final List<Attribute> leftFields;
@@ -78,12 +76,12 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
-        this.repeatedKeys = in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SUBQUERY) && in.readBoolean();
+        this.repeatedKeys = in.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) && in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (repeatedKeys && out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SUBQUERY) == false) {
+        if (repeatedKeys && out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
             throw new IllegalStateException("repeated-key hash join cannot be sent to a node without subquery join support");
         }
         super.writeTo(out);
@@ -93,7 +91,7 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);
-        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SUBQUERY)) {
+        if (out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION)) {
             out.writeBoolean(repeatedKeys);
         }
     }

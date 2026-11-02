@@ -12,12 +12,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataSourceReference;
+import org.elasticsearch.cluster.metadata.Dataset;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -28,6 +32,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -53,6 +58,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     private final ThreadPool threadPool;
     private ViewMetadata viewMetadata;
     private final List<String> indices = new ArrayList<>();
+    private final List<String> datasets = new ArrayList<>();
     /** Maps alias name → target index name for aliases added via {@link #addAlias}. */
     private final Map<String, String> aliasToIndex = new HashMap<>();
 
@@ -62,6 +68,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
         settings.add(MAX_VIEWS_COUNT_SETTING);
         settings.add(MAX_VIEW_LENGTH_SETTING);
         settings.add(MAX_VIEW_DEPTH_SETTING);
+        settings.add(EsqlFlags.ESQL_MAX_COMMAND_COUNT);
         ALL_SETTINGS = settings;
     }
 
@@ -74,12 +81,18 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     private static InMemoryViewService makeViewService(ThreadPool threadPool, Settings settings, ViewMetadata metadata) {
-        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, new ClusterSettings(settings, ALL_SETTINGS));
+        // The settings are also provided as node settings: ViewResolver reads Federation availability from them.
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            settings,
+            new ClusterSettings(settings, ALL_SETTINGS)
+        );
         return new InMemoryViewService(clusterService, threadPool, metadata);
     }
 
     private InMemoryViewService(ClusterService clusterService, ThreadPool threadPool, ViewMetadata metadata) {
-        super(clusterService, TEST_PARSER);
+        super(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onResponse(null));
         this.threadPool = threadPool;
         this.viewMetadata = metadata;
     }
@@ -134,6 +147,20 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     /**
+     * Registers a dataset named {@code name} in the cluster state. Only its presence matters for view resolution, so it points at
+     * a placeholder data source.
+     */
+    public void addDataset(ProjectId projectId, String name) {
+        var projectBuilder = ProjectMetadata.builder(projectId).putCustom(ViewMetadata.TYPE, viewMetadata);
+        datasets.add(name);
+        rebuildProjectMetadata(projectBuilder);
+        ClusterServiceUtils.setState(
+            clusterService,
+            new ClusterState.Builder(clusterService.state()).putProjectMetadata(projectBuilder).build()
+        );
+    }
+
+    /**
      * Adds an index alias {@code aliasName} pointing to {@code indexName} in the cluster state.
      * The target index must have been added via {@link #addIndex} before calling this.
      */
@@ -148,6 +175,13 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     private void rebuildProjectMetadata(ProjectMetadata.Builder projectBuilder) {
+        if (datasets.isEmpty() == false) {
+            Map<String, Dataset> datasetsByName = new HashMap<>();
+            datasets.forEach(
+                name -> datasetsByName.put(name, new Dataset(name, new DataSourceReference("test-data-source"), "*", null, Map.of()))
+            );
+            projectBuilder.putCustom(DatasetMetadata.TYPE, new DatasetMetadata(datasetsByName));
+        }
         indices.forEach(index -> {
             var builder = IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0));
             aliasToIndex.forEach((alias, targetIndex) -> {
@@ -196,14 +230,15 @@ public class InMemoryViewService extends ViewService implements Closeable {
     void clearAllViewsAndIndices() {
         viewMetadata = ViewMetadata.EMPTY;
         indices.clear();
+        datasets.clear();
         aliasToIndex.clear();
     }
 
     public InMemoryViewResolver getViewResolver() {
-        return new InMemoryViewResolver(clusterService, () -> viewMetadata, CrossProjectModeDecider.NOOP);
+        return new InMemoryViewResolver(threadPool, clusterService, () -> viewMetadata, CrossProjectModeDecider.NOOP);
     }
 
     public InMemoryViewResolver getViewResolver(CrossProjectModeDecider crossProjectModeDecider) {
-        return new InMemoryViewResolver(clusterService, () -> viewMetadata, crossProjectModeDecider);
+        return new InMemoryViewResolver(threadPool, clusterService, () -> viewMetadata, crossProjectModeDecider);
     }
 }

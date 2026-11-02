@@ -35,8 +35,6 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShuffleExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -183,10 +181,6 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
                 }
                 PhysicalPlan rewritten = join.replaceChildren(List.of(left.plan(), join.right()));
                 return new Result(rewritten, keepIfPresent(left.partitioning(), rewritten.output()));
-            }
-            if (node instanceof RemoteFetchExec remoteFetch) {
-                Result left = ensure(remoteFetch.left(), SingleRequirement.INSTANCE);
-                return new Result(remoteFetch.replaceChildren(left.plan(), remoteFetch.right()), SinglePartitioning.INSTANCE);
             }
             if (node instanceof LimitExec || node instanceof TopNExec) {
                 UnaryExec limit = (UnaryExec) node;
@@ -410,7 +404,6 @@ public final class EnsureDistribution extends ParameterizedRule<PhysicalPlan, Ph
             || plan instanceof MvExpandExec
             || plan instanceof RegexExtractExec
             || plan instanceof CompoundOutputEvalExec
-            || plan instanceof RemoteFetchBoundaryExec
             || plan instanceof SampleExec;
     }
 

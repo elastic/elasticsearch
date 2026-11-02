@@ -30,9 +30,11 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
@@ -43,6 +45,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,7 +69,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
@@ -81,7 +83,6 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
-import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -141,6 +142,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         PlanExecutor planExecutor,
         SearchService searchService,
         ExchangeService exchangeService,
+        ComputeExecutor computeExecutor,
         ClusterService clusterService,
         ViewResolver viewResolver,
         ProjectResolver projectResolver,
@@ -249,7 +251,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // deadlocks multi-file text reads — a full I/O pool of blocked parsers with no free thread to run the drain
         // that must consume them (see AsyncExternalSourceOperatorFactory + StreamingParallelParsingCoordinator).
         OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
-            threadPool.executor(EsqlPlugin.computePool()),
+            computeExecutor,
             externalBlobStoreExecutor()
         );
         this.computeService = new ComputeService(
@@ -257,10 +259,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             enrichLookupService,
             lookupFromIndexService,
             threadPool,
+            computeExecutor,
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
-            dataSourceModule.formatReaderRegistry()
+            dataSourceModule.formatReaderRegistry(),
+            client
         );
 
         this.activityLogger = new QueryLogger<>(
@@ -384,6 +388,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecuteWithLogging(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+        if (request.analyzeOnly()) {
+            ActionListener.run(EsqlFailureBounds.wrap(listener, request.query()), bounded -> innerExecute(task, request, bounded));
+            return;
+        }
         activityLogger.wrapAndRun(
             listener,
             new EsqlLogContextBuilder(task, request),
@@ -459,9 +467,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             externalSourceConcurrency(),
             ((CancellableTask) task)::isCancelled,
             ActionListener.wrap(result -> {
-                recordCCSTelemetry(task, executionInfo, request, null);
-                planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
-                collectMetrics(result.inner());
+                failIfCancelled(task, result.inner());
+                if (request.analyzeOnly() == false) {
+                    recordCCSTelemetry(task, executionInfo, request, null);
+                    planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
+                    collectMetrics(result.inner());
+                }
                 var response = toResponse(task, request, request.profile(), result);
                 assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
@@ -477,40 +488,41 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
                 listener.onResponse(response);
             }, ex -> {
-                recordCCSTelemetry(task, executionInfo, request, ex);
+                if (request.analyzeOnly() == false) {
+                    recordCCSTelemetry(task, executionInfo, request, ex);
+                }
                 listener.onFailure(ex);
             })
         );
 
     }
 
-    // Note: this gate differs from the by_outcome.success gate (PlanTelemetry.externalSource()). A
-    // query that prunes all splits (splitsScanned=0, externalWarmAggregates=0) counts as a success
-    // in by_outcome but does not trigger CPU recording — it consumed no external CPU.
+    // Gated on an external relation having been resolved in the analyzed plan (the same fact PlanExecutor uses for the
+    // by_outcome metrics), not on the scan counters: a query that scans nothing (LIMIT 0, every split pruned) still spent coordinator CPU
+    // on
+    // planning and split discovery, and must be metered.
     private boolean hasExternalSources(Result result) {
-        if (result.executionInfo() == null) {
-            return false;
-        }
-        var qp = result.executionInfo().queryProfile();
-        return qp != null && (qp.splitsScanned() > 0 || qp.externalWarmAggregates() > 0);
+        return result.executionInfo() != null && result.executionInfo().externalSource();
     }
 
     void collectMetrics(Result result) {
         if (hasExternalSources(result) == false) {
             return;
         }
-        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null,
-        // and completionInfo() / queryProfile() are plain getters.
+        // ci and qp are safe to fetch here: hasExternalSources() confirmed executionInfo() != null, and a successful
+        // query always goes through attachAdditionalData (which defaults completionInfo) and
+        // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning (which stops the planning span).
         var ci = result.completionInfo();
         var qp = result.executionInfo().queryProfile();
+        // Read once and shared by the APM/phone-home and billing paths so the two cannot report different CPU values.
+        long executionCpu = ci.cpuNanos();
+        long readCpu = ci.readCpuNanos();
+        long planningCpu = qp.planningCpuNanos();
+        long splitDiscoveryCpu = qp.splitDiscoveryCpuNanos();
         // APM and phone-home CPU recording — independent of the billing listener so that a failure
         // here never silently suppresses the billing call below.
         try {
-            // planning().timeSpan() is non-null by the time we reach the success path:
-            // EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning calls planning().stop() before execution starts.
-            planExecutor.dataSourceModule()
-                .externalSourceMetrics()
-                .recordQueryCpu(ci.cpuNanos(), ci.readCpuNanos(), qp.planning().timeSpan().durationInNanos(), qp.splitDiscoveryCpuNanos());
+            planExecutor.dataSourceModule().externalSourceMetrics().recordQueryCpu(executionCpu, readCpu, planningCpu, splitDiscoveryCpu);
         } catch (Exception ex) {
             logger.warn("failed to record query CPU metrics", ex);
         }
@@ -522,16 +534,20 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                     Map.of(
                         QueryMetricsListener.PLANNING_NANOS,
                         qp.planning().timeSpan().durationInNanos(),
+                        QueryMetricsListener.PLANNING_CPU_NANOS,
+                        planningCpu,
                         QueryMetricsListener.CPU_NANOS,
-                        ci.cpuNanos(),
+                        executionCpu,
+                        QueryMetricsListener.DRIVER_NANOS,
+                        ci.driverNanos(),
                         QueryMetricsListener.READ_NANOS,
                         ci.readNanos(),
                         QueryMetricsListener.READ_CPU_NANOS,
-                        ci.readCpuNanos(),
+                        readCpu,
                         QueryMetricsListener.SPLIT_DISCOVERY_NANOS,
                         qp.splitDiscoveryNanos(),
                         QueryMetricsListener.SPLIT_DISCOVERY_CPU_NANOS,
-                        qp.splitDiscoveryCpuNanos(),
+                        splitDiscoveryCpu,
                         QueryMetricsListener.BYTES_READ,
                         ci.bytesRead()
                     )
@@ -625,11 +641,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
     }
 
+    /** Releases the pages here because the caller's {@link ActionListener#wrap} swallows the throw before any release path sees it. */
+    static void failIfCancelled(Task task, Result result) {
+        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
+            Releasables.closeExpectNoException(result.pages());
+            throw new TaskCancelledException(cancellableTask.getReasonCancelled());
+        }
+    }
+
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, boolean profileEnabled, Versioned<Result> versionedResult) {
-        // Already expanded in EsqlSession, where the unmapped-fields ordering captured during analysis is in scope.
         var result = versionedResult.inner();
-        assert result.schema().stream().noneMatch(a -> a instanceof UnmappedFieldsAttribute)
-            : UnmappedFieldsAttribute.ATTRIBUTE_NAME + " reached the response unexpanded: " + Expressions.names(result.schema());
         // A lenient external read (e.g. a external_max_record_size truncation under a non-strict error_mode) returns fewer
         // records than the source held. Surface that as is_partial on the response — the structured counterpart of
         // the client Warning header — here at the single Result->response chokepoint, so every execution path
@@ -678,6 +699,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 result.completionInfo().readNanos(),
                 result.completionInfo().readCpuNanos(),
                 result.completionInfo().cpuNanos(),
+                result.completionInfo().driverNanos(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -700,6 +722,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             result.completionInfo().readNanos(),
             result.completionInfo().readCpuNanos(),
             result.completionInfo().cpuNanos(),
+            result.completionInfo().driverNanos(),
             profile,
             request.columnar(),
             null,

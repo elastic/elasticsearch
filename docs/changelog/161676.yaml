@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 161676
+summary: Bump Guava dependency
+type: upgrade

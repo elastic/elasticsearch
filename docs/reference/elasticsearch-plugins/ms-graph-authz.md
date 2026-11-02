@@ -3,6 +3,8 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/ms-graph-authz.html
 applies_to:
   stack: ga 9.1
+sub:
+  plugin-id: microsoft-graph-authz
 ---
 
 # Microsoft Graph Authz [ms-graph-authz]
@@ -15,33 +17,16 @@ size limit (see [Group overages](https://learn.microsoft.com/en-us/security/zero
 
 ## Installation [ms-graph-authz-install]
 
-If you're using a [self-managed Elasticsearch cluster](docs-content:///deploy-manage/deploy/self-managed.md), then this plugin can be installed using the plugin manager:
+:::{include} _snippets/plugin-installation.md
+:::
 
-```sh
-sudo bin/elasticsearch-plugin install microsoft-graph-authz
-```
-
-The plugin must be installed on every node in the cluster, and each node must be
-restarted after installation.
-
-You can download this plugin
-for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md)
-from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip).
-To verify the `.zip` file, use
-the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.sha512)
-or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/microsoft-graph-authz/microsoft-graph-authz-{{version.stack}}.zip.asc).
-
-For all other deployment types, refer to [plugin management](/reference/elasticsearch-plugins/plugin-management.md).
+:::{include} _snippets/plugin-deployment-types.md
+:::
 
 ## Removal [ms-graph-authz-remove]
 
-The plugin can be removed with the following command:
-
-```sh
-sudo bin/elasticsearch-plugin remove microsoft-graph-authz
-```
-
-The node must be stopped before removing the plugin.
+:::{include} _snippets/plugin-removal.md
+:::
 
 ## Configuration
 

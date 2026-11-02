@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.InferencePreferences;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
@@ -29,7 +27,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.InferenceRequestMetadata.Field.PRODUCT_USE_CASE;
 
 public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInferenceServiceRequest
     implements
@@ -62,8 +60,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
     }
 
     @Override
-    public HttpRequestBase createHttpRequestBase() {
-        var httpPost = new HttpPost(uri);
+    public SimpleHttpRequest createSimpleHttpRequest() {
+        var httpPost = SimpleRequestBuilder.post(uri).build();
         var usageContext = ElasticInferenceServiceUsageContext.fromInputType(inputType);
         var requestEntity = Strings.toString(
             new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
@@ -73,12 +71,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest extends ElasticInfer
             )
         );
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
-        httpPost.setEntity(byteEntity);
+        httpPost.setBody(requestEntity.getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
         traceContextHandler.propagateTraceContext(httpPost);
-        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
-        httpPost.setHeader(new BasicHeader(X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, usageContext.productUseCaseHeaderValue()));
+        httpPost.setHeader(new BasicHeader(PRODUCT_USE_CASE.httpHeader(), usageContext.productUseCaseHeaderValue()));
 
         return httpPost;
     }

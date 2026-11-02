@@ -39,7 +39,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     private final int estimatedRowSize;
 
     /**
-     * Coordinator-only flag: {@code true} when this fragment originates from a view branch inside a {@code ViewUnionAll}.
+     * Coordinator-only flag: {@code true} when this fragment originates from a view branch inside a {@code BranchPlan}.
      * View-branch fragments must NOT receive the raw DSL {@code request.filter()} as a Lucene query (via
      * {@code PlannerUtils.integrateEsFilterIntoFragment}), because the filter has already been applied as a logical
      * {@code Filter} above the view's output boundary. Pushing it into the Lucene scan would apply it before any

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -56,6 +57,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -65,8 +68,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
@@ -111,6 +116,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FILLNULL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
@@ -2176,6 +2182,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testQueryEmptyWithEval() {
+        try (EsqlQueryResponse resp = run("FROM none* | EVAL f1 = 1")) {
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("f1", "integer", null))));
+            assertFalse(resp.values().hasNext());
+        }
+    }
+
     public void testGroupingStatsOnMissingFields() {
         assumeTrue("Pragmas are only allowed in snapshots", Build.current().isSnapshot());
         assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));
@@ -2408,6 +2421,61 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testMaxFillNullFieldsSetting() {
+        assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 1));
+        try {
+            var e = expectThrows(VerificationException.class, () -> run("from test | fillnull 0 on *"));
+            assertThat(
+                e.getMessage(),
+                containsString("exceeding the limit of 1 set by the [esql.query.max_fillnull_fields] cluster setting")
+            );
+            try (EsqlQueryResponse results = run("from test | fillnull 0 on count | keep count | limit 1")) {
+                assertThat(results.columns(), hasSize(1));
+            }
+        } finally {
+            clearPersistentSettings(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS);
+        }
+    }
+
+    public void testMaxFillNullFieldsSettingWithView() {
+        assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
+        assumeTrue("Views require the capability to be enabled", VIEWS_IN_CLUSTER_STATE.isEnabled());
+        String viewName = "fillnull_view";
+        String query = "FROM " + viewName + " | FILLNULL 0 ON count, data";
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new View(viewName, "FROM test | FILLNULL 0 ON count, data")
+                )
+            )
+        );
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 3));
+            var e = expectThrows(VerificationException.class, () -> run(query));
+            assertThat(e.getMessage(), allOf(containsString("FILLNULL would fill 4 columns"), containsString("exceeding the limit of 3")));
+
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 4));
+            try (EsqlQueryResponse results = run(query + " | KEEP count, data | LIMIT 1")) {
+                assertThat(results.columns(), hasSize(2));
+            }
+        } finally {
+            try {
+                clearPersistentSettings(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS);
+            } finally {
+                assertAcked(
+                    client().execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+                    )
+                );
+            }
         }
     }
 
@@ -3358,6 +3426,54 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat("First executed subplan should be the MAX aggregation", subplan0Logical, containsString("MAX"));
             assertNotNull("subplan-1 logicalPlan row should be present", subplan1Logical);
             assertThat("Second executed subplan should be the SUM aggregation", subplan1Logical, containsString("SUM"));
+        }
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.session.EsqlSession:DEBUG",
+        reason = "asserts the size of sub-plan results is logged"
+    )
+    public void testInlineStatsLogsSubPlanResultsSize() {
+        assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
+        assertSubPlanResultsSizeLogged(
+            "FROM test | INLINE STATS m = MAX(data) BY color | INLINE STATS s = SUM(count) BY color",
+            Map.of("MAX(data)", 3, "SUM(count)", 3)
+        );
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.session.EsqlSession:DEBUG",
+        reason = "asserts the size of sub-plan results is logged"
+    )
+    public void testInSubqueryLogsSubPlanResultsSize() {
+        assumeTrue("IN subquery requires the capability to be enabled", WHERE_IN_SUBQUERY.isEnabled());
+        assertSubPlanResultsSizeLogged(
+            "FROM test | WHERE count IN (FROM test | WHERE color == \"red\" | KEEP count)"
+                + " | WHERE data NOT IN (FROM test | WHERE color == \"green\" | KEEP data)",
+            Map.of("KEEP count", 20, "KEEP data", 10)
+        );
+    }
+
+    private void assertSubPlanResultsSizeLogged(String query, Map<String, Integer> rowsBySubPlan) {
+        try (var mockLog = MockLog.capture(EsqlSession.class)) {
+            rowsBySubPlan.forEach(
+                (subPlan, rows) -> mockLog.addExpectation(
+                    new MockLog.PatternSeenEventExpectation(
+                        subPlan,
+                        EsqlSession.class.getName(),
+                        Level.DEBUG,
+                        "Sub-plan results for \\[.*"
+                            + Pattern.quote(subPlan)
+                            + ".*\\]: \\["
+                            + rows
+                            + "\\] rows, \\[[\\d.]+[kmg]?b\\] of the \\[[\\d.]+[kmg]?b\\] allowed by "
+                            + "\\[esql\\.intermediate_local_relation_max_size\\]"
+                    )
+                )
+            );
+            try (EsqlQueryResponse ignored = run(query)) {
+                mockLog.assertAllExpectationsMatched();
+            }
         }
     }
 

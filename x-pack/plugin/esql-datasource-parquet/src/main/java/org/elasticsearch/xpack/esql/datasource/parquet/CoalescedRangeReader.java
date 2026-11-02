@@ -185,6 +185,41 @@ final class CoalescedRangeReader {
             admitHold,
             footerBytes,
             admitHold != null ? ParquetIoWatermark.ByteGate.GROUP_HOLD : ParquetIoWatermark.ByteGate.UNGATED,
+            false,
+            executor,
+            listener
+        );
+    }
+
+    /**
+     * As {@link #readCoalesced(StorageObject, List, long, CircuitBreaker, ParquetIoWatermark,
+     * ParquetIoWatermark.AdmitHold, FooterByteCache, Executor, ActionListener)}. When
+     * {@code boundWasteToUseful} is true, two ranges merge only if the gap is at most the
+     * remaining waste budget (useful bytes minus holes already merged, and at most
+     * {@code maxCoalesceGap}).
+     */
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes,
+        boolean boundWasteToUseful,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
+        return readCoalesced(
+            storageObject,
+            ranges,
+            maxCoalesceGap,
+            breaker,
+            ioWatermark,
+            admitHold,
+            footerBytes,
+            admitHold != null ? ParquetIoWatermark.ByteGate.GROUP_HOLD : ParquetIoWatermark.ByteGate.UNGATED,
+            boundWasteToUseful,
             executor,
             listener
         );
@@ -202,12 +237,40 @@ final class CoalescedRangeReader {
         Executor executor,
         ActionListener<CoalescedRangeResult> listener
     ) {
+        return readCoalesced(
+            storageObject,
+            ranges,
+            maxCoalesceGap,
+            breaker,
+            ioWatermark,
+            admitHold,
+            footerBytes,
+            byteGate,
+            false,
+            executor,
+            listener
+        );
+    }
+
+    static Releasable readCoalesced(
+        StorageObject storageObject,
+        List<ByteRange> ranges,
+        long maxCoalesceGap,
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark ioWatermark,
+        @Nullable ParquetIoWatermark.AdmitHold admitHold,
+        @Nullable FooterByteCache footerBytes,
+        ParquetIoWatermark.ByteGate byteGate,
+        boolean boundWasteToUseful,
+        Executor executor,
+        ActionListener<CoalescedRangeResult> listener
+    ) {
         if (ranges.isEmpty()) {
             listener.onResponse(new CoalescedRangeResult(Map.of(), () -> {}));
             return () -> {};
         }
 
-        List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap);
+        List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap, boundWasteToUseful);
 
         Map<ByteRange, ByteBuffer> results = new HashMap<>(ranges.size());
         // One DirectReadBuffer per successful merged-range read. Mutated only under the same
@@ -393,7 +456,7 @@ final class CoalescedRangeReader {
             return new CoalescedRangeResult(Map.of(), () -> {});
         }
 
-        List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap);
+        List<MergedRange> merged = mergeRanges(ranges, maxCoalesceGap, false);
         for (MergedRange mr : merged) {
             if (mr.length() > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("merged range length must fit in an int for synchronous reads, got: " + mr.length());
@@ -501,23 +564,24 @@ final class CoalescedRangeReader {
         AtomicReference<NodeByteBudget.Hold> granted = new AtomicReference<>();
         BooleanSupplier cancel = composeCancel(abandoned, lease);
         PlainActionFuture<NodeByteBudget.Hold> future = new PlainActionFuture<>();
-        budget.admitAsync(unitBytes, lease, cancel, Runnable::run).addListener(ActionListener.wrap(grantedHold -> {
-            if (abandoned.get()) {
-                grantedHold.close();
-                return;
-            }
-            granted.set(grantedHold);
-            if (abandoned.get()) {
-                grantedHold.close();
-                return;
-            }
-            future.onResponse(grantedHold);
-        }, e -> {
-            if (abandoned.get()) {
-                return;
-            }
-            future.onFailure(e);
-        }));
+        budget.admitAsync(unitBytes, lease, cancel, Runnable::run, NodeByteBudget.UntrackedWait.PER_GET)
+            .addListener(ActionListener.wrap(grantedHold -> {
+                if (abandoned.get()) {
+                    grantedHold.close();
+                    return;
+                }
+                granted.set(grantedHold);
+                if (abandoned.get()) {
+                    grantedHold.close();
+                    return;
+                }
+                future.onResponse(grantedHold);
+            }, e -> {
+                if (abandoned.get()) {
+                    return;
+                }
+                future.onFailure(e);
+            }));
         try {
             return future.actionGet();
         } catch (RuntimeException e) {
@@ -585,51 +649,54 @@ final class CoalescedRangeReader {
                 );
                 return;
             }
-            ioWatermark.nodeByteBudget().admitAsync(unitBytes, lease, cancel, executor).addListener(ActionListener.wrap(hold -> {
-                if (cancel.getAsBoolean()) {
-                    hold.close();
-                    failUnissuedGets(
-                        gets,
-                        remaining,
-                        firstFailure,
-                        buffers,
-                        results,
-                        listener,
-                        unitHold,
-                        scope,
-                        NodeByteBudget.cancelled()
-                    );
-                    return;
-                }
-                try {
-                    StorageRetryCancellation.runWithCancellation(cancel, () -> {
-                        try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, countGets)) {
-                            unitHold.set(ioWatermark.wrap(hold));
-                            issueGets(
-                                storageObject,
-                                gets,
-                                ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold.get()),
-                                executor,
-                                results,
-                                buffers,
-                                inflight,
-                                remaining,
-                                firstFailure,
-                                listener,
-                                unitHold,
-                                scope
-                            );
-                        }
-                    });
-                } catch (Exception e) {
-                    hold.close();
+            // Test-only ByteGate.PER_GET unit ticket. UntrackedWait.PER_GET lets this wait after a forceAdd.
+            ioWatermark.nodeByteBudget()
+                .admitAsync(unitBytes, lease, cancel, executor, NodeByteBudget.UntrackedWait.PER_GET)
+                .addListener(ActionListener.wrap(hold -> {
+                    if (cancel.getAsBoolean()) {
+                        hold.close();
+                        failUnissuedGets(
+                            gets,
+                            remaining,
+                            firstFailure,
+                            buffers,
+                            results,
+                            listener,
+                            unitHold,
+                            scope,
+                            NodeByteBudget.cancelled()
+                        );
+                        return;
+                    }
+                    try {
+                        StorageRetryCancellation.runWithCancellation(cancel, () -> {
+                            try (StorageIoAffinity.Scope ignored = StorageIoAffinity.open(lease, countGets)) {
+                                unitHold.set(ioWatermark.wrap(hold));
+                                issueGets(
+                                    storageObject,
+                                    gets,
+                                    ParquetIoWatermark.bufferFactory(breaker, ioWatermark, unitHold.get()),
+                                    executor,
+                                    results,
+                                    buffers,
+                                    inflight,
+                                    remaining,
+                                    firstFailure,
+                                    listener,
+                                    unitHold,
+                                    scope
+                                );
+                            }
+                        });
+                    } catch (Exception e) {
+                        hold.close();
+                        recordFailure(firstFailure, e, inflight);
+                        failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, null);
+                    }
+                }, e -> {
                     recordFailure(firstFailure, e, inflight);
                     failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, null);
-                }
-            }, e -> {
-                recordFailure(firstFailure, e, inflight);
-                failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, null);
-            }));
+                }));
         } catch (Exception e) {
             failUnissuedGets(gets, remaining, firstFailure, buffers, results, listener, unitHold, scope, e);
         }
@@ -832,6 +899,9 @@ final class CoalescedRangeReader {
             logger.debug("footer cache lookup skipped", e);
             return null;
         }
+        if (key == null) {
+            return null;
+        }
         byte[] cached = footerBytes.get(key);
         if (cached == null || cached.length == 0) {
             return null;
@@ -879,6 +949,16 @@ final class CoalescedRangeReader {
      * Constituents are never split, so one constituent may exceed the cap.
      */
     static List<MergedRange> mergeRanges(List<ByteRange> ranges, long maxCoalesceGap) {
+        return mergeRanges(ranges, maxCoalesceGap, false);
+    }
+
+    /**
+     * As {@link #mergeRanges(List, long)}. When {@code boundWasteToUseful} is true, two ranges
+     * merge only if the gap is at most the remaining waste budget (unique useful bytes minus
+     * holes already in the merged range, and at most {@code maxCoalesceGap}), so wasted bytes
+     * stay at most the useful bytes. Overlapping constituents count once.
+     */
+    static List<MergedRange> mergeRanges(List<ByteRange> ranges, long maxCoalesceGap, boolean boundWasteToUseful) {
         if (ranges.size() == 1) {
             return List.of(new MergedRange(ranges.getFirst().offset, ranges.getFirst().length, List.of(ranges.getFirst())));
         }
@@ -889,19 +969,30 @@ final class CoalescedRangeReader {
         List<MergedRange> result = new ArrayList<>();
         long groupStart = sorted.getFirst().offset;
         long groupEnd = sorted.getFirst().end();
+        long usefulBytes = sorted.getFirst().length;
         List<ByteRange> constituents = new ArrayList<>();
         constituents.add(sorted.getFirst());
 
         for (int i = 1; i < sorted.size(); i++) {
             ByteRange current = sorted.get(i);
+            long prevEnd = groupEnd;
             long mergedEnd = Math.max(groupEnd, current.end());
-            if (current.offset - groupEnd <= maxCoalesceGap && mergedEnd - groupStart <= MAX_MERGED_RANGE_BYTES) {
+            long gap = current.offset - groupEnd;
+            // Remaining waste budget: useful so far minus holes already in the group.
+            // Capping at usefulBytes itself would admit a 1+2+...+(n-1) chain.
+            long wasteBytes = (groupEnd - groupStart) - usefulBytes;
+            long remainingWaste = Math.max(0L, usefulBytes - wasteBytes);
+            long allowedGap = boundWasteToUseful ? Math.min(maxCoalesceGap, remainingWaste) : maxCoalesceGap;
+            if (gap <= allowedGap && mergedEnd - groupStart <= MAX_MERGED_RANGE_BYTES) {
                 groupEnd = mergedEnd;
+                // Overlaps must not inflate usefulBytes: two [0,100)+[50,150) cover 150, not 200.
+                usefulBytes += gap < 0 ? Math.max(0L, current.end() - prevEnd) : current.length;
                 constituents.add(current);
             } else {
                 result.add(new MergedRange(groupStart, groupEnd - groupStart, List.copyOf(constituents)));
                 groupStart = current.offset;
                 groupEnd = current.end();
+                usefulBytes = current.length;
                 constituents.clear();
                 constituents.add(current);
             }

@@ -983,8 +983,11 @@ d:date_nanos
 
 attempt to cast nulls to date nanos
 required_capability: to_date_nanos
+required_capability: warn_null_misuse
 
 ROW a = TO_DATE_NANOS(null), b = TO_DATE_NANOS(null + 1::long), c = TO_DATE_NANOS(CONCAT("2024", null));
+warning:Line 1:48: Expression [null + 1::long] always evaluates to NULL.
+warning:Line 1:83: Expression [CONCAT(\"2024\", null)] always evaluates to NULL.
 
 a:date_nanos | b:date_nanos | c:date_nanos
 null         | null         | null
@@ -1346,9 +1349,12 @@ dt:date_nanos                  | plus:date_nanos
 
 datePlusNull
 required_capability: date_nanos_add_subtract
+required_capability: warn_null_misuse
 
 row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
 | eval plus_post = dt + null, plus_pre = null + dt;
+warning:Line 2:20: Expression [dt + null] always evaluates to NULL.
+warning:Line 2:42: Expression [null + dt] always evaluates to NULL.
 
 dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
 2100-01-01T01:01:01.001123456Z | null                 | null
@@ -1356,9 +1362,12 @@ dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
 
 datePlusNullAndDuration
 required_capability: date_nanos_add_subtract
+required_capability: warn_null_misuse
 
 row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
 | eval plus_post = dt + null + 1 hour, plus_pre = 1 second + null + dt;
+warning:Line 2:20: Expression [dt + null] always evaluates to NULL.
+warning:Line 2:51: Expression [1 second + null] always evaluates to NULL.
 
 dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
 2100-01-01T01:01:01.001123456Z | null                 | null
@@ -1366,9 +1375,12 @@ dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
 
 datePlusNullAndPeriod
 required_capability: date_nanos_add_subtract
+required_capability: warn_null_misuse
 
 row dt = to_date_nanos("2100-01-01T01:01:01.001123456Z")
 | eval plus_post = dt + null + 2 years, plus_pre = 3 weeks + null + dt;
+warning:Line 2:20: Expression [dt + null] always evaluates to NULL.
+warning:Line 2:52: Expression [3 weeks + null] always evaluates to NULL.
 
 dt:date_nanos                  | plus_post:date_nanos | plus_pre:date_nanos
 2100-01-01T01:01:01.001123456Z | null                 | null
@@ -1454,10 +1466,12 @@ then:date_nanos
 
 dateMinusNull
 required_capability: date_nanos_add_subtract
+required_capability: warn_null_misuse
 
 row dt = to_date_nanos("2053-04-04T04:03:02.001123456Z")
 | eval minus = dt - null
 ;
+warning:Line 2:16: Expression [dt - null] always evaluates to NULL.
 
 dt:date_nanos                  | minus:date_nanos
 2053-04-04T04:03:02.001123456Z | null
@@ -1465,10 +1479,12 @@ dt:date_nanos                  | minus:date_nanos
 
 dateMinusNullAndPeriod
 required_capability: date_nanos_add_subtract
+required_capability: warn_null_misuse
 
 row dt = to_date_nanos("2053-04-04T04:03:02.001123456Z")
 | eval minus = dt - null - 4 minutes
 ;
+warning:Line 2:16: Expression [dt - null] always evaluates to NULL.
 
 dt:date_nanos                  | minus:date_nanos
 2053-04-04T04:03:02.001123456Z | null
@@ -1476,10 +1492,12 @@ dt:date_nanos                  | minus:date_nanos
 
 dateMinusNullAndDuration
 required_capability: date_nanos_add_subtract
+required_capability: warn_null_misuse
 
 row dt = to_date_nanos("2053-04-04T04:03:02.001123456Z")
 | eval minus = dt - 6 days - null
 ;
+warning:Line 2:16: Expression [dt - 6 days - null] always evaluates to NULL.
 
 dt:date_nanos                  | minus:date_nanos
 2053-04-04T04:03:02.001123456Z | null

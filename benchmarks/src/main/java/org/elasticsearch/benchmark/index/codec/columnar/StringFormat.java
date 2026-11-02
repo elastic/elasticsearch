@@ -453,7 +453,11 @@ public enum StringFormat {
 
         @Override
         public long queryTerm(BytesRef term) throws IOException {
-            return bulkCount(searcher, directoryReader.leaves().get(0), ColumnarStringTermQuery.term(FIELD, term, ScanBudget.UNLIMITED));
+            return bulkCount(
+                searcher,
+                directoryReader.leaves().get(0),
+                ColumnarStringTermQuery.term(FIELD, term, false, ScanBudget.UNLIMITED)
+            );
         }
 
         @Override
@@ -467,13 +471,17 @@ public enum StringFormat {
             return bulkCount(
                 searcher,
                 directoryReader.leaves().get(0),
-                ColumnarStringTermQuery.prefix(FIELD, prefix, ScanBudget.UNLIMITED)
+                ColumnarStringTermQuery.prefix(FIELD, prefix, false, ScanBudget.UNLIMITED)
             );
         }
 
         @Override
         public long queryTerms(NavigableSet<BytesRef> terms) throws IOException {
-            return bulkCount(searcher, directoryReader.leaves().get(0), new ColumnarStringAnyOfQuery(FIELD, terms, ScanBudget.UNLIMITED));
+            return bulkCount(
+                searcher,
+                directoryReader.leaves().get(0),
+                new ColumnarStringAnyOfQuery(FIELD, terms, false, ScanBudget.UNLIMITED)
+            );
         }
 
         @Override
@@ -481,7 +489,7 @@ public enum StringFormat {
             return bulkCount(
                 searcher,
                 directoryReader.leaves().get(0),
-                new ColumnarStringRangeQuery(FIELD, lower, true, upper, true, ScanBudget.UNLIMITED)
+                new ColumnarStringRangeQuery(FIELD, lower, true, upper, true, false, ScanBudget.UNLIMITED)
             );
         }
 

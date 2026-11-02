@@ -40,6 +40,7 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -80,7 +81,8 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     ) {
         // NOTE: query the downsampling target index so that we can start the downsampling task from the latest indexed tsid.
         final SearchRequest searchRequest = new SearchRequest(params.downsampleIndex());
-        searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1);
+        // _tsid is not part of the metadata returned with a hit by default, it has to be requested explicitly.
+        searchRequest.source().sort(TimeSeriesIdFieldMapper.NAME, SortOrder.DESC).size(1).fetchField(TimeSeriesIdFieldMapper.NAME);
         searchRequest.preference("_shards:" + params.shardId().id());
         client.search(searchRequest, ActionListener.wrap(searchResponse -> {
             delegate(task, params, extractTsId(searchResponse.getHits().getHits()));
@@ -92,8 +94,9 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             return null;
         } else {
             var searchHit = Arrays.stream(lastDownsampleTsidHits).findFirst().get();
-            var field = searchHit.field("_tsid");
-            return field != null ? field.getValue() : null;
+            var field = searchHit.field(TimeSeriesIdFieldMapper.NAME);
+            // The fetched value is the formatted representation of the tsid, decode it back to the raw bytes used by the query.
+            return field != null ? DocValueFormat.TIME_SERIES_ID.parseBytesRef(field.getValue()) : null;
         }
     }
 

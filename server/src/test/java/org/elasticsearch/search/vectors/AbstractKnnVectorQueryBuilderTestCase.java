@@ -609,6 +609,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertEquals(bwcQuery.hashCode(), deserializedQuery.hashCode());
     }
 
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/162295">#162295</a>: sibling knn queries wrapped in another query
+     * type in a bool must clause make each knn consume the other as a prefilter. The wrapped prefilter query prevents the recursion break
+     * in {@code applyAutoPrefilteringIfEnabled} from functioning, leading to infinite recursion on the knn query used as a prefilter.
+     */
+    public void testAutoPrefilteringWithWrappedKnnSiblingsInMustDoesNotRecurse() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        KnnVectorQueryBuilder knnA = createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 10, null, null, null).setAutoPrefilteringEnabled(true);
+        KnnVectorQueryBuilder knnB = createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 10, null, null, null).setAutoPrefilteringEnabled(true);
+        BoolQueryBuilder bool = QueryBuilders.boolQuery()
+            .must(QueryBuilders.constantScoreQuery(knnA))
+            .must(QueryBuilders.constantScoreQuery(knnB));
+        assertNotNull(bool.toQuery(context));
+    }
+
     public void testRewriteForInnerHits() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
         InnerHitsRewriteContext innerHitsRewriteContext = new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis);

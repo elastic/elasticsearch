@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 
 import java.util.List;
 import java.util.Map;
@@ -113,7 +114,7 @@ public class AnalyzerLookupJoinSubqueryTests extends AnalyzerTestCase {
     }
 
     public void testExecutionModeUsesRemoteScopeAndMinimumTransportVersion() {
-        TransportVersion subqueryVersion = Analyzer.ESQL_LOOKUP_JOIN_SUBQUERY;
+        TransportVersion subqueryVersion = ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION;
         TransportVersion olderVersion = TransportVersionUtils.getPreviousVersion(subqueryVersion);
         EsRelation local = relation(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         EsRelation remote = relation("remote");

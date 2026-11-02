@@ -95,30 +95,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    @Deprecated
-    public GetResult get(
-        String id,
-        String[] gFields,
-        boolean realtime,
-        long version,
-        VersionType versionType,
-        FetchSourceContext fetchSourceContext,
-        boolean forceSyntheticSource
-    ) throws IOException {
-        return get(
-            id,
-            null,
-            gFields,
-            realtime,
-            version,
-            versionType,
-            fetchSourceContext,
-            forceSyntheticSource,
-            SplitShardCountSummary.UNSET,
-            false
-        );
-    }
-
     public GetResult get(
         String id,
         String routing,

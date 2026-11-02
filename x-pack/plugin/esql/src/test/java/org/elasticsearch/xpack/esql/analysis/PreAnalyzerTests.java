@@ -215,6 +215,16 @@ public class PreAnalyzerTests extends ESTestCase {
         assertNeedsAnalyzerGroups("FROM books | WHERE MATCH(title, \"ring\")", false);
     }
 
+    /** One index pattern cannot be resolved as both a standard and a time-series index, whichever source comes first. */
+    public void testSameIndexPatternWithDifferentIndexModesFails() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        expectThrows(
+            EsqlIllegalArgumentException.class,
+            containsString("Index pattern [p] is referenced with multiple index modes"),
+            () -> new PreAnalyzer().preAnalyze(TEST_PARSER.parseQuery(randomFrom("FROM (FROM p), (TS p)", "FROM (TS p), (FROM p)")))
+        );
+    }
+
     private static void assertNeedsAnalyzerGroups(String query, boolean expected) {
         assertThat(new PreAnalyzer().preAnalyze(TEST_PARSER.parseQuery(query)).needsAnalyzerGroups(), equalTo(expected));
     }

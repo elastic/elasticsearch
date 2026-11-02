@@ -33,9 +33,11 @@ tasks.withType(Test).configureEach {
   it.systemProperty "tests.multi_project.enabled", true
 }
 
+// Captured at configuration time: the configuration cache detaches onlyIf closures from the build script.
+def isSnapshotBuild = buildParams.snapshotBuild
 // Exclude multi-project tests from release build
 tasks.named { it == "javaRestTest" || it == "yamlRestTest" }.configureEach {
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  it.onlyIf("snapshot build") { isSnapshotBuild }
 }
 
 restResources {

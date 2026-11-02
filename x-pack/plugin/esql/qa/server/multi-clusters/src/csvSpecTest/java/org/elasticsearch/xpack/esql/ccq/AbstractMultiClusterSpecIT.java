@@ -61,6 +61,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOK
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_INFO_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ML_ANOMALIES;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.NAMED_SUBQUERY_LET;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
@@ -146,6 +148,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "statsAndLookupMessageFromIndex",
         "mvJoinKeyOnTheLookupIndexAfterStats",
         "mvJoinKeyOnFromAfterStats",
+        "lookupBlocksAfterStatsWithRenamesAndLimit",
         // Lookup join after SORT is not supported in CCS yet
         "nullifiedJoinKeyToPurgeTheJoin",
         "sortBeforeAndAfterJoin",
@@ -164,6 +167,9 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         "inSubqueryWithInSubqueryInsideFromSubqueryWithLookupJoin",
         // Lookup join after INLINE STATS (coordinator-only) is not supported in CCS yet
         "Inline stats by and lookup join",
+        "lookupBlocksAroundInlineStats",
+        "aggFilter_NoGroupMatches_ThenLookupJoin_PastInlineJoin",
+        "aggFilter_ThenLookupJoin_PastInlineJoin",
         // Lookup join after STATS (coordinator-only) is not supported in CCS yet
         "Lookup join after stats by",
         // The second LOOKUP JOIN (after STATS) is not supported in CCS yet.
@@ -283,6 +289,7 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
+        assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(ML_ANOMALIES.capabilityName()));
 
         assumeFalse(
             "Dense vector equality is not supported in CCS unless all nodes support it",
@@ -457,7 +464,8 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
         }
         if (testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
             || testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITH_VIEW.capabilityName())
-            || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())) {
+            || testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+            || testCase.requiredCapabilities.contains(NAMED_SUBQUERY_LET.capabilityName())) {
             return convertSubqueryToRemoteIndices(testCase);
         }
         String query = testCase.query;
@@ -481,11 +489,6 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
                 return "1:" + newPosition;
             }));
         }
-        // To make warnings optional for some version, uncomment this. Tests might also
-        // need changing, but that's fine.
-        // if (Clusters.bwcVersion().before(Version.V_9_6_0)) {
-        // testCase.makeWarningsOptional();
-        // }
         return testCase;
     }
 
@@ -531,6 +534,15 @@ public abstract class AbstractMultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsSourceFieldMapping() {
         return false;
+    }
+
+    /**
+     * The local cluster coordinates and the remote cluster runs the part of the query that reads its indices,
+     * so an older cluster on either side can drop warnings.
+     */
+    @Override
+    protected boolean mayDropWarnings() {
+        return versionMayDropWarnings(Clusters.bwcVersion());
     }
 
     @Override

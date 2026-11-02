@@ -127,7 +127,7 @@ count:long
 ;
 
 // =========================================================================================
-// UNION_BY_NAME × cross-file type drift — KEYWORD fallback end-to-end (issue esql-planning#794).
+// UNION_BY_NAME × cross-file type drift — KEYWORD fallback end-to-end (issue ).
 //
 // Two fixture files under iceberg-fixtures/multifile_type_drift/:
 //   multifile_type_drift_a.csv — untyped header [id, col, note]; sampler infers col:INTEGER

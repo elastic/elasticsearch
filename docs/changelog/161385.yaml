@@ -1,0 +1,7 @@
+area: ES|QL
+issues:
+ - 160257
+ - 160843
+pr: 161385
+summary: Metrics on resolved settings
+type: feature

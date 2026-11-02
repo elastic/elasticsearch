@@ -16,8 +16,7 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
+import org.elasticsearch.xpack.logsdb.LogsDBLocalStateXPackPlugin;
 
 import java.util.Collection;
 import java.util.List;
@@ -34,7 +33,7 @@ public class PatternTextFieldCapsTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MapperExtrasPlugin.class, XPackPlugin.class, LogsDBPlugin.class);
+        return List.of(MapperExtrasPlugin.class, LogsDBLocalStateXPackPlugin.class);
     }
 
     /**

@@ -11,15 +11,18 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceUsageAccumulator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -60,6 +63,31 @@ public final class QueryFailureTelemetry {
         } catch (RuntimeException e) {
             logger.debug("telemetry: failed to classify a query failure", e);
             return new Failure(DataSourceUsageAccumulator.ERROR_TYPE_OTHER, String.valueOf(RestStatus.INTERNAL_SERVER_ERROR.getStatus()));
+        }
+    }
+
+    /**
+     * The HTTP status the object store returned for a failed storage read, as an attribute value, or {@code null} when none
+     * applies. The value is a closed set: only the codes a storage read is retried on ({@link
+     * ExternalUnavailableException#isRetryableStatus}: 429, 500, 502, 503 and 504) are published. Any other code, such as a 403
+     * or a 404, is omitted, as is a failure that was not an HTTP response (a socket timeout, for example). Unlike
+     * {@link #classify}, this is the store's status, not the status the REST layer reports for the failure. It never throws: it
+     * runs on the storage give-up path, ahead of the failure reaching the caller.
+     */
+    @Nullable
+    public static String storeStatus(Throwable failure) {
+        try {
+            ExternalException external = (ExternalException) ExceptionsHelper.unwrap(failure, ExternalException.class);
+            if (external == null) {
+                return null;
+            }
+            OptionalInt status = external.storeHttpStatus();
+            return status.isPresent() && ExternalUnavailableException.isRetryableStatus(status.getAsInt())
+                ? String.valueOf(status.getAsInt())
+                : null;
+        } catch (RuntimeException e) {
+            logger.debug("telemetry: failed to read the store status of a storage failure", e);
+            return null;
         }
     }
 
@@ -129,7 +157,9 @@ public final class QueryFailureTelemetry {
             case MALFORMED_DATA -> DataSourceUsageAccumulator.ERROR_TYPE_FORMAT;
             case LOCAL_CAPACITY, SCHEMA_TOO_WIDE -> DataSourceUsageAccumulator.ERROR_TYPE_RESOURCE_LIMIT;
             case METADATA_UNAVAILABLE, LISTING_FAILED -> DataSourceUsageAccumulator.ERROR_TYPE_DISCOVERY;
-            case CLIENT_BUG -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
+            // A worker that declined is routed around and never reaches here; one that could not be is the node's own lag, not
+            // the store's fault, so it is not counted against any storage category.
+            case CLIENT_BUG, WORKER_NOT_READY -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
         };
     }
 }

@@ -26,7 +26,10 @@ public interface AdmissionGate {
     enum StallPolicy {
         /** Stall only when waiters exist and {@link AdmissionGate#holders()} is {@code 0}. */
         HOLDERS,
-        /** Stall when waiters exist and no grant has landed for the stall window. Holders ignored. */
+        /**
+         * Stall when waiters exist and no grant has landed for the stall window. Holders ignored.
+         * Byte releases do not count as progress.
+         */
         GRANT_AGE
     }
 
@@ -64,4 +67,11 @@ public interface AdmissionGate {
     default RescueResult rescueHead(@Nullable Executor delivery) {
         return RescueResult.NONE;
     }
+
+    /**
+     * Fail waiters whose cancel supplier is true (or whose lease is finished), then run the
+     * grant loop. Completions use each waiter's executor. Direct ({@code Runnable::run})
+     * waiters therefore complete on the inspect thread.
+     */
+    default void failCancelledWaiters() {}
 }

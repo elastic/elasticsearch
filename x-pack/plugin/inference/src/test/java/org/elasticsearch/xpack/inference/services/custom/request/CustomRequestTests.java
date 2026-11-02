@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.custom.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceString;
@@ -34,19 +32,16 @@ import org.elasticsearch.xpack.inference.services.custom.response.RerankResponse
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CustomRequestTests extends ESTestCase {
 
-    public void testCreateRequest() throws IOException {
+    public void testCreateRequest() throws IOException, URISyntaxException {
         var inferenceId = "inference_id";
         var dims = 1536;
         var maxInputTokens = 512;
@@ -86,10 +81,9 @@ public class CustomRequestTests extends ESTestCase {
             model
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is("https://www.elastic.com?key=value&key=value2"));
+        var httpPost = httpRequest.httpRequest();
+        assertThat(httpPost.getUri().toString(), is("https://www.elastic.com/?key=value&key=value2"));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("my-secret-key"));
 
@@ -100,10 +94,10 @@ public class CustomRequestTests extends ESTestCase {
             }
             """);
 
-        assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
+        assertThat(convertToString(httpPost.getBodyText()), is(expectedBody));
     }
 
-    public void testCreateRequest_QueryParametersAreEscaped_AndEncoded() throws IOException {
+    public void testCreateRequest_QueryParametersAreEscaped_AndEncoded() throws IOException, URISyntaxException {
         var inferenceId = "inferenceId";
         var requestContentString = """
             {
@@ -121,8 +115,8 @@ public class CustomRequestTests extends ESTestCase {
                 List.of(
                     new QueryParameters.Parameter("key", " <>#%+{}|\\^~[]`;/?:@=&$"),
                     // unicode is a 😀
-                    // Note: In the current version of the apache library (4.x) being used to do the encoding, spaces are converted to +
-                    // There's a bug fix here explaining that: https://issues.apache.org/jira/browse/HTTPCORE-628
+                    // Note: In Apache HttpCore 5.x spaces are percent-encoded as %20 (instead of +) and the unreserved
+                    // character ~ is left unencoded, see: https://issues.apache.org/jira/browse/HTTPCORE-628
                     new QueryParameters.Parameter("key", "Σ \uD83D\uDE00")
                 )
             ),
@@ -149,13 +143,12 @@ public class CustomRequestTests extends ESTestCase {
             model
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
         assertThat(
-            httpPost.getURI().toString(),
+            httpPost.getUri().toString(),
             // To visually verify that this is correct, input the query parameters into here: https://www.urldecoder.org/
-            is("http://www.elastic.co?key=+%3C%3E%23%25%2B%7B%7D%7C%5C%5E%7E%5B%5D%60%3B%2F%3F%3A%40%3D%26%24&key=%CE%A3+%F0%9F%98%80")
+            is("http://www.elastic.co/?key=%20%3C%3E%23%25%2B%7B%7D%7C%5C%5E~%5B%5D%60%3B%2F%3F%3A%40%3D%26%24&key=%CE%A3%20%F0%9F%98%80")
         );
 
         var expectedBody = XContentHelper.stripWhitespace("""
@@ -164,10 +157,10 @@ public class CustomRequestTests extends ESTestCase {
               "input_type": "value"
             }
             """);
-        assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
+        assertThat(convertToString(httpPost.getBodyText()), is(expectedBody));
     }
 
-    public void testCreateRequest_SecretsInTheJsonBody_AreEncodedCorrectly() throws IOException {
+    public void testCreateRequest_SecretsInTheJsonBody_AreEncodedCorrectly() throws IOException, URISyntaxException {
         var inferenceId = "inference_id";
         var dims = 1536;
         var maxInputTokens = 512;
@@ -205,10 +198,9 @@ public class CustomRequestTests extends ESTestCase {
             model
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is("https://www.elastic.com?key=value&key=value2"));
+        var httpPost = httpRequest.httpRequest();
+        assertThat(httpPost.getUri().toString(), is("https://www.elastic.com/?key=value&key=value2"));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("my-secret-key"));
 
@@ -220,7 +212,7 @@ public class CustomRequestTests extends ESTestCase {
             }
             """);
 
-        assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
+        assertThat(convertToString(httpPost.getBodyText()), is(expectedBody));
     }
 
     public void testCreateRequest_HandlesQuery() throws IOException {
@@ -257,9 +249,8 @@ public class CustomRequestTests extends ESTestCase {
             model
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         var expectedBody = XContentHelper.stripWhitespace("""
             {
@@ -268,7 +259,7 @@ public class CustomRequestTests extends ESTestCase {
             }
             """);
 
-        assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
+        assertThat(convertToString(httpPost.getBodyText()), is(expectedBody));
     }
 
     public void testCreateRequest_HandlesQuery_WithReturnDocsAndTopN() throws IOException {
@@ -313,9 +304,8 @@ public class CustomRequestTests extends ESTestCase {
             model
         );
         var httpRequest = RequestTests.getHttpRequestSync(request);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
+        var httpPost = httpRequest.httpRequest();
 
         var expectedBody = XContentHelper.stripWhitespace("""
             {
@@ -326,7 +316,7 @@ public class CustomRequestTests extends ESTestCase {
             }
             """);
 
-        assertThat(convertToString(httpPost.getEntity().getContent()), is(expectedBody));
+        assertThat(convertToString(httpPost.getBodyText()), is(expectedBody));
     }
 
     public void testCreateRequest_IgnoresNonStringFields_ForStringParams() throws IOException {
@@ -524,7 +514,7 @@ public class CustomRequestTests extends ESTestCase {
         assertThat(exception.getMessage(), startsWith("Failed to build URI, error: Illegal character in path"));
     }
 
-    private static String convertToString(InputStream inputStream) throws IOException {
-        return XContentHelper.stripWhitespace(Streams.copyToString(new InputStreamReader(inputStream, StandardCharsets.UTF_8)));
+    private static String convertToString(String body) throws IOException {
+        return XContentHelper.stripWhitespace(body);
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -90,6 +90,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
@@ -2809,17 +2810,16 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /*
+     * The subquery branch is a bare relation once its wrapper is stripped, so PushAggregateThroughUnionAll splits the
+     * count into per-branch partials summed by a combiner aggregate above the union:
+     *
      * Limit[1000[INTEGER],false,false]
-     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS d2#10]]
-     *   \_UnionAll[[_meta_field{r}#33, emp_no{r}#34, first_name{r}#35, gender{r}#36, hire_date{r}#37, job{r}#38, job.raw{r}#39,
-     *               languages{r}#40, last_name{r}#41, long_noidx{r}#42, salary{r}#43]]
-     *     |_Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
-     *                languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     * \_Aggregate[[],[SUM($$partial$$d2{r$}#..,...) AS d2#10]]
+     *   \_BranchPlan[[null, unnamed_view_1]]
+     *     |_Aggregate[[],[COUNT(*[KEYWORD],...) AS $$partial$$d2#..]]
      *     | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     *     \_Project[[_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, gender{f}#24, hire_date{f}#29, job{f}#30, job.raw{f}#31,
-     *                languages{f}#25, last_name{f}#26, long_noidx{f}#32, salary{f}#27]]
-     *       \_Subquery[]
-     *         \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     *     \_Aggregate[[],[COUNT(*[KEYWORD],...) AS $$partial$$d2#..]]
+     *       \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
      */
     public void testInlineStatsOverSubqueryUnusedOutput() {
         var query = """
@@ -2839,20 +2839,20 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("d2"));
-        var count = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
-        assertTrue("expected count(*)", count.field().foldable());
+        // PushAggregateThroughUnionAll split the count: the combiner sums the per-branch partial counts.
+        var sum = as(Alias.unwrap(agg.aggregates().get(0)), Sum.class);
+        assertThat(Expressions.name(sum.field()), startsWith("$$partial$$"));
 
         var unionAll = as(agg.child(), UnionAll.class);
         assertEquals(2, unionAll.children().size());
 
-        var firstChild = as(unionAll.children().get(0), Project.class);
-        var firstRelation = as(firstChild.child(), EsRelation.class);
-        assertEquals("test", firstRelation.indexPattern());
-
-        var secondChild = as(unionAll.children().get(1), Project.class);
-        var subquery = as(secondChild.child(), Subquery.class);
-        var secondRelation = as(subquery.child(), EsRelation.class);
-        assertEquals("test", secondRelation.indexPattern());
+        for (LogicalPlan child : unionAll.children()) {
+            var partial = as(child, Aggregate.class);
+            var count = as(Alias.unwrap(partial.aggregates().get(0)), Count.class);
+            assertTrue("expected count(*)", count.field().foldable());
+            var relation = as(partial.child(), EsRelation.class);
+            assertEquals("test", relation.indexPattern());
+        }
     }
 
     /*

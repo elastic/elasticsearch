@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -21,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeDistribution;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,8 +33,6 @@ public class MaterializedLookupJoin extends Join {
         "MaterializedLookupJoin",
         MaterializedLookupJoin::new
     );
-
-    private static final TransportVersion ESQL_LOOKUP_JOIN_SUBQUERY = Analyzer.ESQL_LOOKUP_JOIN_SUBQUERY;
 
     public MaterializedLookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, ExecuteLocation mode) {
         super(source, left, right, config, mode);
@@ -93,7 +90,7 @@ public class MaterializedLookupJoin extends Join {
         if (right() instanceof LocalRelation == false) {
             throw new IllegalStateException("materialized subquery join must have a LocalRelation on the right");
         }
-        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_SUBQUERY) == false) {
+        if (out.getTransportVersion().supports(ExchangeDistribution.ESQL_SHUFFLE_STAGE_EXECUTION) == false) {
             throw new IllegalStateException("materialized subquery join cannot be sent to a node without subquery join support");
         }
         super.writeTo(out);

@@ -9,20 +9,10 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.optimizer.cbo.PlanDecisionsHolder;
-import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-public record PhysicalOptimizerContext(
-    Configuration configuration,
-    TransportVersion minimumVersion,
-    EsqlFlags flags,
-    PlanDecisionsHolder decisions
-) {
+public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion, PlanDecisionsHolder decisions) {
     public PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {
-        this(configuration, minimumVersion, EsqlFlags.withRemoteFetchTopN(false), new PlanDecisionsHolder());
-    }
-
-    public PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion, EsqlFlags flags) {
-        this(configuration, minimumVersion, flags, new PlanDecisionsHolder());
+        this(configuration, minimumVersion, new PlanDecisionsHolder());
     }
 }

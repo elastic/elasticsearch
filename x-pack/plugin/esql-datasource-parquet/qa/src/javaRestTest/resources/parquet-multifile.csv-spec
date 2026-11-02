@@ -287,7 +287,7 @@ dave         | london
 // LIKE-family filters on an absent column were formerly pushed as Pushability.YES (FilterExec
 // dropped) but the per-file evaluator returned null ("all survive") when the column was not in
 // the predicate block map. This caused file A's rows to keep every row despite city being null
-// there. Fixed by elastic/esql-planning#2052: the evaluator now returns an empty (no-survivors)
+// there. Fixed by : the evaluator now returns an empty (no-survivors)
 // mask for a named, non-virtual column absent from the block map.
 
 parquetUbnFilterOnFileAMissingColumn

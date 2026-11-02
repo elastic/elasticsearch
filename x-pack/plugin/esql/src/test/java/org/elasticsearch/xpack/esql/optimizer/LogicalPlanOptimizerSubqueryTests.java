@@ -273,12 +273,13 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testTotalBranchCountWithNestedSubqueryAtOrBeyondLimit() {
+        // The LIMITs block compaction from flattening the nesting these tests count; see FOUR_LEAF_THREE_LEVEL.
         assertNestedSubqueryLimits("""
-            FROM test, (FROM test, (FROM languages))
+            FROM test, (FROM test, (FROM languages) | LIMIT 50)
             | STATS c = COUNT(*)
             """, 3, 2);
         assertNestedSubqueryLimits("""
-            FROM test, (FROM test, (FROM test, (FROM languages)))
+            FROM test, (FROM test, (FROM test, (FROM languages) | LIMIT 50) | LIMIT 50)
             | STATS c = COUNT(*)
             """, 4, 3);
     }
@@ -322,10 +323,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
             FROM test, (FROM test), (FROM languages)
             | STATS c = COUNT(*)
             """, 3, 1);
-        assertNestedSubqueryLimits("""
-            FROM test, (FROM test, (FROM test, (FROM languages)))
-            | STATS c = COUNT(*)
-            """, 4, 3);
+        assertNestedSubqueryLimits(FOUR_LEAF_THREE_LEVEL, 4, 3);
     }
 
     public void testNestingLevelIgnoresPlansWithoutUnions() {
@@ -336,16 +334,12 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testBothNestedSubqueryLimitsAtOrBeyondLimit() {
-        String query = """
-            FROM test, (FROM test, (FROM test, (FROM languages)))
-            | STATS c = COUNT(*)
-            """;
-        assertNestedSubqueryLimits(query, 4, 3);
+        assertNestedSubqueryLimits(FOUR_LEAF_THREE_LEVEL, 4, 3);
     }
 
     public void testBothNestedSubqueryWithViewLimitsAtOrBeyondLimit() {
         String query = """
-            FROM test, (FROM test, (FROM languages))
+            FROM test, (FROM test, (FROM languages) | LIMIT 50)
             | WHERE emp_no IN (FROM view_0, view_1 | KEEP emp_no)
             """;
         assertNestedSubqueryWithViewLimits(query, 3, 2);
@@ -355,7 +349,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         String query = """
             FROM (FROM test
                   | WHERE emp_no IN (
-                      FROM test, (FROM test, (FROM test))
+                      FROM test, (FROM test, (FROM test) | LIMIT 50)
                       | KEEP emp_no
                     )
                  ),
@@ -368,7 +362,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         String query = """
             FROM (FROM test
                   | WHERE emp_no IN (
-                      FROM view_0, (FROM view_1, (FROM test))
+                      FROM view_0, (FROM view_1, (FROM test) | LIMIT 50)
                       | KEEP emp_no
                     )
                  ),
@@ -381,11 +375,11 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         String query = """
             FROM test
             | WHERE emp_no IN (
-                FROM test, (FROM test, (FROM test))
+                FROM test, (FROM test, (FROM test) | LIMIT 50)
                 | KEEP emp_no
               )
               AND languages IN (
-                FROM test, (FROM test), (FROM test, (FROM test | WHERE languages > 0))
+                FROM test, (FROM test), (FROM test, (FROM test | WHERE languages > 0) | LIMIT 50)
                 | KEEP languages
               )
             """;
@@ -427,9 +421,12 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     // with fork and views
 
     public void testForkInsideSubquery() {
+        // The LIMIT keeps the FORK nested: compaction lifts a bare FORK at the top of a subquery branch into the
+        // enclosing union, which is exactly the nesting this test counts.
         String query = """
             FROM (FROM test
-                  | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)),
+                  | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)
+                  | LIMIT 50),
                  (FROM languages | KEEP language_code)
             """;
         assertNestedSubqueryLimits(query, 3, 2);
@@ -437,7 +434,7 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
 
     public void testForkInsideAndAfterSubquery() {
         String query = """
-            FROM (FROM test | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000)),
+            FROM (FROM test | FORK (WHERE emp_no > 10000) (WHERE emp_no <= 10000) | LIMIT 50),
                  (FROM languages | EVAL emp_no = language_code | KEEP emp_no)
             | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)
             """;
@@ -454,8 +451,13 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
     }
 
     public void testViewSubqueryAndFork() {
-        // FORK inside a branch of a union that also resolves a view.
-        assertNestedSubqueryWithViewLimits("FROM (FROM view_0 | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)), (FROM test)", 3, 2);
+        // FORK inside a branch of a union that also resolves a view. The LIMIT keeps the FORK nested (see
+        // testForkInsideSubquery).
+        assertNestedSubqueryWithViewLimits(
+            "FROM (FROM view_0 | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0) | LIMIT 50), (FROM test)",
+            3,
+            2
+        );
         // A view-created union below FORK.
         assertNestedSubqueryWithViewLimits("FROM view_0, view_1 | FORK (WHERE emp_no > 0) (WHERE emp_no <= 0)", 4, 2);
     }
@@ -467,7 +469,8 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
 
     public void testDatasetAndSubquery() {
         assumeTrue("Requires external data source FROM support", EsqlCapabilities.Cap.DATASET_IN_FROM_COMMAND.isEnabled());
-        assertNestedDatasetLimits("FROM (FROM heavy_a, heavy_b), (FROM heavy_b) | WHERE emp_no > 10", datasetAnalyzer(), 3, 2);
+        // The LIMIT keeps the dataset union nested; compaction lifts a bare nested union into the enclosing one.
+        assertNestedDatasetLimits("FROM (FROM heavy_a, heavy_b | LIMIT 50), (FROM heavy_b) | WHERE emp_no > 10", datasetAnalyzer(), 3, 2);
     }
 
     public void testDatasetAndView() {
@@ -629,13 +632,15 @@ public class LogicalPlanOptimizerSubqueryTests extends AbstractLogicalPlanOptimi
         return "query resolved to " + levels + " nested union levels, exceeding the limit of " + limit + " set by the " + source;
     }
 
+    // The explicit LIMITs keep each nesting level in place: the analyzer's compaction flattens unconstrained nested
+    // subquery unions into a single flat union, and these queries exist to exercise the nesting-level limit.
     private static final String FOUR_LEAF_THREE_LEVEL = """
-        FROM test, (FROM test, (FROM test, (FROM languages)))
+        FROM test, (FROM test, (FROM test, (FROM languages) | LIMIT 50) | LIMIT 50)
         | STATS c = COUNT(*)
         """;
 
     private static final String FOUR_LEAF_THREE_LEVEL_VIEWS = """
-        FROM view_0, (FROM view_1, (FROM view_0, (FROM view_1)))
+        FROM view_0, (FROM view_1, (FROM view_0, (FROM view_1) | LIMIT 50) | LIMIT 50)
         | STATS c = COUNT(*)
         """;
 

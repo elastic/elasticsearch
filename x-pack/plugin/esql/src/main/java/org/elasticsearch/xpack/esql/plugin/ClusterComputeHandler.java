@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -31,6 +33,8 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -249,6 +253,15 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
             return;
         }
+        // Datasets are local to the cluster that registered them: a querying cluster plans a remote cluster's work from
+        // indices only, so a plan reaching here with an external node was not built by any coordinator for this cluster.
+        // Refused before planning, whatever the credential; the querying cluster opened the sink before sending.
+        if (ExternalSourceDatasets.hasExternalNode(plan)) {
+            Exception refusal = ExternalSourceAuthorizer.notLocal();
+            exchangeService.finishSinkHandler(request.sessionId(), refusal);
+            listener.onFailure(refusal);
+            return;
+        }
         runComputeOnRemoteCluster(
             request.clusterAlias(),
             request.sessionId(),
@@ -280,7 +293,19 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         OriginalIndices originalIndices,
         ActionListener<ComputeResponse> listener
     ) {
-        final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
+        final ExchangeSinkHandler exchangeSink;
+        try {
+            exchangeSink = exchangeService.getSinkHandlerIfOpen(globalSessionId);
+        } catch (ResourceNotFoundException e) {
+            listener.onFailure(e);
+            return;
+        }
+        if (exchangeSink == null) {
+            // The querying cluster already finished this exchange. An empty result lets that cluster keep the
+            // error it already has; a not-found failure here would become the query error instead.
+            listener.onResponse(new ComputeResponse(DriverCompletionInfo.EMPTY));
+            return;
+        }
         parentTask.addListener(
             () -> exchangeService.finishSinkHandler(globalSessionId, new TaskCancelledException(parentTask.getReasonCancelled()))
         );
@@ -324,7 +349,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,
                         () -> exchangeSink.createExchangeSink(() -> {}),
-                        false,
                         false
                     ),
                     coordinatorPlan,
@@ -345,8 +369,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     concreteIndices,
                     originalIndices,
                     exchangeSource,
-                    false,
-                    null,
                     cancelQueryOnFailure,
                     computeListener.acquireCompute().map(r -> {
                         finalResponse.set(r);

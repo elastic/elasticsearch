@@ -42,27 +42,66 @@ public interface NodeByteBudget {
     Hold tryAdmit(long bytes);
 
     /**
+     * Whether a ticket waiter may enqueue while its lease still holds {@link #untracked()} bytes.
+     */
+    enum UntrackedWait {
+        /** Default. Waiting while this lease holds force-added bytes is the hang class. */
+        FORBID,
+        /**
+         * Named exception for coalesced per-GET tickets. Waiting is allowed while this lease still
+         * holds force-added bytes. Production coalesced admission uses {@link #FORBID}; this value
+         * is the test-only unit-ticket path.
+         */
+        PER_GET
+    }
+
+    /**
      * FIFO ticket for {@code bytes}. Completes with a {@link Hold} on grant, or with failure on
      * cancel. Uncontended grants complete on the caller; contended grants are forked onto
      * {@code executor}. {@code lease} is required when the unit needs the overshoot slot;
      * {@code cancelSignal} is sampled at enqueue and at grant.
+     * <p>
+     * The caller must hold no force-added (untracked) bytes on {@code lease} while waiting,
+     * unless {@code untrackedWait} names a listed exception. Rescue over-cap grants do not go
+     * through this method.
      */
-    SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor);
+    default SubscribableListener<Hold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        return admitAsync(bytes, lease, cancelSignal, executor, UntrackedWait.FORBID);
+    }
+
+    SubscribableListener<Hold> admitAsync(
+        long bytes,
+        RowGroupIo lease,
+        BooleanSupplier cancelSignal,
+        Executor executor,
+        UntrackedWait untrackedWait
+    );
 
     /**
      * Unconditional charge for buffers that must exist (UNGATED alloc, sliding window) and for
      * decode-working-set shortfalls that exceed the footer estimate already in a hold. Never
-     * waits. Pair shortfalls with {@link #release} when the working set drops.
+     * waits. Pair shortfalls with {@link #release} when the working set drops. Counted in
+     * {@link #untracked()} and attributed to {@code lease} when non-null, otherwise
+     * {@link StorageIoAffinity#current()}.
      */
-    void add(long bytes);
+    default void add(long bytes) {
+        add(bytes, null);
+    }
+
+    void add(long bytes, @Nullable RowGroupIo lease);
 
     /** Drops {@code bytes} of charge and grants the next waiter when there is room. */
-    void release(long bytes);
+    default void release(long bytes) {
+        release(bytes, null);
+    }
+
+    void release(long bytes, @Nullable RowGroupIo lease);
 
     /**
-     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot.
-     * Does not release bytes. Signals waiters. Call this when the lease is done; {@link Hold#close()}
-     * does not, because sliding-window buffers may still sit in {@link #used()}.
+     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot,
+     * unpins it, and re-runs the grant loop even when {@code lease} is not the owner. Does not
+     * release bytes. Call this when the lease is done or cancelled; {@link Hold#close()} does
+     * not, because sliding-window buffers may still sit in {@link #used()}.
      */
     void clearOwner(RowGroupIo lease);
 
@@ -72,6 +111,12 @@ public interface NodeByteBudget {
     long used();
 
     long limit();
+
+    /**
+     * Bytes charged by {@link #add} and not yet {@link #release}d. Ticketed {@link Hold}s are not
+     * included. A waiting lease must not hold any of these.
+     */
+    long untracked();
 
     /**
      * Fails waiters whose cancel signal is set and grants the next runnable waiter. Installed as
@@ -85,6 +130,15 @@ public interface NodeByteBudget {
      */
     static EsRejectedExecutionException cancelled() {
         return new EsRejectedExecutionException("Cancelled while waiting for I/O bytes");
+    }
+
+    /**
+     * Failure for a byte-ticket waiter whose lease has already {@link RowGroupIo#isFinished()
+     * finished}. Same fate as {@link #cancelled()}: the waiter cannot pin, so it must not sit
+     * on the FIFO head.
+     */
+    static EsRejectedExecutionException finished() {
+        return new EsRejectedExecutionException("Lease finished while waiting for I/O bytes");
     }
 
     /**
@@ -108,6 +162,13 @@ public interface NodeByteBudget {
          * beside it. Sibling in-flight ranges keep their estimate.
          */
         void drop(long bytes);
+
+        /**
+         * Unconditional extra charge. Credits {@link #remaining()} and never waits. Used to
+         * grow a group reservation at a phase switch; the caller must not exceed the bytes
+         * it is about to release. Callers serialize {@code grow} with {@link #close()}.
+         */
+        void grow(long bytes);
 
         /**
          * Releases leftover estimate. Does not {@link NodeByteBudget#clearOwner}: overshoot

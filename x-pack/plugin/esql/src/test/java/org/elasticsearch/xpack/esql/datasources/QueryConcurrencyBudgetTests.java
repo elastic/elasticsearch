@@ -396,6 +396,36 @@ public class QueryConcurrencyBudgetTests extends ESTestCase {
         budget.release();
     }
 
+    public void testNonWinnerPinsWhenNoLivePin() {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        RowGroupIo older = bound(budget, 10);
+        RowGroupIo newer = bound(budget, 1);
+        assertTrue("a free pin is not restricted to the query winner", newer.tryPinOvershoot());
+        assertTrue(newer.isPinned());
+        assertSame(newer, budget.favoured());
+        assertFalse("a second live pin must be refused", older.tryPinOvershoot());
+        newer.unpin();
+        assertFalse(newer.isPinned());
+        assertTrue(older.tryPinOvershoot());
+        assertTrue(older.isPinned());
+    }
+
+    public void testPinMakesOwnerFavoured() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(1, 60_000L, null);
+        RowGroupIo first = bound(budget, 5);
+        RowGroupIo owner = bound(budget, 10);
+        budget.acquire();
+        Thread firstWaiter = startAcquire(budget, first);
+        awaitWaiters(budget, 1);
+        budget.release();
+        firstWaiter.join(5_000);
+        assertSame(first, budget.favoured());
+        assertTrue(owner.tryPinOvershoot());
+        assertTrue(owner.isPinned());
+        assertSame("pin favours the overshoot owner for GET grants", owner, budget.favoured());
+        budget.release();
+    }
+
     public void testFinishRemovesLeaseFromRegistry() {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(2, 60_000L, null);
         RowGroupIo a = bound(budget, 1);

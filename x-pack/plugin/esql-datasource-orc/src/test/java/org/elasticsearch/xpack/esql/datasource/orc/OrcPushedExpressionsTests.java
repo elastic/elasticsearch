@@ -242,7 +242,7 @@ public class OrcPushedExpressionsTests extends ESTestCase {
         assertEquals(PredicateLeaf.Type.FLOAT, leaf.getType());
     }
 
-    // -------------------- Deep path & D2 precedence --------------------
+    // -------------------- Deep path & literal-over-nested precedence --------------------
 
     public void testNestedDeepPathFourLevels() {
         TypeDescription schema = TypeDescription.createStruct()

@@ -19,8 +19,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -30,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AbstractSubqueryJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.view.InMemoryViewResolver;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewBoundaryPreservation;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
 import org.junit.Before;
@@ -256,7 +259,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * SemiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_ViewUnionAll[[dept_view_a, dept_view_b]]
+     *   \_BranchPlan[[dept_view_a, dept_view_b]]
      *     |_NamedSubquery[dept_view_a]
      *     | \_Keep[[?dept_id]]
      *     |   \_UnresolvedRelation[departments]
@@ -279,7 +282,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(semiJoin.left(), "employees");
 
         Keep keep = as(semiJoin.right(), Keep.class);
-        ViewUnionAll union = as(keep.child(), ViewUnionAll.class);
+        BranchPlan union = as(keep.child(), BranchPlan.class);
         assertEquals(List.of("dept_view_a", "dept_view_b"), List.copyOf(union.namedSubqueries().keySet()));
 
         NamedSubquery viewA = as(union.children().get(0), NamedSubquery.class);
@@ -295,7 +298,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * AntiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_ViewUnionAll[[dept_view_a, dept_view_b]]
+     *   \_BranchPlan[[dept_view_a, dept_view_b]]
      *     |_NamedSubquery[dept_view_a]
      *     | \_Keep[[?dept_id]]
      *     |   \_UnresolvedRelation[departments]
@@ -318,7 +321,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(antiJoin.left(), "employees");
 
         Keep keep = as(antiJoin.right(), Keep.class);
-        ViewUnionAll union = as(keep.child(), ViewUnionAll.class);
+        BranchPlan union = as(keep.child(), BranchPlan.class);
         assertEquals(List.of("dept_view_a", "dept_view_b"), List.copyOf(union.namedSubqueries().keySet()));
 
         NamedSubquery viewA = as(union.children().get(0), NamedSubquery.class);
@@ -362,7 +365,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(semiJoin.left(), "employees");
 
         Keep keep = as(semiJoin.right(), Keep.class);
-        // User-written FROM subqueries produce a plain UnionAll of Subquery branches, not a view-produced ViewUnionAll.
+        // User-written FROM subqueries produce a plain UnionAll of Subquery branches, not a view-produced BranchPlan.
         UnionAll union = as(keep.child(), UnionAll.class);
         assertEquals(UnionAll.class, union.getClass());
         assertEquals(2, union.children().size());
@@ -426,7 +429,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
      * SemiJoin[[?dept_id],[]]
      * |_UnresolvedRelation[employees]
      * \_Keep[[?dept_id]]
-     *   \_ViewUnionAll[[dept_view_a, dept_view_b]]
+     *   \_BranchPlan[[dept_view_a, dept_view_b]]
      *     |_NamedSubquery[dept_view_a]
      *     | \_Keep[[?dept_id]]
      *     |   \_SemiJoin[[?dept_id],[]]
@@ -455,7 +458,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         assertUnresolvedRelation(semiJoin.left(), "employees");
 
         Keep keep = as(semiJoin.right(), Keep.class);
-        ViewUnionAll union = as(keep.child(), ViewUnionAll.class);
+        BranchPlan union = as(keep.child(), BranchPlan.class);
         assertEquals(List.of("dept_view_a", "dept_view_b"), List.copyOf(union.namedSubqueries().keySet()));
 
         NamedSubquery viewA = as(union.children().get(0), NamedSubquery.class);
@@ -805,11 +808,19 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
 
     private ViewResolver.ViewResolutionResult resolve(String query) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(query(query), null, true, this::parse, false, future.delegateFailureAndWrap((l, viewResult) -> {
-            // Validate: no InSubquery expressions should survive view+subquery resolution.
-            InSubqueryResolver.verify(viewResult.plan());
-            l.onResponse(viewResult);
-        }));
+        viewResolver.replaceViews(
+            query(query),
+            null,
+            true,
+            false,
+            this::parse,
+            ViewBoundaryPreservation.NONE,
+            future.delegateFailureAndWrap((l, viewResult) -> {
+                // Validate: no InSubquery expressions should survive view+subquery resolution.
+                InSubqueryResolver.verify(viewResult.plan());
+                l.onResponse(viewResult);
+            })
+        );
         return future.actionGet();
     }
 
@@ -826,8 +837,8 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
         return metrics.stats().get("features." + FeatureMetric.IN_SUBQUERY);
     }
 
-    private LogicalPlan parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName).plan();
+    private EsqlStatement parse(String query, String viewName) {
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, EsqlParser.DEFAULT_MAX_COMMAND_COUNT);
     }
 
     private void addView(String name, String query) {

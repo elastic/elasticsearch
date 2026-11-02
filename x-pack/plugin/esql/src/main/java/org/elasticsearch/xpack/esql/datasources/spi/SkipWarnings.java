@@ -36,7 +36,7 @@ import java.util.function.Consumer;
  * <p>
  * A correctly bound thread is necessary but not sufficient: a scan the planner ships to another node runs its
  * drivers there, and that node's response headers reach the client only by chance, so a read-time notice written
- * straight to {@link HeaderWarning} from a driver thread is still lost (elastic/esql-planning#1837). Read paths
+ * straight to {@link HeaderWarning} from a driver thread is still lost. Read paths
  * therefore relay to a sink that ends in {@code DriverContext#addWarning}, the channel
  * {@code DriverCompletionInfo} carries back for the coordinator to emit. Plan-time work has the same problem in a
  * different coat: schema resolution runs on the metadata-read executor, so {@code ExternalSourceResolver} buffers

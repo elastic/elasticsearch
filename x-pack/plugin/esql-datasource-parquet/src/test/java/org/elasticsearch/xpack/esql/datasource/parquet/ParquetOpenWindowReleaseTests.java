@@ -68,17 +68,17 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 /**
- * Guards the open-time sliding-window floor: parquet-mr's dictionary row-group filter reads a
+ * Guards the open-time 4 MiB sliding window: parquet-mr's dictionary row-group filter reads a
  * few KB through the reader stream, which allocates a 4 MiB window. The optimized iterator then
  * never reads that stream again. {@link ParquetStorageObjectAdapter#releaseIdleWindows()} must
  * drop the charge before the driver parks on tickets.
  *
  * <p>The fixture is larger than {@code DEFAULT_WINDOW_SIZE} via an unprojected {@code pad}
  * column, so the window is 4 MiB rather than file-clamped. Footer-load and the reader stream
- * each charge one window; the guard requires both. On main (without the release)
+ * each charge one window; the guard requires both. Without the release,
  * {@link #testWindowReleasedAfterFilteredConstruction} fails: {@code WINDOW_BREAKER_LABEL}
  * stays charged. {@link #testOpenReadersHoldNoWindowsBeforeDrain} fails
- * {@code watermark.used() >= 6 × window} while six iterators are open.
+ * {@code watermark.used() >= one window} while six iterators are open.
  */
 public class ParquetOpenWindowReleaseTests extends ESTestCase {
 
@@ -138,8 +138,9 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
     }
 
     /**
-     * Six filtered iterators sharing one watermark. After construction, used is below six
-     * windows. Then all six drain. On main {@code used} is at least six windows.
+     * Six filtered iterators sharing one watermark. After construction, used stays below one
+     * window. Then all six drain, last-opened first, so a held window cannot be handed on by
+     * FIFO EOF. Without the release {@code used} is at least six windows.
      */
     public void testOpenReadersHoldNoWindowsBeforeDrain() throws Exception {
         long windowFootprint = HeapFootprint.byteArrayBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE);
@@ -158,13 +159,15 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
                 greaterThanOrEqualTo(12 * windowFootprint)
             );
             assertEquals("six reader windows must be refunded after the row-group filter", 0L, breaker.windowOutstanding());
+            assertEquals("opens must not park on tickets", 0, watermark.waiterCount());
+            assertNull("opens must not take the overshoot slot", watermark.nodeByteBudget().overshootOwner());
             assertThat(
-                "six open iterators must not hold six windows; used=" + watermark.used() + " cap=" + cap,
+                "used stays below one window after open; leftover is preload/tickets, used=" + watermark.used() + " cap=" + cap,
                 watermark.used(),
-                lessThan(6 * windowFootprint)
+                lessThan(windowFootprint)
             );
-            for (CloseableIterator<Page> iter : iters) {
-                assertEquals(EXPECTED_MATCHING_ROWS, drain(iter));
+            for (int i = iters.size() - 1; i >= 0; i--) {
+                assertEquals(EXPECTED_MATCHING_ROWS, drain(iters.get(i)));
             }
         } finally {
             IOException first = null;
@@ -208,7 +211,7 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
         while (true) {
             long remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
             if (remainingMs <= 0L) {
-                fail("timed out draining iterator after 30s; window floor is still wedging admission");
+                fail("timed out draining iterator after 30s; idle window is still wedging admission");
             }
             SubscribableListener<Void> ready = iter.waitForReady();
             if (ready.isDone() == false) {
@@ -225,7 +228,7 @@ public class ParquetOpenWindowReleaseTests extends ESTestCase {
             if (ready.isDone() == false) {
                 remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime());
                 if (remainingMs <= 0L) {
-                    fail("timed out draining iterator after 30s; window floor is still wedging admission");
+                    fail("timed out draining iterator after 30s; idle window is still wedging admission");
                 }
                 safeAwait(ready, TimeValue.timeValueMillis(remainingMs));
                 continue;

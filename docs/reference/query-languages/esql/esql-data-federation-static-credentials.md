@@ -2,7 +2,7 @@
 navigation_title: "AWS static credentials"
 description: "Set up Amazon S3 static credentials for ES|QL Data Federation so Elasticsearch can read your private bucket with an access key and secret key."
 applies_to:
-  stack: experimental =9.5
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -39,7 +39,7 @@ Follow these steps to create and use dedicated credentials for use with Data Fed
 ::::::{step} Create a read-only IAM policy
 {{es}} reads your objects through an IAM identity, so first create an IAM policy that grants read-only access to only the objects you want to query in AWS. This policy is the part specific to this integration.
 
-The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` and `s3:GetBucketLocation` for prefix or glob queries:
+The following policy allows reading your objects with `s3:GetObject`, and listing the bucket with `s3:ListBucket` for prefix or glob queries:
 
 ```json
 {
@@ -52,7 +52,7 @@ The following policy allows reading your objects with `s3:GetObject`, and listin
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::<bucket-name>" ] <2>
     }
   ]
@@ -116,17 +116,17 @@ Back in Elastic:
 In {{kib}}:
 
 1. Go to **Data management** > **{{esql}} Data Federation**.
-2. Click **Connect data source**.
-3. Set **Data source type** to **Amazon S3**.
-4. Under **Authentication**, select **Access and Secret Keys**.
-5. Enter the **access key** and **secret key** from the previous step.
+2. Select the **Data sources** tab.
+3. Click **Connect data source**.
+4. Set **Data source type** to **Amazon S3**.
+5. Enter a **Name** for the data source.
+6. Under **Authentication**, set **Preferred method** to **Access and Secret Keys**.
+7. Enter the **Access key** and **Secret key** from the previous step:
+
+   ![The Authentication section of the Connect external data source flyout with Access and Secret Keys selected, showing the Access key and Secret key fields](images/data-federation/access-and-secret-keys.png)
+8. Click **Connect**.
 
 For the full field reference, refer to [Connect external data sources](esql-data-federation-sources.md).
-
-:::{image} images/data-federation/access-and-secret-keys.png
-:alt: The Authentication section of the Connect data source flyout with Access and Secret Keys selected, showing the access key and secret key fields
-:width: 450px
-:::
 :::
 
 :::{tab-item} Console
@@ -203,7 +203,7 @@ POLICY_ARN=$(aws iam create-policy \
     },
     {
       "Effect": "Allow",
-      "Action": [ "s3:ListBucket", "s3:GetBucketLocation" ],
+      "Action": [ "s3:ListBucket" ],
       "Resource": [ "arn:aws:s3:::${BUCKET_NAME}" ]
     }
   ]

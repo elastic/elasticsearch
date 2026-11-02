@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.ko.KoreanTokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AnalysisNoriFactoryTests extends AnalysisFactoryTestCase {
@@ -34,5 +35,39 @@ public class AnalysisNoriFactoryTests extends AnalysisFactoryTestCase {
         filters.put("koreanreadingform", NoriReadingFormFilterFactory.class);
         filters.put("koreannumber", NoriNumberFilterFactory.class);
         return filters;
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        return Map.of(
+            "nori_part_of_speech",
+            settings(Map.of("stoptags", List.of("NNG", "NNP"))).affects("stoptags", List.of("NNG"))
+                .ignored("stoptags", List.of("NNP", "NNG")),
+            "nori_readingform",
+            alwaysShares(),
+            "nori_number",
+            alwaysShares()
+        );
+    }
+
+    // Base rules so lenient has duplicates to act on; it only changes which are rejected, never the keyed rules.
+    private static FactorySettings withUserDictionary() {
+        return settings(Map.of("user_dictionary_rules", List.of("세종시 세종 시"))).affects("user_dictionary_rules", List.of("대한민국 대한 민국"))
+            .ignored("lenient", "true", "false");
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenizerSettings() {
+        return Map.of(
+            "nori_tokenizer",
+            withUserDictionary().affects("decompound_mode", "none", "mixed")
+                .ignored("decompound_mode", "DISCARD")
+                .affects("discard_punctuation", "false")
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        return Map.of("nori", withUserDictionary().affects("decompound_mode", "none", "mixed").affects("stoptags", List.of("NNG")));
     }
 }

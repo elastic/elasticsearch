@@ -439,7 +439,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     }
 
     /**
-     * esql-planning#2119: when an IAM policy refuses the read, S3's error message names the principal Elasticsearch
+     * When an IAM policy refuses the read, S3's error message names the principal Elasticsearch
      * authenticated as and the resource it was refused — account id, role, session, key id. The response must report
      * the condition and the store's error code, and carry that sentence nowhere: not in {@code reason}, not in any
      * {@code caused_by} level, not in {@code root_cause} or {@code suppressed}. The whole body is checked, on the
@@ -463,7 +463,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
         String reason = str(error.get("reason"));
         assertThat(reason, containsString("HTTP 403"));
         assertThat(reason, containsString("AccessDenied"));
-        // esql-planning#2117: the refused permission is what the user can act on; the credentials are not at fault.
+        // The refused permission is what the user can act on; the credentials are not at fault.
         assertThat(reason, containsString("[kms:Decrypt]"));
         assertThat(reason, containsString("KMS key"));
         assertThat(reason, not(containsString("access_key")));
@@ -502,7 +502,7 @@ public class ExternalErrorSurfaceIT extends ESRestTestCase {
     }
 
     /**
-     * esql-planning#2097: an object in an archive storage class cannot be read until it is restored, and S3 answers the
+     * An object in an archive storage class cannot be read until it is restored, and S3 answers the
      * GET with 403 {@code InvalidObjectState}. That is reported as an archived object, naming the storage class the
      * error body carries, and as the client-class 400 it is on every rail -- not as denied credentials, nor a 500.
      */

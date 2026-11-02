@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -108,7 +109,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             yesAllocationDeciders(),
             Settings.EMPTY,
             UnassignedInfo.Reason.INDEX_CREATED,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+            RecoveryPriority.UNASSIGNED_EXPECTED
         );
         testAllocator.clean();
         allocateAllUnassigned(allocation);
@@ -126,10 +127,25 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             random(),
             EnumSet.complementOf(EnumSet.of(UnassignedInfo.Reason.INDEX_CREATED))
         );
-        ShardRouting.RecoveryPriority recoveryPriority = randomFrom(
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
-        ); // this priority may or may not make sense for the chosen reason, but it shouldn't affect the test anyway
+        RecoveryPriority recoveryPriority = randomFrom(RecoveryPriority.UNASSIGNED_UNEXPECTED, RecoveryPriority.UNASSIGNED_EXPECTED); // this
+                                                                                                                                      // priority
+                                                                                                                                      // may
+                                                                                                                                      // or
+                                                                                                                                      // may
+                                                                                                                                      // not
+                                                                                                                                      // make
+                                                                                                                                      // sense
+                                                                                                                                      // for
+                                                                                                                                      // the
+                                                                                                                                      // chosen
+                                                                                                                                      // reason,
+                                                                                                                                      // but
+                                                                                                                                      // it
+                                                                                                                                      // shouldn't
+                                                                                                                                      // affect
+                                                                                                                                      // the
+                                                                                                                                      // test
+                                                                                                                                      // anyway
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, reason, recoveryPriority);
         testAllocator.clean();
         allocateAllUnassigned(allocation);
@@ -400,7 +416,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             yesAllocationDeciders(),
             Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(),
             UnassignedInfo.Reason.NODE_LEFT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+            RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         if (randomBoolean()) {
@@ -416,7 +432,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             yesAllocationDeciders(),
             Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(),
             UnassignedInfo.Reason.NODE_LEFT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+            RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
         testAllocator.addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
@@ -598,7 +614,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             deciders,
             Settings.EMPTY,
             UnassignedInfo.Reason.CLUSTER_RECOVERED,
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED
+            RecoveryPriority.UNASSIGNED_UNEXPECTED
         );
     }
 
@@ -606,7 +622,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         AllocationDeciders deciders,
         Settings settings,
         UnassignedInfo.Reason reason,
-        ShardRouting.RecoveryPriority recoveryPriority
+        RecoveryPriority recoveryPriority
     ) {
         ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.STARTED);
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardId.getIndexName())

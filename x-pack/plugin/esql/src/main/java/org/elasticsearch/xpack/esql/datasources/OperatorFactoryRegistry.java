@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
@@ -43,6 +45,8 @@ public class OperatorFactoryRegistry {
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final Executor executor;
     private final Executor fileReadExecutor;
+    @Nullable
+    private final BlockFactory producerBlockFactory;
 
     public OperatorFactoryRegistry(
         Map<String, ExternalSourceFactory> sourceFactories,
@@ -58,12 +62,27 @@ public class OperatorFactoryRegistry {
         Executor executor,
         Executor fileReadExecutor
     ) {
+        this(sourceFactories, pluginFactories, executor, fileReadExecutor, null);
+    }
+
+    /**
+     * @param producerBlockFactory the node-level (root) block factory that connector producer threads allocate from; null in tests,
+     *                             where the driver's factory is used
+     */
+    public OperatorFactoryRegistry(
+        Map<String, ExternalSourceFactory> sourceFactories,
+        Map<String, SourceOperatorFactoryProvider> pluginFactories,
+        Executor executor,
+        Executor fileReadExecutor,
+        @Nullable BlockFactory producerBlockFactory
+    ) {
         Check.notNull(executor, "executor cannot be null");
         Check.notNull(fileReadExecutor, "fileReadExecutor cannot be null");
         this.sourceFactories = sourceFactories != null ? Map.copyOf(sourceFactories) : Map.of();
         this.pluginFactories = pluginFactories != null ? Map.copyOf(pluginFactories) : Map.of();
         this.executor = executor;
         this.fileReadExecutor = fileReadExecutor;
+        this.producerBlockFactory = producerBlockFactory;
     }
 
     public SourceOperator.SourceOperatorFactory factory(SourceOperatorContext context) {
@@ -90,7 +109,14 @@ public class OperatorFactoryRegistry {
                     context.batchSize(),
                     null
                 );
-                return new AsyncConnectorSourceOperatorFactory(connector, request, context.maxBufferSize(), executor, context.sliceQueue());
+                return new AsyncConnectorSourceOperatorFactory(
+                    connector,
+                    request,
+                    context.maxBufferSize(),
+                    executor,
+                    context.sliceQueue(),
+                    producerBlockFactory
+                );
             }
             SourceOperatorFactoryProvider opFactory = sf.operatorFactory();
             if (opFactory != null) {

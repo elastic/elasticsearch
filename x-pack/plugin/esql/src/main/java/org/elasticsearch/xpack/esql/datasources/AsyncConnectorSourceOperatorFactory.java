@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
@@ -64,12 +65,31 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     private volatile Limiter observedLimiter;
     private final AtomicBoolean started = new AtomicBoolean();
 
+    /**
+     * Factory the connector allocates blocks from. The connector runs on producer threads, so production wires the node-level (root)
+     * factory, whose breaker is thread-safe; the driver-local breaker asserts single-thread access and would race with the driver's
+     * run loop. Null falls back to the driver's factory, which is safe only when producer and driver share a thread (tests).
+     */
+    @Nullable
+    private final BlockFactory producerBlockFactory;
+
     public AsyncConnectorSourceOperatorFactory(
         Connector connector,
         QueryRequest baseRequest,
         int maxBufferSize,
         Executor executor,
         @Nullable ExternalSliceQueue sliceQueue
+    ) {
+        this(connector, baseRequest, maxBufferSize, executor, sliceQueue, null);
+    }
+
+    public AsyncConnectorSourceOperatorFactory(
+        Connector connector,
+        QueryRequest baseRequest,
+        int maxBufferSize,
+        Executor executor,
+        @Nullable ExternalSliceQueue sliceQueue,
+        @Nullable BlockFactory producerBlockFactory
     ) {
         if (connector == null) {
             throw new IllegalArgumentException("connector must not be null");
@@ -88,6 +108,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         this.maxBufferSize = maxBufferSize;
         this.executor = executor;
         this.sliceQueue = sliceQueue;
+        this.producerBlockFactory = producerBlockFactory;
     }
 
     /**
@@ -118,7 +139,9 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Override
     public SourceOperator get(DriverContext driverContext) {
         started.set(true);
-        QueryRequest request = baseRequest.withBlockFactory(driverContext.blockFactory());
+        QueryRequest request = baseRequest.withBlockFactory(
+            producerBlockFactory != null ? producerBlockFactory : driverContext.blockFactory()
+        );
         long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         driverContext.addAsyncAction();

@@ -83,6 +83,8 @@ public final class DataSourceModule implements Closeable {
     @Nullable
     private final AdmissionStallWatchdog admissionWatchdog;
     private final NodeByteBudget nodeByteBudget;
+    /** Node-level (root) factory that connector producer threads allocate blocks from. */
+    private final BlockFactory producerBlockFactory;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -502,6 +504,7 @@ public final class DataSourceModule implements Closeable {
         this.testConnectionStorageProbes = Map.copyOf(tcProbes);
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);
         this.managedCloseables = closeables;
+        this.producerBlockFactory = blockFactory;
     }
 
     /**
@@ -659,7 +662,7 @@ public final class DataSourceModule implements Closeable {
     }
 
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor, Executor fileReadExecutor) {
-        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor, fileReadExecutor);
+        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor, fileReadExecutor, producerBlockFactory);
     }
 
     /**

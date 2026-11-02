@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
@@ -150,6 +151,46 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         long closeBurnNanos = TimeUnit.MILLISECONDS.toNanos(20);
         long cpuNanos = drainIntoDriver(new CpuBurningConnector(0, closeBurnNanos), between(1, 4));
         assertThat(cpuNanos, greaterThanOrEqualTo(closeBurnNanos));
+    }
+
+    /**
+     * The driver's block factory sits on a local breaker that only the driver thread may touch, while a connector allocates its blocks
+     * on a producer thread. With the node-level factory given to the source, the connector allocates from that one and the local
+     * breaker is never touched from the producer thread.
+     */
+    public void testProducerAllocatesFromTheNodeLevelFactoryNotTheDriversLocalBreaker() throws Exception {
+        LocalCircuitBreaker localBreaker = new LocalCircuitBreaker(NoopCircuitBreaker.INSTANCE, 1024, 4096);
+        BlockFactory driverFactory = TEST_BLOCK_FACTORY.newChildFactory(localBreaker);
+        int splitCount = between(2, 4);
+        List<ExternalSplit> splits = new ArrayList<>();
+        for (int i = 0; i < splitCount; i++) {
+            splits.add(new StubSplit("s" + i));
+        }
+        QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-breaker"));
+        try {
+            AsyncConnectorSourceOperatorFactory factory = new AsyncConnectorSourceOperatorFactory(
+                new RequestFactoryAllocatingConnector(),
+                request,
+                10,
+                pool,
+                new ExternalSliceQueue(splits),
+                TEST_BLOCK_FACTORY
+            );
+            DriverContext ctx = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, driverFactory, null);
+            assertTrue(ctx.assertBeginRunLoop());
+            SourceOperator operator = factory.get(ctx);
+            assertThat(drainRows(operator), equalTo(splitCount));
+            operator.close();
+            ctx.finish();
+            PlainActionFuture<Void> producerDone = new PlainActionFuture<>();
+            ctx.waitForAsyncActions(producerDone);
+            producerDone.actionGet(30, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+            localBreaker.close();
+        }
     }
 
     /** Drains {@code splitCount} splits from {@code connector} into a driver and returns the driver's CPU time. */
@@ -321,6 +362,45 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
      * Emits one single-row page per split, spending {@code burnNanos} of CPU time to produce it, and spends
      * {@code closeBurnNanos} to close.
      */
+    /** Each split yields one page whose block is allocated from the factory the request carries, on the producer thread. */
+    private static class RequestFactoryAllocatingConnector implements Connector {
+        @Override
+        public ResultCursor execute(QueryRequest request, Split split) {
+            return cursor(request);
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+            return cursor(request);
+        }
+
+        @Override
+        public void close() {}
+
+        private static ResultCursor cursor(QueryRequest request) {
+            return new ResultCursor() {
+                private boolean emitted;
+
+                @Override
+                public boolean hasNext() {
+                    return emitted == false;
+                }
+
+                @Override
+                public Page next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    emitted = true;
+                    return new Page(request.blockFactory().newConstantIntBlockWith(1, 1));
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+    }
+
     private static class CpuBurningConnector implements Connector {
         private final long burnNanos;
         private final long closeBurnNanos;

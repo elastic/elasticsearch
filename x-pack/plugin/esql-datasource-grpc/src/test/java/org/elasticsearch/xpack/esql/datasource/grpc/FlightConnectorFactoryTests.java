@@ -72,6 +72,29 @@ public class FlightConnectorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * A declaration shaped for a spec version ES does not know may hold names ES cannot judge, a reserved function included: it is
+     * a plain Level 0 satellite, not a resolution failure (protocol section 5.2). One that shares a version is checked as ever.
+     */
+    public void testADeclarationOfOtherVersionsIsLevelZeroWhateverItHolds() throws Exception {
+        try (BlockingSatelliteServer satellite = new BlockingSatelliteServer()) {
+            String location = "flight://127.0.0.1:" + satellite.port() + "/t";
+            satellite.capabilities = "{\"specVersions\":[2],\"fragmentFormats\":[\"json\"],\"plan\":[\"scan\",\"aggregate\"],"
+                + "\"functions\":[\"div\"],\"types\":[\"integer\"]}";
+            SourceMetadata metadata = factory.resolveMetadata(location, Map.of());
+            assertFalse(metadata.sourceMetadata().containsKey("_satellite"));
+
+            satellite.capabilities = "{\"specVersions\":[0,1],\"fragmentFormats\":[\"json\"],\"plan\":[\"scan\"],"
+                + "\"functions\":[\"div\"],\"types\":[\"integer\"]}";
+            Exception e = expectThrows(IllegalStateException.class, () -> factory.resolveMetadata(location, Map.of()));
+            assertThat(e.getCause().getMessage(), org.hamcrest.Matchers.containsString("div"));
+
+            satellite.capabilities = "{\"specVersions\":[0,1],\"fragmentFormats\":[\"json\"],\"plan\":[\"scan\"],"
+                + "\"functions\":[],\"types\":[\"integer\"]}";
+            assertTrue(factory.resolveMetadata(location, Map.of()).sourceMetadata().containsKey("_satellite"));
+        }
+    }
+
     public void testResolveMetadataStoresEndpointInConfig() throws IOException {
         try (EmployeeFlightServer server = new EmployeeFlightServer(0)) {
             String location = "flight://localhost:" + server.port() + "/employees";

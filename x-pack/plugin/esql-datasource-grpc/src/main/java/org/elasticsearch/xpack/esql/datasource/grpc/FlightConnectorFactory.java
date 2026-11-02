@@ -170,7 +170,10 @@ class FlightConnectorFactory implements ConnectorFactory {
     /** The body of the capability action: the spec versions ES supports and the table being resolved (protocol section 5.2). */
     private static byte[] capabilityRequest(String target) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.startObject().array("specVersions", 0).field("target", target).endObject();
+            builder.startObject()
+                .array("specVersions", SatelliteFragment.SUPPORTED_SPEC_VERSIONS.stream().mapToInt(Integer::intValue).toArray())
+                .field("target", target)
+                .endObject();
             return BytesReference.toBytes(BytesReference.bytes(builder));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -213,7 +216,21 @@ class FlightConnectorFactory implements ConnectorFactory {
         Map<String, Object> caps = new HashMap<>(
             XContentHelper.convertToMap(XContentType.JSON.xContent(), new String(body, StandardCharsets.UTF_8), false)
         );
+        checkSpecVersions(caps);
+        int version = negotiatedVersion(caps);
+        if (version < 0) {
+            // shaped for versions ES does not know, so it may hold names and shapes ES cannot judge: a plain Level 0 server
+            // (protocol section 5.2)
+            return null;
+        }
         validateDeclaration(caps);
+        if (version >= 1 && caps.get("aggregates") instanceof List<?> aggregates && aggregates.contains("sum")) {
+            // ES pushes sum(integer) only when the table's record count proves that no accumulator can overflow (protocol section 8.7)
+            caps.put(
+                "totalRecords",
+                client.getInfo(FlightDescriptor.path(target), CallOptions.timeout(callTimeout.millis(), TimeUnit.MILLISECONDS)).getRecords()
+            );
+        }
         List<String> listColumns = new ArrayList<>();
         List<String> strictColumns = new ArrayList<>();
         for (Field field : arrowSchema.getFields()) {
@@ -245,14 +262,63 @@ class FlightConnectorFactory implements ConnectorFactory {
         "to_double",
         "to_boolean",
         "to_string",
-        "to_datetime"
+        "to_datetime",
+        "count",
+        "sum",
+        "min",
+        "max",
+        "avg",
+        "bucket"
+    );
+
+    /** Aggregate functions that version 1 reserves for later versions (section 13). */
+    private static final Set<String> RESERVED_AGGREGATES = Set.of(
+        "avg",
+        "count_distinct",
+        "median",
+        "median_absolute_deviation",
+        "percentile",
+        "std_dev",
+        "variance",
+        "values",
+        "top",
+        "first",
+        "last",
+        "sample"
     );
 
     /** The declaration travels with every plan to every data node, so its size is bounded. */
     private static final int MAX_DECLARATION_BYTES = 64 * 1024;
 
-    /** The checks of section 5.2 that do not need the JSON schema: required properties, limits within bounds, no reserved name. */
+    /** {@code specVersions} must be a non-empty array of integers for the declaration to satisfy the schema. */
+    static void checkSpecVersions(Map<String, Object> caps) {
+        if (caps.get("specVersions") instanceof List<?> versions && versions.isEmpty() == false) {
+            for (Object version : versions) {
+                boolean integer = version instanceof Number n && n.doubleValue() == Math.rint(n.doubleValue());
+                if (integer == false) {
+                    throw new IllegalStateException("the capability declaration lists the spec version [" + version + "], not an integer");
+                }
+            }
+            return;
+        }
+        throw new IllegalStateException("the capability declaration has no non-empty list [specVersions]");
+    }
+
+    /** The highest spec version both ES and the declaration list, or -1: the declaration is shaped for it (protocol section 4). */
+    static int negotiatedVersion(Map<String, Object> caps) {
+        int highest = -1;
+        if (caps.get("specVersions") instanceof List<?> versions) {
+            for (Object v : versions) {
+                if (v instanceof Number n && SatelliteFragment.SUPPORTED_SPEC_VERSIONS.contains(n.intValue())) {
+                    highest = Math.max(highest, n.intValue());
+                }
+            }
+        }
+        return highest;
+    }
+
     static void validateDeclaration(Map<String, Object> caps) {
+        checkSpecVersions(caps);
         for (String required : List.of("specVersions", "fragmentFormats", "plan", "functions", "types")) {
             if (caps.get(required) instanceof List<?> == false) {
                 throw new IllegalStateException("the capability declaration has no list [" + required + "]");
@@ -265,6 +331,24 @@ class FlightConnectorFactory implements ConnectorFactory {
                         "the capability declaration lists the option [" + option + "], a name ES uses for itself"
                     );
                 }
+            }
+        }
+        boolean aggregateOperator = ((List<?>) caps.get("plan")).contains("aggregate");
+        if (negotiatedVersion(caps) == 0) {
+            // the declaration is shaped for version 0, where the operator and the property are reserved (protocol section 4)
+            if (aggregateOperator || caps.containsKey("aggregates")) {
+                throw new IllegalStateException(
+                    "the capability declaration of version 0 lists the reserved operator or property [aggregate]"
+                );
+            }
+        } else if (caps.get("aggregates") instanceof List<?> aggregates) {
+            for (Object name : aggregates) {
+                if (RESERVED_AGGREGATES.contains(String.valueOf(name))) {
+                    throw new IllegalStateException("the capability declaration lists the reserved aggregate function [" + name + "]");
+                }
+            }
+            if (aggregates.isEmpty() == false && aggregateOperator == false) {
+                throw new IllegalStateException("the capability declaration lists aggregate functions but not the operator [aggregate]");
             }
         }
         for (Object function : (List<?>) caps.get("functions")) {
@@ -281,9 +365,10 @@ class FlightConnectorFactory implements ConnectorFactory {
             if (limits.get("maxFragmentBytes") instanceof Number n && (n.longValue() < 1024 || n.longValue() > 2 * 1024 * 1024)) {
                 throw new IllegalStateException("maxFragmentBytes [" + n + "] is outside 1024 to 2097152");
             }
+            // ES reads them into an int (protocol section 6)
             for (String name : List.of("maxInListSize", "maxPatternBytes")) {
-                if (limits.get(name) instanceof Number n && n.longValue() < 1) {
-                    throw new IllegalStateException(name + " [" + n + "] must be at least 1");
+                if (limits.get(name) instanceof Number n && (n.longValue() < 1 || n.longValue() > Integer.MAX_VALUE)) {
+                    throw new IllegalStateException(name + " [" + n + "] is outside 1 to " + Integer.MAX_VALUE);
                 }
             }
         }

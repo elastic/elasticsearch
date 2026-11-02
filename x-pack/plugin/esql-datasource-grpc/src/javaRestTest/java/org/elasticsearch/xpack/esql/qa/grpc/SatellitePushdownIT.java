@@ -225,6 +225,169 @@ public class SatellitePushdownIT extends ESRestTestCase {
         assertEquals("queries that were not pushed:" + notPushed, "", notPushed.toString());
     }
 
+    /** Aggregations that version 1 pushes, then some it does not: each must give the same rows pushed, not pushed, and read natively. */
+    private static final List<String> AGGREGATES = List.of(
+        "STATS c = COUNT(*), n = COUNT(languages), s = SUM(salary), mn = MIN(salary), mx = MAX(salary) | LIMIT 5",
+        "STATS c = COUNT(*), s = SUM(salary), a = AVG(salary) BY gender | SORT gender | LIMIT 10",
+        "STATS c = COUNT(*) BY languages | SORT languages | LIMIT 20",
+        "STATS mn = MIN(hire_date), mx = MAX(hire_date) BY still_hired | SORT still_hired | LIMIT 5",
+        "STATS mn = MIN(first_name), mx = MAX(first_name) BY languages | SORT languages | LIMIT 10",
+        "WHERE salary > 50000 | STATS c = COUNT(*), s = SUM(salary) BY languages, still_hired | SORT languages, still_hired | LIMIT 50",
+        "WHERE emp_no < 0 | STATS c = COUNT(*), s = SUM(salary), mx = MAX(salary) | LIMIT 5",
+        "WHERE emp_no < 0 | STATS c = COUNT(*) BY gender | LIMIT 5",
+        "EVAL d = salary * 2 | STATS s = SUM(d), n = COUNT(d) BY languages | SORT languages | LIMIT 10",
+        "STATS c = COUNT(*) BY gender, languages, still_hired | SORT gender, languages, still_hired | LIMIT 100",
+        "STATS BY languages | SORT languages | LIMIT 20",
+        "STATS mn = MIN(still_hired), mx = MAX(still_hired) BY gender | SORT gender | LIMIT 5"
+    );
+
+    /** What stays in ES: the answer is the same, and nothing is pushed beyond the filter and the scan. */
+    private static final List<String> NOT_PUSHED_AGGREGATES = List.of(
+        "STATS m = MAX(height) | LIMIT 5",
+        "STATS c = COUNT(*) BY height | SORT height | LIMIT 5",
+        "STATS c = COUNT_DISTINCT(languages) | LIMIT 5",
+        "STATS a = AVG(height) | LIMIT 5"
+    );
+
+    private void registerAggregateDatasets() throws IOException {
+        for (String[] r : new String[][] { { "agg_sat_src", "{\"type\": \"flight\"}" }, { "agg_native_src", "{\"type\": \"local\"}" } }) {
+            Request source = new Request("PUT", "/_query/data_source/" + r[0]);
+            source.setJsonEntity(r[1]);
+            client().performRequest(source);
+        }
+        Request sat = new Request("PUT", "/_query/dataset/agg_sat_ds");
+        sat.setJsonEntity("{\"data_source\": \"agg_sat_src\", \"resource\": \"flight://" + ENDPOINT + "/employees\"}");
+        client().performRequest(sat);
+        Request nat = new Request("PUT", "/_query/dataset/agg_native_ds");
+        nat.setJsonEntity(
+            "{\"data_source\": \"agg_native_src\", \"resource\": \"file://"
+                + DATA_DIR
+                + "/employees.csv\", \"settings\": {\"null_value\": \"\"}}"
+        );
+        client().performRequest(nat);
+    }
+
+    private void dropAggregateDatasets() throws IOException {
+        for (String path : new String[] {
+            "/_query/dataset/agg_sat_ds",
+            "/_query/dataset/agg_native_ds",
+            "/_query/data_source/agg_sat_src",
+            "/_query/data_source/agg_native_src" }) {
+            try {
+                client().performRequest(new Request("DELETE", path));
+            } catch (IOException e) {
+                // already gone
+            }
+        }
+    }
+
+    public void testAggregatesAreTheSamePushedNotPushedAndNative() throws IOException {
+        assumeTrue("set -Dtests.satellite.endpoint and -Dtests.satellite.data", ENDPOINT != null && DATA_DIR != null);
+        registerAggregateDatasets();
+        try {
+            for (String q : AGGREGATES) {
+                Map<String, Object> natural = query("FROM agg_native_ds | " + q, true);
+                Map<String, Object> off = query("FROM agg_sat_ds | " + q, false);
+                Map<String, Object> on = query("FROM agg_sat_ds | " + q, true);
+                assertThat("columns " + q, on.get("columns"), equalTo(natural.get("columns")));
+                assertThat("pushed vs native " + q, on.get("values"), equalTo(natural.get("values")));
+                assertThat("not pushed vs native " + q, off.get("values"), equalTo(natural.get("values")));
+                assertTrue("the aggregate was not pushed: " + q, aggregatePushed(on));
+                assertFalse("pushed although the pragma is off: " + q, aggregatePushed(off));
+            }
+            for (String q : NOT_PUSHED_AGGREGATES) {
+                Map<String, Object> natural = query("FROM agg_native_ds | " + q, true);
+                Map<String, Object> on = query("FROM agg_sat_ds | " + q, true);
+                assertThat("values " + q, on.get("values"), equalTo(natural.get("values")));
+                assertFalse("an aggregate version 1 does not push was pushed: " + q, aggregatePushed(on));
+            }
+        } finally {
+            dropAggregateDatasets();
+        }
+    }
+
+    /**
+     * An aggregation over an index and a satellite gives the merge of the two parts computed apart. The aggregation is not pushed to
+     * the satellite in this shape: ES plans a dataset beside an index as a subquery branch, which its decomposition of an aggregate
+     * over a union does not cover, so ES aggregates the satellite's rows (still filtered and projected by the v0 pushdown).
+     */
+    public void testAggregateOverAnIndexAndASatellite() throws IOException {
+        assumeTrue("set -Dtests.satellite.endpoint and -Dtests.satellite.data", ENDPOINT != null && DATA_DIR != null);
+        registerAggregateDatasets();
+        Request create = new Request("PUT", "/agg_idx");
+        create.setJsonEntity(
+            "{\"mappings\": {\"properties\": {\"languages\": {\"type\": \"integer\"}, \"salary\": {\"type\": \"integer\"}, "
+                + "\"still_hired\": {\"type\": \"boolean\"}}}}"
+        );
+        client().performRequest(create);
+        try {
+            Request bulk = new Request("POST", "/agg_idx/_bulk");
+            bulk.addParameter("refresh", "true");
+            bulk.setJsonEntity(
+                "{\"index\":{}}\n{\"languages\":1,\"salary\":100,\"still_hired\":true}\n"
+                    + "{\"index\":{}}\n{\"languages\":2,\"salary\":200,\"still_hired\":false}\n"
+                    + "{\"index\":{}}\n{\"languages\":2,\"salary\":300,\"still_hired\":true}\n"
+            );
+            client().performRequest(bulk);
+            String stats =
+                " | STATS c = COUNT(*), s = SUM(salary), mn = MIN(salary), mx = MAX(salary) BY languages | SORT languages | LIMIT 50";
+            Map<String, Object> idx = query("FROM agg_idx" + stats, true);
+            Map<String, Object> sat = query("FROM agg_sat_ds | KEEP languages, salary" + stats, true);
+            Map<String, Object> both = query("FROM agg_idx, agg_sat_ds | KEEP languages, salary" + stats, true);
+            assertThat("mixed result", numbers(rows(both)), equalTo(numbers(merge(rows(idx), rows(sat)))));
+        } finally {
+            client().performRequest(new Request("DELETE", "/agg_idx"));
+            dropAggregateDatasets();
+        }
+    }
+
+    /** The rows with every number as a long, since a JSON number parses as an integer or a long as it fits. */
+    private static List<List<Object>> numbers(List<List<Object>> rows) {
+        return rows.stream()
+            .map(row -> row.stream().map(cell -> cell instanceof Number n ? (Object) n.longValue() : cell).toList())
+            .toList();
+    }
+
+    /** The {@code values} of a response: rows of cells. */
+    @SuppressWarnings("unchecked")
+    private static List<List<Object>> rows(Map<String, Object> response) {
+        return (List<List<Object>>) response.get("values");
+    }
+
+    /** Merges two grouped results [c, s, mn, mx, key] the way a final aggregation would. */
+    private static List<List<Object>> merge(List<List<Object>> a, List<List<Object>> b) {
+        Map<Object, List<Object>> byKey = new java.util.TreeMap<>(
+            java.util.Comparator.comparing(k -> k == null ? Long.MAX_VALUE : ((Number) k).longValue())
+        );
+        for (List<Object> row : java.util.stream.Stream.concat(a.stream(), b.stream()).toList()) {
+            Object key = row.get(4);
+            List<Object> into = byKey.get(key);
+            if (into == null) {
+                byKey.put(key, new java.util.ArrayList<>(row));
+            } else {
+                into.set(0, ((Number) into.get(0)).longValue() + ((Number) row.get(0)).longValue());
+                into.set(1, ((Number) into.get(1)).longValue() + ((Number) row.get(1)).longValue());
+                into.set(2, Math.min(((Number) into.get(2)).longValue(), ((Number) row.get(2)).longValue()));
+                into.set(3, Math.max(((Number) into.get(3)).longValue(), ((Number) row.get(3)).longValue()));
+            }
+        }
+        return new java.util.ArrayList<>(byKey.values());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean aggregatePushed(Map<String, Object> profiled) {
+        Map<String, Object> profile = (Map<String, Object>) profiled.get("profile");
+        for (Map<String, Object> driver : (List<Map<String, Object>>) profile.get("drivers")) {
+            for (Map<String, Object> op : (List<Map<String, Object>>) driver.get("operators")) {
+                String operator = String.valueOf(op.get("operator"));
+                if (operator.startsWith("ExternalDataSourceOperator[fragment=") && operator.contains("\"op\":\"aggregate\"")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     @SuppressWarnings("unchecked")
     private static boolean pushed(Map<String, Object> profiled) {
         Map<String, Object> profile = (Map<String, Object>) profiled.get("profile");

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -24,6 +25,9 @@ public record SatelliteFragment(Map<String, Object> request) {
      * capability declaration of the satellite travels, plus {@code listColumns}: the columns the satellite sends as Arrow lists.
      */
     public static final String CAPABILITY_KEY = "_satellite";
+
+    /** The spec versions this ES speaks: it announces them in the capability request and uses the highest the satellite shares. */
+    public static final List<Integer> SUPPORTED_SPEC_VERSIONS = List.of(0, 1);
 
     /**
      * Config keys of a satellite dataset that are not source options: what the validator derives from the resource and what the

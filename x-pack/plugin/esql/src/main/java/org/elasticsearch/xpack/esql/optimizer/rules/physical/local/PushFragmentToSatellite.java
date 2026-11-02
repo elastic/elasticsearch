@@ -95,6 +95,9 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
 
     /** What the satellite declared (section 6 of the protocol) plus the columns it sends as lists. */
     record Caps(
+        int version,
+        Set<String> aggregates,
+        long totalRecords,
         Set<String> plan,
         Set<String> functions,
         Set<String> types,
@@ -107,11 +110,19 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
         int maxPatternBytes
     ) {
         static Caps of(Map<?, ?> m) {
-            if (numbers(m.get("specVersions")).contains(0) == false || strings(m.get("fragmentFormats")).contains("json") == false) {
+            // the highest version both sides know: the declaration is shaped for it (protocol section 4)
+            int version = numbers(m.get("specVersions")).stream()
+                .filter(SatelliteFragment.SUPPORTED_SPEC_VERSIONS::contains)
+                .max(Integer::compare)
+                .orElse(-1);
+            if (version < 0 || strings(m.get("fragmentFormats")).contains("json") == false) {
                 return null;
             }
             Map<?, ?> limits = m.get("limits") instanceof Map<?, ?> l ? l : Map.of();
             return new Caps(
+                version,
+                version >= 1 ? strings(m.get("aggregates")) : Set.of(),
+                m.get("totalRecords") instanceof Number n ? n.longValue() : -1L,
                 strings(m.get("plan")),
                 strings(m.get("functions")),
                 strings(m.get("types")),
@@ -146,7 +157,7 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
         }
     }
 
-    private static Caps caps(ExternalSourceExec ext) {
+    static Caps caps(ExternalSourceExec ext) {
         return ext.sourceMetadata().get(SatelliteFragment.CAPABILITY_KEY) instanceof Map<?, ?> m ? Caps.of(m) : null;
     }
 
@@ -272,7 +283,7 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
             return decline(top, mustPush, "an output column has a type the protocol cannot carry");
         }
         Map<String, Object> request = new LinkedHashMap<>();
-        request.put("specVersion", 0);
+        request.put("specVersion", caps.version());
         request.put("format", "json");
         Map<String, Object> settings = new LinkedHashMap<>();
         settings.put("locale", "en-US");
@@ -333,7 +344,7 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
     private static final int PARTITIONS_HEADROOM_BYTES = 24 * 1024;
 
     /** ES MUST NOT send a fragment above the declared {@code maxFragmentBytes}, and cannot fall back once it is sent. */
-    private static boolean fits(Map<String, Object> request, int maxFragmentBytes) {
+    static boolean fits(Map<String, Object> request, int maxFragmentBytes) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             // a limit as small as the schema allows (1,024) leaves no room for 24 KiB: keep a quarter of the limit free instead
             int headroom = Math.min(PARTITIONS_HEADROOM_BYTES, maxFragmentBytes / 4);
@@ -389,7 +400,7 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
             return IR_TYPES.get(t);
         }
 
-        private String declaredType(DataType t) {
+        String declaredType(DataType t) {
             String ir = irType(t);
             return ir != null && caps.types.contains(ir) ? ir : null;
         }

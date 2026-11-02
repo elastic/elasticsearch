@@ -328,13 +328,22 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
         assertThat(fragment("WHERE salary > 50000 | KEEP emp_no | LIMIT 10", caps), containsString("\"op\":\"limit\""));
     }
 
-    public void testDeclarationWithoutSpecVersionZeroMeansNoPushdown() throws IOException {
+    public void testDeclarationWithoutAVersionEsSpeaksMeansNoPushdown() throws IOException {
         Map<String, Object> caps = new java.util.HashMap<>(CAPS);
-        caps.put("specVersions", List.of(1));
+        caps.put("specVersions", List.of(2));
         assertEquals("no fragment", fragment("WHERE salary > 50000 | LIMIT 10", caps));
     }
 
-    private static final Map<String, Object> CAPS = Map.of(
+    /** A satellite need not implement version 0: ES negotiates the highest version both know and sends it. */
+    public void testASatelliteOfVersionOneOnlyGetsVersionOneFragments() throws IOException {
+        Map<String, Object> caps = new java.util.HashMap<>(CAPS);
+        caps.put("specVersions", List.of(1));
+        assertThat(fragment("WHERE salary > 50000 | LIMIT 10", caps), containsString("\"specVersion\":1"));
+        caps.put("specVersions", List.of(0, 1, 2));
+        assertThat(fragment("WHERE salary > 50000 | LIMIT 10", caps), containsString("\"specVersion\":1"));
+    }
+
+    static final Map<String, Object> CAPS = Map.of(
         "specVersions",
         List.of(0),
         "fragmentFormats",
@@ -392,6 +401,13 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
     }
 
     static ExternalSourceExec leaf(String query, Map<String, Object> caps, QueryPragmas pragmas, Map<String, Object> extraConfig)
+        throws IOException {
+        List<ExternalSourceExec> leaves = localPlan(query, caps, pragmas, extraConfig).collect(ExternalSourceExec.class);
+        assertThat(leaves.size(), org.hamcrest.Matchers.equalTo(1));
+        return leaves.get(0);
+    }
+
+    static PhysicalPlan localPlan(String query, Map<String, Object> caps, QueryPragmas pragmas, Map<String, Object> extraConfig)
         throws IOException {
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
         List<Attribute> schema = List.of(
@@ -463,9 +479,7 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
             List.of(),
             new PlanTimeProfile()
         );
-        List<ExternalSourceExec> leaves = local.collect(ExternalSourceExec.class);
-        assertThat(leaves.size(), org.hamcrest.Matchers.equalTo(1));
-        return leaves.get(0);
+        return local;
     }
 
     static String json(Map<String, Object> request) throws IOException {

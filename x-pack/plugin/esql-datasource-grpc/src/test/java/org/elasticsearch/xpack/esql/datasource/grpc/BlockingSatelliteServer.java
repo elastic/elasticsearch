@@ -50,6 +50,9 @@ public final class BlockingSatelliteServer implements Closeable {
 
     /** The schema of the stream and of the flight info it answers a fragment with. Tests change it to make the satellite wrong. */
     public volatile Schema answerSchema = SCHEMA;
+
+    /** The body of the capability answer. Tests change it to make the satellite declare something else. */
+    public volatile String capabilities = CAPABILITIES;
     /** When set, {@code GetFlightInfo(command)} does not answer until {@link #release} is counted down. */
     public volatile boolean blockInFlightInfo;
     /** When set, {@code DoGet} does not send the first batch until released or cancelled by the client. */
@@ -123,7 +126,7 @@ public final class BlockingSatelliteServer implements Closeable {
         @Override
         public void doAction(CallContext context, Action action, StreamListener<Result> listener) {
             if ("esql.satellite.capabilities".equals(action.getType())) {
-                listener.onNext(new Result(CAPABILITIES.getBytes(StandardCharsets.UTF_8)));
+                listener.onNext(new Result(capabilities.getBytes(StandardCharsets.UTF_8)));
                 listener.onCompleted();
             } else {
                 super.doAction(context, action, listener);

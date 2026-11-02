@@ -332,11 +332,13 @@ was extended to `assertAcked`; those failures have not been re-examined.
 
 ### T11. The `createIndex` rename trick is always on
 
-In the prototype every `ESIntegTestCase#createIndex` call renames. That is what
+In the prototype every `ESIntegTestCase#createIndex` call renames unless the
+test class overrides `renameIndexOnCreate()` or the call opts out. That is what
 produces the failure inventory, but it cannot be merged as is: it slows every
 test by two extra cluster state updates and a health check, and it makes
 unrelated test failures look rename-related. Production should make it a
-randomized or opt-in behavior, like other `ESIntegTestCase` randomizations.
+randomized or opt-in behavior, like other `ESIntegTestCase` randomizations,
+keeping the class-level hook for tests that observe creation-time names.
 
 ### T12. Stateless: writes to a renamed index hung, fixed by T13
 
@@ -552,6 +554,9 @@ With the fix (T13) the two stateless suites were rerun: 691 tests, 7 failed,
   cause as above.
 
 All three suites pass on plain main, so none of this is pre-existing flakiness.
+These classes, and `WriteLoadConstraintDeciderIT`, now opt out of the rename
+through `ESIntegTestCase#renameIndexOnCreate()`, a class-level hook that
+replaces per-call opt-outs; each override says why.
 
 Not yet run with the trick: REST tests, and the unit test suites that
 construct `Index` objects by hand. Niels's last CI run of the trick extended to

@@ -134,7 +134,9 @@ public class ClusterChangedEvent {
                 continue;
             }
             for (IndexMetadata previousIndex : previousProject.indices().values()) {
-                if (project.index(previousIndex.getIndex()) != null) {
+                // compare by name here: ProjectMetadata#index(Index) falls back to the UUID and would hide the rename
+                final IndexMetadata byName = project.index(previousIndex.getIndex().getName());
+                if (byName != null && byName.getIndexUUID().equals(previousIndex.getIndexUUID())) {
                     continue;
                 }
                 final IndexMetadata current = project.indexByUuid(previousIndex.getIndexUUID());
@@ -353,9 +355,10 @@ public class ClusterChangedEvent {
             }
             if (project.indices() != previousProject.indices()) {
                 for (IndexMetadata index : previousProject.indices().values()) {
+                    // ProjectMetadata#index(Index) falls back to the UUID, so a renamed index is found and is not reported as
+                    // deleted; see indicesRenamed() for how it is reported instead
                     IndexMetadata current = project.index(index.getIndex());
-                    // an index whose name is gone but whose UUID is still present was renamed, see indicesRenamed()
-                    if (current == null && project.indexByUuid(index.getIndexUUID()) == null) {
+                    if (current == null) {
                         if (deleted == null) {
                             deleted = new HashSet<>();
                         }

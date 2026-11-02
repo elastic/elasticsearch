@@ -1115,8 +1115,9 @@ public class MetadataTests extends ESTestCase {
             Index alt1 = new Index(index.getName(), randomValueOtherThan(im.getIndexUUID(), ESTestCase::randomUUID));
             assertThat(lookup.project(alt1), isEmpty());
 
+            // a different name with the same uuid is how a renamed index looks to a caller holding a stale Index: it still resolves
             Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
-            assertThat(lookup.project(alt2), isEmpty());
+            assertThat(lookup.project(alt2).map(ProjectMetadata::id), isPresentWith(projectId));
         });
     }
 
@@ -1154,8 +1155,9 @@ public class MetadataTests extends ESTestCase {
             Index alt1 = new Index(index.getName(), randomValueOtherThan(im.getIndexUUID(), ESTestCase::randomUUID));
             assertThat(lookup.project(alt1), isEmpty());
 
+            // a different name with the same uuid is how a renamed index looks to a caller holding a stale Index: it still resolves
             Index alt2 = new Index(randomAlphaOfLength(8), im.getIndexUUID());
-            assertThat(lookup.project(alt2), isEmpty());
+            assertThat(lookup.project(alt2).map(ProjectMetadata::id), isPresentWith(project));
         }));
     }
 

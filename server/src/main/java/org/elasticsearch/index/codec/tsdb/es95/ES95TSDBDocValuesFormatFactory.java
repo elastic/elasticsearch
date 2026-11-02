@@ -57,6 +57,7 @@ public final class ES95TSDBDocValuesFormatFactory {
         final int blockBytesThreshold = useLargeBinaryBlockSize ? BINARY_BLOCK_BYTES_LARGE : BINARY_BLOCK_BYTES_SMALL;
         final int blockCountThreshold = useLargeBinaryBlockSize ? BINARY_BLOCK_COUNT_LARGE : BINARY_BLOCK_COUNT_SMALL;
         return new ES95TSDBDocValuesFormat(
+            ES95TSDBDocValuesFormat.CODEC_NAME,
             ES95TSDBDocValuesFormat.DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ES95TSDBDocValuesFormat.ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             true,
@@ -68,7 +69,9 @@ public final class ES95TSDBDocValuesFormatFactory {
             blockCountThreshold,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            fieldContextResolver
+            fieldContextResolver,
+            ES95TSDBDocValuesFormat.SORTED_CODEC,
+            ES95TSDBDocValuesFormat.SORTED_SET_CODEC
         );
     }
 }

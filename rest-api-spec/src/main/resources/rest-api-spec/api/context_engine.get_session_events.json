@@ -1,0 +1,46 @@
+{
+  "context_engine.get_session_events": {
+    "documentation": {
+      "url": null,
+      "description": "Returns the session events stored for a session, newest first"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_context_engine/session_events/{session_id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "session_id": {
+              "type": "string",
+              "description": "The session the events belong to"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "space": {
+        "type": "string",
+        "description": "Only return events written for this Kibana space"
+      },
+      "ai_index_id": {
+        "type": "string",
+        "description": "Only return events targeting this AI index"
+      },
+      "size": {
+        "type": "int",
+        "default": 100,
+        "description": "The maximum number of events to return"
+      }
+    }
+  }
+}

@@ -28,6 +28,12 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.contextengine.events.action.GetSessionEventsAction;
+import org.elasticsearch.xpack.contextengine.events.action.RestGetSessionEventsAction;
+import org.elasticsearch.xpack.contextengine.events.action.RestSaveEventAction;
+import org.elasticsearch.xpack.contextengine.events.action.SaveEventAction;
+import org.elasticsearch.xpack.contextengine.events.action.TransportGetSessionEventsAction;
+import org.elasticsearch.xpack.contextengine.events.action.TransportSaveEventAction;
 import org.elasticsearch.xpack.contextengine.memory.action.GetSessionMemoryAction;
 import org.elasticsearch.xpack.contextengine.memory.action.RememberAction;
 import org.elasticsearch.xpack.contextengine.memory.action.RestGetSessionMemoryAction;
@@ -65,7 +71,9 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
     public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler(RememberAction.INSTANCE, TransportRememberAction.class),
-            new ActionHandler(GetSessionMemoryAction.INSTANCE, TransportGetSessionMemoryAction.class)
+            new ActionHandler(GetSessionMemoryAction.INSTANCE, TransportGetSessionMemoryAction.class),
+            new ActionHandler(SaveEventAction.INSTANCE, TransportSaveEventAction.class),
+            new ActionHandler(GetSessionEventsAction.INSTANCE, TransportGetSessionEventsAction.class)
         );
     }
 
@@ -75,7 +83,12 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestRememberAction(), new RestGetSessionMemoryAction());
+        return List.of(
+            new RestRememberAction(),
+            new RestGetSessionMemoryAction(),
+            new RestSaveEventAction(),
+            new RestGetSessionEventsAction()
+        );
     }
 
     @Override

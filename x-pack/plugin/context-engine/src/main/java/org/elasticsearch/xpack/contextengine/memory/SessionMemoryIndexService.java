@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.contextengine.memory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
@@ -54,6 +55,7 @@ public class SessionMemoryIndexService {
             SessionMemory stored = memory.withIdAndTimestamp(id, Instant.now().truncatedTo(ChronoUnit.MILLIS));
             clientWithOrigin.prepareIndex(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME)
                 .setOpType(DocWriteRequest.OpType.CREATE)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource(stored.toXContent(jsonBuilder(), null))
                 .execute(listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(stored)));
         } catch (Exception e) {

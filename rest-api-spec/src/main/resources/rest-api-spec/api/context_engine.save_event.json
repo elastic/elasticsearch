@@ -1,0 +1,32 @@
+{
+  "context_engine.save_event": {
+    "documentation": {
+      "url": null,
+      "description": "Stores a session event in the Context Engine session events data stream"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_context_engine/session_events/_save",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The session event to store",
+      "required": true
+    }
+  }
+}

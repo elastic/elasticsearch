@@ -51,11 +51,47 @@ public final class ES95TSDBDocValuesFormatFactory {
         boolean writePartitions,
         @Nullable final FieldContextResolver fieldContextResolver
     ) {
+        return create(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions, fieldContextResolver, false);
+    }
+
+    /**
+     * Allocates a fresh ES95 doc values format matching the given settings, optionally writing
+     * single-valued dimension fields in the run-table ordinal layout.
+     *
+     * @param useLargeNumericBlockSize whether to use numeric blocks of 512 values (vs 128)
+     * @param useLargeBinaryBlockSize  whether to use large binary block thresholds (512KB/8096 vs 128KB/1024)
+     * @param writePartitions          whether to write prefix partitioned sorted fields
+     * @param fieldContextResolver     bridge from the mapper layer that supplies a
+     *                                 {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldContext}
+     *                                 per field, or {@code null} when mapper metadata
+     *                                 is not available
+     * @param useRunTableOrdinals      whether to return an {@link ES95RunTableTSDBDocValuesFormat}; it
+     *                                 writes the run-table layout only for fields the resolver reports as
+     *                                 dimensions, so it needs a non-null {@code fieldContextResolver} to
+     *                                 have any effect
+     * @return a freshly allocated format with the requested parameters
+     */
+    public static DocValuesFormat create(
+        boolean useLargeNumericBlockSize,
+        boolean useLargeBinaryBlockSize,
+        boolean writePartitions,
+        @Nullable final FieldContextResolver fieldContextResolver,
+        boolean useRunTableOrdinals
+    ) {
         final int numericBlockShift = useLargeNumericBlockSize
             ? ES95TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT
             : ES95TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
         final int blockBytesThreshold = useLargeBinaryBlockSize ? BINARY_BLOCK_BYTES_LARGE : BINARY_BLOCK_BYTES_SMALL;
         final int blockCountThreshold = useLargeBinaryBlockSize ? BINARY_BLOCK_COUNT_LARGE : BINARY_BLOCK_COUNT_SMALL;
+        if (useRunTableOrdinals) {
+            return new ES95RunTableTSDBDocValuesFormat(
+                numericBlockShift,
+                writePartitions,
+                blockBytesThreshold,
+                blockCountThreshold,
+                fieldContextResolver
+            );
+        }
         return new ES95TSDBDocValuesFormat(
             ES95TSDBDocValuesFormat.CODEC_NAME,
             ES95TSDBDocValuesFormat.DEFAULT_SKIP_INDEX_INTERVAL_SIZE,

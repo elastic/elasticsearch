@@ -12,6 +12,9 @@ package org.elasticsearch.index.codec.tsdb.es95;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+
 public class ES95TSDBDocValuesFormatFactoryTests extends ESTestCase {
 
     public void testCreateReturnsFreshInstanceOnEveryCall() {
@@ -28,5 +31,27 @@ public class ES95TSDBDocValuesFormatFactoryTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testCreateSelectsFormatByRunTableOrdinals() {
+        final boolean largeNumeric = randomBoolean();
+        final boolean largeBinary = randomBoolean();
+        final boolean partitions = randomBoolean();
+        assertThat(
+            ES95TSDBDocValuesFormatFactory.create(largeNumeric, largeBinary, partitions, null, true).getName(),
+            equalTo(ES95RunTableTSDBDocValuesFormat.CODEC_NAME)
+        );
+        assertThat(
+            ES95TSDBDocValuesFormatFactory.create(largeNumeric, largeBinary, partitions, null, false).getName(),
+            equalTo(ES95TSDBDocValuesFormat.CODEC_NAME)
+        );
+        assertThat(
+            ES95TSDBDocValuesFormatFactory.create(largeNumeric, largeBinary, partitions, null).getName(),
+            equalTo(ES95TSDBDocValuesFormat.CODEC_NAME)
+        );
+    }
+
+    public void testRunTableFormatIsRegisteredForReading() {
+        assertThat(DocValuesFormat.forName(ES95RunTableTSDBDocValuesFormat.CODEC_NAME), instanceOf(ES95RunTableTSDBDocValuesFormat.class));
     }
 }

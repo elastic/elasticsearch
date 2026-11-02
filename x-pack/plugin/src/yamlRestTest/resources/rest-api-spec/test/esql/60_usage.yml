@@ -878,6 +878,8 @@ took:
 
 ---
 "Queries by entry point":
+  # The ES|QL yaml suites also run every esql.query as _query/async, so this test only asserts what holds for both;
+  # RestEsqlIT checks that _query and _query/async are counted apart.
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
@@ -889,11 +891,10 @@ took:
 
   - do: { xpack.usage: { } }
   - length: { esql.entry_points: 10 }
-  - set: { esql.entry_points.query.total: query_total }
-  - set: { esql.entry_points.query.failed: query_failed }
-  - set: { esql.entry_points.query_async.total: query_async_total }
   - set: { esql.entry_points.internal.total: internal_total }
+  - set: { esql.entry_points.query_stream.total: query_stream_total }
   - set: { esql.entry_points.prometheus_query.total: prometheus_query_total }
+  - set: { esql.entry_points.prometheus_labels.total: prometheus_labels_total }
 
   - do:
       esql.query:
@@ -901,32 +902,10 @@ took:
           query: 'ROW a = 1 | LIMIT 1'
 
   - do: { xpack.usage: { } }
-  - gt: { esql.entry_points.query.total: $query_total }
-  - match: { esql.entry_points.query_async.total: $query_async_total }
   - match: { esql.entry_points.internal.total: $internal_total }
+  - match: { esql.entry_points.query_stream.total: $query_stream_total }
   - match: { esql.entry_points.prometheus_query.total: $prometheus_query_total }
-  - set: { esql.entry_points.query.total: query_total }
-
-  - do:
-      esql.async_query:
-        body:
-          query: 'ROW a = 1 | LIMIT 1'
-          wait_for_completion_timeout: 30s
-          keep_on_completion: false
-
-  - do: { xpack.usage: { } }
-  - match: { esql.entry_points.query.total: $query_total }
-  - gt: { esql.entry_points.query_async.total: $query_async_total }
-  - match: { esql.entry_points.internal.total: $internal_total }
-
-  - do:
-      catch: bad_request
-      esql.query:
-        body:
-          query: 'FROM test | STATS m = MAX(missing_field)'
-
-  - do: { xpack.usage: { } }
-  - gt: { esql.entry_points.query.failed: $query_failed }
+  - match: { esql.entry_points.prometheus_labels.total: $prometheus_labels_total }
 
 ---
 "Queries by leading command":

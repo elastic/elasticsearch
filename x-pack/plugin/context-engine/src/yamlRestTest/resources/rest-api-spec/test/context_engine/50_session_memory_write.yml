@@ -75,16 +75,35 @@ teardown:
   - match: { id: "memory-media-only" }
 
   - do:
+      context_engine.remember:
+        body:
+          id: "memory-url"
+          session_id: "session-1"
+          user_id: "user-1"
+          agent_id: "agent-1"
+          content: "A diagram fetched by URL."
+          media:
+            - type: "image"
+              format: "url"
+              value: "https://example.com/diagram.png"
+
+  - match: { id: "memory-url" }
+  - match: { media.0.format: "url" }
+
+  - do:
       context_engine.get_session_memory:
         session_id: "session-1"
 
-  - match: { count: 3 }
-  - match: { results.0.id: "memory-media-only" }
-  - match: { results.1.id: "memory-image" }
-  - match: { results.1.media.0.type: "image" }
-  - match: { results.2.id: $text_id }
-  - match: { results.2.content: "The user prefers dark mode." }
-  - match: { results.2.attributes.source: "test" }
+  - match: { count: 4 }
+  - match: { results.0.id: "memory-url" }
+  - match: { results.0.media.0.format: "url" }
+  - match: { results.0.media.0.value: "https://example.com/diagram.png" }
+  - match: { results.1.id: "memory-media-only" }
+  - match: { results.2.id: "memory-image" }
+  - match: { results.2.media.0.type: "image" }
+  - match: { results.3.id: $text_id }
+  - match: { results.3.content: "The user prefers dark mode." }
+  - match: { results.3.attributes.source: "test" }
 
   - do:
       context_engine.get_session_memory:

@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -554,7 +556,13 @@ public class CsvColumnarIT extends CsvIT {
      * {@code CsvLogsdbColumnarIT}) may override to choose a different mode.
      */
     protected static Settings modeSettings() {
-        return Settings.builder().put(INDEX_MODE_SETTING, "columnar").build();
+        Settings.Builder settings = Settings.builder().put(INDEX_MODE_SETTING, "columnar");
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled()) {
+            // TODO: remove once ESCF preserves the original text of floating point numbers
+            // (https://github.com/elastic/elasticsearch/issues/163401).
+            settings.put(IndexSettings.BATCH_INDEXING.getKey(), false);
+        }
+        return settings.build();
     }
 
     private static final String INDEX_MODE_SETTING = "index.mode";

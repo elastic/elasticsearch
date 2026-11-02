@@ -13,6 +13,7 @@ import org.apache.lucene.queryparser.ext.Extensions.Pair;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
+import org.junit.AfterClass;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -112,6 +114,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     private static final String MAIN_INDEX_PREFIX = "main_";
     private static final String MAIN_INDEX = MAIN_INDEX_PREFIX + "index";
     private static final String LOOKUP_INDEX_PREFIX = "lookup_";
+    private static final int MAX_SHARDS_PER_DELETE_BATCH = 10;
 
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
@@ -383,6 +386,41 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     public void setupSuiteScopeCluster() {
         initIndexes(suiteTestConfigurations);
         initData(suiteTestConfigurations);
+    }
+
+    /**
+     * Deletes the suite's indices in batches before {@link ESIntegTestCase#afterClass()} wipes the cluster. That wipe deletes every
+     * index at once and then allows {@link #SAFE_AWAIT_TIMEOUT} for all shards to close. Concurrent shard closes default to
+     * {@code min(10, node.processors)}, the test cluster can set {@code node.processors} to 1, and closing all ~200 shards of this suite
+     * one at a time can exceed that timeout. Waiting after each batch of at most {@link #MAX_SHARDS_PER_DELETE_BATCH} shards keeps the
+     * work per wait bounded.
+     */
+    @AfterClass
+    public static void deleteSuiteIndicesInBatches() {
+        if (cluster() == null || cluster().size() == 0) {
+            return;
+        }
+        Map<String, Settings> indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).get().getSettings();
+        List<String> batch = new ArrayList<>();
+        int batchShards = 0;
+        for (Map.Entry<String, Settings> index : indices.entrySet()) {
+            int shards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(index.getValue());
+            if (batchShards + shards > MAX_SHARDS_PER_DELETE_BATCH && batch.isEmpty() == false) {
+                deleteAndAwaitShardsClosed(batch);
+                batch.clear();
+                batchShards = 0;
+            }
+            batch.add(index.getKey());
+            batchShards += shards;
+        }
+        if (batch.isEmpty() == false) {
+            deleteAndAwaitShardsClosed(batch);
+        }
+    }
+
+    private static void deleteAndAwaitShardsClosed(List<String> indices) {
+        assertAcked(indicesAdmin().prepareDelete(indices.toArray(String[]::new)));
+        internalCluster().awaitIndexShardCloseAsyncTasks();
     }
 
     /** This test generates documentation for the supported output types of the lookup join. */

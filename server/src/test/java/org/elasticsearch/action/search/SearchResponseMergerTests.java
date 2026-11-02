@@ -16,6 +16,8 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -26,7 +28,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -83,20 +88,25 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class SearchResponseMergerTests extends ESTestCase {
 
@@ -139,7 +149,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -178,7 +189,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             long expectedBytesRead = 0;
@@ -227,7 +239,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             PriorityQueue<Tuple<SearchShardTarget, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(
@@ -300,7 +313,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             PriorityQueue<Tuple<ShardId, ShardSearchFailure>> priorityQueue = new PriorityQueue<>(Comparator.comparing(Tuple::v1));
@@ -362,7 +376,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             List<ShardSearchFailure> expectedFailures = new ArrayList<>();
@@ -412,7 +427,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             Map<String, SearchProfileShardResult> expectedProfile = new HashMap<>();
@@ -476,7 +492,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                context
+                context,
+                mergerBreaker()
             )
         ) {
             // Add at least one response with a non-empty profile so that the merger constructs a SearchProfileResults.
@@ -524,7 +541,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 SearchContext.TRACK_TOTAL_HITS_ACCURATE,
                 searchTimeProvider,
                 emptyReduceContextBuilder(),
-                context
+                context,
+                mergerBreaker()
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -597,7 +615,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -685,7 +704,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             for (int i = 0; i < numResponses; i++) {
@@ -791,7 +811,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
                 emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("field1"))),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             for (Max max : Arrays.asList(max1, max2)) {
@@ -842,7 +863,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                     new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                         .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
                 ),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             int totalCount = 0;
@@ -1010,7 +1032,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 new SearchTimeProvider(0, 0, () -> 0),
                 reduceContextBuilder,
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             merger.add(remoteResponse);
@@ -1088,7 +1111,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 trackTotalHitsUpTo,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
 
@@ -1258,7 +1282,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 Integer.MAX_VALUE,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
@@ -1299,7 +1324,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 Integer.MAX_VALUE,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
@@ -1405,7 +1431,8 @@ public class SearchResponseMergerTests extends ESTestCase {
                 trackTotalHitsUpTo,
                 timeProvider,
                 emptyReduceContextBuilder(),
-                SearchCoordinatorContext.none()
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
             )
         ) {
             int numResponses = randomIntBetween(1, 5);
@@ -1446,6 +1473,360 @@ public class SearchResponseMergerTests extends ESTestCase {
                 mergedResponse.decRef();
             }
         }
+    }
+
+    /** The responses stay charged while the merger holds them, and the charge is released when it closes. */
+    public void testAddChargesResponsesUntilClosed() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        SearchResponse first = responseWithHits("first", 3, 100f);
+        SearchResponse second = responseWithHits("second", 3, 50f);
+        long expected = TransportMultiSearchAction.estimateActualBytes(first) + TransportMultiSearchAction.estimateActualBytes(second);
+        try (SearchResponseMerger merger = newMerger(10, breaker)) {
+            addAndRelease(merger, first);
+            addAndRelease(merger, second);
+            assertThat(breaker.getUsed(), equalTo(expected));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A response that does not fit is not added, so the caller keeps the only reference to it, and nothing stays charged for it. */
+    public void testAddTripsBreaker() {
+        SearchResponse first = responseWithHits("first", 3, 100f);
+        SearchResponse second = responseWithHits("second", 3, 50f);
+        long firstBytes = TransportMultiSearchAction.estimateActualBytes(first);
+        CircuitBreaker breaker = newLimitedBreaker(
+            ByteSizeValue.ofBytes(firstBytes + TransportMultiSearchAction.estimateActualBytes(second) - 1)
+        );
+        try (SearchResponseMerger merger = newMerger(10, breaker)) {
+            addAndRelease(merger, first);
+            try {
+                expectThrows(CircuitBreakingException.class, () -> merger.add(second));
+                assertThat(merger.numResponses(), equalTo(1));
+                assertThat(breaker.getUsed(), equalTo(firstBytes));
+            } finally {
+                assertTrue(second.decRef());
+            }
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The hits the merged response keeps stay charged until it is released, after the merger has released the rest of the responses.
+     * Only the first cluster's hits make the top {@code size}, so the share that moves is smaller than what was reserved.
+     */
+    public void testMergedResponseKeepsHitsCharged() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        SearchResponse merged;
+        try (SearchResponseMerger merger = newMerger(2, breaker)) {
+            addAndRelease(merger, responseWithHits("first", 3, 100f));
+            addAndRelease(merger, responseWithHits("second", 3, 50f));
+            merged = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+        }
+        try {
+            assertThat(merged.getHits().getHits().length, equalTo(2));
+            assertTrue(merged.hasCoordinatorFetchCharge());
+            long hitsBytes = SearchResponseMerger.estimateHitBytes(merged.getHits().getHits(), Set.of());
+            assertThat(hitsBytes, greaterThan(0L));
+            assertThat(breaker.getUsed(), equalTo(hitsBytes));
+        } finally {
+            assertTrue(merged.decRef());
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The local hits' charge is taken over without charging them again, and moves to the merged response instead of being released when
+     * the merger closes.
+     */
+    public void testAdoptsChargeOfLocalHits() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        AtomicBoolean localChargeReleased = new AtomicBoolean();
+        SearchResponse local = responseWithHits("", 3, 100f);
+        local.adoptCoordinatorFetchCharge(() -> assertTrue(localChargeReleased.compareAndSet(false, true)));
+        SearchResponse remote = responseWithHits("remote", 3, 50f);
+        // Without the local hits, which are already charged.
+        long reserved = TransportMultiSearchAction.estimateActualBytes(local) + TransportMultiSearchAction.estimateActualBytes(remote);
+        long remoteHitsBytes = SearchResponseMerger.estimateHitBytes(remote.getHits().getHits(), Set.of());
+        SearchResponse merged;
+        try (SearchResponseMerger merger = newMerger(10, breaker)) {
+            addAndRelease(merger, local);
+            addAndRelease(merger, remote);
+            assertThat(breaker.getUsed(), equalTo(reserved));
+            merged = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+        }
+        try {
+            assertThat(merged.getHits().getHits().length, equalTo(6));
+            assertFalse(localChargeReleased.get());
+            assertThat(breaker.getUsed(), equalTo(remoteHitsBytes));
+        } finally {
+            assertTrue(merged.decRef());
+        }
+        assertTrue(localChargeReleased.get());
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** A local response that does not fit keeps its own charge, which is released with it, since the merger did not take it over. */
+    public void testLocalResponseKeepsItsChargeWhenAddTrips() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ZERO);
+        AtomicBoolean localChargeReleased = new AtomicBoolean();
+        SearchResponse local = responseWithHits("", 3, 100f);
+        local.adoptCoordinatorFetchCharge(() -> assertTrue(localChargeReleased.compareAndSet(false, true)));
+        try (SearchResponseMerger merger = newMerger(10, breaker)) {
+            expectThrows(CircuitBreakingException.class, () -> merger.add(local));
+            assertTrue(local.hasCoordinatorFetchCharge());
+        } finally {
+            assertTrue(local.decRef());
+        }
+        assertTrue(localChargeReleased.get());
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** Only the first merged response takes the hits charge, so merging again cannot release it twice. */
+    public void testOnlyFirstMergedResponseTakesHitsCharge() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        SearchResponse first;
+        SearchResponse second;
+        try (SearchResponseMerger merger = newMerger(10, breaker)) {
+            addAndRelease(merger, responseWithHits("remote", 3, 100f));
+            first = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+            second = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+        }
+        try {
+            assertTrue(first.hasCoordinatorFetchCharge());
+            assertFalse(second.hasCoordinatorFetchCharge());
+            assertThat(breaker.getUsed(), equalTo(SearchResponseMerger.estimateHitBytes(first.getHits().getHits(), Set.of())));
+        } finally {
+            assertTrue(first.decRef());
+            assertTrue(second.decRef());
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * The whole response is charged while it waits, aggregations and shard failures included, but only the hits the merged response keeps
+     * stay charged after the merge.
+     */
+    public void testOnlyKeptHitsStayChargedAfterMerge() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        SearchResponse first = responseWithHitsAggsAndFailure("first", 100f);
+        SearchResponse second = responseWithHitsAggsAndFailure("second", 50f);
+        long reserved = TransportMultiSearchAction.estimateActualBytes(first) + TransportMultiSearchAction.estimateActualBytes(second);
+        long hitsBytes = SearchResponseMerger.estimateHitBytes(first.getHits().getHits(), Set.of()) + SearchResponseMerger.estimateHitBytes(
+            second.getHits().getHits(),
+            Set.of()
+        );
+        // More than the hits and the response shells, so the aggregations and shard failures are in it.
+        assertThat(reserved, greaterThan(hitsBytes + 2 * TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD));
+        SearchResponse merged;
+        try (SearchResponseMerger merger = newMerger(2, breaker, maxAggReduceContext())) {
+            addAndRelease(merger, first);
+            addAndRelease(merger, second);
+            assertThat(breaker.getUsed(), equalTo(reserved));
+            merged = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+        }
+        try {
+            assertNotNull(merged.getAggregations().get("max"));
+            assertThat(merged.getShardFailures().length, equalTo(2));
+            assertThat(breaker.getUsed(), equalTo(SearchResponseMerger.estimateHitBytes(merged.getHits().getHits(), Set.of())));
+        } finally {
+            assertTrue(merged.decRef());
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** The local charge is released with the merged response even when the merge drops every local hit, since it moves whole. */
+    public void testAdoptedChargeReleasedWithMergedResponseWhenLocalHitsAreDropped() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        AtomicBoolean localChargeReleased = new AtomicBoolean();
+        SearchResponse local = responseWithHits("", 3, 10f);
+        local.adoptCoordinatorFetchCharge(() -> assertTrue(localChargeReleased.compareAndSet(false, true)));
+        SearchResponse remote = responseWithHits("remote", 3, 100f);
+        SearchResponse merged;
+        try (SearchResponseMerger merger = newMerger(3, breaker)) {
+            addAndRelease(merger, local);
+            addAndRelease(merger, remote);
+            merged = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+        }
+        try {
+            // Only the remote hits make the top 3.
+            for (SearchHit hit : merged.getHits().getHits()) {
+                assertThat(hit.getClusterAlias(), equalTo("remote"));
+            }
+            assertFalse(localChargeReleased.get());
+            assertThat(breaker.getUsed(), equalTo(SearchResponseMerger.estimateHitBytes(merged.getHits().getHits(), Set.of())));
+        } finally {
+            assertTrue(merged.decRef());
+        }
+        assertTrue(localChargeReleased.get());
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /** Responses added from several threads at once are all charged, and released, including the charges some of them hand over. */
+    public void testConcurrentAdds() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
+        int clusters = between(2, 8);
+        AtomicInteger adoptedChargesReleased = new AtomicInteger();
+        List<SearchResponse> responses = new ArrayList<>();
+        int adopted = 0;
+        long reserved = 0L;
+        for (int i = 0; i < clusters; i++) {
+            SearchResponse response = responseWithHits("cluster-" + i, between(1, 5), 100f - i * 10);
+            if (randomBoolean()) {
+                response.adoptCoordinatorFetchCharge(adoptedChargesReleased::incrementAndGet);
+                adopted++;
+            }
+            reserved += TransportMultiSearchAction.estimateActualBytes(response);
+            responses.add(response);
+        }
+        SearchResponse merged;
+        try (SearchResponseMerger merger = newMerger(10, breaker)) {
+            startInParallel(clusters, i -> addAndRelease(merger, responses.get(i)));
+            assertThat(merger.numResponses(), equalTo(clusters));
+            assertThat(breaker.getUsed(), equalTo(reserved));
+            merged = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+        }
+        assertTrue(merged.decRef());
+        assertThat(adoptedChargesReleased.get(), equalTo(adopted));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    /**
+     * Charges and releases go under the same label, so that the breaker's per-category memory metric stays balanced. Covers both users of
+     * the label: the merger and the single-cluster path, {@link TransportSearchAction#chargeRemoteHits}. {@link LimitedBreaker} ignores
+     * labels, so a release without one would still bring its usage back to zero.
+     */
+    public void testChargeAndReleaseUseTheSameLabel() {
+        LabelRecordingBreaker breaker = new LabelRecordingBreaker();
+        SearchResponse merged;
+        try (SearchResponseMerger merger = newMerger(2, breaker)) {
+            addAndRelease(merger, responseWithHits("first", 3, 100f));
+            addAndRelease(merger, responseWithHits("second", 3, 50f));
+            merged = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+        }
+        assertTrue(merged.decRef());
+        SearchResponse single = responseWithHits("remote", 3, 100f);
+        try {
+            TransportSearchAction.chargeRemoteHits(single.getHits(), breaker).close();
+        } finally {
+            assertTrue(single.decRef());
+        }
+        assertThat(breaker.charged, everyItem(equalTo(SearchResponseMerger.BREAKER_LABEL)));
+        assertThat(breaker.released, everyItem(equalTo(SearchResponseMerger.BREAKER_LABEL)));
+        // everyItem also passes on an empty list.
+        assertThat(breaker.charged, not(empty()));
+        assertThat(breaker.released, not(empty()));
+    }
+
+    /**
+     * Records the label of every charge and release. A test double, because {@link LimitedBreaker} ignores labels, and checking the
+     * per-category metric of a real breaker would need a meter registry.
+     */
+    private static final class LabelRecordingBreaker extends NoopCircuitBreaker {
+        final List<String> charged = new ArrayList<>();
+        final List<String> released = new ArrayList<>();
+
+        LabelRecordingBreaker() {
+            super(CircuitBreaker.REQUEST);
+        }
+
+        @Override
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) {
+            charged.add(label);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes) {
+            released.add(null);
+        }
+
+        @Override
+        public void addWithoutBreaking(long bytes, String label) {
+            released.add(label);
+        }
+    }
+
+    private static SearchResponseMerger newMerger(int size, CircuitBreaker breaker, AggregationReduceContext.Builder reduceContext) {
+        return new SearchResponseMerger(
+            0,
+            size,
+            SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+            new SearchTimeProvider(0, 0, () -> 0),
+            reduceContext,
+            SearchCoordinatorContext.none(),
+            breaker
+        );
+    }
+
+    private static AggregationReduceContext.Builder maxAggReduceContext() {
+        return emptyReduceContextBuilder(new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("max")));
+    }
+
+    /** Like {@link #responseWithHits}, with a {@code max} aggregation and a shard failure. */
+    private static SearchResponse responseWithHitsAggsAndFailure(String clusterAlias, float topScore) {
+        SearchResponse hitsOnly = responseWithHits(clusterAlias, 3, topScore);
+        try {
+            ShardSearchFailure failure = new ShardSearchFailure(
+                new ElasticsearchException("simulated"),
+                new SearchShardTarget("node", new ShardId("index", "_na_", 1), clusterAlias)
+            );
+            return new SearchResponse(
+                hitsOnly.getHits(),
+                InternalAggregations.from(List.of(new Max("max", topScore, DocValueFormat.RAW, Map.of()))),
+                null,
+                false,
+                null,
+                null,
+                1,
+                null,
+                2,
+                1,
+                0,
+                0,
+                new ShardSearchFailure[] { failure },
+                SearchResponse.Clusters.EMPTY,
+                null,
+                null,
+                null
+            );
+        } finally {
+            hitsOnly.decRef();
+        }
+    }
+
+    private static SearchResponseMerger newMerger(int size, CircuitBreaker breaker) {
+        return newMerger(size, breaker, emptyReduceContextBuilder());
+    }
+
+    private static void addAndRelease(SearchResponseMerger merger, SearchResponse response) {
+        try {
+            merger.add(response);
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /** A response with hits of one shard of {@code clusterAlias}, whose scores count down from {@code topScore}. */
+    static SearchResponse responseWithHits(String clusterAlias, int numHits, float topScore) {
+        SearchShardTarget shard = new SearchShardTarget("node", new ShardId("index", "_na_", 0), clusterAlias);
+        SearchHit[] hits = new SearchHit[numHits];
+        for (int i = 0; i < numHits; i++) {
+            hits[i] = new SearchHit(i, "doc-" + i);
+            hits[i].shard(shard);
+            hits[i].score(topScore - i);
+            hits[i].sourceRef(new BytesArray("{\"field\":\"" + randomAlphaOfLength(between(10, 1000)) + "\"}"));
+        }
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), topScore);
+        try {
+            return SearchResponseUtils.successfulResponse(searchHits);
+        } finally {
+            searchHits.decRef();
+        }
+    }
+
+    /** A breaker some of the time, so that every merge test also checks that merging releases what it charges. */
+    @Nullable
+    private static CircuitBreaker mergerBreaker() {
+        return randomBoolean() ? null : newLimitedBreaker(ByteSizeValue.ofMb(100));
     }
 
     private static Tuple<Integer, TotalHits.Relation> randomTrackTotalHits() {
@@ -1611,7 +1992,9 @@ public class SearchResponseMergerTests extends ESTestCase {
                         new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                             .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
                     ),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    // Partial results are merged more than once, by a merger without a breaker, see TransportSearchAction#ccsRemoteReduce.
+                    null
                 )
             ) {
                 searchResponseMerger.add(searchResponsePartialAggs);
@@ -1732,7 +2115,9 @@ public class SearchResponseMergerTests extends ESTestCase {
                         new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder(maxAggName))
                             .addAggregator(new DateRangeAggregationBuilder(rangeAggName))
                     ),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    // Partial results are merged more than once, by a merger without a breaker, see TransportSearchAction#ccsRemoteReduce.
+                    null
                 )
             ) {
                 searchResponseMerger.add(searchResponseRemote2);

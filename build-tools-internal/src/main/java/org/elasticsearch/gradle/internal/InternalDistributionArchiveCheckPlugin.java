@@ -12,12 +12,15 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.elasticsearch.gradle.internal.conventions.LicensingPlugin;
+import org.elasticsearch.gradle.internal.distribution.CheckFileLinesTask;
+import org.elasticsearch.gradle.internal.distribution.DistributionChecks;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Provider;
@@ -58,8 +61,8 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
 
         // sanity checks if archives can be extracted
         TaskProvider<Copy> checkExtraction = registerCheckExtractionTask(project, buildDistTask, archiveExtractionDir);
-        TaskProvider<Task> checkLicense = registerCheckLicenseTask(project, checkExtraction);
-        TaskProvider<Task> checkNotice = registerCheckNoticeTask(project, checkExtraction);
+        TaskProvider<CheckFileLinesTask> checkLicense = registerCheckLicenseTask(project, checkExtraction);
+        TaskProvider<CheckFileLinesTask> checkNotice = registerCheckNoticeTask(project, checkExtraction);
         TaskProvider<Task> checkModulesTask = InternalDistributionModuleCheckTaskProvider.registerCheckModulesTask(
             project,
             checkExtraction
@@ -128,7 +131,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
                             }
                         }
                     } catch (IOException ioException) {
-                        ioException.printStackTrace();
+                        throw new GradleException("Unable to read from file " + noticePath.get(), ioException);
                     }
                 }
             });
@@ -136,44 +139,33 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         return checkMlCppNoticeTask;
     }
 
-    private TaskProvider<Task> registerCheckNoticeTask(Project project, TaskProvider<Copy> checkExtraction) {
-        return project.getTasks().register("checkNotice", task -> {
+    private TaskProvider<CheckFileLinesTask> registerCheckNoticeTask(Project project, TaskProvider<Copy> checkExtraction) {
+        return project.getTasks().register("checkNotice", CheckFileLinesTask.class, task -> {
             task.dependsOn(checkExtraction);
-            var noticePath = checkExtraction.map(
-                copy -> copy.getDestinationDir().toPath().resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/NOTICE.txt")
-            );
-            task.doLast(t -> {
-                final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2024 Elasticsearch");
-                assertLinesInFile(noticePath.get(), noticeLines);
-            });
+            task.getCheckedFile().set(extractedFile(project, checkExtraction, "NOTICE.txt"));
+            task.getExpectedLines().set(DistributionChecks.EXPECTED_NOTICE_LINES);
         });
     }
 
-    private TaskProvider<Task> registerCheckLicenseTask(Project project, TaskProvider<Copy> checkExtraction) {
-        TaskProvider<Task> checkLicense = project.getTasks().register("checkLicense", task -> {
+    private TaskProvider<CheckFileLinesTask> registerCheckLicenseTask(Project project, TaskProvider<Copy> checkExtraction) {
+        String projectName = project.getName();
+        String licenseFilename = projectName.contains("oss-") || projectName.equals("integ-test-zip")
+            ? "AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt"
+            : DistributionChecks.ELASTIC_LICENSE_FILE;
+        return project.getTasks().register("checkLicense", CheckFileLinesTask.class, task -> {
             task.dependsOn(checkExtraction);
-            String projectName = project.getName();
-            Provider<Path> licensePathProvider = checkExtraction.map(
-                copy -> copy.getDestinationDir().toPath().resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/LICENSE.txt")
-            );
-            File rootDir = project.getLayout().getSettingsDirectory().getAsFile();
-            task.doLast(t -> {
-                String licenseFilename = null;
-                if (projectName.contains("oss-") || projectName.equals("integ-test-zip")) {
-                    licenseFilename = "AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
-                } else {
-                    licenseFilename = "ELASTIC-LICENSE-2.0.txt";
-                }
-                final List<String> licenseLines;
-                try {
-                    licenseLines = Files.readAllLines(rootDir.toPath().resolve("licenses/" + licenseFilename));
-                    assertLinesInFile(licensePathProvider.get(), licenseLines);
-                } catch (IOException ioException) {
-                    ioException.printStackTrace();
-                }
-            });
+            task.getCheckedFile().set(extractedFile(project, checkExtraction, "LICENSE.txt"));
+            task.getExpectedLines().set(DistributionChecks.licenseLines(project.getProviders(), project.getLayout(), licenseFilename));
         });
-        return checkLicense;
+    }
+
+    private static Provider<RegularFile> extractedFile(Project project, TaskProvider<Copy> checkExtraction, String fileName) {
+        return project.getLayout()
+            .file(
+                checkExtraction.map(
+                    copy -> new File(copy.getDestinationDir(), "elasticsearch-" + VersionProperties.getElasticsearch() + "/" + fileName)
+                )
+            );
     }
 
     private TaskProvider<Copy> registerCheckExtractionTask(Project project, TaskProvider<Task> buildDistTask, File archiveExtractionDir) {
@@ -188,24 +180,6 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
             // common sanity checks on extracted archive directly as part of checkExtraction
             t.eachFile(fileCopyDetails -> assertNoClassFile(fileCopyDetails.getFile()));
         });
-    }
-
-    private static void assertLinesInFile(Path path, List<String> expectedLines) {
-        try {
-            final List<String> actualLines = Files.readAllLines(path);
-            int line = 0;
-            for (final String expectedLine : expectedLines) {
-                final String actualLine = actualLines.get(line);
-                if (expectedLine.equals(actualLine) == false) {
-                    throw new GradleException(
-                        "expected line [" + (line + 1) + "] in [" + path + "] to be [" + expectedLine + "] but was [" + actualLine + "]"
-                    );
-                }
-                line++;
-            }
-        } catch (IOException ioException) {
-            throw new GradleException("Unable to read from file " + path, ioException);
-        }
     }
 
     private static void assertNoClassFile(File file) {

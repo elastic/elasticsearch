@@ -572,6 +572,7 @@ public class Constants {
         "indices:admin/esql/view/delete",
         "indices:admin/esql/view/get",
         "indices:admin/esql/view/put",
+        "indices:admin/esql/view/validate",
         "indices:admin/flush",
         "indices:admin/flush[s]",
         "indices:admin/forcemerge",

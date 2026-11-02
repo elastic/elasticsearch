@@ -61,6 +61,19 @@ public class CostBasedOptimizerTests extends ESTestCase {
         assertEquals(JoinStrategy.PARTITIONED, decisions.join(join).orElseThrow());
     }
 
+    public void testBroadcastFitIgnoresLanesPerNode() {
+        Attribute leftKey = attribute("probe_key");
+        Attribute rightKey = attribute("build_key");
+        SubqueryLookupJoin join = subqueryJoin(relation("probe", leftKey), relation("build", rightKey), leftKey, rightKey);
+        Map<LogicalPlan, PlanStats> statistics = new IdentityHashMap<>();
+        statistics.put(join.left(), stats(100_000_000, 8_000_000_000d, 80));
+        statistics.put(join.right(), stats(1_700_000, 42d * 1024 * 1024, 26));
+
+        PlanDecisions decisions = optimize(join, statistics, 16L * 1024 * 1024, 4);
+
+        assertEquals(JoinStrategy.BROADCAST, decisions.join(join).orElseThrow());
+    }
+
     public void testDistributedAggregateCanFeedPartitionedJoin() {
         Attribute leftKey = attribute("group_key");
         Attribute rightKey = attribute("join_key");
@@ -109,9 +122,21 @@ public class CostBasedOptimizerTests extends ESTestCase {
     }
 
     private static PlanDecisions optimize(LogicalPlan plan, Map<LogicalPlan, PlanStats> statistics, long materializeLimitBytes) {
+        return optimize(plan, statistics, materializeLimitBytes, 2);
+    }
+
+    private static PlanDecisions optimize(
+        LogicalPlan plan,
+        Map<LogicalPlan, PlanStats> statistics,
+        long materializeLimitBytes,
+        int partitionsPerNode
+    ) {
         Configuration configuration = EsqlTestUtils.configuration(
             new QueryPragmas(
-                Settings.builder().put(QueryPragmas.CBO.getKey(), true).put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), 2).build()
+                Settings.builder()
+                    .put(QueryPragmas.CBO.getKey(), true)
+                    .put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), partitionsPerNode)
+                    .build()
             )
         );
         CboContext context = new CboContext(configuration, TransportVersion.current(), 4, materializeLimitBytes);

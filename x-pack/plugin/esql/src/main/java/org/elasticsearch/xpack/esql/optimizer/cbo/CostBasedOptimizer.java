@@ -871,10 +871,9 @@ public final class CostBasedOptimizer {
             double rows = estimateValue(estimateRows(rightStats), CostConstants.UNKNOWN_ROWS);
             double probeRows = estimateValue(estimateRows(leftStats), CostConstants.UNKNOWN_ROWS);
             double work = rows * CostConstants.BUILD_WORK_PER_ROW * context.workerNodes() + probeRows * CostConstants.PROBE_WORK_PER_ROW;
-            double memoryPerLane = estimateValue(estimateBytes(rightStats), CostConstants.UNKNOWN_BYTES)
-                * CostConstants.HASH_TABLE_OVERHEAD;
-            double memoryPerNode = memoryPerLane * Math.max(1, pragmas.shufflePartitionsPerNode());
-            return executionCost(work, Math.max(1, workerLanes), CostConstants.STAGE_STARTUP_SECONDS, 0, 0, memoryPerNode, memoryPerLane);
+            // All lanes on a node probe one shared hash table, so the node holds a single copy regardless of lanes per node.
+            double tableBytes = estimateValue(estimateBytes(rightStats), CostConstants.UNKNOWN_BYTES) * CostConstants.HASH_TABLE_OVERHEAD;
+            return executionCost(work, Math.max(1, workerLanes), CostConstants.STAGE_STARTUP_SECONDS, 0, 0, tableBytes, tableBytes);
         }
 
         private Cost partitionedJoinCost(PlanStats leftStats, PlanStats rightStats) {
@@ -959,7 +958,8 @@ public final class CostBasedOptimizer {
                 CostConstants.STAGE_STARTUP_SECONDS,
                 network,
                 0,
-                bytes * Math.max(1, pragmas.shufflePartitionsPerNode()),
+                // Each node receives one copy, consumed by a single lane that builds the shared hash table.
+                bytes,
                 bytes
             );
         }
@@ -1037,8 +1037,8 @@ public final class CostBasedOptimizer {
                 }
                 if (alternative.joinStrategy() == JoinStrategySelector.JoinStrategy.BROADCAST) {
                     Estimate bytes = estimateBytes(winner.group().children.get(1).stats);
-                    double laneBudget = CostConstants.BROADCAST_MEMORY_BYTES / Math.max(1, pragmas.shufflePartitionsPerNode());
-                    double buildBudget = laneBudget / CostConstants.HASH_TABLE_OVERHEAD;
+                    // The build is shared by all lanes on a node, so the whole node budget applies to one table.
+                    double buildBudget = CostConstants.BROADCAST_MEMORY_BYTES / CostConstants.HASH_TABLE_OVERHEAD;
                     if (bytes.probabilityAtMost(buildBudget) < CostConstants.MIN_FIT_PROBABILITY) {
                         return "broadcast build side does not meet the memory fit threshold";
                     }

@@ -21,7 +21,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 
 /** Exercises label binding through ordinary scalar expressions while preserving named inputs for aggregation analysis. */
-public class TimeSeriesGetTests extends ESTestCase {
+public class TimeSeriesGetCreateTests extends ESTestCase {
     private static final List<DataType> LABEL_TYPES = List.of(
         DataType.KEYWORD,
         DataType.INTEGER,

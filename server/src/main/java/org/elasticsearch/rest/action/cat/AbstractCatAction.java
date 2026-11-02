@@ -65,6 +65,12 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         }
     }
 
+    @Override
+    protected boolean assertConsumesSupportedParams(Set<String> supported, RestRequest request) {
+        // if "help" is specified, nothing else is consumed - that's ok
+        return request.paramAsBoolean("help", false) || super.assertConsumesSupportedParams(supported, request);
+    }
+
     static Set<String> RESPONSE_PARAMS = Set.of("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s");
 
     /**

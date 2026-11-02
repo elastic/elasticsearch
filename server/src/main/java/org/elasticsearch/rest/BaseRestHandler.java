@@ -156,7 +156,7 @@ public abstract class BaseRestHandler implements RestHandler {
         }
     }
 
-    private boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
+    protected boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
         if (supported != null) {
             Set<String> supportedAndCommon = new TreeSet<>(supported);
             supportedAndCommon.add("error_trace");

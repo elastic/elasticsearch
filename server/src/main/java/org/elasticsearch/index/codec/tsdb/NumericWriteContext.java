@@ -14,8 +14,9 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 
 /**
- * Shared write-path state for numeric field writers. Created once per segment
- * by the consumer and passed to {@link NumericFieldWriter} instances.
+ * Shared write-path state for numeric field writers. Created once per segment by the consumer
+ * and passed to {@link NumericFieldWriter}, {@link SortedOrdinalCodec#createWriter}, and
+ * {@link SortedSetOrdinalCodec#createWriter}.
  *
  * @param meta                   the metadata output stream
  * @param data                   the data output stream

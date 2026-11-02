@@ -79,6 +79,7 @@ public class NonIndexedTextSearchIT extends AbstractEsqlIntegTestCase {
                     .setMapping("{\"properties\":{\"body\":" + body + ",\"tag\":{\"type\":\"keyword\"}}}")
             );
         }
+        ensureGreen(INDEXED, NOT_INDEXED);
         for (int i = 0; i < 20; i++) {
             for (String index : List.of(INDEXED, NOT_INDEXED)) {
                 indexDoc(index, "the quick brown foxes jumped " + i, i < 5 ? "a" : "b");
@@ -106,6 +107,7 @@ public class NonIndexedTextSearchIT extends AbstractEsqlIntegTestCase {
                 .setSettings(settings)
                 .setMapping("{\"properties\":{\"body\":" + body + ",\"tag\":{\"type\":\"keyword\"}}}")
         );
+        ensureGreen(index);
     }
 
     private void indexDoc(String index, String body, String tag) {

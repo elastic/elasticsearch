@@ -19,6 +19,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -27,8 +28,17 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -204,6 +214,46 @@ public class IdLoaderTests extends ESTestCase {
         };
         prepareIndexReader(indexAndForceMerge(randomDocs, routingHash), verify, false);
         assertThat(expectedIDs, empty());
+    }
+
+    public void testLegacyBlockReaderBreakerUsageAfterClose() throws Exception {
+        BlockLoader loader = legacyTsIdLoader("host").blockLoader(ByteSizeValue.ofKb(1));
+        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+            loader.columnAtATimeReader(getOnlyLeafReader(indexReader).getContext()).apply(breaker).close();
+            assertThat(breaker.getUsed(), equalTo(0L));
+        };
+        prepareIndexReader(writer -> indexDoc(writer, new Doc(0, List.of(new Dimension("host", "a"))), routingHash), verify, false);
+    }
+
+    public void testLegacyBlockReaderBreakerLimitWithOpenReader() throws Exception {
+        ByteSizeValue ordinalsByteSize = ByteSizeValue.ofKb(1);
+        BlockLoader loader = legacyTsIdLoader("host").blockLoader(ordinalsByteSize);
+        // NOTE: one reader reserves ordinalsByteSize for _tsid and for host, plus the estimate for @timestamp
+        long readerBytes = 2 * ordinalsByteSize.getBytes() + TrackingNumericDocValues.ESTIMATED_SIZE;
+        CheckedConsumer<IndexReader, IOException> verify = indexReader -> {
+            LeafReaderContext context = getOnlyLeafReader(indexReader).getContext();
+            CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(readerBytes + readerBytes / 2));
+            try (BlockLoader.ColumnAtATimeReader first = loader.columnAtATimeReader(context).apply(breaker)) {
+                expectThrows(CircuitBreakingException.class, () -> {
+                    try (BlockLoader.ColumnAtATimeReader second = loader.columnAtATimeReader(context).apply(breaker)) {
+                        fail("second reader admitted beyond the breaker limit");
+                    }
+                });
+            }
+        };
+        prepareIndexReader(writer -> indexDoc(writer, new Doc(0, List.of(new Dimension("host", "a"))), routingHash), verify, false);
+    }
+
+    private static IdLoader legacyTsIdLoader(String routingPath) {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .build();
+        IndexRouting.ExtractFromSource.ForRoutingPath indexRouting = (IndexRouting.ExtractFromSource.ForRoutingPath) IndexSettingsModule
+            .newIndexSettings("index", settings)
+            .getIndexRouting();
+        return IdLoader.createTsIdLoader(indexRouting, List.of(routingPath), false);
     }
 
     private static CheckedConsumer<IndexWriter, IOException> indexAndForceMerge(List<Doc> docs, int routingHash) {

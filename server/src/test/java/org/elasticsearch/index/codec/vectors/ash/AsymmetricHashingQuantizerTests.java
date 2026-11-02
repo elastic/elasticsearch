@@ -303,6 +303,27 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         assertOrthonormalRows(refined, k, n, 1e-4f);
     }
 
+    public void testMaxProjectedDims() {
+        final int maxDims = 1024;
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            0.5f,
+            maxDims,
+            1,
+            AsymmetricHashingQuantizer.Method.RANDOM,
+            0,
+            1,
+            42L,
+            executor()
+        );
+
+        assertThat(quantizer.nDims(128), equalTo(64));
+        assertThat(quantizer.nDims(1024), equalTo(512));
+        assertThat(quantizer.nDims(2046), equalTo(1023));
+        assertThat(quantizer.nDims(2048), equalTo(maxDims));
+        assertThat(quantizer.nDims(2050), equalTo(maxDims));
+        assertThat(quantizer.nDims(4096), equalTo(maxDims));
+    }
+
     public void testReconstructedDotProductApproximatesTrueDotProduct() throws IOException {
         // With no dimensionality reduction (projectedDimsFraction=1.0, so nDims == originalDim and W
         // is a random orthogonal matrix -- a pure rotation, not a projection), the only source of
@@ -326,6 +347,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         for (var config : List.of(new Config(3, 0.9), new Config(4, 0.35), new Config(8, 0.05))) {
             AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
                 1.0f,
+                Integer.MAX_VALUE,
                 config.bitsPerDim(),
                 AsymmetricHashingQuantizer.Method.RANDOM,
                 0,
@@ -414,6 +436,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.25f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -444,6 +467,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Method.RANDOM always yields a non-learned matrix.
         AsymmetricHashingQuantizer randomQuantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.RANDOM,
             0,
@@ -456,6 +480,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Method.LEARNED with enough vectors yields a genuinely learned matrix.
         AsymmetricHashingQuantizer learnedQuantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -498,6 +523,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.25f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -530,6 +556,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.25f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -559,6 +586,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         for (int iterations : new int[] { 1, 3 }) {
             AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
                 0.25f,
+                Integer.MAX_VALUE,
                 2,
                 AsymmetricHashingQuantizer.Method.LEARNED,
                 iterations,
@@ -584,7 +612,16 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
     public void testNegativeProcrustesIterationsAreRejected() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> new AsymmetricHashingQuantizer(0.5f, 2, AsymmetricHashingQuantizer.Method.LEARNED, -1, 10, 42L, executor())
+            () -> new AsymmetricHashingQuantizer(
+                0.5f,
+                Integer.MAX_VALUE,
+                2,
+                AsymmetricHashingQuantizer.Method.LEARNED,
+                -1,
+                10,
+                42L,
+                executor()
+            )
         );
     }
 
@@ -598,6 +635,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             1.0f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -622,6 +660,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -649,6 +688,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -674,6 +714,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -722,6 +763,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[] zero = new float[dim];
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -758,6 +800,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         CheckedIntFunction<float[], IOException> centroidGetter = i -> centroid;
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -786,6 +829,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[] zero = new float[dim];
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -816,6 +860,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
             }
             AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
                 0.5f,
+                Integer.MAX_VALUE,
                 2,
                 AsymmetricHashingQuantizer.Method.LEARNED,
                 2,
@@ -840,12 +885,12 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
         float[] zero = new float[dim];
         var randomRotation = train(
-            new AsymmetricHashingQuantizer(1.0f, 2, AsymmetricHashingQuantizer.Method.LEARNED, 0, 10, 42L, executor()),
+            new AsymmetricHashingQuantizer(1.0f, Integer.MAX_VALUE, 2, AsymmetricHashingQuantizer.Method.LEARNED, 0, 10, 42L, executor()),
             vectors,
             i -> zero
         );
         var refined = train(
-            new AsymmetricHashingQuantizer(1.0f, 2, AsymmetricHashingQuantizer.Method.LEARNED, 2, 10, 42L, executor()),
+            new AsymmetricHashingQuantizer(1.0f, Integer.MAX_VALUE, 2, AsymmetricHashingQuantizer.Method.LEARNED, 2, 10, 42L, executor()),
             vectors,
             i -> zero
         );
@@ -876,6 +921,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         };
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -918,6 +964,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         int dim = 64;
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -955,6 +1002,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         float[] centroid = new float[dim];
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             0.5f,
+            Integer.MAX_VALUE,
             2,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -1037,6 +1085,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         // Train
         AsymmetricHashingQuantizer ash = new AsymmetricHashingQuantizer(
             projectedDimsFraction,
+            Integer.MAX_VALUE,
             bitsPerDim,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -1160,6 +1209,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             projectedDimsFraction,
+            Integer.MAX_VALUE,
             bitsPerDim,
             AsymmetricHashingQuantizer.Method.LEARNED,
             0,
@@ -1207,6 +1257,7 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
 
         AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
             randomFrom(0.5f, 1.0f),
+            Integer.MAX_VALUE,
             bitsPerDim,
             AsymmetricHashingQuantizer.Method.RANDOM,
             0,

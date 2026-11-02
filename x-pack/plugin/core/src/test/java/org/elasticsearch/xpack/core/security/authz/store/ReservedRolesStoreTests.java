@@ -4747,6 +4747,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertRemoteAllowed(role, "logs-sample", TransportSearchAction.TYPE.name(), false);
         assertRemoteAllowed(role, "entities-latest-sample", TransportSearchAction.TYPE.name(), false);
         assertRemoteAllowed(role, ".alerts-security.alerts-default", TransportSearchAction.TYPE.name(), false);
+        // Attack Discovery alerts are written on this cluster.
+        assertRemoteAllowed(role, ".alerts-security.attack.discovery.alerts-default", TransportSearchAction.TYPE.name(), false);
     }
 
     public void testAlertZeroWorkerRolesWithoutRemoteIndices() {

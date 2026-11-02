@@ -14,6 +14,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -322,7 +323,7 @@ public class NodeTests extends ESTestCase {
         assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
-        Searcher searcher = shard.acquireSearcher("test");
+        Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT);
         node.close();
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> node.awaitClose(10L, TimeUnit.SECONDS));

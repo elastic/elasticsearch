@@ -51,7 +51,8 @@ public final class CcrRequests {
      * without any stats, which is cheap but not free, so it is only used after a request by name came back with nothing.
      */
     public static void resolveIndexByUuid(RemoteClusterClient client, Index index, ActionListener<Index> listener) {
-        final IndicesStatsRequest request = new IndicesStatsRequest().indices("*").clear();
+        // the same shape of request CcrRepository uses against the leader; a request with every section cleared does not round-trip
+        final IndicesStatsRequest request = new IndicesStatsRequest().indices("*").clear().store(true);
         request.indicesOptions(IndicesOptions.lenientExpandHidden());
         client.execute(IndicesStatsAction.REMOTE_TYPE, request, listener.delegateFailureAndWrap((delegate, response) -> {
             for (ShardStats shardStats : response.getShards()) {

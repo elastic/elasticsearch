@@ -66,6 +66,9 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 # 10. Move the JDK out of the way, so that it is copied to the final image in its own layer. It rarely
 #     changes, unlike the rest of the distribution, so the layer can be reused by the Docker build cache
 #     and does not have to be pushed or pulled again.
+# 11. Do the same for the libraries of the native machine learning code, which only change when the native
+#     code is updated. The distribution only contains the libraries of the architecture being built, so find
+#     them by wildcard and keep their path, so that they are copied back to the same place.
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
@@ -76,7 +79,12 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} + && \\
     mkdir /jdk-layer && \\
-    mv jdk /jdk-layer/
+    mv jdk /jdk-layer/ && \\
+    mkdir /ml-layer && \\
+    for lib in modules/x-pack-ml/platform/*/lib; do \\
+        [ -d "\$lib" ] || continue; \\
+        mkdir -p "/ml-layer/\$(dirname "\$lib")" && mv "\$lib" "/ml-layer/\$lib" || exit 1; \\
+    done
 
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
@@ -113,6 +121,8 @@ ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 WORKDIR /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /jdk-layer/jdk /usr/share/elasticsearch/jdk
+
+COPY --from=builder --chown=0:0 /ml-layer /usr/share/elasticsearch
 
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 

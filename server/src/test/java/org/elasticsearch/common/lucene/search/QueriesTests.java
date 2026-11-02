@@ -54,17 +54,21 @@ public class QueriesTests extends ESTestCase {
             .add(new TermQuery(new Term("foo", "b")), Occur.SHOULD)
             .build();
         final boolean scansEveryDocument = randomBoolean();
+        // Whether the values are read for their tokens is carried through as well, which equality compares.
+        final StandardAnalyzer valuesAnalyzer = randomBoolean() ? new StandardAnalyzer() : null;
         final ReanalyzingTextQuery wrapped = new ReanalyzingTextQuery(
             bool,
             ctx -> doc -> List.of(),
             new StandardAnalyzer(),
-            scansEveryDocument
+            scansEveryDocument,
+            valuesAnalyzer
         );
         final Query expected = new ReanalyzingTextQuery(
             Queries.applyMinimumShouldMatch(bool, "2"),
             ctx -> doc -> List.of(),
             new StandardAnalyzer(),
-            scansEveryDocument
+            scansEveryDocument,
+            valuesAnalyzer
         );
 
         assertEquals(expected, Queries.maybeApplyMinimumShouldMatch(wrapped, "2"));

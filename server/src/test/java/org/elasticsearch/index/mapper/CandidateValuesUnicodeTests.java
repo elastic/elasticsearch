@@ -101,6 +101,50 @@ public class CandidateValuesUnicodeTests extends ESTestCase {
         assertThat("nothing was read for, so nothing was proved", read, org.hamcrest.Matchers.greaterThan(10000));
     }
 
+    /**
+     * Scripts without case, and text whose accents are marks of their own, lower onto nothing, so the walk above never
+     * reads them. Each is read here for every token it leaves, both for whether it may hold the token and, where the
+     * analyzer's tokens can be read, for what it holds.
+     */
+    public void testScriptsWithoutCaseAndDecomposedText() throws IOException {
+        int read = 0;
+        for (String text : List.of(
+            "東京都",
+            "東京都 tokyo",
+            "ภาษาไทย",
+            "한국어 텍스트",
+            "مرحبا بالعالم",
+            "שלום עולם",
+            "café cafe",
+            "école",
+            "näive k9",
+            "日本語のテキスト"
+        )) {
+            for (Analyzer analyzer : readableAnalyzers()) {
+                for (BytesRef token : TokenStreamMatching.analyzeTerms(analyzer, FIELD, text)) {
+                    final String description = "["
+                        + text
+                        + "] leaves ["
+                        + token.utf8ToString()
+                        + "] under "
+                        + analyzer.getClass().getSimpleName();
+                    final CandidateValues candidates = CandidateValues.anyOf(List.of(token));
+                    if (candidates.reads() == false) {
+                        continue;
+                    }
+                    read++;
+                    assertTrue(description + ", and the read ruled the value out", candidates.mayHold(new BytesRef(text)));
+                    assertNotEquals(
+                        description + ", and reading its tokens ruled the value out",
+                        CandidateValues.Answer.NO,
+                        candidates.readingTokensOf(analyzer).held(new BytesRef(text))
+                    );
+                }
+            }
+        }
+        assertThat("nothing was read for, so nothing was proved", read, org.hamcrest.Matchers.greaterThan(20));
+    }
+
     /** The exceptions themselves, spelled out: each carries an ASCII letter into a token. */
     public void testTheTwoExceptionsCarryALetterIntoAToken() throws IOException {
         final Analyzer standard = new StandardAnalyzer();

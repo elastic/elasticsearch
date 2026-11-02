@@ -490,8 +490,9 @@ public final class CandidateValues {
                 case MUST_NOT -> spellingAnswers[0] = false;
             }
         }
-        if (query.getMinimumNumberShouldMatch() > 1) {
-            // Holding one of the alternatives answers one clause, and this asks for more than one of them.
+        if (query.getMinimumNumberShouldMatch() > Math.min(1, answeredByOne.size())) {
+            // Holding one of the alternatives answers one clause, and this asks for more than one of them, or for
+            // more of them than there are, which nothing answers.
             spellingAnswers[0] = false;
         }
         if (answeredByEvery.isEmpty() == false) {

@@ -153,11 +153,6 @@ public final class TokenStreamMatching {
     }
 
     /**
-     * Counts the phrases a document holds as its values are fed in, one stream at a time. Where a document holds
-     * several values, the gap its analyzer leaves between them is fed too, so a phrase spans them exactly as far as
-     * an index of the same values would let it.
-     */
-    /**
      * How many of a query's clauses a value's tokens answer, where every clause is answered by any one of the terms
      * it names. A clause answered counts once however often a value holds one of them, which is what a field
      * indexing no terms scores, so the walk stops as soon as every clause has been answered. Positions are not
@@ -236,6 +231,11 @@ public final class TokenStreamMatching {
         }
     }
 
+    /**
+     * Counts the phrases a document holds as its values are fed in, one stream at a time. Where a document holds
+     * several values, the gap its analyzer leaves between them is fed too, so a phrase spans them exactly as far as
+     * an index of the same values would let it.
+     */
     public static class PhraseWalker {
 
         private final BytesRef[] terms;

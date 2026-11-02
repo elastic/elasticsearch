@@ -132,6 +132,53 @@ public class CandidateValuesFuzzTests extends ESTestCase {
         assertThat("nothing was answered no", no, greaterThan(100));
     }
 
+    /**
+     * The bytes around a stretch are all the boundaries read, and there are few of them, so every byte of ASCII is
+     * tried on either side of a term rather than left to the sampling above: alone, against another byte beyond it,
+     * and with nothing there at all.
+     */
+    public void testEveryAsciiByteAroundATerm() throws IOException {
+        final StandardAnalyzer shortTokens = new StandardAnalyzer();
+        shortTokens.setMaxTokenLength(3);
+        final List<String> neighbours = new ArrayList<>();
+        neighbours.add("");
+        for (char b = 0; b < 0x80; b++) {
+            neighbours.add(String.valueOf(b));
+        }
+        int yes = 0;
+        int no = 0;
+        for (Analyzer analyzer : List.of(new StandardAnalyzer(), shortTokens, new SimpleAnalyzer())) {
+            for (String term : List.of("cat", "k9")) {
+                final CandidateValues candidates = CandidateValues.of(new TermQuery(new Term(FIELD, term)), FIELD)
+                    .readingTokensOf(analyzer);
+                for (String before : neighbours) {
+                    for (String after : neighbours) {
+                        // What lies beyond a byte that can join two words decides whether it does.
+                        for (String beyond : List.of("", "x")) {
+                            final String value = beyond + before + term + after + beyond;
+                            final boolean holds = TokenStreamMatching.analyzeTerms(analyzer, FIELD, value).contains(new BytesRef(term));
+                            final String description = term + " in " + escaped(List.of(value)) + " under " + describe(analyzer);
+                            switch (candidates.held(new BytesRef(value))) {
+                                case YES -> {
+                                    assertTrue("read as held but the analyzer answers no: " + description, holds);
+                                    yes++;
+                                }
+                                case NO -> {
+                                    assertFalse("read as holding none but the analyzer answers yes: " + description, holds);
+                                    no++;
+                                }
+                                case MAYBE -> {
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assertThat("nothing was answered yes", yes, greaterThan(1000));
+        assertThat("nothing was answered no", no, greaterThan(1000));
+    }
+
     private Analyzer randomAnalyzer() {
         final StandardAnalyzer shortTokens = new StandardAnalyzer(randomBoolean() ? CharArraySet.EMPTY_SET : stopWords());
         shortTokens.setMaxTokenLength(between(1, 10));
@@ -163,6 +210,8 @@ public class CandidateValuesFuzzTests extends ESTestCase {
                 case 0 -> value.append(randomFrom("x", "k", "9", "aB")).append("x".repeat(between(250, 258)));
                 // A word, so a run of letters stands between the edges the other classes make.
                 case 1, 2, 3 -> value.append(randomFrom("cat", "Cat", "k9", "ab", "x", "42", "the", "kat"));
+                // Any byte of ASCII, so a byte none of the classes names is read as well.
+                case 4 -> value.append((char) between(0, 0x7f));
                 default -> value.append(randomFrom(randomFrom(CLASSES)));
             }
         }
@@ -179,13 +228,21 @@ public class CandidateValuesFuzzTests extends ESTestCase {
                     any.add(new TermQuery(term(analyzer, documentValues)), Occur.SHOULD);
                 }
                 if (randomBoolean()) {
-                    any.setMinimumNumberShouldMatch(between(0, 2));
+                    // As many as there are optional clauses, or more, which nothing answers.
+                    any.setMinimumNumberShouldMatch(between(0, 4));
                 }
                 yield any.build();
             }
-            case 4 -> new BooleanQuery.Builder().add(new TermQuery(term(analyzer, documentValues)), Occur.MUST)
-                .add(new TermQuery(term(analyzer, documentValues)), randomFrom(Occur.MUST, Occur.MUST_NOT, Occur.SHOULD, Occur.FILTER))
-                .build();
+            case 4 -> {
+                final BooleanQuery.Builder every = new BooleanQuery.Builder().add(new TermQuery(term(analyzer, documentValues)), Occur.MUST)
+                    .add(new TermQuery(term(analyzer, documentValues)), randomFrom(Occur.MUST, Occur.MUST_NOT, Occur.SHOULD, Occur.FILTER));
+                if (randomBoolean()) {
+                    // A conjunction asking for optional clauses it may not have, as an AND with a minimum to match
+                    // builds it.
+                    every.setMinimumNumberShouldMatch(between(0, 2));
+                }
+                yield every.build();
+            }
             case 5 -> new PhraseQuery(FIELD, term(analyzer, documentValues).bytes(), term(analyzer, documentValues).bytes());
             case 6 -> new BoostQuery(new TermQuery(term(analyzer, documentValues)), 2f);
             default -> new ConstantScoreQuery(new TermQuery(term(analyzer, documentValues)));

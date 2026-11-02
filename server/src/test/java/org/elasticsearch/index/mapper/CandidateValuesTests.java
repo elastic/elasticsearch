@@ -376,6 +376,29 @@ public class CandidateValuesTests extends ESTestCase {
         assertEquals("a run shorter than the longest token is not cut", CandidateValues.Answer.NO, candidates.held(values("xxcat")));
     }
 
+    /**
+     * A query asking for more optional clauses than it has answers nothing, as {@code operator: AND} with a
+     * {@code minimum_should_match} builds it, so holding its terms does not answer it.
+     */
+    public void testAQueryAskingForMoreOptionalClausesThanItHasIsNotAnswered() {
+        final BooleanQuery.Builder builder = new BooleanQuery.Builder().add(new TermQuery(new Term(FIELD, "cat")), Occur.MUST)
+            .add(new TermQuery(new Term(FIELD, "dog")), Occur.MUST);
+        builder.setMinimumNumberShouldMatch(1);
+        final Query query = builder.build();
+        assertFalse(matches(new StandardAnalyzer(), List.of("cat dog"), query));
+        final CandidateValues candidates = readingTokens(query);
+        assertEquals(CandidateValues.Answer.MAYBE, candidates.held(values("cat dog")));
+        assertEquals("what it requires is still read for", CandidateValues.Answer.NO, candidates.held(values("cat")));
+
+        final BooleanQuery.Builder optional = new BooleanQuery.Builder().add(new TermQuery(new Term(FIELD, "cat")), Occur.SHOULD);
+        optional.setMinimumNumberShouldMatch(1);
+        assertEquals(
+            "one optional clause of one is answered by holding it",
+            CandidateValues.Answer.YES,
+            readingTokens(optional.build()).held(values("cat dog"))
+        );
+    }
+
     /** A digit has no other case: the byte it differs from by the case bit is a control character, which spells nothing. */
     public void testADigitIsNotSpelledByAControlCharacter() {
         final Query query = new TermQuery(new Term(FIELD, "42"));

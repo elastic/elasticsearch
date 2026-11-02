@@ -27,6 +27,8 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -37,6 +39,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -67,6 +70,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Compares the optimized {@link PageColumnReader} path against the baseline row-at-a-time
@@ -807,6 +811,111 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     }
 
     // --- Parquet file writing ---
+
+    private static final MessageType NULLABLE_TYPES_SCHEMA = Types.buildMessage()
+        .optional(BOOLEAN)
+        .named("opt_bool")
+        .optional(INT32)
+        .named("opt_int")
+        .optional(INT64)
+        .named("opt_long")
+        .optional(DOUBLE)
+        .named("opt_double")
+        .named("nullable_types_test");
+
+    private static final int DETERMINISM_ROWS = 1024;
+    private static final int DETERMINISM_READS = 400;
+
+    /**
+     * A block's serialized form must depend only on the file. Reading the same nullable column twice has to
+     * produce identical bytes.
+     * <p>
+     * A value array that is allocated uninitialized and then filled only at the positions carrying a value
+     * leaves the masked positions holding whatever the memory held before. Those positions are still
+     * serialized, so the bytes differ between reads even though every consumer honours the null mask and the
+     * results are correct. Asserting on the bytes catches that for every element type, rather than only for
+     * boolean, where deserialization happens to reject a byte that is neither zero nor one.
+     * <p>
+     * The read is repeated because the allocation skips zeroing only once the decode path has been compiled:
+     * a handful of cold reads cannot show the difference.
+     */
+    public void testNullableColumnSerializesDeterministically() throws IOException {
+        UninitializedArrays.ensureUnsafeEnabled();
+        byte[] data = writeTestFile(
+            ParquetProperties.WriterVersion.PARQUET_1_0,
+            CompressionCodecName.UNCOMPRESSED,
+            NULLABLE_TYPES_SCHEMA,
+            DETERMINISM_ROWS,
+            (g, r) -> {
+                if (r % 5 != 0) {
+                    g.append("opt_bool", r % 4 == 0);
+                    g.append("opt_int", r);
+                    g.append("opt_long", (long) r);
+                    g.append("opt_double", r * 1.5);
+                }
+            }
+        );
+        assertColumnSerializesDeterministically(data, "opt_bool", DataType.BOOLEAN);
+        assertColumnSerializesDeterministically(data, "opt_int", DataType.INTEGER);
+        assertColumnSerializesDeterministically(data, "opt_long", DataType.LONG);
+        assertColumnSerializesDeterministically(data, "opt_double", DataType.DOUBLE);
+    }
+
+    private void assertColumnSerializesDeterministically(byte[] data, String column, DataType dataType) throws IOException {
+        byte[] expected = null;
+        for (int read = 0; read < DETERMINISM_READS; read++) {
+            try (Block block = fullRead(data, column, dataType)) {
+                // One batch covers one data page, not the whole row group, so take whatever it returns. A fresh
+                // reader starts at row 0 every time, so position p is row p and the null pattern is known.
+                int positions = block.getPositionCount();
+                assertThat(column + " read nothing", positions, greaterThan(0));
+                for (int p = 0; p < positions; p++) {
+                    assertEquals(column + " null at " + p, p % 5 == 0, block.isNull(p));
+                }
+                byte[] actual = serialize(block);
+                if (expected == null) {
+                    expected = actual;
+                } else {
+                    assertArrayEquals(column + " serialized form changed on read " + read, expected, actual);
+                }
+            }
+        }
+    }
+
+    /**
+     * The serialized bytes, copied out while the stream is still open: closing a {@link BytesStreamOutput}
+     * returns its pages to the recycler, so a {@link BytesReference} held past that point is a view over
+     * memory another caller may already have reused.
+     */
+    private static byte[] serialize(Block block) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Block.writeTypedBlock(block, out);
+            return BytesReference.toBytes(out.bytes());
+        }
+    }
+
+    /** Reads {@code column} as a single full batch through a fresh reader. The caller owns the block. */
+    private Block fullRead(byte[] data, String column, DataType dataType) throws IOException {
+        try (ParquetFileReader reader = openReader(data)) {
+            BlockMetaData block = reader.getRowGroups().getFirst();
+            MessageType schema = reader.getFileMetaData().getSchema();
+            ColumnDescriptor desc = schema.getColumnDescription(new String[] { column });
+            ColumnInfo info = new ColumnInfo(
+                desc,
+                desc.getPrimitiveType().getPrimitiveTypeName(),
+                dataType,
+                desc.getMaxDefinitionLevel(),
+                desc.getMaxRepetitionLevel(),
+                desc.getPrimitiveType().getLogicalTypeAnnotation()
+            );
+            PageReadStore store = reader.readNextRowGroup();
+            assertNotNull(store);
+            int rgRows = Math.toIntExact(block.getRowCount());
+            try (PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(rgRows))) {
+                return pcr.readBatch(rgRows, blockFactory);
+            }
+        }
+    }
 
     private byte[] writeTestFile(
         ParquetProperties.WriterVersion version,

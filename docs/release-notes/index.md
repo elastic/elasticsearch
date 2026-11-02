@@ -25,19 +25,13 @@ To check for security updates, go to [Security announcements for the Elastic sta
 stack: ga 9.5.6
 ```
 
-### Highlights [elasticsearch-9.5.6-highlights]
-
-::::{dropdown} Security advisory
-This release contains security fixes. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
-::::
-
 ### Features and enhancements [elasticsearch-9.5.6-features-enhancements]
 
 ES|QL:
 * ESQL:DS: Authorize datasets named by received compute plans [#162687](https://github.com/elastic/elasticsearch/pull/162687)
 
 Infra/Core:
-* Bump bundled JDK to 27.0.1.0.2 [#163046](https://github.com/elastic/elasticsearch/pull/163046)
+* Bump bundled JDK to 27.0.1.0.2 to address CVE-2026-91403 (compromised eMudhra intermediate CAs) [#163046](https://github.com/elastic/elasticsearch/pull/163046)
 * Bump bundled JDK to 27.0.1.0.3 [#163627](https://github.com/elastic/elasticsearch/pull/163627)
 * Upgrade Jackson to 2.21.8 [#163710](https://github.com/elastic/elasticsearch/pull/163710)
 * Upgrade to lucene 10.5.2 [#161372](https://github.com/elastic/elasticsearch/pull/161372)
@@ -234,16 +228,10 @@ Vector Search:
 stack: ga 9.4.9
 ```
 
-### Highlights [elasticsearch-9.4.9-highlights]
-
-::::{dropdown} Security advisory
-This release contains security fixes. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
-::::
-
 ### Features and enhancements [elasticsearch-9.4.9-features-enhancements]
 
 Infra/Core:
-* Bump bundled JDK to 27.0.1.0.2 [#163046](https://github.com/elastic/elasticsearch/pull/163046)
+* Bump bundled JDK to 27.0.1.0.2 to address CVE-2026-91403 (compromised eMudhra intermediate CAs) [#163046](https://github.com/elastic/elasticsearch/pull/163046)
 * Bump bundled JDK to 27.0.1.0.3 [#163627](https://github.com/elastic/elasticsearch/pull/163627)
 * Upgrade Jackson to 2.21.8 [#163710](https://github.com/elastic/elasticsearch/pull/163710)
 

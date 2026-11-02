@@ -50,10 +50,12 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.GroupedReleasables;
 import org.elasticsearch.core.Nullable;
@@ -110,7 +112,6 @@ import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 import org.elasticsearch.sourcebatch.SourceValueType;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -668,6 +669,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
+
+    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var utf8Bytes = (XContentString.UTF8Bytes) v;
+        b.utf8Value(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
+    };
 
     public static final class KeywordFieldType extends TextFamilyFieldType {
 
@@ -1780,15 +1787,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         return docValuesParameters().multiValue() == false;
     }
 
-    // TODO: make the batch supply a recycler to wire up recycling instead of NON_RECYCLING_INSTANCE.
-    private static EscfColumnBuilder mergeStringColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeStringColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.STRING);
         return b;
     }
 
-    private static EscfColumnBuilder mergeLongColumn() {
-        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, BytesRefRecycler.NON_RECYCLING_INSTANCE);
+    private static EscfColumnBuilder mergeLongColumn(Recycler<BytesRef> recycler) {
+        EscfColumnBuilder b = new EscfColumnBuilder(CollisionPolicy.MERGE, recycler);
         b.lockScalar(EscfColumnKind.LONG);
         return b;
     }
@@ -1860,11 +1866,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         // TODO: make the batch return these column builders to wire up recycling
         try (
-            EscfColumnBuilder terms = emitTerms ? mergeStringColumn() : null;
-            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn() : null;
-            EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn() : null;
-            EscfColumnBuilder fallback = emitFallback ? mergeStringColumn() : null;
-            EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn() : null
+            EscfColumnBuilder terms = emitTerms ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder binaryDvs = emitDvs ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder dvCounts = emitDvs && columnar == false ? mergeLongColumn(ctx.recycler()) : null;
+            EscfColumnBuilder fallback = emitFallback ? mergeStringColumn(ctx.recycler()) : null;
+            EscfColumnBuilder fallbackCounts = emitFallback ? mergeLongColumn(ctx.recycler()) : null
         ) {
             int currentDoc = -1;
             boolean ignoredThisDoc = false;
@@ -2105,13 +2111,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         // try-with-resources header; the group releases whichever builders were actually created.
         try (GroupedReleasables pending = new GroupedReleasables(4)) {
             EscfColumnBuilder values = source.leafValueKind() != EscfColumnKind.STRING && emitSharedColumn
-                ? pending.add(mergeStringColumn())
+                ? pending.add(mergeStringColumn(ctx.recycler()))
                 : null;
-            final EscfColumnBuilder payloadDvs = emitDvs && columnarPayload ? pending.add(mergeStringColumn()) : null;
+            final EscfColumnBuilder payloadDvs = emitDvs && columnarPayload ? pending.add(mergeStringColumn(ctx.recycler())) : null;
             final StringBinaryPayload.Builder payload = payloadDvs != null ? new StringBinaryPayload.Builder() : null;
-            final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn()) : null;
+            final EscfColumnBuilder fallback = emitFallback ? pending.add(mergeStringColumn(ctx.recycler())) : null;
             // multi_value=true fallback needs a counts sidecar matching SeparateCount format.
-            final EscfColumnBuilder fallbackCounts = emitFallback && multiValue ? pending.add(mergeLongColumn()) : null;
+            final EscfColumnBuilder fallbackCounts = emitFallback && multiValue ? pending.add(mergeLongColumn(ctx.recycler())) : null;
 
             int currentDoc = -1;
             boolean valueSeenThisDoc = false;
@@ -2155,7 +2161,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                         if (emptyStringReadAsNull && values == null && emitSharedColumn) {
                             // An empty string is a value in the source column, unlike a null, so the output cannot
                             // be that column itself: build one that leaves this value out, as an ignored one does.
-                            values = pending.add(mergeStringColumn());
+                            values = pending.add(mergeStringColumn(ctx.recycler()));
                             EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc, elementsThisDoc);
                         }
                         continue;  // null without null_value -> absent (row-path parity)
@@ -2190,7 +2196,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     // exclude this doc's value from the output. Lazily create the builder and backfill
                     // all accepted values from before this doc (plus already-accepted elements of this doc).
                     if (values == null && emitSharedColumn) {
-                        values = pending.add(mergeStringColumn());
+                        values = pending.add(mergeStringColumn(ctx.recycler()));
                         EscfColumnTransforms.backfillUtf8Before(values, source, currentDoc, elementsThisDoc);
                     }
                     if (fallback != null) {
@@ -2330,9 +2336,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), OFFSETS_FALLBACK);
             } else if (value == null) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+            } else {
+                // The value tripped ignore_above: a field that records offsets has doc values, so that is the only reason a non-null
+                // value is not indexed. It gets no slot, but is recorded so that the _ignored_source fallback for oversized offsets
+                // can carry it; the field's own storage of ignored values is suppressed by an _ignored_source entry.
+                var utfBytes = value.bytes();
+                context.getOffSetContext()
+                    .recordIgnored(
+                        offsetsFieldName,
+                        XContentDataHelper.encodeString(new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()))
+                    );
             }
         }
     }

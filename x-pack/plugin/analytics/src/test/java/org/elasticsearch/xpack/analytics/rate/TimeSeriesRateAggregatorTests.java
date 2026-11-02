@@ -77,6 +77,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, verifier, aggTestConfig);
+        assertWarnings(TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
     }
 
     public void testNestedWithinDateHistogram() throws IOException {
@@ -121,6 +122,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(document);
             }
         }, verifier, aggTestConfig);
+        assertWarnings(TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
     }
 
     public void testNestedWithinAutoDateHistogram() throws IOException {
@@ -160,6 +162,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
             iw.addDocuments(docs(2000, "1", 15, 37, 60, /*reset*/ 14));
             iw.addDocuments(docs(2000, "2", 74, 150, /*reset*/ 50, 90, /*reset*/ 40));
         }, verifier, aggTestConfig));
+        assertWarnings(TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
         assertThat(
             e.getMessage(),
             startsWith("Wrapping a time-series rate aggregation within a DeferableBucketAggregator is not supported.")

@@ -59,10 +59,11 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
     /**
      * The license of the cluster, which columnar indices react to: under basic they keep a stored source. It is picked when the cluster
      * starts, as static initializers run before there is a random seed, and kept so the upgraded cluster has the license of the old one.
+     * FIPS mode does not allow a basic license, and the test cluster setup forces a trial one there, so that is what is expected.
      */
     private static synchronized String licenseType() {
         if (licenseType == null) {
-            licenseType = randomFrom("basic", "trial");
+            licenseType = Boolean.getBoolean("tests.fips.enabled") ? "trial" : randomFrom("basic", "trial");
         }
         return licenseType;
     }

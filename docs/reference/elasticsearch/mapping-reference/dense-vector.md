@@ -603,7 +603,9 @@ $$$dense-vector-index-options$$$
     * Exactly `0` to indicate no oversampling and rescoring should occur {applies_to}`stack: ga 9.1`
     :   The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
-    :   For `bbq_disk` fields with `auto_calibrate: true`, mapping `oversample` is a fallback when a segment has no calibrated value. When no query-time `rescore_vector` is set, calibrated segments use their per-segment oversample factors. Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for the full resolution order.
+    :   For `bbq_disk` fields with auto-calibration enabled, mapping `oversample` is a fallback when a segment has no calibrated value.
+        When no query-time `rescore_vector` is set, calibrated segments use their per-segment oversample factors.
+        Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for the full resolution order.
     :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md#dense-vector-knn-search-rescoring) for details.
 ::::
 
@@ -614,16 +616,26 @@ $$$dense-vector-index-options$$$
 :   (Optional, boolean) When `true`, direct I/O is used where possible while merging the field's vector data, so that a merge does not displace what searches keep in memory. Can be changed with a mapping update, which applies to later merges; a merge reads each source segment with the setting that segment was written with, so segments written before the change keep the old behavior until they are merged away. Defaults to `false`.
 
 `auto_calibrate` {applies_to}`stack: ga 9.5`
-:   (Optional, boolean) Only applicable to `bbq_disk`.
-    When `true`, {{es}} automatically selects the optimal quantization encoding, oversampling factor, and preconditioning for each merged segment based on the actual recall characteristics of the merged corpus.
+:   (Optional, boolean or string) Only applicable to `bbq_disk`.
+    When enabled, {{es}} automatically selects the optimal quantization encoding, oversampling factor, and preconditioning for each merged segment based on the actual recall characteristics of the merged corpus.
     Segments containing fewer than 10,000 vectors after merging are not calibrated and when not otherwise specified in the mappings, use the default oversampling factor of 3.0x.
-    Defaults to `false`.
     Refer to [Auto-calibration for `bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration) for details.
 
 ::::{applies-switch}
 
-- {applies_to}`stack: ga 9.6+` Can be changed on an existing field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping), in either direction. The new value applies to later merges only. Segments that already exist are not rewritten. Refer to [Changing `auto_calibrate` on an existing field](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-update) for details.
-- {applies_to}`stack: ga =9.5` Cannot be changed after the field is created.
+:::{applies-item} stack: ga 9.6+
+- `auto_calibrate` accepts a boolean or a [valid profile name](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-profiles).
+- Auto-calibration is enabled by default for indices created in 9.6 or later, using [the `iso_sizing` profile](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-profiles).
+  Indices created before 9.6 keep the previous default, which is disabled.
+- The value can be changed on an existing field with the [update mapping API]({{es-apis}}operation/operation-indices-put-mapping).
+  Refer to [Changing `auto_calibrate` on an existing field](/reference/elasticsearch/mapping-reference/bbq.md#bbq-auto-calibration-update) for details.
+:::
+
+:::{applies-item} stack: ga =9.5
+- `auto_calibrate` only accepts a boolean.
+- Auto-calibration is disabled by default.
+- The value cannot be changed after the field is created.
+:::
 
 ::::
 :::::
@@ -793,6 +805,31 @@ Dynamic float array mapping
 
 `index.merge.scheduler.auto_throttle`
 :   Set to `false`. Disables automatic throttling of merge I/O, allowing merges to proceed at full speed.
+
+### `vectordb_columnar` [dense-vector-vectordb-columnar-mode]
+
+{applies_to}`stack: preview 9.6+`
+
+The `vectordb_columnar` [index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) combines the vector search defaults of [`vectordb_document`](#dense-vector-vectordb-document-mode) with the [columnar](/reference/elasticsearch/columnar/index.md) storage model. Columnar modes store each field once, as doc values, and reconstruct `_source` from them, which reduces the storage footprint of the non-vector fields that accompany your vectors. Unlike the other columnar modes, `vectordb_columnar` is optimized for search rather than analytics, so `dense_vector` and `text` fields are also indexed by default. This makes it suitable for both vector search and hybrid search that combines text with vectors.
+
+`vectordb_columnar` is a good fit for vector search, especially when your documents carry many non-vector, non-text fields. If your searches return many fields for many hits, consider the [`columnar_stored`](/reference/elasticsearch/columnar/index.md#columnar-source) `_source` mode to speed up retrieval. Choose `vectordb_document` when you need `_source` returned with its original structure, such as arrays of objects or unmapped content.
+
+You must set the mode at index creation time:
+
+```console
+PUT my-vector-index
+{
+  "settings": {
+    "index": {
+      "mode": "vectordb_columnar"
+    }
+  }
+}
+```
+
+`vectordb_columnar` applies the same vector search settings and defaults as [`vectordb_document`](#dense-vector-vectordb-document-mode).
+
+It also inherits the behavior and [limitations](/reference/elasticsearch/columnar/index.md#columnar-limitations) of the columnar modes, such as auto-flattened mappings, synthetic or `columnar_stored` [`_source`](/reference/elasticsearch/columnar/index.md#columnar-source), and the rejection of mapping-level runtime fields. Unlike the other columnar modes, it indexes `dense_vector` fields by default, keeps positions and norms on `text` fields, maps dynamic strings as `text`, and keeps the query cache enabled for filtered vector search. For the full list of settings and defaults, refer to [`vectordb_columnar` settings](/reference/elasticsearch/columnar/index.md#vectordb-columnar-settings).
 
 ## Updatable field type [_updatable_field_type]
 

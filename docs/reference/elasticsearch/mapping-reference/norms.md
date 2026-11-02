@@ -12,28 +12,25 @@ Norms store various normalization factors that are later used at query time in o
 
 Although useful for scoring, norms also require quite a lot of disk (typically in the order of one byte per document per field in your index, even for documents that don’t have this specific field). As a consequence, if you don’t need scoring on a specific field, you should disable norms on that field. In particular, this is the case for fields that are used solely for filtering or aggregations.
 
-::::{tip}
-Norms can be disabled on existing fields using the [update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
-::::
+You can't change the `norms` setting of an existing field. The update mapping API rejects the request.
 
-
-Norms can be disabled (but not reenabled after the fact), using the [update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping) like so:
+To turn off norms, set `norms` to `false` when you create the index:
 
 ```console
-PUT my-index-000001/_mapping
+PUT my-index-000001
 {
-  "properties": {
-    "title": {
-      "type": "text",
-      "norms": false
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "norms": false
+      }
     }
   }
 }
 ```
-% TEST[s/^/PUT my-index-000001\n/]
 
-::::{note}
-Norms will not be removed instantly, but will be removed as old segments are merged into new segments as you continue indexing new documents. Any score computation on a field that has had norms removed might return inconsistent results since some documents won’t have norms anymore while other documents might still have norms.
-::::
+To turn off norms on a field that already has data, use one of these options:
 
-
+- Update the index template, then [roll over](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-rollover) the data stream. Only new backing indices get the change; existing data keeps its norms.
+- [Reindex](docs-content://manage-data/data-store/data-streams/modify-data-stream.md#data-streams-use-reindex-to-change-mappings-settings) into a new index or data stream that has `norms` set to `false`.

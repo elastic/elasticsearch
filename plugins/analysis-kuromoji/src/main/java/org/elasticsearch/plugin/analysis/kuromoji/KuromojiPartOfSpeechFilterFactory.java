@@ -25,6 +25,7 @@ import java.util.Set;
 public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactory {
 
     private final Set<String> stopTags = new HashSet<>();
+    private final Object sharingKey;
 
     public KuromojiPartOfSpeechFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -34,6 +35,7 @@ public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactor
         } else {
             stopTags.addAll(JapaneseAnalyzer.getDefaultStopTags());
         }
+        this.sharingKey = new Key(Set.copyOf(stopTags));
     }
 
     @Override
@@ -41,4 +43,10 @@ public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactor
         return new JapanesePartOfSpeechStopFilter(tokenStream, stopTags);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Set<String> stopTags) {}
 }

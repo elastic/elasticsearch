@@ -95,7 +95,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -693,6 +692,27 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return IndexOptions.NONE;
     }
 
+    /**
+     * For field types whose doc values are disabled by default, an explicit {@code "doc_values": false} must be equivalent to omitting
+     * it: the mapping serializes without {@code doc_values} (as older versions do) and the two forms can be merged in either direction.
+     */
+    protected final void assertExplicitDocValuesFalseMatchesDisabledDefault() throws IOException {
+        XContentBuilder omitted = fieldMapping(this::minimalMapping);
+        XContentBuilder explicit = fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("doc_values", false);
+        });
+
+        MapperService mapperService = createMapperService(omitted);
+        merge(mapperService, explicit);
+        assertEquals(Strings.toString(omitted), mapperService.documentMapper().mappingSource().toString());
+
+        mapperService = createMapperService(explicit);
+        merge(mapperService, explicit);
+        merge(mapperService, omitted);
+        assertEquals(Strings.toString(omitted), mapperService.documentMapper().mappingSource().toString());
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {
@@ -868,12 +888,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
+    private record ConflictCheck(String param, XContentBuilder init, XContentBuilder update) {}
 
     public class ParameterChecker {
 
         List<UpdateCheck> updateChecks = new ArrayList<>();
-        Map<String, ConflictCheck> conflictChecks = new HashMap<>();
+        List<ConflictCheck> conflictChecks = new ArrayList<>();
         Set<String> checkedParameters = new HashSet<>();
 
         /**
@@ -915,7 +935,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          */
         public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
             checkedParameters.add(param);
-            conflictChecks.put(param, new ConflictCheck(fieldMapping(MapperTestCase.this::minimalMapping), fieldMapping(b -> {
+            conflictChecks.add(new ConflictCheck(param, fieldMapping(MapperTestCase.this::minimalMapping), fieldMapping(b -> {
                 minimalMapping(b);
                 update.accept(b);
             })));
@@ -930,7 +950,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          */
         public void registerConflictCheck(String param, XContentBuilder init, XContentBuilder update) {
             checkedParameters.add(param);
-            conflictChecks.put(param, new ConflictCheck(init, update));
+            conflictChecks.add(new ConflictCheck(param, init, update));
         }
 
         /**
@@ -1006,15 +1026,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             mapper = (FieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             updateCheck.check.accept(mapper);
         }
-        for (String param : checker.conflictChecks.keySet()) {
-            MapperService mapperService = createMapperService(checker.conflictChecks.get(param).init);
+        for (ConflictCheck conflictCheck : checker.conflictChecks) {
+            String param = conflictCheck.param();
+            MapperService mapperService = createMapperService(conflictCheck.init());
             // merging the same change is fine
-            merge(mapperService, checker.conflictChecks.get(param).init);
+            merge(mapperService, conflictCheck.init());
             // merging the conflicting update should throw an exception
             Exception e = expectThrows(
                 IllegalArgumentException.class,
                 "No conflict when updating parameter [" + param + "]",
-                () -> merge(mapperService, checker.conflictChecks.get(param).update)
+                () -> merge(mapperService, conflictCheck.update())
             );
             assertThat(
                 e.getMessage(),
@@ -1047,9 +1068,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             );
         }
 
-        for (Map.Entry<String, ConflictCheck> entry : checker.conflictChecks.entrySet()) {
-            String param = entry.getKey();
-            ConflictCheck conflictCheck = entry.getValue();
+        for (ConflictCheck conflictCheck : checker.conflictChecks) {
+            String param = conflictCheck.param();
             String initSerialized = serializeMapping(createMapperService(conflictCheck.init));
             String updateSerialized = serializeMapping(createMapperService(conflictCheck.update));
             assertTrue(
@@ -1167,7 +1187,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected void registerDimensionChecks(ParameterChecker checker) throws IOException {
         // dimension cannot be updated
         checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", true));
-        checker.registerConflictCheck("time_series_dimension", b -> b.field("time_series_dimension", false));
         checker.registerConflictCheck("time_series_dimension", fieldMapping(b -> {
             minimalMapping(b);
             b.field("time_series_dimension", false);

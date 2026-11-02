@@ -852,7 +852,7 @@ public class TestAnalyzer {
                 entry.getKey(),
                 EsqlParser.DEFAULT_MAX_COMMAND_COUNT
             );
-            viewSettings.put(entry.getKey(), ViewQuerySettings.from(statement));
+            viewSettings.put(entry.getKey(), ViewQuerySettings.from(statement, Settings.EMPTY, Settings.EMPTY));
             parsedViews.put(entry.getKey(), statement.plan());
         }
         return parsedViews;
@@ -894,7 +894,7 @@ public class TestAnalyzer {
         wildcardsMatchDatasets = statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS);
         var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
-        PlanConsistencyChecker.checkPlan(analyzed, failures);
+        analyzed.forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

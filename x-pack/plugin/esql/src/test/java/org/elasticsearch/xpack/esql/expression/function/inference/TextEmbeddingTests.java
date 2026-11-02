@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
@@ -28,9 +27,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("text_embedding")
-public class TextEmbeddingTests extends AbstractFunctionTestCase {
+public class TextEmbeddingTests extends AbstractInferenceFunctionTestCase {
     public TextEmbeddingTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        this.testCase = testCaseSupplier.get();
+        super(testCaseSupplier);
     }
 
     @ParametersFactory
@@ -56,18 +55,25 @@ public class TextEmbeddingTests extends AbstractFunctionTestCase {
                         DENSE_VECTOR,
                         equalTo(true)
                     )
+                ),
+                new TestCaseSupplier(
+                    List.of(KEYWORD, KEYWORD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "text"),
+                            new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "inference_id")
+                        ),
+                        Matchers.blankOrNullString(),
+                        DENSE_VECTOR,
+                        equalTo(true)
+                    )
                 )
             )
         );
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new TextEmbedding(source, args.get(0), args.get(1), null);
-    }
-
-    @Override
-    protected boolean canSerialize() {
-        return false;
+    protected Expression buildFunction(Source source, Expression inputText, Expression inferenceId, Expression options) {
+        return new TextEmbedding(source, inputText, inferenceId, options);
     }
 }

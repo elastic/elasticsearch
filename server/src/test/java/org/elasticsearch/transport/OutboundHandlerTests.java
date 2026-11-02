@@ -27,7 +27,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -56,6 +59,7 @@ import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class OutboundHandlerTests extends ESTestCase {
@@ -231,9 +235,19 @@ public class OutboundHandlerTests extends ESTestCase {
             }
         });
         if (compress) {
-            handler.sendResponse(version, channel, requestId, action, response, compressionScheme, isHandshake, ResponseStatsConsumer.NONE);
+            handler.sendResponse(
+                version,
+                channel,
+                requestId,
+                action,
+                response,
+                compressionScheme,
+                isHandshake,
+                ResponseStatsConsumer.NONE,
+                null
+            );
         } else {
-            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake, ResponseStatsConsumer.NONE);
+            handler.sendResponse(version, channel, requestId, action, response, null, isHandshake, ResponseStatsConsumer.NONE, null);
         }
 
         BytesReference reference = channel.getMessageCaptor().get();
@@ -359,7 +373,7 @@ public class OutboundHandlerTests extends ESTestCase {
         });
         Compression.Scheme compress = randomFrom(compressionScheme, null);
         try {
-            handler.sendResponse(version, channel, requestId, action, response, compress, false, ResponseStatsConsumer.NONE);
+            handler.sendResponse(version, channel, requestId, action, response, compress, false, ResponseStatsConsumer.NONE, null);
         } finally {
             response.decRef();
         }
@@ -426,7 +440,7 @@ public class OutboundHandlerTests extends ESTestCase {
             }
         };
         try {
-            handler.sendResponse(version, channel, requestId, action, response, compress, false, ResponseStatsConsumer.NONE);
+            handler.sendResponse(version, channel, requestId, action, response, compress, false, ResponseStatsConsumer.NONE, null);
         } finally {
             response.decRef();
         }
@@ -471,7 +485,7 @@ public class OutboundHandlerTests extends ESTestCase {
         });
         Compression.Scheme compress = randomFrom(compressionScheme, null);
         try {
-            handler.sendResponse(version, channel, requestId, action, response, compress, true, ResponseStatsConsumer.NONE);
+            handler.sendResponse(version, channel, requestId, action, response, compress, true, ResponseStatsConsumer.NONE, null);
         } finally {
             response.decRef();
         }
@@ -623,7 +637,8 @@ public class OutboundHandlerTests extends ESTestCase {
             new TestResponse(randomAlphaOfLength(randomIntBetween(1, 1000))),
             compress,
             false,
-            ResponseStatsConsumer.NONE
+            ResponseStatsConsumer.NONE,
+            null
         );
         BytesReference reference = channel.getMessageCaptor().get();
         ActionListener<Void> sendListener = channel.getListenerCaptor().get();
@@ -666,6 +681,207 @@ public class OutboundHandlerTests extends ESTestCase {
         }
 
         assertEquals(reference.length(), capturedNetworkMessageSize.get().intValue());
+    }
+
+    public void testSendResponseChargesBreakerUntilWritten() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        String value = randomAlphaOfLength(randomIntBetween(1, 100_000));
+        long requestId = randomLongBetween(0, 300);
+        Compression.Scheme compress = randomFrom(compressionScheme, null);
+        sendResponseWithBreaker(requestId, new TestResponse(value), compress, breaker);
+
+        BytesReference reference = channel.getMessageCaptor().get();
+        // The pages stay charged while the message waits to be written, each one exactly once.
+        final long pages = (reference.length() + recycler.pageSize() - 1) / recycler.pageSize();
+        assertThat(breaker.getUsed(), equalTo(pages * recycler.pageSize()));
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        if (randomBoolean()) {
+            sendListener.onResponse(null);
+        } else {
+            sendListener.onFailure(new IOException("failed"));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        Header header = message.get().v1();
+        assertEquals(requestId, header.getRequestId());
+        assertFalse(header.isError());
+        assertEquals(compress != null, header.isCompressed());
+        assertEquals(value, new TestResponse(message.get().v2().streamInput()).value);
+    }
+
+    public void testSendResponseSendsErrorOnFirstPageTrip() throws IOException {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ZERO);
+        assertTripSentAsError(breaker, randomFrom(compressionScheme, null));
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+    }
+
+    public void testSendResponseSendsErrorOnTripDuringSerialization() throws IOException {
+        // The first page fits, the rest of the response does not, so the trip happens inside the compressing stream.
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(recycler.pageSize()));
+        assertTripSentAsError(breaker, compressionScheme);
+        // Closing a compressed stream after the trip writes its trailer and can trip again.
+        assertThat(breaker.getTrippedCount(), greaterThanOrEqualTo(1L));
+
+        // The trip released the thread-local compression resources, so the next compressed response on this thread succeeds.
+        String value = randomAlphaOfLength(randomIntBetween(1, 100_000));
+        long requestId = randomLongBetween(0, 300);
+        sendResponseWithBreaker(requestId, new TestResponse(value), compressionScheme, null);
+        BytesReference reference = channel.getMessageCaptor().get();
+        channel.getListenerCaptor().get().onResponse(null);
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        Header header = message.get().v1();
+        assertEquals(requestId, header.getRequestId());
+        assertFalse(header.isError());
+        assertEquals(value, new TestResponse(message.get().v2().streamInput()).value);
+    }
+
+    public void testSendResponseReleasesLz4BufferOnHeaderTrip() throws Exception {
+        // Pages from a MockPageCacheRecycler are checked for leaks on teardown.
+        final var trackingRecycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+        final var trackingHandler = new OutboundHandler(
+            "node",
+            TransportVersion.current(),
+            new StatsTracker(),
+            threadPool,
+            trackingRecycler,
+            new HandlingTimeTracker(),
+            false
+        );
+        // Size the thread context so the LZ4 header is the first write that needs a second page.
+        final int threadContextSize = trackingRecycler.pageSize() - TcpHeader.HEADER_SIZE - between(1, 3);
+        final String headerValue = headerValueForThreadContextSize(threadContextSize);
+        final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofBytes(trackingRecycler.pageSize()));
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("header", headerValue);
+            assertEquals(threadContextSize, serializedSize(threadContext));
+            trackingHandler.sendResponse(
+                TransportVersion.current(),
+                channel,
+                randomLongBetween(0, 300),
+                randomAlphaOfLength(10),
+                new TestResponse(randomAlphaOfLength(10)),
+                Compression.Scheme.LZ4,
+                false,
+                ResponseStatsConsumer.NONE,
+                breaker
+            );
+        }
+        assertThat(breaker.getTrippedCount(), equalTo(1L));
+        assertThat(breaker.getUsed(), equalTo(0L));
+        channel.getListenerCaptor().get().onResponse(null);
+        MockPageCacheRecycler.ensureAllPagesAreReleased();
+    }
+
+    private static String headerValueForThreadContextSize(int size) throws IOException {
+        for (int length = size; length > 0; length--) {
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            final String value = randomAlphaOfLength(length);
+            threadContext.putHeader("header", value);
+            if (serializedSize(threadContext) == size) {
+                return value;
+            }
+        }
+        throw new AssertionError("no header value gives a thread context of [" + size + "] bytes");
+    }
+
+    private static int serializedSize(ThreadContext threadContext) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            threadContext.writeTo(out);
+            return Math.toIntExact(out.position());
+        }
+    }
+
+    public void testSerializationFailureLogsWarningUnlessBreakerTrips() {
+        final String expectedMessage = "failed to serialize outbound message*";
+        MockLog.assertThatLogger(
+            () -> sendFailingResponse(new CircuitBreakingException("simulated", CircuitBreaker.Durability.TRANSIENT)),
+            OutboundHandler.class,
+            new MockLog.UnseenEventExpectation("breaker trip", EXPECTED_LOGGER_NAME, Level.WARN, expectedMessage)
+        );
+        MockLog.assertThatLogger(
+            () -> sendFailingResponse(new IllegalStateException("simulated")),
+            OutboundHandler.class,
+            new MockLog.SeenEventExpectation("other failure", EXPECTED_LOGGER_NAME, Level.WARN, expectedMessage)
+        );
+    }
+
+    private void sendFailingResponse(RuntimeException failure) {
+        final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+        sendResponseWithBreaker(randomLongBetween(0, 300), new TestResponse(randomAlphaOfLength(10)) {
+            @Override
+            public void writeTo(StreamOutput out) {
+                throw failure;
+            }
+        }, randomFrom(compressionScheme, null), breaker);
+        // The failed response's pages are released before the error response is written.
+        assertThat(breaker.getUsed(), equalTo(0L));
+        channel.getListenerCaptor().get().onResponse(null);
+    }
+
+    public void testSendResponseReleasesBreakerWhenSendThrows() {
+        channel.close();
+        channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address()) {
+            @Override
+            public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+                throw new IllegalStateException("pipe broken");
+            }
+        };
+        closeListener = new PlainActionFuture<>();
+        channel.addCloseListener(closeListener);
+        final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+
+        sendResponseWithBreaker(
+            randomLongBetween(0, 300),
+            new TestResponse(randomAlphaOfLength(randomIntBetween(1, 100_000))),
+            randomFrom(compressionScheme, null),
+            breaker
+        );
+
+        assertThat(breaker.getUsed(), equalTo(0L));
+        // The error response fails on the same channel, which is then closed.
+        assertFalse(channel.isOpen());
+        assertTrue(closeListener.isDone());
+    }
+
+    private void sendResponseWithBreaker(long requestId, TestResponse response, Compression.Scheme compress, CircuitBreaker breaker) {
+        handler.sendResponse(
+            TransportVersionUtils.randomCompatibleVersion(),
+            channel,
+            requestId,
+            randomAlphaOfLength(10),
+            response,
+            compress,
+            false,
+            ResponseStatsConsumer.NONE,
+            breaker
+        );
+    }
+
+    private void assertTripSentAsError(CircuitBreaker breaker, Compression.Scheme compress) throws IOException {
+        long requestId = randomLongBetween(0, 300);
+        AtomicReference<Exception> errorRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
+                errorRef.set(error);
+            }
+        });
+        sendResponseWithBreaker(requestId, new TestResponse(randomAlphaOfLength(100_000)), compress, breaker);
+
+        assertThat(breaker.getUsed(), equalTo(0L));
+        BytesReference reference = channel.getMessageCaptor().get();
+        channel.getListenerCaptor().get().onResponse(null);
+        assertThat(errorRef.get(), instanceOf(CircuitBreakingException.class));
+        pipeline.handleBytes(channel, new ReleasableBytesReference(reference, () -> {}));
+        Header header = message.get().v1();
+        assertEquals(requestId, header.getRequestId());
+        assertTrue(header.isError());
+        try (StreamInput input = message.get().v2().streamInput()) {
+            assertThat(input.readException().getCause(), instanceOf(CircuitBreakingException.class));
+        }
+        assertTrue(channel.isOpen());
     }
 
     static class ReleasbleTestResponse extends TestResponse {

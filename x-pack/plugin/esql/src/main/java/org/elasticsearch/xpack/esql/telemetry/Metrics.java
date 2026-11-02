@@ -16,14 +16,18 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * Class encapsulating the metrics collected for ESQL
@@ -44,6 +48,8 @@ public class Metrics {
     protected static final String FEATURES_PREFIX = "features.";
     protected static final String SETTINGS_PREFIX = "settings.";
     protected static final String RESOLVED_SETTINGS_PREFIX = "resolved_settings.";
+    protected static final String VIEW_SETTINGS_PREFIX = "view_settings.";
+    protected static final String VIEW_RESOLVED_SETTINGS_PREFIX = "view_resolved_settings.";
     protected static final String FUNC_PREFIX = "functions.";
     protected static final String TOOK_PREFIX = "took.";
 
@@ -55,11 +61,15 @@ public class Metrics {
     private final Map<String, CounterMetric> settingsMetrics;
     // map that holds one counter per esql query setting's resolved value (e.g. unmapped_fields.nullify, approximation.true)
     private final Map<String, Map<String, CounterMetric>> resolvedSettingsMetrics;
+    // the same two maps for the settings view definitions apply to their own bodies, counted apart from the caller's
+    private final Map<String, CounterMetric> viewSettingsMetrics;
+    private final Map<String, Map<String, CounterMetric>> viewResolvedSettingsMetrics;
     private final Map<String, CounterMetric> functionMetrics;
     private final TookMetrics tookMetrics = new TookMetrics();
 
     private final EsqlFunctionRegistry functionRegistry;
     private final List<QuerySettingDef<?>> applicableQuerySettings;
+    private final List<QuerySettingDef<?>> applicableViewSettings;
     private final Map<Class<?>, String> classToFunctionName;
 
     /**
@@ -100,20 +110,34 @@ public class Metrics {
         featuresMetrics = Collections.unmodifiableMap(fMap);
 
         this.applicableQuerySettings = QuerySettings.applicableIn(isSnapshot, isServerless);
-        Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(applicableQuerySettings.size());
-        Map<String, Map<String, CounterMetric>> rsMap = Maps.newLinkedHashMapWithExpectedSize(applicableQuerySettings.size());
-        for (var def : applicableQuerySettings) {
+        settingsMetrics = initSettingsMetrics(applicableQuerySettings);
+        resolvedSettingsMetrics = initResolvedSettingsMetrics(applicableQuerySettings);
+
+        this.applicableViewSettings = ViewQuerySettings.SETTINGS.stream().filter(applicableQuerySettings::contains).toList();
+        viewSettingsMetrics = initSettingsMetrics(applicableViewSettings);
+        viewResolvedSettingsMetrics = initResolvedSettingsMetrics(applicableViewSettings);
+
+        functionMetrics = initFunctionMetrics();
+    }
+
+    private static Map<String, CounterMetric> initSettingsMetrics(List<QuerySettingDef<?>> settings) {
+        Map<String, CounterMetric> sMap = Maps.newLinkedHashMapWithExpectedSize(settings.size());
+        for (var def : settings) {
             sMap.put(def.name(), new CounterMetric());
+        }
+        return Collections.unmodifiableMap(sMap);
+    }
+
+    private static Map<String, Map<String, CounterMetric>> initResolvedSettingsMetrics(List<QuerySettingDef<?>> settings) {
+        Map<String, Map<String, CounterMetric>> rsMap = Maps.newLinkedHashMapWithExpectedSize(settings.size());
+        for (var def : settings) {
             Map<String, CounterMetric> valueMap = Maps.newLinkedHashMapWithExpectedSize(def.telemetryLabels().size());
             for (String label : def.telemetryLabels()) {
                 valueMap.put(label, new CounterMetric());
             }
             rsMap.put(def.name(), Collections.unmodifiableMap(valueMap));
         }
-        settingsMetrics = Collections.unmodifiableMap(sMap);
-        resolvedSettingsMetrics = Collections.unmodifiableMap(rsMap);
-
-        functionMetrics = initFunctionMetrics();
+        return Collections.unmodifiableMap(rsMap);
     }
 
     private Map<String, CounterMetric> initFunctionMetrics() {
@@ -174,6 +198,28 @@ public class Metrics {
         }
     }
 
+    /**
+     * Counts, once per query, the settings of the views a query resolved, the way {@link #incSetting} and
+     * {@link #incResolvedSettings} count the caller's: each setting some view's definition {@code SET}s explicitly, and
+     * each value a view body resolved a setting to, whether its definition {@code SET} it or left it at its default.
+     * The caller's own counters never include a view's.
+     */
+    public void incViewSettings(Collection<ViewQuerySettings> views) {
+        Set<CounterMetric> counted = new HashSet<>();
+        for (ViewQuerySettings view : views) {
+            ResolvedSettings resolved = view.asResolvedSettings();
+            for (QuerySettingDef<?> def : applicableViewSettings) {
+                if (view.supplied().contains(def.name())) {
+                    counted.add(viewSettingsMetrics.get(def.name()));
+                }
+                var counter = viewResolvedSettingsMetrics.get(def.name()).get(def.telemetryLabel(resolved));
+                assert counter != null;
+                counted.add(counter);
+            }
+        }
+        counted.forEach(CounterMetric::inc);
+    }
+
     public void incFunctionMetric(Class<?> functionType) {
         String functionName = classToFunctionName.get(functionType);
         if (functionName != null) {
@@ -206,17 +252,10 @@ public class Metrics {
             counters.inc(FEATURES_PREFIX + entry.getKey().toString(), entry.getValue().count());
         }
 
-        // settings metrics
-        for (Entry<String, CounterMetric> entry : settingsMetrics.entrySet()) {
-            counters.inc(SETTINGS_PREFIX + entry.getKey(), entry.getValue().count());
-        }
-
-        // resolved settings metrics
-        for (Entry<String, Map<String, CounterMetric>> setting : resolvedSettingsMetrics.entrySet()) {
-            for (Entry<String, CounterMetric> value : setting.getValue().entrySet()) {
-                counters.inc(RESOLVED_SETTINGS_PREFIX + setting.getKey() + "." + value.getKey(), value.getValue().count());
-            }
-        }
+        settingsCounters(counters, SETTINGS_PREFIX, settingsMetrics);
+        resolvedSettingsCounters(counters, RESOLVED_SETTINGS_PREFIX, resolvedSettingsMetrics);
+        settingsCounters(counters, VIEW_SETTINGS_PREFIX, viewSettingsMetrics);
+        resolvedSettingsCounters(counters, VIEW_RESOLVED_SETTINGS_PREFIX, viewResolvedSettingsMetrics);
 
         // function metrics
         for (Entry<String, CounterMetric> entry : functionMetrics.entrySet()) {
@@ -226,5 +265,19 @@ public class Metrics {
         tookMetrics.counters(TOOK_PREFIX, counters);
 
         return counters;
+    }
+
+    private static void settingsCounters(Counters counters, String prefix, Map<String, CounterMetric> metrics) {
+        for (Entry<String, CounterMetric> entry : metrics.entrySet()) {
+            counters.inc(prefix + entry.getKey(), entry.getValue().count());
+        }
+    }
+
+    private static void resolvedSettingsCounters(Counters counters, String prefix, Map<String, Map<String, CounterMetric>> metrics) {
+        for (Entry<String, Map<String, CounterMetric>> setting : metrics.entrySet()) {
+            for (Entry<String, CounterMetric> value : setting.getValue().entrySet()) {
+                counters.inc(prefix + setting.getKey() + "." + value.getKey(), value.getValue().count());
+            }
+        }
     }
 }

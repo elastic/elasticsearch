@@ -18,7 +18,8 @@ import org.elasticsearch.core.Releasables;
 import java.io.IOException;
 
 /**
- * Wrapper around {@link DocVector} to make a valid {@link Block}.
+ * Wrapper around {@link DocVector} to make a valid {@link Block}. See {@link DocVector#writeTo} for which blocks can be
+ * written.
  */
 public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
@@ -30,7 +31,11 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
+        vector.writeTo(out);
+    }
+
+    public static DocBlock readFrom(BlockStreamInput in) throws IOException {
+        return DocVector.readFrom(in.blockFactory(), in).asBlock();
     }
 
     @Override
@@ -118,6 +123,10 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
         return new Builder(blockFactory, estimatedSize);
     }
 
+    /**
+     * Builds a {@link DocBlock}. Rows appended with {@link #appendShard} name shard slots of this node, unless the block
+     * gets origins at {@link #build(DocVector.Config)}. Then they are ordinals into those origins.
+     */
     public static class Builder implements Block.Builder {
         private final IntVector.Builder shards;
         private final IntVector.Builder segments;
@@ -177,9 +186,14 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
             throw new UnsupportedOperationException("doc blocks only contain one value per position");
         }
 
+        /**
+         * Copies rows of this node. The ordinals of a detached vector only mean something next to its origins, which this
+         * builder doesn't keep, so it rejects detached vectors.
+         */
         @Override
         public Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
             DocVector docVector = ((DocBlock) block).asVector();
+            docVector.ensureAttached("DocBlock.Builder#copyFrom");
             for (int i = beginInclusive; i < endExclusive; i++) {
                 shards.appendInt(docVector.shards().getInt(i));
                 segments.appendInt(docVector.segments().getInt(i));

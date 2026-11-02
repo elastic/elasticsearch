@@ -20,7 +20,7 @@ import java.util.Objects;
  * The request body for the Elastic Inference Service document extraction endpoint:
  * <pre>
  * {
- *   "model": "jina-reader",
+ *   "model": "document-extraction-model",
  *   "input": [
  *     {
  *       "content": {"type": "pdf", "format": "base64", "value": "data:application/pdf;base64,..."}

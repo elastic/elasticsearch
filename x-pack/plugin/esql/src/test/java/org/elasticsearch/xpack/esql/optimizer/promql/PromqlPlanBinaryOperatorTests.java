@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -723,17 +724,97 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         for (String promql : List.of(
             "count by (cluster) (network.bytes_in) - count by (cluster) (network.cost{pod=\"one\"})",
             "count_over_time(network.bytes_in[5m]) - count_over_time(network.cost{pod=\"one\"}[5m])",
+            "sum by (cluster) (count_over_time(network.bytes_in[5m])) - sum by (cluster) (count_over_time(network.cost{pod=\"one\"}[5m]))",
             "count(network.bytes_in{pod=~\"nope\"}) - count(network.cost{pod=~\"nope\"})"
         )) {
             LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + promql + ")");
-            List<Expression> zeroAsNull = new ArrayList<>();
-            plan.forEachExpressionDown(Case.class, c -> {
-                if (c.children().getFirst() instanceof Equals eq && eq.right() instanceof Literal l && Long.valueOf(0L).equals(l.value())) {
-                    zeroAsNull.add(c);
-                }
-            });
-            assertThat(promql + ": one null-when-empty count per operand\n" + plan, zeroAsNull, hasSize(2));
+            assertThat(promql + ": one null-when-empty count per operand\n" + plan, zeroCountGuards(plan), hasSize(2));
         }
+    }
+
+    /**
+     * A range function over a series without a sample in the window is no element. Fused with the other operand's
+     * aggregate, an operand's {@code count_over_time} reads 0 and its {@code present_over_time} false for every series its
+     * matchers reject; each maps to null before the across-series {@code count} sees it, so the count covers the matching
+     * series only.
+     */
+    public void testEmptyRangeOperandIsNull() {
+        Eval countOverTime = acrossSeriesInput("count_over_time");
+        assertThat(countOverTime.toString(), zeroCountGuards(countOverTime), hasSize(2));
+        Eval presentOverTime = acrossSeriesInput("present_over_time");
+        List<Case> falseAsNull = new ArrayList<>();
+        presentOverTime.forEachExpressionDown(Case.class, c -> {
+            if (c.children().size() == 3 && Literal.TRUE.equals(c.children().get(1)) && Literal.NULL.equals(c.children().get(2))) {
+                falseAsNull.add(c);
+            }
+        });
+        assertThat(presentOverTime.toString(), falseAsNull, hasSize(2));
+    }
+
+    /**
+     * Fused with another operand's aggregate, an operand's {@code absent_over_time} reads true for every series its
+     * matchers reject. True stays only for a series the operand selects: one with a row passing its matchers in the window.
+     */
+    public void testFusedAbsentOverTimeStaysOnlyForSelectedSeries() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m result=(max by (cluster) (absent_over_time(network.bytes_in[5m])) "
+                + "- max by (cluster) (absent_over_time(network.cost{pod=\"one\"}[5m])))"
+        );
+        List<Present> selected = timestampPresence(plan);
+        assertThat(plan.toString(), selected, hasSize(2));
+        List<Expression> selectedFilters = selected.stream().filter(Present::hasFilter).map(Present::filter).toList();
+        assertThat(plan.toString(), selectedFilters, hasSize(1));
+        assertEquals(List.of("pod"), selectedFilters.getFirst().references().stream().map(Attribute::name).toList());
+    }
+
+    /**
+     * A series a metric selector selects has a sample of the metric, so a metric's {@code absent_over_time} never has an
+     * element, fused or not: no row-presence check of the series is planned for it.
+     */
+    public void testFusedAbsentOverTimeOfMetricsChecksNoRowPresence() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m result=(max by (cluster) (absent_over_time(network.eth0.tx[5m])) "
+                + "- max by (cluster) (absent_over_time(network.eth0.rx{pod=\"one\"}[5m])))"
+        );
+        assertThat(plan.toString(), timestampPresence(plan), hasSize(0));
+    }
+
+    /** The {@code present(@timestamp)} checks of whether an operand reads a row of the series in the window. */
+    private static List<Present> timestampPresence(LogicalPlan plan) {
+        List<Present> presence = new ArrayList<>();
+        plan.forEachExpressionDown(Present.class, p -> {
+            if (p.field() instanceof Attribute field && field.name().equals("@timestamp")) {
+                presence.add(p);
+            }
+        });
+        return presence;
+    }
+
+    /**
+     * The input of the across-series aggregate of two fused operands, each counting {@code rangeFunction} over one metric:
+     * the per-series range values the outer {@code count}s read.
+     */
+    private Eval acrossSeriesInput(String rangeFunction) {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m result=(count by (cluster) ("
+                + rangeFunction
+                + "(network.bytes_in[5m])) - count by (cluster) ("
+                + rangeFunction
+                + "(network.cost{pod=\"one\"}[5m])))"
+        );
+        List<Aggregate> outer = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat(plan.toString(), outer, hasSize(1));
+        assertThat(plan.toString(), outer.getFirst().child(), instanceOf(Eval.class));
+        return (Eval) outer.getFirst().child();
+    }
+
+    /** A range function maps to null once, however many operators compose over it. */
+    public void testChainedRangeCountsMapOnce() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m result=(count_over_time(network.bytes_in[5m]) - count_over_time(network.cost[5m]) "
+                + "- count_over_time(network.total_bytes_in[5m]))"
+        );
+        assertThat(plan.toString(), zeroCountGuards(plan), hasSize(3));
     }
 
     /**
@@ -746,14 +827,19 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             "count by (cluster) (sum by (pod, cluster) (network.bytes_in) / sum by (pod, cluster) (network.cost{pod!=\"one\"}))"
         )) {
             LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + promql + ")");
-            List<Expression> zeroAsNull = new ArrayList<>();
-            plan.forEachExpressionDown(Case.class, c -> {
-                if (c.children().getFirst() instanceof Equals eq && eq.right() instanceof Literal l && Long.valueOf(0L).equals(l.value())) {
-                    zeroAsNull.add(c);
-                }
-            });
-            assertThat(promql + ": the enclosing count maps 0 to no element\n" + plan, zeroAsNull, hasSize(1));
+            assertThat(promql + ": the enclosing count maps 0 to no element\n" + plan, zeroCountGuards(plan), hasSize(1));
         }
+    }
+
+    /** The {@code CASE(count == 0, null, count)} guards that map a count of 0 to no element. */
+    private static List<Case> zeroCountGuards(LogicalPlan plan) {
+        List<Case> guards = new ArrayList<>();
+        plan.forEachExpressionDown(Case.class, c -> {
+            if (c.children().getFirst() instanceof Equals eq && eq.right() instanceof Literal l && Long.valueOf(0L).equals(l.value())) {
+                guards.add(c);
+            }
+        });
+        return guards;
     }
 
     private static void assertNoIndexBackedPromqlPlan(LogicalPlan plan) {

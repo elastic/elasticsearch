@@ -467,19 +467,6 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testFallbackThatCannotBeSentTheSplitsFailsTheQuery
   issue: https://github.com/elastic/elasticsearch/issues/163761
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryAllCombinationsNoSkipUnavailableIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/163773
-- class: org.elasticsearch.xpack.esql.action.FromDatasetIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  issue: https://github.com/elastic/elasticsearch/issues/163819
-- class: org.elasticsearch.xpack.esql.action.NonIndexedTextSearchIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  issue: https://github.com/elastic/elasticsearch/issues/163831
 - class: org.elasticsearch.index.mapper.UnmappedFieldsTests
   tasks:
   - :server:test
@@ -509,3 +496,73 @@ tests:
   - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
   method: test {yaml=esql/200_view/validate-warns-but-still-stores-the-view}
   issue: https://github.com/elastic/elasticsearch/issues/164095
+- class: org.elasticsearch.xpack.security.support.CleanupRoleMappingDuplicatesMigrationIT
+  tasks:
+  - :x-pack:plugin:security:internalClusterTest
+  method: testMigrationFallbackNamePreCondition
+  issue: https://github.com/elastic/elasticsearch/issues/164170
+- class: org.elasticsearch.test.cluster.local.RolledLogReaderTests
+  tasks:
+  - :test:test-clusters:test
+  method: testNeverLosesOrDuplicatesLinesDuringRepeatedRollovers
+  issue: https://github.com/elastic/elasticsearch/issues/163277
+- class: org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkExportLogsSupplierTests
+  tasks:
+  - :modules:apm:test
+  method: testUnreachableDestinationReportsFailedExportMetric
+  issue: https://github.com/elastic/elasticsearch/issues/164184
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForkUnmappedTypeConflictsIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:unmapped-type-conflicts.typeConflictDateNanosDateUnmappedNonExistentCastToDateNanos}
+  issue: https://github.com/elastic/elasticsearch/issues/164188
+- class: org.elasticsearch.xpack.esql.optimizer.GoldenGcTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testStaleTestDirectoriesNameNoMethodOfTheSuite
+  issue: https://github.com/elastic/elasticsearch/issues/164167
+- class: org.elasticsearch.telemetry.apm.internal.APMAgentSettingsTests
+  tasks:
+  - :modules:apm:test
+  method: testUpdateMaxSpansPropagatesToTracer
+  issue: https://github.com/elastic/elasticsearch/issues/164198
+- class: org.elasticsearch.xpack.esql.heap_attack.ManyRequestsIT
+  tasks:
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
+  method: testCancelTailRequest
+  issue: https://github.com/elastic/elasticsearch/issues/153203
+- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
+  tasks:
+  - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
+  method: test {yaml=esql/46_downsample/Sort from multiple indices one with aggregate metric double}
+  issue: https://github.com/elastic/elasticsearch/issues/164215
+- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testFailRecoveryCommitRegistrationIfIndexGetsDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/164232
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  tasks:
+  - :x-pack:plugin:encryption:internalClusterTest
+  method: testRotationCycleWithNoHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/164186
+- class: org.elasticsearch.xpack.stateless.commits.StatelessStateNotRecoveredFileDeletionIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testShardFilesNotDeletedOnStateNotRecoveredDedicatedMaster
+  issue: https://github.com/elastic/elasticsearch/issues/164248
+- class: org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettingsTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testFromMap_ExplicitNullRateLimit_ThrowsException
+  issue: https://github.com/elastic/elasticsearch/issues/164266
+- class: org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankServiceSettingsTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testFromMap_ExplicitNullRateLimit_ThrowsException
+  issue: https://github.com/elastic/elasticsearch/issues/164269
+- class: org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettingsTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testFromMap_ExplicitNullRateLimit_ThrowsException
+  issue: https://github.com/elastic/elasticsearch/issues/164271

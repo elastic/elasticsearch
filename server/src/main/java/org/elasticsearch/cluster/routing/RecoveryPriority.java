@@ -89,8 +89,8 @@ public enum RecoveryPriority implements Writeable {
     private final boolean isValidForUnassigned;
 
     /**
-     * @param isValidForRelocation whether a shard copy that initializing as the target of a relocation may have this priority
-     * @param isValidForUnassigned whether a shard copy that is initializing from unassigned, may have this priority
+     * @param isValidForRelocation whether a shard copy that is initializing as the target of a relocation may have this priority
+     * @param isValidForUnassigned whether a shard copy that is initializing from unassigned may have this priority
      */
     RecoveryPriority(boolean isValidForRelocation, boolean isValidForUnassigned) {
         this.isValidForRelocation = isValidForRelocation;

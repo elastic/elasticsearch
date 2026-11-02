@@ -127,25 +127,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             random(),
             EnumSet.complementOf(EnumSet.of(UnassignedInfo.Reason.INDEX_CREATED))
         );
-        RecoveryPriority recoveryPriority = randomFrom(RecoveryPriority.UNASSIGNED_UNEXPECTED, RecoveryPriority.UNASSIGNED_EXPECTED); // this
-                                                                                                                                      // priority
-                                                                                                                                      // may
-                                                                                                                                      // or
-                                                                                                                                      // may
-                                                                                                                                      // not
-                                                                                                                                      // make
-                                                                                                                                      // sense
-                                                                                                                                      // for
-                                                                                                                                      // the
-                                                                                                                                      // chosen
-                                                                                                                                      // reason,
-                                                                                                                                      // but
-                                                                                                                                      // it
-                                                                                                                                      // shouldn't
-                                                                                                                                      // affect
-                                                                                                                                      // the
-                                                                                                                                      // test
-                                                                                                                                      // anyway
+        // this priority may or may not make sense for the chosen reason, but it shouldn't affect the test anyway
+        RecoveryPriority recoveryPriority = randomFrom(RecoveryPriority.UNASSIGNED_UNEXPECTED, RecoveryPriority.UNASSIGNED_EXPECTED);
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, reason, recoveryPriority);
         testAllocator.clean();
         allocateAllUnassigned(allocation);

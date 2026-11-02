@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.TimeSeriesMetadata;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -30,12 +31,16 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigura
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
@@ -167,6 +172,21 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         );
         TestCaseSupplier.forUnaryStrings(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
         TestCaseSupplier.forUnaryFlattened(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
+        suppliers.add(caseForTimeSeries("empty", Map.of(), "{}"));
+        var absentLabels = new HashMap<String, String>();
+        absentLabels.put("missing", null);
+        absentLabels.put("empty", "");
+        suppliers.add(caseForTimeSeries("absent labels", absentLabels, "{}"));
+        suppliers.add(
+            caseForTimeSeries("normalized labels", Map.of("pod", "a", "job", "api", "empty", ""), "{\"job\":\"api\",\"pod\":\"a\"}")
+        );
+        suppliers.add(
+            caseForTimeSeries(
+                "escaped and unicode labels",
+                Map.of("unicode", "λ😀", "escaped", "quote\" slash\\ newline\n"),
+                "{\"escaped\":\"quote\\\" slash\\\\ newline\\n\",\"unicode\":\"λ😀\"}"
+            )
+        );
         TestCaseSupplier.forUnaryVersion(
             suppliers,
             "ToStringFromVersionEvaluator[version=" + read + "]",
@@ -309,6 +329,23 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             return typedData;
         }).toList()));
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static TestCaseSupplier caseForTimeSeries(String name, Map<String, String> labels, String expectedString) {
+        return new TestCaseSupplier("timeseries " + name, List.of(DataType.TIMESERIES_DATA_TYPE), () -> {
+            var output = new ByteArrayOutputStream();
+            try {
+                TimeSeriesMetadata.of(labels).writeTo(output);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(new BytesRef(output.toByteArray()), DataType.TIMESERIES_DATA_TYPE, "metadata")),
+                "TimeSeriesEvaluator[operation=TO_STRING, names=[], inputs=[Attribute[channel=0]]]",
+                DataType.KEYWORD,
+                matchesBytesRef(expectedString)
+            );
+        });
     }
 
     private static List<TestCaseSupplier> casesForDate(String date, String zoneIdString, String expectedString) {

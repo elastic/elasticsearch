@@ -128,7 +128,7 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
      * with no excluded dimensions.
      */
     public static TimeSeriesMetadataAttribute timeSeriesAttribute(Source source) {
-        return new TimeSeriesMetadataAttribute(source, Set.of());
+        return TimeSeriesMetadataAttribute.create(source, Set.of());
     }
 
     private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {
@@ -161,15 +161,8 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
                     withoutFields = in.readCollectionAsSet(StreamInput::readString);
                 }
             }
-            return new TimeSeriesMetadataAttribute(
-                source,
-                parentName,
-                qualifier,
-                name,
-                field,
-                nullability,
-                nameId,
-                synthetic,
+            return TimeSeriesMetadataAttribute.fromField(
+                new FieldAttribute(source, parentName, qualifier, name, field, nullability, nameId, synthetic),
                 withoutFields
             );
         }

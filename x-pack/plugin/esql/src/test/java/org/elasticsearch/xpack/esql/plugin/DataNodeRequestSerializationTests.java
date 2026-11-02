@@ -128,7 +128,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
      * (the old coordinator cannot reroute) and consults no version.
      */
     public void testReadinessFieldsDefaultOnOldVersions() throws IOException {
-        DataNodeRequest request = createTestInstance();
+        // a request for fetch contexts never reaches a node that old
+        DataNodeRequest request = withFetchContextsKeepAlive(createTestInstance(), null);
         DataNodeRequest copy = copyInstance(
             request,
             TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_READINESS)

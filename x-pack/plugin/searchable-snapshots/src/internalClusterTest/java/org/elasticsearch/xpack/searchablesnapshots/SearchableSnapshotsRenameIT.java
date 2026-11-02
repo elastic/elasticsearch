@@ -36,8 +36,8 @@ public class SearchableSnapshotsRenameIT extends BaseSearchableSnapshotsIntegTes
         createFullSnapshot("repo", "snap");
         assertAcked(indicesAdmin().prepareDelete(index));
 
-        final Storage storage = randomFrom(Storage.values());
-        mountSnapshot("repo", "snap", index, mounted, Settings.EMPTY, storage);
+        // a full copy mount; partial mounts need the shared cache, which this test cluster does not enable
+        mountSnapshot("repo", "snap", index, mounted, Settings.EMPTY, Storage.FULL_COPY);
         ensureGreen(mounted);
         ElasticsearchAssertions.assertHitCount(client().prepareSearch(mounted).setSize(0), docs);
 

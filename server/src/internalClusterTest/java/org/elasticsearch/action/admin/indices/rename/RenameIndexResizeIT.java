@@ -22,10 +22,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * Resize targets record their source by name and UUID in their settings and recover from the source's shards on the same node.
  * A rename of the source before or during a resize must not break that.
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class RenameIndexResizeIT extends ESIntegTestCase {
 
     public void testResizeFromRenamedSource() throws Exception {
-        internalCluster().startNode();
         createIndex("source", indexSettings(2, 0).build(), false);
         final int docs = randomIntBetween(1, 20);
         for (int i = 0; i < docs; i++) {
@@ -49,7 +49,6 @@ public class RenameIndexResizeIT extends ESIntegTestCase {
     }
 
     public void testRenameSourceWhileResizeTargetRecovers() throws Exception {
-        internalCluster().startNode();
         createIndex("source", indexSettings(2, 0).build(), false);
         final int docs = randomIntBetween(1, 20);
         for (int i = 0; i < docs; i++) {

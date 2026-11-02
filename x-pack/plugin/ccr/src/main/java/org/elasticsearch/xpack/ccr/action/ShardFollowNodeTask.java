@@ -685,7 +685,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return params.getFollowShardId();
     }
 
-    @Override
     /**
      * The leader index name to report in the status. The task parameters hold the name the leader had when following started;
      * the executor overrides this with the name learned after a rename of the leader.
@@ -702,6 +701,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         return params.getFollowShardId().getIndexName();
     }
 
+    @Override
     public synchronized ShardFollowNodeTaskStatus getStatus() {
         final long timeSinceLastFetchMillis;
         if (lastFetchTime != -1) {

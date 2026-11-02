@@ -550,3 +550,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testFailRecoveryCommitRegistrationIfIndexGetsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/164232
+- class: org.elasticsearch.xpack.encryption.KeyRotationIT
+  tasks:
+  - :x-pack:plugin:encryption:internalClusterTest
+  method: testRotationCycleWithNoHandlers
+  issue: https://github.com/elastic/elasticsearch/issues/164186

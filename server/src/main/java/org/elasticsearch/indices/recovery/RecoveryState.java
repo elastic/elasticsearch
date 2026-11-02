@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
@@ -116,7 +117,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final Timer timer;
 
     private final RecoverySource recoverySource;
-    private final ShardRouting.RecoveryPriority recoveryPriority;
+    private final RecoveryPriority recoveryPriority;
     // volatile rather than final so that an index rename can update the name reported by the recovery API, see updateIndex
     private volatile ShardId shardId;
     @Nullable
@@ -162,7 +163,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         ShardId shardId,
         boolean primary,
         RecoverySource recoverySource,
-        ShardRouting.RecoveryPriority recoveryPriority,
+        RecoveryPriority recoveryPriority,
         @Nullable DiscoveryNode sourceNode,
         DiscoveryNode targetNode,
         Index index,
@@ -194,9 +195,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         shardId = new ShardId(in);
         recoverySource = RecoverySource.readFrom(in);
         if (in.getTransportVersion().supports(RECOVERY_PRIORITY_TRANSPORT_VERSION)) {
-            recoveryPriority = ShardRouting.RecoveryPriority.readFrom(in);
+            recoveryPriority = RecoveryPriority.readFrom(in);
         } else {
-            recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
+            recoveryPriority = RecoveryPriority.UNKNOWN;
         }
         targetNode = new DiscoveryNode(in);
         sourceNode = in.readOptionalWriteable(DiscoveryNode::new);
@@ -377,7 +378,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return recoverySource;
     }
 
-    public ShardRouting.RecoveryPriority getRecoveryPriority() {
+    public RecoveryPriority getRecoveryPriority() {
         return recoveryPriority;
     }
 

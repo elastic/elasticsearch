@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -49,6 +50,15 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     }
 
     /**
+     * Whether {@code _timeseries} is typed metadata for {@link #tsAnalyzer()}'s minimum version. A view is then read as
+     * typed metadata without its labels instead of a keyword column without them.
+     */
+    protected boolean typedTimeSeriesMetadata() {
+        return EsqlCapabilities.Cap.PROMQL_ENABLE_TIMESERIES_TYPE.isEnabled()
+            && TimeSeriesMetadataAttribute.supportTimeSeriesMetadataType(minimumVersionAtLeast(TimeSeriesCollapse.TS_COLLAPSE));
+    }
+
+    /**
      * The labels the {@code _timeseries} view of {@code plan}'s source leaves out, typed metadata or keyword alike: the
      * loader reads the view without them. Null when the plan reads no view.
      */
@@ -77,6 +87,9 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
      * {@code SubstituteTransportVersionAwareExpressionsTests}.
      */
     protected LogicalPlan planPromql(String query, boolean allowEmptyReferences, boolean optimize) {
+        // Keyword _timeseries cannot leave labels out (rate/arith/without/…).
+        // That path is unsupported; plans need typed metadata.
+        assumeTrue("requires typed _timeseries", typedTimeSeriesMetadata());
         var now = Instant.now();
         query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
         query = query.replace("$now", "\"" + now + "\"");

@@ -30,6 +30,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.INTERNAL)
 public class RestHealthAction extends AbstractCatAction {
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
+        Sets.union(COMMON_QUERY_PARAMETERS, Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM))
+    );
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_cat/health"));
@@ -38,6 +42,11 @@ public class RestHealthAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_health_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -22,6 +23,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -31,6 +33,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.INTERNAL)
 public class RestFielddataAction extends AbstractCatAction {
 
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(COMMON_QUERY_PARAMETERS, Set.of("fields")));
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_cat/fielddata"), new Route(GET, "/_cat/fielddata/{fields}"));
@@ -39,6 +43,16 @@ public class RestFielddataAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_fielddata_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return COMMON_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

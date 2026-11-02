@@ -246,7 +246,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                                 0L,
                                 "test",
                                 routingAllocation.changes(),
-                                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                             );
                         return;
                     }

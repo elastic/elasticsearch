@@ -206,8 +206,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
             if (addedNode.canContainData()) {
                 refreshAsync(new PlainActionFuture<>());
-                break;
+                return;
             }
+        }
+
+        // Shard sizes are keyed by a string that includes the index name (see ClusterInfo#shardIdentifierFromRouting), so the shards
+        // of a renamed index have no known size until the next refresh; refresh now rather than wait for the next scheduled one
+        if (event.indicesRenamed().isEmpty() == false) {
+            refreshAsync(new PlainActionFuture<>());
         }
     }
 

@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Integration tests for the ClusterInfoService collecting information
@@ -344,6 +345,59 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                     .containsShardId(shard.shardId())
             );
         }
+    }
+
+    /**
+     * Shard sizes are keyed by a string that includes the index name, so renaming an index would leave its shards without a known
+     * size until the next scheduled refresh. The service refreshes when it applies a rename instead; with the scheduled refresh
+     * effectively disabled, only that refresh can produce sizes under the new name.
+     */
+    public void testShardSizesRefreshedAfterRename() throws Exception {
+        internalCluster().startNodes(
+            2,
+            Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build()
+        );
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
+        ensureGreen("test");
+        final List<ShardRouting> originalRoutings = shardRoutings("test");
+
+        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalCluster().getInstance(
+            ClusterInfoService.class,
+            internalCluster().getMasterName()
+        );
+        final ClusterInfo originalInfo = ClusterInfoServiceUtils.refresh(infoService);
+        for (ShardRouting shardRouting : originalRoutings) {
+            assertThat("size for shard " + shardRouting + " found", originalInfo.getShardSize(shardRouting), notNullValue());
+        }
+
+        assertAcked(client().admin().indices().aliases(renameIndexRequest("test", "renamed")).actionGet());
+        final List<ShardRouting> renamedRoutings = shardRoutings("renamed");
+
+        assertBusy(() -> {
+            final ClusterInfo info = infoService.getClusterInfo();
+            for (ShardRouting shardRouting : renamedRoutings) {
+                assertThat("size for renamed shard " + shardRouting + " found", info.getShardSize(shardRouting), notNullValue());
+            }
+            for (ShardRouting shardRouting : originalRoutings) {
+                assertThat("no size under the old name for " + shardRouting, info.getShardSize(shardRouting), nullValue());
+            }
+        });
+    }
+
+    private List<ShardRouting> shardRoutings(String index) {
+        final IndexShardRoutingTable table = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setRoutingTable(true)
+            .get()
+            .getState()
+            .getRoutingTable()
+            .index(index)
+            .shard(0);
+        final List<ShardRouting> shardRoutings = new ArrayList<>(table.size());
+        for (int copy = 0; copy < table.size(); copy++) {
+            shardRoutings.add(table.shard(copy));
+        }
+        return shardRoutings;
     }
 
     public void testClusterInfoIncludesNodeUsageStatsForThreadPools() {

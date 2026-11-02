@@ -557,14 +557,16 @@ Verified safe, with the mechanism that makes them so:
   remaining listeners keep no per-index state, or manage indices they own by
   name (see below).
 
-One gap found: `InternalClusterInfoService` keys shard sizes by a string built
-from `ShardId#toString`, which includes the index name, and it refreshes on
-the `cluster.info.update.interval` timer (30 seconds by default) or when a
-data node joins, not on metadata changes. After a rename, allocation deciders
-and the desired balance see no size for the renamed index's shards until the
-next refresh. The window is bounded and the effect is a less informed
-decision, not a wrong one. The fix is either to key the map by UUID or to
-refresh when `indicesRenamed()` is non-empty; it is not done in the prototype.
+One gap found and fixed: `InternalClusterInfoService` keys shard sizes by a
+string built from `ShardId#toString`, which includes the index name, and it
+refreshed only on the `cluster.info.update.interval` timer (30 seconds by
+default) or when a data node joined. After a rename, allocation deciders and
+the desired balance saw no size for the renamed index's shards until the next
+refresh: a less informed decision, not a wrong one, but for up to 30 seconds.
+The service now also refreshes when the state it applies carries a rename
+(`ClusterInfoServiceIT#testShardSizesRefreshedAfterRename`). Keying the map by
+UUID would remove the need, but the string key is visible in the allocation
+explain output, so the refresh is the smaller change.
 
 Two classes of consumer remain the user's problem, as they are with a delete
 or a reindex: features that record index names in their own state and act on

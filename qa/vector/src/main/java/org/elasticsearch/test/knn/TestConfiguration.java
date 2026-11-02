@@ -76,6 +76,7 @@ public record TestConfiguration(
     int writerMaxBufferedDocs,
     int forceMergeMaxNumSegments,
     boolean onDiskRescore,
+    boolean onDiskMerge,
     List<SearchParameters> searchParams,
     int numMergeWorkers,
     int numQuantizerWorkers,
@@ -89,6 +90,7 @@ public record TestConfiguration(
     int numDeletedDocs,
     long deleteSeed,
     float projectedDimsFraction,
+    int maxProjectedDims,
     String quantizationType
 ) {
 
@@ -132,6 +134,7 @@ public record TestConfiguration(
     static final ParseField WRITER_BUFFER_MB_FIELD = new ParseField("writer_buffer_mb");
     static final ParseField WRITER_BUFFER_DOCS_FIELD = new ParseField("writer_buffer_docs");
     static final ParseField ON_DISK_RESCORE_FIELD = new ParseField("on_disk_rescore");
+    static final ParseField ON_DISK_MERGE_FIELD = new ParseField("on_disk_merge");
     static final ParseField DO_PRECONDITION = new ParseField("precondition");
     static final ParseField PRECONDITIONING_BLOCK_DIMS = new ParseField("preconditioning_block_dims");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
@@ -144,6 +147,7 @@ public record TestConfiguration(
     static final ParseField EXACT_FIELD = new ParseField("exact");
     static final ParseField EXACT_QUANTIZED_FIELD = new ParseField("exact_quantized");
     private static final ParseField PROJECTED_DIMS_FRACTION_FIELD = new ParseField("projected_dims_fraction");
+    private static final ParseField MAX_PROJECTED_DIMS_FIELD = new ParseField("max_projected_dims");
     private static final ParseField QUANTIZATION_TYPE_FIELD = new ParseField("quantization_type");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
@@ -209,6 +213,7 @@ public record TestConfiguration(
         PARSER.declareInt(Builder::setWriterMaxBufferedDocs, WRITER_BUFFER_DOCS_FIELD);
         PARSER.declareInt(Builder::setForceMergeMaxNumSegments, FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareBoolean(Builder::setOnDiskRescore, ON_DISK_RESCORE_FIELD);
+        PARSER.declareBoolean(Builder::setOnDiskMerge, ON_DISK_MERGE_FIELD);
         PARSER.declareBoolean(Builder::setDoPrecondition, DO_PRECONDITION);
         PARSER.declareInt(Builder::setPreconditioningBlockDims, PRECONDITIONING_BLOCK_DIMS);
         PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
@@ -228,6 +233,7 @@ public record TestConfiguration(
             ObjectParser.ValueType.VALUE_ARRAY
         );
         PARSER.declareFloat(Builder::setProjectedDimsFraction, PROJECTED_DIMS_FRACTION_FIELD);
+        PARSER.declareInt(Builder::setMaxProjectedDims, MAX_PROJECTED_DIMS_FIELD);
         PARSER.declareString(Builder::setQuantizationType, QUANTIZATION_TYPE_FIELD);
     }
 
@@ -298,6 +304,7 @@ public record TestConfiguration(
             new ParameterHelp("writer_buffer_mb", "double", "Index writer RAM buffer size in MB."),
             new ParameterHelp("writer_buffer_docs", "int", "Max buffered docs before flush; -1 disables auto flush by docs."),
             new ParameterHelp("on_disk_rescore", "boolean", "Search: enable on-disk rescore for search."),
+            new ParameterHelp("on_disk_merge", "boolean", "GPU HNSW bbq: read the source raw vectors with direct I/O on merge."),
             new ParameterHelp("precondition", "boolean", "IVF: apply preconditioning prior to indexing."),
             new ParameterHelp("preconditioning_block_dims", "int", "IVF: block dimensions used for preconditioning."),
             new ParameterHelp(
@@ -477,6 +484,7 @@ public record TestConfiguration(
         private KnnIndexTester.MergePolicyType mergePolicy = null;
         private double writerBufferSizeInMb = DEFAULT_WRITER_BUFFER_MB;
         private boolean onDiskRescore = false;
+        private boolean onDiskMerge = false;
         private boolean doPrecondition = false;
         private int preconditioningBlockDims = 64;
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
@@ -493,6 +501,7 @@ public record TestConfiguration(
         private List<Boolean> exact = List.of(Boolean.FALSE);
         private List<Boolean> exactQuantized = List.of(Boolean.FALSE);
         private float projectedDimsFraction = 0.5f;
+        private int maxProjectedDims = 1024;
         private String quantizationType = "osq";
 
         /**
@@ -689,6 +698,11 @@ public record TestConfiguration(
             return this;
         }
 
+        public Builder setOnDiskMerge(boolean onDiskMerge) {
+            this.onDiskMerge = onDiskMerge;
+            return this;
+        }
+
         public Builder setDoPrecondition(boolean doPrecondition) {
             this.doPrecondition = doPrecondition;
             return this;
@@ -751,6 +765,10 @@ public record TestConfiguration(
 
         public void setProjectedDimsFraction(float projectedDimsFraction) {
             this.projectedDimsFraction = projectedDimsFraction;
+        }
+
+        public void setMaxProjectedDims(int maxProjectedDims) {
+            this.maxProjectedDims = maxProjectedDims;
         }
 
         public void setQuantizationType(String quantizationType) {
@@ -1043,6 +1061,7 @@ public record TestConfiguration(
                 writerMaxBufferedDocs,
                 forceMergeMaxNumSegments,
                 onDiskRescore,
+                onDiskMerge,
                 searchRuns,
                 numMergeWorkers,
                 numQuantizerWorkers,
@@ -1056,6 +1075,7 @@ public record TestConfiguration(
                 numDeletedDocs,
                 deleteSeed,
                 projectedDimsFraction,
+                maxProjectedDims,
                 quantizationType
             );
         }
@@ -1110,6 +1130,7 @@ public record TestConfiguration(
             builder.field(WRITER_BUFFER_DOCS_FIELD.getPreferredName(), writerMaxBufferedDocs);
             builder.field(FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumSegments);
             builder.field(ON_DISK_RESCORE_FIELD.getPreferredName(), onDiskRescore);
+            builder.field(ON_DISK_MERGE_FIELD.getPreferredName(), onDiskMerge);
             builder.field(FILTER_CACHED.getPreferredName(), filterCached);
             if (mergePolicy != null) {
                 builder.field(MERGE_POLICY_FIELD.getPreferredName(), mergePolicy.name().toLowerCase(Locale.ROOT));

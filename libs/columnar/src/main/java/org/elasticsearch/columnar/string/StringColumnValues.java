@@ -30,8 +30,12 @@ import java.io.IOException;
  */
 public abstract class StringColumnValues extends DocIdSetIterator {
 
-    /** The number of slots the current document holds, null slots included. */
-    public abstract int valueCount();
+    /**
+     * The number of slots the current document holds, null slots included. May read: a cursor over foreign
+     * payloads splits the document's payload no earlier than this, so a pass that only moves through the
+     * documents never asks for their bytes.
+     */
+    public abstract int valueCount() throws IOException;
 
     /**
      * How many of the current document's slots are null. Separate from the cursor so the column writer's

@@ -173,6 +173,9 @@ public abstract class BaseRestHandler implements RestHandler {
 
             Set<String> supportedNotConsumed = new TreeSet<>(supportedAndCommon);
             supportedNotConsumed.removeAll(consumed);
+            // it's ok for error_trace to be unconsumed, as that is consumed by the rest controller directly,
+            // so direct handler tests won't read it
+            supportedNotConsumed.remove(RestController.ERROR_TRACE_PARAM);
             assert supportedNotConsumed.isEmpty() : "Supported params not consumed: " + supportedNotConsumed;
         }
         return true;

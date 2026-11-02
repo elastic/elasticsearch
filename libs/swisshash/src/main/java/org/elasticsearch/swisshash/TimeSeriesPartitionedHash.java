@@ -85,6 +85,7 @@ public final class TimeSeriesPartitionedHash implements PartitionedHashTable {
         int batchStart = 0;
         final int size = Math.toIntExact(pairHash.size());
         final byte[][] keyPages = pairHash.keyPages();
+        assert (long) size * KEY_SIZE <= (long) keyPages.length << PAGE_SHIFT : size + " keys in " + keyPages.length + " pages";
         int pageIndex = 0;
         byte[] keyPage = keyPages[0];
         int indexInPage = 0;
@@ -93,7 +94,9 @@ public final class TimeSeriesPartitionedHash implements PartitionedHashTable {
                 keyPage = keyPages[++pageIndex];
                 indexInPage = 0;
             }
-            final int tsid = (int) (long) LONG_HANDLE.get(keyPage, indexInPage);
+            final long key1 = (long) LONG_HANDLE.get(keyPage, indexInPage);
+            assert 0 <= key1 && key1 < partitions.length : key1;
+            final int tsid = (int) key1;
             indexInPage += KEY_SIZE;
             final int p = partitions[tsid] & 0xFF;
             if (batchPartitionCounts[p] == PARTITION_WRITE_BATCH) {

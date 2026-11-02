@@ -26,7 +26,9 @@ import org.elasticsearch.xpack.esql.datasources.StatValueComparator;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -58,6 +61,9 @@ import java.util.Optional;
  *  </pre>
  *  Where the filter is needed since the original Aggregate would not produce buckets with count = 0.
  *
+ *  A count of the grouping key next to the count, as in {@code count(*), count(x) by x}, is pushed as well and derived from the bucket
+ *  count afterwards. {@code INLINE STATS} adds such a count when it copies a filter into its aggregation.
+ *
  *  If there's more than one query on the query builder, and both filters <b>are on the same field</b>, this rule will also attempt to merge
  *  them before pushing. This can happen due to an external ESFilter (i.e., outside the ES|QL query), or simply to a previously pushed down
  *  WHERE clause.
@@ -68,63 +74,139 @@ public class PushCountQueryAndTagsToSource extends PhysicalOptimizerRules.Optimi
     protected PhysicalPlan rule(AggregateExec aggregateExec) {
         // The rule applies only when the aggregate has:
         // - exactly one grouping key
-        // - exactly one aggregate (the COUNT itself)
-        // This rejects multi-grouping queries and multi-aggregate queries (e.g. COUNT + MAX).
+        // - exactly one aggregate (the COUNT itself), optionally next to counts of the grouping key
+        // This rejects multi-grouping queries and other multi-aggregate queries (e.g. COUNT + MAX).
         // The COUNT must be Count(*) or CountApproximate(*), without a filter on the count itself.
         if (aggregateExec.groupings().size() == 1
-            && isPushableGroupedCount(aggregateExec.aggregates(), aggregateExec.groupings())
             && aggregateExec.child() instanceof EvalExec evalExec
             && evalExec.child() instanceof EsQueryExec queryExec) {
-            List<EsQueryExec.QueryBuilderAndTags> withFilter = pushableCountQueries(queryExec.queryBuilderAndTags());
-            if (withFilter == null) {
-                return aggregateExec;
+            PhysicalPlan pushed = isPushableGroupedCount(aggregateExec.aggregates(), aggregateExec.groupings())
+                ? pushCount(aggregateExec, queryExec)
+                : pushCountWithKeyCounts(aggregateExec, queryExec);
+            if (pushed != null) {
+                return pushed;
             }
-            Alias alias = (Alias) aggregateExec.aggregates().getFirst();
-            AggregateFunction count = (AggregateFunction) alias.child();
-            // Next lines expect the agg to have a partial-output layout.
-            // This rule is currently used in the LocalPhysicalPlanOptimizer, so it's a safe assumption now.
-            assert aggregateExec.getMode().isOutputPartial() : "expected partial-output agg, got " + aggregateExec.getMode();
-            List<Attribute> statsOutput;
-            if (count instanceof CountApproximate ca) {
-                statsOutput = AbstractPhysicalOperationProviders.intermediateAttributes(
-                    List.of(alias.replaceChild(new Count(ca.source(), ca.field(), ca.filter(), ca.window()))),
-                    aggregateExec.groupings()
-                );
-            } else {
-                statsOutput = aggregateExec.output();
-            }
-            EsStatsQueryExec statsQueryExec = new EsStatsQueryExec(
-                queryExec.source(),
-                queryExec.indexPattern(),
-                null, // query
-                queryExec.limit(),
-                statsOutput,
-                new EsStatsQueryExec.ByStat(withFilter)
-            );
-            // Wrap with FilterExec to remove empty buckets (keep buckets where count > 0). This was automatically handled by the
-            // AggregateExec, but since we removed it, we need to do it manually.
-            Attribute countAttr = statsQueryExec.output().get(1);
-            PhysicalPlan plan = new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, countAttr, ZERO));
-
-            if (count instanceof CountApproximate) {
-                Attribute originalCount = aggregateExec.output().get(1);
-                Attribute originalSeen = aggregateExec.output().get(2);
-                Attribute longCount = statsOutput.get(1);
-                Attribute longSeen = statsOutput.get(2);
-                plan = new EvalExec(
-                    plan.source(),
-                    plan,
-                    List.of(
-                        new Alias(longCount.source(), longCount.name(), new ToDouble(Source.EMPTY, longCount), originalCount.id()),
-                        new Alias(longSeen.source(), longSeen.name(), longSeen, originalSeen.id())
-                    )
-                );
-                plan = new ProjectExec(aggregateExec.source(), plan, aggregateExec.output());
-            }
-
-            return plan;
         }
         return aggregateExec;
+    }
+
+    /**
+     * Pushes an aggregate accepted by {@link #isPushableGroupedCount}, or returns {@code null} if the queries cannot be pushed.
+     */
+    @Nullable
+    private static PhysicalPlan pushCount(AggregateExec aggregateExec, EsQueryExec queryExec) {
+        List<EsQueryExec.QueryBuilderAndTags> withFilter = pushableCountQueries(queryExec.queryBuilderAndTags());
+        if (withFilter == null) {
+            return null;
+        }
+        Alias alias = (Alias) aggregateExec.aggregates().getFirst();
+        AggregateFunction count = (AggregateFunction) alias.child();
+        // Next lines expect the agg to have a partial-output layout.
+        // This rule is currently used in the LocalPhysicalPlanOptimizer, so it's a safe assumption now.
+        assert aggregateExec.getMode().isOutputPartial() : "expected partial-output agg, got " + aggregateExec.getMode();
+        List<Attribute> statsOutput;
+        if (count instanceof CountApproximate ca) {
+            statsOutput = AbstractPhysicalOperationProviders.intermediateAttributes(
+                List.of(alias.replaceChild(new Count(ca.source(), ca.field(), ca.filter(), ca.window()))),
+                aggregateExec.groupings()
+            );
+        } else {
+            statsOutput = aggregateExec.output();
+        }
+        EsStatsQueryExec statsQueryExec = new EsStatsQueryExec(
+            queryExec.source(),
+            queryExec.indexPattern(),
+            null, // query
+            queryExec.limit(),
+            statsOutput,
+            new EsStatsQueryExec.ByStat(withFilter)
+        );
+        // Wrap with FilterExec to remove empty buckets (keep buckets where count > 0). This was automatically handled by the
+        // AggregateExec, but since we removed it, we need to do it manually.
+        Attribute countAttr = statsQueryExec.output().get(1);
+        PhysicalPlan plan = new FilterExec(Source.EMPTY, statsQueryExec, new GreaterThan(Source.EMPTY, countAttr, ZERO));
+
+        if (count instanceof CountApproximate) {
+            Attribute originalCount = aggregateExec.output().get(1);
+            Attribute originalSeen = aggregateExec.output().get(2);
+            Attribute longCount = statsOutput.get(1);
+            Attribute longSeen = statsOutput.get(2);
+            plan = new EvalExec(
+                plan.source(),
+                plan,
+                List.of(
+                    new Alias(longCount.source(), longCount.name(), new ToDouble(Source.EMPTY, longCount), originalCount.id()),
+                    new Alias(longSeen.source(), longSeen.name(), longSeen, originalSeen.id())
+                )
+            );
+            plan = new ProjectExec(aggregateExec.source(), plan, aggregateExec.output());
+        }
+
+        return plan;
+    }
+
+    /**
+     * Pushes a count that also counts its grouping key, e.g., {@code count(*), count(x) by x}. Every row produced by query and tags
+     * carries the tag of its query as the single value of {@code x}, so {@code count(x)} is the bucket count, or 0 for the null bucket.
+     * The aggregate without the key counts is pushed, and the key counts are derived from its count. Returns {@code null} if the
+     * aggregate has any other shape or cannot be pushed.
+     */
+    @Nullable
+    private static PhysicalPlan pushCountWithKeyCounts(AggregateExec aggregateExec, EsQueryExec queryExec) {
+        Expression grouping = aggregateExec.groupings().getFirst();
+        List<NamedExpression> countAggregates = new ArrayList<>();
+        List<NamedExpression> keyCounts = new ArrayList<>();
+        for (NamedExpression aggregate : aggregateExec.aggregates()) {
+            if (Alias.unwrap(aggregate) instanceof Count count
+                && count.hasFilter() == false
+                && Expressions.equalsAsAttribute(count.field(), grouping)) {
+                keyCounts.add(aggregate);
+            } else {
+                countAggregates.add(aggregate);
+            }
+        }
+        // The partial output is the grouping followed by the count and seen states of every count, in aggregate order.
+        List<Attribute> output = aggregateExec.output();
+        if (keyCounts.isEmpty()
+            || isPushableGroupedCount(countAggregates, aggregateExec.groupings()) == false
+            || Alias.unwrap(countAggregates.getFirst()) instanceof Count == false
+            || output.size() != 1 + 2 * (keyCounts.size() + 1)) {
+            return null;
+        }
+        List<Attribute> countOutput = new ArrayList<>(List.of(output.getFirst()));
+        List<Attribute> keyCountOutput = new ArrayList<>();
+        int position = 1;
+        for (NamedExpression aggregate : aggregateExec.aggregates()) {
+            if (Alias.unwrap(aggregate) instanceof AggregateFunction) {
+                (keyCounts.contains(aggregate) ? keyCountOutput : countOutput).addAll(output.subList(position, position + 2));
+                position += 2;
+            }
+        }
+        AggregateExec countAggregate = new AggregateExec(
+            aggregateExec.source(),
+            aggregateExec.child(),
+            aggregateExec.groupings(),
+            countAggregates,
+            aggregateExec.getMode(),
+            countOutput,
+            aggregateExec.estimatedRowSize()
+        );
+        PhysicalPlan pushed = pushCount(countAggregate, queryExec);
+        if (pushed == null) {
+            return null;
+        }
+        Attribute key = countOutput.get(0);
+        Attribute count = countOutput.get(1);
+        Attribute seen = countOutput.get(2);
+        Expression keyCount = new Case(Source.EMPTY, new IsNull(Source.EMPTY, key), List.of(ZERO, count));
+        List<Alias> keyCountStates = new ArrayList<>(keyCountOutput.size());
+        for (int i = 0; i < keyCountOutput.size(); i += 2) {
+            Attribute countState = keyCountOutput.get(i);
+            Attribute seenState = keyCountOutput.get(i + 1);
+            keyCountStates.add(new Alias(countState.source(), countState.name(), keyCount, countState.id()));
+            keyCountStates.add(new Alias(seenState.source(), seenState.name(), seen, seenState.id()));
+        }
+        return new ProjectExec(aggregateExec.source(), new EvalExec(pushed.source(), pushed, keyCountStates), output);
     }
 
     static boolean isPushableGroupedCount(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {

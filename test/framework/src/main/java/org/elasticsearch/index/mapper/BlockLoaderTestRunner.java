@@ -171,7 +171,7 @@ public class BlockLoaderTestRunner {
     }
 
     private static Map<String, Object> decorateWithRequiredFields(Map<String, Object> document, IndexMode indexMode) {
-        if (indexMode == IndexMode.LOGSDB) {
+        if (indexMode == IndexMode.LOGSDB || indexMode == IndexMode.LOGSDB_COLUMNAR) {
             document.putIfAbsent("@timestamp", ESTestCase.randomMillisUpToYear9999());
         }
         return document;

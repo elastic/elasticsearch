@@ -79,6 +79,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String STANDARD_INDEXING_TIME = "es.indices.standard.indexing.time";
     static final String STANDARD_INDEXING_FAILURE = "es.indices.standard.indexing.failure.total";
     static final String STANDARD_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT = "es.indices.standard.indexing.failure.version_conflict.total";
+    static final String STANDARD_INDEXING_FAILURE_DUE_TO_TOO_MANY_DOCS = "es.indices.standard.indexing.failure.too_many_docs.total";
 
     static final String TIME_SERIES_INDEX_COUNT = "es.indices.time_series.total";
     static final String TIME_SERIES_BYTES_SIZE = "es.indices.time_series.size";
@@ -94,6 +95,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String TIME_SERIES_INDEXING_FAILURE = "es.indices.time_series.indexing.failure.total";
     static final String TIME_SERIES_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT =
         "es.indices.time_series.indexing.failure.version_conflict.total";
+    static final String TIME_SERIES_INDEXING_FAILURE_DUE_TO_TOO_MANY_DOCS = "es.indices.time_series.indexing.failure.too_many_docs.total";
 
     static final String LOGSDB_INDEX_COUNT = "es.indices.logsdb.total";
     static final String LOGSDB_BYTES_SIZE = "es.indices.logsdb.size";
@@ -108,6 +110,7 @@ public class IndicesMetricsIT extends ESIntegTestCase {
     static final String LOGSDB_INDEXING_TIME = "es.indices.logsdb.indexing.time";
     static final String LOGSDB_INDEXING_FAILURE = "es.indices.logsdb.indexing.failure.total";
     static final String LOGSDB_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT = "es.indices.logsdb.indexing.failure.version_conflict.total";
+    static final String LOGSDB_INDEXING_FAILURE_DUE_TO_TOO_MANY_DOCS = "es.indices.logsdb.indexing.failure.too_many_docs.total";
 
     static final String FIELD_INFOS_CACHED_CURRENT = "es.indices.field_infos.cached.current";
     static final String FIELD_INFOS_CURRENT = "es.indices.field_infos.current";
@@ -183,7 +186,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 STANDARD_INDEXING_FAILURE,
                 equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexFailedCount()),
                 STANDARD_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
-                equalTo(indexing1.getIndexFailedDueToVersionConflictCount() - indexing0.getIndexFailedDueToVersionConflictCount())
+                equalTo(indexing1.getIndexFailedDueToVersionConflictCount() - indexing0.getIndexFailedDueToVersionConflictCount()),
+                STANDARD_INDEXING_FAILURE_DUE_TO_TOO_MANY_DOCS,
+                equalTo(indexing1.getIndexFailedDueToTooManyDocsCount() - indexing0.getIndexFailedDueToTooManyDocsCount())
             )
         );
 
@@ -208,7 +213,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 TIME_SERIES_INDEXING_FAILURE,
                 equalTo(indexing1.getIndexFailedCount() - indexing0.getIndexFailedCount()),
                 TIME_SERIES_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
-                equalTo(indexing1.getIndexFailedDueToVersionConflictCount() - indexing0.getIndexFailedDueToVersionConflictCount())
+                equalTo(indexing1.getIndexFailedDueToVersionConflictCount() - indexing0.getIndexFailedDueToVersionConflictCount()),
+                TIME_SERIES_INDEXING_FAILURE_DUE_TO_TOO_MANY_DOCS,
+                equalTo(indexing2.getIndexFailedDueToTooManyDocsCount() - indexing1.getIndexFailedDueToTooManyDocsCount())
             )
         );
 
@@ -232,7 +239,9 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 LOGSDB_INDEXING_FAILURE,
                 equalTo(indexing3.getIndexFailedCount() - indexing2.getIndexFailedCount()),
                 LOGSDB_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
-                equalTo(indexing3.getIndexFailedDueToVersionConflictCount() - indexing2.getIndexFailedDueToVersionConflictCount())
+                equalTo(indexing3.getIndexFailedDueToVersionConflictCount() - indexing2.getIndexFailedDueToVersionConflictCount()),
+                LOGSDB_INDEXING_FAILURE_DUE_TO_TOO_MANY_DOCS,
+                equalTo(indexing3.getIndexFailedDueToTooManyDocsCount() - indexing2.getIndexFailedDueToTooManyDocsCount())
             )
         );
         // already collected indexing stats
@@ -246,6 +255,8 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 STANDARD_INDEXING_FAILURE,
                 equalTo(0L),
                 STANDARD_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
+                equalTo(0L),
+                STANDARD_INDEXING_FAILURE_DUE_TO_TOO_MANY_DOCS,
                 equalTo(0L)
             )
         );
@@ -258,6 +269,8 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 TIME_SERIES_INDEXING_FAILURE,
                 equalTo(0L),
                 TIME_SERIES_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
+                equalTo(0L),
+                TIME_SERIES_INDEXING_FAILURE_DUE_TO_TOO_MANY_DOCS,
                 equalTo(0L)
             )
         );
@@ -270,6 +283,8 @@ public class IndicesMetricsIT extends ESIntegTestCase {
                 LOGSDB_INDEXING_FAILURE,
                 equalTo(0L),
                 LOGSDB_INDEXING_FAILURE_DUE_TO_VERSION_CONFLICT,
+                equalTo(0L),
+                LOGSDB_INDEXING_FAILURE_DUE_TO_TOO_MANY_DOCS,
                 equalTo(0L)
             )
         );

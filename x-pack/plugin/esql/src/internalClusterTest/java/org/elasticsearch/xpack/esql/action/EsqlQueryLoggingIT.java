@@ -26,6 +26,10 @@ import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogContext;
@@ -107,6 +111,23 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             "aggregate function [count(*)] not allowed outside STATS command",
             VerificationException.class
         );
+    }
+
+    public void testAnalyzeOnlyIsNotLogged() throws Exception {
+        setupIndex("index-analyze-only", "192.168.0.1");
+        var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        var inferenceSettings = new InferenceSettings(clusterService().state().metadata().settings());
+
+        String query = "FROM index-analyze-only | LIMIT 1";
+        try (var ignored = run(PreparedEsqlQueryRequest.analyzeOnly(parser.parse(query, new QueryParams(), inferenceSettings), query))) {
+            assertNull(appender.getLastEventAndReset());
+        }
+        String failing = "FROM index-analyze-only | KEEP missing";
+        expectThrows(
+            VerificationException.class,
+            () -> run(PreparedEsqlQueryRequest.analyzeOnly(parser.parse(failing, new QueryParams(), inferenceSettings), failing))
+        );
+        assertNull(appender.getLastEventAndReset());
     }
 
     public void testLoggingParseFailure() {

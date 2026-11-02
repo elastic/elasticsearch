@@ -22,21 +22,21 @@ class java.util.Collection {
   boolean containsAll(Collection)
   boolean isEmpty()
   boolean removeAll(Collection)
-  boolean org.elasticsearch.painless.api.Augmentation removeIf(Predicate) @script_aware
+  boolean org.elasticsearch.painless.api.Augmentation removeIf(Predicate) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="removeIfBytes"]
   boolean retainAll(Collection)
   int size()
   Spliterator spliterator()
-  Stream stream()
+  Stream stream() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="streamBytes"]
   def[] toArray() @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="toArrayBytes"]
   def[] toArray(def[]) @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="toArrayBytes"]
 
   # some adaptations of groovy methods
   List org.elasticsearch.painless.api.Augmentation collect(Function) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="collectBytes"]
-  def org.elasticsearch.painless.api.Augmentation collect(Collection,Function) @script_aware
-  def org.elasticsearch.painless.api.Augmentation find(Predicate) @script_aware
-  List org.elasticsearch.painless.api.Augmentation findAll(Predicate) @script_aware
-  def org.elasticsearch.painless.api.Augmentation findResult(Function) @script_aware
-  def org.elasticsearch.painless.api.Augmentation findResult(def,Function) @script_aware
+  def org.elasticsearch.painless.api.Augmentation collect(Collection,Function) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="collectBytes"]
+  def org.elasticsearch.painless.api.Augmentation find(Predicate) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="findBytes"]
+  List org.elasticsearch.painless.api.Augmentation findAll(Predicate) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="findAllBytes"]
+  def org.elasticsearch.painless.api.Augmentation findResult(Function) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="findResultBytes"]
+  def org.elasticsearch.painless.api.Augmentation findResult(def,Function) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="findResultBytes"]
   List org.elasticsearch.painless.api.Augmentation split(Predicate) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="splitBytes"]
 }
 
@@ -111,7 +111,7 @@ class java.util.List {
   ListIterator listIterator()
   ListIterator listIterator(int)
   def remove(int)
-  void org.elasticsearch.painless.api.Augmentation replaceAll(UnaryOperator) @script_aware
+  void org.elasticsearch.painless.api.Augmentation replaceAll(UnaryOperator) @script_aware @allocates[class="org.elasticsearch.painless.AllocationEstimators", method="replaceAllBytes"]
   def set(int,def)
   int org.elasticsearch.painless.api.Augmentation getLength()
   void sort(Comparator)

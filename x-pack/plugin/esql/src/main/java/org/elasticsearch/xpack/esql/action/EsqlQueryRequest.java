@@ -206,6 +206,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return async;
     }
 
+    /**
+     * Whether execution stops once the query is analyzed. Such a request returns the analyzed columns and no rows, and does not
+     * count towards query logs or metrics. Only {@link PreparedEsqlQueryRequest} can request this.
+     */
+    public boolean analyzeOnly() {
+        return false;
+    }
+
     public EsqlQueryRequest columnar(boolean columnar) {
         this.columnar = columnar;
         return this;

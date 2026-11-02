@@ -46,6 +46,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests for the {@link ClusterChangedEvent} class.
@@ -188,9 +189,10 @@ public class ClusterChangedEventTests extends ESTestCase {
             .build();
 
         final ClusterChangedEvent event = new ClusterChangedEvent("_na_", newState, previousState);
-        assertThat(event.indicesRenamed(), contains(new ClusterChangedEvent.RenamedIndex(renamedFrom, createIndexMetadata(renamedTo))));
+        assertThat(event.indicesRenamed(), hasSize(1));
+        assertThat(event.indicesRenamed().get(0).previous(), equalTo(renamedFrom));
         assertThat(event.indicesRenamed().get(0).current().getIndex(), equalTo(renamedTo));
-        assertThat(event.indicesDeleted(), contains(deleted));
+        assertThat(event.indicesDeleted(), containsInAnyOrder(deleted));
         assertThat(event.indicesCreated(), containsInAnyOrder(renamedTo.getName(), recreated.getName()));
 
         // nothing is renamed when the previous state was not recovered or belongs to another cluster

@@ -59,6 +59,12 @@ import static org.hamcrest.Matchers.is;
 
 public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegTestCase {
 
+    @Override
+    protected boolean renameIndexOnCreate() {
+        // pre-flush observers are matched by the index name the engine reports, which is the creation-time name
+        return false;
+    }
+
     @Before
     public void resetPlugin() {
         TestStatelessPlugin.resetAllLatches();

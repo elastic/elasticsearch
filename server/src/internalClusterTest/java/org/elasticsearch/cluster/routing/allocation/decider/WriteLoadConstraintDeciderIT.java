@@ -86,6 +86,11 @@ import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
+    @Override
+    protected boolean renameIndexOnCreate() {
+        // a temporary cluster state listener with a 10 second timeout is registered before the index is created
+        return false;
+    }
 
     @Override
     @SuppressWarnings("unchecked")

@@ -51,6 +51,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessAbortRunningMergesOnRelocationIT extends AbstractStatelessPluginIntegTestCase {
 
+    @Override
+    protected boolean renameIndexOnCreate() {
+        // merge events are matched by the index name the engine reports, which is the creation-time name
+        return false;
+    }
+
     private static final int MAX_CONCURRENT_RUNNING_MERGES = 2;
 
     /**

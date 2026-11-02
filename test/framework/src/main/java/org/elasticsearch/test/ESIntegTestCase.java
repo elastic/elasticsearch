@@ -858,11 +858,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * creates an index with the given setting
      */
+    /**
+     * Whether {@link #createIndex} creates each index under a temporary name and renames it to the requested one, so that the
+     * test exercises an index rename. Tests that observe engine or commit level events filtered by index name, or that watch an
+     * index by its final name from the moment it is created, override this to return {@code false}: those observers see the
+     * creation-time name (see docs/internal/atomic-index-rename.md, T4).
+     */
+    protected boolean renameIndexOnCreate() {
+        return true;
+    }
+
     public final void createIndex(String name, Settings indexSettings, boolean rename) {
         // We don't rename the index if the name matches an index template or if the name starts with special characters.
         final var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final String template = MetadataIndexTemplateService.findV2Template(clusterState.metadata().getProject(), name, true);
-        if (rename == false || template != null || name.startsWith(".") || name.startsWith("<")) {
+        if (rename == false || renameIndexOnCreate() == false || template != null || name.startsWith(".") || name.startsWith("<")) {
             final var createIndexRequestBuilder = prepareCreate(name);
             if (indexSettings != null) {
                 createIndexRequestBuilder.setSettings(indexSettings);

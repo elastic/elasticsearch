@@ -7,9 +7,9 @@ readonly REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 readonly WORKSPACE_DIR="${WORKSPACE:-$REPO_ROOT}"
 
 # Lower this baseline as isolated-projects issues are fixed. The target is zero.
-# Locally measured 2950 violations; the ceiling adds headroom for CI-specific
+# Locally measured 956 violations; the ceiling adds headroom for CI-specific
 # setups (extra init scripts, agents, environment) that can surface a few more.
-readonly DEFAULT_MAX_ISOLATED_PROJECTS_VIOLATIONS=2400
+readonly DEFAULT_MAX_ISOLATED_PROJECTS_VIOLATIONS=1000
 readonly MAX_ISOLATED_PROJECTS_VIOLATIONS="${GRADLE_ISOLATED_PROJECTS_MAX_VIOLATIONS:-$DEFAULT_MAX_ISOLATED_PROJECTS_VIOLATIONS}"
 readonly REPORT_ARTIFACT_PATH="build/problems-status.json"
 readonly REPORT_FILE="$WORKSPACE_DIR/$REPORT_ARTIFACT_PATH"

@@ -2,7 +2,7 @@
 
 ## `predict_linear` [promql-fn-predict_linear]
 
-{applies_to}`stack: ga 9.6`
+{applies_to}`stack: ga 9.7`
 
 :::{include} brief-summary/predict_linear.md
 :::

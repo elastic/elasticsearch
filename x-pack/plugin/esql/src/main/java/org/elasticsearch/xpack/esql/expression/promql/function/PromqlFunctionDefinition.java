@@ -388,7 +388,8 @@ public final class PromqlFunctionDefinition {
     public enum PromqlDocsVersion {
         V_9_4(Version.V_9_4_0),
         V_9_5(Version.V_9_5_0),
-        V_9_6(Version.V_9_6_0);
+        V_9_6(Version.V_9_6_0),
+        V_9_7(Version.V_9_7_0);
 
         private final Version version;
 
@@ -446,6 +447,11 @@ public final class PromqlFunctionDefinition {
      * Stack availability for PromQL functions that ship as generally available in 9.6.
      */
     public static final List<StackAvailability> STACK_GA_9_6 = List.of(ga(PromqlDocsVersion.V_9_6));
+
+    /**
+     * Stack availability for PromQL functions that ship as generally available in 9.7.
+     */
+    public static final List<StackAvailability> STACK_GA_9_7 = List.of(ga(PromqlDocsVersion.V_9_7));
 
     /**
      * Scales a PromQL quantile φ (in the range [0, 1]) to the percentile value (in the range [0, 100]) expected by

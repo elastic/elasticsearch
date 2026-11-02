@@ -74,7 +74,7 @@ public class PredictLinear extends TimeSeriesAggregateFunction implements Timest
                 + "A single Elasticsearch field has a fixed type, so mixed float and native histogram ranges cannot be represented."
         )
         .example("predict_linear(node_filesystem_free_bytes[1h], 3600)")
-        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
+        .stack(PromqlFunctionDefinition.STACK_GA_9_7)
         .name("predict_linear");
 
     @FunctionInfo(

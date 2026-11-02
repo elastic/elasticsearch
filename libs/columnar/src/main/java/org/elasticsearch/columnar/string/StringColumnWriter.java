@@ -48,6 +48,13 @@ import java.io.IOException;
  * themselves. Where a document's slots begin is the same question either way, so both layouts write that
  * table identically. Which of those slots are null is not: a dictionary names a null with a reserved ordinal,
  * while a plain column, having no spare byte string to mean null with, stores it as a length of its own.
+ *
+ * <p>The values are walked as few times as the layout allows. The caller has counted them, and normally
+ * surveyed them in the same walk; a sparse column then walks its documents once more for its presence, reading
+ * no value; and the values are read once more to be written, a dictionary column streaming its ordinals in
+ * that same walk. Only a caller that could not settle the terms —
+ * a merge whose inputs recorded nothing it can use — has them surveyed here, and a sparse column folds that
+ * survey into its presence walk.
  */
 public final class StringColumnWriter {
 
@@ -82,8 +89,10 @@ public final class StringColumnWriter {
      *                                  remaining pass (the survey, where there is one, and the values)
      * @param options                   how the column is written: its dictionary policy, its chunk codec and
      *                                  the units its streams are sized in
-     * @param precomputedVocabulary     a vocabulary already worked out for these values, or null to survey
-     *                                  them
+     * @param survey                    the column's terms as already settled — by the caller's own survey of
+     *                                  these values, or by what a merge's inputs recorded — or null to survey
+     *                                  them here. A survey that found nothing is still a survey: it is handed
+     *                                  over with null terms, and the values are not surveyed again
      * @param directory                 directory a dictionary column with escapes stages them in
      * @param context                   IO context for that staged file
      * @param outputs                   values to its data, per-document tables to its addressing, per-block
@@ -96,7 +105,7 @@ public final class StringColumnWriter {
         StringColumnValues.Totals totals,
         IOSupplier<StringColumnValues> cursors,
         StringColumnOptions options,
-        Vocabulary.Terms precomputedVocabulary,
+        Vocabulary.Survey survey,
         Directory directory,
         IOContext context,
         ColumnOutputs outputs,
@@ -114,14 +123,18 @@ public final class StringColumnWriter {
             return StringColumnMetadata.empty(ColumnIteratorWriter.write(cursors, 0, maxDoc, outputs.addressing()));
         }
 
-        // For a sparse column that needs a survey, the presence pass and the survey walk the same documents,
-        // so they can share a single cursor. SurveyingDocs wraps the cursor and feeds values to the surveyor
-        // on every nextDoc() call; IndexedDISI.writeBitSet drives the walk via the default intoBitSet, which
-        // loops on nextDoc(), so every document is seen exactly once.
-        final boolean combinedPass = dictionaryPolicy.enabled() && precomputedVocabulary == null && numDocsWithField < maxDoc;
+        // Surveyed here only when the caller has not settled the terms: a flush counts and surveys in one pass
+        // before it gets here, and a merge mostly knows them from what its inputs recorded. What is left is a
+        // merge whose records cannot speak, and it surveys as a flush used to.
+        final boolean needsSurvey = dictionaryPolicy.enabled() && survey == null;
+        // For a sparse column that still needs a survey, the presence pass and the survey walk the same
+        // documents, so they share one cursor: SurveyingDocs feeds the surveyor on every nextDoc() call, and
+        // IndexedDISI.writeBitSet drives the walk through the default intoBitSet, which loops on nextDoc(), so
+        // every document is seen exactly once. Otherwise the presence pass reads no value at all.
+        final boolean combinedPass = needsSurvey && numDocsWithField < maxDoc;
 
         final ColumnIteratorMetadata iterator;
-        Vocabulary.Terms vocabulary = null;
+        final Vocabulary.Terms vocabulary;
         if (combinedPass) {
             final SurveyingDocs docs = new SurveyingDocs(
                 cursors.get(),
@@ -132,11 +145,12 @@ public final class StringColumnWriter {
             vocabulary = docs.finish();
         } else {
             iterator = ColumnIteratorWriter.write(cursors, numDocsWithField, maxDoc, outputs.addressing());
-            if (dictionaryPolicy.enabled()) {
-                // A merge that worked out the vocabulary from what its inputs recorded does not survey again.
-                vocabulary = precomputedVocabulary != null
-                    ? precomputedVocabulary
-                    : Vocabulary.survey(cursors.get(), dictionaryPolicy, summaryPolicy);
+            if (needsSurvey) {
+                vocabulary = Vocabulary.survey(cursors.get(), dictionaryPolicy, summaryPolicy);
+            } else {
+                // Settled already, possibly as nothing. A column written under no dictionary policy was told
+                // not to weigh what it repeats, so whatever was settled for it is not consulted either.
+                vocabulary = dictionaryPolicy.enabled() && survey != null ? survey.terms() : null;
             }
         }
 

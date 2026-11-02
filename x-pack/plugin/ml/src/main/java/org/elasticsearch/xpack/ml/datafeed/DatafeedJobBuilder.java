@@ -288,7 +288,8 @@ public class DatafeedJobBuilder {
             latestRecordTimeMs,
             context.restartTimeInfo().haveSeenDataPreviously(),
             delayedDataCheckFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            searchTelemetry
         );
         listener.onResponse(datafeedJob);
     }

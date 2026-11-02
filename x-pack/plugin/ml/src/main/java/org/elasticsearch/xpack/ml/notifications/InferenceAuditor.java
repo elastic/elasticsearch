@@ -19,9 +19,10 @@ public class InferenceAuditor extends AbstractMlAuditor<InferenceAuditMessage> {
         Client client,
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        boolean includeNodeInfo
+        boolean includeNodeInfo,
+        MlNotificationTelemetry telemetry
     ) {
-        super(client, InferenceAuditMessage::new, clusterService, indexNameExpressionResolver);
+        super(client, InferenceAuditMessage::new, clusterService, indexNameExpressionResolver, telemetry);
         this.includeNodeInfo = includeNodeInfo;
     }
 

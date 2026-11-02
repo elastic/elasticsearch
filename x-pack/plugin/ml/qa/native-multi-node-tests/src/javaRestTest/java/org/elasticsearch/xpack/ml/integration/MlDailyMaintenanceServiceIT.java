@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -77,7 +78,8 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
             true,
             true,
             true,
-            true
+            true,
+            MeterRegistry.NOOP
         );
 
         putJob("maintenance-test-1");
@@ -170,7 +172,8 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
                 true,
                 true,
                 true,
-                true
+                true,
+                MeterRegistry.NOOP
             );
 
             blockingCall(maintenanceService::triggerCloseIdleJobsWithStoppedDatafeeds);

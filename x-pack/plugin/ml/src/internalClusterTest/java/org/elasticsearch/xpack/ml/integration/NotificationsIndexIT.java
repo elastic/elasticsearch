@@ -14,10 +14,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.MlNotificationTelemetry;
 
 import java.util.Arrays;
 import java.util.List;
@@ -75,7 +77,8 @@ public class NotificationsIndexIT extends MlSingleNodeTestCase {
             client(),
             getInstanceFromNode(ClusterService.class),
             TestIndexNameExpressionResolver.newInstance(),
-            includeNodeInfo
+            includeNodeInfo,
+            new MlNotificationTelemetry(MeterRegistry.NOOP)
         );
         auditor.info("whatever", "blah");
     }

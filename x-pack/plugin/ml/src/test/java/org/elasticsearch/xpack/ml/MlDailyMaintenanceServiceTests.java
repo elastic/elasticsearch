@@ -34,6 +34,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -382,7 +383,8 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             true,
             true,
             true,
-            true
+            true,
+            MeterRegistry.NOOP
         );
 
         assertThat(service.hasIlm(indexName), equalTo(true));
@@ -551,7 +553,8 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             true,
             true,
             true,
-            true
+            true,
+            MeterRegistry.NOOP
         );
     }
 
@@ -663,7 +666,8 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             true,
             true,
             true,
-            isIlmEnabled
+            isIlmEnabled,
+            MeterRegistry.NOOP
         );
     }
 
@@ -705,7 +709,8 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 isAnomalyDetectionEnabled,
                 isDataFrameAnalyticsEnabled,
                 isNlpEnabled,
-                isIlmEnabled
+                isIlmEnabled,
+                MeterRegistry.NOOP
             )
         ) {
             service.start();

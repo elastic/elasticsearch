@@ -31,6 +31,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -81,6 +82,7 @@ import org.elasticsearch.xpack.ml.job.results.BucketTests;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinitionTests;
 import org.elasticsearch.xpack.ml.job.results.ModelPlotTests;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.MlNotificationTelemetry;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
@@ -158,7 +160,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             client(),
             getInstanceFromNode(ClusterService.class),
             TestIndexNameExpressionResolver.newInstance(),
-            randomBoolean()
+            randomBoolean(),
+            new MlNotificationTelemetry(MeterRegistry.NOOP)
         );
         jobResultsProvider = new JobResultsProvider(client(), builder.build(), TestIndexNameExpressionResolver.newInstance());
         renormalizer = mock(Renormalizer.class);

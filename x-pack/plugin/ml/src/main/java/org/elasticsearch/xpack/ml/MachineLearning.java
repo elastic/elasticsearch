@@ -376,6 +376,7 @@ import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
+import org.elasticsearch.xpack.ml.notifications.MlNotificationTelemetry;
 import org.elasticsearch.xpack.ml.notifications.SystemAuditor;
 import org.elasticsearch.xpack.ml.process.DummyController;
 import org.elasticsearch.xpack.ml.process.MlController;
@@ -1148,27 +1149,31 @@ public class MachineLearning extends Plugin
         );
         registry.initialize();
 
+        MlNotificationTelemetry notificationTelemetry = new MlNotificationTelemetry(telemetryProvider.getMeterRegistry());
         AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(
             client,
             clusterService,
             indexNameExpressionResolver,
-            machineLearningExtension.get().includeNodeInfo()
+            machineLearningExtension.get().includeNodeInfo(),
+            notificationTelemetry
         );
         this.anomalyDetectionAuditor.set(anomalyDetectionAuditor);
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(
             client,
             clusterService,
             indexNameExpressionResolver,
-            machineLearningExtension.get().includeNodeInfo()
+            machineLearningExtension.get().includeNodeInfo(),
+            notificationTelemetry
         );
         InferenceAuditor inferenceAuditor = new InferenceAuditor(
             client,
             clusterService,
             indexNameExpressionResolver,
-            machineLearningExtension.get().includeNodeInfo()
+            machineLearningExtension.get().includeNodeInfo(),
+            notificationTelemetry
         );
         this.inferenceAuditor.set(inferenceAuditor);
-        SystemAuditor systemAuditor = new SystemAuditor(client, clusterService, indexNameExpressionResolver);
+        SystemAuditor systemAuditor = new SystemAuditor(client, clusterService, indexNameExpressionResolver, notificationTelemetry);
 
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
@@ -1543,7 +1548,8 @@ public class MachineLearning extends Plugin
             anomalyDetectionEnabled,
             dataFrameAnalyticsEnabled,
             nlpEnabled,
-            canUseIlm
+            canUseIlm,
+            telemetryProvider.getMeterRegistry()
         );
 
         MlMetrics mlMetrics = new MlMetrics(

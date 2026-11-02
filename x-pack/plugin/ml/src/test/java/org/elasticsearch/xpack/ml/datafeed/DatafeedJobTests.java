@@ -31,6 +31,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -124,6 +127,7 @@ public class DatafeedJobTests extends ESTestCase {
     private String annotationDocId;
 
     private long currentTime;
+    private DatafeedSearchTelemetry searchTelemetry = DatafeedSearchTelemetry.NOOP;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -1304,6 +1308,51 @@ public class DatafeedJobTests extends ESTestCase {
         );
     }
 
+    public void testPostedBatchShouldEmitRecordCountersFromIncrementalDataCounts() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        searchTelemetry = new DatafeedSearchTelemetry(meterRegistry);
+        // 7 processed + 3 invalid-date (not part of the processed count) + 2 missing-field occurrences (counted per field)
+        DataCounts batchCounts = new DataCounts(jobId, 7, 0, 0, 0, 3, 2, 0, 0, 0, 0, null, null, null, null, null, Instant.now());
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(batchCounts));
+
+        assertNull(createDatafeedJob(1000, 500, -1, -1, false).runLookBack(0L, 1000L));
+
+        assertThat(counterTotal(meterRegistry, DatafeedSearchTelemetry.RECORDS_PROCESSED_METRIC), equalTo(7L));
+        assertThat(counterTotal(meterRegistry, DatafeedSearchTelemetry.RECORDS_INVALID_DATE_METRIC), equalTo(3L));
+        assertThat(counterTotal(meterRegistry, DatafeedSearchTelemetry.RECORDS_MISSING_FIELD_METRIC), equalTo(2L));
+        for (String metric : List.of(
+            DatafeedSearchTelemetry.RECORDS_PROCESSED_METRIC,
+            DatafeedSearchTelemetry.RECORDS_INVALID_DATE_METRIC,
+            DatafeedSearchTelemetry.RECORDS_MISSING_FIELD_METRIC
+        )) {
+            for (Measurement measurement : meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, metric)) {
+                assertThat("no job or datafeed id attributes on [" + metric + "]", measurement.attributes().isEmpty(), is(true));
+            }
+        }
+    }
+
+    public void testPostFailureShouldNotEmitRecordCounters() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        searchTelemetry = new DatafeedSearchTelemetry(meterRegistry);
+        when(postDataFuture.actionGet()).thenThrow(new RuntimeException("post failed"));
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
+
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        assertThat(counterTotal(meterRegistry, DatafeedSearchTelemetry.RECORDS_PROCESSED_METRIC), equalTo(0L));
+        assertThat(counterTotal(meterRegistry, DatafeedSearchTelemetry.RECORDS_INVALID_DATE_METRIC), equalTo(0L));
+        assertThat(counterTotal(meterRegistry, DatafeedSearchTelemetry.RECORDS_MISSING_FIELD_METRIC), equalTo(0L));
+    }
+
+    private static long counterTotal(RecordingMeterRegistry meterRegistry, String metric) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, metric)
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
+    }
+
     private DatafeedJob createDatafeedJobWithExtractionFailureThreshold(long frequencyMs, Integer maxConsecutiveExtractionFailures) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
         return new DatafeedJob(
@@ -1327,7 +1376,8 @@ public class DatafeedJobTests extends ESTestCase {
             -1,
             false,
             DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
-            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime))
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime)),
+            searchTelemetry
         );
     }
 
@@ -1474,7 +1524,8 @@ public class DatafeedJobTests extends ESTestCase {
             latestRecordTimeMs,
             haveSeenDataPreviously,
             delayedDataFreq,
-            crossClusterSearchStats
+            crossClusterSearchStats,
+            searchTelemetry
         );
     }
 

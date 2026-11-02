@@ -13,6 +13,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
@@ -166,8 +167,8 @@ public class BufferedStreamOutput extends StreamOutput {
     public void close() throws IOException {
         if (isClosed == false) {
             isClosed = true;
-            flush();
-            delegate.close();
+            // Close the delegate even if the flush fails, so a compressing delegate frees its thread-local buffers.
+            IOUtils.close(this::flush, delegate);
         }
     }
 

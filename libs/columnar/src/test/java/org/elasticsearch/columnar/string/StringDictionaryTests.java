@@ -905,7 +905,7 @@ public class StringDictionaryTests extends ColumnarStringTestCase {
                         StringColumnOptions.DEFAULT_SINGLE_VALUED,
                         StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
                     ),
-                    known,
+                    new Vocabulary.Survey(known),
                     dir,
                     IOContext.DEFAULT,
                     out.outputs(),

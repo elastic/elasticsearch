@@ -102,6 +102,11 @@ the ids it was written with, older data lists only old ids and a newer reader re
 
   Where a document's slots begin is shared by both: a slot count per document in the addressing, with a
   base per block of counts in the navigation. No skip index yet.
+
+  Either layout is written in two reads of the values: one pass counts the column and surveys what it
+  repeats, which picks the layout, and one pass writes it. A sparse column walks its documents once more
+  for its presence, and that walk reads no value — on ingest every value read is a copy out of Lucene's
+  indexing buffer, so the passes are what the flush costs.
 - **Skip index.** Range pushdown lives inside the column (a `BINARY` field can't carry a Lucene
   skipper): a multi-level per-interval min/max index the range query consults.
 
@@ -129,7 +134,8 @@ Everything but `.cnm` is read through the mapped input, never materialized.
 
 Nothing column-proportional is on the heap — read, write and merge stream one block at a time; tables
 use the `DirectMonotonic` layout, written straight into their file and read from a mapped slice. Only a
-dictionary column stages anything in a temporary file: its ordinals and escapes, for its second pass.
+dictionary column with escapes stages anything in a temporary file: the escapes, whose stream needs their
+count before it starts; its ordinals stream into the data as the values are walked.
 Each segment carries a format version stamp in every file's header. The on-disk component ids
 (field type, block encoding, block-bytes codec, skip-index codec) are frozen once shipped and must
 never be reused or renumbered. A format bump is required for layout changes — new fields in `readFrom`,

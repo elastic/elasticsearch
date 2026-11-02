@@ -92,7 +92,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     private InMemoryViewService(ClusterService clusterService, ThreadPool threadPool, ViewMetadata metadata) {
-        super(clusterService, TEST_PARSER);
+        super(clusterService, TEST_PARSER, (statement, viewName, listener) -> listener.onResponse(null));
         this.threadPool = threadPool;
         this.viewMetadata = metadata;
     }

@@ -68,6 +68,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     private static final int MAX_WINDOW_RUNS = 2;
 
     private final int dictionarySize;
+    private final DictionaryFingerprint fingerprint;
     /** The ordinal marking a value no term names, one past the last term. */
     private final int escapeOrdinal;
     private final long escapeCount;
@@ -86,6 +87,7 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
         this.ordinalSkipperMeta = column.ordinals().skipper();
         this.skipIndex = skipIndex;
         this.dictionarySize = column.dictionarySize();
+        this.fingerprint = column.fingerprint();
         this.escapeOrdinal = column.escapeOrdinal();
         if (column.hasEscapes()) {
             this.escapes = column.escapes().open(inputs);
@@ -114,6 +116,11 @@ public final class DictionaryStringColumnReader extends StringColumnReader {
     @Override
     public int dictionarySize() {
         return dictionarySize;
+    }
+
+    @Override
+    public DictionaryFingerprint dictionaryFingerprint() {
+        return fingerprint;
     }
 
     /**

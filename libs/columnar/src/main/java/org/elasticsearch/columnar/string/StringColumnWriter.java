@@ -392,12 +392,15 @@ public final class StringColumnWriter {
             TERMS_PER_BLOCK,
             outputs
         );
+        final DictionaryFingerprint.Builder fingerprint = new DictionaryFingerprint.Builder();
         for (int ordinal = 0; ordinal < dictionarySize; ordinal++) {
             vocabulary.terms().get(vocabulary.dictionaryIds()[ordinal], scratch);
             termLengths[ordinal] = scratch.length;
             dictionaryWriter.add(scratch);
+            fingerprint.add(scratch);
         }
         dictionary = dictionaryWriter.finish();
+        final DictionaryFingerprint dictionaryFingerprint = fingerprint.build();
 
         // The escapes' temporary file, once the first value escapes; null until then, and for the common
         // column that none does, so that column creates and deletes no file at all.
@@ -569,7 +572,8 @@ public final class StringColumnWriter {
                 escapeRanks,
                 escapeRankBlockSize,
                 dictionarySize,
-                sorted
+                sorted,
+                dictionaryFingerprint
             );
         } finally {
             // Still open only when the pass failed partway; closed before it is deleted either way.

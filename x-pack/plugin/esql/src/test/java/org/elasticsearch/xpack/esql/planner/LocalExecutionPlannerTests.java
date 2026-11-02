@@ -1208,7 +1208,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testInnerJoinManyToOneGathersAndDropsMisses() throws IOException {
         // group_left: many probe rows per build row; the miss (99) is dropped by the inner-join filter.
-        // Final page order matches InnerJoin.output(): added build columns, then left join keys.
+        // Final page order matches HashJoin.output(): added build columns, then left join keys.
         List<Page> results = runInnerJoin(
             innerJoinExec(false, new long[] { 10, 20, 10, 99, 30 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 })
         );
@@ -1252,7 +1252,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testInnerJoinMultiColumnKey() throws IOException {
         // The real join key spans (labels..., step): a match requires equality on BOTH key columns.
         // Probe (10, 2) matches only the first column of build (10, 1) -> miss, dropped.
-        // Output after Project: [v0, k0, k1] per InnerJoin.output().
+        // Output after Project: [v0, k0, k1] per HashJoin.output().
         PhysicalPlan innerJoin = innerJoinExec(
             false,
             List.of(new long[] { 10, 20, 10 }, new long[] { 1, 1, 2 }), // probe (k0, k1)
@@ -1264,7 +1264,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
 
     public void testInnerJoinCopiesMultipleBuildColumns() throws IOException {
         // group_left(l1, l2): more than one build column is gathered onto each surviving probe row.
-        // Output after Project: [v0, v1, k0] per InnerJoin.output().
+        // Output after Project: [v0, v1, k0] per HashJoin.output().
         PhysicalPlan innerJoin = innerJoinExec(
             false,
             List.of(new long[] { 10, 20, 10 }),                        // probe (k0)
@@ -1316,7 +1316,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Builds the physical plan shape Mapper produces for InnerJoin:
+     * Builds the physical plan shape Mapper produces for HashJoin:
      * LEFT HashJoin(lookup ordinal as added field) -> Filter(ordinal IS NOT NULL) -> [DistinctBy(ordinal) when unique] -> Project.
      */
     private PhysicalPlan innerJoinExec(boolean unique, long[] probeKeys, long[] buildKeys, long[] buildValues) {
@@ -1404,7 +1404,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Classes of the intermediate operator factories for the Mapper-shaped InnerJoin physical plan.
+     * Classes of the intermediate operator factories for the Mapper-shaped HashJoin physical plan.
      */
     private List<Class<?>> planInnerJoinFactories(boolean unique) throws IOException {
         PhysicalPlan innerJoin = innerJoinExec(unique, new long[] { 10, 20, 10 }, new long[] { 10, 20, 30 }, new long[] { 100, 200, 300 });
@@ -1418,13 +1418,13 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Plans then runs a Mapper-shaped InnerJoin physical plan end to end.
+     * Plans then runs a Mapper-shaped HashJoin physical plan end to end.
      */
     private List<Page> runInnerJoin(PhysicalPlan innerJoin) throws IOException {
         return runPlanned(planInnerJoin(innerJoin).driverFactories.get(0).driverSupplier().physicalOperation());
     }
 
-    /** Asserts single-key InnerJoin pages in InnerJoin.output() order: build value, then left key. */
+    /** Asserts single-key HashJoin pages in HashJoin.output() order: build value, then left key. */
     private void assertInnerJoinOutput(List<Page> results, List<Long> expectedValues, List<Long> expectedKeys) {
         List<Long> values = new ArrayList<>();
         List<Long> keys = new ArrayList<>();
@@ -1441,8 +1441,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     /**
-     * Asserts the full output rows of a Mapper-shaped InnerJoin plan whose output is entirely {@code LONG}
-     * columns, in InnerJoin.output() order (added build columns, then left join keys).
+     * Asserts the full output rows of a Mapper-shaped HashJoin plan whose output is entirely {@code LONG}
+     * columns, in HashJoin.output() order (added build columns, then left join keys).
      */
     private void assertInnerJoinRows(List<Page> results, List<List<Long>> expectedRows) {
         assertThat(longRows(results), equalTo(expectedRows));

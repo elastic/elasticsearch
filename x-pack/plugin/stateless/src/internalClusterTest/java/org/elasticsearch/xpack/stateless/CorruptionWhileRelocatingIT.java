@@ -29,6 +29,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.plugins.Plugin;
@@ -710,7 +711,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
     /// The target keeps the primary term, so that commit can have the same term and generation as a BCC that is pending upload on
     /// the source but paused above `maxGenerationToUpload`. The source cannot hand that paused BCC, since it never uploads it.
     /// The registration should instead fail as too new, and is retried against the target once the relocation completes.
-    public void testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource() throws Exception {
+    public void testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource() {
         final Settings indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), Boolean.FALSE)
@@ -752,16 +753,22 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessPluginIntegTes
         final var oldNodeTransportService = MockTransportService.getInstance(oldIndexNode);
         oldNodeTransportService.addRequestHandlingBehavior(
             TransportRegisterCommitForRecoveryAction.NAME,
-            (handler, request, channel, task) -> {
-                firstRegistrationRequestOnOldNode.onResponse((RegisterCommitRequest) request);
-                handler.messageReceived(request, new TestTransportChannel(ActionListener.wrap(response -> {
+            (handler, request, channel, task) -> handler.messageReceived(
+                request,
+                new TestTransportChannel(ActionListener.wrap(response -> {
+                    firstRegistrationRequestOnOldNode.onResponse((RegisterCommitRequest) request);
                     firstRegistrationOutcomeOnOldNode.onResponse((RegisterCommitResponse) response);
                     channel.sendResponse(response);
                 }, e -> {
-                    firstRegistrationOutcomeOnOldNode.onFailure(e);
+                    // A routing-table miss is retryable
+                    if (e instanceof ShardNotFoundException == false) {
+                        firstRegistrationRequestOnOldNode.onResponse((RegisterCommitRequest) request);
+                        firstRegistrationOutcomeOnOldNode.onFailure(e);
+                    }
                     channel.sendResponse(e);
-                })), task);
-            }
+                })),
+                task
+            )
         );
 
         final var sourceCommitService = internalCluster().getInstance(StatelessCommitService.class, oldIndexNode);

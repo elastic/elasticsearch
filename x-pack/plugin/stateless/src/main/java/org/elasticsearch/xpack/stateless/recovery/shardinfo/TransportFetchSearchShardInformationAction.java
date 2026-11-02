@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -121,11 +122,14 @@ public class TransportFetchSearchShardInformationAction extends HandledTransport
             .lookupProject(request.getShardId().getIndex());
         if (projectMetadataOptional.isPresent()) {
             ProjectMetadata projectMetadata = projectMetadataOptional.get();
-            String indexName = request.getShardId().getIndex().getName();
+            // resolve through the Index: the shard id in the request may carry a name from before a rename, and
+            // ProjectMetadata#index(Index) falls back to the uuid
+            final IndexMetadata indexMetadata = projectMetadata.index(request.getShardId().getIndex());
+            String indexName = indexMetadata.getIndex().getName();
 
             // ensure old indices that are not written anymore into are accidentally considered new
             long now = nowSupplier.getAsLong();
-            long indexAgeMilliSeconds = now - projectMetadata.index(indexName).getCreationDate();
+            long indexAgeMilliSeconds = now - indexMetadata.getCreationDate();
             boolean isIndexAgeWithinRange = TimeValue.timeValueDays(30).millis() > indexAgeMilliSeconds;
             IndexAbstraction index = projectMetadata.getIndicesLookup().get(indexName);
             boolean isWriteIndex = index.getParentDataStream() != null

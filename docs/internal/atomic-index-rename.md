@@ -479,7 +479,23 @@ first write to a renamed index. See T12 for the cause and T13 for the fix. The
 other stateless failures are `findIndexShard` lookups in the test base class
 that resolve the index through `index.provided_name`, which still held the
 temporary creation name; the prototype now updates that setting on rename.
-The stateless suites have not been rerun with the fix yet.
+With the fix (T13) the two stateless suites were rerun: 691 tests, 7 failed,
+6 skipped, 25 minutes. None hangs on a write any more. What is left:
+
+- `StatelessPreFlushRelocationIT` (two tests) and
+  `StatelessAbortRunningMergesOnRelocationIT`: relocations of a renamed shard
+  time out. The search-shard-information request sent during a stateless
+  relocation carries a shard id that can still hold the old name, and
+  `TransportFetchSearchShardInformationAction` looked the index up by that
+  name string, so it hit a `NullPointerException`; it now resolves through the
+  `Index` (T13). Not yet rerun after that change.
+- `ObsoleteSegmentCacheEvictionIT` asserts the index name as reported by the
+  search engine, which keeps its creation-time shard id (T4: the engine is one
+  of the components that keep the old name). Test-framework artifact of the
+  rename trick, but a reminder that `Engine#config().getShardId()` is stale
+  after a rename.
+- `StatelessRealTimeGetIT#testLiveVersionMapMemoryUsageTriggersFlush`: a
+  live version map memory measurement came back as zero. Not examined.
 
 Not yet run with the trick: REST tests, and the unit test suites that
 construct `Index` objects by hand. Niels's last CI run of the trick extended to

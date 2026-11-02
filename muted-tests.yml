@@ -596,3 +596,8 @@ tests:
   - :server:internalClusterTest
   method: testMetadataVersion
   issue: https://github.com/elastic/elasticsearch/issues/164246
+- class: org.elasticsearch.xpack.watcher.actions.webhook.WebhookIntegrationTests
+  tasks:
+  - :x-pack:plugin:watcher:internalClusterTest
+  method: testWebhook
+  issue: https://github.com/elastic/elasticsearch/issues/164367

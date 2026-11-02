@@ -110,7 +110,6 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin",
-        "org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin",
         "org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin",
         "org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin",

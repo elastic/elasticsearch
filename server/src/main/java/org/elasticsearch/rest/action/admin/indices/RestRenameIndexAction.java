@@ -9,7 +9,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -27,7 +27,9 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Renames an index in place. The route mirrors the resize APIs ({@code /{index}/_clone/{target}} and friends) because a rename is,
- * from the user's point of view, the same shape of operation: a source index and a target name.
+ * from the user's point of view, the same shape of operation: a source index and a target name. It is a shorthand for a
+ * {@code POST _aliases} request with a single {@code rename_index} action, which is also how a rename is combined with alias
+ * changes and index removals in one atomic cluster state update.
  */
 @ServerlessScope(Scope.PUBLIC)
 public class RestRenameIndexAction extends BaseRestHandler {
@@ -44,12 +46,9 @@ public class RestRenameIndexAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final var renameRequest = new RenameIndexAction.Request(
-            getMasterNodeTimeout(request),
-            getAckTimeout(request),
-            request.param("index"),
-            request.param("target")
+        final var renameRequest = new IndicesAliasesRequest(getMasterNodeTimeout(request), getAckTimeout(request)).addAliasAction(
+            IndicesAliasesRequest.AliasActions.renameIndex().index(request.param("index")).newIndex(request.param("target"))
         );
-        return channel -> client.execute(RenameIndexAction.INSTANCE, renameRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().indices().aliases(renameRequest, new RestToXContentListener<>(channel));
     }
 }

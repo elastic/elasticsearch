@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.ESIntegTestCase.renameIndexRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -201,10 +202,8 @@ public class CcrRenameIT extends CcrIntegTestCase {
     }
 
     private static void rename(org.elasticsearch.client.internal.Client client, String source, String target) {
-        final var response = client.execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, source, target)
-        ).actionGet(TimeValue.timeValueSeconds(30));
+        final var response = client.execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(source, target))
+            .actionGet(TimeValue.timeValueSeconds(30));
         assertTrue(response.isAcknowledged());
     }
 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.rename;
 
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -76,10 +77,7 @@ public class RenameIndexResizeIT extends ESIntegTestCase {
     }
 
     private void rename(String source, String target) {
-        final var response = client().execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, source, target)
-        ).actionGet();
+        final var response = client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(source, target)).actionGet();
         assertTrue(response.isAcknowledged());
     }
 }

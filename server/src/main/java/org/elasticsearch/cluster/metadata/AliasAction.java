@@ -41,6 +41,15 @@ public abstract class AliasAction {
     abstract boolean removeIndex();
 
     /**
+     * Should this action rename the index? Actions that return true from this will never execute
+     * {@link #apply(NewAliasValidator, ProjectMetadata.Builder, IndexMetadata)}; they are applied after every other action of the
+     * request, see {@link RenameIndex}.
+     */
+    boolean renameIndex() {
+        return false;
+    }
+
+    /**
      * Apply the action.
      *
      * @param aliasValidator call to validate a new alias before adding it to the builder
@@ -210,6 +219,45 @@ public abstract class AliasAction {
 
         @Override
         boolean removeIndex() {
+            return true;
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * Operation to rename an index in place. Renames are applied last in a request, after indices have been removed and aliases
+     * changed, so that in one atomic cluster state update an index can be deleted and another index take over its name. Every
+     * name in the request refers to the cluster state before the request: an alias action cannot address the new name.
+     */
+    public static class RenameIndex extends AliasAction {
+        private final String newIndex;
+
+        public RenameIndex(String index, String newIndex) {
+            super(index);
+            if (false == Strings.hasText(newIndex)) {
+                throw new IllegalArgumentException("[new_index] is required");
+            }
+            this.newIndex = newIndex;
+        }
+
+        /**
+         * The name the index takes.
+         */
+        public String getNewIndex() {
+            return newIndex;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        boolean renameIndex() {
             return true;
         }
 

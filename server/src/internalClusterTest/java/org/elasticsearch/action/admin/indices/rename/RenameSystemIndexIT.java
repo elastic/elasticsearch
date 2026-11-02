@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.rename;
 
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.indices.TestSystemIndexDescriptor;
 import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -50,9 +51,6 @@ public class RenameSystemIndexIT extends ESIntegTestCase {
     }
 
     private void rename(String source, String target) {
-        client().execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, source, target)
-        ).actionGet();
+        client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(source, target)).actionGet();
     }
 }

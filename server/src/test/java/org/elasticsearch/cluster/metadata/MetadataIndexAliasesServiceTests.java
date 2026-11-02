@@ -9,19 +9,24 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse.AliasActionResult;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -882,6 +887,112 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             )
         );
         assertThat(ex.getMessage(), containsString(datasetName));
+    }
+
+    public void testRenameIndex() {
+        ClusterState before = createIndexWithRouting(clusterStateBuilder().build(), "old");
+        before = service.applyAliasActions(
+            before.projectState(projectId),
+            singletonList(new AliasAction.Add("old", "alias", null, null, null, null, null))
+        );
+        final Index oldIndex = before.metadata().getProject(projectId).index("old").getIndex();
+
+        ClusterState after = service.applyAliasActions(
+            before.projectState(projectId),
+            singletonList(new AliasAction.RenameIndex("old", "new"))
+        );
+
+        ProjectMetadata project = after.metadata().getProject(projectId);
+        assertNull(project.index("old"));
+        assertNotNull(project.index("new"));
+        // same index, new name: the uuid is kept and so are the aliases
+        assertThat(project.index("new").getIndexUUID(), equalTo(oldIndex.getUUID()));
+        assertThat(project.index("new").getAliases().keySet(), contains("alias"));
+        assertThat(project.getIndicesLookup().get("alias").getIndices(), contains(project.index("new").getIndex()));
+        assertThat(project.index("new").getSettings().get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME), equalTo("new"));
+        // the routing table follows
+        assertFalse(after.routingTable(projectId).hasIndex("old"));
+        assertThat(after.routingTable(projectId).index("new").getIndex(), equalTo(new Index("new", oldIndex.getUUID())));
+    }
+
+    public void testRenameRunsAfterRemoveIndexAndAliasChanges() {
+        // the shape of the ILM shrink swap: delete the original, move its alias to the shrunk index, give the shrunk index the
+        // original's name, all in one cluster state update, whatever the order of the actions in the request
+        ClusterState before = createIndexWithRouting(clusterStateBuilder().build(), "original");
+        before = createIndexWithRouting(before, "shrunk");
+        before = service.applyAliasActions(
+            before.projectState(projectId),
+            singletonList(new AliasAction.Add("original", "alias", null, null, null, null, null))
+        );
+        final String shrunkUuid = before.metadata().getProject(projectId).index("shrunk").getIndexUUID();
+
+        final List<AliasAction> actions = new ArrayList<>(
+            List.of(
+                new AliasAction.RenameIndex("shrunk", "original"),
+                new AliasAction.RemoveIndex("original"),
+                new AliasAction.Add("shrunk", "alias", null, null, null, null, null)
+            )
+        );
+        Collections.shuffle(actions, random());
+        ClusterState after = service.applyAliasActions(before.projectState(projectId), actions);
+
+        ProjectMetadata project = after.metadata().getProject(projectId);
+        assertNull(project.index("shrunk"));
+        assertThat(project.index("original").getIndexUUID(), equalTo(shrunkUuid));
+        assertThat(project.getIndicesLookup().get("alias").getIndices(), contains(project.index("original").getIndex()));
+        assertFalse(after.routingTable(projectId).hasIndex("shrunk"));
+        assertThat(after.routingTable(projectId).index("original").getIndex().getUUID(), equalTo(shrunkUuid));
+    }
+
+    public void testRenamesInOneRequestChain() {
+        ClusterState before = createIndexWithRouting(clusterStateBuilder().build(), "a");
+        final String uuid = before.metadata().getProject(projectId).index("a").getIndexUUID();
+        ClusterState after = service.applyAliasActions(
+            before.projectState(projectId),
+            List.of(new AliasAction.RenameIndex("a", "b"), new AliasAction.RenameIndex("b", "c"))
+        );
+        ProjectMetadata project = after.metadata().getProject(projectId);
+        assertNull(project.index("a"));
+        assertNull(project.index("b"));
+        assertThat(project.index("c").getIndexUUID(), equalTo(uuid));
+    }
+
+    public void testRenameToExistingNameFails() {
+        ClusterState before = createIndexWithRouting(clusterStateBuilder().build(), "a");
+        before = createIndexWithRouting(before, "b");
+        final ClusterState state = before;
+        expectThrows(
+            ResourceAlreadyExistsException.class,
+            () -> service.applyAliasActions(state.projectState(projectId), singletonList(new AliasAction.RenameIndex("a", "b")))
+        );
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> service.applyAliasActions(state.projectState(projectId), singletonList(new AliasAction.RenameIndex("missing", "c")))
+        );
+        // a rename cannot take the name of an alias either
+        final ClusterState withAlias = service.applyAliasActions(
+            state.projectState(projectId),
+            singletonList(new AliasAction.Add("b", "alias", null, null, null, null, null))
+        );
+        expectThrows(
+            InvalidIndexNameException.class,
+            () -> service.applyAliasActions(withAlias.projectState(projectId), singletonList(new AliasAction.RenameIndex("a", "alias")))
+        );
+    }
+
+    /**
+     * Like {@link #createIndex} but with a routing table for the index, which a rename rewrites.
+     */
+    private ClusterState createIndexWithRouting(ClusterState state, String index) {
+        final ClusterState withIndex = createIndex(state, index);
+        final IndexMetadata indexMetadata = withIndex.metadata().getProject(projectId).index(index);
+        final RoutingTable existing = withIndex.globalRoutingTable()
+            .routingTables()
+            .getOrDefault(projectId, RoutingTable.EMPTY_ROUTING_TABLE);
+        final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, existing)
+            .addAsNew(indexMetadata)
+            .build();
+        return ClusterState.builder(withIndex).putRoutingTable(projectId, routingTable).build();
     }
 
     private ClusterState createIndex(ClusterState state, String index) {

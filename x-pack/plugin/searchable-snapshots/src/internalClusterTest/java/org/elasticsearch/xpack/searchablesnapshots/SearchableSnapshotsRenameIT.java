@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -41,10 +41,7 @@ public class SearchableSnapshotsRenameIT extends BaseSearchableSnapshotsIntegTes
         ensureGreen(mounted);
         ElasticsearchAssertions.assertHitCount(client().prepareSearch(mounted).setSize(0), docs);
 
-        final var response = client().execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, mounted, renamed)
-        ).actionGet();
+        final var response = client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(mounted, renamed)).actionGet();
         assertTrue(response.isAcknowledged());
         ensureGreen(renamed);
         ElasticsearchAssertions.assertHitCount(client().prepareSearch(renamed).setSize(0), docs);

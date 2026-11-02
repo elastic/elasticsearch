@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.rename;
 
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -317,10 +318,7 @@ public class RenameIndexIT extends ESIntegTestCase {
     }
 
     private void rename(String source, String target) {
-        var response = client().execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, source, target)
-        ).actionGet();
+        var response = client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(source, target)).actionGet();
         assertTrue("Rename response should be acknowledged", response.isAcknowledged());
     }
 

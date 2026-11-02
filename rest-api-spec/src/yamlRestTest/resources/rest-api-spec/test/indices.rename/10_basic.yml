@@ -92,3 +92,69 @@ setup:
       indices.rename:
         index: does_not_exist
         target: whatever
+
+---
+"Rename through the aliases API, taking over the name of an index removed in the same request":
+  - do:
+      indices.get:
+        index: source
+  - set: { source.settings.index.uuid: source_uuid }
+  - do:
+      indices.create:
+        index: other
+        body:
+          aliases:
+            other_alias: {}
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source, new_index: other }
+            - remove_index: { index: other }
+            - add: { index: source, alias: other_alias }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      indices.get:
+        index: source
+  - do:
+      indices.get:
+        index: other
+  - match: { other.settings.index.uuid: $source_uuid }
+  - match: { other.settings.index.provided_name: other }
+  - is_true: other.aliases.source_alias
+  - is_true: other.aliases.other_alias
+
+  - do:
+      search:
+        index: other_alias
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._index: other }
+
+---
+"Rename actions are validated":
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: "sour*", new_index: target }
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source }
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source, new_index: target, alias: nope }
+  - do:
+      catch: bad_request
+      indices.update_aliases:
+        body:
+          actions:
+            - rename_index: { index: source_alias, new_index: target }

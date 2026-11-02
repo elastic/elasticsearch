@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
-import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -42,10 +42,8 @@ public class StatelessRenameIndexIT extends AbstractStatelessPluginIntegTestCase
             .get(TimeValue.timeValueSeconds(30));
         ElasticsearchAssertions.assertHitCount(client().prepareSearch(original), 1L);
 
-        var response = client().execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, original, renamed)
-        ).actionGet(TimeValue.timeValueSeconds(30));
+        var response = client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(original, renamed))
+            .actionGet(TimeValue.timeValueSeconds(30));
         assertTrue(response.isAcknowledged());
         ensureGreen(renamed);
 

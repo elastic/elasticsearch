@@ -10,12 +10,17 @@ hand-off notes are in the tracking issue.
 
 ## What the prototype does
 
-`POST /{index}/_rename/{target}` (transport action `indices:admin/rename`,
-`TransportRenameIndexAction`) renames an index in a single cluster state update.
-The index keeps its UUID, shards, settings, mappings, aliases, blocks, ILM state
+A rename is an action of the aliases API: `POST _aliases` with a
+`rename_index` action (`{"rename_index": {"index": "a", "new_index": "b"}}`),
+and `POST /{index}/_rename/{target}` as a shorthand for a request with that one
+action. Both run as `indices:admin/aliases` through
+`TransportIndicesAliasesAction` and the aliases executor
+(`MetadataIndexAliasesService`), so a rename is applied in the same cluster
+state update as the `remove_index` and alias actions of the same request. The
+index keeps its UUID, shards, settings, mappings, aliases, blocks, ILM state
 and data stream membership; only the name under which it is addressed changes.
 No shard is closed, recovered or relocated, and indexing and search continue
-across the rename. Renames are batched through a `MasterServiceTaskQueue`.
+across the rename.
 
 The index UUID is treated as the identity of an index throughout. Everything
 already keyed on the UUID survives a rename untouched: node data paths
@@ -28,8 +33,17 @@ repository `IndexId`, see below).
 
 ### Master side
 
-`TransportRenameIndexAction` validates the request, then submits a task to a
-`MasterServiceTaskQueue` (batched, acknowledged by every node) that:
+`TransportIndicesAliasesAction` validates a `rename_index` action (feature
+gate, the current name is a regular index rather than an alias or a data
+stream, neither name is a system index, the new name is free) and turns it into
+an `AliasAction.RenameIndex`. The aliases executor applies the actions of a
+request in three phases, whatever their order in the request: `remove_index`
+first (as before), then alias changes, then renames
+(`MetadataRenameIndexService#renameIndex`, mirroring
+`MetadataDeleteIndexService#deleteIndices`). Every name in a request therefore
+refers to the state before the request; an alias action cannot address the new
+name, but a rename can take over the name of an index the same request removed,
+and two renames in one request chain. Each rename:
 
 1. builds a new `IndexRoutingTable` for `new Index(target, uuid)` by rewriting
    the `ShardId` of every `ShardRouting` (`ShardRouting#updateIndex`), and
@@ -40,7 +54,7 @@ repository `IndexId`, see below).
    the data stream.
 
 Nothing in the cluster state marks the rename. The request is acknowledged once
-every node has applied the state.
+every node has applied the state, like any other aliases request.
 
 ### Data node side
 
@@ -81,6 +95,21 @@ running `:server:internalClusterTest` with this enabled is recorded under
 PUT  /my-index
 POST /my-index/_rename/my-index-renamed
 GET  /my-index-renamed/_search
+```
+
+or, atomically with other alias actions, in the shape the ILM shrink swap
+needs (delete the original, move its alias, give the shrunk index the
+original's name):
+
+```
+POST _aliases
+{
+  "actions": [
+    { "remove_index": { "index": "my-index" } },
+    { "add":          { "index": "my-index-shrunk", "alias": "my-alias" } },
+    { "rename_index": { "index": "my-index-shrunk", "new_index": "my-index" } }
+  ]
+}
 ```
 
 The index must not be a system index and must not be in a running snapshot or
@@ -138,12 +167,16 @@ build on first lookup. Every applier that compares states by index name now has
 to consult `indicesRenamed()`; today only `IndicesClusterStateService` does.
 Other candidates are listed under D2.
 
-### T3. Renames have their own task queue
+### T3. Renames share the aliases task queue (resolved)
 
-Renames go through a dedicated `MasterServiceTaskQueue`, so several renames
-batch into one cluster state update, but they do not batch with alias changes
-or `remove_index`. Making a rename atomic with those needs the rename to be an
-action of the aliases executor (see D1).
+The first version of the prototype gave renames a dedicated
+`MasterServiceTaskQueue`, so several renames batched into one cluster state
+update but never with alias changes or `remove_index`. Renames are now an
+action of the aliases executor (D1, option c), so they batch with everything
+else that queue carries and are atomic with the other actions of their request.
+The cost is that a rename adds a routing table rebuild to the `index-aliases`
+queue, which is busy in some clusters because of Kibana alias churn; renames
+are rare, so this is noise.
 
 ### T4. Data node state is mutated in place, and only partly
 
@@ -213,18 +246,27 @@ impossible today (restore, clone, shrink and split all mint new UUIDs) and the
 builder asserts it, but the production change should turn that into a
 validation in `ProjectMetadata.Builder`.
 
-### T8. Validation is done twice and is not exhaustive
+### T8. Validation is split between the transport action and the executor
 
-The request is validated against the state the master received it with and
-again inside the cluster state task. The checks are: feature gate, source
-exists, source is not a system index, destination passes
+The checks that do not depend on the state the rename is eventually applied to
+are made once, in `TransportIndicesAliasesAction`, before the request is
+queued: feature gate, the current name is a regular index (not an alias, data
+stream or system index), the new name is well formed and not a system index
+name. The checks that do depend on it are made by
+`MetadataRenameIndexService#validateRename` inside the executor, against the
+state produced by the actions before the rename, which is what lets a rename
+take over the name of an index the same request removes (a check made against
+the state the request arrived with would refuse that): the current name
+exists, the new name passes
 `MetadataCreateIndexService#validateIndexName` (valid name, no existing index,
 alias, ESQL view or dataset), and no snapshot or restore in flight for the
-source. Not checked, and not yet tested: shrink/split/clone with the source as
-resize source, and searchable snapshot mounts (settings move with the metadata,
-so these should keep working). The enrich, ML, transform and watcher references
-that store index names in their own configuration stay the user's problem, as
-they are today with reindex.
+index. The request validators that plugins register for aliases requests
+(CCR's, which protects a follower's replicated aliases) are not consulted for a
+rename, which leaves the aliases alone. Resize sources and searchable snapshot
+mounts are not checked (their settings move with the metadata) and are covered
+by the tests below. The enrich, ML, transform and watcher references that store
+index names in their own configuration stay the user's problem, as they are
+today with reindex.
 
 Cross-cluster replication is handled rather than refused, see T14. Tests now
 cover: rename refused during a snapshot and during a restore, snapshot and
@@ -312,19 +354,35 @@ follower rename (replication continues, and stats, pause, resume and unfollow
 work under the new name) and auto-follow with a renamed leader (no second
 follower is created, the existing one keeps replicating).
 
-### T9. The REST API is a dedicated endpoint, not an `_aliases` action
+### T9. The REST surface is an `_aliases` action plus a shorthand endpoint (resolved)
 
-`POST /{index}/_rename/{target}` is the simplest surface for the prototype. The
-ILM and Upgrade Assistant use cases need the rename to be atomic with deleting
-the source index and swapping aliases, which only the `_aliases` executor can
-offer today. See D1.
+`rename_index` is an action of `POST _aliases`, next to `add`, `remove` and
+`remove_index`, and `POST /{index}/_rename/{target}` builds a one-action
+aliases request. There is no dedicated transport action: both surfaces run as
+`indices:admin/aliases`. Two details of the aliases API shape the action:
+
+- `TransportIndicesAliasesAction` resolves every action's names against the
+  state it received the request with, before the task is queued, so the new
+  name cannot be addressed by another action of the same request. The executor
+  runs renames last so that this ordering is also the one the user sees.
+- The action type travels as a byte on the wire. A new transport version
+  (`rename_index_alias_action`) lets a node refuse to send a rename to a node
+  that would not understand it, with a clear message rather than a
+  deserialization failure. The `index.rename` node feature still gates the
+  request on the master.
 
 ### T10. Security authorizes both names, nothing more
 
-`RenameIndexAction.Request#indices()` reports both the source and the
-destination, so the caller needs `manage` (any privilege matching
+A `rename_index` action reports both the current and the new name through
+`indices()`, so the caller needs `manage` (any privilege matching
 `indices:admin/*`) on both names. That is the same bar as creating the
-destination and deleting the source. Document-level and field-level security
+destination and deleting the source. Because the rename runs as
+`indices:admin/aliases`, a role cannot grant alias management without granting
+rename; nothing is lost today, since both already require `manage`, but it is
+a consequence of D1 worth stating. Security's special handling of
+`IndicesAliasesRequest` resolves each action's names and hands the pair back
+through `indices(String...)`; the action stores it as current and new name
+again. Document-level and field-level security
 rules are attached to index name patterns in roles, so a rename can move an
 index into or out of a user's DLS/FLS scope exactly as creating it under that
 name would. Niels's last CI run failed on security tests when the rename trick
@@ -339,7 +397,7 @@ rename the index is still the data stream's backing index, so access through
 the data stream name continues under the new name.
 
 `RenameIndexSecurityTests` (x-pack security internal cluster tests) covers the
-model: `manage` on both names succeeds; `manage` on the source alone, or on
+model through the aliases action: `manage` on both names succeeds; `manage` on the source alone, or on
 neither, is refused and leaves the index untouched; a backing index is renamed
 when the source is authorized through the data stream and the destination by
 pattern, and refused with the data stream privilege alone.
@@ -428,14 +486,18 @@ stateless test base class) reads it back as the index name.
 
 ## Decisions that need to be made
 
-### D1. Where the API lives
+### D1. Where the API lives (decided: c)
 
 Options: (a) dedicated `_rename` endpoint only; (b) a `rename` action inside
 `POST _aliases` only; (c) both, with the endpoint delegating to the aliases
 executor. The ILM shrink and searchable snapshot steps and Upgrade Assistant
 need rename, `remove_index` and alias moves to be one atomic cluster state
-update, which argues for (b) or (c). (c) is the recommendation: discoverability
-for the simple case, atomicity for the automated ones.
+update, which argues for (b) or (c). (c) was chosen and is what the prototype
+now does: discoverability for the simple case, atomicity for the automated
+ones. It went one step further than (c) as written, dropping the dedicated
+transport action so that there is one privilege path and one audit action name
+(`indices:admin/aliases`) for both surfaces. The engineering consequences are
+in T3, T8, T9 and T10; none argued against the choice.
 
 ### D2. Which other appliers need `indicesRenamed()`
 
@@ -641,7 +703,8 @@ rename being reachable until the last one.
    names (D3).
 5. Randomized rename-on-create in `ESIntegTestCase` (T11), extended to the
    module and x-pack internal cluster test suites.
-6. The master-side rename in the aliases executor plus the REST endpoint and
-   security tests (D1, T10).
+6. The `rename_index` aliases action, `MetadataRenameIndexService`, the
+   `_rename` shorthand endpoint, the transport version and the security tests
+   (D1, T9, T10).
 7. Follow-ups: `RepositoryData` matching by UUID (D6); ILM and Upgrade
    Assistant adopting the rename.

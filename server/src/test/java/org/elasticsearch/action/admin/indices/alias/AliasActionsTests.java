@@ -277,6 +277,68 @@ public class AliasActionsTests extends ESTestCase {
         }
     }
 
+    public void testParseRenameIndex() throws IOException {
+        XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
+        b.startObject();
+        {
+            b.startObject("rename_index");
+            {
+                b.field("index", "old");
+                b.field("new_index", "new");
+            }
+            b.endObject();
+        }
+        b.endObject();
+        try (XContentParser parser = createParser(b)) {
+            AliasActions action = AliasActions.PARSER.apply(parser, null);
+            assertEquals(AliasActions.Type.RENAME_INDEX, action.actionType());
+            assertEquals("new", action.newIndex());
+            // both names are reported so that both are authorized
+            assertArrayEquals(new String[] { "old", "new" }, action.indices());
+            assertArrayEquals(new String[0], action.aliases());
+        }
+    }
+
+    public void testRenameIndexValidation() {
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().index("old").validate()).getMessage(),
+            equalTo("[new_index] is required")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().index("old").newIndex("old").validate())
+                .getMessage(),
+            equalTo("[index] and [new_index] must differ")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().index("old*").newIndex("new").validate())
+                .getMessage(),
+            equalTo("[rename_index] does not support wildcards, got [old*]")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().index("old").newIndex("_all").validate())
+                .getMessage(),
+            equalTo("[rename_index] does not support wildcards, got [_all]")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().indices("a", "b", "c")).getMessage(),
+            equalTo("[rename_index] takes a single [index]")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.renameIndex().alias("x")).getMessage(),
+            equalTo("[alias] is unsupported for [RENAME_INDEX]")
+        );
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> AliasActions.add().newIndex("x")).getMessage(),
+            equalTo("[new_index] is unsupported for [ADD]")
+        );
+        // security hands the authorized pair back through indices()
+        AliasActions action = AliasActions.renameIndex().index("old").newIndex("new");
+        action.indices(action.indices());
+        action.validate();
+        assertEquals("new", action.newIndex());
+        assertArrayEquals(new String[] { "old", "new" }, action.indices());
+    }
+
     public void testParseIndexAndIndicesThrowsError() throws IOException {
         XContentBuilder b = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
         b.startObject();

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -212,15 +213,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         // the mock step waits for the index.lifecycle.test.complete setting
         assertBusy(() -> assertThat(lifecycleStateOf("test").step(), equalTo(ObservableClusterStateWaitStep.NAME)));
 
-        client().execute(
-            org.elasticsearch.action.admin.indices.rename.RenameIndexAction.INSTANCE,
-            new org.elasticsearch.action.admin.indices.rename.RenameIndexAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                TEST_REQUEST_TIMEOUT,
-                "test",
-                "test-renamed"
-            )
-        ).actionGet();
+        client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest("test", "test-renamed")).actionGet();
         assertThat(lifecycleStateOf("test-renamed").step(), equalTo(ObservableClusterStateWaitStep.NAME));
 
         updateIndexSettings(Settings.builder().put("index.lifecycle.test.complete", true), "test-renamed");

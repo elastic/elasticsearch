@@ -46,9 +46,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
@@ -890,10 +890,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
         ensureYellowAndNoInitializingShards(tempName);
 
         // Rename the temporary index to the desired name
-        client().execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, tempName, name)
-        ).actionGet();
+        assertAcked(client().admin().indices().aliases(renameIndexRequest(tempName, name)).actionGet());
+    }
+
+    /**
+     * An {@code _aliases} request with a single {@code rename_index} action, renaming {@code currentName} to {@code newName}.
+     */
+    public static IndicesAliasesRequest renameIndexRequest(String currentName, String newName) {
+        return new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+            IndicesAliasesRequest.AliasActions.renameIndex().index(currentName).newIndex(newName)
+        );
     }
 
     /**

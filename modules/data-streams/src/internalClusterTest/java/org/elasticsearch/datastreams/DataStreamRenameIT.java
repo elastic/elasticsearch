@@ -10,7 +10,7 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
@@ -101,10 +101,7 @@ public class DataStreamRenameIT extends ESIntegTestCase {
     }
 
     private void rename(String source, String target) {
-        var response = client().execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, source, target)
-        ).actionGet();
+        var response = client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(source, target)).actionGet();
         assertTrue(response.isAcknowledged());
     }
 

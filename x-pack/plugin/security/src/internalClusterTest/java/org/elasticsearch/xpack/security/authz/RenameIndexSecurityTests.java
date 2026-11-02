@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.action.admin.indices.rename.RenameIndexAction;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
@@ -122,7 +122,7 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
         createIndex("old-2", 1, 0, false);
         assertThrowsAuthorizationException(
             () -> rename(clientAs("rename_source_only"), "old-2", "new-2"),
-            RenameIndexAction.NAME,
+            TransportIndicesAliasesAction.NAME,
             "rename_source_only"
         );
         assertTrue(indexExists("old-2"));
@@ -131,7 +131,11 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
 
     public void testNoPrivilegeOnEitherNameIsRefused() {
         createIndex("old-3", 1, 0, false);
-        assertThrowsAuthorizationException(() -> rename(clientAs("rename_none"), "old-3", "new-3"), RenameIndexAction.NAME, "rename_none");
+        assertThrowsAuthorizationException(
+            () -> rename(clientAs("rename_none"), "old-3", "new-3"),
+            TransportIndicesAliasesAction.NAME,
+            "rename_none"
+        );
         assertTrue(indexExists("old-3"));
         assertFalse(indexExists("new-3"));
     }
@@ -141,7 +145,11 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
         final String backingIndex = backingIndices("logs").get(0).getName();
 
         // manage on the data stream covers its backing index; the new name must be authorized on its own
-        assertThrowsAuthorizationException(() -> rename(clientAs("ds_only"), backingIndex, "new-ds-1"), RenameIndexAction.NAME, "ds_only");
+        assertThrowsAuthorizationException(
+            () -> rename(clientAs("ds_only"), backingIndex, "new-ds-1"),
+            TransportIndicesAliasesAction.NAME,
+            "ds_only"
+        );
         assertTrue(indexExists(backingIndex));
 
         rename(clientAs("ds_manage"), backingIndex, "new-ds-1");
@@ -158,10 +166,7 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
     }
 
     private static void rename(Client client, String source, String target) {
-        final var response = client.execute(
-            RenameIndexAction.INSTANCE,
-            new RenameIndexAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, source, target)
-        ).actionGet();
+        final var response = client.execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(source, target)).actionGet();
         assertTrue(response.isAcknowledged());
     }
 

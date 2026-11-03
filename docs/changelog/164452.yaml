@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 164452
+summary: Log expected usage inference lookup failures at DEBUG
+type: enhancement

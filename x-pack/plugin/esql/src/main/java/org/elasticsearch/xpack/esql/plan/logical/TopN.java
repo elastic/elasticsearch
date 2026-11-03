@@ -87,21 +87,21 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn, DocP
     }
 
     /**
-     * Merges this {@code TopN} with its direct child {@code TopN} into a single {@code TopN} over the child's child.
+     * Merges this {@code TopN} with its direct child {@code TopN} into a single {@code TopN} over the child's child, if possible.
+     * Returns {@code this} unchanged if the child is not a {@code TopN} or if the two sort by a different {@link #order()}.
      * <p>
-     * The caller must ensure that both {@code TopN}s sort by the same {@link #order()}. In that case the merged {@code TopN} is
-     * equivalent to applying both: it keeps the lower of the two limits, and it is only {@link #local() local} if both are.
-     * The latter is deliberate: a non-local {@code TopN} is a pipeline breaker, so merging must never turn one into a local
-     * {@code TopN} that is executed per data node only.
+     * If both sort by the same order, the merged {@code TopN} is equivalent to applying both: it keeps the lower of the two limits,
+     * and it is only {@link #local() local} if both are. The latter is deliberate: a non-local {@code TopN} is a pipeline breaker,
+     * so merging must never turn one into a local {@code TopN} that is executed per data node only.
      * <p>
      * When adding fields to this class, consider how they have to be combined here.
      */
-    public TopN mergeWithChildTopN(TopN childTopN, FoldContext foldCtx) {
-        assert order.equals(childTopN.order)
-            : "can only merge TopNs with the same sort order, got [" + order + "] and [" + childTopN.order + "]";
-        assert child() == childTopN : "can only merge with the direct child TopN";
-        Expression mergedLimit = (int) limit.fold(foldCtx) <= (int) childTopN.limit.fold(foldCtx) ? limit : childTopN.limit;
-        return new TopN(source(), childTopN.child(), order, mergedLimit, local && childTopN.local);
+    public TopN mergeWithChildTopN(FoldContext foldCtx) {
+        if (child() instanceof TopN childTopN && order.equals(childTopN.order)) {
+            Expression mergedLimit = (int) limit.fold(foldCtx) <= (int) childTopN.limit.fold(foldCtx) ? limit : childTopN.limit;
+            return new TopN(source(), childTopN.child(), order, mergedLimit, local && childTopN.local);
+        }
+        return this;
     }
 
     public Expression limit() {

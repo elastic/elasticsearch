@@ -35,10 +35,10 @@ public class PruneRedundantTopN extends OptimizerRules.ParameterizedOptimizerRul
 
     @Override
     protected LogicalPlan rule(TopN plan, LogicalOptimizerContext ctx) {
-        // Merge consecutive TopNs that sort by the same order, keeping the lower limit.
-        // The merge preserves non-locality: a non-local TopN is a pipeline breaker and must never be pruned in favor of a local one.
-        while (plan.child() instanceof TopN childTopN && childTopN.order().equals(plan.order())) {
-            plan = plan.mergeWithChildTopN(childTopN, ctx.foldCtx());
+        TopN merged = plan.mergeWithChildTopN(ctx.foldCtx());
+        while (merged != plan) {
+            plan = merged;
+            merged = plan.mergeWithChildTopN(ctx.foldCtx());
         }
         return plan;
     }

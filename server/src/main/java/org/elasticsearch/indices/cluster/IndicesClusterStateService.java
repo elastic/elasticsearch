@@ -1560,9 +1560,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // means (or the master already knows because the master initiated it, e.g. by moving the shard).
                 final var key = ShardAllocationKey.fromRouting(shardRouting);
                 if (pendingAllocationStates.remove(key, inFlightTicket)) {
-                    logger.debug("{} recovery aborted; cleared creating-shard ticket", key);
+                    logger.trace("{} recovery aborted; cleared creating-shard ticket", key);
                 } else {
-                    logger.debug("{} recovery aborted; ticket no longer the current attempt", key);
+                    logger.trace("{} recovery aborted; ticket no longer the current attempt", key);
                 }
                 return;
             }

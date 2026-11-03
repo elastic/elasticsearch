@@ -762,6 +762,54 @@ per snapshot from `SnapshotInfo`; that is also what would allow lifting the
 T6 refusal of renames during a snapshot, since `SnapshotsInProgress` and
 `RepositoryShardId` would stop carrying names.
 
+### D7. Renaming a data stream (decided: not now)
+
+Decided (2026-11-03): out of scope, to be revisited if a concrete user need
+appears. The prototype renames backing and failure indices but refuses a
+data stream as the source of `rename_index`.
+
+Mechanically it would be cheap. A data stream has no UUID, shards or data
+node state, so the rename is a metadata re-key on the master: move the
+entry in the project's data streams map, rebuild the `DataStream` under its
+new name and rewrite the data stream aliases that list it. Restore with
+`rename_pattern` already does all of this, including the alias rewrite and
+the renaming of backing indices by stripping the `.ds-`/`.fs-` prefix,
+applying the pattern and putting the prefix back. Nothing in server parses
+the data stream name out of a backing index name for correctness (the
+prefix is only checked, and the next rollover generates the name from the
+current data stream name), so the data stream could be renamed alone or
+together with all of its indices in the same cluster state update. Security
+needs nothing new: `manage` on both data stream names covers the indices
+through the parent-data-stream rule. It would be its own
+`rename_data_stream` aliases action, as the validation and privilege models
+differ from an index rename.
+
+What makes it tricky is the name's meaning rather than the mechanics:
+
+- The new name must match a composable template with a data stream
+  definition, as create requires, because the next rollover resolves the
+  template by name; a rename to an uncovered name leaves a data stream that
+  cannot roll over, and a rename to a differently covered name silently
+  changes the mappings and settings of the next backing index.
+- Fleet encodes type, dataset and namespace in the name and writes the same
+  values into every document as constant keywords, so after a rename the
+  old backing indices disagree with the name in every document and mapping,
+  and nothing short of a reindex fixes that.
+- A CCR follower creates its local data stream from the leader's name on
+  each new backing index, so renaming the leader splits the follower's
+  history across two data streams at the next rollover. A replicated data
+  stream on the follower would have to be refused, as other modifications are.
+- The motivating use case of the index rename, the atomic swap after a
+  zero-downtime reindex, is already served for data streams by the modify
+  data stream API and the reindex-data-stream migration built on it.
+
+If revisited: rename the data stream and all of its indices atomically,
+run the create-time name validation on the new name (lowercase, no
+backing-index prefix, no existing index, alias, data stream or ES|QL
+dataset, matching data stream template), refuse system and replicated data
+streams, and document that the template and Fleet meaning of the name is
+the caller's responsibility.
+
 ## Failure inventory
 
 This section is a log of what the rename trick (T11) found, in the order it

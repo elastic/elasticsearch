@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import static org.apache.lucene.search.IndexSearcher.getMaxClauseCount;
 import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 
 /**
@@ -60,6 +61,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public static final ParseField BOOST_FIELD = new ParseField("boost");
     // We set the default value for tests that don't go through SearchModule
     private static int maxNestedDepth = INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY);
+
+    /**
+     * The lowest limit on the clauses of a query while it is parsed, to bound the heap the parsed query takes. A higher node max clause
+     * count raises it.
+     */
+    static final int PARSE_CLAUSE_LIMIT_FLOOR = 1 << 16;
 
     protected String queryName;
     protected float boost = DEFAULT_BOOST;
@@ -422,6 +429,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
      * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
+     * It also rejects a query with more clauses than the node's max clause count (at least 65,536) while parsing. The count is per call,
+     * not per request.
      * This variant of the method does not support collecting statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser) throws IOException {
@@ -433,12 +442,17 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * user provided queries. Note that the returned query may hold inner queries, and so on. Calling this method
      * will initialize the tracking of nested depth to make sure that there's a limit to the number of queries
      * that can be nested within one another (see {@link org.elasticsearch.search.SearchModule#INDICES_MAX_NESTED_DEPTH_SETTING}.
+     * It also rejects a query with more clauses than the node's max clause count (at least 65,536) while parsing. The count is per call,
+     * not per request.
      * The method accepts a string consumer that will be provided with each query type used in the parsed content, to be used
      * for instance to collect statistics about queries usage.
      */
     public static QueryBuilder parseTopLevelQuery(XContentParser parser, Consumer<String> queryNameConsumer) throws IOException {
+        // Checked while parsing, since the shards only count clauses once the whole query has been parsed into memory.
+        final int maxClauses = Math.max(PARSE_CLAUSE_LIMIT_FLOOR, getMaxClauseCount());
         FilterXContentParser parserWrapper = new FilterXContentParserWrapper(parser) {
             int nestedDepth;
+            int clauses;
 
             @Override
             public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
@@ -452,8 +466,15 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                         );
                     }
                 }
+                final int clausesBefore = clauses;
                 T namedObject = getXContentRegistry().parseNamedObject(categoryClass, name, this, context);
                 if (categoryClass.equals(QueryBuilder.class)) {
+                    // Only a query with no queries inside it is a clause, as Lucene counts clauses.
+                    if (clauses == clausesBefore && ++clauses > maxClauses) {
+                        throw new IllegalArgumentException(
+                            "The number of clauses in the query exceeds the maximum of [" + maxClauses + "]"
+                        );
+                    }
                     queryNameConsumer.accept(name);
                     nestedDepth--;
                 }

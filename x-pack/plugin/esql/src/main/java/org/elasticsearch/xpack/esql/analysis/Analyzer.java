@@ -2317,6 +2317,55 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
+         * {@link #mappedSiblingField(Attribute)} for {@code attr}, a column of the output of {@code mergePlan}. The branch that provides
+         * it may expose it as a reference to the output of a union nested in that branch, in which case this is the field behind it.
+         * Only that branch is looked at: a column of the same name in another branch is not this one.
+         */
+        private static @Nullable FieldAttribute mappedSiblingField(MergePlan mergePlan, Attribute attr) {
+            for (LogicalPlan branch : mergePlan.children()) {
+                if (branch.outputSet().contains(attr)) {
+                    return mappedFieldBehind(branch, attr);
+                }
+            }
+            return mappedSiblingField(attr);
+        }
+
+        /**
+         * The mapped field that {@code attr}, a column of the output of {@code plan}, comes from. A union nested in a branch exposes its
+         * columns as references, so the column is not a field attribute where the branch's output is looked at; follow it down to the
+         * branches of that union, which are where it is a field of a relation.
+         * <p>
+         * Below a unary plan the column is followed by id, since a command that computes a column of the same name gives it a new id and
+         * is therefore not the field's. Below a union it is followed by name, as the branches of a resolved union all output the same
+         * names.
+         */
+        private static @Nullable FieldAttribute mappedFieldBehind(LogicalPlan plan, Attribute attr) {
+            FieldAttribute mapped = mappedSiblingField(attr);
+            if (mapped != null) {
+                return mapped;
+            }
+            if (plan instanceof MergePlan merge) {
+                for (LogicalPlan branch : merge.children()) {
+                    for (Attribute output : branch.output()) {
+                        if (output.name().equals(attr.name())) {
+                            FieldAttribute found = mappedFieldBehind(branch, output);
+                            if (found != null) {
+                                return found;
+                            }
+                        }
+                    }
+                }
+            } else if (plan instanceof UnaryPlan unary) {
+                for (Attribute output : unary.child().output()) {
+                    if (output.id().equals(attr.id())) {
+                        return mappedFieldBehind(unary.child(), output);
+                    }
+                }
+            }
+            return null;
+        }
+
+        /**
          * The implicit cast that surfaces {@code loaded}, an unmapped field read from {@code _source} and therefore always keyword, as
          * {@code targetType}. Returns {@code null} when no such cast exists (e.g., {@code text}, {@code aggregate_metric_double}); a
          * keyword target needs no cast, so the returned function is a {@link ConvertFunction#isNoop() no-op} there.
@@ -2455,7 +2504,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             UnmappedResolution unmappedResolution = context.unmappedResolution();
             LogicalPlan branch = mergePlan.children().get(branchIndex);
-            FieldAttribute mapped = mappedSiblingField(attr);
+            FieldAttribute mapped = mappedSiblingField(mergePlan, attr);
             if (mapped != null
                 && mergePlan instanceof UnionAll
                 && unmappedResolution.loadsAllUnmappedFields()

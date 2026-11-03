@@ -199,11 +199,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
     void startRelocation(Task task, StatelessPrimaryRelocationAction.Request request, ActionListener<StartRelocationResponse> listener) {
         final var parentClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
-        // Note that we trigger prewarm on the target before entering the source-side throttle queue. By the time the
-        // relocation reaches `startRelocation`, it has already passed through the target's own recovery throttle (concurrency
-        // limit on incoming recoveries), so the target node cannot be overloaded by prewarm requests. Starting early
-        // overlaps cache warming with any queue wait, reducing overall relocation latency.
-        initiatePrewarm(parentClient, request);
 
         RecoveryClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
@@ -237,7 +232,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         );
     }
 
-    private void initiatePrewarm(Client parentClient, StatelessPrimaryRelocationAction.Request request) {
+    private void initiatePrewarm(Client parentClient, StatelessPrimaryRelocationAction.Request request, IndexShard indexShard) {
         try {
             final ShardId shardId = request.shardId();
             final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
@@ -247,8 +242,6 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                 return;
             }
 
-            final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
-            final IndexShard indexShard = indexService.getShard(shardId.id());
             final var engine = indexShard.getEngineOrNull();
             boolean hasRecentIdLookup = engine != null && engine.hasRecentIdLookup(idLookupRecencyThreshold);
 
@@ -330,6 +323,9 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
         preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {
+            // send the "prewarm" after the preFlush so the prewarmed BCC is closer to the one we flush while holding the permits,
+            // and hence we spent less time while holding the permits (during handoff)
+            initiatePrewarm(parentClient, request, indexShard);
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
             if (indexShard.getEngineOrNull() == null) {

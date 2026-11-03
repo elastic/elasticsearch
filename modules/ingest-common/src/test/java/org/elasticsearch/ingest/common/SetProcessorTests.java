@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -258,6 +259,99 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor("", "some_value", null, false, false);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("path cannot be null nor empty"));
+    }
+
+    public void testSetWithConstantFieldTemplate() throws Exception {
+        // unlike the mock template that the other tests use, a template that really is constant is one that can be pre-parsed
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("foo.bar.baz", "value", null, true, false);
+        // run it more than once, to make sure it isn't a one-shot sort of thing
+        for (int i = 0; i < 3; i++) {
+            ingestDocument = TestIngestDocument.emptyIngestDocument();
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("value"));
+        }
+    }
+
+    public void testSetWithConstantFieldTemplateAndOverrideDisabled() throws Exception {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("foo.bar", "existing");
+        Processor processor = createSetProcessorWithCompiledField("foo.bar", "new", null, false, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo.bar", String.class), equalTo("existing"));
+        processor = createSetProcessorWithCompiledField("foo.baz", "new", null, false, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo.baz", String.class), equalTo("new"));
+    }
+
+    public void testCopyFromWithConstantFieldTemplate() throws Exception {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("source.field", List.of("a", "b"));
+        Processor processor = createSetProcessorWithCompiledField("target.field", null, "source.field", true, false);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("target.field", List.class), equalTo(List.of("a", "b")));
+    }
+
+    public void testCopyFromMissingFieldWithIgnoreEmptyValue() throws Exception {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("target.field", null, "source.missing", true, true);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.hasField("target.field"), equalTo(false));
+        Processor strict = createSetProcessorWithCompiledField("target.field", null, "source.missing", true, false);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> strict.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("field [source] not present as part of path [source.missing]"));
+    }
+
+    /**
+     * Pipelines are stored, so one that has a malformed path in it has to still be loadable (that is, creating the processor must not
+     * throw), and then it has to fail, as it always has, when a document is run through it.
+     */
+    public void testMalformedConstantFieldFailsAtExecutionTime() {
+        Processor processor = createSetProcessorWithCompiledField("a..b", "value", null, true, false);
+        for (int i = 0; i < 3; i++) {
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+            assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
+        }
+    }
+
+    public void testMalformedCopyFromFailsAtExecutionTime() {
+        Processor processor = createSetProcessorWithCompiledField("target", null, "a..b", true, false);
+        for (int i = 0; i < 3; i++) {
+            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+            assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
+        }
+    }
+
+    public void testEmptyConstantFieldFailsAtExecutionTime() {
+        Processor processor = createSetProcessorWithCompiledField("", "value", null, true, false);
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path cannot be null nor empty"));
+    }
+
+    /**
+     * Like {@link #createSetProcessor}, except that the field template is compiled the way that the processor factory compiles it,
+     * which (for a field name that has no templating in it) gives a constant template rather than a mock one.
+     */
+    private static Processor createSetProcessorWithCompiledField(
+        String fieldName,
+        Object fieldValue,
+        String copyFrom,
+        boolean overrideEnabled,
+        boolean ignoreEmptyValue
+    ) {
+        String tag = randomAlphaOfLength(10);
+        return new SetProcessor(
+            tag,
+            null,
+            ConfigurationUtils.compileTemplate(SetProcessor.TYPE, tag, "field", fieldName, TestTemplateService.instance()),
+            fieldValue == null ? null : ValueSource.wrap(fieldValue, TestTemplateService.instance()),
+            copyFrom,
+            overrideEnabled,
+            ignoreEmptyValue
+        );
     }
 
     private static Processor createSetProcessor(

@@ -12,6 +12,8 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -184,5 +186,33 @@ public class SetProcessorFactoryTests extends ESTestCase {
         assertThat(setProcessor.getTag(), equalTo(processorTag));
         assertThat(setProcessor.getField(), hasToString(""));
         assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testCreateWithMalformedField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+        config.put("value", "value1");
+        SetProcessor setProcessor = factory.create(null, randomAlphaOfLength(10), null, config, null);
+        assertThat(setProcessor.getField(), hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setProcessor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
+    public void testCreateWithMalformedCopyFrom() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("copy_from", "a..b");
+        SetProcessor setProcessor = factory.create(null, randomAlphaOfLength(10), null, config, null);
+        assertThat(setProcessor.getCopyFrom(), hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setProcessor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

@@ -107,7 +107,8 @@ public class IndexShardCacheWarmer {
         assert warmingType != INDEXING_EARLY || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER
             : "Only peer recoveries are supported";
         assert sourceBlobsInfo == null || warmingType == INDEXING_EARLY;
-        threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard, warmingType, sourceBlobsInfo, preWarmForIdLookup, listener));
+        threadPool.generic()
+            .execute(() -> doPreWarmIndexShardCache(indexShard, warmingType, sourceBlobsInfo, preWarmForIdLookup, listener));
     }
 
     private void doPreWarmIndexShardCache(

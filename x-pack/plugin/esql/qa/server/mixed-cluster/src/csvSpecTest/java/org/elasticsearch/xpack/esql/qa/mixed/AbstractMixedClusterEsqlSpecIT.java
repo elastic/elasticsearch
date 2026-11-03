@@ -69,16 +69,7 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         CsvTestCase testCase,
         String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, maybeOptionalWarnings(testCase), instructions);
-    }
-
-    private static CsvTestCase maybeOptionalWarnings(CsvTestCase testCase) {
-        // To make warnings optional for some version, uncomment this. Tests might also
-        // need changing, but that's fine.
-        // if (bwcVersion.before(Version.V_9_6_0)) {
-        // testCase.makeWarningsOptional();
-        // }
-        return testCase;
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     /**
@@ -192,5 +183,14 @@ public abstract class AbstractMixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean deduplicateExactWarnings() {
         return true;
+    }
+
+    /**
+     * The old node coordinates in {@link AbstractMixedClusterEsqlOldCoordSpecIT} and can hold the shards a query
+     * reads in both suites, so it can drop warnings whichever version coordinates.
+     */
+    @Override
+    protected boolean mayDropWarnings() {
+        return versionMayDropWarnings(bwcVersion);
     }
 }

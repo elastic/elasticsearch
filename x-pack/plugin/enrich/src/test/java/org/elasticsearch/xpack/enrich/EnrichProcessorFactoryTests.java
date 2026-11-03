@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -93,8 +94,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config, projectId);
             assertThat(result, notNullValue());
             assertThat(result.getPolicyName(), equalTo("majestic"));
-            assertThat(result.getField(), equalTo("host"));
-            assertThat(result.getTargetField(), equalTo("entry"));
+            assertThat(result.getField(), hasToString("host"));
+            assertThat(result.getTargetField(), hasToString("entry"));
             assertThat(result.getMatchField(), equalTo("my_key"));
             assertThat(result.isIgnoreMissing(), is(keyIgnoreMissing));
             if (overrideEnabled != null) {
@@ -213,8 +214,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config, projectId);
             assertThat(result, notNullValue());
             assertThat(result.getPolicyName(), equalTo("majestic"));
-            assertThat(result.getField(), equalTo("host"));
-            assertThat(result.getTargetField(), equalTo("entry"));
+            assertThat(result.getField(), hasToString("host"));
+            assertThat(result.getTargetField(), hasToString("entry"));
         }
     }
 

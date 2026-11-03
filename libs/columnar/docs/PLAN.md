@@ -42,7 +42,7 @@ The direction, the decisions that constrain it, and the build order. Update as d
   in full at open, the only part on the heap). Content is split by how it is read: values in `.cnd`,
   per-document addressing in `.cna`, a plain column's lengths in `.cnl`, per-block and per-chunk
   navigation in `.cnn` (fetched up front, so it stays coarse and small), the skip index in `.cns`.
-  Every table streams into its file; nothing is staged but a dictionary's ordinals and escapes.
+  Every table streams into its file; nothing is staged but a dictionary's escapes.
   See `AGENTS.md`.
 
 ## Done

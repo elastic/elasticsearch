@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 
 import java.io.IOException;
@@ -31,8 +32,6 @@ import java.util.List;
  */
 public class GeometrySourceDocValuesField extends CustomDocValuesField {
 
-    private static final String FIELD_NAME_SUFFIX = ".source_geometry";
-
     private final List<Geometry> geometries = new ArrayList<>();
 
     public GeometrySourceDocValuesField(String name) {
@@ -41,7 +40,7 @@ public class GeometrySourceDocValuesField extends CustomDocValuesField {
 
     /** The internal doc-value field name carrying the source geometries for the given shape field. */
     public static String fieldName(String shapeFieldName) {
-        return shapeFieldName + FIELD_NAME_SUFFIX;
+        return shapeFieldName + AbstractShapeGeometryFieldMapper.SOURCE_GEOMETRY_FIELD_NAME_SUFFIX;
     }
 
     public void add(Geometry geometry) {

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.NoMergePolicy;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
@@ -66,7 +67,7 @@ public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests 
             // Use batch size 1 so the INDEX and NO_OP land in separate fillParallelArray calls,
             // each reusing slot 0 — this is the exact scenario that triggers the stale-slot bug.
             // The snapshot takes ownership of the searcher and closes it, so don't close it separately.
-            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
+            Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL, SplitShardCountSummary.IRRELEVANT);
             try (
                 LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
                     engine.engineConfig.getMapperService(),

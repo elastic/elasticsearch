@@ -97,7 +97,9 @@ public class PromqlBuiltinFunctionDefinitions {
         .example("limitk(3, http_requests_total)")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .differenceFromPrometheus(
-            "Elements are returned in storage order (first-k) rather than truly arbitrary order. "
+            "Within a shard, elements follow storage order (first-k) rather than truly arbitrary order. "
+                + "Across shards the merge keeps k of those partials with no global tsid sort, so the subset is not "
+                + "stable. "
                 + "A `k` close to Integer.MAX_VALUE can trip {{es}}'s circuit breaker (the execution engine allocates a "
                 + "buffer sized to `k`, not to the number of matching series), whereas Prometheus has no equivalent limit. "
                 + "A `without` grouping clause is not yet supported."
@@ -159,7 +161,10 @@ public class PromqlBuiltinFunctionDefinitions {
         .differenceFromPrometheus(
             "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
                 + "aggregation. The destination may be a new label or may overwrite a stored label (a dimension or "
-                + "`__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Regular expressions use "
+                + "`__name__`). It is also supported over the result of an enclosed `by(...)` aggregation (optionally under "
+                + "`topk`, `bottomk`, `limitk` or `limit_ratio`), as long as the destination is a new label "
+                + "{applies_to}`stack: ga 9.7+`. A `without` grouping, a binary operator, or a bare (non-aggregated) call "
+                + "over raw series is rejected. Regular expressions use "
                 + "the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement expansion, no "
                 + "backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus. Reading or overwriting "
                 + "`__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; "
@@ -197,7 +202,10 @@ public class PromqlBuiltinFunctionDefinitions {
         .differenceFromPrometheus(
             "Supported in this version only when the derived destination label is consumed by an enclosing `by(...)` "
                 + "aggregation. The destination may be a new label or may overwrite a stored label (a dimension or "
-                + "`__name__`). A `without` grouping or a bare (non-aggregated) call are rejected. Reading or overwriting "
+                + "`__name__`). It is also supported over the result of an enclosed `by(...)` aggregation (optionally under "
+                + "`topk`, `bottomk`, `limitk` or `limit_ratio`), as long as the destination is a new label "
+                + "{applies_to}`stack: ga 9.7+`. A `without` grouping, a binary operator, or a bare (non-aggregated) call "
+                + "over raw series is rejected. Reading or overwriting "
                 + "`__name__` behaves like Prometheus only for Prometheus-style data that stores `__name__` as a label; "
                 + "for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here."
         )

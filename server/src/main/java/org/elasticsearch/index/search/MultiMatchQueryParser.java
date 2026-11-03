@@ -59,9 +59,6 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             query.visit(queryVisitor);
             return query;
         }
-        // A field reading its values asks the minimum of its own clauses, since what it returns is not a boolean
-        // query for a caller to ask it of.
-        setMinimumShouldMatch(minimumShouldMatch);
         final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
         final List<Query> queries = switch (type) {
             case PHRASE, PHRASE_PREFIX, BEST_FIELDS, MOST_FIELDS, BOOL_PREFIX -> buildFieldQueries(

@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 161659
-summary: Limit initial allocation in `SnapshotInfoCollector`
-type: bug

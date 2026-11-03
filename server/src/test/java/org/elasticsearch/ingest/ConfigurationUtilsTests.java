@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -292,6 +293,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         );
         assertThat(result, instanceOf(ConfigurationUtils.ConstantTemplateScriptFactory.class));
         assertThat(result.newInstance(null).execute(), equalTo(propertyValue));
+        assertThat(result, hasToString(propertyValue));
         verify(scriptService, times(0)).compile(any(), any());
     }
 
@@ -311,5 +313,21 @@ public class ConfigurationUtilsTests extends ESTestCase {
         );
         assertThat(result.newInstance(null).execute(), equalTo(compiledValue));
         verify(scriptService, times(1)).compile(any(), any());
+    }
+
+    public void testReadProcessorConfigsRejectsNonObjectElements() {
+        Map<String, Processor.Factory> registry = Collections.singletonMap(
+            "test_processor",
+            (factories, tag, description, config, projectId) -> mock(Processor.class)
+        );
+        List<Object> config = new ArrayList<>();
+        config.add(Collections.singletonMap("test_processor", Collections.emptyMap()));
+        config.add(randomBoolean() ? "foo" : null);
+
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ConfigurationUtils.readProcessorConfigs(config, scriptService, registry, projectId)
+        );
+        assertThat(e.getMessage(), containsString("processor configuration must be an object"));
     }
 }

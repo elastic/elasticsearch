@@ -2,7 +2,7 @@
 navigation_title: "Quickstart"
 description: "Step-by-step tutorial for setting up ES|QL Data Federation with a public S3 bucket, creating a dataset, and running your first federated query."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -21,7 +21,8 @@ The example uses the [Ookla Open Speedtest dataset](https://registry.opendata.aw
 
 Make sure you have the following:
 
-- An {{es}} deployment running version 9.5 or later, with [ES|QL Data Federation enabled](esql-data-federation.md#enable-the-feature).
+- An {{es}} deployment running version 9.5 or later.
+- {applies_to}`stack: experimental =9.5` [{{esql}} Data Federation enabled](esql-data-federation.md#enable-the-feature) in {{es}} and {{kib}}.
 - An [Enterprise subscription](https://www.elastic.co/subscriptions) for {{ech}}, {{ece}}, {{eck}}, or self-managed deployments.
 - The cluster `manage` privilege to create data sources.
 - The index `manage` privilege to create datasets.
@@ -172,7 +173,7 @@ A successful request returns `{"acknowledged": true}`.
 
 ::::{tab-item} UI
 :sync: ui
-{applies_to}`stack: experimental 9.6+` **Add dataset** opens a four-step wizard:
+{applies_to}`stack: preview 9.6+` **Add dataset** opens a four-step wizard:
 
 1. Select the **Datasets** tab, then click **Add dataset**.
 2. Select `ookla_speedtest` as the **Data source**.
@@ -349,7 +350,7 @@ FROM speedtest_fixed
 If the query returns results, your data source is working. You can now use the full range of {{esql}} processing commands on this dataset.
 
 :::{tip}
-:applies_to: stack: experimental 9.6+
+:applies_to: stack: preview 9.6+
 In {{kib}}, you can also query a dataset from the **Datasets** tab. In the dataset's row, click the **Open in Discover** icon ({icon}`product_discover`) to open **Discover** with a `FROM speedtest_fixed` query.
 :::
 ::::::
@@ -609,7 +610,7 @@ curl -X POST "${ELASTICSEARCH_URL}/_bulk" \
 
 Now query both sources together. `FROM` resolves each name independently, whether it is an index, data stream, alias, [{{esql}} view](esql-views.md), or dataset. To see where each row came from, request a metadata column:
 
-- {applies_to}`stack: experimental 9.6+` Use `METADATA _name`, which returns the dataset name for dataset rows and the index name for index rows.
+- {applies_to}`stack: preview 9.6+` Use `METADATA _name`, which returns the dataset name for dataset rows and the index name for index rows.
 - {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows.
 
 ::::{tab-set}

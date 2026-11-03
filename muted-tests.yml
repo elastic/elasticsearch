@@ -545,11 +545,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-promql.rate_small_window_no_set_operator}
   issue: https://github.com/elastic/elasticsearch/issues/164427
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationUnmappedNullifyIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:unmapped-nullify.maxOverTimeOfKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/164433
 - class: org.elasticsearch.cluster.SimpleClusterStateIT
   tasks:
   - :server:internalClusterTest

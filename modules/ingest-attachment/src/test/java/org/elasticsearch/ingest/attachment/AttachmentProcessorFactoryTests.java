@@ -26,6 +26,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
 
@@ -41,8 +42,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
 
         AttachmentProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("attachment"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertFalse(processor.isIgnoreMissing());
 
@@ -77,8 +78,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("target_field", "_field");
         AttachmentProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("_field"));
         assertFalse(processor.isIgnoreMissing());
 
         assertWarnings(
@@ -101,7 +102,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", fieldNames);
         AttachmentProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
         assertFalse(processor.isIgnoreMissing());
 
@@ -153,8 +154,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
 
         AttachmentProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("attachment"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isIgnoreMissing());
 
@@ -174,8 +175,8 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
 
         AttachmentProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("attachment"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isRemoveBinary());
     }

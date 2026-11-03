@@ -157,19 +157,26 @@ public class HuggingFaceChatCompletionServiceSettingsTests extends AbstractBWCWi
     }
 
     /**
-     * An explicit {@code "rate_limit": null} was accepted by the old map-based parsing (it fell back to the default), but the
-     * {@code ObjectParser} rejects it, the same behavior as the other parser-based services (for example Groq).
+     * Kibana sends {@code "rate_limit": null} when the user leaves the rate limit blank. The shared {@code rate_limit} parser resolves
+     * an explicit null to the service default, the same as the old map-based parsing did.
      */
-    public void testFromMap_ExplicitNullRateLimit_ThrowsException() {
+    public void testFromMap_ExplicitNullRateLimit_UsesDefaultValue() {
         var settings = buildServiceSettingsMap(TEST_URI.toString(), TEST_MODEL_ID, null);
         settings.put(RateLimitSettings.FIELD_NAME, null);
 
-        var thrownException = expectThrows(
-            XContentParseException.class,
-            () -> HuggingFaceChatCompletionServiceSettings.fromMap(settings, randomFrom(ConfigurationParseContext.values()))
-        );
+        var serviceSettings = HuggingFaceChatCompletionServiceSettings.fromMap(settings, randomFrom(ConfigurationParseContext.values()));
 
-        assertThat(thrownException.getMessage(), containsString(RateLimitSettings.FIELD_NAME));
+        assertThat(
+            serviceSettings,
+            is(
+                new HuggingFaceChatCompletionServiceSettings(
+                    TEST_MODEL_ID,
+                    TEST_URI,
+                    new RateLimitSettings(DEFAULT_RATE_LIMIT_REQUESTS_PER_MINUTE)
+                )
+            )
+        );
+        assertThat(settings, is(anEmptyMap()));
     }
 
     public void testFromMap_MissingUrl_ThrowsException() {

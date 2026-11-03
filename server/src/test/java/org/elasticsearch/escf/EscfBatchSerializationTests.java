@@ -23,11 +23,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Serialization round-trip tests for {@link EscfBatch}: an in-memory batch's bytes, when parsed back
  * via the byte constructor, reconstruct identical sources, and {@link EscfBatch#slice} reconstructs
- * the corresponding sub-range.
+ * the corresponding sub-range. Also checks that a closed batch rejects the reads that would otherwise
+ * see its released pages.
  */
 public class EscfBatchSerializationTests extends ESTestCase {
 
@@ -67,6 +69,32 @@ public class EscfBatchSerializationTests extends ESTestCase {
                     assertEquals("reparsed sliced row " + i, asMap(DOCS[i + 1]), reconstruct(reparsed, i));
                 }
             }
+        }
+    }
+
+    /**
+     * Reading a closed batch fails in production too, not just under assertions, since its pages may already have been recycled and
+     * reused.
+     */
+    public void testReadsAfterCloseThrow() throws IOException {
+        final EscfBatch batch = encode(DOCS);
+        batch.close();
+        assertEquals("batch already closed", expectThrows(IllegalStateException.class, () -> batch.row(0)).getMessage());
+        expectThrows(IllegalStateException.class, batch::data);
+        expectThrows(IllegalStateException.class, batch::rowSizesInBytes);
+        expectThrows(IllegalStateException.class, () -> batch.column(0));
+        expectThrows(IllegalStateException.class, () -> batch.slice(0, 1));
+    }
+
+    /** Closing a batch runs its releasable once; closing it again is a bug that assertions catch without releasing twice. */
+    public void testCloseReleasesOnce() throws IOException {
+        final AtomicInteger releases = new AtomicInteger();
+        try (EscfBatch inMemory = encode(DOCS)) {
+            final EscfBatch parsed = EscfBatch.parse(inMemory.data(), releases::incrementAndGet);
+            parsed.close();
+            assertEquals(1, releases.get());
+            expectThrows(AssertionError.class, parsed::close);
+            assertEquals(1, releases.get());
         }
     }
 

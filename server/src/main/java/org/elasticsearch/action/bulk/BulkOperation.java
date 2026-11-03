@@ -445,8 +445,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     /**
-     * Sends one shard request per entry of {@code requestsByShard}. Takes ownership of {@code shardBatches}: each batch is released
-     * when its shard request completes, or before returning if it is never dispatched.
+     * Sends one shard request per entry of {@code requestsByShard}. Takes ownership of {@code shardBatches}: each batch's ownership moves
+     * to its shard request, which releases it once its last reference is released (the coordinator's own reference is dropped when the
+     * shard request completes, but a primary on this node may still hold another), and a batch that is never attached is released
+     * before returning.
      */
     private void executeBulkRequestsByShard(
         Map<ShardId, List<BulkItemRequest>> requestsByShard,
@@ -470,40 +472,23 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                     final ShardId shardId = entry.getKey();
                     final List<BulkItemRequest> requests = entry.getValue();
-
-                    // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
                     var indexMetadata = project.getIndexSafe(shardId.getIndex());
-                    SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
-
-                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                        shardId,
-                        splitShardCountSummary,
-                        bulkRequest.getRefreshPolicy(),
-                        requests.toArray(new BulkItemRequest[0]),
-                        bulkRequest.isSimulated()
-                    );
+                    BulkShardRequest bulkShardRequest = createBulkShardRequest(shardId, requests, indexMetadata, clusterState, nodeId);
 
                     SourceBatch shardBatch = shardBatches.get(shardId);
                     if (shardBatch != null) {
                         bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
                     }
 
-                    if (indexMetadata.getInferenceFields().isEmpty() == false) {
-                        bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
-                    }
-                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                    bulkShardRequest.timeout(bulkRequest.timeout());
-                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                    if (task != null) {
-                        bulkShardRequest.setParentTask(nodeId, task.getId());
-                    }
                     boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
-                    // Releases the batch when its shard request completes, ahead of the ref that may start the next phase.
+                    // The shard request now owns the batch. Dropping the coordinator's reference when the shard request completes
+                    // releases the batch unless a primary on this node is still running on the same request, and does so ahead of
+                    // the ref that may start the next phase.
                     undispatchedBatches.remove(shardId);
                     Releasable ref = bulkItemRequestCompleteRefCount.acquire();
                     Releasable releaseOnFinish = () -> {
                         try {
-                            Releasables.close(shardBatch);
+                            bulkShardRequest.decRef();
                         } finally {
                             ref.close();
                         }
@@ -514,6 +499,39 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         } finally {
             Releasables.close(undispatchedBatches.values());
         }
+    }
+
+    /**
+     * Builds the request for one shard, carrying over the settings of the enclosing bulk request. The shard's batch, if any, is
+     * attached by the caller.
+     */
+    private BulkShardRequest createBulkShardRequest(
+        ShardId shardId,
+        List<BulkItemRequest> requests,
+        IndexMetadata indexMetadata,
+        ClusterState clusterState,
+        String nodeId
+    ) {
+        // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
+        SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shardId,
+            splitShardCountSummary,
+            bulkRequest.getRefreshPolicy(),
+            requests.toArray(new BulkItemRequest[0]),
+            bulkRequest.isSimulated()
+        );
+        if (indexMetadata.getInferenceFields().isEmpty() == false) {
+            bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
+        }
+        bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+        bulkShardRequest.timeout(bulkRequest.timeout());
+        bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+        if (task != null) {
+            bulkShardRequest.setParentTask(nodeId, task.getId());
+        }
+        return bulkShardRequest;
     }
 
     private void redirectFailuresOrCompleteBulkOperation() {
@@ -561,7 +579,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     /**
      * Item failures are processed before {@code releaseOnFinish} runs, so a failure-store redirect can still materialize its row from
-     * the shard batch.
+     * the shard batch: until then the coordinator's reference to {@code bulkShardRequest} keeps its batch open.
      */
     private void executeBulkShardRequest(
         BulkShardRequest bulkShardRequest,

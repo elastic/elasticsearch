@@ -73,6 +73,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.sourcebatch.SourceBatch;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
@@ -104,6 +105,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -491,6 +493,42 @@ public class BulkOperationTests extends ESTestCase {
         BatchResult result = runBatchBulk(scenario, clusterState);
         assertThat(scenario.toString(), result.batchShards(), empty());
         assertExpectedBatchItems(scenario, result.response());
+    }
+
+    /**
+     * A primary on the coordinating node runs on the coordinator's own shard request. If the coordinator's shard listener fails while
+     * that primary is still running, as on node shutdown when the transport fails the pending local response handler and the reroute
+     * phase gives up, the bulk still completes, but the shard's batch must stay open until the primary has released the request too.
+     */
+    public void testBatchHeldByLocalPrimaryAfterShardListenerFails() throws IOException {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        boolean providedBatch = randomBoolean();
+        String target = providedBatch ? indexName : randomFrom(indexName, fsDataStreamName);
+        BatchScenario scenario = batchScenario(providedBatch, target, ShardOutcome.FAIL, ShardOutcome.ACCEPT);
+        AtomicReference<BulkShardRequest> runningPrimaryRequest = new AtomicReference<>();
+        BatchResult result = runBatchBulk(scenario, clusterState, request -> {
+            if (scenario.outcomes().get(request.shardId()) == ShardOutcome.FAIL) {
+                // the local primary takes its own reference, as TransportReplicationAction#handlePrimaryRequest does, and keeps it
+                // after the shard listener has failed, since its operation is still running
+                request.mustIncRef();
+                assertTrue(runningPrimaryRequest.compareAndSet(null, request));
+            }
+        });
+        assertThat(scenario.toString(), result.batchShards(), equalTo(dispatchedShards(scenario)));
+        assertExpectedBatchItems(scenario, result.response());
+
+        BulkShardRequest primaryRequest = runningPrimaryRequest.get();
+        assertNotNull(scenario.toString(), primaryRequest);
+        assertTrue(scenario.toString(), primaryRequest.hasReferences());
+        assertThat(scenario + " released the running primary's batch pages", recycler.activePageCount(), greaterThan(0));
+        SourceBatch batch = primaryRequest.getBulkShardBatch().getBatch();
+        for (int i = 0; i < batch.docCount(); i++) {
+            // fails if the batch was closed under the running primary
+            assertNotNull(batch.row(i));
+        }
+
+        assertTrue(scenario + " primary did not hold the last reference", primaryRequest.decRef());
+        assertThat(scenario + " still holds batch pages", recycler.activePageCount(), equalTo(0));
     }
 
     /** A blocked cluster fails the bulk before dispatch and releases the pre-built batch. */
@@ -1515,6 +1553,17 @@ public class BulkOperationTests extends ESTestCase {
      * took batch pages and released all of them, and every dispatched write shard received a batch.
      */
     private BatchResult runBatchBulk(BatchScenario scenario, ClusterState state) throws IOException {
+        BatchResult result = runBatchBulk(scenario, state, request -> {});
+        assertThat(scenario + " still holds batch pages", recycler.activePageCount(), equalTo(0));
+        return result;
+    }
+
+    /**
+     * Like {@link #runBatchBulk(BatchScenario, ClusterState)}, but first hands every shard request to {@code onShardRequest}, and leaves
+     * checking that the batch pages were released to the caller.
+     */
+    private BatchResult runBatchBulk(BatchScenario scenario, ClusterState state, Consumer<BulkShardRequest> onShardRequest)
+        throws IOException {
         BulkRequest bulkRequest = scenario.providedBatch() ? providedBatchRequest(scenario) : xContentBatchRequest(scenario);
         Map<ShardId, Exception> shortCircuited = new HashMap<>();
         scenario.outcomes().forEach((shardId, outcome) -> {
@@ -1525,6 +1574,7 @@ public class BulkOperationTests extends ESTestCase {
         bulkRequest.incrementalState(new BulkRequest.IncrementalState(shortCircuited, false));
         Set<ShardId> batchShards = ConcurrentCollections.newConcurrentSet();
         NodeClient client = getNodeClient((request, listener) -> {
+            onShardRequest.accept(request);
             if (request.getBulkShardBatch() != null) {
                 batchShards.add(request.shardId());
             }
@@ -1550,7 +1600,6 @@ public class BulkOperationTests extends ESTestCase {
         safeAwait(completed);
         assertThat(scenario.toString(), completions.get(), equalTo(1));
         assertThat(scenario + " took no batch pages", obtainedBatchPages.get(), greaterThan(0));
-        assertThat(scenario + " still holds batch pages", recycler.activePageCount(), equalTo(0));
         return new BatchResult(response.get(), failure.get(), batchShards);
     }
 

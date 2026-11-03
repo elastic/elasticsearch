@@ -23,7 +23,9 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
@@ -51,6 +53,11 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     private final SplitShardCountSummary splitShardCountSummary;
     @Nullable
     private BulkShardBatch bulkShardBatch = null;
+    /**
+     * Closes the attached batch once the last holder of this request releases it. A primary on the coordinating node runs on this same
+     * request object and can outlive the coordinator's own use of it, so neither side may close the batch on its own.
+     */
+    private final RefCounted refCounted = AbstractRefCounted.of(this::releaseBatch);
 
     private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
 
@@ -59,6 +66,8 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
         isSimulated = in.readBoolean();
         if (in.getTransportVersion().supports(BULK_SHARD_BATCH)) {
+            // Like a batch attached on the coordinating node, a deserialized batch is owned by this request and closed when its last
+            // reference is released, which on a primary or replica is once the shard operation has completed.
             bulkShardBatch = in.readOptionalWriteable(BulkShardBatch::new);
             if (bulkShardBatch != null) {
                 BulkShardBatch.attachBatchToItems(bulkShardBatch.getBatch(), items);
@@ -122,9 +131,18 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     /**
      * Sets the batch for batch indexing. When non-null, the batch indexing path
      * will be used instead of the standard per-document parsing path.
+     * <p>
+     * The request takes ownership of the batch: it is closed when the last reference to this request is released, and callers must not
+     * close it themselves. Replacing an attached batch, or clearing it with {@code null}, closes the previous one, so a caller that
+     * detaches the batch must first stop its items from referencing the batch's rows.
      */
     public void setBulkShardBatch(@Nullable BulkShardBatch bulkShardBatch) {
+        assert hasReferences() : "request already released";
+        final BulkShardBatch previous = this.bulkShardBatch;
         this.bulkShardBatch = bulkShardBatch;
+        if (previous != null && previous != bulkShardBatch) {
+            previous.getBatch().close();
+        }
     }
 
     @Nullable
@@ -136,12 +154,12 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         long totalSizeInBytes = 0;
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
-            if (request instanceof IndexRequest) {
-                totalSizeInBytes += ((IndexRequest) request).indexSource().byteLength();
-            } else if (request instanceof UpdateRequest) {
-                IndexRequest doc = ((UpdateRequest) request).doc();
+            if (request instanceof IndexRequest indexRequest) {
+                totalSizeInBytes += indexRequest.indexSource().byteLength();
+            } else if (request instanceof UpdateRequest updateRequest) {
+                IndexRequest doc = updateRequest.doc();
                 if (doc != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().indexSource().byteLength();
+                    totalSizeInBytes += doc.indexSource().byteLength();
                 }
             }
         }
@@ -249,10 +267,10 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
     @Override
     public void onRetry(boolean possiblyExecuted) {
         for (BulkItemRequest item : items) {
-            if (item.request() instanceof ReplicationRequest) {
+            if (item.request() instanceof ReplicationRequest<?> replicationRequest) {
                 // all replication requests need to be notified here as well to ie. make sure that internal optimizations are
                 // disabled see IndexRequest#canHaveDuplicates()
-                ((ReplicationRequest<?>) item.request()).onRetry(possiblyExecuted);
+                replicationRequest.onRetry(possiblyExecuted);
             }
         }
     }
@@ -276,5 +294,31 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     public boolean isSimulated() {
         return isSimulated;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    private void releaseBatch() {
+        if (bulkShardBatch != null) {
+            bulkShardBatch.getBatch().close();
+        }
     }
 }

@@ -422,7 +422,10 @@ public abstract class TransportReplicationAction<
 
     private void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
         Releasable releasable = checkOperationLimits(request);
-        ActionListener<Response> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
+        ActionListener<Response> listener = ActionListener.runBefore(
+            ActionListener.withRef(new ChannelActionListener<>(channel), request),
+            releasable::close
+        );
         runReroutePhase(task, request, listener, false);
     }
 
@@ -430,13 +433,28 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
+    /**
+     * Runs the primary phase for a request sent to this node's primary. The phase completes asynchronously, so the request stays
+     * referenced until the response or failure has been sent on {@code channel}.
+     * <p>
+     * The transport layer holds a request only until its handler returns: {@code InboundHandler} releases a request received from
+     * another node once {@code messageReceived} returns, and a request sent to the local node is otherwise held only by its sender, whose
+     * own listener can complete first (for example when the node shuts down and fails its pending response handlers). A request that
+     * owns resources, such as a {@link org.elasticsearch.action.bulk.BulkShardRequest} with its source batch, must outlive the operation.
+     * This is a no-op for requests that do not implement ref-counting. {@code handleOperationRequest} and {@link #handleReplicaRequest}
+     * hold their requests for the same reason.
+     */
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
         Releasable releasable = checkPrimaryLimits(
             request.getRequest(),
             request.sentFromLocalReroute(),
             request.localRerouteInitiatedByNodeClient()
         );
-        ActionListener<Response> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
+        // Every exit path below completes this listener, which is what releases the request.
+        ActionListener<Response> listener = ActionListener.runBefore(
+            ActionListener.withRef(new ChannelActionListener<>(channel), request),
+            releasable::close
+        );
 
         if (task instanceof CancellableTask cancellableTask && cancellableTask.notifyIfCancelled(listener)) {
             logger.debug(
@@ -475,7 +493,6 @@ public abstract class TransportReplicationAction<
     }
 
     class AsyncPrimaryAction extends ActionRunnable<Response> {
-        private final ActionListener<Response> onCompletionListener;
         private final ReplicationTask replicationTask;
         private final ConcreteShardRequest<Request> primaryRequest;
 
@@ -486,7 +503,6 @@ public abstract class TransportReplicationAction<
         ) {
             super(onCompletionListener);
             this.primaryRequest = primaryRequest;
-            this.onCompletionListener = onCompletionListener;
             this.replicationTask = replicationTask;
         }
 
@@ -497,7 +513,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         protected void doRun() throws Exception {
-            if (replicationTask != null && replicationTask.notifyIfCancelled(onCompletionListener)) {
+            if (replicationTask != null && replicationTask.notifyIfCancelled(listener)) {
                 logger.debug(
                     () -> format(
                         "Transport replication action request [%s] for Index shard [%s] is cancelled post-submission.",
@@ -550,10 +566,7 @@ public abstract class TransportReplicationAction<
         }
 
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
-            ActionListener<Response> setFinishedListener = ActionListener.runBefore(
-                onCompletionListener,
-                () -> setPhase(replicationTask, "finished")
-            );
+            ActionListener<Response> setFinishedListener = ActionListener.runBefore(listener, () -> setPhase(replicationTask, "finished"));
             try {
                 final ClusterState clusterState = clusterService.state();
                 final Index index = primaryShardReference.routingEntry().index();
@@ -661,7 +674,7 @@ public abstract class TransportReplicationAction<
         @Override
         public void onFailure(Exception e) {
             setPhase(replicationTask, "finished");
-            onCompletionListener.onFailure(e);
+            listener.onFailure(e);
         }
 
     }
@@ -724,13 +737,21 @@ public abstract class TransportReplicationAction<
         }
     }
 
+    /**
+     * Runs the replica phase for a request sent to this node's replica. Like {@link #handlePrimaryRequest}, it keeps the request
+     * referenced until the response or failure has been sent on {@code channel}, since the phase outlives this method.
+     */
     protected void handleReplicaRequest(
         final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
         final TransportChannel channel,
         final Task task
     ) {
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
-        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
+        // Every exit path below completes this listener, which is what releases the request.
+        ActionListener<ReplicaResponse> listener = ActionListener.runBefore(
+            ActionListener.withRef(new ChannelActionListener<>(channel), replicaRequest),
+            releasable::close
+        );
 
         try {
             final ShardId shardId = replicaRequest.getRequest().shardId();
@@ -1485,6 +1506,10 @@ public abstract class TransportReplicationAction<
 
     /**
      * a wrapper class to encapsulate a request when being sent to a specific allocation id
+     * <p>
+     * The wrapper shares the wrapped request's ref-count, so that the transport layer and the primary and replica handlers, which only
+     * see the wrapper, keep the wrapped request (and any resources it owns) alive for as long as they hold the wrapper, whether it was
+     * dispatched locally or deserialized from another node.
      **/
     public static class ConcreteShardRequest<R extends TransportRequest> extends AbstractTransportRequest
         implements
@@ -1561,6 +1586,26 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
+        public void incRef() {
+            request.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return request.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return request.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return request.hasReferences();
+        }
+
+        @Override
         public String getDescription() {
             return "[" + request.getDescription() + "] for aID [" + targetAllocationID + "] and term [" + primaryTerm + "]";
         }
@@ -1599,8 +1644,8 @@ public abstract class TransportReplicationAction<
 
         @Override
         public boolean isRawIndexingData() {
-            if (request instanceof RawIndexingDataTransportRequest) {
-                return ((RawIndexingDataTransportRequest) request).isRawIndexingData();
+            if (request instanceof RawIndexingDataTransportRequest rawIndexingDataTransportRequest) {
+                return rawIndexingDataTransportRequest.isRawIndexingData();
             }
             return false;
         }

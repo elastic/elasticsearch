@@ -98,7 +98,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public BytesReference data() {
-        assert closed == false : "batch already closed";
+        ensureOpen();
         // TODO: Eventually optimize to be more stream like on the serialization path.
         if (serialized == null) {
             EscfColumnData[] dataForSerialize = new EscfColumnData[columns.length];
@@ -117,7 +117,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceRow row(int docIndex) {
-        assert closed == false : "batch already closed";
+        ensureOpen();
         if (docIndex < 0 || docIndex >= docCount) {
             throw new IndexOutOfBoundsException("docIndex " + docIndex + " out of range [0, " + docCount + ")");
         }
@@ -132,7 +132,7 @@ public final class EscfBatch implements SourceBatch {
      */
     @Override
     public int[] rowSizesInBytes() {
-        assert closed == false : "batch already closed";
+        ensureOpen();
         final int[] sizes = new int[docCount];
         for (EscfColumn column : columns) {
             column.addSizesInBytes(sizes);
@@ -142,7 +142,7 @@ public final class EscfBatch implements SourceBatch {
 
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
-        assert closed == false : "batch already closed";
+        ensureOpen();
         return columns[columnIndex];
     }
 
@@ -153,7 +153,7 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public SourceBatch slice(int from, int to) {
-        assert closed == false : "batch already closed";
+        ensureOpen();
         if (from < 0 || to > docCount || from > to) {
             throw new IndexOutOfBoundsException("slice [" + from + ", " + to + ") out of [0, " + docCount + ")");
         }
@@ -170,9 +170,25 @@ public final class EscfBatch implements SourceBatch {
 
     @Override
     public void close() {
-        assert closed == false : "batch already closed";
+        assertOpen();
         closed = true;
         releasable.close();
+    }
+
+    /** Only asserts, so that a double {@link #close()} is caught in tests but cannot start failing in production. */
+    private void assertOpen() {
+        assert closed == false : "batch already closed";
+    }
+
+    /**
+     * Rejects a read of a closed batch, whose pages may already have been recycled and reused, in production as well as in tests.
+     * {@link #closed} is not volatile, so this is a best-effort guard against reading recycled pages, not a synchronization mechanism:
+     * a reader on another thread is only guaranteed to see the close if something else orders it after the close.
+     */
+    private void ensureOpen() {
+        if (closed) {
+            throw new IllegalStateException("batch already closed");
+        }
     }
 
     /**

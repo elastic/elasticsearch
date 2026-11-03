@@ -24,10 +24,9 @@ stack: ga 9.5.6
 Packaging:
 * Deprecate running with Java 21-24 [#163427](https://github.com/elastic/elasticsearch/pull/163427)
 
+
+
 ## 9.4.9 [elasticsearch-9.4.9-deprecations]
-```{applies_to}
-stack: ga 9.4.9
-```
 
 There are no deprecations associated with this release.
 

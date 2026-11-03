@@ -9,7 +9,10 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileDataHint;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -19,6 +22,7 @@ import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
@@ -53,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -235,6 +240,17 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         }
         dir.deleteFile("_sample.vec");
         return direct;
+    }
+
+    public void testReadAdviceInsideCompoundFiles() {
+        var readAdvice = FsDirectoryFactory.getReadAdviceFunc();
+        IOContext storedFields = IOContext.DEFAULT.withHints(FileTypeHint.DATA, DataAccessHint.RANDOM);
+        IOContext vectors = IOContext.DEFAULT.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
+
+        assertEquals(Optional.of(ReadAdvice.NORMAL), readAdvice.apply("_0.cfs", storedFields));
+        assertEquals(Optional.of(ReadAdvice.NORMAL), readAdvice.apply("_0.cfs", vectors));
+        assertEquals(Optional.of(ReadAdvice.RANDOM), readAdvice.apply("_0.fdt", storedFields));
+        assertEquals(Optional.of(ReadAdvice.RANDOM), readAdvice.apply("_0.vec", vectors));
     }
 
     public void testOnlyRawVectorFilesGoToTheMergeDelegate() {

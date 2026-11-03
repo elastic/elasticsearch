@@ -16,14 +16,13 @@ import org.elasticsearch.index.IndexSettings;
 
 public abstract class AbstractIndexShardComponent implements IndexShardComponent {
 
-    protected final Logger logger;
+    protected volatile Logger logger;
     protected volatile ShardId shardId;
     protected final IndexSettings indexSettings;
 
     protected AbstractIndexShardComponent(ShardId shardId, IndexSettings indexSettings) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
-        // The logger prefix keeps the creation-time shard id across a rename; see docs/internal/atomic-index-rename.md (T1).
         this.logger = Loggers.getLogger(getClass(), shardId);
     }
 
@@ -39,14 +38,17 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
 
     /**
      * Points this component at the renamed index. Only the name changes: {@code index} must have the same UUID as the current
-     * shard id's index, which is why {@link #shardId} is volatile rather than final. A single volatile write is all that is
-     * needed here; a subclass that keeps other state in step with the shard id (such as {@link IndexShard} and its routing entry)
-     * overrides this and takes its own lock around the whole update. The logger keeps its creation-time prefix.
+     * shard id's index, which is why {@link #shardId} is volatile rather than final. The logger is re-created so that its prefix
+     * carries the new shard id: a logger's prefix cannot be changed in place, which is why {@link #logger} is volatile too. A
+     * subclass that keeps other state in step with the shard id (such as {@link IndexShard} and its routing entry) overrides this
+     * and takes its own lock around the whole update.
      */
     public void renameTo(Index index) {
         assert index.getUUID().equals(shardId.getIndex().getUUID()) : "rename must keep the index uuid: " + shardId + " -> " + index;
         final var oldShardId = this.shardId;
-        this.shardId = new ShardId(index, this.shardId.getId());
-        logger.debug("renamed shard from [{}] to [{}]", oldShardId, index);
+        final var newShardId = new ShardId(index, oldShardId.getId());
+        this.shardId = newShardId;
+        this.logger = Loggers.getLogger(getClass(), newShardId);
+        logger.debug("renamed shard from [{}] to [{}]", oldShardId, newShardId);
     }
 }

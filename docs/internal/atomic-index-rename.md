@@ -206,25 +206,33 @@ reason. Code that reads `shardId()` twice and compares, hashes or looks up still
 gets equal results, since only the name differs. The volatile read itself is a
 plain load on x86 and arm64.
 
-The mutation is partial, by design. Only `IndexShard` and its `ShardGetService`
-are renamed. `Store`, `Translog`, `ReplicationTracker`,
-`ShardIndexWarmerService` and `ShardBitsetFilterCache` each copied the shard id
-at construction and keep the old name. They use it in log and exception
-messages and as a key, and keys compare by UUID, so the stale name there is
-cosmetic. Loggers are the same: every shard-scoped logger is prefixed with the
-creation-time shard id and is never re-created, so log lines for a renamed
-shard keep the old name until the shard is reallocated. The production change
-should say so in the rename API documentation rather than try to chase every
-copy.
+The mutation now reaches every shard component. `IndexShard#renameTo` renames
+itself, its `ShardGetService`, `Store`, `ReplicationTracker`,
+`ShardIndexWarmerService` and `ShardBitsetFilterCache` (all through
+`AbstractIndexShardComponent#renameTo`, which also re-creates the component's
+logger with the new prefix), and the current engine, which renames itself, its
+translog and its merge scheduler. Before switching prefixes the shard logs one
+`INFO` line under the old prefix naming the new shard id, so that someone
+reading the log by the old name finds the pointer. A logger's prefix is a
+Log4j marker that cannot be changed in place, which is why the loggers became
+volatile fields that are replaced rather than updated.
+
+What still keeps the creation-time name: `EngineConfig#getShardId` (the
+config is immutable; an engine created after the rename gets a config with
+the new id, one created concurrently with it may keep the old id until it is
+replaced), objects that copied the shard id or a logger at construction
+(`LiveVersionMap`, merge policies, the `ElasticsearchDirectoryReader` wrapper
+of readers opened before the rename), and thread names of merges that were
+already running. All cosmetic: the UUID is what identifies the shard.
 
 Inventory of what keeps the creation-time name on a data node, by what a user
 sees:
 
 | Holder | Where the name shows | User impact |
 |---|---|---|
-| Shard-scoped loggers (`AbstractIndexShardComponent#logger`, final, and the seven components built on it; the engine's logger via `EngineConfig#getShardId`) | Every log line about the shard: `[old][0]` | Highest. Support reads logs by index name; after a rename the shard's lines are filed under a name that no longer exists until the shard is reallocated or the node restarts. |
-| `EngineConfig#shardId` (final) | Merge thread names (`[old][0]: Lucene Merge Thread`), hot threads output, the `ShardId` that `ElasticsearchDirectoryReader` wraps new readers with | Visible in hot threads and thread dumps; functionally harmless because readers and caches are keyed by `ShardId`, which compares by UUID. |
-| `Store`, `Translog`, `ReplicationTracker`, `ShardIndexWarmerService`, `ShardBitsetFilterCache` (copied `shardId`) | Their own log and exception messages | Low: same lines as above, and exceptions from these components are rare. |
+| Shard-scoped loggers (`AbstractIndexShardComponent#logger` and the seven components built on it; the engine, translog and merge scheduler loggers) | Every log line about the shard: `[old][0]` | Was the highest: support reads logs by index name. Fixed: the loggers are re-created on rename, after an `INFO` pointer line under the old prefix (`IndexShardTests#testRenameToReCreatesLoggers`). |
+| `EngineConfig#shardId` (immutable config), readers opened before the rename, merges already running | The id in an engine config read back by tooling; hot threads output of in-flight merges | Low and bounded: new merges and readers use the engine's renamed shard id. |
+| `Store`, `Translog`, `ReplicationTracker`, `ShardIndexWarmerService`, `ShardBitsetFilterCache` | Their own log and exception messages | Fixed: renamed with the shard, see above. |
 | A point in time or scroll opened before the rename | `_index` of hits from that context | Low and short-lived: only contexts that outlive the rename, and only their own hits. New searches report the new name because the coordinator builds the shard target from the current routing. |
 | `ClusterInfo` shard-size keys on the master | Allocation decisions for up to one refresh interval | Fixed (D2): a rename triggers a refresh. |
 
@@ -234,16 +242,11 @@ output (from `IndexShard#shardId` and the routing table), slow logs (from the
 shard id at log time), recovery output (`RecoveryState#updateIndex`), and
 request and query cache statistics (keyed by `ShardId`, equal by UUID).
 
-Fixing the loggers, the one row that matters, is mechanical but wide:
-`PrefixLogger` holds its prefix as an immutable Log4j marker, so a logger
-cannot be re-prefixed in place; the shard components would have to drop the
-`final` on their loggers and re-create them in a `renameTo` hook, which means
-adding that hook to the seven `AbstractIndexShardComponent` subclasses and
-making `EngineConfig#getShardId` read through the `IndexShard` instead of a
-copy. About a day of work and a review across the index package, with no
-behavioural risk, since nothing branches on the prefix. The cheaper first
-step is to make `IndexShard#renameTo` log one line, at `INFO`, with both
-names, so that a reader of the old name finds the pointer to the new one.
+The logger fix turned out smaller than estimated: the base class's
+`renameTo` re-creates the logger for all seven components at once, the engine
+gained a `renameTo` that the internal engine carries to its translog and
+merge scheduler, and nothing branches on the prefix. `EngineConfig` was left
+immutable.
 
 ### T5. Data streams (resolved)
 

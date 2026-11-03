@@ -10,6 +10,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.MergeScheduler;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 
@@ -24,4 +25,10 @@ public interface ElasticsearchMergeScheduler {
     void refreshConfig();
 
     MergeScheduler getMergeScheduler();
+
+    /**
+     * Points the scheduler at the renamed index, so that its log lines and the names of the merge threads or tasks it creates from
+     * now on carry the new shard id. See {@link Engine#renameTo}.
+     */
+    default void renameTo(Index index) {}
 }

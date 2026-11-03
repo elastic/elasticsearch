@@ -738,6 +738,13 @@ public class InternalEngine extends Engine {
     }
 
     // Package private for testing purposes only
+    @Override
+    public void renameTo(org.elasticsearch.index.Index index) {
+        super.renameTo(index);
+        translog.renameTo(index);
+        mergeScheduler.renameTo(index);
+    }
+
     Translog getTranslog() {
         ensureOpen();
         return translog;

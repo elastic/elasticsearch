@@ -5391,8 +5391,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     @Override
     public void renameTo(Index newIndex) {
         synchronized (mutex) {
+            // logged under the old prefix, so that someone reading the log by the old name finds the pointer to the new one
+            logger.info("renaming shard [{}] to [{}]; its log lines carry the new shard id from here on", shardId, newIndex.getName());
             super.renameTo(newIndex);
             getService.renameTo(newIndex);
+            store.renameTo(newIndex);
+            replicationTracker.renameTo(newIndex);
+            shardBitsetFilterCache.renameTo(newIndex);
+            shardWarmerService.renameTo(newIndex);
+            // an engine created after this point takes the new shard id from newEngineConfig(); one created concurrently with the
+            // rename may keep the old id in its loggers until it is replaced, which is cosmetic
+            final Engine engine = getEngineOrNull();
+            if (engine != null) {
+                engine.renameTo(newIndex);
+            }
             this.shardRouting = this.shardRouting.updateIndex(newIndex);
             final RecoveryState currentRecoveryState = this.recoveryState;
             if (currentRecoveryState != null) {

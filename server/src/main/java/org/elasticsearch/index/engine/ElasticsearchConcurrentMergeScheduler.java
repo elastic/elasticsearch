@@ -18,6 +18,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.merge.MergeStats;
@@ -38,9 +39,9 @@ import java.util.concurrent.Executor;
 @Deprecated
 public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler implements ElasticsearchMergeScheduler {
 
-    protected final Logger logger;
+    protected volatile Logger logger;
     private final Settings indexSettings;
-    private final ShardId shardId;
+    private volatile ShardId shardId;
 
     private final MergeTracking mergeTracking;
     private final MergeSchedulerConfig config;
@@ -162,6 +163,13 @@ public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeSchedu
         } else if (config.isAutoThrottle() == false && isEnabled) {
             disableAutoIOThrottle();
         }
+    }
+
+    @Override
+    public void renameTo(Index index) {
+        assert index.getUUID().equals(shardId.getIndex().getUUID()) : "rename must keep the index uuid: " + shardId + " -> " + index;
+        this.shardId = new ShardId(index, shardId.id());
+        this.logger = Loggers.getLogger(getClass(), shardId);
     }
 
     @Override

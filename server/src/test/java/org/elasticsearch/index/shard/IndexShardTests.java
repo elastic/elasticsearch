@@ -10,6 +10,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -5853,6 +5854,49 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         recoveryThread.join();
         shard.store().close();
+    }
+
+    /**
+     * A rename logs one line under the old shard id that names the new one, and from then on the shard logs under the new shard
+     * id (the logger prefix is a marker on each event). The engine config keeps the creation-time id, the engine itself does not.
+     */
+    @TestLogging(
+        value = "org.elasticsearch.index.shard.IndexShard:DEBUG",
+        reason = "the base class logs the rename at debug under the new prefix"
+    )
+    public void testRenameToReCreatesLoggers() throws IOException {
+        final IndexShard shard = newStartedShard(true);
+        final ShardId oldShardId = shard.shardId();
+        final org.elasticsearch.index.Index renamed = new org.elasticsearch.index.Index("renamed", oldShardId.getIndex().getUUID());
+        MockLog.assertThatLogger(
+            () -> shard.renameTo(renamed),
+            IndexShard.class,
+            new MockLog.SeenEventExpectation(
+                "pointer under the old prefix",
+                IndexShard.class.getCanonicalName(),
+                Level.INFO,
+                "renaming shard [" + oldShardId + "] to [renamed]*"
+            ),
+            new MockLog.LoggingExpectation() {
+                boolean seen;
+
+                @Override
+                public void match(LogEvent event) {
+                    if (event.getLevel() == Level.DEBUG && event.getMessage().getFormattedMessage().startsWith("renamed shard from")) {
+                        assertThat(event.getMarker().getName(), containsString("[renamed]"));
+                        seen = true;
+                    }
+                }
+
+                @Override
+                public void assertMatched() {
+                    assertTrue("expected the rename debug line under the new prefix", seen);
+                }
+            }
+        );
+        assertThat(shard.shardId(), equalTo(new ShardId(renamed, oldShardId.id())));
+        assertThat(shard.getEngineOrNull().config().getShardId(), equalTo(oldShardId));
+        closeShards(shard);
     }
 
     public void testRecordsForceMerges() throws IOException {

@@ -414,7 +414,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
                 final var range = ByteRange.of(0, regionSize);
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                cacheService.fetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, true, ts, future);
+                cacheService.fetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, true, ts, false, future);
                 assertThat(future.get(10, TimeUnit.SECONDS), is(true));
                 assertEquals(ts, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
             }
@@ -431,7 +431,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final long ts = randomLongBetween(1, Long.MAX_VALUE - 1);
                 final var range = ByteRange.of(0, regionSize);
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                cacheService.maybeFetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, ts, future);
+                cacheService.maybeFetchRange(cacheKey, 0, range, regionSize, writer, bulkExecutor, ts, false, future);
                 assertThat(future.get(10, TimeUnit.SECONDS), is(true));
                 assertEquals(ts, cacheService.get(cacheKey, regionSize, 0, UNKNOWN_TIMESTAMP).timestampMillis());
             }
@@ -492,6 +492,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 writer,
                 bulkExecutor,
                 secondTimestamp,
+                false,
                 secondFuture
             );
             secondFuture.get(10, TimeUnit.SECONDS);
@@ -2029,6 +2030,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         () -> progressUpdater.accept(length)
                     ),
                     taskQueue.getThreadPool().generic(),
+                    false,
                     ActionListener.noop()
                 );
                 assertThat(cacheService.getFreq(entry), equalTo(1));
@@ -2144,6 +2146,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         () -> progressUpdater.accept(length)
                     ),
                     taskQueue.getThreadPool().generic(),
+                    false,
                     ActionListener.noop()
                 );
                 assertThat(cacheService.getFreq(entry), equalTo(1));
@@ -2490,6 +2493,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         () -> progressUpdater.accept(length)
                     ),
                     taskQueue.getThreadPool().generic(),
+                    false,
                     ActionListener.noop()
                 );
                 assertThat(cacheService.getFreq(entry), equalTo(1));
@@ -3345,6 +3349,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     bulkExecutor,
                     irrelevantTimestamp(),
+                    false,
                     future
                 );
                 var fetched = future.get(10, TimeUnit.SECONDS);
@@ -3384,6 +3389,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         ),
                         bulkExecutor,
                         irrelevantTimestamp(),
+                        false,
                         listener
                     );
                 }
@@ -3413,6 +3419,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     bulkExecutor,
                     irrelevantTimestamp(),
+                    false,
                     future
                 );
                 assertThat("Listener is immediately completed", future.isDone(), is(true));
@@ -3438,6 +3445,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     bulkExecutor,
                     irrelevantTimestamp(),
+                    false,
                     future
                 );
 
@@ -3521,6 +3529,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     ),
                     bulkExecutor,
                     irrelevantTimestamp(),
+                    false,
                     future
                 );
                 var fetched = future.get(10, TimeUnit.SECONDS);
@@ -3561,6 +3570,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         bulkExecutor,
                         true,
                         irrelevantTimestamp(),
+                        false,
                         listener
                     );
                 }
@@ -3591,6 +3601,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     bulkExecutor,
                     false,
                     irrelevantTimestamp(),
+                    false,
                     future
                 );
                 assertThat("Listener is immediately completed", future.isDone(), is(true));
@@ -3615,6 +3626,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     bulkExecutor,
                     true,
                     irrelevantTimestamp(),
+                    false,
                     future
                 );
 
@@ -3645,6 +3657,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     bulkExecutor,
                     randomBoolean(),
                     irrelevantTimestamp(),
+                    false,
                     future
                 );
 
@@ -3696,6 +3709,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     }
                 ),
                 taskQueue.getThreadPool().generic(),
+                false,
                 future1
             );
 
@@ -3716,6 +3730,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     }
                 ),
                 taskQueue.getThreadPool().generic(),
+                false,
                 future2
             );
 
@@ -3734,6 +3749,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     }
                 ),
                 taskQueue.getThreadPool().generic(),
+                false,
                 future3
             );
 
@@ -3797,9 +3813,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             // Two populate calls for the same range before the executor runs
             final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
-            entry.populate(ByteRange.of(0, regionSize - 1), writer, taskQueue.getThreadPool().generic(), future1);
+            entry.populate(ByteRange.of(0, regionSize - 1), writer, taskQueue.getThreadPool().generic(), false, future1);
             final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
-            entry.populate(ByteRange.of(0, regionSize - 1), writer, taskQueue.getThreadPool().generic(), future2);
+            entry.populate(ByteRange.of(0, regionSize - 1), writer, taskQueue.getThreadPool().generic(), false, future2);
 
             // Both calls registered listeners immediately; neither future is done yet
             assertThat(future1.isDone(), is(false));
@@ -3843,7 +3859,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             // the range is pending but unclaimed, so the populate still has gaps to claim and queues its own task
             final PlainActionFuture<Boolean> populateFuture = new PlainActionFuture<>();
-            entry.populate(range, writer, populateTasks::add, populateFuture);
+            entry.populate(range, writer, populateTasks::add, false, populateFuture);
             assertThat(populateTasks, hasSize(1));
             assertThat(populateFuture.isDone(), is(false));
 
@@ -3885,7 +3901,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 readFuture
             );
             final PlainActionFuture<Boolean> warmFuture = new PlainActionFuture<>();
-            entry.populate(range, failingWriter(failure), warmTasks::add, warmFuture);
+            entry.populate(range, failingWriter(failure), warmTasks::add, false, warmFuture);
 
             warmTasks.get(0).run();
             assertThat(warmFuture.isDone(), is(true));
@@ -4083,6 +4099,182 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         };
     }
 
+    /**
+     * A caller that asks to await a pending fill must not learn that the range is not-fetched until the caller that owns the fill is done.
+     * The owner is driven first so that the awaiting caller deterministically leaves {@link CacheFileRegion#populate} through the
+     * "everything overlapping this range is already claimed" exit rather than through an empty claim.
+     */
+    public void testPopulateAwaitPendingFillWaitsForOwnerFill() throws Exception {
+        final long regionSize = size(1L);
+        final Settings settings = cacheSettingsWithRegionSize(regionSize);
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final var range = ByteRange.of(0, regionSize - 1);
+            final var parkedFill = new ParkedRangeFill();
+
+            final PlainActionFuture<Boolean> ownerFuture = new PlainActionFuture<>();
+            entry.populate(range, parkedFill, taskQueue.getThreadPool().generic(), false, ownerFuture);
+            taskQueue.runAllRunnableTasks();
+            assertThat("the owner claimed the gap, its fill is in flight", parkedFill.isParked(), is(true));
+            assertThat(ownerFuture.isDone(), is(false));
+
+            final PlainActionFuture<Boolean> waiterFuture = new PlainActionFuture<>();
+            entry.populate(range, unreachableWriter(), taskQueue.getThreadPool().generic(), true, waiterFuture);
+            taskQueue.runAllRunnableTasks();
+            assertThat("the waiter must not be completed while the owner's fill is in flight", waiterFuture.isDone(), is(false));
+
+            parkedFill.completeFill();
+            taskQueue.runAllRunnableTasks();
+            assertThat(ownerFuture.get(10L, TimeUnit.SECONDS), is(true));
+            assertThat("the range is resident, but this caller did not fill it", waiterFuture.get(10L, TimeUnit.SECONDS), is(false));
+        }
+    }
+
+    /**
+     * An awaiting caller inherits the failure of the fill it waited for, rather than being told the range is resident. This is what lets
+     * search warming retry a range whose owner failed instead of reporting it warmed.
+     */
+    public void testPopulateAwaitPendingFillPropagatesOwnerFailure() throws Exception {
+        final long regionSize = size(1L);
+        final Settings settings = cacheSettingsWithRegionSize(regionSize);
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final var range = ByteRange.of(0, regionSize - 1);
+            final var parkedFill = new ParkedRangeFill();
+
+            final PlainActionFuture<Boolean> ownerFuture = new PlainActionFuture<>();
+            entry.populate(range, parkedFill, taskQueue.getThreadPool().generic(), false, ownerFuture);
+            taskQueue.runAllRunnableTasks();
+            assertThat(parkedFill.isParked(), is(true));
+
+            final PlainActionFuture<Boolean> waiterFuture = new PlainActionFuture<>();
+            entry.populate(range, unreachableWriter(), taskQueue.getThreadPool().generic(), true, waiterFuture);
+            taskQueue.runAllRunnableTasks();
+            assertThat(waiterFuture.isDone(), is(false));
+
+            final var failure = new IOException(randomAlphaOfLength(10));
+            parkedFill.failFill(failure);
+            taskQueue.runAllRunnableTasks();
+
+            assertSame(failure, expectThrows(ExecutionException.class, () -> ownerFuture.get(10L, TimeUnit.SECONDS)).getCause());
+            assertSame(failure, expectThrows(ExecutionException.class, () -> waiterFuture.get(10L, TimeUnit.SECONDS)).getCause());
+        }
+    }
+
+    /**
+     * Both callers ask to await a pending fill and both register before any gap is claimed, so the one that loses the claim race leaves
+     * {@link CacheFileRegion#populate} through the empty claim exit. Which caller wins is up to the task queue, so assert symmetrically.
+     */
+    public void testPopulateAwaitPendingFillLosesClaimRace() throws Exception {
+        final long regionSize = size(1L);
+        final Settings settings = cacheSettingsWithRegionSize(regionSize);
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var entry = cacheService.get(generateCacheKey(), size(12L), 0, irrelevantTimestamp());
+            final var range = ByteRange.of(0, regionSize - 1);
+            final var parkedFill = new ParkedRangeFill();
+
+            final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
+            entry.populate(range, parkedFill, taskQueue.getThreadPool().generic(), true, future1);
+            final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
+            entry.populate(range, parkedFill, taskQueue.getThreadPool().generic(), true, future2);
+
+            taskQueue.runAllRunnableTasks();
+            assertThat("exactly one caller claimed the gap", parkedFill.isParked(), is(true));
+            assertThat("the caller that lost the claim race must wait for the winner", future1.isDone() || future2.isDone(), is(false));
+
+            parkedFill.completeFill();
+            taskQueue.runAllRunnableTasks();
+            final boolean filled1 = future1.get(10L, TimeUnit.SECONDS);
+            final boolean filled2 = future2.get(10L, TimeUnit.SECONDS);
+            assertThat("exactly one caller filled the range", filled1 ^ filled2, is(true));
+        }
+    }
+
+    private Settings cacheSettingsWithRegionSize(long regionSize) {
+        return Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+    }
+
+    /**
+     * A {@link RangeMissingHandler} that captures the gap fill callbacks instead of completing them, leaving the fill in flight without
+     * blocking a thread. The captured callbacks are released by {@link #completeFill()} or {@link #failFill(Exception)}.
+     */
+    private static class ParkedRangeFill implements RangeMissingHandler {
+
+        private int length;
+        private IntConsumer progressUpdater;
+        private ActionListener<Void> completionListener;
+
+        @Override
+        public void fillCacheRange(
+            SharedBytes.IO channel,
+            int channelPos,
+            SourceInputStreamFactory streamFactory,
+            int relativePos,
+            int length,
+            IntConsumer progressUpdater,
+            ActionListener<Void> completionListener
+        ) {
+            if (this.completionListener != null) {
+                throw new AssertionError("only one caller should ever claim and fill the gap");
+            }
+            this.length = length;
+            this.progressUpdater = progressUpdater;
+            this.completionListener = completionListener;
+        }
+
+        boolean isParked() {
+            return completionListener != null;
+        }
+
+        void completeFill() {
+            progressUpdater.accept(length);
+            completionListener.onResponse(null);
+        }
+
+        void failFill(Exception e) {
+            completionListener.onFailure(e);
+        }
+    }
+
     private void assertThatNonPositiveRecoveryRangeSizeRejected(Setting<ByteSizeValue> setting) {
         final String value = randomFrom(ByteSizeValue.MINUS_ONE, ByteSizeValue.ZERO).getStringRep();
         final Settings settings = Settings.builder()
@@ -4264,7 +4456,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertThat(safeGet(future).longValue(), equalTo(regionSizeInBytes));
             } else {
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-                region.populate(range, rangeMissingHandler, threadPool.generic(), future);
+                region.populate(range, rangeMissingHandler, threadPool.generic(), false, future);
                 assertThat(safeGet(future), equalTo(true));
             }
             assertThat(invocationCounter.get(), equalTo(numberGaps));
@@ -5259,6 +5451,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     () -> progressUpdater.accept(length)
                 ),
                 taskQueue.getThreadPool().generic(),
+                false,
                 populateFuture
             );
             taskQueue.runAllRunnableTasks();
@@ -5327,6 +5520,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     completeWith(completionListener, () -> progressUpdater.accept(length));
                 },
                 taskQueue.getThreadPool().generic(),
+                false,
                 populateFuture1
             );
             taskQueue.runAllRunnableTasks();
@@ -5346,6 +5540,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     () -> progressUpdater.accept(length)
                 ),
                 taskQueue.getThreadPool().generic(),
+                false,
                 populateFuture2
             );
             taskQueue.runAllRunnableTasks();
@@ -5414,6 +5609,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     () -> progressUpdater.accept(length)
                 ),
                 taskQueue.getThreadPool().generic(),
+                false,
                 populateFuture
             );
             taskQueue.runAllRunnableTasks();

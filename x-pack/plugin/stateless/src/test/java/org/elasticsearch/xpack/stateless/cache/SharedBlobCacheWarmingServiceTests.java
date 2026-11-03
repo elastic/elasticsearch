@@ -139,6 +139,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -1554,6 +1555,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     any(),
                     any(),
                     anyLong(),
+                    anyBoolean(),
                     anyActionListener()
                 );
 
@@ -1619,6 +1621,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 any(),
                 any(),
                 anyLong(),
+                anyBoolean(),
                 anyActionListener()
             );
 
@@ -1630,6 +1633,73 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 randomRegionTimestampMillis()
             );
             assertTrue(cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(rangeSize)), 0));
+        }
+    }
+
+    /**
+     * Only search warming asks the cache to wait for a range that another caller is already filling. Search shard recovery resumes when
+     * warming reports done, so reporting done for bytes that are still in flight resumes recovery against a partially warm cache. The
+     * other warming types are not a precondition for anything, so they stay fire-and-forget.
+     */
+    public void testOnlySearchWarmingAwaitsPendingFills() throws Exception {
+        final long rangeSize = ByteSizeValue.ofMb(between(1, 16)).getBytes();
+        final long stepSize = rangeSize / 4;
+        try (var node = createFakeNodeForMinimisingRange(rangeSize, stepSize)) {
+            final IndexShard indexShard = mockIndexShard(node);
+            final var termAndGen = new PrimaryTermAndGeneration(randomNonNegativeLong(), randomLongBetween(3, 42));
+            for (Type type : List.of(SEARCH, randomValueOtherThan(SEARCH, () -> randomFrom(Type.values())))) {
+                Mockito.clearInvocations(node.sharedCacheService);
+                node.sharedCacheService.forceEvict(ignore -> true);
+                // keep the location out of region 0 so that every warming type schedules work for it
+                final int region = between(1, 10);
+                final long fileLength = randomLongBetween(1, 100);
+                final long offset = region * rangeSize + randomLongBetween(0, stepSize - fileLength);
+                final var commit = new StatelessCompoundCommit(
+                    node.shardId,
+                    termAndGen,
+                    1L,
+                    node.node.getEphemeralId(),
+                    Map.of(
+                        "file",
+                        new BlobLocation(
+                            new BlobFile(BatchedCompoundCommit.blobNameFromGeneration(termAndGen.generation()), termAndGen),
+                            offset,
+                            fileLength
+                        )
+                    ),
+                    0,
+                    Set.of(),
+                    0L,
+                    InternalFilesReplicatedRanges.EMPTY,
+                    Map.of(),
+                    null
+                );
+
+                final PlainActionFuture<Void> future = new PlainActionFuture<>();
+                node.warmingService.warmCache(
+                    type,
+                    indexShard,
+                    commit,
+                    node.indexingDirectory.getBlobStoreCacheDirectory(),
+                    mock(WarmingRatioProvider.class),
+                    Map.of(), // don't do any warming besides the regular shard recovery kind
+                    false,
+                    future
+                );
+                safeGet(future);
+
+                verify(node.sharedCacheService).maybeFetchRange(
+                    any(),
+                    eq(region),
+                    any(),
+                    anyLong(),
+                    any(),
+                    any(),
+                    anyLong(),
+                    eq(type == SEARCH),
+                    anyActionListener()
+                );
+            }
         }
     }
 
@@ -2603,6 +2673,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         SharedBlobCacheService.RangeMissingHandler writer,
                         Executor fetchExecutor,
                         long timestampMillis,
+                        boolean awaitPendingFill,
                         ActionListener<Boolean> listener
                     ) {
                         // Capture the timestamp the ShardWarmer passes for this region and short-circuit, so no real region fill happens

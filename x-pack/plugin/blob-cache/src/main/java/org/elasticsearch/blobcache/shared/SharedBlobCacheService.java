@@ -1450,9 +1450,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     final SubscribableListener<Void> rangeAvailable = awaitPendingFill ? new SubscribableListener<>() : null;
                     ActionListener<Void> trackerListener = rangeAvailable != null ? rangeAvailable : ActionListener.noop();
                     if (Assertions.ENABLED) {
-                        trackerListener = ActionListener.runBefore(trackerListener, () -> {
-                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
-                        });
+                        trackerListener = ActionListener.runBefore(
+                            trackerListener,
+                            () -> { assert blobCacheService.regionOwners.get(nonVolatileIO()) == this; }
+                        );
                     }
                     final var gapsOpt = tracker.waitForRange(
                         rangeToWrite,

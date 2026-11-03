@@ -1,0 +1,9 @@
+ProjectExec[[first_name{f}#0, last_name{f}#1, languages{f}#2]]
+\_FetchExec[_doc{f}#3,[first_name{f}#0, last_name{f}#1],employees,[],null]
+  \_LimitExec[1000[INTEGER],null]
+    \_LimitByExec[2[INTEGER],[languages{f}#2],null]
+      \_ExchangeExec[[_doc{f}#3, languages{f}#2],false]
+        \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#3, languages{f}#2]]
+\_LimitBy[2[INTEGER],[languages{f}#2],false]
+  \_EsRelation[employees][_doc{f}#3, avg_worked_seconds{f}#4, birth_date{f}#5, emp_no{f}#6, first_name{f}#0, gender{f}#7, height{f}#8, height.float{f}#9, height.half_float{f}#10, height.scaled_float{f}#11, hire_date{f}#12, is_rehired{f}#13, job_positions{f}#14, languages{f}#2, languages.byte{f}#15, languages.long{f}#16, languages.short{f}#17, last_name{f}#1, salary{f}#18, salary_change{f}#19, salary_change.int{f}#20, salary_change.keyword{f}#21, salary_change.long{f}#22, still_hired{f}#23]<>]]

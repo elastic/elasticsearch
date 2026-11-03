@@ -213,6 +213,37 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
+    /** The fetch runs after the second cut and loads its 10 rows, and the key of the second sort crosses the exchange. */
+    public void testChainedCuts() {
+        runBoth("""
+            FROM employees
+            | SORT salary DESC
+            | LIMIT 100
+            | SORT hire_date
+            | LIMIT 10
+            | KEEP first_name, last_name, hire_date
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** {@code SORT ... | LIMIT n BY} repeats on the coordinator, and the fetch runs after the implicit limit above it. */
+    public void testTopNBy() {
+        runBoth("""
+            FROM employees
+            | SORT hire_date
+            | LIMIT 2 BY languages
+            | KEEP first_name, last_name, languages
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** {@code LIMIT n BY} repeats on the coordinator, and the fetch runs after the implicit limit above it. */
+    public void testLimitBy() {
+        runBoth("""
+            FROM employees
+            | LIMIT 2 BY languages
+            | KEEP first_name, last_name, languages
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
     /** {@code MV_EXPAND} repeats the {@code _doc} of a row for each value, and the fetch loads each document once. */
     public void testMvExpandBeforeTheCut() {
         runBoth("""

@@ -28,7 +28,7 @@ import java.util.Set;
  * Physical plan node for {@code SORT order1, order2 | LIMIT N BY grouping1, grouping2, ...}.
  * Sorts the input rows retaining at most N rows per group defined by the grouping expressions.
  */
-public class TopNByExec extends UnaryExec implements EstimatesRowSize {
+public class TopNByExec extends UnaryExec implements EstimatesRowSize, CarriesDetachedDoc {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "TopNByExec",

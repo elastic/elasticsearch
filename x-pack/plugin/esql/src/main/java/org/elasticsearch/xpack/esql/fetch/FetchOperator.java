@@ -47,13 +47,18 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
@@ -124,16 +129,27 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         int maxPagesHeld();
 
         /**
-         * The batching of the cut that {@code exec} fetches the rows of. A {@code TopN} emits its pages only once its input
-         * ended, so its cut is complete when the first page arrives. Every other cut streams, which is right for any cut.
-         * A filter between the cut and the fetch only drops rows of the pages it passes on, so the cut below it decides.
+         * The batching of the cut that {@code exec} fetches the rows of. A {@code TopN}, of the whole input or by groups,
+         * emits its pages only once its input ended, so its cut is complete when the first page arrives. The execs between
+         * such a {@code TopN} and the fetch, like a filter or the implicit {@code LIMIT} of the query, pass on its pages as
+         * they get them, so the {@code TopN} decides. Every other cut streams, which is right for any cut.
          */
         static Batching forExec(FetchExec exec) {
-            PhysicalPlan cut = exec.child();
-            while (cut instanceof FilterExec filter) {
-                cut = filter.child();
+            PhysicalPlan below = exec.child();
+            while (passesPagesOn(below)) {
+                below = ((UnaryExec) below).child();
             }
-            return cut instanceof TopNExec ? new WholeCut(MAX_PAGES_HELD) : Streaming.forFetched(exec.fetchedAttributes());
+            return below instanceof TopNExec || below instanceof TopNByExec
+                ? new WholeCut(MAX_PAGES_HELD)
+                : Streaming.forFetched(exec.fetchedAttributes());
+        }
+
+        private static boolean passesPagesOn(PhysicalPlan exec) {
+            return exec instanceof FilterExec
+                || exec instanceof LimitExec
+                || exec instanceof LimitByExec
+                || exec instanceof ProjectExec
+                || exec instanceof EvalExec;
         }
 
         /**

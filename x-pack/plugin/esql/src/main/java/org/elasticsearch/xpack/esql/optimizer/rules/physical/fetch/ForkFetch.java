@@ -32,11 +32,9 @@ import org.elasticsearch.xpack.esql.plan.physical.CarriesDetachedDoc;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
-import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
@@ -75,7 +73,8 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.PlanFe
  * }</pre>
  * Each branch sends the documents of its candidates with the columns its own cut, its commands and {@code FUSE} read.
  * The coordinator cuts every branch, fuses their rows, cuts again, and fetches the other columns for the final winners
- * only. The <em>final cut</em> is the lowest {@code TopN} or {@code LIMIT} after the merge.
+ * only. The <em>final cut</em> is the last cut after the merge that can still drop rows, like in a single query, see
+ * {@link PlanFetch#finalCut}.
  * <p>
  * {@code FUSE} groups the rows by {@code _id} and {@code _index}, so the rows of a group are one document, as the
  * branches that found it saw it. A {@link FirstDocId} keeps the {@code _doc} of the first of them. A {@code FIRST} of a
@@ -141,12 +140,10 @@ final class ForkFetch {
                 return ineligible("[" + node.nodeName() + "] runs after the [FORK]");
             }
         }
-        int cutIndex = path.size() - 1;
-        while (cutIndex >= 0 && path.get(cutIndex) instanceof TopNExec == false && path.get(cutIndex) instanceof LimitExec == false) {
-            cutIndex--;
-        }
+        // the branches may send any number of rows, so the lowest cut after the merge can always drop some
+        int cutIndex = PlanFetch.finalCut(path, Long.MAX_VALUE);
         if (cutIndex < 0) {
-            return ineligible("no LIMIT or TopN after the [FORK]");
+            return ineligible("no cut after the [FORK]");
         }
         UnaryExec finalCut = path.get(cutIndex);
         for (UnaryExec exec : path.subList(0, cutIndex)) {
@@ -313,8 +310,8 @@ final class ForkFetch {
             }
             node = (UnaryExec) node.child();
         }
-        if (node instanceof TopNExec == false && node instanceof LimitExec == false) {
-            return ineligible("[" + node.nodeName() + "] reads the exchange of a [FORK] branch instead of a LIMIT or TopN");
+        if (PlanFetch.isCut(node) == false) {
+            return ineligible("[" + node.nodeName() + "] reads the exchange of a [FORK] branch instead of a cut");
         }
         readAfterExchange.addAll(node.references());
         BranchShape found = PlanFetch.branch(node, (ExchangeExec) node.child());
@@ -326,7 +323,7 @@ final class ForkFetch {
         if (inconsistent != null) {
             return inconsistent;
         }
-        Demand demand = PlanFetch.demand(branch.fragmentRoot(), branch.relation(), node);
+        Demand demand = PlanFetch.demand(branch.fragmentRoot(), branch.relation(), node.references());
         return new ForkBranch(root, branch, demand, readAfterTheCut.build());
     }
 

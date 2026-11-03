@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
@@ -53,10 +54,12 @@ import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -408,10 +411,6 @@ public class PlanFetchTests extends ESTestCase {
         // the optimizer puts the default LIMIT on top of the aggregation
         assertIneligible("FROM employees | SORT hire_date | LIMIT 10 | STATS m = MAX(salary)", "[AggregateExec] runs after the cut");
         assertIneligible("FROM employees | STATS m = MAX(salary) BY hire_date | SORT m | LIMIT 10", "aggregation");
-        assertIneligible(
-            "FROM employees | SORT salary | LIMIT 100 | SORT hire_date | LIMIT 10 | KEEP first_name, hire_date",
-            "[TopNExec] runs after the cut"
-        );
     }
 
     /**
@@ -655,6 +654,115 @@ public class PlanFetchTests extends ESTestCase {
         FetchPhaseOutcomes outcomes = new FetchPhaseOutcomes();
         assertThat(new PlanFetch(outcomes).apply(fetched, context(EsqlFlags.withFetchPhase(true))), sameInstance(fetched));
         assertThat(outcomes.all(), contains(new Decision(Outcome.INELIGIBLE_SHAPE, "[FetchExec] runs after the cut")));
+    }
+
+    /**
+     * A second cut after the coordinator cut is the final cut: the fetch loads its 10 rows, and the column it sorts on
+     * crosses the exchange.
+     */
+    public void testChainedCutsFetchTheRowsOfTheLastCut() {
+        PhysicalPlan plan = plan("FROM employees | SORT salary | LIMIT 100 | SORT hire_date | LIMIT 10 | KEEP first_name, hire_date")
+            .plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        TopNExec finalCut = as(fetch.child(), TopNExec.class);
+        assertThat(names(finalCut.order().stream().map(order -> (Attribute) order.child()).toList()), equalTo(List.of("hire_date")));
+        assertThat(as(finalCut.child(), TopNExec.class).child(), instanceOf(ExchangeExec.class));
+        assertThat(names(single(plan, ExchangeExec.class).output()), containsInAnyOrder("_doc", "hire_date", "salary"));
+    }
+
+    /** What runs between the cuts reads its columns before the fetch, so they cross the exchange. */
+    public void testAnEvalBetweenTheCutsReadsItsInputBeforeTheFetch() {
+        PhysicalPlan plan = plan("FROM employees | SORT salary | LIMIT 100 | EVAL x = salary * 2 | SORT x | LIMIT 10 | KEEP first_name, x")
+            .plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(as(fetch.child(), TopNExec.class).child(), instanceOf(EvalExec.class));
+        assertThat(names(single(plan, ExchangeExec.class).output()), containsInAnyOrder("_doc", "salary"));
+    }
+
+    /**
+     * The implicit {@code LIMIT} of the query sits above a {@code WHERE} that follows the cut, and keeps every one of its
+     * 10 rows. It is not the final cut, so the {@code WHERE} can read the fetched {@code salary}.
+     */
+    public void testTheImplicitLimitAfterAWhereIsNotTheFinalCut() {
+        PhysicalPlan plan = plan("FROM employees | SORT hire_date | LIMIT 10 | WHERE salary > 50000 | KEEP first_name").plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("first_name", "salary"));
+        assertThat(fetch.child(), instanceOf(TopNExec.class));
+        assertThat(single(plan, LimitExec.class).child(), instanceOf(FilterExec.class));
+    }
+
+    /**
+     * A projection between the cuts passes {@code _doc} on and leaves out the columns the fetch loads above it. Built by
+     * hand because the optimizer moves the projections of a query above its cuts.
+     */
+    public void testAProjectionBetweenTheCutsPassesTheDocOn() {
+        Attribute fetched = field("first_name", DataType.KEYWORD);
+        Attribute secondKey = field("other", DataType.LONG);
+        ProjectExec firstCutAndProjection = (ProjectExec) topNPlan(List.of(fetched, secondKey), Map.of("", List.of("idx")));
+        TopNExec secondCut = new TopNExec(Source.EMPTY, firstCutAndProjection, sortOn(secondKey), EsqlTestUtils.of(5), null);
+        PhysicalPlan plan = new ProjectExec(Source.EMPTY, secondCut, List.of(fetched));
+
+        FetchExec fetch = single(applyTo(plan), FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        ProjectExec between = as(as(fetch.child(), TopNExec.class).child(), ProjectExec.class);
+        assertThat(names(between.output()), equalTo(List.of("_doc", "other")));
+        assertThat(between.output().getFirst(), equalTo(fetch.doc()));
+    }
+
+    /**
+     * {@code SORT ... | LIMIT n BY} repeats on the coordinator like a {@code TopN}. The implicit {@code LIMIT} of the query
+     * above it is the final cut, and the groups and the sort key cross the exchange.
+     */
+    public void testATopNByCutFetchesTheRowsOfTheLimitAboveIt() {
+        PhysicalPlan plan = plan("FROM employees | SORT hire_date | LIMIT 2 BY languages | KEEP first_name, languages, hire_date").plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(as(fetch.child(), LimitExec.class).child(), instanceOf(TopNByExec.class));
+        assertThat(names(single(plan, ExchangeExec.class).output()), containsInAnyOrder("_doc", "hire_date", "languages"));
+        assertWarnings(DEFAULT_LIMIT_WARNING);
+    }
+
+    /** {@code LIMIT n BY} repeats on the coordinator like a {@code LIMIT}, and its groups cross the exchange. */
+    public void testALimitByCutFetchesTheRowsOfTheLimitAboveIt() {
+        PhysicalPlan plan = plan("FROM employees | LIMIT 2 BY languages | KEEP first_name, languages").plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(as(fetch.child(), LimitExec.class).child(), instanceOf(LimitByExec.class));
+        assertThat(names(single(plan, ExchangeExec.class).output()), containsInAnyOrder("_doc", "languages"));
+        assertWarnings(DEFAULT_LIMIT_WARNING);
+    }
+
+    /** A {@code LIMIT BY} after a cut of 100 rows can drop more of them, so it is the final cut. */
+    public void testALimitByAfterTheCutIsTheFinalCut() {
+        PhysicalPlan plan = plan("FROM employees | SORT salary | LIMIT 100 | LIMIT 2 BY languages | KEEP first_name, languages").plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(as(fetch.child(), LimitByExec.class).child(), instanceOf(TopNExec.class));
+    }
+
+    /** A {@code SORT ... | LIMIT n BY} after a cut of 100 rows can drop more of them, so it is the final cut. */
+    public void testATopNByAfterTheCutIsTheFinalCut() {
+        PhysicalPlan plan = plan(
+            "FROM employees | SORT salary | LIMIT 100 | SORT hire_date | LIMIT 2 BY languages | KEEP first_name, languages, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(as(fetch.child(), TopNByExec.class).child(), instanceOf(TopNExec.class));
+    }
+
+    /** After a {@code FORK} the fetch also runs after the last cut that can drop rows. */
+    public void testAForkFetchesTheRowsOfItsLastCut() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 20 | SORT emp_no | LIMIT 10 | KEEP first_name, emp_no, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        TopNExec finalCut = as(fetch.child(), TopNExec.class);
+        assertThat(as(finalCut.child(), TopNExec.class).child(), instanceOf(MergeExec.class));
     }
 
     public void testNoExchange() {

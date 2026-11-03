@@ -1,0 +1,4 @@
+FROM employees
+| SORT hire_date
+| LIMIT 2 BY languages
+| KEEP first_name, last_name, languages

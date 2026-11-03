@@ -125,7 +125,7 @@ public class PlanFetchDemandTests extends ESTestCase {
         EsRelation relation = fragmentRoot.collect(EsRelation.class).getFirst();
         PhysicalPlan cut = parentOf(plan, exchange);
 
-        return PlanFetch.demand(fragmentRoot, relation, cut);
+        return PlanFetch.demand(fragmentRoot, relation, cut.references());
     }
 
     private static PhysicalPlan parentOf(PhysicalPlan plan, PhysicalPlan child) {

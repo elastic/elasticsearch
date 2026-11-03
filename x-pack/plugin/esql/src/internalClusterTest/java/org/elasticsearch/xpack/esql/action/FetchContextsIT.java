@@ -224,6 +224,43 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * With two cuts the fetch runs after the second. The rows of the first cut come from several shards, and the contexts
+     * of the ones the second cut drops are freed before the fetch loads its winner.
+     */
+    public void testTheLosersOfTheLastCutAreFreedBeforeTheFetch() throws Exception {
+        Set<ShardSearchContextId> fetched = ConcurrentHashMap.newKeySet();
+        CountDownLatch fetchArrived = new CountDownLatch(1);
+        CountDownLatch releaseFetches = new CountDownLatch(1);
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).<FetchRequest>addRequestHandlingBehavior(
+                FetchService.FETCH_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    request.shards().forEach(shard -> fetched.add(shard.contextId()));
+                    fetchArrived.countDown();
+                    safeAwait(releaseFetches);
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+        }
+        // the 20 newest rows, then the oldest of them: one winner
+        ActionFuture<EsqlQueryResponse> query = client().execute(
+            EsqlQueryAction.INSTANCE,
+            request("FROM " + INDEX + " | SORT ts DESC | LIMIT 20 | SORT ts ASC | LIMIT 1 | KEEP a, b, ts", true)
+        );
+        try {
+            safeAwait(fetchArrived);
+            assertBusy(() -> assertThat("only the winner stays open", Set.copyOf(registeredIds), equalTo(Set.copyOf(fetched))));
+        } finally {
+            releaseFetches.countDown();
+        }
+        try (EsqlQueryResponse response = query.actionGet(30, TimeUnit.SECONDS)) {
+            assertThat(getValuesList(response), equalTo(List.of(List.of("a-40", 400L, 40L))));
+        }
+        assertThat(fetched, hasSize(1));
+        assertBusy(() -> assertThat(freed.get(), equalTo(registered.get())));
+    }
+
+    /**
      * Every branch of a {@code FORK} keeps the contexts of its candidates until the final cut after the merge. The ones no
      * final winner reads are freed before the fetch loads the winner, whatever branch registered them.
      */

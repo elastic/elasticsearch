@@ -240,6 +240,83 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * A second cut after the first is the final cut. The fetch loads the 5 rows it keeps, and the key of the second sort
+     * crosses the exchange.
+     */
+    public void testFetchesTheRowsOfTheLastOfChainedCuts() {
+        Run run = runBoth(
+            "FROM " + indexName + " | SORT unique_sort DESC | LIMIT 20 | SORT metric ASC | LIMIT 5 | KEEP unique_sort, payload"
+        );
+        assertThat(
+            run.rows(),
+            equalTo(
+                List.of(
+                    List.of(44L, "payload-44"),
+                    List.of(45L, "payload-45"),
+                    List.of(46L, "payload-46"),
+                    List.of(47L, "payload-47"),
+                    List.of(48L, "payload-48")
+                )
+            )
+        );
+        assertFetched(run, 5);
+        assertLoadedOnlyBeforeTheCut(run, "metric");
+        assertFetchedOnly(run, "payload");
+    }
+
+    /**
+     * {@code SORT ... | LIMIT n BY} repeats on the coordinator over the documents that left their node. The two rows of
+     * each category with the highest {@code unique_sort} are the 10 highest, and the fetch loads them after the sort that
+     * follows.
+     */
+    public void testFetchesTheRowsOfATopNBy() {
+        Run run = runBoth(
+            "FROM "
+                + indexName
+                + " | SORT unique_sort DESC | LIMIT 2 BY category | SORT unique_sort DESC | KEEP unique_sort, category, payload"
+        );
+        List<List<Object>> expected = new ArrayList<>();
+        for (int i = 63; i >= 54; i--) {
+            expected.add(List.of((long) i, "cat-" + (i % 5), "payload-" + i));
+        }
+        assertThat(run.rows(), equalTo(expected));
+        assertFetched(run, 10);
+        assertLoadedOnlyBeforeTheCut(run, "category");
+        assertFetchedOnly(run, "payload");
+    }
+
+    /**
+     * {@code LIMIT n BY} repeats on the coordinator over the documents that left their node. Every row of a group has the
+     * same payload, so the rows are the same whichever two of each group the cut keeps.
+     */
+    public void testFetchesTheRowsOfALimitBy() {
+        String index = indexName + "_limit_by";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(indexSettings(2, 0))
+                .setMapping("group", "type=keyword", "payload", "type=keyword")
+        );
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int group = 0; group < 3; group++) {
+            for (int copy = 0; copy < 3; copy++) {
+                bulk.add(prepareIndex(index).setSource("group", "g-" + group, "payload", "payload-" + group));
+            }
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        Run run = runBoth("FROM " + index + " | LIMIT 2 BY group | SORT group | KEEP group, payload");
+        List<List<Object>> expected = new ArrayList<>();
+        for (int group = 0; group < 3; group++) {
+            expected.add(List.of("g-" + group, "payload-" + group));
+            expected.add(List.of("g-" + group, "payload-" + group));
+        }
+        assertThat(run.rows(), equalTo(expected));
+        assertFetched(run, 6);
+        assertLoadedOnlyBeforeTheCut(run, "group");
+        assertFetchedOnly(run, "payload");
+    }
+
+    /**
      * A {@code LOOKUP JOIN} before the cut keeps the {@code _doc} of each row of the index. A key that two rows of the lookup
      * index match repeats its row, and the fetch loads that document once. The key and the columns of the lookup index cross
      * as values.
@@ -390,9 +467,10 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A second cut after the first is not a plan the fetch phase supports yet, so the query loads its columns eagerly.
+     * Two cuts on computed keys. The second key is computed on the coordinator between the cuts, so its input crosses the
+     * exchange, and the fetch loads the 5 rows of the second cut.
      */
-    public void testTwoCutsStayEager() {
+    public void testFetchesTheRowsOfTwoCutsOnComputedKeys() {
         Run run = runBoth(
             "FROM "
                 + indexName
@@ -414,8 +492,9 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
                 )
             )
         );
-        assertNotFetched(run);
-        assertLoadedOnlyBeforeTheCut(run, "payload");
+        assertFetched(run, 5);
+        assertLoadedOnlyBeforeTheCut(run, "tie_breaker");
+        assertFetchedOnly(run, "payload");
     }
 
     /**

@@ -25,7 +25,7 @@ import java.util.Objects;
  * Physical plan node for {@code LIMIT N BY expr1, expr2, ...}.
  * Retains at most N rows per group defined by the grouping expressions.
  */
-public class LimitByExec extends UnaryExec implements EstimatesRowSize {
+public class LimitByExec extends UnaryExec implements EstimatesRowSize, CarriesDetachedDoc {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "LimitByExec",

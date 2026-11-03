@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public class TopNExec extends UnaryExec implements EstimatesRowSize {
+public class TopNExec extends UnaryExec implements EstimatesRowSize, CarriesDetachedDoc {
     private static final TransportVersion ESQL_TOPN_AVOID_RESORTING = TransportVersion.fromName("esql_topn_avoid_resorting");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

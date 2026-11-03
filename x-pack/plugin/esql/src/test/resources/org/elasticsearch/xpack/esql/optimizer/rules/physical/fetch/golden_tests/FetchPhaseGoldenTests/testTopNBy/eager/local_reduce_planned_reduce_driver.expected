@@ -1,0 +1,5 @@
+ExchangeSinkExec[[first_name{f}#0, hire_date{f}#1, languages{f}#2, last_name{f}#3],false]
+\_ProjectExec[[first_name{f}#0, hire_date{f}#1, languages{f}#2, last_name{f}#3]]
+  \_FieldExtractExec[[first_name{f}#0, last_name{f}#3]<[],[],[]>,_doc{f}#4]
+    \_TopNByExec[[Order[hire_date{f}#1,ASC,LAST]],2[INTEGER],[languages{f}#2],132]
+      \_ExchangeSourceExec[[_doc{f}#4, hire_date{f}#1, languages{f}#2],false]

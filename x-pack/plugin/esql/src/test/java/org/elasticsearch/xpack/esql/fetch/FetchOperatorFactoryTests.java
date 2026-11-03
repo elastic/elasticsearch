@@ -23,9 +23,11 @@ import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
@@ -101,6 +103,48 @@ public class FetchOperatorFactoryTests extends ESTestCase {
         Attribute doc = docAttribute();
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         PhysicalPlan cut = new LimitExec(Source.EMPTY, new ExchangeSourceExec(Source.EMPTY, List.of(doc), false), limit, null);
+        FetchExec exec = fetchOver(cut, doc);
+
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false));
+
+        assertThat(factory.batching(), equalTo(FetchOperator.Batching.Streaming.forFetched(exec.fetchedAttributes())));
+    }
+
+    /**
+     * A {@code TopN} by groups emits its cut once its input ended too, and the implicit {@code LIMIT} of the query above it
+     * passes on its pages as they arrive, so the fetch waits for the whole cut.
+     */
+    public void testTheLimitOverATopNByCutIsFetchedWhole() {
+        Attribute doc = docAttribute();
+        Order order = new Order(Source.EMPTY, doc, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        PhysicalPlan topNBy = new TopNByExec(
+            Source.EMPTY,
+            new ExchangeSourceExec(Source.EMPTY, List.of(doc), false),
+            List.of(order),
+            new Literal(Source.EMPTY, 2, DataType.INTEGER),
+            List.of(doc),
+            null
+        );
+        PhysicalPlan cut = new LimitExec(Source.EMPTY, topNBy, new Literal(Source.EMPTY, 1000, DataType.INTEGER), null);
+
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(fetchOver(cut, doc), 0, null, new FetchFailures(false));
+
+        assertThat(factory.batching(), equalTo(new FetchOperator.Batching.WholeCut(FetchOperator.MAX_PAGES_HELD)));
+    }
+
+    /**
+     * A {@code LIMIT} by groups passes on the rows of each page as it arrives, so the fetch streams them.
+     */
+    public void testALimitByCutIsStreamed() {
+        Attribute doc = docAttribute();
+        PhysicalPlan limitBy = new LimitByExec(
+            Source.EMPTY,
+            new ExchangeSourceExec(Source.EMPTY, List.of(doc), false),
+            new Literal(Source.EMPTY, 2, DataType.INTEGER),
+            List.of(doc),
+            null
+        );
+        PhysicalPlan cut = new LimitExec(Source.EMPTY, limitBy, new Literal(Source.EMPTY, 1000, DataType.INTEGER), null);
         FetchExec exec = fetchOver(cut, doc);
 
         FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false));

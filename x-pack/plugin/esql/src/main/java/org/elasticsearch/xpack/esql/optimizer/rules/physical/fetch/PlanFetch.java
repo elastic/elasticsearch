@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -27,10 +28,11 @@ import org.elasticsearch.xpack.esql.plan.logical.CarriesDocOnDataNodes;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.CarriesDetachedDoc;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -38,10 +40,12 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -159,9 +163,13 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
     /**
      * A plan with one exchange the rule can rewrite.
      *
-     * @param filterAroundTheFetch the filter right after the cut, when some of its conditions run before the fetch
+     * @param chain                the execs between the coordinator cut and the fetch, from the bottom up, the final cut last.
+     *                             Empty when the coordinator cut is the final cut
+     * @param filterAroundTheFetch the filter right after the final cut, when some of its conditions run before the fetch
      */
-    private record Candidate(Branch branch, @Nullable FilterAroundTheFetch filterAroundTheFetch, Demand demand) implements Shape {}
+    private record Candidate(Branch branch, List<UnaryExec> chain, @Nullable FilterAroundTheFetch filterAroundTheFetch, Demand demand)
+        implements
+            Shape {}
 
     /**
      * A filter right after the coordinator cut, split around the fetch. The conditions that read only columns crossing the
@@ -210,9 +218,9 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * <ol>
      *     <li>one cluster exchange, over a fragment, without aggregation and without {@code FORK} or {@code UNION},</li>
      *     <li>between the coordinator cut and the root, only execs that a detached {@code _doc} can pass through, the
-     *     {@link CarriesDetachedDoc} ones,</li>
+     *     {@link CarriesDetachedDoc} ones, other cuts included,</li>
      *     <li>the coordinator cut reads the exchange and mirrors the cut that ends the fragment, a {@code TopN} or a
-     *     {@code LIMIT},</li>
+     *     {@code LIMIT}, of the whole input or {@code BY} groups,</li>
      *     <li>between the fragment cut and the relation, only commands that {@code _doc} can pass through on the data
      *     nodes, the {@link CarriesDocOnDataNodes} ones, down the input each of them names,</li>
      *     <li>one relation on that path, on the local cluster,</li>
@@ -224,10 +232,15 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * repeat rows, so the cut can hold several rows of one document, which the fetch loads once. The columns a
      * {@code LOOKUP JOIN} adds come from another index and keep crossing as values.
      * <p>
-     * The fetch runs right above the coordinator cut, so the commands after it see the fetched columns. The exception is a
-     * filter right after the cut: its conditions that read no fetched column run between the cut and the fetch, see
-     * {@link FilterAroundTheFetch}. The optimizer pushes filters down as far as they go and combines the filters that
-     * follow each other, so the conditions that can move end up in that filter.
+     * The fetch runs right above the final cut, the last cut from the coordinator cut up that can still drop rows, see
+     * {@link #finalCut}, so it loads the columns for the rows the query returns only. In
+     * {@code SORT a | LIMIT 100 | SORT b | LIMIT 10} it loads them for 10 rows, and {@code b} crosses the exchange
+     * because the second cut reads it. A {@code LIMIT BY} or a {@code SORT} with {@code LIMIT BY} keeps the implicit
+     * {@code LIMIT} of the query above it, which is then the final cut. The commands after the final cut see the fetched
+     * columns. The exception is a filter right after it: its
+     * conditions that read no fetched column run between the cut and the fetch, see {@link FilterAroundTheFetch}. The
+     * optimizer pushes filters down as far as they go and combines the filters that follow each other, so the conditions
+     * that can move end up in that filter.
      * <p>
      * A {@code LIMIT} after the cut only drops more rows. It shows up above a {@code WHERE} that follows the cut, because
      * the implicit limit of the query cannot move below a {@code WHERE}. {@code HIGHLIGHT} computes its columns from the
@@ -250,22 +263,33 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         }
 
         AttributeSet.Builder readAfterExchange = AttributeSet.builder().addAll(plan.outputSet());
+        // from the root down to the coordinator cut, which reads the exchange
+        List<UnaryExec> afterTheCut = new ArrayList<>();
         PhysicalPlan node = plan;
-        PhysicalPlan afterTheCut = null;
         while (node.children().size() != 1 || node.children().getFirst() != exchange) {
             if (node instanceof UnaryExec unary && unary instanceof CarriesDetachedDoc) {
                 readAfterExchange.addAll(unary.references());
-                afterTheCut = unary;
+                afterTheCut.add(unary);
                 node = unary.child();
             } else {
                 return ineligible("[" + node.nodeName() + "] runs after the cut");
             }
         }
-        if (node instanceof TopNExec == false && node instanceof LimitExec == false) {
-            return ineligible("[" + node.nodeName() + "] reads the exchange instead of a LIMIT or TopN");
+        if (isCut(node) == false) {
+            return ineligible("[" + node.nodeName() + "] reads the exchange instead of a cut");
         }
         UnaryExec coordinatorCut = (UnaryExec) node;
         readAfterExchange.addAll(coordinatorCut.references());
+
+        // without a later cut that can drop rows, the coordinator cut is the final cut
+        int foundFinalCut = finalCut(afterTheCut, rowsAfter(coordinatorCut));
+        int finalCutIndex = foundFinalCut < 0 ? afterTheCut.size() : foundFinalCut;
+        List<UnaryExec> chain = List.copyOf(afterTheCut.subList(finalCutIndex, afterTheCut.size()).reversed());
+        UnaryExec afterTheFinalCut = finalCutIndex > 0 ? afterTheCut.get(finalCutIndex - 1) : null;
+        AttributeSet.Builder readBeforeTheFetch = AttributeSet.builder().addAll(coordinatorCut.references());
+        for (UnaryExec exec : chain) {
+            readBeforeTheFetch.addAll(readsOf(exec));
+        }
 
         BranchShape found = branch(coordinatorCut, exchange);
         if (found instanceof Declined declined) {
@@ -277,14 +301,92 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             return inconsistent;
         }
 
-        Demand demand = demand(branch.fragmentRoot(), branch.relation(), coordinatorCut);
+        Demand demand = demand(branch.fragmentRoot(), branch.relation(), readBeforeTheFetch.build());
         if (demand.deferred().isEmpty()) {
             return new Declined(Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS, "the cut reads every column, or the others cannot be fetched");
         }
-        FilterAroundTheFetch filterAroundTheFetch = afterTheCut instanceof FilterExec filter
+        FilterAroundTheFetch filterAroundTheFetch = afterTheFinalCut instanceof FilterExec filter
             ? FilterAroundTheFetch.split(filter, AttributeSet.of(demand.eager()))
             : null;
-        return new Candidate(branch, filterAroundTheFetch, demand);
+        return new Candidate(branch, chain, filterAroundTheFetch, demand);
+    }
+
+    /**
+     * Whether {@code exec} keeps at most a number of rows, of its whole input or of each group. A cut over the exchange
+     * repeats the cut that ends the fragment. Another one after it cuts the rows further.
+     */
+    static boolean isCut(PhysicalPlan exec) {
+        return exec instanceof TopNExec || exec instanceof LimitExec || exec instanceof TopNByExec || exec instanceof LimitByExec;
+    }
+
+    /**
+     * The final cut among {@code rootFirst}: the last one, from the bottom up, that can still drop rows. A cut can when its
+     * limit, of the whole input or of each group, is below the number of rows the cuts under it let through. The implicit
+     * {@code LIMIT} of the query above a {@code WHERE} that follows a cut of 10 rows keeps every row, so it is not the
+     * final cut, and the {@code WHERE} can read fetched columns.
+     *
+     * @param rootFirst  the execs above the rows, from the root down
+     * @param rowsBelow  how many rows reach the lowest of them, {@link Long#MAX_VALUE} when no cut bounds them
+     * @return the index of the final cut in {@code rootFirst}, or {@code -1} when none of them can drop rows
+     */
+    static int finalCut(List<UnaryExec> rootFirst, long rowsBelow) {
+        int finalCut = -1;
+        long rows = rowsBelow;
+        for (int i = rootFirst.size() - 1; i >= 0; i--) {
+            UnaryExec exec = rootFirst.get(i);
+            if (isCut(exec) == false) {
+                continue;
+            }
+            Long limit = limitOf(exec);
+            if (limit == null || limit < rows) {
+                finalCut = i;
+                if (limit != null && (exec instanceof TopNExec || exec instanceof LimitExec)) {
+                    rows = limit;
+                }
+            }
+        }
+        return finalCut;
+    }
+
+    /**
+     * How many rows {@code cut} lets through, a cut of the whole input in all and a cut by groups in each group, or
+     * {@code null} when the plan doesn't say.
+     */
+    @Nullable
+    private static Long limitOf(PhysicalPlan cut) {
+        Expression limit = switch (cut) {
+            case TopNExec topN -> topN.limit();
+            case LimitExec limitExec -> limitExec.limit();
+            case TopNByExec topNBy -> topNBy.limitPerGroup();
+            case LimitByExec limitBy -> limitBy.limitPerGroup();
+            default -> throw new IllegalArgumentException("[" + cut.nodeName() + "] is not a cut");
+        };
+        return limit instanceof Literal literal && literal.value() instanceof Number number ? number.longValue() : null;
+    }
+
+    /**
+     * How many rows the coordinator cut lets through in all, {@link Long#MAX_VALUE} for a cut by groups.
+     */
+    private static long rowsAfter(UnaryExec coordinatorCut) {
+        Long limit = coordinatorCut instanceof TopNExec || coordinatorCut instanceof LimitExec ? limitOf(coordinatorCut) : null;
+        return limit == null ? Long.MAX_VALUE : limit;
+    }
+
+    /**
+     * The columns whose values {@code exec} reads. A projection only reads the inputs of the columns it computes or
+     * renames: the ones it passes on as they are stay deferrable, and the fetch adds them back above it.
+     */
+    private static AttributeSet readsOf(UnaryExec exec) {
+        if (exec instanceof ProjectExec project) {
+            AttributeSet.Builder reads = AttributeSet.builder();
+            for (NamedExpression projection : project.projections()) {
+                if (projection instanceof Attribute == false) {
+                    reads.addAll(projection.references());
+                }
+            }
+            return reads.build();
+        }
+        return exec.references();
     }
 
     static Declined ineligible(String reason) {
@@ -324,7 +426,8 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             return ineligible("[" + cut.nodeName() + "] does not repeat the cut that ends the fragment");
         }
 
-        LogicalPlan step = ((UnaryPlan) fragmentCut).child();
+        // from the cut itself, since the data nodes carry _doc through it too
+        LogicalPlan step = fragmentCut;
         while (step instanceof EsRelation == false) {
             LogicalPlan docInput = step instanceof CarriesDocOnDataNodes carrier ? carrier.docInput() : null;
             if (docInput == null) {
@@ -364,8 +467,8 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * <ul>
      *     <li>the relation produces it, so the document is enough to load it,</li>
      *     <li>{@link Fetchability#isFetchable} accepts it,</li>
-     *     <li>the coordinator cut does not read it. A sort key crosses the exchange even when the query does not return
-     *     it.</li>
+     *     <li>nothing between the exchange and the fetch reads it: the cuts and what runs between them. A sort key crosses
+     *     the exchange even when the query does not return it.</li>
      *     <li>no {@link Eval} of the fragment reads its values, and no {@link Join} looks it up. The data node loads those
      *     for every row the command sees, so the fetch would read them a second time. In
      *     {@code SORT a + 1 | LIMIT 10 | KEEP a}, the sort key is an {@code Eval} of {@code a}, so {@code a} is eager.</li>
@@ -374,19 +477,18 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * computed inside the fragment keep crossing as values. Renames are not followed: a rename after the cut reads its
      * source column after the cut, so the source column is deferred.
      *
-     * @param fragmentRoot   the {@link Project} at the root of the fragment. Its output is what crosses the exchange.
-     * @param coordinatorCut the coordinator half of the cut, the parent of the exchange
+     * @param fragmentRoot       the {@link Project} at the root of the fragment. Its output is what crosses the exchange.
+     * @param readBeforeTheFetch the columns the coordinator reads between the exchange and the fetch
      */
-    static Demand demand(Project fragmentRoot, EsRelation relation, PhysicalPlan coordinatorCut) {
+    static Demand demand(Project fragmentRoot, EsRelation relation, AttributeSet readBeforeTheFetch) {
         AttributeSet relationOutput = relation.outputSet();
-        AttributeSet readByCut = coordinatorCut.references();
         AttributeSet loadedBeforeTheCut = loadedBeforeTheCut(fragmentRoot.child());
         List<Attribute> eager = new ArrayList<>();
         List<Attribute> deferred = new ArrayList<>();
         for (Attribute attribute : fragmentRoot.output()) {
             boolean defer = relationOutput.contains(attribute)
                 && Fetchability.isFetchable(attribute)
-                && readByCut.contains(attribute) == false
+                && readBeforeTheFetch.contains(attribute) == false
                 && loadedBeforeTheCut.contains(attribute) == false;
             (defer ? deferred : eager).add(attribute);
         }
@@ -434,7 +536,8 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
 
     /**
      * The fragment must end in the data node half of the coordinator cut. A local {@code LIMIT} or {@code TopN} only
-     * cuts the rows of one node, so it does not count.
+     * cuts the rows of one node, so it does not count. The top rows of a group are always among the top rows of that
+     * group on every node, so a cut by groups repeats on the coordinator like one without.
      */
     private static boolean mirrors(UnaryExec coordinatorCut, LogicalPlan fragmentCut) {
         if (coordinatorCut instanceof TopNExec topN && fragmentCut instanceof TopN fragmentTopN) {
@@ -442,6 +545,15 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         }
         if (coordinatorCut instanceof LimitExec limit && fragmentCut instanceof Limit fragmentLimit) {
             return fragmentLimit.local() == false && limit.limit().equals(fragmentLimit.limit());
+        }
+        if (coordinatorCut instanceof TopNByExec topNBy && fragmentCut instanceof TopNBy fragmentTopNBy) {
+            return topNBy.order().equals(fragmentTopNBy.order())
+                && topNBy.limitPerGroup().equals(fragmentTopNBy.limitPerGroup())
+                && topNBy.groupings().equals(fragmentTopNBy.groupings());
+        }
+        if (coordinatorCut instanceof LimitByExec limitBy && fragmentCut instanceof LimitBy fragmentLimitBy) {
+            return limitBy.limitPerGroup().equals(fragmentLimitBy.limitPerGroup())
+                && limitBy.groupings().equals(fragmentLimitBy.groupings());
         }
         return false;
     }
@@ -463,15 +575,35 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         Attribute doc = newDocAttribute();
         Branch branch = candidate.branch();
         PhysicalPlan cut = branch.cut().replaceChild(narrowExchange(branch, doc, candidate.demand().eager()));
+        AttributeSet deferred = AttributeSet.of(candidate.demand().deferred());
+        for (UnaryExec exec : candidate.chain()) {
+            cut = exec instanceof ProjectExec project ? keepingDoc(project, cut, doc, deferred) : exec.replaceChild(cut);
+        }
+        UnaryExec finalCut = candidate.chain().isEmpty() ? branch.cut() : candidate.chain().getLast();
         return fetchAfterTheCut(
             plan,
-            branch.cut(),
+            finalCut,
             cut,
             candidate.filterAroundTheFetch(),
             doc,
             candidate.demand().deferred(),
             branch.relation()
         );
+    }
+
+    /**
+     * {@code project} over {@code child}, passing {@code doc} on instead of the {@code deferred} columns, which the fetch
+     * adds back above it.
+     */
+    private static ProjectExec keepingDoc(ProjectExec project, PhysicalPlan child, Attribute doc, AttributeSet deferred) {
+        List<NamedExpression> projections = new ArrayList<>(project.projections().size() + 1);
+        projections.add(doc);
+        for (NamedExpression projection : project.projections()) {
+            if (deferred.contains(projection.toAttribute()) == false) {
+                projections.add(projection);
+            }
+        }
+        return new ProjectExec(project.source(), child, projections);
     }
 
     /**

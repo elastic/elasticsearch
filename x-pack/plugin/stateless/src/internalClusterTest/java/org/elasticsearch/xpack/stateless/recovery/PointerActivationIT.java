@@ -315,6 +315,63 @@ public class PointerActivationIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     /**
+     * Phase 4: the pointer carries the bytes that opening the reader reads ({@code commit_pointer.open_bytes_max_size}). With no indexing
+     * engine and no whole-blob warming, the search shard starts after exactly one object store read (the pointer) and returns the same
+     * hits as the default recovery; ignoring the open bytes ({@code use_pointer_open_bytes: false}) warms headers from the store instead.
+     */
+    public void testActivatesFromPointerOpenBytesWithoutOtherReads() throws Exception {
+        final Fixture f = setUpIndex(
+            Settings.builder().put(FastSearchActivationSettings.COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING.getKey(), "4mb").build()
+        );
+        final CommitPointer pointer = CommitPointer.read(shardContainer(f), primaryTerm(f));
+        assertThat(pointer.openRanges().isEmpty(), equalTo(false));
+        setActivation(false);
+        final String expected = activateAndQuery(f);
+        deactivate(f);
+
+        final Queue<TransportChannel> held = new ConcurrentLinkedQueue<>();
+        final var indexTransport = MockTransportService.getInstance(f.indexNode);
+        indexTransport.addRequestHandlingBehavior(
+            TransportRegisterCommitForRecoveryAction.NAME,
+            (handler, request, channel, task) -> held.add(channel)
+        );
+        try {
+            for (boolean useOpenBytes : new boolean[] { true, false }) {
+                setActivation(true);
+                updateClusterSettings(
+                    Settings.builder()
+                        .put(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING.getKey(), "0b")
+                        .put(FastSearchActivationSettings.FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING.getKey(), useOpenBytes)
+                );
+                f.searchStore.reset();
+                setReplicaCount(1, f.indexName);
+                ensureGreen(f.indexName);
+                final List<String> reads = List.copyOf(f.searchStore.reads);
+                assertThat("no object store discovery", f.searchStore.lists.get(), equalTo(0));
+                if (useOpenBytes) {
+                    assertThat("only the pointer is read to open the reader: " + reads, reads.size(), equalTo(1));
+                    assertThat(f.searchStore.pointerReads(), equalTo(1L));
+                } else {
+                    assertThat("headers are warmed from the store: " + reads, reads.size(), greaterThan(1));
+                }
+                assertThat(queries(f), equalTo(expected));
+                deactivate(f);
+            }
+        } finally {
+            indexTransport.clearAllRules();
+            for (TransportChannel channel : held) {
+                channel.sendResponse(new ElasticsearchException("released"));
+            }
+            updateClusterSettings(
+                Settings.builder()
+                    .putNull(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING.getKey())
+                    .putNull(FastSearchActivationSettings.FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING.getKey())
+            );
+            setActivation(false);
+        }
+    }
+
+    /**
      * Pointer missing, corrupt, of another term than the cluster state's, or naming another shard: the search shard falls back to
      * object store discovery and returns the same hits.
      */

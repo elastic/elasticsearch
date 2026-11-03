@@ -44,6 +44,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -138,7 +139,10 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         PAR_1M("1mb", true),
         // step 2b: step-3 config, commit found by one pointer GET, indexing shard unable to serve the activation (registration never
         // answered, reads from the indexing node rejected)
-        PTR_NOENG("1mb", true, true);
+        PTR_NOENG("1mb", true, true),
+        // phase 4: PTR_NOENG + the pointer's open-time bytes written in the cache (no header/footer/metadata warming from the store);
+        // PTR_NOENG ignores them (stateless.cheap_shard.fast_activation.use_pointer_open_bytes: false) on the same pointer
+        PTR_META("1mb", true, true);
 
         final String rangeSize;
         final boolean parallel;
@@ -190,7 +194,16 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
 
         /** Step 2b: BASE vs step-3 config with registration discovery vs pointer discovery with no indexing engine. */
         static Profile pointer(String name, int docs, String cacheSize, int reps, boolean merges, int... latencies) {
-            return new Profile(name, docs, cacheSize, true, reps, merges, List.of(Mode.BASE, Mode.PAR_1M, Mode.PTR_NOENG), latencies);
+            return new Profile(
+                name,
+                docs,
+                cacheSize,
+                true,
+                reps,
+                merges,
+                List.of(Mode.BASE, Mode.PAR_1M, Mode.PTR_NOENG, Mode.PTR_META),
+                latencies
+            );
         }
     }
 
@@ -220,7 +233,12 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .put(DefaultWarmingRatioProviderFactory.SEARCH_RECOVERY_WARMING_RATIO_SETTING.getKey(), 0.0d)
             // step 2b: indexing shards publish a commit pointer after each upload (only read in PTR_* modes)
-            .put(FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING.getKey(), true);
+            .put(FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING.getKey(), true)
+            // phase 4: the pointer also carries the open-time bytes up to this bound (-Dtests.sweep.open_bytes_max, 0 = none)
+            .put(
+                FastSearchActivationSettings.COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING.getKey(),
+                System.getProperty("tests.sweep.open_bytes_max", "4mb")
+            );
     }
 
     // ~0.5 KB/doc on disk incl. a 16-dim vector: 2k ~ 1 MB, 20k ~ 10 MB, 200k ~ 100 MB, 2M ~ 1 GB
@@ -293,14 +311,26 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         run(Profile.pointer("d10k", 10_000, "512mb", 2, false, 30, 100));
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.CommitPointerPublisher:DEBUG",
+        reason = "phase 4: pointer size and open-bytes write cost per commit"
+    )
     public void testPointerDocs100k() throws Exception {
         run(Profile.pointer("d100k", 100_000, "512mb", 1, false, 100));
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.CommitPointerPublisher:DEBUG",
+        reason = "phase 4: pointer size and open-bytes write cost per commit"
+    )
     public void testPointerDocs200kMerged() throws Exception {
         run(Profile.pointer("d200k-merged", 200_000, "1gb", 1, true, 100));
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.CommitPointerPublisher:DEBUG",
+        reason = "phase 4: pointer size and open-bytes write cost per commit"
+    )
     public void testPointerDocs1mMerged() throws Exception {
         run(Profile.pointer("d1m-merged", 1_000_000, "2gb", 1, true, 100));
     }
@@ -656,9 +686,42 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         @Override
         public void append(LogEvent event) {
             if (ActivationLatencyIT.recording) {
-                TRACES.add(new TraceEv(System.nanoTime(), event.getThreadName(), event.getMessage().getFormattedMessage()));
+                final String message = event.getMessage().getFormattedMessage();
+                // only cold reads and prefetches (the per-read DEBUG "reading file" lines are too many to keep with a stack)
+                if (message.startsWith("slow read") == false && message.startsWith("prefetch") == false) {
+                    return;
+                }
+                // appenders run on the reading thread: its stack says which Lucene/ES code read (phase 4 attribution)
+                TRACES.add(new TraceEv(System.nanoTime(), event.getThreadName(), message + " @ " + callerStack()));
             }
         }
+    }
+
+    /** The reader's stack, without logging, cache input and JDK frames: caller frames, innermost first, separated by {@code <}. */
+    static String callerStack() {
+        StringBuilder sb = new StringBuilder();
+        int kept = 0;
+        for (StackTraceElement f : Thread.currentThread().getStackTrace()) {
+            String c = f.getClassName();
+            if (c.startsWith("java.")
+                || c.startsWith("jdk.")
+                || c.startsWith("org.apache.logging.")
+                || c.startsWith("org.elasticsearch.logging.")
+                || c.startsWith("org.elasticsearch.common.logging.")
+                || c.contains("NodeLocalActivationSweepIT")
+                || c.contains("BlobCacheIndexInput")
+                || c.contains("BlobCacheBufferedIndexInput")) {
+                continue;
+            }
+            if (kept > 0) {
+                sb.append(" < ");
+            }
+            sb.append(c.substring(c.lastIndexOf('.') + 1)).append('.').append(f.getMethodName()).append(':').append(f.getLineNumber());
+            if (++kept == 16) {
+                break;
+            }
+        }
+        return sb.toString();
     }
 
     private void run(Profile p) throws Exception {
@@ -770,6 +833,7 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         log("%s shard size=%s blobs=%d segments=%d deletedDocs=%d", p.name(), mb(inv.bytes), inv.blobs, inv.segments, inv.deletedDocs);
 
         hollowShards(indexName, 1, indexNodeA, indexNodeB);
+        logPointer(p, index);
         assertThat(findIndexShard(index, 0).getEngineOrNull(), instanceOf(HollowIndexEngine.class));
 
         ActivationLatencyIT.Capture capture = new ActivationLatencyIT.Capture();
@@ -969,6 +1033,39 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         }
     }
 
+    /** Phase 4: size and content of the shard's latest commit pointer (after the hollow relocation re-published it). */
+    private void logPointer(Profile p, Index index) throws Exception {
+        var objectStore = getObjectStoreService(internalCluster().getMasterName());
+        ShardId sid = new ShardId(index, 0);
+        var container = objectStore.getProjectBlobContainer(sid);
+        assertBusy(() -> {
+            org.elasticsearch.xpack.stateless.commits.CommitPointer latest = null;
+            long term = 0;
+            for (long t = 1; t <= 8; t++) {
+                var c = org.elasticsearch.xpack.stateless.commits.CommitPointer.read(container, t);
+                if (c != null) {
+                    latest = c;
+                    term = t;
+                }
+            }
+            assertNotNull(latest);
+            log(
+                "%s POINTER term=%d size=%d bytes, open ranges=%d open bytes=%d, replicated-range files=%d, commit files=%d, blobs=%d",
+                p.name(),
+                term,
+                latest.toBytes().length(),
+                latest.openRanges().size(),
+                latest.openRangesSizeInBytes(),
+                latest.replicatedFileRanges().size(),
+                latest.compoundCommit().commitFiles().size(),
+                latest.compoundCommit().commitFiles().values().stream().map(l -> l.blobFile()).distinct().count()
+            );
+            if (Integer.getInteger("tests.sweep.open_bytes_expected_min", 0) > 0) {
+                assertTrue(latest.openRanges().isEmpty() == false);
+            }
+        });
+    }
+
     private static void setFastActivation(Mode mode) {
         Settings.Builder settings = Settings.builder()
             .put(FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING.getKey(), mode != Mode.BASE);
@@ -979,6 +1076,15 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
             FastSearchActivationSettings.FAST_ACTIVATION_DISCOVERY_SETTING.getKey(),
             mode.pointerNoEngine ? "pointer" : "registration"
         );
+        settings.put(FastSearchActivationSettings.FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING.getKey(), mode == Mode.PTR_META);
+        // phase 4: -Dtests.sweep.meta_whole_blob_threshold=0b drops the whole-small-blob warming in PTR_META (an ES warming policy: with
+        // the open-time bytes in the pointer nothing else is needed to open the reader)
+        final String metaWholeBlobThreshold = System.getProperty("tests.sweep.meta_whole_blob_threshold");
+        if (mode == Mode.PTR_META && metaWholeBlobThreshold != null) {
+            settings.put(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING.getKey(), metaWholeBlobThreshold);
+        } else {
+            settings.putNull(FastSearchActivationSettings.FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING.getKey());
+        }
         // step 2b: -Dtests.sweep.header_range=1mb overrides the activation header/footer warming fill (the step-2b sweep ran with 64kb)
         settings.put(
             FastSearchActivationSettings.FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING.getKey(),
@@ -1233,16 +1339,50 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         if (TRACE_READS) {
             List<TraceEv> traces = new ArrayList<>(TRACES);
             traces.sort((a, b) -> Long.compare(a.t(), b.t()));
+            // phase 4: the whole activation after the commit is known (warming W, reader open O, first query Q), times from the pointer
+            final long base = regRecv;
             for (TraceEv t : traces) {
-                if (t.t() >= postRec && t.t() <= firstHit && t.thread().contains(searchNode)) {
-                    log("%s TRACE +%.1f [%s] %s", tag, (t.t() - postRec) / 1e6, t.thread(), t.msg());
+                if (t.t() >= regRecv && t.t() <= firstHit && t.thread().contains(searchNode)) {
+                    String ph = t.t() < openStart ? "W" : t.t() < postRec ? "O" : "Q";
+                    log("%s TRACE %s +%.1f [%s] %s", tag, ph, (t.t() - base) / 1e6, t.thread(), t.msg());
                 }
             }
+            List<ActivationLatencyIT.Req> gets = new ArrayList<>();
+            for (var r : REQUESTS) {
+                if (r.tStart >= regRecv && r.tStart < firstHit && onSearch.test(r) && r.op.equals("GET")) {
+                    gets.add(r);
+                }
+            }
+            gets.sort((a, b) -> Long.compare(a.tStart, b.tStart));
+            for (var r : gets) {
+                String ph = r.tStart < openStart ? "W" : r.tStart < postRec ? "O" : "Q";
+                log(
+                    "%s GETLOG %s +%.1f dur=%.1f %s/%s req=%d bytes=%d [%s]",
+                    tag,
+                    ph,
+                    (r.tStart - base) / 1e6,
+                    (r.tEnd - r.tStart) / 1e6,
+                    r.path,
+                    r.blob,
+                    r.requested,
+                    r.bytes.get(),
+                    r.thread
+                );
+            }
+            log(
+                "%s PHASES openStart=+%.1f openEnd=+%.1f postRec=+%.1f firstHit=+%.1f",
+                tag,
+                (openStart - base) / 1e6,
+                (openEnd - base) / 1e6,
+                (postRec - base) / 1e6,
+                (firstHit - base) / 1e6
+            );
         }
         log(
-            "%s GET waves: before open %s | query %s",
+            "%s GET waves: before open %s | open %s | query %s",
             tag,
             waves(regRecv, openStart, onSearch, latency),
+            waves(openStart, postRec, onSearch, latency),
             waves(postRec, firstHit, onSearch, latency)
         );
         log(
@@ -1284,7 +1424,7 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
             "NLCSV|"
                 + String.format(
                     Locale.ROOT,
-                    "%s,%d,%d,%d,%d,%d,%s,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%d,%d,%d,%d,%d,%s,%s,%s,%d,%s",
+                    "%s,%d,%d,%d,%d,%d,%s,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%d,%d,%d,%d,%d,%s,%s,%s,%d,%s,%s,%s",
                     p.name(),
                     p.docs(),
                     inv.bytes,
@@ -1315,7 +1455,9 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
                     bw,
                     jitter,
                     processors,
-                    waves(regRecv, openStart, onSearch, latency).replace(' ', ';')
+                    waves(regRecv, openStart, onSearch, latency).replace(' ', ';'),
+                    waves(openStart, postRec, onSearch, latency).replace(' ', ';'),
+                    waves(postRec, firstHit, onSearch, latency).replace(' ', ';')
                 )
         );
     }

@@ -226,6 +226,44 @@ public class BytesRefSwissHashTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression for #164417: emitted ordinal dictionaries share the hash's {@link BytesRefArray}
+     * via {@code incRef}. {@link BytesRefSwissHash#clear()} must not truncate that shared storage.
+     */
+    public void testClearWithSharedBytesRefArrayPreservesExternalView() {
+        TestRecycler recycler = new TestRecycler();
+        CircuitBreaker breaker = NoopCircuitBreaker.INSTANCE;
+        BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
+        BytesRef scratch = new BytesRef();
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
+            BytesRef key = new BytesRef("tsid-shared");
+            long id = hash.add(key);
+            assertThat(id, equalTo(0L));
+
+            BytesRefArray shared = hash.getBytesRefs();
+            shared.incRef();
+            try {
+                assertThat(shared.size(), equalTo(1L));
+                assertThat(shared.get(0, scratch), equalTo(key));
+
+                hash.clear();
+                assertThat(hash.size(), equalTo(0L));
+                // External holder must still see the original key; truncate would NPE / empty it.
+                assertThat(shared.size(), equalTo(1L));
+                assertThat(shared.get(0, scratch), equalTo(key));
+
+                // Hash can be reused independently of the shared snapshot.
+                BytesRef other = new BytesRef("tsid-next");
+                assertThat(hash.add(other), equalTo(0L));
+                assertThat(hash.get(0, scratch), equalTo(other));
+                assertThat(shared.get(0, scratch), equalTo(key));
+            } finally {
+                shared.decRef();
+            }
+        }
+        assertThat(recycler.open, hasSize(0));
+    }
+
     public void testConsistentHash() {
         BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 1024)));
         assertEquals(BytesRefSwissHash.hash64(value), BytesRefSwissHash.hash64(value.bytes, value.offset, value.length));

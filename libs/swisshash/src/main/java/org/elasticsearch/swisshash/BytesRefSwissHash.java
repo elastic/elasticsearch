@@ -115,7 +115,11 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
     private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
     private final BigArrays bigArrays;
-    private final BytesRefArray bytesRefs;
+    /**
+     * Key storage. Not final: {@link #clear()} may replace it when the array is still referenced by
+     * emitted ordinal dictionaries (see {@code TimeSeriesBlockHash#buildFullDictionaryOrdinalKeys}).
+     */
+    private BytesRefArray bytesRefs;
     private final boolean ownsBytesRefs;
     private final long pagedPartitionBytesThreshold;
     private final BytesRef scratch = new BytesRef();
@@ -970,12 +974,23 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
     /**
      * Removes all entries while retaining the allocated capacity, so the table can be refilled without resizing.
+     * <p>
+     * When this hash owns its {@link BytesRefArray} but an external holder still references it
+     * (refCount &gt; 1) — for example an emitted ordinal dictionary that shared the array via
+     * {@code incRef} — truncating would corrupt that holder. In that case we drop our reference
+     * and allocate a fresh empty array instead.
      */
     public void clear() {
         size = 0;
         growCount = 0;
         if (ownsBytesRefs) {
-            bytesRefs.truncateTo(0);
+            if (bytesRefs.refCount() > 1) {
+                BytesRefArray previous = bytesRefs;
+                bytesRefs = new BytesRefArray(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigArrays);
+                previous.decRef();
+            } else {
+                bytesRefs.truncateTo(0);
+            }
         }
         if (smallCore != null) {
             smallCore.clear();

@@ -28,3 +28,13 @@ export const setSnapshotBwcVersionsPath = (path: string) => {
 export const setBwcVersionsPath = (path: string) => {
   BWC_VERSIONS_PATH = path;
 };
+
+// Gradle arguments that pin bwc snapshot jobs to known-good DRA builds (see ../bwc-snapshots/known-good.ts),
+// substituted for $BWC_SNAPSHOT_PIN_ARGS. Empty means test the moving branch tips.
+let SNAPSHOT_BWC_PIN_ARGS = "";
+
+export const getSnapshotBwcPinArgs = (): string => SNAPSHOT_BWC_PIN_ARGS;
+
+export const setSnapshotBwcPinArgs = (args: string): void => {
+  SNAPSHOT_BWC_PIN_ARGS = args;
+};

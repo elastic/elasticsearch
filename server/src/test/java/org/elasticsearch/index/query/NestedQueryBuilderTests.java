@@ -126,14 +126,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     }
 
     @Override
-    public void testInnerQueriesChargeBreakerOnce() {
-        // The test mapping has no nested object under "path", and nested knowingly charges its child's bytes twice
-        assumeTrue("nested needs a nested mapping and re-charges its child by design", false);
-    }
-
-    @Override
     protected NestedQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
-        return new NestedQueryBuilder("path", queryBuilder, ScoreMode.None);
+        return new NestedQueryBuilder("nested1", queryBuilder, ScoreMode.None);
     }
 
     @Override

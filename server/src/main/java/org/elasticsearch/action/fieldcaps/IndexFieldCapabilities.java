@@ -88,8 +88,7 @@ public record IndexFieldCapabilities(
         Boolean isPassthrough = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
             ? in.readOptionalBoolean()
             : null;
-        boolean isStaticallyNonNullable = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_NON_NULLABLE)
-            && in.readBoolean();
+        boolean isStaticallyNonNullable = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_NON_NULLABLE) && in.readBoolean();
         return new IndexFieldCapabilities(
             name,
             type,

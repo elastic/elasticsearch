@@ -45,7 +45,7 @@ public class TimeSeriesMetadataTests extends ESTestCase {
     }
 
     public void testKeyUsesIngestHashOfNormalizedStringLabels() throws IOException {
-        var labels = Map.of("job", "api", "rack", "1", "dot.name", "with\nnewlines", "日本語", "🚀");
+        var labels = Map.of("job", "api", "rack", "1", "dot.name", "with\nnewlines", "\u65e5\u672c\u8a9e", "\ud83d\ude80");
         var builder = new TsidBuilder();
         List<String> names = new ArrayList<>(labels.keySet());
         Collections.shuffle(names, random());
@@ -83,10 +83,10 @@ public class TimeSeriesMetadataTests extends ESTestCase {
     }
 
     public void testReadHonorsByteSlice() throws IOException {
-        String json = "{\"label\":\"значение\"}";
+        String json = "{\"label\":\"\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435\"}";
         byte[] bytes = ("invalid prefix" + json + "invalid suffix").getBytes(StandardCharsets.UTF_8);
         BytesRef slice = new BytesRef(bytes, "invalid prefix".length(), json.getBytes(StandardCharsets.UTF_8).length);
-        assertEquals(List.of("значение"), TimeSeriesMetadata.read(slice).get("label"));
+        assertEquals(List.of("\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435"), TimeSeriesMetadata.read(slice).get("label"));
         assertEquals(new BytesRef(json), encode(TimeSeriesMetadata.read(slice)));
     }
 
@@ -118,7 +118,14 @@ public class TimeSeriesMetadataTests extends ESTestCase {
     }
 
     public void testEscapedAndUnicodeLabelsRoundTrip() throws IOException {
-        var labels = Map.of("dot.name", "with\nnewlines\tand\\slashes\"", "日本語", "🚀", "embedded\u0000nul", "\u0000");
+        var labels = Map.of(
+            "dot.name",
+            "with\nnewlines\tand\\slashes\"",
+            "\u65e5\u672c\u8a9e",
+            "\ud83d\ude80",
+            "embedded\u0000nul",
+            "\u0000"
+        );
         TimeSeriesMetadata metadata = TimeSeriesMetadata.of(labels);
         TimeSeriesMetadata decoded = TimeSeriesMetadata.read(encode(metadata));
         for (var label : labels.entrySet()) {

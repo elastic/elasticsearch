@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.recovery.HollowShardRecoveryState;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.elasticsearch.xpack.stateless.utils.WaitForVersion;
 
@@ -1456,7 +1457,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         @Nullable SourceBlobsInfo sourceBlobsInfo,
         Set<BlobFile> lastCommitBlobs,
         boolean lastCommitIsHollow,
-        boolean hasRecentIdLookup
+        boolean hasRecentIdLookup,
+        @Nullable HollowShardRecoveryState hollowRecoveryState
     ) {}
 
     public record SourceBlobsInfo(BlobFile latestBlobFile, long latestBlobFileLength, Set<BlobFile> otherBlobs) {}

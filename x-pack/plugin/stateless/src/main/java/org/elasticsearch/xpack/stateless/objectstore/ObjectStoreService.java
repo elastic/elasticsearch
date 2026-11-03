@@ -272,6 +272,32 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Map<String, BlobFileRanges> blobFileRanges
     ) {
         public static IndexingShardState EMPTY = new IndexingShardState(null, Set.of(), Map.of());
+
+        /** Reconstructs a hollow commit's file locations from its metadata, without reading referenced blobs. */
+        public static IndexingShardState forHollowCommit(BatchedCompoundCommit latestBcc, Set<BlobFile> otherBlobs) {
+            // We re-calculate the blob locations of all commit's files, by replacing the referenced blob location for
+            // replicated .si files in the CC's extra content with their extra content blob location instead.
+            // We do not calculate blob file ranges for internal files using replicated headers/footers, since we do not
+            // expect replicated content to exist (all hollow files should be in first region typically), and we do not
+            // expect reading of any other files than .si files.
+            final var hollowCC = latestBcc.lastCompoundCommit();
+            assert hollowCC.hollow();
+            assert hollowCC.extraContent()
+                .keySet()
+                .stream()
+                .allMatch(filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension()))
+                : "currently only segment info ."
+                    + LuceneFilesExtensions.SI.getExtension()
+                    + " files are expected to be in extra content files, and found "
+                    + hollowCC.extraContent().keySet();
+            // When combining the replicated files with the commit files, the replicated .si files should override the
+            // referenced .si files in commit files, so that only the replicated .si files' locations stay.
+            final Map<String, BlobFileRanges> hollowCommitBlobFileRanges = Stream.concat(
+                hollowCC.commitFiles().entrySet().stream(),
+                hollowCC.extraContent().entrySet().stream()
+            ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (v1, v2) -> v2));
+            return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
+        }
     }
 
     public static final Setting<ObjectStoreType> TYPE_SETTING = Setting.enumSetting(
@@ -1192,31 +1218,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 );
                 // If the last CC is hollow, we do not need to read any other blobs than the last CC itself.
                 if (readSingleBlobIfHollow && latestBcc.lastCompoundCommit().hollow()) {
-                    ActionListener.completeWith(l, () -> {
-                        // We re-calculate the blob locations of all commit's files, by replacing the referenced blob location for
-                        // replicated .si files in the CC's extra content with their extra content blob location instead.
-                        // We do not calculate blob file ranges for internal files using replicated headers/footers, since we do not
-                        // expect replicated content to exist (all hollow files should be in first region typically), and we do not
-                        // expect reading of any other files than .si files.
-                        final var hollowCC = latestBcc.lastCompoundCommit();
-                        assert hollowCC.extraContent()
-                            .keySet()
-                            .stream()
-                            .allMatch(
-                                filename -> Objects.equals(IndexFileNames.getExtension(filename), LuceneFilesExtensions.SI.getExtension())
-                            )
-                            : "currently only segment info ."
-                                + LuceneFilesExtensions.SI.getExtension()
-                                + " files are expected to be in extra content files, and found "
-                                + hollowCC.extraContent().keySet();
-                        // When combining the replicated files with the commit files, the replicated .si files should override the
-                        // referenced .si files in commit files, so that only the replicated .si files' locations stay.
-                        final Map<String, BlobFileRanges> hollowCommitBlobFileRanges = Stream.concat(
-                            hollowCC.commitFiles().entrySet().stream(),
-                            hollowCC.extraContent().entrySet().stream()
-                        ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> new BlobFileRanges(e.getValue()), (v1, v2) -> v2));
-                        return new IndexingShardState(latestBcc, otherBlobs, hollowCommitBlobFileRanges);
-                    });
+                    ActionListener.completeWith(l, () -> IndexingShardState.forHollowCommit(latestBcc, otherBlobs));
                 } else {
                     Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
 

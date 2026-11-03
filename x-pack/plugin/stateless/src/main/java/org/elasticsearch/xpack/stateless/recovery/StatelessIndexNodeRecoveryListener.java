@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.HollowCommitMetadata;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
@@ -179,6 +181,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
         final var lastCommitBlobs = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.lastCommitBlobs();
         final var lastCommitIsHollow = recoveryInfoFromSource != null && recoveryInfoFromSource.lastCommitIsHollow();
         final var hasRecentIdLookup = recoveryInfoFromSource != null && recoveryInfoFromSource.hasRecentIdLookup();
+        final var hollowRecoveryState = recoveryInfoFromSource == null ? null : recoveryInfoFromSource.hollowRecoveryState();
         final Set<BlobFile> region0Blobs;
         if (lastCommitIsHollow) {
             region0Blobs = sourceBlobsInfo == null ? null : Set.of(sourceBlobsInfo.latestBlobFile());
@@ -187,6 +190,15 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
         }
         final long readIndexingShardStateStartMillis = threadPool.relativeTimeInMillis();
         SubscribableListener.<ObjectStoreService.IndexingShardState>newForked(l -> {
+            if (hollowRecoveryState != null) {
+                assert sourceBlobsInfo != null && sourceBlobsInfo.latestBlobFile().equals(hollowRecoveryState.commit().toBlobFile())
+                    : sourceBlobsInfo + " vs " + hollowRecoveryState.commit();
+                ActionListener.completeWith(
+                    l,
+                    () -> ObjectStoreService.IndexingShardState.forHollowCommit(hollowRecoveryState.commit(), sourceBlobsInfo.otherBlobs())
+                );
+                return;
+            }
             if (shardContainer == null) {
                 ActionListener.completeWith(l, () -> ObjectStoreService.IndexingShardState.EMPTY);
                 return;
@@ -221,7 +233,13 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
             relocationMetricsCollector.recordRelocationTargetReadIndexingShardStateDuration(
                 threadPool.relativeTimeInMillis() - readIndexingShardStateStartMillis
             );
-            recoverBatchedCompoundCommitOnIndexShard(indexShard, state, hasRecentIdLookup, l);
+            recoverBatchedCompoundCommitOnIndexShard(
+                indexShard,
+                state,
+                hasRecentIdLookup,
+                hollowRecoveryState == null ? null : hollowRecoveryState.metadata(),
+                l
+            );
         }).addListener(listener);
     }
 
@@ -276,6 +294,7 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
         IndexShard indexShard,
         ObjectStoreService.IndexingShardState indexingShardState,
         boolean hasRecentIdLookup,
+        @Nullable HollowCommitMetadata transferredHollowCommit,
         ActionListener<Void> listener
     ) {
         ActionListener.completeWith(listener, () -> {
@@ -314,9 +333,11 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
                     );
                 }
             }
-            final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
-            final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
-            final var checkPoint = segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+            final var userData = transferredHollowCommit != null
+                ? transferredHollowCommit.userData()
+                : SegmentInfos.readLatestCommit(indexDirectory).userData;
+            final var translogUUID = userData.get(Translog.TRANSLOG_UUID_KEY);
+            final var checkPoint = userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
             if (translogUUID != null) {
                 Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(),
@@ -327,6 +348,8 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
                     null
                 );
             } else {
+                // bootstrapping creates a new commit, which the transferred hollow commit metadata would not describe
+                assert transferredHollowCommit == null : indexShard.shardId() + " bootstrapping a transferred hollow commit";
                 bootstrap(indexShard, store);
             }
 

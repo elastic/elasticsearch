@@ -1563,6 +1563,7 @@ public class StatelessPlugin extends Plugin
             UploadQueueControllerService.STATELESS_UPLOAD_QUEUE_CONTROLLER_INDEX_THROTTLE_COOLDOWN,
             PostRecoveryMerger.POST_RECOVERY_MERGER_DELAY,
             StatelessPrimaryRelocationSourceService.PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING,
+            StatelessPrimaryRelocationSourceService.TRANSFER_HOLLOW_COMMIT_METADATA_SETTING,
             DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_PER_HEAP_GB_SETTING,
             DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
             DataNodeRecoveryThrottlingSettings.INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING,
@@ -1857,8 +1858,17 @@ public class StatelessPlugin extends Plugin
     }
 
     private Engine newHollowOrIndexEngine(IndexSettings indexSettings, EngineConfig newConfig) {
-
-        SegmentInfos segmentCommitInfos = lastCommittedSegmentsInfo(newConfig);
+        var shardId = newConfig.getShardId();
+        final var commitService = getCommitService();
+        // A hollow relocation transfers the hollow commit metadata, allowing the hollow engine to open without reading the store
+        final var recoveryInfoFromSource = commitService.getRecoveryInfoFromSourceEntry(shardId);
+        final var transferredHollowCommit = recoveryInfoFromSource == null || recoveryInfoFromSource.hollowRecoveryState() == null
+            ? null
+            : recoveryInfoFromSource.hollowRecoveryState().metadata();
+        final SegmentInfos segmentCommitInfos = transferredHollowCommit == null ? lastCommittedSegmentsInfo(newConfig) : null;
+        final var lastCommitUserData = transferredHollowCommit == null
+            ? segmentCommitInfos.getUserData()
+            : transferredHollowCommit.userData();
 
         // When recovering a hollow commit, or when relocation hollows a hollowable shard, the shard is not yet marked hollow
         // in the HollowShardService, and we want to use (or reset the engine to) the HollowIndexEngine. When unhollowing
@@ -1866,27 +1876,23 @@ public class StatelessPlugin extends Plugin
         // the IndexEngine in order to flush a new blob and complete unhollowing.
         // If the shard does not have an existing blob container, e.g., when restoring a snapshot, we need to unhollow by
         // using the IndexEngine that flushes and uploads a new commit.
-        var shardId = newConfig.getShardId();
-        boolean existingBlobContainer = commitService.get().getLatestUploadedBcc(shardId) != null;
+        boolean existingBlobContainer = commitService.getLatestUploadedBcc(shardId) != null;
         if (hollowShardsService.get().isFeatureEnabled()
             && hollowShardsService.get().isHollowShard(shardId) == false
-            && IndexEngine.isLastCommitHollow(segmentCommitInfos)
+            && IndexEngine.isLastCommitHollow(lastCommitUserData)
             && existingBlobContainer) {
-            logger.debug(() -> shardId + " using hollow engine for shard [generation: " + segmentCommitInfos.getGeneration() + "]");
-            return new HollowIndexEngine(
-                newConfig,
-                getCommitService(),
-                hollowShardsService.get(),
-                HollowCommitMetadata.of(segmentCommitInfos),
-                segmentCommitInfos
-            );
+            final var hollowCommit = transferredHollowCommit != null
+                ? transferredHollowCommit
+                : HollowCommitMetadata.of(segmentCommitInfos);
+            logger.debug(() -> shardId + " using hollow engine for shard [generation: " + hollowCommit.generation() + "]");
+            return new HollowIndexEngine(newConfig, commitService, hollowShardsService.get(), hollowCommit, segmentCommitInfos);
         }
 
         return newIndexEngine(
             newConfig,
             translogReplicator.get(),
             getObjectStoreService()::getTranslogBlobContainer,
-            getCommitService(),
+            commitService,
             hollowShardsService.get(),
             sharedBlobCacheWarmingService.get(),
             refreshManagerService.get(),

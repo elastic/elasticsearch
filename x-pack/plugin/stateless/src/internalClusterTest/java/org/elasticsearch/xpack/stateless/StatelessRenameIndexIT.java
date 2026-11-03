@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.stateless;
 
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -25,6 +28,43 @@ import static org.hamcrest.Matchers.equalTo;
     reason = "diagnose hangs after renaming an index in a stateless cluster"
 )
 public class StatelessRenameIndexIT extends AbstractStatelessPluginIntegTestCase {
+
+    /**
+     * The rename is acknowledged once every node applied it, and the search copies keep their routing entries, so a search under
+     * the new name must work immediately, without waiting for green.
+     */
+    public void testSearchImmediatelyAfterRename() {
+        startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+
+        final String original = "immediate-original";
+        final String renamed = "immediate-renamed";
+        createIndex(original, indexSettings(2, 1).build(), false);
+        ensureGreen(original);
+        client().prepareIndex(original)
+            .setSource("field", "before")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get(TimeValue.timeValueSeconds(30));
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch(original), 1L);
+
+        assertTrue(
+            client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(original, renamed))
+                .actionGet(TimeValue.timeValueSeconds(30))
+                .isAcknowledged()
+        );
+        final var routingTable = clusterService().state().routingTable().index(renamed);
+        assertNotNull(routingTable);
+        for (int id = 0; id < routingTable.size(); id++) {
+            final IndexShardRoutingTable shardTable = routingTable.shard(id);
+            for (int copy = 0; copy < shardTable.size(); copy++) {
+                final ShardRouting shard = shardTable.shard(copy);
+                assertTrue(shard + " should be started", shard.state() == ShardRoutingState.STARTED);
+            }
+        }
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch(renamed), 1L);
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch(renamed).setSize(0), 1L);
+    }
 
     public void testWriteAndSearchAfterRename() {
         startMasterAndIndexNode();

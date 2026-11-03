@@ -765,6 +765,32 @@ usage check on a log line inherited from the spike. All fixed. Niels's last CI
 run of the trick extended to `assertAcked` failed on security tests; that
 extension is not part of this prototype.
 
+After the move to the aliases action, CI found three more things. The
+flakiness job, which reruns touched test classes many times, hit the three
+`AliasActionsTests` methods that draw a random action type and assumed the
+old three (fixed). `UpdateSettingsIT`, merged from main after the local sweep,
+creates an index with `index.blocks.read_only` in its creation settings; the
+trick then tried to rename a metadata-blocked temporary index, which is
+refused by design, and the read-only temporary index broke the cluster wipe
+(the trick now skips creations whose settings block metadata writes). And the
+serverless checks, which run the core YAML tests against a real stateless
+cluster, failed the rename YAML tests with "no shard available": the setup
+asked for `number_of_replicas: 0`, which in serverless means no search copies
+at all, so any search would have failed, rename or not (the setting is
+removed; verified locally against the serverless build, where all five rename
+YAML tests pass, and a new `StatelessRenameIndexIT#testSearchImmediatelyAfterRename`
+checks that a search works right after the acknowledgement without waiting
+for green).
+
+Two serverless failures need companion changes in the serverless repository
+and are left open here: `ReplicaRankingContextTests` and
+`ReplicasUpdaterServiceTests` build several `Index` fixtures with the same
+UUID, which collapse under T1 (the same class of fixture fix as step 1 of the
+production sequence); and `RawStorageMeteringIT` and `UsageReportIT`, which
+run with the T11 trick and assert on records keyed by the index name, so the
+temporary name shows up in their expectations (either opt the classes out
+with `renameIndexOnCreate()` or decide how metering should treat a rename).
+
 ## Suggested sequence of production PRs
 
 Each step is independently reviewable and leaves `main` working without the

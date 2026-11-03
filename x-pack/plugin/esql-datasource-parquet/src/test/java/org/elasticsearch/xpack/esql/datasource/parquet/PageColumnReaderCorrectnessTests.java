@@ -829,6 +829,22 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         .optional(INT32)
         .as(LogicalTypeAnnotation.intType(32, false))
         .named("opt_uint")
+        // One cell per decode arm, because each writes its kept values differently and so leaves the slot it
+        // skips differently. The temporal and decimal arms also scale or rebase every value they keep.
+        .optional(FLOAT)
+        .named("opt_float")
+        .optional(INT64)
+        .as(LogicalTypeAnnotation.decimalType(4, 18))
+        .named("opt_decimal")
+        .optional(INT64)
+        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+        .named("opt_datetime")
+        .optional(INT64)
+        .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+        .named("opt_datenanos")
+        .optional(BINARY)
+        .as(LogicalTypeAnnotation.stringType())
+        .named("opt_str")
         .named("nullable_types_test");
 
     private static final int DETERMINISM_ROWS = 1024;
@@ -857,6 +873,12 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                     // Values above the signed maxima, so a dropped sign-flip or a sign-extension is visible too.
                     g.append("opt_ulong", Long.MIN_VALUE + r);
                     g.append("opt_uint", Integer.MIN_VALUE + r);
+                    g.append("opt_float", r * 0.25f);
+                    g.append("opt_decimal", (long) r * 101);
+                    g.append("opt_datetime", 1_700_000_000_000L + r);
+                    g.append("opt_datenanos", 1_700_000_000_000_000L + r);
+                    // Few enough distinct entries that the keyword arm takes its dictionary/ordinals path.
+                    g.append("opt_str", "v" + (r % 16));
                 }
             }
         );
@@ -866,6 +888,11 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertColumnSerializesDeterministically(data, "opt_double", DataType.DOUBLE);
         assertColumnSerializesDeterministically(data, "opt_ulong", DataType.UNSIGNED_LONG);
         assertColumnSerializesDeterministically(data, "opt_uint", DataType.LONG);
+        assertColumnSerializesDeterministically(data, "opt_float", DataType.DOUBLE);
+        assertColumnSerializesDeterministically(data, "opt_decimal", DataType.DOUBLE);
+        assertColumnSerializesDeterministically(data, "opt_datetime", DataType.DATETIME);
+        assertColumnSerializesDeterministically(data, "opt_datenanos", DataType.DATE_NANOS);
+        assertColumnSerializesDeterministically(data, "opt_str", DataType.KEYWORD);
     }
 
     private void assertColumnSerializesDeterministically(byte[] data, String column, DataType dataType) throws IOException {

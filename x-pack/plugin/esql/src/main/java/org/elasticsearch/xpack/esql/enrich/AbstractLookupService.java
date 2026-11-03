@@ -982,6 +982,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         Releasable release
     ) {
         public static LookupShardContext fromSearchContext(SearchContext searchContext) {
+            // A lookup index is a single index that unmapped_fields never reads unmapped fields from, so it resolves only the fields
+            // it maps
             EsqlSearchExecutionContext esqlCtx = new EsqlSearchExecutionContext(
                 searchContext.getSearchExecutionContext(),
                 QueryWarnings.NOOP

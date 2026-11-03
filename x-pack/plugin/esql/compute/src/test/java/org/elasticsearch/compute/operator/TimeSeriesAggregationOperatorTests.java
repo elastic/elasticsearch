@@ -390,11 +390,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         }
     }
 
-    /**
-     * Rate-like aggregations keep {@link GroupingAggregatorFunction#canEmitPartialResultsPeriodically()} false, so
-     * nothing is emitted until finish() even when the partial-emit thresholds are otherwise met.
-     */
-    public void testDoesNotEmitPartialResultsPeriodicallyWithRate() {
+    public void testEmitPartialResultsPeriodicallyWithRate() {
         Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
         var rate = new RateDoubleGroupingAggregatorFunction.FunctionSupplier(false, false, TestWarningsSource.INSTANCE)
             .groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2, 3, 4, 5, 6));
@@ -413,18 +409,39 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
-        List<Page> collected = new ArrayList<>();
+        List<Page> outputPages = new ArrayList<>();
+
+        BiFunction<Integer, Integer, Page> ratePage = (i, sliceIndex) -> new Page(
+            bf.newConstantBytesRefBlockWith(new BytesRef("tsid-" + i), 1),
+            bf.newConstantLongBlockWith(i * 60_000L, 1),
+            bf.newConstantDoubleBlockWith(10.0 + i, 1),
+            bf.newConstantLongBlockWith(i * 60_000L, 1),
+            bf.newConstantNullBlock(1),
+            bf.newConstantIntBlockWith(sliceIndex, 1),
+            bf.newConstantLongBlockWith(Long.MAX_VALUE, 1)
+        );
         try (Operator op = operatorFactory.get(driverCtx)) {
             for (int i = 0; i < 8; i++) {
-                op.addInput(ratePage(bf, "tsid-" + i, i * 60_000L, 10.0 + i));
-                assertNull("rate must not emit partial results periodically", op.getOutput());
+                op.addInput(ratePage.apply(i, 0));
+                assertNull("rate must not emit partial results within a slice", op.getOutput());
+            }
+            op.addInput(ratePage.apply(0, 1));
+            drainInto(op, outputPages);
+            assertThat(
+                "the previous slice is emitted when a new slice starts",
+                outputPages.stream().mapToInt(Page::getPositionCount).sum(),
+                equalTo(8)
+            );
+            for (int i = 1; i < 4; i++) {
+                op.addInput(ratePage.apply(i, 1));
+                assertNull("rate must not emit partial results within a slice", op.getOutput());
             }
             op.finish();
-            drainInto(op, collected);
+            drainInto(op, outputPages);
             assertTrue(op.isFinished());
-            assertThat(summarize(collected).stream().mapToInt(PageSummary::positionCount).sum(), equalTo(8));
+            assertThat(outputPages.stream().mapToInt(Page::getPositionCount).sum(), equalTo(12));
         } finally {
-            for (Page page : collected) {
+            for (Page page : outputPages) {
                 page.releaseBlocks();
             }
         }
@@ -1209,21 +1226,6 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             }
             return new Page(tsids.build().asBlock(), timestamps.build().asBlock(), values.build().asBlock());
         }
-    }
-
-    /**
-     * One-row rate input: {@code (_tsid, bucket, value, raw_timestamp, temporality, slice, future_max_timestamp)}.
-     */
-    private static Page ratePage(BlockFactory bf, String tsid, long bucketAndTimestamp, double value) {
-        return new Page(
-            bf.newConstantBytesRefBlockWith(new BytesRef(tsid), 1),
-            bf.newConstantLongBlockWith(bucketAndTimestamp, 1),
-            bf.newConstantDoubleBlockWith(value, 1),
-            bf.newConstantLongBlockWith(bucketAndTimestamp, 1),
-            bf.newConstantNullBlock(1),
-            bf.newConstantIntBlockWith(0, 1),
-            bf.newConstantLongBlockWith(Long.MAX_VALUE, 1)
-        );
     }
 
     /**

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -61,37 +62,7 @@ public record DriverProfile(
 
     public static final ProfileSchema<DriverProfile> PROFILE_SCHEMA = ProfileSchema.chunked(
         DriverProfile.class,
-        (value, params) -> Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
-            b.field("description", value.description);
-            b.field("cluster_name", value.clusterName);
-            b.field("node_name", value.nodeName);
-            b.timestampFieldsFromUnixEpochMillis("start_millis", "start", value.startMillis);
-            b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", value.stopMillis);
-            b.field("took_nanos", value.tookNanos);
-            if (b.humanReadable()) {
-                b.field("took_time", TimeValue.timeValueNanos(value.tookNanos));
-            }
-            b.field("cpu_nanos", value.cpuNanos);
-            if (b.humanReadable()) {
-                b.field("cpu_time", TimeValue.timeValueNanos(value.cpuNanos));
-            }
-            b.field("driver_nanos", value.driverNanos);
-            if (b.humanReadable()) {
-                b.field("driver_time", TimeValue.timeValueNanos(value.driverNanos));
-            }
-            b.field("documents_found", value.operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
-            b.field("values_loaded", value.operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
-            b.field("rows_emitted", value.operators.stream().mapToLong(OperatorStatus::rowsEmitted).sum());
-            b.field("bytes_read", value.operators.stream().mapToLong(OperatorStatus::bytesRead).sum());
-            b.field("read_nanos", value.operators.stream().mapToLong(OperatorStatus::readNanos).sum());
-            b.field("read_cpu_nanos", value.operators.stream().mapToLong(OperatorStatus::readCpuNanos).sum());
-            b.field("iterations", value.iterations);
-            return b;
-        }),
-            ChunkedToXContentHelper.array("operators", value.operators.iterator()),
-            ChunkedToXContentHelper.chunk((b, p) -> b.field("sleeps", value.sleeps)),
-            ChunkedToXContentHelper.endObject()
-        )
+        DriverProfile::profileChunks
     )
         .required("description", ProfileSchema.string())
         .required("cluster_name", ProfileSchema.string())
@@ -116,6 +87,44 @@ public record DriverProfile(
         .required("operators", ProfileSchema.array(OperatorStatus.PROFILE_SCHEMA.schema()))
         .required("sleeps", DriverSleeps.PROFILE_SCHEMA.schema())
         .build();
+
+    private static Iterator<? extends ToXContent> profileChunks(DriverProfile value, ToXContent.Params params) {
+        return Iterators.concat(
+            ChunkedToXContentHelper.startObject(),
+            Iterators.single((builder, chunkParams) -> writeProfileFields(builder, value)),
+            ChunkedToXContentHelper.array("operators", value.operators.iterator()),
+            ChunkedToXContentHelper.chunk((builder, chunkParams) -> builder.field("sleeps", value.sleeps)),
+            ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    private static XContentBuilder writeProfileFields(XContentBuilder builder, DriverProfile value) throws IOException {
+        builder.field("description", value.description);
+        builder.field("cluster_name", value.clusterName);
+        builder.field("node_name", value.nodeName);
+        builder.timestampFieldsFromUnixEpochMillis("start_millis", "start", value.startMillis);
+        builder.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", value.stopMillis);
+        builder.field("took_nanos", value.tookNanos);
+        if (builder.humanReadable()) {
+            builder.field("took_time", TimeValue.timeValueNanos(value.tookNanos));
+        }
+        builder.field("cpu_nanos", value.cpuNanos);
+        if (builder.humanReadable()) {
+            builder.field("cpu_time", TimeValue.timeValueNanos(value.cpuNanos));
+        }
+        builder.field("driver_nanos", value.driverNanos);
+        if (builder.humanReadable()) {
+            builder.field("driver_time", TimeValue.timeValueNanos(value.driverNanos));
+        }
+        builder.field("documents_found", value.operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
+        builder.field("values_loaded", value.operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
+        builder.field("rows_emitted", value.operators.stream().mapToLong(OperatorStatus::rowsEmitted).sum());
+        builder.field("bytes_read", value.operators.stream().mapToLong(OperatorStatus::bytesRead).sum());
+        builder.field("read_nanos", value.operators.stream().mapToLong(OperatorStatus::readNanos).sum());
+        builder.field("read_cpu_nanos", value.operators.stream().mapToLong(OperatorStatus::readCpuNanos).sum());
+        builder.field("iterations", value.iterations);
+        return builder;
+    }
 
     private static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = TransportVersion.fromName("esql_driver_node_description");
     private static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = TransportVersion.fromName("esql_driver_task_description");

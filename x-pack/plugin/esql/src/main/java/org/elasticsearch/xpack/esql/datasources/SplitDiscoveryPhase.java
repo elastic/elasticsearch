@@ -294,7 +294,7 @@ public final class SplitDiscoveryPhase {
         } catch (ExternalException e) {
             throw ExternalFailures.detach(e);
         } catch (ElasticsearchException e) {
-            throw e;
+            throw ExternalFailures.detach(e);
         } catch (Exception e) {
             throw ExternalFailures.wrapWithoutCause(
                 "failed to discover splits for external source [" + sourceLabel(exec) + "] of type [" + exec.sourceType() + "]",

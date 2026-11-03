@@ -404,12 +404,8 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v9.2.8#mixedClusterTest
+  - :qa:mixed-cluster:v9.2.8#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
-- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
-  tasks:
-  - :server:internalClusterTest
-  method: testIndexMode
-  issue: https://github.com/elastic/elasticsearch/issues/163329
 - class: org.elasticsearch.xpack.ccr.CcrAliasesIT
   tasks:
   - :x-pack:plugin:ccr:internalClusterTest
@@ -440,8 +436,46 @@ tests:
   - :server:internalClusterTest
   method: testAverageWriteLoadMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/163874
+- class: org.elasticsearch.integration.FieldLevelSecurityTests
+  tasks:
+  - :x-pack:plugin:security:internalClusterTest
+  method: testColumnarGeoShapeRespectsFieldLevelSecurity
+  issue: https://github.com/elastic/elasticsearch/issues/163935
 - class: org.elasticsearch.xpack.esql.optimizer.promql.PromqlGoldenTests
   tasks:
   - :x-pack:plugin:esql:test
   method: testBinaryWithDifferentSelectors
   issue: https://github.com/elastic/elasticsearch/issues/163941
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  tasks:
+  - :x-pack:plugin:inference:internalClusterTest
+  issue: https://github.com/elastic/elasticsearch/issues/158224
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  issue: https://github.com/elastic/elasticsearch/issues/163299
+- class: org.elasticsearch.xpack.esql.qa.single_node.ExternalSchemaMaxFieldsRestIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: testWideFileOverDefaultCapIsRefused
+  issue: https://github.com/elastic/elasticsearch/issues/164160
+- class: org.elasticsearch.xpack.transform.integration.TransformIT
+  tasks:
+  - :x-pack:plugin:transform:qa:multi-node-tests:javaRestTest
+  method: testTransformLifecycleInALoop
+  issue: https://github.com/elastic/elasticsearch/issues/155844
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  tasks:
+  - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
+  method: testMasterFailoverDuringMarkReadOnly
+  issue: https://github.com/elastic/elasticsearch/issues/164244
+- class: org.elasticsearch.xpack.stateless.engine.IndexEngineTests
+  tasks:
+  - :x-pack:plugin:stateless:test
+  method: testHollowEngineWithConcurrentNonHollowFlush
+  issue: https://github.com/elastic/elasticsearch/issues/164263
+- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:internalClusterTest
+  method: testRetryPointInTimeAfterNodeDrop
+  issue: https://github.com/elastic/elasticsearch/issues/164396

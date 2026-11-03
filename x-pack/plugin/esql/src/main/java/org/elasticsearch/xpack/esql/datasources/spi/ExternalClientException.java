@@ -32,6 +32,14 @@ public final class ExternalClientException extends ExternalException {
         super(message, args);
     }
 
+    /**
+     * The refusal for a schema wider than {@code schema_max_fields}. A 400 rather than the breaker's 429: the limit is
+     * configured, so retrying the same request cannot succeed, and {@code detail} says which setting to raise.
+     */
+    public static ExternalClientException schemaTooWide(String detail) {
+        return new ExternalClientException("Schema has too many columns: " + detail, (Throwable) null);
+    }
+
     @Override
     public ExternalClientException withoutCause() {
         return new ExternalClientException(getMessage(), (Throwable) null);

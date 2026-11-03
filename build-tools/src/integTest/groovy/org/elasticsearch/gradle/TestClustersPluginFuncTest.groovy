@@ -124,6 +124,35 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         result.output.contains("Found resource leaks") == false
     }
 
+    /**
+     * The test clusters hooks are applied per project. Every project registers the same task completion listener, which
+     * Gradle must turn into a single subscription. The listener only acts on failed tasks, so a failing task is needed to
+     * check that its cluster is stopped exactly once, while a successful task in another project is unaffected.
+     */
+    def "failure cleanup stops the cluster of a failed task once when several projects use test clusters"() {
+        given:
+        subProject(':alpha') << clusterAwareSubProject(false)
+        subProject(':beta') << clusterAwareSubProject(true)
+
+        when:
+        def result = withMockedDistributionDownload(gradleRunner(':alpha:myTask', ':beta:myTask', '--continue', '-i')) {
+            buildAndFail()
+        }
+
+        then:
+        result.task(':alpha:myTask').outcome == org.gradle.testkit.runner.TaskOutcome.SUCCESS
+        result.task(':beta:myTask').outcome == org.gradle.testkit.runner.TaskOutcome.FAILED
+        result.output.contains('Simulated failure in :beta:myTask')
+
+        // the successful task stops its cluster through the doLast action, not through the failure cleanup
+        countEsOutput('alpha', 'myCluster', 'Stopping node') == 1
+        countOccurrences(result.output, 'Stopping `node{:alpha:myCluster-0}', 'tailLogs: true') == 0
+
+        // the failed task's cluster is stopped by the task completion listener, exactly once
+        countEsOutput('beta', 'myCluster', 'Stopping node') == 1
+        countOccurrences(result.output, 'Stopping `node{:beta:myCluster-0}', 'tailLogs: true') == 1
+    }
+
     @Unroll
     def "test cluster #inputProperty change is detected"() {
         given:
@@ -326,6 +355,58 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
             "build/testclusters/${testCluster}-0/logs/es.out"
         ).text.contains(expectedOutput)
         true
+    }
+
+    private static String clusterAwareSubProject(boolean failing) {
+        return """
+            import org.elasticsearch.gradle.testclusters.TestClustersAware
+            import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+
+            plugins {
+                id 'elasticsearch.testclusters'
+            }
+
+            abstract class SubProjectClusterAwareTask extends DefaultTask implements TestClustersAware {
+                private Collection<ElasticsearchCluster> clusters = new HashSet<>();
+
+                @Override
+                @Nested
+                public Collection<ElasticsearchCluster> getClusters() {
+                    return clusters;
+                }
+
+                @Input
+                abstract Property<Boolean> getFailing()
+
+                @TaskAction void doSomething() {
+                    if (failing.get()) {
+                        throw new GradleException("Simulated failure in " + path)
+                    }
+                    println "\${path} executed"
+                }
+            }
+
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+              }
+            }
+
+            tasks.register('myTask', SubProjectClusterAwareTask) {
+                failing = ${failing}
+                outputs.upToDateWhen { false }
+                useCluster testClusters.myCluster
+            }
+        """
+    }
+
+    int countEsOutput(String projectDir, String testCluster, String expectedOutput) {
+        def esOut = new File(testProjectDir.root, "${projectDir}/build/testclusters/${testCluster}-0/logs/es.out")
+        return esOut.readLines().count { it.contains(expectedOutput) }
+    }
+
+    private static int countOccurrences(String output, String... fragments) {
+        return output.readLines().count { line -> fragments.every { line.contains(it) } }
     }
 
     boolean assertCustomDistro(String clusterName) {

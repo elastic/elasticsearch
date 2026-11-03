@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.sts.model.StsException;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +19,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.esql.datasources.ExternalFailures;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.CredentialPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
@@ -273,5 +277,15 @@ public class S3DataSourcePluginTests extends ESTestCase {
             );
             assertThat(e.getMessage(), equalTo(FileDataSourceValidator.FEDERATED_IDENTITY_DISABLED_MESSAGE));
         }
+    }
+
+    /**
+     * {@link ExternalFailures#composedByStorageClient} withholds this client's text by package; a client exception it
+     * does not recognise would put the remote's refusal (the principal's and the resource's ARNs) in the response.
+     */
+    public void testClientExceptionsAreStorageClientText() {
+        assertTrue(ExternalFailures.composedByStorageClient(S3Exception.builder().message("Access Denied").build()));
+        assertTrue(ExternalFailures.composedByStorageClient(SdkClientException.create("Unable to load credentials")));
+        assertTrue(ExternalFailures.composedByStorageClient(StsException.builder().message("not authorized").build()));
     }
 }

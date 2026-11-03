@@ -346,15 +346,22 @@ public final class TimeSeriesBlockHash extends PartitionedBlockHash {
                 tsidOrds.appendInt(p, (int) finalHash.getKey1(groupId));
                 timestamps.appendLong(p, finalHash.getKey2(groupId));
             }
-            final BytesRefArray bytes = tsidHash.getBytesRefs();
-            var dict = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(bytes.size()));
-            bytes.incRef();
+            // Copy the dictionary: the hash may clear()/truncate its BytesRefArray while emitted
+            // keys are still live (partial emit). Sharing via incRef would corrupt those keys.
+            final BytesRefArray src = tsidHash.getBytesRefs();
+            final int dictSize = Math.toIntExact(src.size());
+            BytesRefArray dictBytes = new BytesRefArray(dictSize, blockFactory.bigArrays(), src.totalBytes());
+            BytesRefVector dict = null;
             try {
-                blocks[0] = new OrdinalBytesRefVector(tsidOrds.build(), dict).asBlock();
-            } finally {
-                if (blocks[0] == null) {
-                    dict.close();
+                for (int i = 0; i < dictSize; i++) {
+                    dictBytes.append(src.get(i, scratch));
                 }
+                dict = blockFactory.newBytesRefArrayVector(dictBytes, dictSize);
+                dictBytes = null; // ownership transferred to dict
+                blocks[0] = new OrdinalBytesRefVector(tsidOrds.build(), dict).asBlock();
+                dict = null;
+            } finally {
+                Releasables.close(dictBytes, dict);
             }
             blocks[1] = timestamps.build().asBlock();
         } finally {

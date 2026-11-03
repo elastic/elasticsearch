@@ -1907,6 +1907,39 @@ public class BlockHashTests extends BlockHashTestCase {
         }
     }
 
+    /**
+     * Regression for #164417: the full-dictionary ordinal path must not share the hash's
+     * {@code BytesRefArray}. After partial emit, {@link TimeSeriesBlockHash#clear()} truncates that
+     * array; keys emitted earlier must remain readable.
+     */
+    public void testTimeSeriesBlockHashKeysSurviveClear() {
+        BytesRef tsidA = new BytesRef("id-a");
+        BytesRef tsidB = new BytesRef("id-b");
+        try (var hash = new TimeSeriesBlockHash(0, 1, false, false, blockFactory)) {
+            addSingleTsidRow(hash, tsidA, 1L);
+            addSingleTsidRow(hash, tsidB, 2L);
+            addSingleTsidRow(hash, tsidA, 3L);
+            Block[] keys = null;
+            try (IntVector selected = blockFactory.newIntRangeVector(0, 3)) {
+                keys = hash.getKeys(selected);
+                BytesRefBlock tsids = (BytesRefBlock) keys[0];
+                BytesRef scratch = new BytesRef();
+                assertThat(tsids.getBytesRef(0, scratch), equalTo(tsidA));
+                assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
+                assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
+
+                hash.clear();
+
+                // Emitted keys must not be tied to the hash's truncated storage.
+                assertThat(tsids.getBytesRef(0, scratch), equalTo(tsidA));
+                assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
+                assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
+            } finally {
+                Releasables.close(keys);
+            }
+        }
+    }
+
     private void addSingleTsidRow(TimeSeriesBlockHash hash, BytesRef tsid, long timestamp) {
         try (
             BytesRefVector.Builder tsidBuilder = blockFactory.newBytesRefVectorBuilder(1);

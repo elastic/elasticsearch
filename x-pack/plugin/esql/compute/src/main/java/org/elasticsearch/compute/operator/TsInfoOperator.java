@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.RamUsageEstimates;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -27,14 +28,17 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * Operator for the ESQL {@code TS_INFO} command.
@@ -46,11 +50,11 @@ import java.util.TreeMap;
  * <p>
  * Operates in two modes (INITIAL/FINAL), mirroring the pattern used by {@link MetricsInfoOperator}.
  * <p>
- * INITIAL emits its buffered rows early whenever their tracked memory reaches the partial emit threshold.
- * The same (metric, data stream, dimensions) key can then appear in several INITIAL pages. FINAL merges
- * those rows again, so it must buffer everything until it has seen all of its input.
+ * INITIAL emits its buffered series early whenever their tracked memory reaches the partial emit threshold.
+ * The same series can then appear in several INITIAL pages. FINAL merges those rows again, so it must buffer
+ * everything until it has seen all of its input.
  * <p>
- * Both modes emit merged rows in pages of roughly the target page size rather than in one page.
+ * Both modes emit their rows in pages of roughly the target page size rather than in one page.
  *
  * <h2>Output columns (both modes)</h2>
  * <ul>
@@ -62,6 +66,13 @@ import java.util.TreeMap;
  *   <li>{@code dimension_fields} – keyword (multi-valued); union of dimension keys</li>
  *   <li>{@code dimensions} – keyword (single-valued); JSON object of dimension key/values</li>
  * </ul>
+ *
+ * <h2>State and memory</h2>
+ * State is keyed by series: one metric with one set of dimension values. Each series records the
+ * data streams and standalone indices it was seen in, with the metric's metadata in each. Output
+ * combines the index abstractions of a series that share metadata, one series at a time, so no
+ * second full-size structure is built. Names and metadata values repeat across most series, so
+ * the operator keeps one canonical instance of each and charges the breaker for it once.
  */
 public class TsInfoOperator implements Operator {
 
@@ -77,66 +88,61 @@ public class TsInfoOperator implements Operator {
     /** FINAL must see every row of a key before merging, so it never emits early. */
     private static final long NEVER_EMIT_PARTIAL = Long.MAX_VALUE;
 
-    /**
-     * Key for grouping per metric, parent data-stream or concrete index, and dimensions in INITIAL mode.
-     */
-    private record TsInfoKey(String metricName, String indexAbstractionName, String dimensionsJson) {}
+    /** One metric with one set of dimension values. Both strings are canonical. */
+    private record SeriesKey(String metricName, String dimensionsJson) {}
 
     /**
-     * Intermediate state grouped by metric, parent data-stream or concrete index, and dimensions.
+     * Accumulated state of one series. The value lists are canonical and shared with other series,
+     * so they are replaced, never mutated.
      */
-    private static class TsInfoEntry {
-        final String metricName;
-        final String indexAbstractionName;
-        final String dimensionsJson;
-        final Set<String> units = new HashSet<>();
-        final Set<String> metricTypes = new HashSet<>();
-        final Set<String> fieldTypes = new HashSet<>();
-        final Set<String> dimensionFieldKeys = new HashSet<>();
+    private static final class Series {
+        final SeriesKey key;
+        List<String> dimensionFieldKeys = List.of();
+        /** A series is usually in one index abstraction, so a linear scan is cheaper than a map. */
+        final List<IndexAbstractionMetadata> indexAbstractions = new ArrayList<>(1);
 
-        TsInfoEntry(String metricName, String indexAbstractionName, String dimensionsJson) {
-            this.metricName = metricName;
-            this.indexAbstractionName = indexAbstractionName;
-            this.dimensionsJson = dimensionsJson;
+        Series(SeriesKey key) {
+            this.key = key;
+        }
+
+        /** The bytes charged for this series and its index abstractions, excluding the canonical values they share. */
+        long trackedBytes() {
+            return SERIES_BYTES + indexAbstractions.size() * INDEX_ABSTRACTION_BYTES;
         }
     }
 
-    /**
-     * Merged output row: indices and data streams with the same signature are combined.
-     */
-    private static class TsInfoRow {
-        final String metricName;
-        final String dimensionsJson;
-        final Set<String> indexAbstractionNames = new HashSet<>();
-        final Set<String> units;
-        final Set<String> fieldTypes;
-        final Set<String> metricTypes;
-        final Set<String> dimensionFieldKeys = new HashSet<>();
+    /** The series' metric metadata in one data stream or standalone index. The name and lists are canonical. */
+    private static final class IndexAbstractionMetadata {
+        final String name;
+        List<String> units = List.of();
+        List<String> fieldTypes = List.of();
+        List<String> metricTypes = List.of();
 
-        TsInfoRow(String metricName, String dimensionsJson, Set<String> units, Set<String> fieldTypes, Set<String> metricTypes) {
-            this.metricName = metricName;
-            this.dimensionsJson = dimensionsJson;
-            this.units = units;
-            this.fieldTypes = fieldTypes;
-            this.metricTypes = metricTypes;
-        }
-
-        /** The memory reserved for this row while merging, see {@link #MERGED_ROW_SIZE} and {@link #MERGED_SET_VALUE_SIZE}. */
-        long mergedBytes() {
-            return MERGED_ROW_SIZE + (long) (indexAbstractionNames.size() + dimensionFieldKeys.size()) * MERGED_SET_VALUE_SIZE;
+        IndexAbstractionMetadata(String name) {
+            this.name = name;
         }
     }
 
+    /** Index abstractions of one series with equal metadata produce one output row. */
+    private record FieldMetadata(List<String> units, List<String> fieldTypes, List<String> metricTypes) {}
+
     /**
-     * Signature for merging rows in FINAL mode.
+     * Estimated bytes per {@link LinkedHashMap} entry, also used for {@link HashMap} entries. The node holds a hash
+     * and five references. A hash map keeps its load between 0.375 and 0.75, so each entry also uses about two table slots.
      */
-    private record TsSignature(
-        String metricName,
-        String dimensionsJson,
-        Set<String> units,
-        Set<String> fieldTypes,
-        Set<String> metricTypes
-    ) {}
+    private static final long MAP_ENTRY_BYTES = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+    ) + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+
+    /** A new series with its map entry and an index abstraction list of capacity one. */
+    private static final long SERIES_BYTES = MAP_ENTRY_BYTES + RamUsageEstimator.shallowSizeOfInstance(SeriesKey.class) + RamUsageEstimator
+        .shallowSizeOfInstance(Series.class) + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+        );
+
+    /** An {@link ArrayList} grows by half its capacity, so two slots per element cover its backing array. */
+    private static final long INDEX_ABSTRACTION_BYTES = RamUsageEstimator.shallowSizeOfInstance(IndexAbstractionMetadata.class) + 2L
+        * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
     /** Column indices in the 7-column output. */
     private static final int COL_METRIC_NAME = 0;
@@ -146,6 +152,12 @@ public class TsInfoOperator implements Operator {
     private static final int COL_FIELD_TYPE = 4;
     private static final int COL_DIMENSION_FIELDS = 5;
     private static final int COL_DIMENSIONS = 6;
+
+    /**
+     * Rows vary widely in size, so the row count of a page is unknown up front.
+     * Builders start at this many positions and grow.
+     */
+    private static final int INITIAL_PAGE_POSITIONS = 128;
 
     /**
      * Factory for INITIAL mode (data nodes).
@@ -238,46 +250,17 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    private record MetricDimensions(String metricName, String dimensionsJson) {}
-
-    static final long METRIC_DIMENSIONS_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MetricDimensions.class);
-
-    /** Shallow size of a TsInfoKey + TsInfoEntry pair (object headers and field slots only). */
-    static final long ENTRY_SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TsInfoKey.class) + RamUsageEstimator
-        .shallowSizeOfInstance(TsInfoEntry.class);
-
-    /*
-     * The node classes of HashMap and LinkedHashMap are not accessible, so their sizes are estimated from their fields.
-     * A load factor of 0.75 and doubling on resize leave up to about two table slots per node.
-     */
-    private static final long HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-    ) + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-    private static final long LINKED_HASH_MAP_NODE_SIZE = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-    ) + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-    /** A HashSet with the default table that its first value allocates. */
-    private static final long HASH_SET_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashSet.class) + RamUsageEstimator
-        .shallowSizeOfInstance(HashMap.class) + RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + 16L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-        );
-
-    /**
-     * Memory of one merged row besides the strings and sets it shares with the entries: the signature and row objects,
-     * the row's own two sets, and its node in the map of rows by signature.
-     */
-    static final long MERGED_ROW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TsSignature.class) + RamUsageEstimator
-        .shallowSizeOfInstance(TsInfoRow.class) + 2 * HASH_SET_SIZE + LINKED_HASH_MAP_NODE_SIZE;
-
-    /** Memory of one value in a set of a merged row. The value is a string shared with an entry. */
-    static final long MERGED_SET_VALUE_SIZE = HASH_MAP_NODE_SIZE;
-
     public enum Mode {
         INITIAL,
         FINAL
     }
 
-    private final Map<TsInfoKey, TsInfoEntry> entriesByKey = new LinkedHashMap<>();
+    private Map<SeriesKey, Series> seriesByKey = new LinkedHashMap<>();
+    /** Canonical metric names, dimension JSON and index abstraction names. */
+    private Map<String, String> canonicalStrings = new HashMap<>();
+    /** Canonical sorted, distinct value lists for metadata and dimension field keys. */
+    private Map<List<String>, List<String>> canonicalLists = new HashMap<>();
+    private int entriesAccumulated;
 
     private final Mode mode;
     private final BlockFactory blockFactory;
@@ -291,16 +274,16 @@ public class TsInfoOperator implements Operator {
     private final int indexChannel;
     /** FINAL-mode field: input channel indices for the 7 output columns. Null in INITIAL mode. */
     private final int[] finalChannels;
+    /** Maximum number of distinct series. Only FINAL mode sets a limit. */
     private final int limit;
-    private final Set<MetricDimensions> metricDimensions = new HashSet<>();
     private final long partialEmitThresholdBytes;
     private final long targetPageBytes;
 
     /**
-     * Merged rows that are not emitted yet, or null. While set the operator takes no input, so the memory tracked
-     * for these rows is not mixed with memory for new entries.
+     * The series of {@link #seriesByKey} that are not emitted yet, or null. While set the operator takes no input,
+     * so the memory tracked for these series is not mixed with memory for new ones.
      */
-    private MergedRows pendingRows;
+    private Iterator<Series> pendingSeries;
 
     private boolean finished = false;
     private boolean finalOutputStarted = false;
@@ -308,7 +291,6 @@ public class TsInfoOperator implements Operator {
     private int pagesReceived;
     private long rowsReceived;
     private long rowsEmitted;
-    private int entriesAccumulated;
 
     private TsInfoOperator(
         Mode mode,
@@ -337,11 +319,11 @@ public class TsInfoOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return finished == false && pendingRows == null && partialEmitThresholdReached() == false;
+        return finished == false && pendingSeries == null && partialEmitThresholdReached() == false;
     }
 
     private boolean partialEmitThresholdReached() {
-        return entriesByKey.isEmpty() == false && trackedBytes >= partialEmitThresholdBytes;
+        return seriesByKey.isEmpty() == false && trackedBytes >= partialEmitThresholdBytes;
     }
 
     @Override
@@ -379,19 +361,8 @@ public class TsInfoOperator implements Operator {
                     continue;
                 }
 
-                // Collect dimension key-values and metric fields for this tsid
-                Map<String, String> dimensionKeyValues = new TreeMap<>(); // sorted for deterministic JSON
-                Set<String> dimensionKeys = new HashSet<>();
-                Set<TsInfoEntry> touchedEntries = new HashSet<>();
-
-                collectFields(metadata, null, indexName, indexAbstractionName, dimensionKeyValues, dimensionKeys, touchedEntries);
-
-                // Assign dimension keys to all metrics touched by this tsid
-                if (dimensionKeys.isEmpty() == false) {
-                    for (TsInfoEntry entry : touchedEntries) {
-                        trackSetAddAll(entry.dimensionFieldKeys, dimensionKeys);
-                    }
-                }
+                NavigableMap<String, String> dimensionKeyValues = new TreeMap<>(); // sorted for deterministic JSON
+                collectFields(metadata, null, indexName, indexAbstractionName, dimensionKeyValues);
             }
         } finally {
             page.releaseBlocks();
@@ -403,8 +374,8 @@ public class TsInfoOperator implements Operator {
      * <ol>
      *   <li>First pass: classifies each leaf — metric fields are skipped (but their keys
      *       are noted), non-metric leaves are collected as dimension key-values.</li>
-     *   <li>Second pass (at the root level): creates {@link TsInfoEntry} objects for each
-     *       metric, keyed by (metricName, indexAbstractionName, dimensionsJson).</li>
+     *   <li>Second pass (at the root level): records each metric in its {@link Series},
+     *       keyed by (metricName, dimensionsJson), under indexAbstractionName.</li>
      * </ol>
      * The field lookup is checked <em>before</em> inspecting the value type so that nested
      * metric types (histogram, exponential_histogram, tdigest) are not recursed into.
@@ -415,9 +386,7 @@ public class TsInfoOperator implements Operator {
         String prefix,
         String indexName,
         String indexAbstractionName,
-        Map<String, String> dimensionKeyValues,
-        Set<String> dimensionKeys,
-        Set<TsInfoEntry> touchedEntries
+        NavigableMap<String, String> dimensionKeyValues
     ) {
         for (Map.Entry<String, Object> entry : metadata.entrySet()) {
             String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
@@ -426,17 +395,8 @@ public class TsInfoOperator implements Operator {
             MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
             if (fieldInfo == null) {
                 if (value instanceof Map<?, ?> nested) {
-                    collectFields(
-                        (Map<String, Object>) nested,
-                        key,
-                        indexName,
-                        indexAbstractionName,
-                        dimensionKeyValues,
-                        dimensionKeys,
-                        touchedEntries
-                    );
+                    collectFields((Map<String, Object>) nested, key, indexName, indexAbstractionName, dimensionKeyValues);
                 } else {
-                    dimensionKeys.add(key);
                     dimensionKeyValues.put(key, value == null ? null : value.toString());
                 }
             }
@@ -444,12 +404,13 @@ public class TsInfoOperator implements Operator {
 
         if (prefix == null) {
             String dimensionsJson = buildDimensionsJson(dimensionKeyValues);
-            collectMetrics(metadata, null, indexName, indexAbstractionName, dimensionsJson, touchedEntries);
+            List<String> dimensionFieldKeys = canonicalList(dimensionKeyValues.navigableKeySet());
+            collectMetrics(metadata, null, indexName, indexAbstractionName, dimensionsJson, dimensionFieldKeys);
         }
     }
 
     /**
-     * Second pass: creates {@link TsInfoEntry} objects for each metric field.
+     * Second pass: records each metric field in its {@link Series}.
      * The field lookup is checked before inspecting the value type so that nested
      * metric types (histogram, exponential_histogram, tdigest) are recognized correctly.
      */
@@ -460,7 +421,7 @@ public class TsInfoOperator implements Operator {
         String indexName,
         String indexAbstractionName,
         String dimensionsJson,
-        Set<TsInfoEntry> touchedEntries
+        List<String> dimensionFieldKeys
     ) {
         for (Map.Entry<String, Object> entry : metadata.entrySet()) {
             String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
@@ -468,14 +429,15 @@ public class TsInfoOperator implements Operator {
 
             MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
             if (fieldInfo != null) {
-                TsInfoEntry tsEntry = getOrCreateEntry(fieldInfo.name(), indexAbstractionName, dimensionsJson);
-                touchedEntries.add(tsEntry);
-
-                trackSetAdd(tsEntry.units, fieldInfo.unit());
-                trackSetAdd(tsEntry.fieldTypes, fieldInfo.fieldType());
-                trackSetAdd(tsEntry.metricTypes, fieldInfo.metricType());
+                Series series = findOrCreateSeriesWithinLimit(fieldInfo.name(), dimensionsJson);
+                assert series != null : "INITIAL mode has no series limit";
+                series.dimensionFieldKeys = union(series.dimensionFieldKeys, dimensionFieldKeys);
+                IndexAbstractionMetadata indexAbstraction = findOrCreateIndexAbstraction(series, indexAbstractionName);
+                indexAbstraction.units = withValue(indexAbstraction.units, fieldInfo.unit());
+                indexAbstraction.fieldTypes = withValue(indexAbstraction.fieldTypes, fieldInfo.fieldType());
+                indexAbstraction.metricTypes = withValue(indexAbstraction.metricTypes, fieldInfo.metricType());
             } else if (value instanceof Map<?, ?> nested) {
-                collectMetrics((Map<String, Object>) nested, key, indexName, indexAbstractionName, dimensionsJson, touchedEntries);
+                collectMetrics((Map<String, Object>) nested, key, indexName, indexAbstractionName, dimensionsJson, dimensionFieldKeys);
             }
         }
     }
@@ -493,7 +455,7 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    /** FINAL mode: read the 7-column output from data nodes and accumulate into entriesByKey. */
+    /** FINAL mode: read the 7-column output from data nodes and accumulate into seriesByKey. */
     private void addInputFinal(Page page) {
         try {
             BytesRefBlock nameBlock = page.getBlock(finalChannels[COL_METRIC_NAME]);
@@ -515,27 +477,20 @@ public class TsInfoOperator implements Operator {
                 if (dimensionsJson == null) {
                     dimensionsJson = "{}";
                 }
-                MetricDimensions metricDims = new MetricDimensions(metricName, dimensionsJson);
-                if (metricDimensions.contains(metricDims) == false) {
-                    if (metricDimensions.size() >= limit) {
-                        continue;
-                    }
-                    trackBytes(METRIC_DIMENSIONS_SHALLOW_SIZE);
-                    metricDimensions.add(metricDims);
+                Series series = findOrCreateSeriesWithinLimit(metricName, dimensionsJson);
+                if (series == null) {
+                    continue;
                 }
 
-                Set<String> indexAbstractionNames = readMultiValue(dsBlock, pos, scratch);
-                Set<String> units = readMultiValue(unitBlock, pos, scratch);
-                Set<String> fieldTypes = readMultiValue(ftBlock, pos, scratch);
-                Set<String> metricTypes = readMultiValue(mtBlock, pos, scratch);
-                Set<String> dimensionFields = readMultiValue(dfBlock, pos, scratch);
-
-                for (String indexAbstractionName : indexAbstractionNames) {
-                    TsInfoEntry entry = getOrCreateEntry(metricName, indexAbstractionName, dimensionsJson);
-                    trackSetAddAll(entry.units, units);
-                    trackSetAddAll(entry.fieldTypes, fieldTypes);
-                    trackSetAddAll(entry.metricTypes, metricTypes);
-                    trackSetAddAll(entry.dimensionFieldKeys, dimensionFields);
+                series.dimensionFieldKeys = union(series.dimensionFieldKeys, canonicalList(readMultiValue(dfBlock, pos, scratch)));
+                List<String> units = canonicalList(readMultiValue(unitBlock, pos, scratch));
+                List<String> fieldTypes = canonicalList(readMultiValue(ftBlock, pos, scratch));
+                List<String> metricTypes = canonicalList(readMultiValue(mtBlock, pos, scratch));
+                for (String indexAbstractionName : readMultiValue(dsBlock, pos, scratch)) {
+                    IndexAbstractionMetadata indexAbstraction = findOrCreateIndexAbstraction(series, indexAbstractionName);
+                    indexAbstraction.units = union(indexAbstraction.units, units);
+                    indexAbstraction.fieldTypes = union(indexAbstraction.fieldTypes, fieldTypes);
+                    indexAbstraction.metricTypes = union(indexAbstraction.metricTypes, metricTypes);
                 }
             }
         } finally {
@@ -550,8 +505,8 @@ public class TsInfoOperator implements Operator {
         return block.getBytesRef(position, scratch).utf8ToString();
     }
 
-    private static Set<String> readMultiValue(BytesRefBlock block, int position, BytesRef scratch) {
-        Set<String> values = new HashSet<>();
+    private static SortedSet<String> readMultiValue(BytesRefBlock block, int position, BytesRef scratch) {
+        SortedSet<String> values = new TreeSet<>();
         if (block.isNull(position)) {
             return values;
         }
@@ -568,83 +523,78 @@ public class TsInfoOperator implements Operator {
         trackedBytes += delta;
     }
 
-    private void releaseTrackedBytes() {
-        breaker.addWithoutBreaking(-trackedBytes);
-        trackedBytes = 0;
-    }
-
-    private TsInfoEntry getOrCreateEntry(String metricName, String indexAbstractionName, String dimensionsJson) {
-        TsInfoKey key = new TsInfoKey(metricName, indexAbstractionName, dimensionsJson);
-        TsInfoEntry entry = entriesByKey.get(key);
-        if (entry == null) {
-            trackNewEntry(metricName, indexAbstractionName, dimensionsJson);
-            entry = new TsInfoEntry(metricName, indexAbstractionName, dimensionsJson);
-            entriesByKey.put(key, entry);
-            entriesAccumulated++;
-        }
-        return entry;
-    }
-
-    private void trackNewEntry(String metricName, String indexAbstractionName, String dimensionsJson) {
-        trackBytes(
-            ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(metricName) + RamUsageEstimator.sizeOf(indexAbstractionName) + RamUsageEstimator
-                .sizeOf(dimensionsJson)
-        );
-    }
-
-    private void trackSetAddAll(Set<String> set, Set<String> values) {
-        for (String value : values) {
-            if (set.add(value)) {
-                trackBytes(RamUsageEstimator.sizeOf(value));
-            }
-        }
-    }
-
-    private void trackSetAdd(Set<String> set, String value) {
-        if (value != null && set.add(value)) {
-            trackBytes(RamUsageEstimator.sizeOf(value));
-        }
-    }
-
     private void untrackBytes(long delta) {
         breaker.addWithoutBreaking(-delta);
         trackedBytes -= delta;
     }
 
-    /**
-     * Merges the buffered entries into rows with the same signature. Each row and set value is reserved on the breaker
-     * before it is created. Each entry is removed as soon as it is merged, and the memory of its own objects is returned.
-     * Its strings and value sets are shared by the rows, so their memory stays reserved until the last row is emitted.
-     */
-    private MergedRows mergeBufferedEntries() {
-        Map<TsSignature, TsInfoRow> bySignature = new LinkedHashMap<>();
-        Iterator<TsInfoEntry> entries = entriesByKey.values().iterator();
-        while (entries.hasNext()) {
-            TsInfoEntry entry = entries.next();
-            TsSignature sig = new TsSignature(entry.metricName, entry.dimensionsJson, entry.units, entry.fieldTypes, entry.metricTypes);
-            TsInfoRow row = bySignature.get(sig);
-            if (row == null) {
-                trackBytes(MERGED_ROW_SIZE);
-                row = new TsInfoRow(sig.metricName(), sig.dimensionsJson(), sig.units(), sig.fieldTypes(), sig.metricTypes());
-                bySignature.put(sig, row);
-            }
-            addToMergedSet(row.indexAbstractionNames, entry.indexAbstractionName);
-            for (String dimensionFieldKey : entry.dimensionFieldKeys) {
-                addToMergedSet(row.dimensionFieldKeys, dimensionFieldKey);
-            }
-            entries.remove();
-            untrackBytes(ENTRY_SHALLOW_SIZE);
+    /** Returns the series, or {@code null} if it is new and the operator already holds {@link #limit} series. */
+    private Series findOrCreateSeriesWithinLimit(String metricName, String dimensionsJson) {
+        Series series = seriesByKey.get(new SeriesKey(metricName, dimensionsJson));
+        if (series == null && seriesByKey.size() < limit) {
+            trackBytes(SERIES_BYTES);
+            SeriesKey key = new SeriesKey(canonicalString(metricName), canonicalString(dimensionsJson));
+            series = new Series(key);
+            seriesByKey.put(key, series);
         }
-        untrackBytes(metricDimensions.size() * METRIC_DIMENSIONS_SHALLOW_SIZE);
-        metricDimensions.clear();
-        return new MergedRows(bySignature);
+        return series;
     }
 
-    private void addToMergedSet(Set<String> set, String value) {
-        if (set.contains(value) == false) {
-            trackBytes(MERGED_SET_VALUE_SIZE);
-            set.add(value);
+    private IndexAbstractionMetadata findOrCreateIndexAbstraction(Series series, String name) {
+        for (IndexAbstractionMetadata indexAbstraction : series.indexAbstractions) {
+            if (indexAbstraction.name.equals(name)) {
+                return indexAbstraction;
+            }
         }
+        trackBytes(INDEX_ABSTRACTION_BYTES);
+        IndexAbstractionMetadata indexAbstraction = new IndexAbstractionMetadata(canonicalString(name));
+        series.indexAbstractions.add(indexAbstraction);
+        entriesAccumulated++;
+        return indexAbstraction;
+    }
+
+    private String canonicalString(String value) {
+        String canonical = canonicalStrings.get(value);
+        if (canonical == null) {
+            trackBytes(MAP_ENTRY_BYTES + RamUsageEstimator.sizeOf(value));
+            canonicalStrings.put(value, value);
+            canonical = value;
+        }
+        return canonical;
+    }
+
+    /** Returns the shared, immutable list of {@code values}, which are sorted and distinct by type. */
+    private List<String> canonicalList(SortedSet<String> values) {
+        List<String> list = List.copyOf(values);
+        List<String> canonical = canonicalLists.get(list);
+        if (canonical == null) {
+            trackBytes(MAP_ENTRY_BYTES + RamUsageEstimator.sizeOfCollection(list));
+            canonicalLists.put(list, list);
+            canonical = list;
+        }
+        return canonical;
+    }
+
+    /** Returns the canonical union of two canonical lists. */
+    private List<String> union(List<String> current, List<String> added) {
+        if (current == added || added.isEmpty()) {
+            return current;
+        }
+        if (current.isEmpty()) {
+            return added;
+        }
+        SortedSet<String> merged = new TreeSet<>(current);
+        return merged.addAll(added) ? canonicalList(merged) : current;
+    }
+
+    /** Returns the canonical list of {@code current} plus {@code value}. A null value adds nothing. */
+    private List<String> withValue(List<String> current, String value) {
+        if (value == null || current.contains(value)) {
+            return current;
+        }
+        SortedSet<String> merged = new TreeSet<>(current);
+        merged.add(value);
+        return canonicalList(merged);
     }
 
     @Override
@@ -654,35 +604,37 @@ public class TsInfoOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && finalOutputStarted && pendingRows == null;
+        return finished && finalOutputStarted && pendingSeries == null;
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return pendingRows != null || partialEmitThresholdReached();
+        return pendingSeries != null || partialEmitThresholdReached();
     }
 
     @Override
     public Page getOutput() {
-        if (pendingRows == null) {
+        if (pendingSeries == null) {
             if (partialEmitThresholdReached()) {
-                pendingRows = mergeBufferedEntries();
+                pendingSeries = seriesByKey.values().iterator();
             } else if (finished && finalOutputStarted == false) {
                 finalOutputStarted = true;
-                if (entriesByKey.isEmpty()) {
+                if (seriesByKey.isEmpty()) {
+                    releaseState();
                     // Downstream gets at least one page even when there is no input
                     return rowsEmitted == 0 ? createEmptyPage() : null;
                 }
-                pendingRows = mergeBufferedEntries();
+                pendingSeries = seriesByKey.values().iterator();
             } else {
                 return null;
             }
         }
-        Page output = pendingRows.nextPage();
+        Page output = nextPage();
         rowsEmitted += output.getPositionCount();
-        if (pendingRows.hasNext() == false) {
-            pendingRows = null;
-            releaseTrackedBytes();
+        if (pendingSeries.hasNext() == false) {
+            pendingSeries = null;
+            // The driver can keep this operator open until the whole pipeline finishes, while the pages already hold the result.
+            releaseState();
         }
         return output;
     }
@@ -705,75 +657,73 @@ public class TsInfoOperator implements Operator {
     }
 
     /**
-     * Merged rows emitted over several pages. Each page stops at the first row that brings the estimated block
-     * memory to {@link #targetPageBytes}, so a page holds at least one row and a single wide row can exceed the target.
-     * Each emitted row is removed and returns the memory reserved for it while merging, so it can be collected while
-     * later pages are built.
+     * Writes the rows of the next pending series into a page. The page stops after the first series that brings the
+     * estimated block memory to {@link #targetPageBytes}, so a page holds at least one series and a single wide series
+     * can exceed the target. Each written series is removed and returns its own tracked memory. The canonical values
+     * it shares with other series stay tracked until the last page.
      */
-    private final class MergedRows {
-        /**
-         * Rows vary widely in size, so the row count of a page is unknown up front.
-         * Builders start at this many positions and grow.
-         */
-        private static final int INITIAL_PAGE_POSITIONS = 128;
-
-        private final Iterator<TsInfoRow> rows;
-        private int remaining;
-
-        MergedRows(Map<TsSignature, TsInfoRow> bySignature) {
-            this.rows = bySignature.values().iterator();
-            this.remaining = bySignature.size();
-        }
-
-        boolean hasNext() {
-            return remaining > 0;
-        }
-
-        Page nextPage() {
-            int initialPositions = Math.min(remaining, INITIAL_PAGE_POSITIONS);
-            try (
-                BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
-                BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
-                BytesRefBlock.Builder unitBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
-                BytesRefBlock.Builder mtBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
-                BytesRefBlock.Builder ftBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
-                BytesRefBlock.Builder dfBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
-                BytesRefBlock.Builder dimBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions)
-            ) {
-                Block.Builder[] builders = { nameBuilder, dsBuilder, unitBuilder, mtBuilder, ftBuilder, dfBuilder, dimBuilder };
-                int positions = 0;
-                do {
-                    TsInfoRow row = rows.next();
-                    rows.remove();
-                    remaining--;
-                    nameBuilder.appendBytesRef(new BytesRef(row.metricName));
-                    appendMultiValued(dsBuilder, row.indexAbstractionNames);
-                    appendMultiValued(unitBuilder, row.units);
-                    appendMultiValued(mtBuilder, row.metricTypes);
-                    appendMultiValued(ftBuilder, row.fieldTypes);
-                    appendMultiValued(dfBuilder, row.dimensionFieldKeys);
-                    dimBuilder.appendBytesRef(new BytesRef(row.dimensionsJson));
-                    untrackBytes(row.mergedBytes());
-                    positions++;
-                } while (hasNext() && estimatedBytes(builders) < targetPageBytes);
-                return new Page(positions, Block.Builder.buildAll(builders));
-            }
-        }
-
-        private static long estimatedBytes(Block.Builder[] builders) {
-            long total = 0;
-            for (Block.Builder builder : builders) {
-                total += builder.estimatedBytes();
-            }
-            return total;
+    private Page nextPage() {
+        int initialPositions = Math.min(seriesByKey.size(), INITIAL_PAGE_POSITIONS);
+        try (
+            BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+            BytesRefBlock.Builder dsBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+            BytesRefBlock.Builder unitBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+            BytesRefBlock.Builder mtBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+            BytesRefBlock.Builder ftBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+            BytesRefBlock.Builder dfBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions);
+            BytesRefBlock.Builder dimBuilder = blockFactory.newBytesRefBlockBuilder(initialPositions)
+        ) {
+            Block.Builder[] builders = { nameBuilder, dsBuilder, unitBuilder, mtBuilder, ftBuilder, dfBuilder, dimBuilder };
+            int rowCount = 0;
+            do {
+                Series series = pendingSeries.next();
+                pendingSeries.remove();
+                for (Map.Entry<FieldMetadata, List<String>> row : indexAbstractionsByMetadata(series).entrySet()) {
+                    FieldMetadata metadata = row.getKey();
+                    nameBuilder.appendBytesRef(new BytesRef(series.key.metricName()));
+                    appendMultiValued(dsBuilder, row.getValue());
+                    appendMultiValued(unitBuilder, metadata.units());
+                    appendMultiValued(mtBuilder, metadata.metricTypes());
+                    appendMultiValued(ftBuilder, metadata.fieldTypes());
+                    appendMultiValued(dfBuilder, series.dimensionFieldKeys);
+                    dimBuilder.appendBytesRef(new BytesRef(series.key.dimensionsJson()));
+                    rowCount++;
+                }
+                untrackBytes(series.trackedBytes());
+            } while (pendingSeries.hasNext() && estimatedBytes(builders) < targetPageBytes);
+            return new Page(rowCount, Block.Builder.buildAll(builders));
         }
     }
 
-    private static void appendMultiValued(BytesRefBlock.Builder builder, Set<String> values) {
-        if (values == null || values.isEmpty()) {
+    private static long estimatedBytes(Block.Builder[] builders) {
+        long total = 0;
+        for (Block.Builder builder : builders) {
+            total += builder.estimatedBytes();
+        }
+        return total;
+    }
+
+    /**
+     * Groups the index abstraction names of one series by metadata, one output row per group. The map lives only while
+     * the series is written and is as large as the series' index abstraction count, so it is not charged to the breaker.
+     */
+    private static Map<FieldMetadata, List<String>> indexAbstractionsByMetadata(Series series) {
+        Map<FieldMetadata, List<String>> groups = new LinkedHashMap<>();
+        for (IndexAbstractionMetadata indexAbstraction : series.indexAbstractions) {
+            FieldMetadata metadata = new FieldMetadata(indexAbstraction.units, indexAbstraction.fieldTypes, indexAbstraction.metricTypes);
+            groups.computeIfAbsent(metadata, k -> new ArrayList<>()).add(indexAbstraction.name);
+        }
+        for (List<String> names : groups.values()) {
+            names.sort(null);
+        }
+        return groups;
+    }
+
+    private static void appendMultiValued(BytesRefBlock.Builder builder, List<String> values) {
+        if (values.isEmpty()) {
             builder.appendNull();
         } else if (values.size() == 1) {
-            builder.appendBytesRef(new BytesRef(values.iterator().next()));
+            builder.appendBytesRef(new BytesRef(values.getFirst()));
         } else {
             builder.beginPositionEntry();
             for (String v : values) {
@@ -801,7 +751,16 @@ public class TsInfoOperator implements Operator {
 
     @Override
     public void close() {
-        releaseTrackedBytes();
+        releaseState();
+    }
+
+    private void releaseState() {
+        // Replace rather than clear the maps, because clear() keeps their tables allocated.
+        seriesByKey = new LinkedHashMap<>();
+        canonicalStrings = new HashMap<>();
+        canonicalLists = new HashMap<>();
+        breaker.addWithoutBreaking(-trackedBytes);
+        trackedBytes = 0;
     }
 
     @Override

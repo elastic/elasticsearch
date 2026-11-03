@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -271,28 +270,20 @@ public final class ProfileSchema<T> {
      * A polymorphic profile variant whose wire registration and JSON schema share one stable name.
      */
     public record Variant<T extends NamedWriteable>(
-        Class<T> categoryClass,
-        String name,
-        Writeable.Reader<? extends T> reader,
+        NamedWriteableRegistry.Entry namedWriteableEntry,
         ProfileSchema<? extends T> profileSchema
     ) {
         public Variant {
-            Objects.requireNonNull(categoryClass);
-            Objects.requireNonNull(name);
-            Objects.requireNonNull(reader);
+            Objects.requireNonNull(namedWriteableEntry);
             Objects.requireNonNull(profileSchema);
         }
 
-        /** Create the named-writeable registration represented by this variant. */
-        public NamedWriteableRegistry.Entry namedWriteableEntry() {
-            return new NamedWriteableRegistry.Entry(categoryClass, name, reader);
+        /** The stable name shared by the wire registration and profile schema. */
+        public String name() {
+            return namedWriteableEntry.name;
         }
 
-        /**
-         * Pair an existing wire entry with its profile schema, preserving the reader type that
-         * {@link NamedWriteableRegistry.Entry} erases after construction.
-         */
-        @SuppressWarnings("unchecked")
+        /** Pair an existing wire entry with its profile schema. */
         public static <T extends NamedWriteable> Variant<T> fromEntry(
             Class<T> categoryClass,
             NamedWriteableRegistry.Entry entry,
@@ -303,9 +294,12 @@ public final class ProfileSchema<T> {
                     "wire entry category [" + entry.categoryClass.getName() + "] does not match [" + categoryClass.getName() + "]"
                 );
             }
-            // NamedWriteableRegistry.Entry erases its reader type after validating it in the constructor.
-            Writeable.Reader<? extends T> reader = (Writeable.Reader<? extends T>) entry.reader;
-            return new Variant<>(categoryClass, entry.name, reader, profileSchema);
+            if (categoryClass.isAssignableFrom(profileSchema.javaType()) == false) {
+                throw new IllegalArgumentException(
+                    "profile type [" + profileSchema.javaType().getName() + "] does not implement [" + categoryClass.getName() + "]"
+                );
+            }
+            return new Variant<>(entry, profileSchema);
         }
     }
 }

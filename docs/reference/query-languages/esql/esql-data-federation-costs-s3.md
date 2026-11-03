@@ -32,7 +32,7 @@ AWS KMS requests
 
 AWS bills successful requests and most client errors, whatever the query outcome. A query that fails, is cancelled, or returns no rows can still list the bucket and read file metadata. AWS doesn't bill `5XX` server errors or some other error responses. For details, refer to [Billing for Amazon S3 error responses](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ErrorCodeBilling.html).
 
-File data isn't cached. Each query reads the rows it needs from S3, so running a query again or refreshing a dashboard sends new requests. File listings, schemas, and Parquet footers are cached on each node. For details, refer to [](esql-data-federation-querying.md#caching).
+File data isn't cached. Each query reads the rows it needs from S3, so running a query again or refreshing a dashboard sends new requests. One exception: an ungrouped `COUNT`, `MIN`, or `MAX` that {{es}} can answer from file statistics reads no row data, and the `profile` object reports `external_warm_aggregates` when this happens. File listings, schemas, and Parquet footers are cached on each node. For details, refer to [](esql-data-federation-querying.md#caching).
 
 ## Estimate the cost of a query [s3-estimate-cost]
 
@@ -85,8 +85,8 @@ Profile output is intended for human debugging, and its format can change at any
     }
     ```
 
-    1. Bytes read while running the query. This value doesn't include bytes read while planning the query.
-    2. Bytes read while planning the query, such as file footers. Add this value to `bytes_read`. The response omits this field when it's zero, for example when a repeated query reuses cached metadata.
+    1. Bytes read while running the query. This value doesn't include the object storage reads {{es}} made while planning the query.
+    2. Bytes read while planning the query, such as file footers. Add this value to `bytes_read`. The response omits this field when it's zero, for example when a repeated query reuses cached metadata. If `external_resolution_bytes_read` and `external_resolution_requests` are present, they're a breakdown of `planning_bytes_read` and `planning_requests`, not values to add on top.
     3. Requests sent while planning the query, such as listing files and reading file metadata. Like `planning_bytes_read`, it's omitted when it's zero.
     4. Requests sent by this operator while reading data. To get the total, add the `request_count` of every `ExternalDataSourceOperator` across all drivers to `planning_requests`.
 
@@ -100,7 +100,7 @@ Profile output is intended for human debugging, and its format can change at any
     - {math}`P_{\text{transfer}}` = your price per GB transferred. There's no transfer charge in the same region.
     - {math}`P_{\text{retrieval}}` = your retrieval price per GB, for infrequent-access storage classes. Otherwise zero.
     - {math}`\text{GB read}` = `bytes_read` plus `planning_bytes_read`, converted to GB. AWS pricing pages don't say whether a GB of data transfer is {math}`10^9` or {math}`2^{30}` bytes. To keep the estimate conservative, divide by 1,000,000,000, which gives the higher result. For actual usage, refer to [](#s3-monitor-aws).
-    - {math}`\text{runs}` = how often the query runs. A dashboard runs one query for each panel on every refresh, for each user who has it open. Also count alerting rules and scheduled jobs that run the query.
+    - {math}`\text{runs}` = how often the query runs. A dashboard runs one query for each panel on every refresh, for each user who has it open. Also count alerting rules and scheduled jobs that run the query. Multiplying by {math}`\text{runs}` assumes every run reads the same data, which isn't the case for a query {{es}} answers from file statistics. Refer to [](#s3-failed-repeated-queries).
 
 :::{tip}
 Run the query twice to see the cost of a repeated query. The first run lists files and reads footers that later runs can reuse from the cache.
@@ -128,7 +128,7 @@ Every {{esql}} response includes `bytes_read`, so you can check it for queries t
 
     ![The Inspector's Response tab for an ES|QL query, showing bytes_read inside rawResponse](images/data-federation/inspector-response-bytes-read.png)
 
-This value doesn't include bytes read while planning the query, such as file footers, so it can be lower than the bytes AWS bills.
+This value doesn't include the object storage reads {{es}} made while planning the query, such as file footers, so it can be lower than the bytes AWS bills.
 
 :::{note}
 {{kib}} doesn't turn on profiling, so request counts aren't available there. To get them, follow the steps in [](#s3-estimate-cost).
@@ -169,8 +169,8 @@ The response looks like this:
 1. Retries across all storage providers.
 2. Bytes read from S3.
 3. Requests that read object data from S3.
-4. Failed S3 requests.
-5. S3 requests that AWS throttled.
+4. S3 reads that failed and gave up after retrying. A terminal throttling failure is counted here as well as in `throttled`, so don't add the two.
+5. S3 reads that gave up because AWS throttled them.
 
 To estimate usage over a period, read the counters on a schedule and compare the differences. The counters reset when a node restarts. `requests.total.s3` and `bytes_read.total.s3` count only reads of file data while queries run. They don't include planning requests, such as listing and metadata reads, or retries inside the AWS SDK, so treat them as lower bounds.
 

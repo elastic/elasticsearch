@@ -4202,6 +4202,59 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * A {@code required} text column declared {@code datetime} nulls any value that fails to parse, and a declared
+     * coercion is independent of definition levels — so the definition level alone would allocate this array
+     * uninitialized while the parse-failure branch leaves its position unassigned. This is the one arm whose
+     * condition is not the definition-level test, and the serialized bytes are the only oracle for a long slot.
+     */
+    public void testRequiredDeclaredDatetimeCoercionFailureSerializesDeterministically() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("ts")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group parses = factory.newGroup();
+            parses.add("ts", "2000-01-01T12:00:00.000Z");
+            Group fails = factory.newGroup();
+            fails.add("ts", "not-a-datetime");
+            return List.of(parses, fails);
+        });
+
+        List<Attribute> asDatetime = List.of(new ReferenceAttribute(Source.EMPTY, "ts", DataType.DATETIME));
+        byte[] expected = null;
+        for (int read = 0; read < 200; read++) {
+            ParquetFormatReader reader = (ParquetFormatReader) new ParquetFormatReader(blockFactory).withBaselinePath()
+                .withDeclaredTypeColumns(Set.of("ts"));
+            StorageObject storageObject = createStorageObject(parquetData);
+            try (
+                CloseableIterator<Page> iterator = reader.readRange(
+                    storageObject,
+                    new RangeReadContext(List.of("ts"), 10, 0, parquetData.length, asDatetime, ErrorPolicy.PERMISSIVE)
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                try {
+                    LongBlock block = (LongBlock) page.getBlock(0);
+                    assertFalse("the parseable value must be present", block.isNull(0));
+                    assertTrue("the unparseable value must be null", block.isNull(1));
+                    byte[] actual = serializedBytes(block);
+                    if (expected == null) {
+                        expected = actual;
+                    } else {
+                        assertArrayEquals("serialized form changed on read " + read, expected, actual);
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            drainWarnings();
+        }
+    }
+
     /** Serialized bytes, copied out before close returns the stream's pages to the recycler. */
     private static byte[] serializedBytes(Block block) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {

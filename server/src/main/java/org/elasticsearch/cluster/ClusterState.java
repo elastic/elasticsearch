@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -257,7 +258,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             // Get all shards from the IndexShardRoutingTable, including relocation targets which are included in getAllInitializingShards()
             // but not in allShards(), deduping because getAllInitializingShards() also includes some shards that _are_ in allShards():
             .flatMap(shard -> Stream.concat(shard.allShards(), shard.getAllInitializingShards().stream()).distinct())
-            .filter(shard -> shard.recoveryPriority() == ShardRouting.RecoveryPriority.UNKNOWN)
+            .filter(shard -> shard.recoveryPriority() == RecoveryPriority.UNKNOWN)
             .toList();
         assert shardRoutingsWithUnknownRecoveryPriority.isEmpty()
             : "Cluster state contained shard routings with UNKNOWN recovery priority [" + shardRoutingsWithUnknownRecoveryPriority + "]";

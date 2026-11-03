@@ -70,6 +70,15 @@ public class SourceRowXContentParserTests extends ESTestCase {
         ACCESSORS.put("doubleValue", XContentParser::doubleValue);
         ACCESSORS.put("numberValue", XContentParser::numberValue);
         ACCESSORS.put("numberType", XContentParser::numberType);
+        ACCESSORS.put("text", XContentParser::text);
+        ACCESSORS.put("optimizedText", p -> p.optimizedText().string());
+        ACCESSORS.put("charBuffer", p -> p.charBuffer().toString());
+        ACCESSORS.put("textLength", XContentParser::textLength);
+        ACCESSORS.put("objectText", XContentParser::objectText);
+        ACCESSORS.put("objectBytes", p -> {
+            final Object bytes = p.objectBytes();
+            return bytes instanceof CharSequence ? bytes.toString() : bytes;
+        });
     }
 
     /**
@@ -211,6 +220,11 @@ public class SourceRowXContentParserTests extends ESTestCase {
                             row.nextToken();
                         }
                         assertEquals("token for " + entry.getKey(), json.currentToken(), row.currentToken());
+                        final boolean floatingNumber = row.currentToken() == Token.VALUE_NUMBER
+                            && numberKind(row.numberType()).equals("floating");
+                        if (isKnownDifference(accessor.getKey(), json.currentToken(), floatingNumber)) {
+                            continue;
+                        }
                         final String problem = compare(
                             accessor.getKey(),
                             Outcome.of(json, accessor.getValue()),
@@ -227,6 +241,26 @@ public class SourceRowXContentParserTests extends ESTestCase {
             "typed accessors differing from the JSON parser (" + differences.size() + "):\n" + String.join("\n", differences),
             differences.isEmpty()
         );
+    }
+
+    /**
+     * Differences that are known and not what this test is about:
+     * <ul>
+     * <li>The text of a floating-point number is the row parser's rendering of the stored value, not the spelling in the source
+     * ({@code 1e3} reads back as {@code 1000.0}). The text of an integral number is compared.</li>
+     * <li>{@code charBuffer}, {@code textLength} and {@code objectBytes} on a token that is not a scalar value return the token's text
+     * (an opening brace) from the JSON parser; the row parser throws, as {@code text()} does for both parsers. No mapper reads those.</li>
+     * </ul>
+     */
+    private static boolean isKnownDifference(String accessor, Token token, boolean floatingNumber) {
+        return switch (accessor) {
+            case "text", "optimizedText" -> floatingNumber;
+            case "charBuffer", "textLength" -> floatingNumber || token.isValue() == false;
+            case "objectBytes" -> token.isValue() == false;
+            case "booleanValue", "shortValue", "intValue", "longValue", "floatValue", "doubleValue", "numberValue", "numberType",
+                "objectText" -> false;
+            default -> throw new AssertionError("unexpected accessor [" + accessor + "]");
+        };
     }
 
     /** Returns a description of how {@code actual} differs from {@code expected}, or {@code null} if it is equivalent. */

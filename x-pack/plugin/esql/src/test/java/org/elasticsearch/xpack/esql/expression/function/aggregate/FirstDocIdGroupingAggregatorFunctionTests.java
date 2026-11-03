@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FirstDocIdGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocOrigin;
+import org.elasticsearch.compute.data.DocOrigins;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
@@ -27,12 +30,16 @@ import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
 
@@ -107,7 +114,147 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
         assertThat(actualFirstDocs, Matchers.equalTo(expectedFirstDocs));
     }
 
+    /**
+     * Documents that left their node, like the rows a {@code FORK} merges on the coordinator, keep their origin. Every
+     * input page brings its own dictionary of origins, as pages from different nodes do.
+     */
+    public void testDocumentsThatLeftTheirNodeKeepTheirOrigin() {
+        List<DocOrigin> origins = origins(between(1, 5));
+        Map<Integer, DetachedDoc> expectedFirstDocs = new HashMap<>();
+        List<Page> pages = detachedPages(origins, expectedFirstDocs);
+
+        Map<Integer, DetachedDoc> actualFirstDocs = new HashMap<>();
+        for (Page out : runSingle(pages, Integer.MAX_VALUE)) {
+            IntBlock groups = out.getBlock(0);
+            DocVector docVector = ((DocBlock) out.getBlock(1)).asVector();
+            for (int p = 0; p < out.getPositionCount(); p++) {
+                DetachedDoc doc = new DetachedDoc(docVector.origin(p), docVector.segments().getInt(p), docVector.docs().getInt(p));
+                assertNull(actualFirstDocs.put(groups.getInt(p), doc));
+            }
+            out.close();
+        }
+        assertThat(actualFirstDocs, Matchers.equalTo(expectedFirstDocs));
+    }
+
+    /**
+     * An output page names only the origins of its own rows, so a page doesn't carry every origin the aggregation saw.
+     */
+    public void testAnOutputPageCarriesOnlyTheOriginsOfItsRows() {
+        List<Page> pages = detachedPages(origins(between(2, 5)), new HashMap<>());
+
+        for (Page out : runSingle(pages, between(1, 10))) {
+            DocVector docVector = ((DocBlock) out.getBlock(1)).asVector();
+            Set<DocOrigin> referenced = new HashSet<>();
+            for (int p = 0; p < out.getPositionCount(); p++) {
+                referenced.add(docVector.origin(p));
+            }
+            assertThat(docVector.origins().size(), Matchers.equalTo(referenced.size()));
+            out.close();
+        }
+    }
+
+    /**
+     * A vector holds either documents of this node or documents that left their node, so one aggregation can't take both.
+     */
+    public void testDocumentsOfThisNodeAndDocumentsThatLeftTheirNodeDontMix() {
+        Map<Integer, RefCounted> shardRefs = Map.of(0, AbstractRefCounted.of(() -> {}));
+        Page attached;
+        try (var docs = DocVector.newFixedBuilder(blockFactory(), 1)) {
+            docs.append(0, 0, 0);
+            DocVector docVector = docs.shardRefCounters(new FirstDocIdGroupingAggregatorFunction.MappedShardRefs<>(shardRefs))
+                .build(DocVector.config());
+            attached = new Page(docVector.asBlock());
+        }
+        Page detached;
+        try (DocBlock.Builder builder = DocBlock.newBlockBuilder(blockFactory(), 1)) {
+            builder.appendShard(0).appendSegment(0).appendDoc(0);
+            detached = new Page(builder.build(DocVector.config().origins(DocOrigins.of(origins(1)))));
+        }
+        try (var aggregator = new FirstDocIdGroupingAggregatorFunction(List.of(0), driverContext())) {
+            aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), attached).close();
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> aggregator.prepareProcessRawInputPage(new SeenGroupIds.Empty(), detached)
+            );
+            assertThat(
+                e.getMessage(),
+                Matchers.equalTo("first_doc_id can't mix documents of this node with documents that left their node")
+            );
+        } finally {
+            attached.releaseBlocks();
+            detached.releaseBlocks();
+            shardRefs.get(0).decRef();
+        }
+    }
+
+    /**
+     * Pages of documents that left their node, and the first document of each group in {@code expectedFirstDocs}. The
+     * first page references every origin, in a random order, and the others a random dictionary drawn from {@code origins}.
+     */
+    private List<Page> detachedPages(List<DocOrigin> origins, Map<Integer, DetachedDoc> expectedFirstDocs) {
+        int numPages = between(1, 20);
+        List<Page> pages = new ArrayList<>(numPages);
+        for (int i = 0; i < numPages; i++) {
+            List<DocOrigin> pageOrigins = i == 0 ? shuffledList(origins) : randomNonEmptySubsetOf(origins).stream().toList();
+            int positions = between(pageOrigins.size(), 200);
+            try (
+                DocBlock.Builder docs = DocBlock.newBlockBuilder(blockFactory(), positions);
+                var groups = blockFactory().newIntVectorFixedBuilder(positions)
+            ) {
+                for (int p = 0; p < positions; p++) {
+                    int ordinal = p < pageOrigins.size() ? p : between(0, pageOrigins.size() - 1);
+                    int segment = between(0, 5);
+                    int docId = randomNonNegativeInt();
+                    docs.appendShard(ordinal).appendSegment(segment).appendDoc(docId);
+                    int group = between(0, 100);
+                    groups.appendInt(group);
+                    expectedFirstDocs.putIfAbsent(group, new DetachedDoc(pageOrigins.get(ordinal), segment, docId));
+                }
+                DocBlock docBlock = docs.build(DocVector.config().origins(DocOrigins.of(pageOrigins)).mayContainDuplicates());
+                pages.add(new Page(docBlock, groups.build().asBlock()));
+            }
+        }
+        return pages;
+    }
+
+    /**
+     * Groups {@code pages} by their second column in a single pass, as the coordinator aggregates the rows of a {@code FORK}.
+     */
+    private List<Page> runSingle(List<Page> pages, int maxPageSize) {
+        DriverContext driverContext = driverContext();
+        var aggregatorFactory = new FirstDocIdGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
+            AggregatorMode.SINGLE,
+            List.of(0)
+        );
+        HashAggregationOperator hashAggregationOperator = new HashAggregationOperator.Builder().mode(AggregatorMode.SINGLE)
+            .aggregators(List.of(aggregatorFactory))
+            .groups(List.of(new BlockHash.GroupSpec(1, ElementType.INT)))
+            .aggregationBatchSize(randomIntBetween(1, 1024))
+            .maxPageSize(maxPageSize)
+            .build()
+            .get(driverContext);
+        List<Page> outputPages = new ArrayList<>();
+        Driver driver = TestDriverFactory.create(
+            driverContext,
+            new CannedSourceOperator(pages.iterator()),
+            List.of(hashAggregationOperator),
+            new PageConsumerOperator(outputPages::add)
+        );
+        new TestDriverRunner().run(driver);
+        return outputPages;
+    }
+
+    private static List<DocOrigin> origins(int count) {
+        List<DocOrigin> origins = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            origins.add(new DocOrigin("", "node-" + i, new ShardId("idx", "uuid", i), new ShardSearchContextId("session", i)));
+        }
+        return origins;
+    }
+
     record Doc(int shard, int segment, int docId) {
 
     }
+
+    record DetachedDoc(DocOrigin origin, int segment, int docId) {}
 }

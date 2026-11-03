@@ -31,6 +31,9 @@ import org.elasticsearch.xpack.esql.plugin.EsqlProfileSchemaRegistry;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -43,9 +46,10 @@ public class EsqlProfileSchemaDocumentTests {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
-    public void testGeneratedDocumentIsDeterministicAndComplete() {
+    public void testGeneratedDocumentIsDeterministicAndComplete() throws IOException {
         Map<String, Object> first = EsqlProfileSchemaDocument.create();
         assertEquals(first, EsqlProfileSchemaDocument.create());
+        assertEquals(OBJECT_MAPPER.valueToTree(first), checkedInSchema());
 
         Map<?, ?> definitions = (Map<?, ?>) first.get("definitions");
         assertNotNull(definitions.get("EsqlProfile"));
@@ -66,7 +70,7 @@ public class EsqlProfileSchemaDocumentTests {
 
     @Test
     public void testRepresentativeProfileValidates() throws IOException {
-        JsonNode schemaNode = OBJECT_MAPPER.valueToTree(EsqlProfileSchemaDocument.create());
+        JsonNode schemaNode = checkedInSchema();
         JsonSchema schema = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7).getSchema(schemaNode);
 
         DriverProfile driver = new DriverProfile("data", "cluster", "node", 1, 2, 1_000_000, 100, 200, 1, List.of(), DriverSleeps.empty());
@@ -84,6 +88,13 @@ public class EsqlProfileSchemaDocumentTests {
             EsqlQueryResponse.PROFILE_SCHEMA.write(builder, value, ToXContent.EMPTY_PARAMS);
             JsonNode profile = OBJECT_MAPPER.readTree(Strings.toString(builder));
             assertEquals(List.of(), List.copyOf(schema.validate(profile)));
+        }
+    }
+
+    private static JsonNode checkedInSchema() throws IOException {
+        Path schema = Path.of(System.getProperty("esql.profile.schema.path"));
+        try (InputStream stream = Files.newInputStream(schema)) {
+            return OBJECT_MAPPER.readTree(stream);
         }
     }
 

@@ -438,6 +438,16 @@ Inside `TS ... | STATS ...`, a bare field is implicitly wrapped in `last_over_ti
 ./gradlew :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateKibanaDefinitionTests
 ```
 
+### Profile response schema
+
+The generated draft-7 schema for the ES|QL profile response is published for Kibana in
+[`kibana/generated/x-pack-esql/definition/profile/esql-profile.schema.json`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/profile/esql-profile.schema.json).
+To regenerate it after changing a profile descriptor, run:
+
+```
+./gradlew :x-pack:plugin:esql:profile-schema:updateProfileSchema
+```
+
 ### Reserved keywords
 
 The reserved-keyword list is generated from identifier-shaped literals in `EsqlBaseLexer.VOCABULARY` by `ReservedKeywordsDocsTests`. Tokens whose ANTLR literal is missing (for example `STATS`) are recovered by lexing the symbolic name. To regenerate:

@@ -5,13 +5,6 @@ base {
   archivesName = 'esql-profile-schema'
 }
 
-configurations {
-  esqlProfileSchema {
-    canBeResolved = false
-    canBeConsumed = true
-  }
-}
-
 dependencies {
   implementation project(':server')
   implementation project(xpackModule('core'))
@@ -37,14 +30,20 @@ dependencies {
   testImplementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
 }
 
+def schemaPath = 'esql-profile.schema.json'
+def generatedSchema = layout.buildDirectory.file("generated-resources/esql-profile/${schemaPath}")
+def checkedInSchema = rootProject.layout.projectDirectory.file(
+  "docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/profile/${schemaPath}"
+)
+
 def realCommonsLang = configurations.testRuntimeClasspath.filter { it.name.startsWith('commons-lang3-') }
 tasks.named('test').configure {
   // The ORC plugin contains a minimal same-FQN StringUtils stub for its isolated production
   // classloader. NetworkNT needs the complete library, so put it first on this flat test classpath.
   classpath = realCommonsLang + (classpath - realCommonsLang)
+  inputs.file(checkedInSchema)
+  systemProperty 'esql.profile.schema.path', checkedInSchema.asFile
 }
-
-def generatedSchema = layout.buildDirectory.file('generated-resources/esql-profile/esql-profile.schema.json')
 
 def generateProfileSchema = tasks.register('generateProfileSchema', JavaExec) {
   group = 'Build'
@@ -55,19 +54,36 @@ def generateProfileSchema = tasks.register('generateProfileSchema', JavaExec) {
   outputs.file(generatedSchema)
 }
 
-tasks.register('exportProfileSchema') {
+def updateProfileSchema = tasks.register('updateProfileSchema', JavaExec) {
   group = 'Build'
-  description = 'Exports the complete ES|QL profile response JSON Schema.'
-  dependsOn generateProfileSchema
-  outputs.file(generatedSchema)
+  description = 'Updates the checked-in ES|QL profile response JSON Schema.'
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = 'org.elasticsearch.xpack.esql.profileschema.GenerateProfileSchema'
+  args checkedInSchema.asFile
+  outputs.file(checkedInSchema)
+  outputs.upToDateWhen { false }
 }
 
-artifacts {
-  esqlProfileSchema(generatedSchema) {
-    builtBy generateProfileSchema
+def checkProfileSchema = tasks.register('checkProfileSchema') {
+  group = 'Verification'
+  description = 'Checks that the ES|QL profile response JSON Schema is up to date.'
+  dependsOn generateProfileSchema
+  inputs.file(generatedSchema)
+  inputs.file(checkedInSchema)
+  doLast {
+    if (java.nio.file.Files.mismatch(generatedSchema.get().asFile.toPath(), checkedInSchema.asFile.toPath()) != -1) {
+      throw new GradleException("ES|QL profile schema is stale. Run ${updateProfileSchema.get().path}")
+    }
   }
 }
 
-tasks.named('assemble').configure {
-  dependsOn generateProfileSchema
+tasks.register('exportProfileSchema') {
+  group = 'Build'
+  description = 'Exports the checked-in ES|QL profile response JSON Schema.'
+  dependsOn checkProfileSchema
+  outputs.file(checkedInSchema)
+}
+
+tasks.named('check').configure {
+  dependsOn checkProfileSchema
 }

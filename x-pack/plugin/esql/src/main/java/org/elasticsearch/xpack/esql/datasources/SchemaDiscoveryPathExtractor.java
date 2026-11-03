@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -21,7 +22,8 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Finds the external relations a query asks for a schema and no rows, the {@code FROM ds | LIMIT 0} shape.
+ * Finds the external relations a query asks for a schema and no rows, the {@code FROM ds | LIMIT 0} and
+ * {@code FROM ds | DESCRIBE} shapes.
  * <p>{@code SkipQueryOnLimitZero} already empties such a plan, but it is a logical-optimizer rule and external
  * resolution runs earlier, in {@code EsqlSession#preAnalyzeExternalSources}, so the listing is paid before the
  * plan is emptied. The parsed plan is available there, which is what makes the shape knowable in time.
@@ -47,14 +49,19 @@ public final class SchemaDiscoveryPathExtractor {
     public static Set<String> pathsReadingNoRows(LogicalPlan unresolvedPlan) {
         Set<String> underZeroLimit = new HashSet<>();
         Set<String> read = new HashSet<>();
-        collect(unresolvedPlan, false, underZeroLimit, read);
+        collect(unresolvedPlan, false, false, underZeroLimit, read);
         underZeroLimit.removeAll(read);
         return underZeroLimit;
     }
 
-    private static void collect(Node<?> node, boolean zeroLimitAbove, Set<String> underZeroLimit, Set<String> read) {
+    private static void collect(Node<?> node, boolean zeroLimitAbove, boolean describeAbove, Set<String> underZeroLimit, Set<String> read) {
         if (node instanceof Limit limit && isLiteralZero(limit.limit())) {
             zeroLimitAbove = true;
+        }
+        // DESCRIBE replaces everything below it with a description of its columns during analysis, so nothing
+        // under it runs - not even an aggregate, unlike LIMIT 0.
+        if (node instanceof Describe) {
+            describeAbove = true;
         }
 
         // An aggregate below the zero limit still consumes every row to produce the one the limit
@@ -68,13 +75,13 @@ public final class SchemaDiscoveryPathExtractor {
         if (node instanceof UnresolvedExternalRelation relation) {
             String path = extractPath(relation);
             if (path != null) {
-                (zeroLimitAbove ? underZeroLimit : read).add(path);
+                (zeroLimitAbove || describeAbove ? underZeroLimit : read).add(path);
             }
             return; // leaf: no children below a relation
         }
 
         for (Node<?> child : node.children()) {
-            collect(child, zeroLimitAbove, underZeroLimit, read);
+            collect(child, zeroLimitAbove, describeAbove, underZeroLimit, read);
         }
     }
 

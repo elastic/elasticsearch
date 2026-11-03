@@ -175,8 +175,12 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     threadPool.absoluteTimeInMillis()
                 );
                 // Queued relocations from a node marked for removal get reprioritized to `RELOCATION_CAN_REMAIN_NO` (if
-                // their current priority is lower). Note that nodeShutdowns is one cluster state behind here (we run
-                // before clusterChanged), so a shutdown in the state being applied will be handled by clusterChanged.
+                // their current priority is lower). Usually this is redundant: shards are created while the cluster state is
+                // applied, before clusterChanged runs, so nodeShutdowns is one cluster state behind here and clusterChanged
+                // reprioritizes the recovery right after. However, if the shard lock is unavailable, IndicesClusterStateService
+                // retries the shard creation on the applier thread for as long as the cluster state is unchanged. In that case
+                // clusterChanged has already handled the current cluster state, and without this check the relocation would
+                // keep its lower priority until the next cluster state update.
                 if (sourceNodeId != null && nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId)) {
                     final RecoveryPriority current = indexShard.recoveryState().getRecoveryPriority();
                     final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
@@ -635,7 +639,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
 
         /// Raises the priority of this recovery to `updated`.
         ///
-        /// The pending recoveries queue orders on this priority, this must not be called while the recovery is in the queue.
+        /// The pending recoveries queue orders on this priority. This must not be called while the recovery is in the queue.
         void raiseRecoveryPriority(RecoveryPriority updated) {
             RecoveryState state = recoveryState();
             RecoveryPriority current = state.getRecoveryPriority();

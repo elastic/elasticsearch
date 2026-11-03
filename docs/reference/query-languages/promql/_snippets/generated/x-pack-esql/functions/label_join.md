@@ -36,5 +36,11 @@ sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "inst
 :::{note}
 **Differences from {{prom}}**
 
-A call outside an enclosing `by(...)` aggregation, such as one that isn't aggregated or one under `without(...)`, a call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, and a destination label named `step`, which is an output column of the `PROMQL` command, aren't supported yet. {applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under `topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as `label_replace(sum by (job) (x), "dst", "$1", "job", "(.*)")`. Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
+A call over series that aren't aggregated and outside an enclosing `by(...)` aggregation, such as `label_replace(x, ...)` on its own or under `without(...)`, and a destination label named `step`, which is an output column of the `PROMQL` command, aren't supported yet.
+
+{applies_to}`stack: ga =9.6` A call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, isn't supported yet.
+
+{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over an aggregation other than `by(...)`, such as `sum(x)`, a `without(...)` aggregation, or `topk`, a call over a binary operator, and a call that overwrites a grouping label, such as `label_replace(sum by (job) (x), "job", "$1", "job", "(.*)")`, aren't supported yet. Write a new label instead.
+
+Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; for OpenTelemetry-style metrics the metric name is not exposed as a readable or writable label here.
 :::

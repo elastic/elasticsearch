@@ -107,6 +107,16 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 | 29 | `fill()`, `fill_left()`, and `fill_right()` ({{prom}}: `promql-binop-fill-modifiers` feature flag) | `a + fill(0) b` | - | [#164223]({{es-issue}}164223) |
 :::
 
+**Behaves differently**
+
+:::{table}
+:widths: 1-3-2-3-2-1
+
+| # | Construct | Example | {{es}} | {{prom}} | Issue |
+|---|---|---|---|---|---|
+| 30 | Different unaggregated metrics stored as separate series with a `__name__` dimension {applies_to}`stack: preview =9.4, ga =9.5` | `a / b` | No results | Series matched on their labels other than `__name__` | [#158184]({{es-issue}}158184) |
+:::
+
 ### Aggregation operators [prometheus-compatibility-aggregation-operators]
 
 **Supported**
@@ -121,12 +131,12 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 30 | `group`, `count_values` | `group by (job) (x)`, `count_values("v", x)` | - | [#164009]({{es-issue}}164009), [#136248]({{es-issue}}136248) |
-| 31 | `topk`, `bottomk`, `limitk`, or `limit_ratio` with `without(...)` | `topk without (instance) (1, x)` | Use `by(...)` | [#157671]({{es-issue}}157671) |
-| 32 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
-| 33 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
-| 34 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308]({{es-issue}}145308) |
-| 35 | Grouping by a label named `step` | `sum by (step) (x)` | `step` is an output column of the `PROMQL` command | - |
+| 31 | `group`, `count_values` | `group by (job) (x)`, `count_values("v", x)` | - | [#164009]({{es-issue}}164009), [#136248]({{es-issue}}136248) |
+| 32 | `topk`, `bottomk`, `limitk`, or `limit_ratio` with `without(...)` | `topk without (instance) (1, x)` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 33 | Parameter that isn't a number literal | `topk(scalar(a), b)`, `quantile(scalar(a), b)` | Use a number | [#164225]({{es-issue}}164225) |
+| 34 | Nested `without(...)` | `sum without (pod) (max without (container) (x))` | Use `by(...)` | [#157671]({{es-issue}}157671) |
+| 35 | `without(...)` as an operand | `sum without (method) (x) * 2` | Use `by(...)` | [#145308]({{es-issue}}145308) |
+| 36 | Grouping by a label named `step` | `sum by (step) (x)` | `step` is an output column of the `PROMQL` command | - |
 :::
 
 **Behaves differently**
@@ -136,6 +146,6 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 36 | `quantile` | `quantile(0.9, x)` | Approximate, using t-digest | Exact, with linear interpolation | - |
-| 37 | `limitk`, `limit_ratio` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `limitk(10, x)` | A different, equally valid subset | A deterministic pseudo-random subset, with the `promql-experimental-functions` feature flag | - |
+| 37 | `quantile` | `quantile(0.9, x)` | Approximate, using t-digest | Exact, with linear interpolation | - |
+| 38 | `limitk`, `limit_ratio` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` | `limitk(10, x)` | A different, equally valid subset | A deterministic pseudo-random subset, with the `promql-experimental-functions` feature flag | - |
 :::

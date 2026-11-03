@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -80,6 +81,12 @@ public class SharingKeyTests extends ESTestCase {
         CommonAnalysisPlugin plugin = new TestCommonAnalysisPluginBuilder(threadPool).scriptService(newScriptService()).build();
         registry = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), List.of(plugin), new StablePluginsRegistry())
             .getAnalysisRegistry();
+    }
+
+    /** {@code synonymType} is random, so the {@code synonym_graph} deprecation warning may or may not fire. */
+    @Override
+    protected List<String> filteredWarnings() {
+        return appendToCopy(super.filteredWarnings(), SynonymGraphTokenFilterFactory.DEPRECATION_MESSAGE);
     }
 
     @After
@@ -153,6 +160,22 @@ public class SharingKeyTests extends ESTestCase {
         Analyzer current = build(IndexVersion.current(), unique);
         assertSame(current, build(IndexVersion.current(), unique));
         assertNotSame("unique filter behavior differs by index version and must not share", current, build(legacy, unique));
+    }
+
+    /** {@code synonym} is the legacy filter before {@code SYNONYM_FILTER_USES_SYNONYM_GRAPH} and the graph filter after, so the key must differ. */
+    public void testSynonymFilterDoesNotShareAcrossGraphVersion() throws IOException {
+        IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH);
+        assumeTrue("no read-compatible version predates the switch", legacy.onOrAfter(IndexVersionUtils.getLowestReadCompatibleVersion()));
+        Settings synonym = Settings.builder()
+            .put("index.analysis.analyzer.a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.a.filter", "syn")
+            .put("index.analysis.filter.syn.type", "synonym")
+            .putList("index.analysis.filter.syn.synonyms", "a, b")
+            .build();
+
+        Analyzer current = build(IndexVersion.current(), synonym);
+        assertSame(current, build(IndexVersion.current(), synonym));
+        assertNotSame("synonym filter behavior differs by index version and must not share", current, build(legacy, synonym));
     }
 
     /**

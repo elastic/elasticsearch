@@ -7,7 +7,13 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -15,7 +21,11 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.hamcrest.Matcher;
 
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,6 +37,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class TsInfoOperatorTests extends OperatorTestCase {
 
@@ -857,5 +868,223 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
         op.close();
         assertThat(blockFactory.breaker().getUsed(), equalTo(usedBefore));
+    }
+
+    /** Index abstractions of one series stay in separate rows when their metric metadata differs. */
+    public void testFinalModeSplitsRowsWithDifferentMetadata() {
+        BlockFactory factory = blockFactory();
+        try (Operator op = createOperator(factory, true)) {
+            op.addInput(
+                buildFinalPage(factory, "cpu_usage", Set.of("ds-a"), Set.of("percent"), Set.of("gauge"), Set.of("double"), Set.of(), "{}")
+            );
+            op.addInput(
+                buildFinalPage(factory, "cpu_usage", Set.of("ds-b"), Set.of("ratio"), Set.of("gauge"), Set.of("double"), Set.of(), "{}")
+            );
+            op.finish();
+            Page output = op.getOutput();
+            try {
+                assertThat(output.getPositionCount(), equalTo(2));
+                assertThat(readValues(output.getBlock(1), 0), equalTo(Set.of("ds-a")));
+                assertThat(readValues(output.getBlock(2), 0), equalTo(Set.of("percent")));
+                assertThat(readValues(output.getBlock(1), 1), equalTo(Set.of("ds-b")));
+                assertThat(readValues(output.getBlock(2), 1), equalTo(Set.of("ratio")));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    /** Multi-valued columns are sorted, so results do not depend on hash iteration order. */
+    public void testMultiValuedColumnsAreSorted() {
+        BlockFactory factory = blockFactory();
+        try (Operator op = createOperator(factory, true)) {
+            op.addInput(
+                buildFinalPage(
+                    factory,
+                    "cpu_usage",
+                    new LinkedHashSet<>(List.of("ds-c", "ds-a", "ds-b")),
+                    new LinkedHashSet<>(List.of("ratio", "percent")),
+                    Set.of("gauge"),
+                    Set.of("double"),
+                    new LinkedHashSet<>(List.of("region", "host", "az")),
+                    "{}"
+                )
+            );
+            op.finish();
+            Page output = op.getOutput();
+            try {
+                assertThat(readOrderedValues(output.getBlock(1), 0), equalTo(List.of("ds-a", "ds-b", "ds-c")));
+                assertThat(readOrderedValues(output.getBlock(2), 0), equalTo(List.of("percent", "ratio")));
+                assertThat(readOrderedValues(output.getBlock(5), 0), equalTo(List.of("az", "host", "region")));
+            } finally {
+                output.releaseBlocks();
+            }
+        }
+    }
+
+    /** Uncharged state lets high-cardinality input exhaust the heap before the breaker trips. */
+    public void testInitialModeChargesRetainedState() {
+        assertChargesRetainedState(false);
+    }
+
+    /** The coordinator accumulates the series of every data node, so its state must be charged too. */
+    public void testFinalModeChargesRetainedState() {
+        assertChargesRetainedState(true);
+    }
+
+    /**
+     * Compares the breaker charge with the operator's reachable state. {@link RamUsageTester} cannot look inside JDK
+     * collections, so {@link #operatorStateBytes} adds a minimal per-element cost. The result is a lower bound of the heap.
+     */
+    private void assertChargesRetainedState(boolean finalMode) {
+        BlockFactory factory = blockFactory();
+        try (Operator op = createOperator(factory, finalMode)) {
+            long retainedBefore = operatorStateBytes(op);
+            long chargedBefore = factory.breaker().getUsed();
+            for (int i = 0; i < 512; i++) {
+                // Each host appears in three indices, so every series has several index abstractions.
+                addSeries(op, factory, finalMode, "h" + (i / 3), "index-" + (i % 3));
+            }
+            long retained = operatorStateBytes(op) - retainedBefore;
+            long charged = factory.breaker().getUsed() - chargedBefore;
+            assertThat(charged, greaterThanOrEqualTo(retained));
+        }
+    }
+
+    /** Series of one metric share its metadata, so a large value is charged once instead of once per series. */
+    public void testSeriesShareMetadataValues() {
+        String unit = randomAlphaOfLength(4096);
+        MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> fieldName.equals("cpu_usage")
+            ? new MetricFieldInfo("cpu_usage", indexName, "double", "gauge", unit)
+            : null;
+        BlockFactory factory = blockFactory();
+        DriverContext context = new DriverContext(factory.bigArrays(), factory, null);
+        try (Operator op = new TsInfoOperator.Factory(lookup, Map.of(), METADATA_CHANNEL, INDEX_CHANNEL).get(context)) {
+            op.addInput(buildPage(factory, "{\"cpu_usage\":0.5,\"host\":\"h0\"}", "index-a"));
+            long usedAfterFirstSeries = factory.breaker().getUsed();
+            int additionalSeries = 100;
+            for (int i = 1; i <= additionalSeries; i++) {
+                op.addInput(buildPage(factory, "{\"cpu_usage\":0.5,\"host\":\"h" + i + "\"}", "index-a"));
+            }
+            long bytesPerAdditionalSeries = (factory.breaker().getUsed() - usedAfterFirstSeries) / additionalSeries;
+            assertThat(bytesPerAdditionalSeries, lessThan(RamUsageEstimator.sizeOf(unit)));
+        }
+    }
+
+    /** The driver can keep a finished operator open, so its state must not outlive the output page. */
+    public void testGetOutputReleasesAccumulatedState() {
+        for (boolean finalMode : new boolean[] { false, true }) {
+            BlockFactory factory = blockFactory();
+            try (Operator op = createOperator(factory, finalMode)) {
+                for (int i = 0; i < 16; i++) {
+                    addSeries(op, factory, finalMode, "h" + i, "index-a");
+                }
+                op.finish();
+                Page output = op.getOutput();
+                assertThat(output.getPositionCount(), equalTo(16));
+                output.releaseBlocks();
+                assertThat(factory.breaker().getUsed(), equalTo(0L));
+            }
+        }
+    }
+
+    /** Coordinator memory pressure can interrupt accumulation before the operator reaches finish. */
+    public void testFinalModeInputCircuitBreaking() {
+        BlockFactory inputFactory = blockFactory();
+        BlockFactory operatorFactory = blockFactory(ByteSizeValue.ofKb(randomIntBetween(1, 32)));
+        expectThrows(CircuitBreakingException.class, () -> {
+            try (Operator op = createOperator(operatorFactory, true)) {
+                for (int i = 0; i < 512; i++) {
+                    addSeries(op, inputFactory, true, "h" + i, "index-a");
+                }
+            }
+        });
+        assertThat(operatorFactory.breaker().getUsed(), equalTo(0L));
+    }
+
+    /** Allocation failures can interrupt a series or a canonical value half way through being recorded. */
+    public void testFinalModeWithCrankyBreaker() {
+        BlockFactory inputFactory = blockFactory();
+        testWithCrankyBlockFactory(factory -> {
+            DriverContext context = new DriverContext(factory.bigArrays(), factory, null);
+            int limit = randomFrom(128, TsInfoOperator.NO_LIMIT);
+            try (Operator op = new TsInfoOperator.FinalFactory(FINAL_CHANNELS, limit).get(context)) {
+                for (int i = 0; i < 512; i++) {
+                    addSeries(op, inputFactory, true, "h" + i, "index-" + (i % 3));
+                }
+                op.finish();
+                Page output = op.getOutput();
+                output.releaseBlocks();
+            }
+        });
+    }
+
+    private Operator createOperator(BlockFactory factory, boolean finalMode) {
+        DriverContext context = new DriverContext(factory.bigArrays(), factory, null);
+        return finalMode
+            ? new TsInfoOperator.FinalFactory(FINAL_CHANNELS, TsInfoOperator.NO_LIMIT).get(context)
+            : new TsInfoOperator.Factory(SIMPLE_LOOKUP, Map.of(), METADATA_CHANNEL, INDEX_CHANNEL).get(context);
+    }
+
+    private static void addSeries(Operator op, BlockFactory factory, boolean finalMode, String host, String index) {
+        String dimensionsJson = "{\"host\":\"" + host + "\"}";
+        if (finalMode) {
+            op.addInput(
+                buildFinalPage(
+                    factory,
+                    "cpu_usage",
+                    Set.of(index),
+                    Set.of("percent"),
+                    Set.of("gauge"),
+                    Set.of("double"),
+                    Set.of("host"),
+                    dimensionsJson
+                )
+            );
+        } else {
+            op.addInput(buildPage(factory, "{\"cpu_usage\":0.5,\"host\":\"" + host + "\"}", index));
+        }
+    }
+
+    private static long operatorStateBytes(Operator op) {
+        return RamUsageTester.ramUsed(op, new RamUsageTester.Accumulator() {
+            @Override
+            public long accumulateObject(Object object, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
+                // Shared infrastructure and inputs, not state the operator accumulates.
+                if (object instanceof BlockFactory
+                    || object instanceof BigArrays
+                    || object instanceof CircuitBreaker
+                    || object instanceof MetricsInfoOperator.MetricFieldLookup) {
+                    return 0;
+                }
+                return super.accumulateObject(object, shallowSize, fieldValues, queue);
+            }
+
+            @Override
+            public long accumulateArray(Object array, long shallowSize, List<Object> values, Collection<Object> queue) {
+                long bytes = super.accumulateArray(array, shallowSize, values, queue);
+                // JDK collections reach here with only their contents. Add the smallest hash node and the slot each element needs.
+                return switch (array) {
+                    case Map<?, ?> map -> bytes + map.size() * (HASH_NODE_BYTES + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+                    case HashSet<?> set -> bytes + set.size() * (HASH_NODE_BYTES + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
+                    case Collection<?> collection -> bytes + collection.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+                    default -> bytes;
+                };
+            }
+        });
+    }
+
+    /** A {@link java.util.HashMap} node holds a hash and three references. */
+    private static final long HASH_NODE_BYTES = RamUsageEstimator.alignObjectSize(
+        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
+    );
+
+    private static List<String> readOrderedValues(BytesRefBlock block, int position) {
+        List<String> values = new ArrayList<>();
+        int start = block.getFirstValueIndex(position);
+        for (int i = start; i < start + block.getValueCount(position); i++) {
+            values.add(block.getBytesRef(i, new BytesRef()).utf8ToString());
+        }
+        return values;
     }
 }

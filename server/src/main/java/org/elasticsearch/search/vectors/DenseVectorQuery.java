@@ -302,15 +302,18 @@ public abstract class DenseVectorQuery extends Query {
     static class DenseVectorScorer extends Scorer {
 
         private final VectorScorer vectorScorer;
-        private final VectorScorer.Bulk bulkScorer;
+        private final DocIdSetIterator filterIterator;
+        // LUCENE WORKAROUND (apache/lucene#16377): the default VectorScorer#bulk advances the iterator eagerly, which breaks
+        // conjunctions, so initialize lazily. Remove once Lucene 11.0.0 is adopted.
+        private VectorScorer.Bulk bulkScorer;
         private final DocIdSetIterator iterator;
         private final float boost;
 
-        DenseVectorScorer(VectorScorer vectorScorer, DocIdSetIterator filterIterator, float boost) throws IOException {
+        DenseVectorScorer(VectorScorer vectorScorer, DocIdSetIterator filterIterator, float boost) {
             this.vectorScorer = vectorScorer;
+            this.filterIterator = filterIterator;
             // The bulkScorer does not give us access to its internal iterator, so we build our own conjunction here
             // that is mainly used for advancing and retrieving docID.
-            this.bulkScorer = vectorScorer.bulk(filterIterator);
             this.iterator = filterIterator == null
                 ? vectorScorer.iterator()
                 : ConjunctionUtils.intersectIterators(List.of(vectorScorer.iterator(), filterIterator));
@@ -341,6 +344,9 @@ public abstract class DenseVectorQuery extends Query {
 
         @Override
         public void nextDocsAndScores(int upTo, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException {
+            if (bulkScorer == null) {
+                bulkScorer = vectorScorer.bulk(filterIterator);
+            }
             bulkScorer.nextDocsAndScores(upTo, liveDocs, buffer);
             for (int i = 0; i < buffer.size; i++) {
                 buffer.features[i] *= boost;

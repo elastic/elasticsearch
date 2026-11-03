@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -589,7 +590,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             0L,
             "test",
             RoutingChangesObserver.NOOP,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
         routingNodes.relocateShard(
             routingNodes.node("node-2").getByShardId(shardId),
@@ -597,7 +598,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             0L,
             "test",
             RoutingChangesObserver.NOOP,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO
         );
 
         final var primaryTarget = routingNodes.node("node-3").getByShardId(shardId);
@@ -620,7 +621,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
     }
 
     /// A shard which fails before becoming active keeps its recovery priority, but an active shard which fails becomes
-    /// [ShardRouting.RecoveryPriority#UNASSIGNED_UNEXPECTED].
+    /// [RecoveryPriority#UNASSIGNED_UNEXPECTED].
     public void testFailedShardRecoveryPriority() {
         final var projectId = randomProjectIdOrDefault();
         final var failPrimary = randomBoolean();
@@ -632,17 +633,17 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         final var failedShardActive = randomBoolean();
         final var failedShardRecoveryPriority = failPrimary
             ? randomFrom(
-                ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
-                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
-                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
-                ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
-                ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+                RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
+                RecoveryPriority.UNASSIGNED_UNEXPECTED,
+                RecoveryPriority.UNASSIGNED_EXPECTED,
+                RecoveryPriority.UNASSIGNED_RESTORING,
+                RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
             )
             : randomFrom(
-                ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
-                ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
-                ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
-                ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+                RecoveryPriority.UNASSIGNED_UNEXPECTED,
+                RecoveryPriority.UNASSIGNED_EXPECTED,
+                RecoveryPriority.UNASSIGNED_RESTORING,
+                RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
             );
         final var failedShardNode = failPrimary ? "node-1" : "node-2";
         final var failedShard = failedShardActive
@@ -675,7 +676,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         assertThat(unassignedShard.primary(), equalTo(failPrimary));
         assertThat(
             unassignedShard.recoveryPriority(),
-            equalTo(failedShardActive ? ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED : failedShardRecoveryPriority)
+            equalTo(failedShardActive ? RecoveryPriority.UNASSIGNED_UNEXPECTED : failedShardRecoveryPriority)
         );
     }
 
@@ -706,7 +707,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         var routingNodes = clusterState.getRoutingNodes().mutableCopy();
 
-        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
+        RecoveryPriority recoveryPriority = RecoveryPriority.RELOCATION_CAN_REMAIN_NO;
         routingNodes.relocateShard(
             routingNodes.node("node-1").getByShardId(shardId),
             "node-3",

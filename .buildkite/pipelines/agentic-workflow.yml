@@ -17,6 +17,10 @@
 #   review-bug-analysis     — grade a prior bug analysis on close (needs ISSUE_URL)
 #   pull-request-fix        — self-heal a failing pull request    (needs PR_URL)
 #   pull-request-creation   — implement a task and open a PR      (needs ISSUE_URL)
+#   lucene-merge-conflicts  — merge main → lucene_snapshot_*      (needs TARGET_BRANCH)
+#                             Daily lucene-snapshot/update-branch.yml always triggers
+#                             this. Clean + compile-green: push to the snapshot
+#                             branch. Agent edits: open a PR.
 #
 # Trigger from the UI (fill the input step) or via the Buildkite API with the
 # vars pre-set so the input step is skipped, e.g.:
@@ -39,12 +43,14 @@ env:
   WORKFLOW:                "${WORKFLOW:-}"
   ISSUE_URL:               "${ISSUE_URL:-}"
   PR_URL:                  "${PR_URL:-}"
+  TARGET_BRANCH:           "${TARGET_BRANCH:-}"
   ARCHIMEDES_TRIAGE_MODE:  "${ARCHIMEDES_TRIAGE_MODE:-}"
 
 steps:
   # ── Run archimedes ───────────────────────────────────────────────────────────
   - label: ":robot_face: Archimedes — :workflow:"
     key: archimedes-run
+    if: build.env("WORKFLOW") != "lucene-merge-conflicts"
     timeout_in_minutes: 60
     env:
       USE_ARCHIMEDES: "true"
@@ -69,4 +75,22 @@ steps:
     # (set above), so no YAML interpolation is needed. This is all a consuming
     # repo (e.g. elasticsearch-serverless) needs beyond activating the baked
     # archimedes runtime.
+    command: archimedes ci
+
+  # lucene-merge-conflicts compiles in-process (unlike analysis, which fans out
+  # reproduction). Longer timeout than the 90-minute resolve step; bump
+  # machineType if compileJava / spotless are tight on 4 vCPU.
+  - label: ":robot_face: Archimedes — lucene-merge-conflicts"
+    key: archimedes-lucene-merge
+    if: build.env("WORKFLOW") == "lucene-merge-conflicts"
+    timeout_in_minutes: 120
+    env:
+      USE_ARCHIMEDES: "true"
+      ARCHIMEDES_SESSION_DIR: "/tmp/archimedes-sessions"
+    agents:
+      provider:       gcp
+      image:          family/elasticsearch-ubuntu-2404
+      machineType:    n4-standard-4
+      diskType:       hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
     command: archimedes ci

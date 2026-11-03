@@ -11,7 +11,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
@@ -38,7 +37,7 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
  * of intervening unmatched positions, as well as whether matches are required to be in-order.
  * The span near query maps to Lucene {@link SpanNearQuery}.
  */
-public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
+public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_near";
 
     /** Default for flag controlling whether matches are required to be in-order */
@@ -202,14 +201,12 @@ public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        // Gaps only exist in the built query, so the caller's visitor has to walk it as a whole. Don't charge the clauses here as well.
-        MaxClauseCountQueryVisitor clauseVisitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+    protected Query doToQuery(SearchExecutionContext context, MaxClauseCountQueryVisitor queryVisitor) throws IOException {
         SpanQueryBuilder queryBuilder = clauses.get(0);
         boolean isGap = queryBuilder instanceof SpanGapQueryBuilder;
         Query query = null;
         if (isGap == false) {
-            query = queryBuilder.toQuery(context, clauseVisitor);
+            query = queryBuilder.toQuery(context, queryVisitor);
             assert query instanceof SpanQuery;
         }
         if (clauses.size() == 1) {
@@ -250,12 +247,22 @@ public class SpanNearQueryBuilder extends LeafQueryBuilder<SpanNearQueryBuilder>
                 int gap = ((SpanGapQueryBuilder) queryBuilder).width();
                 builder.addGap(gap);
             } else {
-                query = clauses.get(i).toQuery(context, clauseVisitor);
+                query = clauses.get(i).toQuery(context, queryVisitor);
                 assert query instanceof SpanQuery;
                 builder.addClause((SpanQuery) query);
             }
         }
-        return builder.build();
+
+        // Lucene creates the gap queries inside the builder, so they can only be visited once it is built.
+        SpanNearQuery spanNear = builder.build();
+        SpanQuery[] builtClauses = spanNear.getClauses();
+        assert builtClauses.length == clauses.size() : "expected one built clause per clause, got " + builtClauses.length;
+        for (int i = 0; i < clauses.size(); i++) {
+            if (clauses.get(i) instanceof SpanGapQueryBuilder) {
+                builtClauses[i].visit(queryVisitor);
+            }
+        }
+        return spanNear;
     }
 
     private static String queryFieldName(SearchExecutionContext context, String fieldName) {

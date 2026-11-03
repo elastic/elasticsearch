@@ -48,8 +48,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
         assertThat(queryBuilder, instanceOf(SpanQueryBuilder.class));
         SpanNearQueryBuilder spanNear = new SpanNearQueryBuilder((SpanQueryBuilder) queryBuilder, 1);
         if (randomBoolean()) {
-            // TODO: Why do we need this?
-            // gaps only exist in the built query, which is why span_near builds its clauses with its own visitor
+            // Randomly add a gap query to test special accounting for these query types
             spanNear.addClause(new SpanNearQueryBuilder.SpanGapQueryBuilder(TEXT_FIELD_NAME, randomIntBetween(1, 3)));
         }
         return spanNear;

@@ -5060,6 +5060,69 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code tryPrefetch} must only report success when the whole requested range is present. Only the first
+     * {@code size(1)} bytes of the region are populated, so a prefetch of an equally sized range further into the region
+     * must fail rather than be satisfied by the length of the populated prefix.
+     */
+    public void testTryPrefetchOfAbsentRangeBeyondPopulatedPrefix() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = regionSize;
+        final long prefixLength = size(1);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), randomBoolean())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheFile = cacheService.getCacheFile(
+                generateCacheKey(),
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
+            );
+
+            final byte[] testData = randomByteArrayOfLength((int) prefixLength);
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, prefixLength),
+                ByteRange.of(0L, prefixLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            assertTrue(cacheFile.tryPrefetch(0L, prefixLength));
+            // same length as the populated prefix, but entirely absent
+            assertFalse(cacheFile.tryPrefetch(size(5), prefixLength));
+            // straddles the end of the populated prefix
+            assertFalse(cacheFile.tryPrefetch(prefixLength / 2, prefixLength));
+        }
+    }
+
     public void testGetIfPresentFindsPopulatedEntry() throws Exception {
         final long regionSize = size(10);
         final long fileLength = size(randomIntBetween(5, 19));

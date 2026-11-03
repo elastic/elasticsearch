@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -76,6 +77,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.view.ViewCompaction;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
+import org.junit.AfterClass;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
@@ -163,9 +165,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
         this.goldenMode = goldenMode;
         try {
-            String path = PathUtils.get(getClass().getResource(".").toURI()).toAbsolutePath().normalize().toString();
-            var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
-            baseFile = PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, getClass().getSimpleName()));
+            baseFile = goldenRoot(getClass());
             List<Path> sources = new ArrayList<>();
             for (Class<?> c = getClass(); c != GoldenTestCase.class; c = c.getSuperclass()) {
                 var classDir = PathUtils.get(c.getResource(".").toURI()).toAbsolutePath().normalize().toString();
@@ -177,6 +177,37 @@ public abstract class GoldenTestCase extends ESTestCase {
             throw new RuntimeException(e);
         }
 
+    }
+
+    /** {@code src/test/resources/<package>/golden_tests/<SimpleName>/}, found from where the class was compiled to. */
+    private static Path goldenRoot(Class<?> testClass) throws URISyntaxException {
+        String path = PathUtils.get(testClass.getResource(".").toURI()).toAbsolutePath().normalize().toString();
+        var inSrc = path.replace('\\', '/').replaceFirst("build/classes/java/test", "src/test/resources");
+        return PathUtils.get(Strings.format("%s/golden_tests/%s/", inSrc, testClass.getSimpleName()));
+    }
+
+    /** A renamed or deleted test leaves its directory behind: the runner only ever looks at the directory of the test it is running. */
+    @AfterClass
+    public static void noStaleTestDirectories() throws IOException, URISyntaxException {
+        Class<?> testClass = getTestClass();
+        Path root = goldenRoot(testClass);
+        List<Path> stale = GoldenGc.staleTestDirectories(root, testClass);
+        if (stale.isEmpty()) {
+            return;
+        }
+        String message = Strings.format(
+            "golden directories %s under [%s] name no test method of [%s]: a test was renamed or removed. "
+                + "Delete them, or run [%s] to do it. See GoldenTestsReadme.MD.",
+            stale.stream().map(dir -> dir.getFileName().toString()).toList(),
+            root,
+            testClass.getSimpleName(),
+            GC_TASK
+        );
+        if (GoldenGc.fixMode() == false) {
+            fail(message);
+        }
+        IOUtils.rm(stale.toArray(Path[]::new));
+        logger.info("repaired: {}", message);
     }
 
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, String... nestedPath) {

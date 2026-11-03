@@ -193,15 +193,21 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
         // stats
         Map<String, Object> stats = (Map<String, Object>) json.get("stats");
-        assertEquals(stats.get("computation_converged_index"), response.getStats().lastConvergedIndex());
-        assertEquals(stats.get("computation_active"), response.getStats().computationActive());
-        assertEquals(stats.get("computation_submitted"), response.getStats().computationSubmitted());
-        assertEquals(stats.get("computation_executed"), response.getStats().computationExecuted());
-        assertEquals(stats.get("computation_converged"), response.getStats().computationConverged());
-        assertEquals(stats.get("computation_iterations"), response.getStats().computationIterations());
-        assertEquals(stats.get("computed_shard_movements"), response.getStats().computedShardMovements());
-        assertEquals(stats.get("computation_time_in_millis"), response.getStats().cumulativeComputationTime());
-        assertEquals(stats.get("reconciliation_time_in_millis"), response.getStats().cumulativeReconciliationTime());
+
+        /**
+         * Jackson, by default, boxes values that are smaller than Integer.MAX_VALUE into integers, even though they are set as longs
+         * inside {@link randomDesiredBalanceStats}. We are comparing all values below expecting them to be longs, so we must cast to
+         * {@link Number} first, and then retrieve the values are longs.
+         */
+        assertEquals(response.getStats().lastConvergedIndex(), ((Number) stats.get("computation_converged_index")).longValue());
+        assertEquals(response.getStats().computationActive(), stats.get("computation_active"));
+        assertEquals(response.getStats().computationSubmitted(), ((Number) stats.get("computation_submitted")).longValue());
+        assertEquals(response.getStats().computationExecuted(), ((Number) stats.get("computation_executed")).longValue());
+        assertEquals(response.getStats().computationConverged(), ((Number) stats.get("computation_converged")).longValue());
+        assertEquals(response.getStats().computationIterations(), ((Number) stats.get("computation_iterations")).longValue());
+        assertEquals(response.getStats().computedShardMovements(), ((Number) stats.get("computed_shard_movements")).longValue());
+        assertEquals(response.getStats().cumulativeComputationTime(), ((Number) stats.get("computation_time_in_millis")).longValue());
+        assertEquals(response.getStats().cumulativeReconciliationTime(), ((Number) stats.get("reconciliation_time_in_millis")).longValue());
 
         // cluster balance stats
         Map<String, Object> clusterBalanceStats = (Map<String, Object>) json.get("cluster_balance_stats");
@@ -293,8 +299,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             assertEquals(nodesStats.get("shard_count"), entry.getValue().shards());
             assertEquals(nodesStats.get("undesired_shard_allocation_count"), entry.getValue().undesiredShardAllocations());
             assertEquals(nodesStats.get("forecast_write_load"), entry.getValue().forecastWriteLoad());
-            assertEquals(nodesStats.get("forecast_disk_usage_bytes"), entry.getValue().forecastShardSize());
-            assertEquals(nodesStats.get("actual_disk_usage_bytes"), entry.getValue().actualShardSize());
+            assertEquals(entry.getValue().forecastShardSize(), ((Number) nodesStats.get("forecast_disk_usage_bytes")).longValue());
+            assertEquals(entry.getValue().actualShardSize(), ((Number) nodesStats.get("actual_disk_usage_bytes")).longValue());
             assertEquals(nodesStats.get("node_weight"), entry.getValue().nodeWeight());
         }
 
@@ -324,7 +330,14 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     assertEquals(jsonShard.get("shard_id"), shardView.shardId());
                     assertEquals(jsonShard.get("index"), shardView.index());
                     assertEquals(jsonShard.get("forecast_write_load"), shardView.forecastWriteLoad());
-                    assertEquals(jsonShard.get("forecast_shard_size_in_bytes"), shardView.forecastShardSizeInBytes());
+                    if (shardView.forecastShardSizeInBytes() == null) {
+                        assertNull(jsonShard.get("forecast_shard_size_in_bytes"));
+                    } else {
+                        assertEquals(
+                            shardView.forecastShardSizeInBytes().longValue(),
+                            ((Number) jsonShard.get("forecast_shard_size_in_bytes")).longValue()
+                        );
+                    }
                     assertEquals(jsonShard.get("tier_preference"), shardView.tierPreference());
                 }
 

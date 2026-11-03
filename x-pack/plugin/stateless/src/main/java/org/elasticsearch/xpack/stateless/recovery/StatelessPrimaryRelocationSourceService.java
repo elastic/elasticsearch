@@ -232,13 +232,20 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         );
     }
 
-    private void initiatePrewarm(Client parentClient, StatelessPrimaryRelocationAction.Request request, IndexShard indexShard) {
+    /// @param listener is completed once the target has finished prewarming, or immediately in case of failure or no prewarm is sent
+    private void initiatePrewarm(
+        Client parentClient,
+        StatelessPrimaryRelocationAction.Request request,
+        IndexShard indexShard,
+        ActionListener<Void> listener
+    ) {
         try {
             final ShardId shardId = request.shardId();
             final StatelessCommitService statelessCommitService = statelessCommitServiceProvider.get();
             final BatchedCompoundCommit latestBcc = statelessCommitService.getLatestUploadedBcc(shardId);
             if (latestBcc == null) {
                 logger.trace("{} no uploaded BCC found, skipping initiate prewarm", shardId);
+                listener.onResponse(null);
                 return;
             }
 
@@ -258,12 +265,13 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
                             hasRecentIdLookup
                         )
                     ),
-                    // Prewarm failures are non-fatal, the relocation continues without the benefit of prewarming.
-                    ActionListener.wrap(ignored -> {}, e -> logger.debug(format("%s ignoring prewarm action failure", shardId), e))
+                    listener.map(ignored -> null)
                 );
+            } else {
+                listener.onResponse(null);
             }
         } catch (Exception e) {
-            logger.trace(format("%s ignoring prewarm message failure", request.shardId()), e);
+            listener.onFailure(e);
         }
     }
 
@@ -322,11 +330,21 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         }
 
         final RelocationSourceMetrics.Builder relocationSourceMetricsBuilder = new RelocationSourceMetrics.Builder();
-        preFlushStep.addListener(listener.delegateFailureAndWrap((listener0, preFlushResult) -> {
-            // send the "prewarm" after the preFlush so the prewarmed BCC is closer to the one we flush while holding the permits,
-            // and hence we spent less time while holding the permits (during handoff)
-            initiatePrewarm(parentClient, request, indexShard);
+        preFlushStep.<TimeValue>andThen((l, preFlushResult) -> {
+            // get the duration here and pass to next listener so that the flush-duration does not include the waiting time (timeout below)
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
+
+            // send the "prewarm" after the preFlush so the prewarmed BCC is closer to the one we flush while holding the permits on the
+            // target side
+            final var prewarmStep = new SubscribableListener<Void>();
+            prewarmStep.addTimeout(TimeValue.timeValueSeconds(5), threadPool, recoveryExecutor);
+            initiatePrewarm(parentClient, request, indexShard, prewarmStep);
+            // prewarming is best-effort, in case of failures we continue
+            prewarmStep.addListener(ActionListener.wrap(ignored -> l.onResponse(initialFlushDuration), e -> {
+                logger.debug(format("%s ignoring prewarm failure or timeout", request.shardId()), e);
+                l.onResponse(initialFlushDuration);
+            }));
+        }).addListener(listener.delegateFailureAndWrap((listener0, initialFlushDuration) -> {
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
             if (indexShard.getEngineOrNull() == null) {
                 listener0.onFailure(new AlreadyClosedException("shard " + indexShard.shardId() + " closed during relocation"));

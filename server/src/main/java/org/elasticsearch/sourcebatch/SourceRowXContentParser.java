@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
@@ -593,6 +594,21 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
         return 0;
     }
 
+    /*
+     * The typed accessors below are what the row-path mappers call when a field falls back to this parser, and callers such as
+     * {@code ignore_malformed} rely on a value of the wrong type making the parser throw an {@link IllegalArgumentException}, as the
+     * JSON parser does ({@link XContentParseException} is one). So they throw that, with messages modelled on the JSON parser's, and
+     * never an {@link IllegalStateException}.
+     */
+
+    /** The exception for a numeric accessor read on a token that is not a number. */
+    private XContentParseException notNumeric() {
+        return new XContentParseException(
+            getTokenLocation(),
+            "Current token (" + currentToken + ") not numeric, can not use numeric value accessors"
+        );
+    }
+
     @Override
     public Number numberValue() {
         return switch (currentType) {
@@ -600,7 +616,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             case SourceValueType.LONG -> cachedLong;
             case SourceValueType.FLOAT -> cachedFloat;
             case SourceValueType.DOUBLE -> cachedDouble;
-            default -> throw new IllegalStateException("Unexpected type: " + currentType);
+            default -> throw notNumeric();
         };
     }
 
@@ -611,7 +627,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             case SourceValueType.LONG -> NumberType.LONG;
             case SourceValueType.FLOAT -> NumberType.FLOAT;
             case SourceValueType.DOUBLE -> NumberType.DOUBLE;
-            default -> throw new IllegalStateException("Unexpected type: " + currentType);
+            default -> throw notNumeric();
         };
     }
 
@@ -632,7 +648,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             case SourceValueType.LONG -> (int) cachedLong;
             case SourceValueType.FLOAT -> (int) cachedFloat;
             case SourceValueType.DOUBLE -> (int) cachedDouble;
-            default -> throw new IllegalStateException("Unexpected type: " + currentType);
+            default -> throw notNumeric();
         };
     }
 
@@ -643,7 +659,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             case SourceValueType.INT -> cachedInt;
             case SourceValueType.FLOAT -> (long) cachedFloat;
             case SourceValueType.DOUBLE -> (long) cachedDouble;
-            default -> throw new IllegalStateException("Unexpected type: " + currentType);
+            default -> throw notNumeric();
         };
     }
 
@@ -654,7 +670,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             case SourceValueType.DOUBLE -> (float) cachedDouble;
             case SourceValueType.INT -> (float) cachedInt;
             case SourceValueType.LONG -> (float) cachedLong;
-            default -> throw new IllegalStateException("Unexpected type: " + currentType);
+            default -> throw notNumeric();
         };
     }
 
@@ -665,7 +681,7 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
             case SourceValueType.FLOAT -> cachedFloat;
             case SourceValueType.INT -> cachedInt;
             case SourceValueType.LONG -> (double) cachedLong;
-            default -> throw new IllegalStateException("Unexpected type: " + currentType);
+            default -> throw notNumeric();
         };
     }
 

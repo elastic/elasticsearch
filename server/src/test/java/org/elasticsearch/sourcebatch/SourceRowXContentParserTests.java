@@ -11,17 +11,22 @@ package org.elasticsearch.sourcebatch;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Tests {@link SourceRowXContentParser} against rows produced by the production batch encoder
@@ -30,6 +35,153 @@ import java.util.Map;
  * inline arrays and key-value structures keep the narrower packed types.
  */
 public class SourceRowXContentParserTests extends ESTestCase {
+
+    /** Reads one typed value from the parser's current token. */
+    @FunctionalInterface
+    private interface TypedAccessor {
+        Object read(XContentParser parser) throws IOException;
+    }
+
+    /** What an accessor did: the value it returned, or the exception it threw. */
+    private record Outcome(Object value, Exception error) {
+        static Outcome of(XContentParser parser, TypedAccessor accessor) {
+            try {
+                return new Outcome(accessor.read(parser), null);
+            } catch (Exception e) {
+                return new Outcome(null, e);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return error == null ? "returned [" + value + "]" : "threw " + error.getClass().getSimpleName();
+        }
+    }
+
+    private static final Map<String, TypedAccessor> ACCESSORS = new LinkedHashMap<>();
+    static {
+        ACCESSORS.put("shortValue", XContentParser::shortValue);
+        ACCESSORS.put("intValue", XContentParser::intValue);
+        ACCESSORS.put("longValue", XContentParser::longValue);
+        ACCESSORS.put("floatValue", XContentParser::floatValue);
+        ACCESSORS.put("doubleValue", XContentParser::doubleValue);
+        ACCESSORS.put("numberValue", XContentParser::numberValue);
+        ACCESSORS.put("numberType", XContentParser::numberType);
+    }
+
+    /**
+     * The typed accessors are what the row-path mappers call when a field falls back to {@link SourceRowXContentParser}. Callers such as
+     * {@code ignore_malformed} rely on a value of the wrong type making a parser throw an {@link IllegalArgumentException}, which is what
+     * the JSON parser does, so the row parser has to behave the same: for every kind of value and every typed accessor, it returns an
+     * equivalent value when the JSON parser does and throws an {@link IllegalArgumentException} when the JSON parser throws one. The test
+     * reports every difference rather than stopping at the first.
+     */
+    public void testTypedAccessorsMatchTheJsonParser() throws IOException {
+        final String[] values = {
+            "true",
+            "false",
+            "null",
+            "0",
+            "42",
+            "-7",
+            "1.5",
+            "-0.0",
+            "1e3",
+            "\"12\"",
+            "\"abc\"",
+            "\"\"",
+            "\"true\"",
+            "{\"a\":1}",
+            "{}",
+            "[1,2]",
+            "[]" };
+
+        final Map<String, BytesReference> sources = new LinkedHashMap<>();
+        for (String value : values) {
+            sources.put(value, new BytesArray("{\"v\":" + value + "}"));
+        }
+        assertAccessorsMatch(XContentType.JSON, sources);
+    }
+
+    private void assertAccessorsMatch(XContentType type, Map<String, BytesReference> sources) throws IOException {
+        final List<String> differences = new ArrayList<>();
+        for (Map.Entry<String, BytesReference> entry : sources.entrySet()) {
+            final BytesReference source = entry.getValue();
+            try (EscfBatch batch = EscfEncoder.encode(List.of(source), type)) {
+                final SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+                for (Map.Entry<String, TypedAccessor> accessor : ACCESSORS.entrySet()) {
+                    // A fresh pair of parsers per accessor: the JSON parser converts numbers lazily and remembers the last conversion, so
+                    // an earlier accessor would change what a later one returns.
+                    try (
+                        XContentParser json = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, type);
+                        SourceRowXContentParser row = new SourceRowXContentParser(tree, batch.row(0))
+                    ) {
+                        // Position both on the value: START_OBJECT, FIELD_NAME, then the value token.
+                        for (int i = 0; i < 3; i++) {
+                            json.nextToken();
+                            row.nextToken();
+                        }
+                        assertEquals("token for " + entry.getKey(), json.currentToken(), row.currentToken());
+                        final String problem = compare(
+                            accessor.getKey(),
+                            Outcome.of(json, accessor.getValue()),
+                            Outcome.of(row, accessor.getValue())
+                        );
+                        if (problem != null) {
+                            differences.add(entry.getKey() + " (" + json.currentToken() + ") -> " + accessor.getKey() + ": " + problem);
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(
+            "typed accessors differing from the JSON parser (" + differences.size() + "):\n" + String.join("\n", differences),
+            differences.isEmpty()
+        );
+    }
+
+    /** Returns a description of how {@code actual} differs from {@code expected}, or {@code null} if it is equivalent. */
+    private static String compare(String accessor, Outcome expected, Outcome actual) {
+        if (expected.error() != null) {
+            if (actual.error() == null) {
+                return "JSON parser " + expected + " but the row parser " + actual;
+            }
+            return expected.error() instanceof IllegalArgumentException && (actual.error() instanceof IllegalArgumentException) == false
+                ? "JSON parser threw an IllegalArgumentException ("
+                    + expected.error().getClass().getSimpleName()
+                    + ") but the row parser threw "
+                    + actual.error().getClass().getName()
+                : null;
+        }
+        if (actual.error() != null) {
+            return "JSON parser " + expected + " but the row parser " + actual;
+        }
+        if (accessor.equals("numberType")) {
+            // The encoder widens int to long and float to double, so only the kind of number is compared.
+            return numberKind(expected.value()).equals(numberKind(actual.value()))
+                ? null
+                : "JSON parser " + expected + " but the row parser " + actual;
+        }
+        if (expected.value() instanceof Number e && actual.value() instanceof Number a) {
+            // Two integral values are compared as longs, because a double cannot tell apart two longs close to 2^63.
+            final boolean same = isIntegral(e) && isIntegral(a)
+                ? e.longValue() == a.longValue()
+                : Double.compare(e.doubleValue(), a.doubleValue()) == 0;
+            return same ? null : "JSON parser " + expected + " but the row parser " + actual;
+        }
+        return Objects.equals(expected.value(), actual.value()) ? null : "JSON parser " + expected + " but the row parser " + actual;
+    }
+
+    private static String numberKind(Object numberType) {
+        return switch ((XContentParser.NumberType) numberType) {
+            case INT, LONG, BIG_INTEGER -> "integral";
+            case FLOAT, DOUBLE, BIG_DECIMAL -> "floating";
+        };
+    }
+
+    private static boolean isIntegral(Number number) {
+        return number instanceof Byte || number instanceof Short || number instanceof Integer || number instanceof Long;
+    }
 
     public void testSimpleFlatDocument() throws IOException {
         BytesReference source = new BytesArray("""

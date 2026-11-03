@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.apache.lucene.search.knn.KnnCollectorManager;
@@ -168,6 +169,10 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
             }
         }
         return totalVectors;
+    }
+
+    public float estimateFilterSelectivity(Weight filterWeight, List<LeafReaderContext> leaves) throws IOException {
+        return KnnQueryUtils.estimateFilterSelectivityBySampling(filterWeight, leaves, field);
     }
 
     @Override

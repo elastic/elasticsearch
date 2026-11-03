@@ -13,6 +13,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
@@ -23,18 +24,26 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class KnnQueryUtilsTests extends ESTestCase {
@@ -456,6 +465,232 @@ public class KnnQueryUtilsTests extends ESTestCase {
                 Weight w = searcher.createWeight(searcher.rewrite(new TermQuery(new Term("tag", "a"))), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 assertEquals(0f, KnnQueryUtils.computeSelectivity(w, searcher.getIndexReader().leaves(), 0), 0f);
             }
+        }
+    }
+
+    public void testSampleOrdinalsAreBoundedUniqueAndRepeatable() {
+        long[] populations = { 0, 1, 20, 21, 100, 500, 1000, 45500, Integer.MAX_VALUE, Long.MAX_VALUE };
+        int[] expectedSizes = { 0, 1, 20, 21, 84, 251, 334, 495, 500, 500 };
+        for (int i = 0; i < populations.length; i++) {
+            long[] sample = KnnQueryUtils.sampleOrdinals(populations[i]);
+            assertEquals(expectedSizes[i], sample.length);
+            assertArrayEquals(sample, KnnQueryUtils.sampleOrdinals(populations[i]));
+            long previous = -1;
+            for (long ordinal : sample) {
+                assertTrue(ordinal > previous);
+                assertTrue(ordinal < populations[i]);
+                previous = ordinal;
+            }
+        }
+    }
+
+    public void testEstimateSelectivityBySamplingCountsNestedVectorsAcrossCacheStates() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            // Nineteen vectors are all sampled. Unequal block sizes distinguish child coverage from parent coverage.
+            int[] childrenPerParent = { 1, 3, 15 };
+            for (int parent = 0; parent < childrenPerParent.length; parent++) {
+                List<Document> block = new ArrayList<>();
+                for (int child = 0; child < childrenPerParent[parent]; child++) {
+                    block.add(selectivityVectorDoc());
+                }
+                block.add(new Document()); // A nested child without the target vector must not enter the denominator.
+                Document root = new Document();
+                root.add(new StringField("kind", "parent", Field.Store.NO));
+                root.add(new StringField("tag", parent < 2 ? "pass" : "fail", Field.Store.NO));
+                block.add(root);
+                writer.addDocuments(block);
+            }
+            writer.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(writer)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                LRUQueryCache cache = new LRUQueryCache(100, 10_000_000, ctx -> true, 1f);
+                searcher.setQueryCache(cache);
+                searcher.setQueryCachingPolicy(TrivialQueryCachingPolicy.NEVER);
+                BitSetProducer parents = new QueryBitSetProducer(new TermQuery(new Term("kind", "parent")));
+                Query filter = new ToChildBlockJoinQuery(new TermQuery(new Term("tag", "pass")), parents);
+                Weight cold = KnnQueryUtils.createFilterWeight(searcher, filter, "floats").weight();
+                assertEquals(2L, cold.scorerSupplier(reader.leaves().getFirst()).cost());
+                assertSampledSelectivity(4f / 19, cold, reader, 0f);
+                assertEquals(0L, cache.getCacheCount());
+
+                var floatQuery = new ESDiversifyingChildrenFloatKnnVectorQuery(
+                    "floats",
+                    new float[] { 1, 2 },
+                    filter,
+                    1,
+                    10,
+                    parents,
+                    null
+                );
+                var byteQuery = new ESDiversifyingChildrenByteKnnVectorQuery("bytes", new byte[] { 1, 2 }, filter, 1, 10, parents, null);
+                assertEquals(4f / 19, floatQuery.estimateFilterSelectivity(cold, reader.leaves()), 0f);
+                assertEquals(4f / 19, byteQuery.estimateFilterSelectivity(cold, reader.leaves()), 0f);
+
+                searcher.setQueryCachingPolicy(TrivialQueryCachingPolicy.ALWAYS);
+                assertEquals(4, searcher.count(cold.getQuery()));
+                assertTrue(cache.getCacheCount() > 0);
+                Weight warm = KnnQueryUtils.createFilterWeight(searcher, filter, "floats").weight();
+                assertEquals(4L, warm.scorerSupplier(reader.leaves().getFirst()).cost());
+                long cacheHits = cache.getHitCount();
+                assertSampledSelectivity(4f / 19, warm, reader, 0f);
+                assertTrue(cache.getHitCount() > cacheHits);
+            }
+        }
+    }
+
+    public void testEstimateSelectivityBySamplingHandlesSparseNonNestedVectorsAndTwoPhaseFilter() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 20; i++) {
+                Document doc = i % 2 == 0 ? selectivityVectorDoc() : new Document();
+                doc.add(new NumericDocValuesField("flag", i % 4 == 0 ? 1 : 0));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(writer)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                Weight filter = selectivityFilterWeight(searcher, NumericDocValuesField.newSlowExactQuery("flag", 1));
+                assertNotNull(filter.scorer(reader.leaves().getFirst()).twoPhaseIterator());
+                // Five matching vectors out of ten; neither all 20 docs nor the approximation's matches are the population.
+                assertSampledSelectivity(0.5f, filter, reader, 0f);
+                assertSampledSelectivity(1f, selectivityFilterWeight(searcher, new MatchAllDocsQuery()), reader, 0f);
+                Weight noMatches = selectivityFilterWeight(searcher, new TermQuery(new Term("missing", "value")));
+                assertNull(noMatches.scorerSupplier(reader.leaves().getFirst()));
+                assertSampledSelectivity(0f, noMatches, reader, 0f);
+            }
+        }
+    }
+
+    public void testEstimateSelectivityBySamplingWithNoVectors() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            try (IndexReader empty = DirectoryReader.open(writer)) {
+                Weight filter = selectivityFilterWeight(new IndexSearcher(empty), new MatchAllDocsQuery());
+                assertSampledSelectivity(0f, filter, empty, 0f);
+            }
+            Document doc = new Document();
+            doc.add(new StringField("tag", "pass", Field.Store.NO));
+            writer.addDocument(doc);
+            try (IndexReader reader = DirectoryReader.open(writer)) {
+                Weight filter = selectivityFilterWeight(new IndexSearcher(reader), new MatchAllDocsQuery());
+                assertSampledSelectivity(0f, filter, reader, 0f);
+                assertEquals(0f, KnnQueryUtils.estimateFilterSelectivityBySampling(filter, reader.leaves(), "tag"), 0f);
+            }
+        }
+    }
+
+    public void testEstimateSelectivityBySampleWeightsLeavesByVectorCount() throws IOException {
+        IndexWriterConfig config = new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(2000);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int i = 0; i < 10; i++) {
+                writer.addDocument(selectivityVectorDoc());
+            }
+            writer.commit();
+            for (int i = 0; i < 990; i++) {
+                Document doc = selectivityVectorDoc();
+                doc.add(new StringField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            Document noVector = new Document();
+            noVector.add(new StringField("tag", "pass", Field.Store.NO));
+            writer.addDocument(noVector);
+            writer.commit();
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                assertEquals(3, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                Weight filter = selectivityFilterWeight(searcher, new TermQuery(new Term("tag", "pass")));
+                // Equal per-leaf sampling would estimate 0.5, instead of the true vector coverage 0.99.
+                assertSampledSelectivity(0.99f, filter, reader, 0.03f);
+            }
+        }
+    }
+
+    public void testEstimateSelectivityBySamplingExcludesDeletedVectorsFromBothCounts() throws IOException {
+        IndexWriterConfig config = new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int i = 0; i < 20; i++) {
+                Document doc = selectivityVectorDoc();
+                doc.add(new StringField("tag", i < 5 ? "keep" : "delete", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            writer.deleteDocuments(new Term("tag", "delete"));
+            try (IndexReader reader = DirectoryReader.open(writer)) {
+                assertEquals(20, reader.maxDoc());
+                assertEquals(5, reader.numDocs());
+                IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                assertSampledSelectivity(1f, selectivityFilterWeight(searcher, new TermQuery(new Term("tag", "keep"))), reader, 0f);
+                assertSampledSelectivity(0f, selectivityFilterWeight(searcher, new TermQuery(new Term("tag", "delete"))), reader, 0f);
+            }
+        }
+    }
+
+    public void testEstimateSelectivityBySampleReturnsZeroWhenEverySamplingIsDeleted() throws IOException {
+        long[] sampledOrdinals = KnnQueryUtils.sampleOrdinals(1000);
+        IndexWriterConfig config = new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(2000);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int i = 0; i < 1000; i++) {
+                Document doc = selectivityVectorDoc();
+                // Deliberately remove just the deterministic sample, leaving other vectors searchable.
+                doc.add(new StringField("tag", Arrays.binarySearch(sampledOrdinals, i) >= 0 ? "delete" : "keep", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.commit();
+            writer.deleteDocuments(new Term("tag", "delete"));
+            try (IndexReader reader = DirectoryReader.open(writer)) {
+                assertEquals(1000, reader.maxDoc());
+                assertEquals(1000 - sampledOrdinals.length, reader.numDocs());
+                Weight filter = selectivityFilterWeight(new IndexSearcher(reader), new MatchAllDocsQuery());
+                assertSampledSelectivity(0f, filter, reader, 0f);
+            }
+        }
+    }
+
+    public void testEstimateSelectivityBySamplingRestrictsOrdinalRanges() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 15; i++) {
+                writer.addDocument(new Document()); // Make vector ordinals differ from doc IDs.
+                Document doc = selectivityVectorDoc();
+                doc.add(new StringField("tag", i >= 10 ? "pass" : "fail", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            try (IndexReader reader = DirectoryReader.open(writer)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                Weight filter = selectivityFilterWeight(searcher, new TermQuery(new Term("tag", "pass")));
+                LeafReaderContext leaf = reader.leaves().getFirst();
+                var vectors = leaf.reader().getFloatVectorValues("floats");
+                // Disjoint ranges in reverse doc order also require sorting before sequential filter access.
+                List<KnnQueryUtils.VectorRange> ranges = List.of(
+                    new KnnQueryUtils.VectorRange(leaf, vectors, 10, 15),
+                    new KnnQueryUtils.VectorRange(leaf, vectors, 5, 5),
+                    new KnnQueryUtils.VectorRange(leaf, vectors, 0, 5)
+                );
+                assertEquals(0.5f, KnnQueryUtils.estimateFilterSelectivityBySampling(filter, ranges), 0f);
+                assertEquals(0f, KnnQueryUtils.estimateFilterSelectivityBySampling(filter, List.of()), 0f);
+            }
+        }
+    }
+
+    private static Document selectivityVectorDoc() {
+        Document doc = new Document();
+        doc.add(new KnnFloatVectorField("floats", new float[] { 1, 2 }));
+        doc.add(new KnnByteVectorField("bytes", new byte[] { 1, 2 }));
+        return doc;
+    }
+
+    private static Weight selectivityFilterWeight(IndexSearcher searcher, Query filter) throws IOException {
+        return searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+    }
+
+    private static void assertSampledSelectivity(float expected, Weight filter, IndexReader reader, float delta) throws IOException {
+        for (String field : List.of("floats", "bytes")) {
+            float estimate = KnnQueryUtils.estimateFilterSelectivityBySampling(filter, reader.leaves(), field);
+            assertEquals(expected, estimate, delta);
+            assertEquals(estimate, KnnQueryUtils.estimateFilterSelectivityBySampling(filter, reader.leaves(), field), 0f);
         }
     }
 

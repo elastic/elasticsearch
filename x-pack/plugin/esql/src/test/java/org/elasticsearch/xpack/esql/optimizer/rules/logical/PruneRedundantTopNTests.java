@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 
@@ -34,35 +35,42 @@ public class PruneRedundantTopNTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * A non-local TopN is a pipeline breaker, so it must survive merging regardless of whether it is the parent or the child.
-     * This is hard to reproduce through real query paths, hence the hand-built plans.
+     * A non-local TopN is a pipeline breaker, so the merged TopN may only be local if both inputs are local; in particular,
+     * a non-local TopN must survive merging regardless of whether it is the parent or the child.
+     * Mixed locality is hard to reproduce through real query paths, hence the hand-built plans.
      */
-    public void testNonLocalTopNSurvivesMergeWithLocalTopN() {
+    public void testMergedTopNIsLocalOnlyIfBothAreLocal() {
         var source = emptySource();
         for (boolean parentLocal : new boolean[] { true, false }) {
-            var childTopN = new TopN(EMPTY, source, ORDER, L(100), parentLocal == false);
-            var parentTopN = new TopN(EMPTY, childTopN, ORDER, L(10), parentLocal);
+            for (boolean childLocal : new boolean[] { true, false }) {
+                var childTopN = new TopN(EMPTY, source, ORDER, L(100), childLocal);
+                var parentTopN = new TopN(EMPTY, childTopN, ORDER, L(10), parentLocal);
 
-            var merged = as(prune(parentTopN), TopN.class);
+                var merged = as(prune(parentTopN), TopN.class);
 
-            assertFalse("merged TopN must stay a pipeline breaker if either input was one", merged.local());
-            assertThat(merged.child(), sameInstance(source));
-            assertThat(merged.limit(), equalTo(L(10)));
+                assertThat(
+                    "parent local=" + parentLocal + ", child local=" + childLocal,
+                    merged.local(),
+                    equalTo(parentLocal && childLocal)
+                );
+                assertThat(merged.child(), sameInstance(source));
+                assertThat(merged.limit(), equalTo(L(10)));
+            }
         }
     }
 
-    public void testLocalTopNsMergeIntoLocalTopN() {
+    public void testLowerLimitIsKeptWhenLowerInParent() {
         var source = emptySource();
-        var childTopN = new TopN(EMPTY, source, ORDER, L(100), true);
-        var parentTopN = new TopN(EMPTY, childTopN, ORDER, L(10), true);
+        var childTopN = new TopN(EMPTY, source, ORDER, L(100), false);
+        var parentTopN = new TopN(EMPTY, childTopN, ORDER, L(10), false);
 
         var merged = as(prune(parentTopN), TopN.class);
 
-        assertTrue(merged.local());
+        assertThat(merged.limit(), equalTo(L(10)));
         assertThat(merged.child(), sameInstance(source));
     }
 
-    public void testLowerLimitIsKept() {
+    public void testLowerLimitIsKeptWhenLowerInChild() {
         var source = emptySource();
         var childTopN = new TopN(EMPTY, source, ORDER, L(10), false);
         var parentTopN = new TopN(EMPTY, childTopN, ORDER, L(100), false);
@@ -71,6 +79,40 @@ public class PruneRedundantTopNTests extends AbstractLogicalPlanOptimizerTests {
 
         assertThat(merged.limit(), equalTo(L(10)));
         assertThat(merged.child(), sameInstance(source));
+    }
+
+    public void testChainOfTopNsIsMergedIntoOne() {
+        var source = emptySource();
+        var innermost = new TopN(EMPTY, source, ORDER, L(50), false);
+        var middle = new TopN(EMPTY, innermost, ORDER, L(100), false);
+        var outermost = new TopN(EMPTY, middle, ORDER, L(75), false);
+
+        var merged = as(prune(outermost), TopN.class);
+
+        assertThat(merged.limit(), equalTo(L(50)));
+        assertThat(merged.child(), sameInstance(source));
+    }
+
+    /**
+     * Only a TopN directly on top of another TopN can be merged; any other child leaves the plan untouched.
+     */
+    public void testNoOpIfChildIsNotTopN() {
+        var source = emptySource();
+        var limit = new Limit(EMPTY, L(5), source);
+        var topNOverLimit = new TopN(EMPTY, limit, ORDER, L(10), false);
+        var topNOverRelation = new TopN(EMPTY, source, ORDER, L(10), false);
+        // A TopN further down, separated by another node, must not be touched either.
+        var topNOverLimitOverTopN = new TopN(
+            EMPTY,
+            new Limit(EMPTY, L(5), new TopN(EMPTY, source, ORDER, L(100), false)),
+            ORDER,
+            L(10),
+            false
+        );
+
+        assertThat(prune(topNOverLimit), sameInstance(topNOverLimit));
+        assertThat(prune(topNOverRelation), sameInstance(topNOverRelation));
+        assertThat(prune(topNOverLimitOverTopN), sameInstance(topNOverLimitOverTopN));
     }
 
     public void testDifferentOrdersAreNotMerged() {

@@ -4290,6 +4290,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .optional(PrimitiveType.PrimitiveTypeName.INT64)
             .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
             .named("dn")
+            // MILLIS, so this is the epoch-millis arm of readDatetimeColumn. INT96 and MICROS reach their own
+            // readers, and the coercion test is a required column, so nothing else reverts this allocation.
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("dt")
             .named("test_schema");
 
         int rows = 512;
@@ -4307,13 +4312,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     g.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(r * 0.5f)));
                     g.add("i96", new NanoTime(2_451_545, 43_200_000_000_000L + r));
                     g.add("dn", 1_700_000_000_000_000L + r);
+                    g.add("dt", 1_700_000_000_000L + r);
                 }
                 groups.add(g);
             }
             return groups;
         });
 
-        byte[][] expected = new byte[9][];
+        byte[][] expected = new byte[10][];
         for (int read = 0; read < 50; read++) {
             ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withBaselinePath();
             StorageObject storageObject = createStorageObject(parquetData);
@@ -4326,7 +4332,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertTrue(iterator.hasNext());
                 Page page = iterator.next();
                 try {
-                    for (int c = 0; c < 9; c++) {
+                    for (int c = 0; c < 10; c++) {
                         Block block = page.getBlock(c);
                         for (int pos = 0; pos < block.getPositionCount(); pos++) {
                             if (pos % 5 != 0) {

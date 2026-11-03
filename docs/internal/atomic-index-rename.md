@@ -217,6 +217,34 @@ shard keep the old name until the shard is reallocated. The production change
 should say so in the rename API documentation rather than try to chase every
 copy.
 
+Inventory of what keeps the creation-time name on a data node, by what a user
+sees:
+
+| Holder | Where the name shows | User impact |
+|---|---|---|
+| Shard-scoped loggers (`AbstractIndexShardComponent#logger`, final, and the seven components built on it; the engine's logger via `EngineConfig#getShardId`) | Every log line about the shard: `[old][0]` | Highest. Support reads logs by index name; after a rename the shard's lines are filed under a name that no longer exists until the shard is reallocated or the node restarts. |
+| `EngineConfig#shardId` (final) | Merge thread names (`[old][0]: Lucene Merge Thread`), hot threads output, the `ShardId` that `ElasticsearchDirectoryReader` wraps new readers with | Visible in hot threads and thread dumps; functionally harmless because readers and caches are keyed by `ShardId`, which compares by UUID. |
+| `Store`, `Translog`, `ReplicationTracker`, `ShardIndexWarmerService`, `ShardBitsetFilterCache` (copied `shardId`) | Their own log and exception messages | Low: same lines as above, and exceptions from these components are rare. |
+| A point in time or scroll opened before the rename | `_index` of hits from that context | Low and short-lived: only contexts that outlive the rename, and only their own hits. New searches report the new name because the coordinator builds the shard target from the current routing. |
+| `ClusterInfo` shard-size keys on the master | Allocation decisions for up to one refresh interval | Fixed (D2): a rename triggers a refresh. |
+
+Everything else a user sees comes from state that is updated: write responses
+(`_index` from the renamed `IndexShard`), shard-level stats APIs and `_cat`
+output (from `IndexShard#shardId` and the routing table), slow logs (from the
+shard id at log time), recovery output (`RecoveryState#updateIndex`), and
+request and query cache statistics (keyed by `ShardId`, equal by UUID).
+
+Fixing the loggers, the one row that matters, is mechanical but wide:
+`PrefixLogger` holds its prefix as an immutable Log4j marker, so a logger
+cannot be re-prefixed in place; the shard components would have to drop the
+`final` on their loggers and re-create them in a `renameTo` hook, which means
+adding that hook to the seven `AbstractIndexShardComponent` subclasses and
+making `EngineConfig#getShardId` read through the `IndexShard` instead of a
+copy. About a day of work and a review across the index package, with no
+behavioural risk, since nothing branches on the prefix. The cheaper first
+step is to make `IndexShard#renameTo` log one line, at `INFO`, with both
+names, so that a reader of the old name finds the pointer to the new one.
+
 ### T5. Data streams (resolved)
 
 Renaming a backing or failure index updates the data stream through a new

@@ -930,10 +930,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /// shard failed before becoming active then the failure has not reduced availability, and recovering it again is
     /// just a retry, so it keeps the last priority it had.
     private static RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard, Metadata metadata) {
-        if (failedShard.initializing() == false) {
+        if (failedShard.active()) {
             return RecoveryPriority.UNASSIGNED_UNEXPECTED;
         }
-        assert failedShard.relocatingNodeId() == null && failedShard.recoveryPriority().isValidForUnassigned() : failedShard;
+        assert failedShard.initializing() : "failed shard must be initializing if it is not active: " + failedShard;
+        assert failedShard.recoveryPriority().isValidForUnassigned()
+            : "failed initializing shard must not be a relocation target: " + failedShard;
 
         // A reshard split target primary takes over writes for its share at [IndexReshardingState.Split.TargetShardState#HANDOFF],
         // before it becomes active. Its failure from then on does reduce availability, so it should also take priority

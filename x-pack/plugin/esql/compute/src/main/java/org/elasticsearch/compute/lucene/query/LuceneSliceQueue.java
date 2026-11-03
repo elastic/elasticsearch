@@ -484,7 +484,8 @@ public final class LuceneSliceQueue {
          * cut only over that range, with the same size rule using the range length in place of {@code totalDocs}.
          * Without this a narrow range falls into a few slices of the whole leaf and most drivers have nothing to do.
          * The range is never longer than the leaf, so these slices are never larger than the ones the whole leaf would
-         * get. Small leaves, and large leaves that cannot say which range matches, are sliced as before.
+         * get. Kept-whole leaves, small leaves, and large leaves that cannot say which range matches, are sliced as
+         * before.
          */
         DOC(2) {
             @Override
@@ -522,11 +523,11 @@ public final class LuceneSliceQueue {
                 }
                 int maxSegmentsPerSlice = Math.max(MAX_SEGMENTS_PER_SLICE, Math.ceilDiv(leaves.size(), sliceTarget));
                 AdaptivePartitioner partitioner = new AdaptivePartitioner(desiredSliceSize, maxSegmentsPerSlice);
-                // Kept-whole leaves (e.g. count shortcuts) need the full leaf, so only slice a range when there is no guard.
-                Map<LeafReaderContext, List<List<PartialLeafReaderContext>>> primarySortSlices = guard == LeafSplitGuard.NEVER
-                    ? primarySortRangeSlices(leaves, weight, partitioner, taskConcurrency, minDocsPerSlice)
-                    : Map.of();
-                return partitioner.partition(leaves, keepWhole, primarySortSlices);
+                return partitioner.partition(
+                    leaves,
+                    keepWhole,
+                    primarySortRangeSlices(leaves, weight, partitioner, keepWhole, taskConcurrency, minDocsPerSlice)
+                );
             }
         },
         /**
@@ -645,13 +646,15 @@ public final class LuceneSliceQueue {
 
         /**
          * Cuts the large leaves of {@code partitioner} over the doc range that can match a range filter on the
-         * primary index-sort field. A leaf that is not in the result is sliced as usual: it is small, the query has
-         * no such filter, or the leaf cannot say which range matches. A leaf with no matching docs maps to no slices.
+         * primary index-sort field. A leaf that is not in the result is sliced as usual: it is kept whole, it is small,
+         * the query has no such filter, or the leaf cannot say which range matches. A leaf with no matching docs maps
+         * to no slices.
          */
         private static Map<LeafReaderContext, List<List<PartialLeafReaderContext>>> primarySortRangeSlices(
             List<LeafReaderContext> leaves,
             Weight weight,
             AdaptivePartitioner partitioner,
+            Set<LeafReaderContext> keepWhole,
             int taskConcurrency,
             int minDocsPerSlice
         ) {
@@ -666,7 +669,7 @@ public final class LuceneSliceQueue {
             long totalDocs = 0;
             try {
                 for (LeafReaderContext leaf : leaves) {
-                    if (partitioner.isLarge(leaf)) {
+                    if (keepWhole.contains(leaf) == false && partitioner.isLarge(leaf)) {
                         PrimarySortRange.DocRange range = PrimarySortRange.find(leaf, clauses);
                         if (range != null) {
                             ranges.put(leaf, range);

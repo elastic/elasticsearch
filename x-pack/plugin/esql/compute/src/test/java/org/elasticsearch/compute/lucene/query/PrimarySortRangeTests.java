@@ -338,4 +338,42 @@ public class PrimarySortRangeTests extends ESTestCase {
             )
         );
     }
+
+    /**
+     * A leaf the guard keeps whole stays one full-leaf slice. Other large leaves are still cut by the range.
+     */
+    public void testKeptWholeLeafIsNotCut() throws IOException {
+        index(randomBoolean(), NUM_DOCS / 2);
+        assertThat(reader.leaves().size(), equalTo(2));
+        LeafReaderContext whole = reader.leaves().get(0);
+        LeafReaderContext other = reader.leaves().get(1);
+        IndexSearcher searcher = new IndexSearcher(reader);
+        Weight weight = searcher.createWeight(
+            searcher.rewrite(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 10, 12)),
+            ScoreMode.COMPLETE_NO_SCORES,
+            1
+        );
+        List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            between(50, 200),
+            weight,
+            (w, leaf) -> leaf == whole,
+            between(50, 500)
+        );
+        long wholeDocs = 0;
+        long otherDocs = 0;
+        for (List<PartialLeafReaderContext> group : groups) {
+            for (PartialLeafReaderContext slice : group) {
+                if (slice.leafReaderContext() == whole) {
+                    assertThat(slice, equalTo(new PartialLeafReaderContext(whole)));
+                    wholeDocs += slice.maxDoc() - slice.minDoc();
+                } else {
+                    assertThat(slice.leafReaderContext(), equalTo(other));
+                    otherDocs += slice.maxDoc() - slice.minDoc();
+                }
+            }
+        }
+        assertThat(wholeDocs, equalTo((long) whole.reader().maxDoc()));
+        assertThat("the other leaf is cut to the range", otherDocs, lessThan((long) other.reader().maxDoc() / 2));
+    }
 }

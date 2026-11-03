@@ -157,6 +157,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1314,8 +1315,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // etc. which we can keep under tighter limits and release sooner if we limit the number of concurrently processing indices.
             // Each one needs at least one snapshot thread at all times, so threadPool.info(SNAPSHOT).getMax() of them at once is enough to
             // keep the threadpool fully utilized.
+            // An index renamed between snapshots appears under each of its names with one shared id, hence one shared set of blobs;
+            // process each id once, with the snapshots of all its names (see IndexSnapshotsDeletionLauncher).
+            final Set<String> seenIndexIds = new HashSet<>();
+            final List<IndexId> indexIdsToProcess = new ArrayList<>();
+            for (final IndexId indexId : originalRepositoryData.getIndices().values()) {
+                if (seenIndexIds.add(indexId.getId())) {
+                    indexIdsToProcess.add(indexId);
+                }
+            }
             ThrottledIterator.run(
-                originalRepositoryData.getIndices().values().iterator(),
+                indexIdsToProcess.iterator(),
                 (ref, indexId) -> ActionListener.run(
                     ActionListener.releaseAfter(listeners.acquire(), ref),
                     new IndexSnapshotsDeletionLauncher(indexId)
@@ -1329,11 +1339,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         /// [IndexSnapshotsDeletion].
         private class IndexSnapshotsDeletionLauncher implements CheckedConsumer<ActionListener<Void>, RuntimeException> {
             private final IndexId indexId;
-            private final List<SnapshotId> indexSnapshotIds;
+            /**
+             * The snapshots that reference the blobs under this index id, under whichever name: an index renamed between snapshots is
+             * referenced by its old name from the old snapshots and by its new name from the new ones, and the shard listings under
+             * the shared path must keep the files of all of them.
+             */
+            private final Map<SnapshotId, IndexId> indexSnapshotIds;
 
             IndexSnapshotsDeletionLauncher(IndexId indexId) {
                 this.indexId = indexId;
-                this.indexSnapshotIds = originalRepositoryData.getSnapshots(indexId);
+                final Map<SnapshotId, IndexId> snapshotsByName = new LinkedHashMap<>();
+                for (final IndexId sameId : originalRepositoryData.indexIdsSharingId(indexId.getId())) {
+                    for (final SnapshotId snapshotId : originalRepositoryData.getSnapshots(sameId)) {
+                        snapshotsByName.put(snapshotId, sameId);
+                    }
+                }
+                this.indexSnapshotIds = snapshotsByName;
             }
 
             @Override
@@ -1348,8 +1369,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final var affectedMetaBlobIds = Sets.<String>newHashSetWithExpectedSize(
                     Math.min(indexSnapshotIds.size(), snapshotIds.size())
                 );
-                for (final var indexSnapshotId : indexSnapshotIds) {
-                    final var metaBlobId = originalRepositoryData.indexMetaDataGenerations().indexMetaBlobId(indexSnapshotId, indexId);
+                for (final var indexSnapshotId : indexSnapshotIds.keySet()) {
+                    final var metaBlobId = originalRepositoryData.indexMetaDataGenerations()
+                        .indexMetaBlobId(indexSnapshotId, indexSnapshotIds.get(indexSnapshotId));
                     if (snapshotIds.contains(indexSnapshotId)) {
                         // This meta blob is not necessarily deleted because of deduplication: it might be in use by surviving snapshots.
                         affectedMetaBlobIds.add(metaBlobId);
@@ -1372,7 +1394,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             /// `indices/${UUID}` tree is dropped by [SnapshotsDeletion#cleanupUnlinkedRootAndIndicesBlobs] without having to read anything.
             private boolean requiresProcessing() {
                 assert snapshotIds.isEmpty() == false; // we could further optimize this case if needed, but it never happens
-                final var indexSnapshotIdIterator = indexSnapshotIds.iterator();
+                final var indexSnapshotIdIterator = indexSnapshotIds.keySet().iterator();
                 if (indexSnapshotIdIterator.hasNext()) {
                     final var deletingFirstSnapshot = snapshotIds.contains(indexSnapshotIdIterator.next());
                     while (indexSnapshotIdIterator.hasNext()) {

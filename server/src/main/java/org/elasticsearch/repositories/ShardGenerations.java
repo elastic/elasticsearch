@@ -149,11 +149,29 @@ public final class ShardGenerations {
      */
     @Nullable
     public ShardGeneration getShardGen(IndexId indexId, int shardId) {
-        final List<ShardGeneration> generations = shardGenerations.get(indexId);
+        final List<ShardGeneration> generations = generationsFor(indexId);
         if (generations == null || generations.size() < shardId + 1) {
             return null;
         }
         return generations.get(shardId);
+    }
+
+    /**
+     * The generations tracked for the index, or for another {@link IndexId} with the same id: an index renamed between snapshots is
+     * tracked under each of its names, and the names share the shard paths (see {@link RepositoryData#resolveNewIndices}).
+     */
+    @Nullable
+    private List<ShardGeneration> generationsFor(IndexId indexId) {
+        final List<ShardGeneration> generations = shardGenerations.get(indexId);
+        if (generations != null) {
+            return generations;
+        }
+        for (Map.Entry<IndexId, List<ShardGeneration>> entry : shardGenerations.entrySet()) {
+            if (entry.getKey().getId().equals(indexId.getId())) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 
     public boolean hasShardGen(RepositoryShardId repositoryShardId) {
@@ -162,7 +180,8 @@ public final class ShardGenerations {
     }
 
     public List<ShardGeneration> getGens(IndexId indexId) {
-        return shardGenerations.getOrDefault(indexId, Collections.emptyList());
+        final List<ShardGeneration> generations = generationsFor(indexId);
+        return generations == null ? Collections.emptyList() : generations;
     }
 
     @Override
@@ -251,6 +270,12 @@ public final class ShardGenerations {
             ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null
                 : "must not overwrite existing generation with null generation [" + existingGeneration + "]";
+            // the other names of a renamed index share the shard path, so they share the generation
+            for (Map.Entry<IndexId, Map<Integer, ShardGeneration>> entry : generations.entrySet()) {
+                if (entry.getKey().equals(indexId) == false && entry.getKey().getId().equals(indexId.getId())) {
+                    entry.getValue().put(shardId, generation);
+                }
+            }
             return this;
         }
 

@@ -1014,7 +1014,8 @@ public class SnapshotsServiceUtils {
         final RestoreInProgress restoreInProgress = RestoreInProgress.get(currentState.cluster());
         for (IndexId index : indices) {
             final String indexName = index.getName();
-            final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
+            // by id rather than by name: a renamed index keeps the id it was snapshotted under before, and so its shard generations
+            final boolean isNewIndex = repositoryData.hasIndexId(index.getId()) == false;
             IndexMetadata indexMetadata = currentState.metadata().index(indexName);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.

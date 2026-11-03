@@ -229,16 +229,18 @@ existing `replaceBackingIndex`/`replaceFailureStoreIndex` remain for ILM's
 shrink and downsample flows, which really do swap in an index with different
 data and a new UUID.
 
-### T6. Snapshot repositories key indices by name
+### T6. Snapshot repositories key indices by name (incremental snapshots fixed)
 
-`RepositoryData` resolves `IndexId` by index name. The first snapshot after a
-rename therefore sees a "new" index and uploads all of its segments again
-instead of only the delta. Restoring older snapshots is unaffected (they restore
-under the name they were taken with, or a `rename_pattern`). The prototype
-refuses to rename an index while it is being snapshotted or restored, mirroring
-`MetadataDeleteIndexService`. Fixing the re-upload requires `RepositoryData` to
-match on index UUID as well as name, which is a repository format change and out
-of scope for the prototype.
+`RepositoryData` resolves `IndexId` by index name, so the first version of the
+prototype saw a "new" index after a rename and uploaded all of its segments
+again instead of only the delta. The prototype now matches a renamed index to
+the id it was snapshotted under before, by its UUID, so the next snapshot is
+incremental again and old and new snapshots share the blobs (D6 has the
+mechanism and the places that had to change). Restoring older snapshots is
+unaffected (they restore under the name they were taken with, or a
+`rename_pattern`). The prototype still refuses to rename an index while it is
+being snapshotted or restored, mirroring `MetadataDeleteIndexService`; lifting
+that needs the format change described in D6.
 
 ### T7. Two indices with one UUID would be silently merged
 
@@ -649,12 +651,56 @@ incremental again. Three places assume one name per `id` and need care:
   should be raised the first time an `id` is shared, so older nodes refuse to
   write to it.
 
-The cleaner long-term form is a format change that makes `id` the key, stores
-the current name and the index UUID as attributes, and resolves names per
-snapshot from `SnapshotInfo`; that is also what would allow lifting the T6
-refusal of renames during a snapshot, since `SnapshotsInProgress` and
-`RepositoryShardId` would stop carrying names. Neither form is in the
-prototype.
+The first form is now in the prototype:
+
+- `RepositoryData#resolveNewIndices` takes the index UUID of each name; for a
+  name new to the repository it looks for the `IndexId` last used for that
+  UUID (`indexIdForIndexUuid`, through the metadata identifiers) and reuses
+  its id under the new name. The on-disk format is unchanged: the `indices`
+  object simply has two names carrying the same `id`.
+- `ShardGenerations` resolves a lookup that misses by exact `IndexId` through
+  any other `IndexId` with the same id, and a `put` updates every name with
+  that id, so the names never disagree about the shard listing. Both names
+  write identical generation lists to disk.
+- `SnapshotsServiceUtils#shards` decides whether an index is new to the
+  repository by id, not by name, so the renamed index starts from the existing
+  shard generations rather than from `NEW_SHARD_GEN`.
+- Snapshot deletion (`BlobStoreRepository`) processes each id once, with the
+  union of the snapshots that reference it under any name, so deleting every
+  old-name snapshot rewrites the shared shard listings to keep the new-name
+  snapshot's files instead of dropping the whole shard path. The old name
+  disappears from `RepositoryData` when its last snapshot goes; the container
+  survives through the new name.
+- `RepositoryData` parsing: the per-snapshot index metadata lookup is stored
+  by id, and the parser resolved each id to an `IndexId` through a map keyed
+  by id, so the second name won and the first name's snapshots lost their
+  metadata identifiers. The parser now picks the name whose snapshot list
+  contains that snapshot. (This is also the proof that the on-disk format can
+  carry two names with one id without change: a snapshot references exactly
+  one of them.)
+- `BlobStoreTestUtil#assertConsistency` expects one container per distinct
+  id, and expects the metadata blobs of every name sharing it.
+
+`RenameIndexSnapshotIT#testSnapshotAfterRenameIsIncremental` shows the second
+snapshot uploading no segment file, the old-name snapshot deleted with the
+new-name one still restorable, and a third snapshot incremental again; the
+base class checks repository consistency after every test.
+
+Not done: the repository minimum-version marker. `RepositoryData` writes a
+`min_version` so that older nodes refuse to read a format they do not
+understand, but the code that writes it carries a note that no numeric
+`IndexVersion` can be written helpfully (versions before 8.11 parse it as a
+dotted version string), so adding a new marker needs its own design. Until
+then an older node reading a repository where two names share an id would
+process the shared shard path once per name on deletion, with the race
+described above. For a production change this must be solved first, either
+with a new marker or by making the sharing invisible to old readers.
+
+The cleaner long-term form remains a format change that makes `id` the key,
+stores the current name and the index UUID as attributes, and resolves names
+per snapshot from `SnapshotInfo`; that is also what would allow lifting the
+T6 refusal of renames during a snapshot, since `SnapshotsInProgress` and
+`RepositoryShardId` would stop carrying names.
 
 ## Failure inventory
 

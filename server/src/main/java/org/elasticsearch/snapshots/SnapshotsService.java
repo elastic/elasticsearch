@@ -2431,7 +2431,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             for (SnapshotsInProgress.Entry runningSnapshot : snapshotsInProgress.forRepo(projectState.projectId(), repositoryName)) {
                 allIndices.putAll(runningSnapshot.indices());
             }
-            final Map<String, IndexId> indexIds = repositoryData.resolveNewIndices(indices, allIndices);
+            final Map<String, IndexId> indexIds = repositoryData.resolveNewIndices(indices, allIndices, indexName -> {
+                final IndexMetadata indexMetadata = projectState.metadata().index(indexName);
+                return indexMetadata == null ? null : indexMetadata.getIndexUUID();
+            });
             final IndexVersion version = SnapshotsServiceUtils.minCompatibleVersion(
                 // NB minCompatibleVersion iterates over all the snapshots in the current repositoryData, which probably should happen on a
                 // different thread. Also is the _current_ repositoryData the right thing to consider? The minimum repository format version

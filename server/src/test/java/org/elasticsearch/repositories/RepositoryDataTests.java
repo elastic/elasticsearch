@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -120,6 +121,54 @@ public class RepositoryDataTests extends ESTestCase {
             }
         }
         assertEquals(repositoryData.getGenId(), newRepoData.getGenId());
+    }
+
+    /**
+     * A name new to the repository whose index was snapshotted before under another name (a renamed index) resolves to that
+     * earlier id, so the blobs stay under one path; a name whose index is unknown gets a fresh id; and the shard generations of
+     * the earlier name are visible through the new one.
+     */
+    public void testResolveNewIndicesReusesIdOfRenamedIndex() {
+        final IndexId oldName = new IndexId("old-name", UUIDs.randomBase64UUID(random()));
+        final String indexUuid = UUIDs.randomBase64UUID(random());
+        final ShardGeneration generation = ShardGeneration.newGeneration(random());
+        final String identifier = indexUuid + "-" + UUIDs.randomBase64UUID(random()) + "-1-1-1";
+        final SnapshotId snapshotId = new SnapshotId("snap", UUIDs.randomBase64UUID(random()));
+        final RepositoryData repositoryData = RepositoryData.EMPTY.addSnapshot(
+            snapshotId,
+            new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, IndexVersion.current(), 1L, 2L, null),
+            new UpdatedShardGenerations(ShardGenerations.builder().put(oldName, 0, generation).build(), ShardGenerations.EMPTY),
+            Map.of(oldName, identifier),
+            Map.of(identifier, UUIDs.randomBase64UUID(random()))
+        );
+
+        final Map<String, IndexId> resolved = repositoryData.resolveNewIndices(
+            List.of("old-name", "new-name", "unrelated"),
+            Map.of(),
+            name -> switch (name) {
+                case "new-name" -> indexUuid;
+                case "unrelated" -> UUIDs.randomBase64UUID(random());
+                default -> null;
+            }
+        );
+        assertThat(resolved.get("old-name"), equalTo(oldName));
+        assertThat(resolved.get("new-name").getId(), equalTo(oldName.getId()));
+        assertThat(resolved.get("unrelated").getId(), not(equalTo(oldName.getId())));
+        assertThat(repositoryData.indexIdForIndexUuid(indexUuid), equalTo(oldName));
+        assertNull(repositoryData.indexIdForIndexUuid(UUIDs.randomBase64UUID(random())));
+        assertTrue(repositoryData.hasIndexId(oldName.getId()));
+
+        // the new name sees the old name's shard generation, and an update under either name is seen by both
+        final IndexId newName = resolved.get("new-name");
+        assertThat(repositoryData.shardGenerations().getShardGen(newName, 0), equalTo(generation));
+        final ShardGeneration updated = ShardGeneration.newGeneration(random());
+        final ShardGenerations shardGenerations = ShardGenerations.builder()
+            .putAll(repositoryData.shardGenerations())
+            .put(newName, 0, updated)
+            .build();
+        assertThat(shardGenerations.getShardGen(oldName, 0), equalTo(updated));
+        assertThat(shardGenerations.getShardGen(newName, 0), equalTo(updated));
+        assertThat(shardGenerations.indices(), containsInAnyOrder(oldName, newName));
     }
 
     public void testInitIndices() {

@@ -582,6 +582,22 @@ public final class RepositoryData {
      * @param inFlightIds      name to index mapping for currently in-flight snapshots not yet in the repository data to fall back to
      */
     public Map<String, IndexId> resolveNewIndices(List<String> indicesToResolve, Map<String, IndexId> inFlightIds) {
+        return resolveNewIndices(indicesToResolve, inFlightIds, name -> null);
+    }
+
+    /**
+     * Resolve the given index names to index ids, creating new index ids for names that are not yet in the repository. A name that is
+     * new to the repository but belongs to an index that was snapshotted before under another name (it was renamed, see
+     * {@code docs/internal/atomic-index-rename.md}) gets an {@link IndexId} with that earlier id, so that its blobs keep living under
+     * the same {@code indices/<id>} path and the next snapshot stays incremental.
+     *
+     * @param indexUuidByName the cluster index UUID of each name, or {@code null} when unknown
+     */
+    public Map<String, IndexId> resolveNewIndices(
+        List<String> indicesToResolve,
+        Map<String, IndexId> inFlightIds,
+        Function<String, String> indexUuidByName
+    ) {
         Map<String, IndexId> snapshotIndices = Maps.newMapWithExpectedSize(indicesToResolve.size());
         for (String index : indicesToResolve) {
             IndexId indexId = indices.get(index);
@@ -589,11 +605,46 @@ public final class RepositoryData {
                 indexId = inFlightIds.get(index);
             }
             if (indexId == null) {
-                indexId = new IndexId(index, UUIDs.randomBase64UUID());
+                final String indexUuid = indexUuidByName.apply(index);
+                final IndexId previous = indexUuid == null ? null : indexIdForIndexUuid(indexUuid);
+                indexId = previous == null ? new IndexId(index, UUIDs.randomBase64UUID()) : new IndexId(index, previous.getId());
             }
             snapshotIndices.put(indexId.getName(), indexId);
         }
         return Map.copyOf(snapshotIndices);
+    }
+
+    /**
+     * The {@link IndexId} under which the index with the given cluster UUID was last snapshotted, whatever its name was at the time, or
+     * {@code null} if the repository holds no snapshot of it. Found through the index metadata identifiers, which start with the index
+     * UUID (see {@link IndexMetaDataGenerations#buildUniqueIdentifier}).
+     */
+    @Nullable
+    public IndexId indexIdForIndexUuid(String indexUuid) {
+        final String prefix = indexUuid + "-";
+        for (Map<IndexId, String> identifiersBySnapshot : indexMetaDataGenerations.lookup.values()) {
+            for (Map.Entry<IndexId, String> entry : identifiersBySnapshot.entrySet()) {
+                if (entry.getValue().startsWith(prefix) && indices.containsKey(entry.getKey().getName())) {
+                    return entry.getKey();
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Every {@link IndexId} in the repository with the given id. There is more than one only when an index was renamed between
+     * snapshots: the names differ, the blobs are shared.
+     */
+    public List<IndexId> indexIdsSharingId(String id) {
+        return indices.values().stream().filter(indexId -> indexId.getId().equals(id)).toList();
+    }
+
+    /**
+     * Whether some index in the repository, under any name, has the given id.
+     */
+    public boolean hasIndexId(String id) {
+        return indices.values().stream().anyMatch(indexId -> indexId.getId().equals(id));
     }
 
     private static final String SHARD_GENERATIONS = "shard_generations";
@@ -870,7 +921,7 @@ public final class RepositoryData {
             snapshotsDetails,
             indexSnapshots,
             shardGenerations.build(),
-            buildIndexMetaGenerations(indexMetaLookup, indexLookup, indexMetaIdentifiers),
+            buildIndexMetaGenerations(indexMetaLookup, indexLookup, indexSnapshots, indexMetaIdentifiers),
             clusterUUID
         );
     }
@@ -888,6 +939,7 @@ public final class RepositoryData {
     private static IndexMetaDataGenerations buildIndexMetaGenerations(
         Map<SnapshotId, Map<String, String>> indexMetaLookup,
         Map<String, IndexId> indexLookup,
+        Map<IndexId, List<SnapshotId>> indexSnapshots,
         Map<String, String> indexMetaIdentifiers
     ) {
         if (indexMetaLookup.isEmpty()) {
@@ -896,14 +948,41 @@ public final class RepositoryData {
         // Build a new map that instead of indexing the per-snapshot index generations by index id string, is indexed by IndexId
         final Map<SnapshotId, Map<IndexId, String>> indexGenerations = Maps.newMapWithExpectedSize(indexMetaLookup.size());
         for (Map.Entry<SnapshotId, Map<String, String>> snapshotIdMapEntry : indexMetaLookup.entrySet()) {
+            final SnapshotId snapshotId = snapshotIdMapEntry.getKey();
             final Map<String, String> val = snapshotIdMapEntry.getValue();
             final Map<IndexId, String> forSnapshot = Maps.newMapWithExpectedSize(val.size());
             for (Map.Entry<String, String> generationEntry : val.entrySet()) {
-                forSnapshot.put(indexLookup.get(generationEntry.getKey()), generationEntry.getValue());
+                forSnapshot.put(
+                    indexIdInSnapshot(generationEntry.getKey(), snapshotId, indexLookup, indexSnapshots),
+                    generationEntry.getValue()
+                );
             }
-            indexGenerations.put(snapshotIdMapEntry.getKey(), Map.copyOf(forSnapshot));
+            indexGenerations.put(snapshotId, Map.copyOf(forSnapshot));
         }
         return new IndexMetaDataGenerations(indexGenerations, indexMetaIdentifiers);
+    }
+
+    /**
+     * The {@link IndexId} with the given id that the given snapshot references. There is usually one {@link IndexId} per id, but an
+     * index renamed between snapshots is listed under each of its names with the same id, and a snapshot references exactly one of
+     * those names.
+     */
+    private static IndexId indexIdInSnapshot(
+        String id,
+        SnapshotId snapshotId,
+        Map<String, IndexId> indexLookup,
+        Map<IndexId, List<SnapshotId>> indexSnapshots
+    ) {
+        final IndexId anyName = indexLookup.get(id);
+        if (anyName == null || indexSnapshots.getOrDefault(anyName, List.of()).contains(snapshotId)) {
+            return anyName;
+        }
+        for (Map.Entry<IndexId, List<SnapshotId>> entry : indexSnapshots.entrySet()) {
+            if (entry.getKey().getId().equals(id) && entry.getValue().contains(snapshotId)) {
+                return entry.getKey();
+            }
+        }
+        return anyName;
     }
 
     /**

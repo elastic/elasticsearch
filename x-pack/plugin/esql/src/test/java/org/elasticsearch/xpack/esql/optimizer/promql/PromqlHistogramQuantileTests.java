@@ -50,7 +50,7 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
     }
 
     /**
-     * Grafana/istio shape: {@code (histogram_quantile(...) / 1000) or histogram_quantile(...)} — a top-level union of a
+     * Grafana/istio shape: {@code (histogram_quantile(...) / 1000) or histogram_quantile(...)} - a top-level union of a
      * scaled quantile and a bare one. Must keep a resolvable value column through {@code UnionAll}/{@code TopNBy}.
      */
     public void testHistogramQuantileDivOrHistogramQuantilePlans() {

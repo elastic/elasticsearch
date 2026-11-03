@@ -727,7 +727,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     /**
-     * Shape 2 (opaque × opaque) with {@code on (cluster)}: both sides expose only rest; keys are unresolved label refs.
+     * Shape 2 (opaque x opaque) with {@code on (cluster)}: both sides expose only rest; keys are unresolved label refs.
      */
     public void testVectorMatchOnAllowsOpaqueOpaqueOperands() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
@@ -736,7 +736,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(plan.output().stream().map(Attribute::name).toList(), containsInAnyOrder("result", "step", "cluster"));
     }
 
-    /** Shape 7b: topk over without — typed metadata only. */
+    /** Shape 7b: topk over without - typed metadata only. */
     public void testTopkOverWithoutPlans() {
         assumeTrue("PromQL vector matching is required", EsqlCapabilities.Cap.PROMQL_VECTOR_MATCHING_V0.isEnabled());
         assumeTrue("topk over without needs typed metadata", typedTimeSeriesMetadata());
@@ -820,7 +820,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     /**
      * Labelless aggregate {@code + ignoring(...)} opaque selector: both sides pack a metadata signature slot so join-key
      * arity matches. The labelless side binds that slot to the empty Prometheus signature, which an opaque series equals
-     * only when it has no label left — plans as a join, does not unique-HashJoin on {@code step} alone ("found a
+     * only when it has no label left - plans as a join, does not unique-HashJoin on {@code step} alone ("found a
      * duplicate row") or IndexOOB on asymmetric keys.
      */
 
@@ -1145,7 +1145,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     /**
-     * Cross-metric binary under sum, then divided by another sum — the promcheck {@code grouping_key_empty} shape
+     * Cross-metric binary under sum, then divided by another sum - the promcheck {@code grouping_key_empty} shape
      * ({@code sum(a-b)/sum(a)}, {@code sum(a+b)/sum(c)}).
      */
     public void testSumOfCrossMetricBinaryDividedBySum() {
@@ -1207,7 +1207,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     /**
-     * {@code by (value)} collides with the sample value column — rejected like {@code by (step)} (promcheck plan_dump).
+     * {@code by (value)} collides with the sample value column - rejected like {@code by (step)} (promcheck plan_dump).
      */
     public void testByValueLabelRejectedAsCollision() {
         EsField name = dimension("__name__");

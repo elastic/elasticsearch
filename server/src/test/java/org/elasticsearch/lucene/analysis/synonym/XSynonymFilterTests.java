@@ -69,7 +69,7 @@ public class XSynonymFilterTests extends ESTestCase {
 
     private void add(String input, String output, boolean keepOrig) {
         if (VERBOSE) {
-            System.out.println("  add input=" + input + " output=" + output + " keepOrig=" + keepOrig);
+            logger.info("  add input=" + input + " output=" + output + " keepOrig=" + keepOrig);
         }
         CharsRefBuilder inputCharsRef = new CharsRefBuilder();
         SynonymMap.Builder.join(input.split(" +"), inputCharsRef);
@@ -89,7 +89,7 @@ public class XSynonymFilterTests extends ESTestCase {
     // the tests are a little messy
     private void verify(String input, String output) throws Exception {
         if (VERBOSE) {
-            System.out.println("TEST: verify input=" + input + " expectedOutput=" + output);
+            logger.info("TEST: verify input=" + input + " expectedOutput=" + output);
         }
 
         tokensIn.setReader(new StringReader(input));
@@ -99,7 +99,7 @@ public class XSynonymFilterTests extends ESTestCase {
         while (tokensOut.incrementToken()) {
 
             if (VERBOSE) {
-                System.out.println(
+                logger.info(
                     "  incr token="
                         + termAtt.toString()
                         + " posIncr="
@@ -120,7 +120,7 @@ public class XSynonymFilterTests extends ESTestCase {
                 if (atPos > 0) {
                     assertTrue(tokensOut.incrementToken());
                     if (VERBOSE) {
-                        System.out.println(
+                        logger.info(
                             "  incr token="
                                 + termAtt.toString()
                                 + " posIncr="
@@ -163,7 +163,7 @@ public class XSynonymFilterTests extends ESTestCase {
         tokensOut.end();
         tokensOut.close();
         if (VERBOSE) {
-            System.out.println("  incr: END");
+            logger.info("  incr: END");
         }
         assertEquals(expectedUpto, expected.length);
     }
@@ -422,7 +422,7 @@ public class XSynonymFilterTests extends ESTestCase {
         final String document = getRandomString('a', alphabetSize, docLen);
 
         if (VERBOSE) {
-            System.out.println("TEST: doc=" + document);
+            logger.info("TEST: doc=" + document);
         }
 
         final int numSyn = atLeast(5);
@@ -432,7 +432,7 @@ public class XSynonymFilterTests extends ESTestCase {
         final List<OneSyn> syns = new ArrayList<>();
         final boolean dedup = random().nextBoolean();
         if (VERBOSE) {
-            System.out.println("  dedup=" + dedup);
+            logger.info("  dedup=" + dedup);
         }
         b = new SynonymMap.Builder(dedup);
         for (int synIDX = 0; synIDX < numSyn; synIDX++) {
@@ -450,7 +450,7 @@ public class XSynonymFilterTests extends ESTestCase {
             s.out.add(synOut);
             add(synIn, synOut, s.keepOrig);
             if (VERBOSE) {
-                System.out.println("  syns[" + synIDX + "] = " + s.in + " -> " + s.out + " keepOrig=" + s.keepOrig);
+                logger.info("  syns[" + synIDX + "] = " + s.in + " -> " + s.out + " keepOrig=" + s.keepOrig);
             }
         }
 
@@ -475,7 +475,7 @@ public class XSynonymFilterTests extends ESTestCase {
         final String expected = slowSynMatcher(document, syns, 5);
 
         if (VERBOSE) {
-            System.out.println("TEST: expected=" + expected);
+            logger.info("TEST: expected=" + expected);
         }
 
         verify(document, expected);
@@ -627,7 +627,7 @@ public class XSynonymFilterTests extends ESTestCase {
             b = new SynonymMap.Builder(random.nextBoolean());
             final int numEntries = atLeast(10);
             if (VERBOSE) {
-                System.out.println("TEST: iter=" + i + " numEntries=" + numEntries);
+                logger.info("TEST: iter=" + i + " numEntries=" + numEntries);
             }
             for (int j = 0; j < numEntries; j++) {
                 add(randomNonEmptyString(), randomNonEmptyString(), random.nextBoolean());

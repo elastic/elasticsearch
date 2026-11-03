@@ -171,7 +171,7 @@ public final class XSynonymFilter extends TokenFilter {
         int lastEndOffset;
         int lastPosLength;
 
-        public PendingOutputs() {
+        PendingOutputs() {
             outputs = new CharsRefBuilder[1];
             endOffsets = new int[1];
             posLengths = new int[1];

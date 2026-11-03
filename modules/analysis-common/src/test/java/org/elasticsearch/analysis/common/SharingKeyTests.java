@@ -162,7 +162,10 @@ public class SharingKeyTests extends ESTestCase {
         assertNotSame("unique filter behavior differs by index version and must not share", current, build(legacy, unique));
     }
 
-    /** {@code synonym} is the legacy filter before {@code SYNONYM_FILTER_USES_SYNONYM_GRAPH} and the graph filter after, so the key must differ. */
+    /**
+     * {@code synonym} is the legacy filter before {@code SYNONYM_FILTER_USES_SYNONYM_GRAPH} and the graph filter after,
+     * so the key must differ.
+     */
     public void testSynonymFilterDoesNotShareAcrossGraphVersion() throws IOException {
         IndexVersion legacy = IndexVersionUtils.getPreviousVersion(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH);
         assumeTrue("no read-compatible version predates the switch", legacy.onOrAfter(IndexVersionUtils.getLowestReadCompatibleVersion()));

@@ -55,7 +55,7 @@ public class DownsamplingOperationsMonitorTests extends ESTestCase {
                     org.elasticsearch.common.Strings.EMPTY_ARRAY,
                     Map.of()
                 ),
-                new PersistentTasksCustomMetadata.Assignment("node-1", "test")
+                new PersistentTasksCustomMetadata.Assignment("node-1", PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "test")
             )
             .addTask(
                 "task-2",
@@ -71,7 +71,7 @@ public class DownsamplingOperationsMonitorTests extends ESTestCase {
                     org.elasticsearch.common.Strings.EMPTY_ARRAY,
                     Map.of()
                 ),
-                new PersistentTasksCustomMetadata.Assignment("node-1", "test")
+                new PersistentTasksCustomMetadata.Assignment("node-1", PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "test")
             )
             .addTask(
                 "task-3",
@@ -87,7 +87,7 @@ public class DownsamplingOperationsMonitorTests extends ESTestCase {
                     org.elasticsearch.common.Strings.EMPTY_ARRAY,
                     Map.of()
                 ),
-                new PersistentTasksCustomMetadata.Assignment("node-2", "test")
+                new PersistentTasksCustomMetadata.Assignment("node-2", PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "test")
             )
             .addTask(
                 "task-failed",
@@ -103,7 +103,7 @@ public class DownsamplingOperationsMonitorTests extends ESTestCase {
                     org.elasticsearch.common.Strings.EMPTY_ARRAY,
                     Map.of()
                 ),
-                new PersistentTasksCustomMetadata.Assignment("node-1", "test")
+                new PersistentTasksCustomMetadata.Assignment("node-1", PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "test")
             )
             .updateTaskState("task-failed", new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null))
             .addTask(
@@ -120,7 +120,7 @@ public class DownsamplingOperationsMonitorTests extends ESTestCase {
                     org.elasticsearch.common.Strings.EMPTY_ARRAY,
                     Map.of()
                 ),
-                new PersistentTasksCustomMetadata.Assignment("node-1", "test")
+                new PersistentTasksCustomMetadata.Assignment("node-1", PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "test")
             )
             .updateTaskState("task-success", new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.COMPLETED, null))
             .build();

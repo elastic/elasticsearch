@@ -458,7 +458,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
 
         AssignmentDecision decision = enableDecider.canAssign();
         if (decision.getType() == AssignmentDecision.Type.NO) {
-            return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
+            return PersistentTasks.ASSIGNMENT_DISABLED;
         }
 
         // Filter all nodes that are marked as shutting down, because we do not
@@ -852,7 +852,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     }
 
     private static Assignment unassignedAssignment(String reason) {
-        return new Assignment(null, reason);
+        return new Assignment(null, Assignment.Reason.fromExplanation(null, reason), reason);
     }
 
     /**

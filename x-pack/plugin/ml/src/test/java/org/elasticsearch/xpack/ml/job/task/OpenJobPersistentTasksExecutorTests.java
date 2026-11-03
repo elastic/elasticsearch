@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.ml.job.task;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -47,6 +50,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -89,12 +93,17 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
+import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.checkAssignmentState;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.validateJobAndId;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -328,7 +337,13 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             MlTasks.jobTaskId(jobId),
             MlTasks.JOB_TASK_NAME,
             new OpenJobAction.JobParams(jobId),
-            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                nodeId,
+                nodeId != null
+                    ? PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED
+                    : PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7,
+                "test assignment"
+            )
         );
         if (jobState != null) {
             builder.updateTaskState(
@@ -521,6 +536,72 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
         // ResourceNotFoundException -> UpdateStateRetryableAction.shouldRetry() = false -> no retry
         verify(jobTask, org.mockito.Mockito.times(1)).updatePersistentTaskState(any(), any());
+    }
+
+    public void testCheckAssignmentState_GivenAssignmentDisabled() {
+        Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutorTests.class);
+        Optional<ElasticsearchException> result = checkAssignmentState(
+            PersistentTasksCustomMetadata.ASSIGNMENT_DISABLED,
+            "test_job",
+            logger
+        );
+        assertTrue(result.isPresent());
+        assertThat(result.get(), instanceOf(ElasticsearchStatusException.class));
+        ElasticsearchStatusException statusException = (ElasticsearchStatusException) result.get();
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, statusException.status());
+        assertThat(statusException.getMessage(), containsString(EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.getKey()));
+    }
+
+    public void testCheckAssignmentState_GivenAwaitingUpgrade() {
+        Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutorTests.class);
+        Optional<ElasticsearchException> result = checkAssignmentState(AWAITING_UPGRADE, "test_job", logger);
+        assertTrue(result.isPresent());
+        assertThat(result.get(), instanceOf(ElasticsearchStatusException.class));
+        ElasticsearchStatusException statusException = (ElasticsearchStatusException) result.get();
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, statusException.status());
+        assertThat(statusException.getMessage(), containsString("upgrade mode is enabled"));
+    }
+
+    public void testCheckAssignmentState_GivenNoSuitableNodes() {
+        Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutorTests.class);
+        PersistentTasksCustomMetadata.Assignment assignment = new PersistentTasksCustomMetadata.Assignment(
+            null,
+            PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7,
+            "some other failure reason"
+        );
+        Optional<ElasticsearchException> result = checkAssignmentState(assignment, "test_job", logger);
+        assertTrue(result.isPresent());
+        assertThat(result.get(), instanceOf(ElasticsearchStatusException.class));
+        ElasticsearchStatusException statusException = (ElasticsearchStatusException) result.get();
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, statusException.status());
+        assertThat(statusException.getMessage(), containsString("no ML nodes with sufficient capacity were found"));
+    }
+
+    public void testCheckAssignmentState_GivenInitialAssignment() {
+        Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutorTests.class);
+        Optional<ElasticsearchException> result = checkAssignmentState(
+            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT,
+            "test_job",
+            logger
+        );
+        assertFalse(result.isPresent());
+    }
+
+    public void testCheckAssignmentState_GivenNullAssignment() {
+        Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutorTests.class);
+        Optional<ElasticsearchException> result = checkAssignmentState(null, "test_job", logger);
+        assertFalse(result.isPresent());
+    }
+
+    public void testCheckAssignmentState_GivenAssignedTask() {
+        Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutorTests.class);
+        PersistentTasksCustomMetadata.Assignment assignment = new PersistentTasksCustomMetadata.Assignment(
+            "node_1",
+            PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+            "test assignment"
+        );
+        Optional<ElasticsearchException> result = checkAssignmentState(assignment, "test_job", logger);
+        assertFalse(result.isPresent());
     }
 
     public void testCapacityConstrainedFailureShouldEscalateBackoffToCapacityCeiling() {

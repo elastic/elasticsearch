@@ -128,7 +128,11 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
         }
     }
 
-    private static final Assignment NO_ASSIGNMENT = new Assignment(null, "no nodes found with data and remote cluster client roles");
+    private static final Assignment NO_ASSIGNMENT = new Assignment(
+        null,
+        Assignment.Reason.NO_NODE_FOUND,
+        "no nodes found with data and remote cluster client roles"
+    );
 
     @Override
     protected Assignment doGetAssignment(
@@ -145,7 +149,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
         if (node == null) {
             return NO_ASSIGNMENT;
         } else {
-            return new Assignment(node.getId(), "node is the least loaded data node and remote cluster client");
+            return new Assignment(node.getId(), Assignment.Reason.ASSIGNED, "node is the least loaded data node and remote cluster client");
         }
     }
 

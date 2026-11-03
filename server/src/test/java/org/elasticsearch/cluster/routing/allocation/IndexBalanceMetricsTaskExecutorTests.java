@@ -70,7 +70,7 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
                 "other-task-id",
                 IndexBalanceMetricsTaskExecutor.TASK_NAME,
                 IndexBalanceMetricsTaskExecutor.TaskParams.INSTANCE,
-                new PersistentTasksCustomMetadata.Assignment("n1", "")
+                new PersistentTasksCustomMetadata.Assignment("n1", PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "")
             );
         final var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build()).build())
@@ -84,7 +84,7 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
                 IndexBalanceMetricsTaskExecutor.TASK_NAME,
                 IndexBalanceMetricsTaskExecutor.TASK_NAME,
                 IndexBalanceMetricsTaskExecutor.TaskParams.INSTANCE,
-                new PersistentTasksCustomMetadata.Assignment("n1", "test")
+                new PersistentTasksCustomMetadata.Assignment("n1", PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED, "test")
             );
         final var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build()).build())

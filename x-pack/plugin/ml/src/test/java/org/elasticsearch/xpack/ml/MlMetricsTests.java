@@ -191,7 +191,13 @@ public class MlMetricsTests extends ESTestCase {
             MlTasks.datafeedTaskId(datafeedId),
             MlTasks.DATAFEED_TASK_NAME,
             new StartDatafeedAction.DatafeedParams(datafeedId, System.currentTimeMillis()),
-            nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            nodeId == null
+                ? AWAITING_LAZY_ASSIGNMENT
+                : new PersistentTasksCustomMetadata.Assignment(
+                    nodeId,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "test assignment"
+                )
         );
         if (datafeedState != null) {
             builder.updateTaskState(MlTasks.datafeedTaskId(datafeedId), datafeedState);

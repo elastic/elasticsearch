@@ -126,7 +126,11 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                     UUIDs.base64UUID(),
                     TestPersistentTasksExecutor.NAME,
                     new TestParams("other_" + i),
-                    new Assignment("other_node_" + randomInt(nonLocalNodesCount), "test assignment on other node")
+                    new Assignment(
+                        "other_node_" + randomInt(nonLocalNodesCount),
+                        Assignment.Reason.ASSIGNED,
+                        "test assignment on other node"
+                    )
                 );
                 if (added == false && randomBoolean()) {
                     added = true;
@@ -134,7 +138,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
                         UUIDs.base64UUID(),
                         TestPersistentTasksExecutor.NAME,
                         new TestParams("this_param"),
-                        new Assignment("this_node", "test assignment on this node")
+                        new Assignment("this_node", Assignment.Reason.ASSIGNED, "test assignment on this node")
                     );
                 }
             }
@@ -239,7 +243,12 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         var tasks = tasksBuilder(null);
         String taskId = UUIDs.base64UUID();
         TestParams taskParams = new TestParams("other_0");
-        tasks.addTask(taskId, TestPersistentTasksExecutor.NAME, taskParams, new Assignment("this_node", "test assignment on other node"));
+        tasks.addTask(
+            taskId,
+            TestPersistentTasksExecutor.NAME,
+            taskParams,
+            new Assignment("this_node", Assignment.Reason.ASSIGNED, "test assignment on other node")
+        );
         tasks.updateTaskState(taskId, taskState);
         Metadata.Builder metadata = Metadata.builder(state.metadata());
         updateTasksCustomMetadata(metadata, tasks);
@@ -511,7 +520,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             UUIDs.base64UUID(),
             TestPersistentTasksExecutor.NAME,
             new TestParams("this_param"),
-            new Assignment("this_node", "test assignment on this node")
+            new Assignment("this_node", Assignment.Reason.ASSIGNED, "test assignment on this node")
         );
 
         Metadata.Builder metadata = Metadata.builder(state.metadata());
@@ -532,7 +541,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             .metadata(
                 updateTasksCustomMetadata(
                     Metadata.builder(state.metadata()),
-                    builder.addTask(UUIDs.base64UUID(), action, params, new Assignment(node, "test assignment"))
+                    builder.addTask(UUIDs.base64UUID(), action, params, new Assignment(node, Assignment.Reason.ASSIGNED, "test assignment"))
                 )
             )
             .build();
@@ -545,7 +554,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
             .metadata(
                 updateTasksCustomMetadata(
                     Metadata.builder(state.metadata()),
-                    builder.reassignTask(taskId, new Assignment(node, "test assignment"))
+                    builder.reassignTask(taskId, new Assignment(node, Assignment.Reason.ASSIGNED, "test assignment"))
                 )
             )
             .build();

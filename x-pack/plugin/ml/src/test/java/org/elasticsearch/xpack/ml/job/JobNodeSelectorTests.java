@@ -711,7 +711,11 @@ public class JobNodeSelectorTests extends ESTestCase {
         tasksBuilder = PersistentTasksCustomMetadata.builder(tasks);
         tasksBuilder.reassignTask(
             MlTasks.jobTaskId(job6.getId()),
-            new PersistentTasksCustomMetadata.Assignment("_node_id3", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "_node_id3",
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "test assignment"
+            )
         );
         tasks = tasksBuilder.build();
 
@@ -796,7 +800,11 @@ public class JobNodeSelectorTests extends ESTestCase {
         // This will make the assignment stale for job_id1
         tasksBuilder.reassignTask(
             MlTasks.jobTaskId("job_id1"),
-            new PersistentTasksCustomMetadata.Assignment("_node_id1", "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                "_node_id1",
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "test assignment"
+            )
         );
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id2", "_node_id1", null, tasksBuilder);
         OpenJobPersistentTasksExecutorTests.addJobTask("job_id3", "_node_id2", null, tasksBuilder);
@@ -1197,7 +1205,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            new PersistentTasksCustomMetadata.Assignment(null, PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7, "foo"),
             ByteSizeValue.ofGb(1).getBytes()
         );
         assertEquals("foo", result.getExplanation());
@@ -1240,7 +1248,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            new PersistentTasksCustomMetadata.Assignment(null, PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7, "foo"),
             ByteSizeValue.ofGb(1).getBytes()
         );
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
@@ -1293,7 +1301,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            new PersistentTasksCustomMetadata.Assignment(null, PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7, "foo"),
             ByteSizeValue.ofGb(64).getBytes()
         );
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
@@ -1342,7 +1350,7 @@ public class JobNodeSelectorTests extends ESTestCase {
             node -> nodeFilter(node, job)
         );
         PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
-            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            new PersistentTasksCustomMetadata.Assignment(null, PersistentTasksCustomMetadata.Assignment.Reason.UNEXPECTED_PRE_9_7, "foo"),
             ByteSizeValue.ofGb(4).getBytes()
         );
         assertEquals("foo", result.getExplanation());
@@ -1561,7 +1569,11 @@ public class JobNodeSelectorTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId(id),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams(id, MlConfigVersion.CURRENT, allowLazyStart),
-            new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                nodeId,
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "test assignment"
+            )
         );
         if (state != null) {
             builder.updateTaskState(

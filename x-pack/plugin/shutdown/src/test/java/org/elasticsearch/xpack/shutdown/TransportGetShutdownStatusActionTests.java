@@ -781,7 +781,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 taskName + "-1",
                 taskName,
                 null,
-                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+                new PersistentTasksCustomMetadata.Assignment(
+                    SHUTTING_DOWN_NODE_ID,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "assigned"
+                )
             );
         }
         // Populates the static PersistentTasksExecutorRegistry TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set.
@@ -829,7 +833,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 taskName + "-1",
                 taskName,
                 null,
-                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+                new PersistentTasksCustomMetadata.Assignment(
+                    SHUTTING_DOWN_NODE_ID,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "assigned"
+                )
             );
         }
         for (int i = 0; i < nonAutoReassignCount; i++) {
@@ -839,7 +847,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 taskName + "-1",
                 taskName,
                 null,
-                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+                new PersistentTasksCustomMetadata.Assignment(
+                    SHUTTING_DOWN_NODE_ID,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "assigned"
+                )
             );
         }
         // Populates the static PersistentTasksExecutorRegistry TASKS_WITH_REASSIGNMENT_ON_SHUTDOWN_DISABLED set.
@@ -880,15 +892,32 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 autoTaskName + "-1",
                 autoTaskName,
                 null,
-                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+                new PersistentTasksCustomMetadata.Assignment(
+                    SHUTTING_DOWN_NODE_ID,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "assigned"
+                )
             )
             .addTask(
                 optOutTaskName + "-1",
                 optOutTaskName,
                 null,
-                new PersistentTasksCustomMetadata.Assignment(SHUTTING_DOWN_NODE_ID, "assigned")
+                new PersistentTasksCustomMetadata.Assignment(
+                    SHUTTING_DOWN_NODE_ID,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "assigned"
+                )
             )
-            .addTask(optOutTaskName + "-2", optOutTaskName, null, new PersistentTasksCustomMetadata.Assignment(LIVE_NODE_ID, "assigned"))
+            .addTask(
+                optOutTaskName + "-2",
+                optOutTaskName,
+                null,
+                new PersistentTasksCustomMetadata.Assignment(
+                    LIVE_NODE_ID,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "assigned"
+                )
+            )
             .build();
 
         final var baseState = createTestClusterState(RoutingTable.EMPTY_ROUTING_TABLE, List.of(), SingleNodeShutdownMetadata.Type.REMOVE);

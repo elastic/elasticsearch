@@ -313,7 +313,11 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
                 taskId,
                 DownsampleShardTask.TASK_NAME,
                 params,
-                new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
+                new PersistentTasksCustomMetadata.Assignment(
+                    nodeId,
+                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                    "test assignment"
+                )
             ).updateTaskState(taskId, new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null));
         }
     }

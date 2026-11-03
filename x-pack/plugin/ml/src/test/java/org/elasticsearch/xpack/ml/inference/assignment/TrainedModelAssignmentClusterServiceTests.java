@@ -1326,7 +1326,11 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                mlNodeId,
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "test assignment"
+            )
         );
 
         PersistentTasksCustomMetadata.Builder currentTasksBuilder = PersistentTasksCustomMetadata.builder();
@@ -1397,7 +1401,11 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                mlNodeId,
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "test assignment"
+            )
         );
 
         PersistentTasksCustomMetadata.Builder currentTasksBuilder = PersistentTasksCustomMetadata.builder();
@@ -1417,7 +1425,11 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
             new StartDataFrameAnalyticsAction.TaskParams("dfa-1", MlConfigVersion.CURRENT, true),
-            new PersistentTasksCustomMetadata.Assignment(mlNodeId, "test assignment")
+            new PersistentTasksCustomMetadata.Assignment(
+                mlNodeId,
+                PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                "test assignment"
+            )
         );
 
         ClusterState previousState = ClusterState.builder(new ClusterName("test_cluster"))

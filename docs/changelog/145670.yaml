@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+  - 53711
+pr: 145670
+summary: Replace string matching with constant comparison for disabled persistent task assignment
+type: enhancement

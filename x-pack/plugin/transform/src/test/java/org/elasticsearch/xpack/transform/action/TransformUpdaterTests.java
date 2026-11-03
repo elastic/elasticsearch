@@ -585,7 +585,11 @@ public class TransformUpdaterTests extends ESTestCase {
                                 transformId,
                                 TransformTaskParams.NAME,
                                 new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, null, true),
-                                new PersistentTasksCustomMetadata.Assignment("node-1", "")
+                                new PersistentTasksCustomMetadata.Assignment(
+                                    "node-1",
+                                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                                    ""
+                                )
                             )
                             .build()
                     )
@@ -661,7 +665,11 @@ public class TransformUpdaterTests extends ESTestCase {
                                 transformId,
                                 TransformTaskParams.NAME,
                                 new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, null, true),
-                                new PersistentTasksCustomMetadata.Assignment("node-1", "")
+                                new PersistentTasksCustomMetadata.Assignment(
+                                    "node-1",
+                                    PersistentTasksCustomMetadata.Assignment.Reason.ASSIGNED,
+                                    ""
+                                )
                             )
                             .build()
                     )

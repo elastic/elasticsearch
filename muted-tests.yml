@@ -555,3 +555,8 @@ tests:
   - :x-pack:plugin:security:test
   method: testVerifiesHostnameOfIpLiteralUrl
   issue: https://github.com/elastic/elasticsearch/issues/164387
+- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
+  tasks:
+  - :x-pack:plugin:security:test
+  method: testPinnedFingerprintVerifiesHostnameOfIpLiteralUrl
+  issue: https://github.com/elastic/elasticsearch/issues/164389

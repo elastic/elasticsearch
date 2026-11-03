@@ -334,6 +334,34 @@ public class BytesRefHashTests extends ESTestCase {
         hash.close();
     }
 
+    public void testConcurrentSafeFind() {
+        Set<String> strings = new HashSet<>();
+        while (strings.size() < 5000) {
+            strings.add(TestUtil.randomRealisticUnicodeString(random(), 1, 1000));
+        }
+        List<BytesRef> keys = strings.stream().map(BytesRef::new).toList();
+        List<BytesRef> missing = new ArrayList<>();
+        while (missing.size() < 100) {
+            String str = TestUtil.randomRealisticUnicodeString(random(), 1, 1000);
+            if (strings.contains(str) == false) {
+                missing.add(new BytesRef(str));
+            }
+        }
+        try (BytesRefHash hash = randomHash()) {
+            for (int i = 0; i < keys.size(); i++) {
+                assertThat(hash.add(keys.get(i)), equalTo((long) i));
+            }
+            startInParallel(between(2, 8), t -> {
+                for (int i = 0; i < keys.size(); i++) {
+                    assertThat(hash.concurrentSafeFind(keys.get(i)), equalTo((long) i));
+                }
+                for (BytesRef key : missing) {
+                    assertThat(hash.concurrentSafeFind(key), equalTo(-1L));
+                }
+            });
+        }
+    }
+
     private void assertAllIn(Set<String> strings, BytesRefHash hash) {
         BytesRefBuilder ref = new BytesRefBuilder();
         BytesRef scratch = new BytesRef();

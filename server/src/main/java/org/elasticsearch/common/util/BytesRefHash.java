@@ -135,13 +135,10 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     }
 
     /**
-     * Get the id associated with <code>key</code>
+     * Get the id associated with <code>key</code>. Reads only, comparing keys in place with
+     * {@link BytesRefArray#bytesEqual}: {@link #concurrentSafeFind} and {@link Finder} rely on it.
      */
     public long find(BytesRef key, int code) {
-        return find(key, code, spare);
-    }
-
-    private long find(BytesRef key, int code, BytesRef intermediate) {
         final long slot = slot(rehash(code), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
@@ -157,13 +154,9 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         return find(key, key.hashCode());
     }
 
-    /**
-     * Allows finding a key in the hash in a thread safe manner, by providing an intermediate
-     * BytesRef reference to storing intermediate results. As long as each thread provides
-     * its own intermediate instance, this method is thread safe.
-     */
-    private long threadSafeFind(BytesRef key, BytesRef intermediate) {
-        return find(key, key.hashCode(), intermediate);
+    @Override
+    public long concurrentSafeFind(BytesRef key) {
+        return find(key, key.hashCode());
     }
 
     private long set(BytesRef key, int code, long id) {
@@ -302,10 +295,8 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
     }
 
     public class Finder {
-        private final BytesRef intermediate = new BytesRef();
-
         public long find(BytesRef key) {
-            return threadSafeFind(key, intermediate);
+            return concurrentSafeFind(key);
         }
     }
 

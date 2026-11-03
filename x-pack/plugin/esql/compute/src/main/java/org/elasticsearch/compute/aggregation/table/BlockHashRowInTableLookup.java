@@ -31,6 +31,7 @@ final class BlockHashRowInTableLookup extends RowInTableLookup {
             groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
         }
 
+        // Must stay a PackedValuesBlockHash: its lookup is safe for concurrent callers, which RowInTableLookup#lookup promises.
         hash = BlockHash.buildPackedValuesBlockHash(
             groups,
             blockFactory,

@@ -1421,7 +1421,8 @@ public class ComputeService {
                 foldContext,
                 null,
                 exchangeSinkSupplier,
-                false
+                false,
+                null
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.map(completionInfo -> {
@@ -1530,7 +1531,8 @@ public class ComputeService {
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
-                            false
+                            false,
+                            null
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
@@ -1676,7 +1678,8 @@ public class ComputeService {
                     foldContext,
                     exchangeSource::createExchangeSource,
                     exchangeSinkSupplier,
-                    false
+                    false,
+                    null
                 ),
                 coordinatorPlan,
                 plannerSettings.get(),
@@ -1992,7 +1995,8 @@ public class ComputeService {
                 computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
-                clusterService.state().getMinTransportVersion()
+                clusterService.state().getMinTransportVersion(),
+                context.hashJoinTables()
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

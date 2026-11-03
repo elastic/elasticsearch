@@ -151,6 +151,36 @@ public class BytesRefArrayTests extends ESTestCase {
         }
     }
 
+    /**
+     * Mixes values that span pages, which {@code get} copies into a cached scratch buffer, with
+     * small ones, which {@code get} returns as a view of a page. Reusing a page view as scratch
+     * would overwrite stored values.
+     */
+    public void testConcurrentGet() {
+        int pageSize = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        List<BytesRef> values = randomList(
+            50,
+            200,
+            () -> new BytesRef(randomByteArrayOfLength(randomBoolean() ? between(pageSize / 2, 3 * pageSize) : between(0, 100)))
+        );
+        try (BytesRefArray array = new BytesRefArray(between(0, values.size()), mockBigArrays())) {
+            for (BytesRef v : values) {
+                array.append(v);
+            }
+            startInParallel(between(2, 8), t -> {
+                BytesRef scratch = new BytesRef();
+                for (int i = 0; i < 2000; i++) {
+                    int pos = between(0, values.size() - 1);
+                    assertThat(array.get(pos, scratch), equalTo(values.get(pos)));
+                }
+            });
+            BytesRef scratch = new BytesRef();
+            for (int i = 0; i < values.size(); i++) {
+                assertThat(array.get(i, scratch), equalTo(values.get(i)));
+            }
+        }
+    }
+
     public void testReadWritten() {
         testReadWritten(false);
     }

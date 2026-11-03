@@ -3478,6 +3478,46 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * A data node runs its shards in batches, each planned separately, and they share the table INLINE STATS joins
+     * against. With one shard per batch the later batches reuse it, so this checks the results stay right when they do.
+     */
+    public void testInlineStatsAcrossShardBatches() {
+        assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
+        String indexName = "inline-stats-batches";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", randomDataNode().getName())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(3, 6))
+                )
+                .setMapping("k", "type=long", "v", "type=long")
+        );
+        int numDocs = between(100, 500);
+        Map<Long, Long> sums = new HashMap<>();
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            long k = between(0, 20);
+            long v = between(0, 100);
+            sums.merge(k, v, Long::sum);
+            bulk.add(new IndexRequest(indexName).source("k", k, "v", v));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build());
+        var request = syncEsqlQueryRequest("FROM " + indexName + " | INLINE STATS s = SUM(v) BY k | KEEP k, s | LIMIT " + numDocs);
+        try (var resp = run(request.pragmas(pragmas).acceptedPragmaRisks(true))) {
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(numDocs));
+            for (List<Object> row : rows) {
+                assertThat(row.get(1), equalTo(sums.get((Long) row.get(0))));
+            }
+        }
+    }
+
+    /**
      * EXPLAIN of a query that reads from a view. Regression test for EXPLAIN silently skipping view
      * resolution: {@code Explain} was a {@code LeafPlan} with the inner query as a field rather than
      * a child, so {@code viewResolver.replaceViews} never descended into it and the

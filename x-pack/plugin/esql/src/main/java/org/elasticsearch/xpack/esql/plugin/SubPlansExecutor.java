@@ -327,7 +327,8 @@ final class SubPlansExecutor {
                         foldContext,
                         exchange::exchangeSource,
                         parent == null ? null : () -> parent.exchange.exchangeSink(() -> {}),
-                        false
+                        false,
+                        null
                     ),
                     plan,
                     computeService.plannerSettings().get(),

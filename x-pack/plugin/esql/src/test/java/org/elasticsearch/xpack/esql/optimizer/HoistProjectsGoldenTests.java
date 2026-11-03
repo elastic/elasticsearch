@@ -249,6 +249,21 @@ public class HoistProjectsGoldenTests extends GoldenTestCase {
     }
 
     /**
+     * Like {@link #testMvExpandOfAUnionTypedColumnFromASubqueryStillNeededUnexpanded}, but expanding the alias {@code tmp}: now
+     * {@code salary} reads the copy, and {@code tmp} doesn't clash with anything below the Project, so it keeps its name.
+     */
+    public void testMvExpandOfAnAliasOfAUnionTypedColumnFromASubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runGoldenTest("""
+            FROM employees, (FROM employees | KEEP salary)
+            | EVAL salary = salary::keyword
+            | EVAL tmp = salary
+            | KEEP salary, tmp
+            | MV_EXPAND tmp
+            """, LOGICAL);
+    }
+
+    /**
      * The renamed {@code c} reads the original {@code a}, which the second EVAL shadows. The MV_EXPAND must expand the original
      * {@code a} below the Project, next to the shadowing one, which gets a temporary name.
      */

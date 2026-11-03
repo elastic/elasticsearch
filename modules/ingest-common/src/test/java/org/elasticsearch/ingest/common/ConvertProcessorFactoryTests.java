@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -30,8 +31,8 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
-        assertThat(convertProcessor.getField(), equalTo("field1"));
-        assertThat(convertProcessor.getTargetField(), equalTo("field1"));
+        assertThat(convertProcessor.getField(), hasToString("field1"));
+        assertThat(convertProcessor.getTargetField(), hasToString("field1"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
         assertThat(convertProcessor.isIgnoreMissing(), is(false));
     }
@@ -88,8 +89,8 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
-        assertThat(convertProcessor.getField(), equalTo("field1"));
-        assertThat(convertProcessor.getTargetField(), equalTo("field2"));
+        assertThat(convertProcessor.getField(), hasToString("field1"));
+        assertThat(convertProcessor.getTargetField(), hasToString("field2"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
         assertThat(convertProcessor.isIgnoreMissing(), is(false));
     }
@@ -104,8 +105,8 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         ConvertProcessor convertProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(convertProcessor.getTag(), equalTo(processorTag));
-        assertThat(convertProcessor.getField(), equalTo("field1"));
-        assertThat(convertProcessor.getTargetField(), equalTo("field1"));
+        assertThat(convertProcessor.getField(), hasToString("field1"));
+        assertThat(convertProcessor.getTargetField(), hasToString("field1"));
         assertThat(convertProcessor.getConvertType(), equalTo(type));
         assertThat(convertProcessor.isIgnoreMissing(), is(true));
     }

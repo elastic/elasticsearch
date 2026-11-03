@@ -172,7 +172,7 @@ public class InternalEngine extends Engine {
 
     // A uid (in the form of BytesRef) to the version map
     // we use the hashed variant since we iterate over it and check removal and additions on existing keys
-    private final LiveVersionMap versionMap;
+    private final LiveVersionMap2 versionMap;
     private final LiveVersionMapArchive liveVersionMapArchive;
     // Records the last known generation during which LiveVersionMap was in unsafe mode. This indicates that only after this
     // generation it is safe to rely on the LiveVersionMap for a real-time get.
@@ -275,7 +275,7 @@ public class InternalEngine extends Engine {
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         this.liveVersionMapArchive = createLiveVersionMapArchive();
-        this.versionMap = new LiveVersionMap(liveVersionMapArchive);
+        this.versionMap = new LiveVersionMap2();
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -921,7 +921,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public boolean isDocumentInLiveVersionMap(BytesRef uid) {
-        try (Releasable ignore = versionMap.acquireLock(uid)) {
+        try (Releasable ignore = versionMap.acquireLock(uid); var enforceSafeAccess = versionMap.enforceSafeAccess()) {
             final var versionValue = getVersionForRead(uid);
             return versionValue != null;
         }
@@ -2388,89 +2388,90 @@ public class InternalEngine extends Engine {
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
-        versionMap.enforceSafeAccess();
-        assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
-        final DeleteResult deleteResult;
-        int reservedDocs = 0;
-        // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
-        try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(delete.uid())) {
-            lastWriteNanos = delete.startTime();
-            final DeletionStrategy plan = deletionStrategyForOperation(delete);
-            reservedDocs = plan.reservedDocs;
-            if (plan.earlyResultOnPreflightError.isPresent()) {
-                assert delete.origin() == Operation.Origin.PRIMARY : delete.origin();
-                deleteResult = plan.earlyResultOnPreflightError.get();
-            } else {
-                // generate or register sequence number
-                if (delete.origin() == Operation.Origin.PRIMARY) {
-                    delete = new Delete(
-                        delete.id(),
-                        delete.uid(),
-                        generateSeqNoForOperationOnPrimary(delete),
-                        delete.primaryTerm(),
-                        delete.version(),
-                        delete.versionType(),
-                        delete.origin(),
-                        delete.startTime(),
-                        delete.getIfSeqNo(),
-                        delete.getIfPrimaryTerm()
-                    );
-
-                    advanceMaxSeqNoOfDeletesOnPrimary(delete.seqNo());
+        try (var enforceSafeAccess = versionMap.enforceSafeAccess()) {
+            assert assertIncomingSequenceNumber(delete.origin(), delete.seqNo());
+            final DeleteResult deleteResult;
+            int reservedDocs = 0;
+            // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
+            try (var ignored = acquireEnsureOpenRef(); Releasable ignored2 = versionMap.acquireLock(delete.uid())) {
+                lastWriteNanos = delete.startTime();
+                final DeletionStrategy plan = deletionStrategyForOperation(delete);
+                reservedDocs = plan.reservedDocs;
+                if (plan.earlyResultOnPreflightError.isPresent()) {
+                    assert delete.origin() == Operation.Origin.PRIMARY : delete.origin();
+                    deleteResult = plan.earlyResultOnPreflightError.get();
                 } else {
-                    advanceMaxSeqNo(delete.seqNo());
-                }
-
-                assert delete.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + delete.origin();
-
-                if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
-                    deleteResult = deleteInLucene(delete, plan);
-                } else {
-                    deleteResult = new DeleteResult(
-                        plan.versionOfDeletion,
-                        delete.primaryTerm(),
-                        delete.seqNo(),
-                        plan.currentlyDeleted == false,
-                        delete.id()
-                    );
-                }
-                if (plan.deleteFromLucene) {
-                    numDocDeletes.inc();
-                    versionMap.putDeleteUnderLock(
-                        delete.uid(),
-                        new DeleteVersionValue(
-                            plan.versionOfDeletion,
-                            delete.seqNo(),
+                    // generate or register sequence number
+                    if (delete.origin() == Operation.Origin.PRIMARY) {
+                        delete = new Delete(
+                            delete.id(),
+                            delete.uid(),
+                            generateSeqNoForOperationOnPrimary(delete),
                             delete.primaryTerm(),
-                            engineConfig.getThreadPool().relativeTimeInMillis()
-                        )
-                    );
+                            delete.version(),
+                            delete.versionType(),
+                            delete.origin(),
+                            delete.startTime(),
+                            delete.getIfSeqNo(),
+                            delete.getIfPrimaryTerm()
+                        );
+
+                        advanceMaxSeqNoOfDeletesOnPrimary(delete.seqNo());
+                    } else {
+                        advanceMaxSeqNo(delete.seqNo());
+                    }
+
+                    assert delete.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + delete.origin();
+
+                    if (plan.deleteFromLucene || plan.addStaleOpToLucene) {
+                        deleteResult = deleteInLucene(delete, plan);
+                    } else {
+                        deleteResult = new DeleteResult(
+                            plan.versionOfDeletion,
+                            delete.primaryTerm(),
+                            delete.seqNo(),
+                            plan.currentlyDeleted == false,
+                            delete.id()
+                        );
+                    }
+                    if (plan.deleteFromLucene) {
+                        numDocDeletes.inc();
+                        versionMap.putDeleteUnderLock(
+                            delete.uid(),
+                            new DeleteVersionValue(
+                                plan.versionOfDeletion,
+                                delete.seqNo(),
+                                delete.primaryTerm(),
+                                engineConfig.getThreadPool().relativeTimeInMillis()
+                            )
+                        );
+                    }
                 }
+                if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
+                    final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
+                    deleteResult.setTranslogLocation(location);
+                }
+                localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
+                if (deleteResult.getTranslogLocation() == null) {
+                    // the op is coming from the translog (and is hence persisted already) or does not have a sequence number (version conflict)
+                    assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == UNASSIGNED_SEQ_NO;
+                    localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
+                }
+                deleteResult.setTook(System.nanoTime() - delete.startTime());
+                deleteResult.freeze();
+            } catch (RuntimeException | IOException e) {
+                try {
+                    maybeFailEngine("delete", e);
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
+                }
+                throw e;
+            } finally {
+                releaseInFlightDocs(reservedDocs);
             }
-            if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
-                final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
-                deleteResult.setTranslogLocation(location);
-            }
-            localCheckpointTracker.markSeqNoAsProcessed(deleteResult.getSeqNo());
-            if (deleteResult.getTranslogLocation() == null) {
-                // the op is coming from the translog (and is hence persisted already) or does not have a sequence number (version conflict)
-                assert delete.origin().isFromTranslog() || deleteResult.getSeqNo() == UNASSIGNED_SEQ_NO;
-                localCheckpointTracker.markSeqNoAsPersisted(deleteResult.getSeqNo());
-            }
-            deleteResult.setTook(System.nanoTime() - delete.startTime());
-            deleteResult.freeze();
-        } catch (RuntimeException | IOException e) {
-            try {
-                maybeFailEngine("delete", e);
-            } catch (Exception inner) {
-                e.addSuppressed(inner);
-            }
-            throw e;
-        } finally {
-            releaseInFlightDocs(reservedDocs);
+            maybePruneDeletes();
+            return deleteResult;
         }
-        maybePruneDeletes();
-        return deleteResult;
     }
 
     private Exception tryAcquireInFlightDocs(Operation operation, int addingDocs) {
@@ -4517,7 +4518,7 @@ public class InternalEngine extends Engine {
     }
 
     // Visible for testing purposes only
-    public LiveVersionMap getLiveVersionMap() {
+    public LiveVersionMap2 getLiveVersionMap() {
         return versionMap;
     }
 

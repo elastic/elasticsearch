@@ -45,6 +45,12 @@ public class LiveVersionMapTestUtils {
         }
     }
 
+    public static VersionValue get(LiveVersionMap2 map, String id) {
+        try (Releasable r = acquireLock(map, uid(id))) {
+            return map.getUnderLock(uid(id));
+        }
+    }
+
     public static void putIndex(LiveVersionMap map, String id, IndexVersionValue version) {
         try (Releasable r = acquireLock(map, uid(id))) {
             map.putIndexUnderLock(uid(id), version);
@@ -95,11 +101,19 @@ public class LiveVersionMapTestUtils {
         return map.acquireLock(uid);
     }
 
+    private static Releasable acquireLock(LiveVersionMap2 map, BytesRef uid) {
+        return map.acquireLock(uid);
+    }
+
     public static BytesRef uid(String id) {
         return new Term(IdFieldMapper.NAME, Uid.encodeId(id)).bytes();
     }
 
     public static boolean isUnsafe(LiveVersionMap map) {
+        return map.isUnsafe();
+    }
+
+    public static boolean isUnsafe(LiveVersionMap2 map) {
         return map.isUnsafe();
     }
 
@@ -111,7 +125,15 @@ public class LiveVersionMapTestUtils {
         return map.isUnsafeForGets();
     }
 
+    public static boolean isUnsafeForGets(LiveVersionMap2 map) {
+        return map.isUnsafeForGets();
+    }
+
     public static boolean isSafeAccessRequired(LiveVersionMap map) {
+        return map.isSafeAccessRequired();
+    }
+
+    public static boolean isSafeAccessRequired(LiveVersionMap2 map) {
         return map.isSafeAccessRequired();
     }
 
@@ -121,5 +143,9 @@ public class LiveVersionMapTestUtils {
 
     public static LiveVersionMapArchive getArchive(LiveVersionMap map) {
         return map.getArchive();
+    }
+
+    public static LiveVersionMapArchive getArchive(LiveVersionMap2 map) {
+        return null;
     }
 }

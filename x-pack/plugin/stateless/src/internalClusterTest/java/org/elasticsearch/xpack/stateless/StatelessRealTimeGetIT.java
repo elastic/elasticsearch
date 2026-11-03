@@ -39,6 +39,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.LiveVersionMap;
+import org.elasticsearch.index.engine.LiveVersionMap2;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -1164,7 +1165,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         assertThat("failures: " + failures + ", lost acked updates: " + lost, failures.size() + lost.size(), equalTo(0));
     }
 
-    private LiveVersionMap getLiveVersionMap(String indexNodeName, String indexName, int shardId) {
+    private LiveVersionMap2 getLiveVersionMap(String indexNodeName, String indexName, int shardId) {
         var indicesService = internalCluster().getInstance(IndicesService.class, indexNodeName);
         var indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
         var indexShard = indexService.getShard(shardId);

@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.LiveVersionMap;
+import org.elasticsearch.index.engine.LiveVersionMap2;
 import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -383,7 +384,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
         final var indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final var indexShard = indexService.getShard(shardId.id());
         final var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
-        final LiveVersionMap liveVersionMap = indexEngine.getLiveVersionMap();
+        final LiveVersionMap2 liveVersionMap = indexEngine.getLiveVersionMap();
 
         assertDocumentExists(indexName, docId);
         assertThat(LiveVersionMapTestUtils.get(liveVersionMap, docId), notNullValue());

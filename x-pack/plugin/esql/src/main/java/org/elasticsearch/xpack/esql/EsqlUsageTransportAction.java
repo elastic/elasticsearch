@@ -85,21 +85,28 @@ public class EsqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                 .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
             inventoryCounters.populate(projectResolver.getProjectMetadata(state), mergedCounters);
-            EsqlFeatureSetUsage usage = new EsqlFeatureSetUsage(usageMapWithoutAdmission(mergedCounters));
+            EsqlFeatureSetUsage usage = new EsqlFeatureSetUsage(usageMapWithoutGauges(mergedCounters));
             l.onResponse(new XPackUsageFeatureResponse(usage));
         }));
     }
 
     /**
-     * Admission gauges are live occupancy for {@code GET /_esql/stats}. Phone-home usage is
+     * The admission gauges and the open fetch contexts are live occupancy for {@code GET /_esql/stats}. Phone-home usage is
      * sampled after load, so those keys would always look idle.
      */
     @SuppressWarnings("unchecked")
-    static Map<String, Object> usageMapWithoutAdmission(Counters merged) {
+    static Map<String, Object> usageMapWithoutGauges(Counters merged) {
         Map<String, Object> nested = merged.toNestedMap();
         Object datasources = nested.get("datasources");
         if (datasources instanceof Map<?, ?> ds) {
             ((Map<String, Object>) ds).remove("admission");
+        }
+        Object fetchPhase = nested.get("fetch_phase");
+        if (fetchPhase instanceof Map<?, ?> fp) {
+            ((Map<String, Object>) fp).remove("open_contexts");
+            if (fp.isEmpty()) {
+                nested.remove("fetch_phase");
+            }
         }
         return nested;
     }

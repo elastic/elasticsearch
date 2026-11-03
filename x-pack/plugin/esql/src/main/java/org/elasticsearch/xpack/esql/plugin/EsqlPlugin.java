@@ -152,6 +152,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.fetch.FetchOperator;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
+import org.elasticsearch.xpack.esql.fetch.OpenFetchContexts;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -693,6 +694,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,
             inventoryMetrics,
+            new OpenFetchContexts(services.telemetryProvider().getMeterRegistry()),
             new PluginComponentBinding<>(QueryMetricsListener.class, collector)
         );
     }

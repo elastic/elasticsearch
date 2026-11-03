@@ -67,13 +67,18 @@ public final class FetchPhaseOutcomes {
     @Nullable
     public Decision explained() {
         Decision summary = summary();
-        if (summary == null) {
-            return null;
-        }
-        return switch (summary.outcome()) {
-            case DISABLED_FEATURE_FLAG, DISABLED_SETTING -> null;
+        return summary != null && isExplained(summary.outcome()) ? summary : null;
+    }
+
+    /**
+     * Whether a query whose decision is {@code outcome} used the fetch phase or asked for it, so {@code EXPLAIN} and the
+     * usage counters report it.
+     */
+    public static boolean isExplained(Outcome outcome) {
+        return switch (outcome) {
+            case DISABLED_FEATURE_FLAG, DISABLED_SETTING -> false;
             case ENABLED, DISABLED_PRAGMA, MIXED_VERSION_FALLBACK, APPLIED, INELIGIBLE_SHAPE, INELIGIBLE_NO_DEFERRABLE_FIELDS,
-                INELIGIBLE_REMOTE_CLUSTER, INCONSISTENT_PROJECTION -> summary;
+                INELIGIBLE_REMOTE_CLUSTER, INCONSISTENT_PROJECTION -> true;
         };
     }
 }

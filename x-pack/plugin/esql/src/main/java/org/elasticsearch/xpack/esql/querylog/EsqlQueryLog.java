@@ -20,6 +20,8 @@ import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
+import org.elasticsearch.xpack.esql.fetch.FetchPhaseStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -29,7 +31,9 @@ import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -55,6 +59,13 @@ public final class EsqlQueryLog {
     public static final String ELASTICSEARCH_QUERYLOG_QUERY = ELASTICSEARCH_QUERYLOG_PREFIX + ".query";
     public static final String ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX = ELASTICSEARCH_QUERYLOG_PREFIX + ".settings";
     public static final String ELASTICSEARCH_QUERYLOG_VIEW_SETTINGS = ELASTICSEARCH_QUERYLOG_PREFIX + ".view_settings";
+    public static final String ELASTICSEARCH_QUERYLOG_FETCH_PHASE_PREFIX = ELASTICSEARCH_QUERYLOG_PREFIX + ".fetch_phase";
+    public static final String ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME = ELASTICSEARCH_QUERYLOG_FETCH_PHASE_PREFIX + ".outcome";
+    public static final String ELASTICSEARCH_QUERYLOG_FETCH_PHASE_DOCUMENTS = ELASTICSEARCH_QUERYLOG_FETCH_PHASE_PREFIX + ".documents";
+    public static final String ELASTICSEARCH_QUERYLOG_FETCH_PHASE_REQUESTS = ELASTICSEARCH_QUERYLOG_FETCH_PHASE_PREFIX + ".requests";
+    public static final String ELASTICSEARCH_QUERYLOG_FETCH_PHASE_NODES = ELASTICSEARCH_QUERYLOG_FETCH_PHASE_PREFIX + ".nodes";
+    public static final String ELASTICSEARCH_QUERYLOG_FETCH_PHASE_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_FETCH_PHASE_PREFIX
+        + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX;
 
     public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
@@ -91,14 +102,18 @@ public final class EsqlQueryLog {
         log(() -> Message.of(esqlResult.inner(), query, settings, viewSettings, additionalFields.logFields()), tookInNanos);
     }
 
+    /**
+     * @param fetchPhase what the fetch phase did before the query failed
+     */
     public void onQueryFailure(
         String query,
         ResolvedSettings settings,
         Map<String, ViewQuerySettings> viewSettings,
+        FetchPhaseStats fetchPhase,
         Exception ex,
         long tookInNanos
     ) {
-        log(() -> Message.of(query, settings, viewSettings, tookInNanos, ex, additionalFields.logFields()), tookInNanos);
+        log(() -> Message.of(query, settings, viewSettings, fetchPhase, tookInNanos, ex, additionalFields.logFields()), tookInNanos);
     }
 
     private void log(Supplier<ESLogMessage> logProducer, long tookInNanos) {
@@ -158,6 +173,7 @@ public final class EsqlQueryLog {
             addGenericFields(jsonFields, query, true);
             addSettingsFields(jsonFields, settings, viewSettings);
             addResultFields(jsonFields, esqlResult);
+            addFetchPhaseFields(jsonFields, esqlResult.executionInfo().fetchPhase());
             return new ESLogMessage().withFields(jsonFields);
         }
 
@@ -165,6 +181,7 @@ public final class EsqlQueryLog {
             String query,
             ResolvedSettings settings,
             Map<String, ViewQuerySettings> viewSettings,
+            FetchPhaseStats fetchPhase,
             long took,
             Exception exception,
             Map<String, String> additionalFields
@@ -173,8 +190,27 @@ public final class EsqlQueryLog {
             jsonFields.putAll(additionalFields);
             addGenericFields(jsonFields, query, false);
             addSettingsFields(jsonFields, settings, viewSettings);
+            addFetchPhaseFields(jsonFields, fetchPhase);
             addErrorFields(jsonFields, took, exception);
             return new ESLogMessage().withFields(jsonFields);
+        }
+
+        /**
+         * What the planner did with the fetch phase, for the queries that used it or asked for it, and what the fetches
+         * sent, for the ones that fetched. Slow queries can be split by it without a profile.
+         */
+        private static void addFetchPhaseFields(Map<String, Object> fieldMap, FetchPhaseStats fetchPhase) {
+            Outcome outcome = fetchPhase.outcome();
+            if (outcome == null) {
+                return;
+            }
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME, outcome.name().toLowerCase(Locale.ROOT));
+            if (fetchPhase.requests() > 0) {
+                fieldMap.put(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_DOCUMENTS, fetchPhase.documents());
+                fieldMap.put(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_REQUESTS, fetchPhase.requests());
+                fieldMap.put(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_NODES, fetchPhase.nodesContacted());
+                fieldMap.put(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_TOOK_MILLIS, TimeUnit.NANOSECONDS.toMillis(fetchPhase.tookNanos()));
+            }
         }
 
         private static void addGenericFields(Map<String, Object> fieldMap, String query, boolean success) {

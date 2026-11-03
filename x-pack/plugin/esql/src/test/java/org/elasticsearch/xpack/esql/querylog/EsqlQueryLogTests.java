@@ -30,6 +30,9 @@ import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
+import org.elasticsearch.xpack.esql.fetch.FetchPhaseStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
@@ -50,6 +53,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_FETCH_PHASE_DOCUMENTS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_FETCH_PHASE_NODES;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_FETCH_PHASE_REQUESTS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_FETCH_PHASE_TOOK_MILLIS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX;
@@ -79,6 +87,8 @@ public class EsqlQueryLogTests extends ESTestCase {
         "plain_view",
         ViewQuerySettings.DEFAULTS
     );
+    /** Above every threshold of {@link #settings}, so the query log logs it. */
+    private static final long SLOW_QUERY_NANOS = TimeUnit.MILLISECONDS.toNanos(50);
 
     private static ClusterSettings settings = new ClusterSettings(
         Settings.builder()
@@ -247,7 +257,7 @@ public class EsqlQueryLogTests extends ESTestCase {
         ValidationException ex = new ValidationException().addValidationError(validationError);
         Map<String, ViewQuerySettings> viewSettings = randomViewSettings();
         for (int i = 0; i < actualTook.length; i++) {
-            queryLog.onQueryFailure(query, RESOLVED_SETTINGS, viewSettings, ex, actualTook[i]);
+            queryLog.onQueryFailure(query, RESOLVED_SETTINGS, viewSettings, new FetchPhaseStats(), ex, actualTook[i]);
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
                 var msg = (ESLogMessage) appender.lastMessage();
@@ -264,6 +274,83 @@ public class EsqlQueryLogTests extends ESTestCase {
                 assertThat(appender.lastEvent(), is(nullValue()));
             }
         }
+    }
+
+    /**
+     * A query that fetched logs what the planner did and what the fetches sent, so slow queries can be split by it.
+     */
+    public void testAQueryThatFetchedLogsItsFetches() {
+        EsqlExecutionInfo executionInfo = getEsqlExecutionInfo(SLOW_QUERY_NANOS);
+        executionInfo.fetchPhase().plannedBy(outcomes(Outcome.APPLIED));
+        executionInfo.fetchPhase().batchEnded(7, List.of("n1", "n2"), TimeUnit.MILLISECONDS.toNanos(3));
+
+        ESLogMessage msg = logSuccess(executionInfo);
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME), is("applied"));
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_DOCUMENTS), is("7"));
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_REQUESTS), is("2"));
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_NODES), is("2"));
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_TOOK_MILLIS), is("3"));
+    }
+
+    /**
+     * A query that asked for the fetch phase and didn't get it logs why, and nothing about fetches.
+     */
+    public void testAQueryThatDidntFetchLogsOnlyTheOutcome() {
+        EsqlExecutionInfo executionInfo = getEsqlExecutionInfo(SLOW_QUERY_NANOS);
+        executionInfo.fetchPhase().plannedBy(outcomes(Outcome.INELIGIBLE_SHAPE));
+
+        ESLogMessage msg = logSuccess(executionInfo);
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME), is("ineligible_shape"));
+        assertThat(msg.getData(), not(hasKey(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_DOCUMENTS)));
+    }
+
+    /**
+     * A query that left the fetch phase alone logs nothing about it, like before the fetch phase.
+     */
+    public void testAQueryThatLeftTheFetchPhaseAloneLogsNothingAboutIt() {
+        EsqlExecutionInfo executionInfo = getEsqlExecutionInfo(SLOW_QUERY_NANOS);
+        executionInfo.fetchPhase().plannedBy(outcomes(Outcome.DISABLED_SETTING));
+
+        ESLogMessage msg = logSuccess(executionInfo);
+        assertThat(msg.getData(), not(hasKey(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME)));
+    }
+
+    /**
+     * A query that failed after its fetches logs them too, since a fetch can be what failed it.
+     */
+    public void testAFailedQueryLogsItsFetches() {
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
+        FetchPhaseStats fetchPhase = new FetchPhaseStats();
+        fetchPhase.plannedBy(outcomes(Outcome.APPLIED));
+        fetchPhase.batchEnded(4, List.of("n1"), TimeUnit.MILLISECONDS.toNanos(1));
+
+        queryLog.onQueryFailure("from idx", RESOLVED_SETTINGS, Map.of(), fetchPhase, new ValidationException(), SLOW_QUERY_NANOS);
+        ESLogMessage msg = (ESLogMessage) appender.getLastEventAndReset().getMessage();
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME), is("applied"));
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_DOCUMENTS), is("4"));
+    }
+
+    private static FetchPhaseOutcomes outcomes(Outcome outcome) {
+        FetchPhaseOutcomes outcomes = new FetchPhaseOutcomes();
+        outcomes.record(outcome, null);
+        return outcomes;
+    }
+
+    private ESLogMessage logSuccess(EsqlExecutionInfo executionInfo) {
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        assertWarnings(EsqlQueryLog.DEPRECATION_MESSAGE);
+        Result result = new Result(
+            List.of(),
+            List.of(),
+            null,
+            configurationWith(RESOLVED_SETTINGS),
+            DriverCompletionInfo.EMPTY,
+            executionInfo,
+            null
+        );
+        queryLog.onQueryPhase(new Versioned<>(result, TransportVersion.current()), "from idx", Map.of());
+        return (ESLogMessage) appender.getLastEventAndReset().getMessage();
     }
 
     private static EsqlExecutionInfo getEsqlExecutionInfo(long tookNanos) {

@@ -49,7 +49,8 @@ public interface FetchPhaseServices {
                                 scope,
                                 exec.originalIndices()
                             ),
-                            scope.fetchFailures()
+                            scope.fetchFailures(),
+                            scope.stats()
                         );
                     }
 

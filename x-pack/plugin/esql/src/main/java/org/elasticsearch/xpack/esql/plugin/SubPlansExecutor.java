@@ -380,7 +380,8 @@ final class SubPlansExecutor {
                                 configuration,
                                 computeListener::acquireCompute,
                                 fetchFailures,
-                                fetchContexts
+                                fetchContexts,
+                                execInfo.fetchPhase()
                             )
                         )
                     : FetchOperatorProvider.UNSUPPORTED;

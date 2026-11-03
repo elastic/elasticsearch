@@ -21,7 +21,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -44,6 +46,10 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.VIEW_RESOLUTI
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_FETCH_PHASE_DOCUMENTS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_FETCH_PHASE_NODES;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_FETCH_PHASE_REQUESTS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_SETTINGS_PREFIX;
@@ -161,6 +167,36 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
             "aggregate function [count(*)] not allowed outside STATS command",
             VerificationException.class.getName()
         );
+    }
+
+    /**
+     * A query with the fetch phase logs what the planner did and what its fetches sent, so slow queries can be split by it
+     * without a profile.
+     */
+    public void testAQueryThatFetchesLogsItsFetches() throws Exception {
+        assumeTrue("the fetch phase needs its feature flag", EsqlFlags.FETCH_PHASE_FEATURE_FLAG.isEnabled());
+        assumeTrue("the fetch_phase pragma needs a snapshot build", canUseQueryPragmas());
+        assertAcked(client().admin().indices().prepareCreate("fetch-log").setMapping("ts", "type=long", "payload", "type=keyword"));
+        for (int ts = 0; ts < 10; ts++) {
+            client().prepareIndex("fetch-log").setSource("ts", ts, "payload", "payload-" + ts).get();
+        }
+        client().admin().indices().prepareRefresh("fetch-log").get();
+        updateClusterSettings(Settings.builder().put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING.getKey(), "0ms"));
+        try {
+            appender.getLastEventAndReset();
+            EsqlQueryRequest request = syncEsqlQueryRequest("FROM fetch-log | SORT ts DESC | LIMIT 3 | KEEP ts, payload").pragmas(
+                new QueryPragmas(Settings.builder().put(QueryPragmas.FETCH_PHASE.getKey(), true).build())
+            );
+            run(request).close();
+
+            var msg = (ESLogMessage) appender.lastMessage();
+            assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_OUTCOME), is("applied"));
+            assertThat(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_DOCUMENTS), is("3"));
+            assertThat(Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_REQUESTS)), greaterThan(0L));
+            assertThat(Integer.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_FETCH_PHASE_NODES)), greaterThan(0));
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING.getKey()));
+        }
     }
 
     private static void testAllLevels(

@@ -104,6 +104,7 @@ import org.elasticsearch.xpack.esql.fetch.FetchContextService;
 import org.elasticsearch.xpack.esql.fetch.FetchFailures;
 import org.elasticsearch.xpack.esql.fetch.FetchPhaseServices;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
+import org.elasticsearch.xpack.esql.fetch.OpenFetchContexts;
 import org.elasticsearch.xpack.esql.fetch.QueryFetchScope;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -253,7 +254,8 @@ public class ComputeService {
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
         FormatReaderRegistry formatReaderRegistry,
-        Client client
+        Client client,
+        OpenFetchContexts openFetchContexts
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -269,7 +271,8 @@ public class ComputeService {
         FetchContextService fetchContextService = new FetchContextService(
             searchService,
             transportService,
-            () -> transportActionServices.clusterService().state().nodes()
+            () -> transportActionServices.clusterService().state().nodes(),
+            openFetchContexts
         );
         fetchContextService.registerTaskListener();
         fetchContextService.registerHandlers();
@@ -1594,7 +1597,8 @@ public class ComputeService {
                                 configuration,
                                 localListener::acquireCompute,
                                 fetchFailures,
-                                fetchContexts
+                                fetchContexts,
+                                execInfo.fetchPhase()
                             )
                         );
                     }

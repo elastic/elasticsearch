@@ -37,6 +37,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.fetch.FetchRequest;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
 import org.elasticsearch.xpack.esql.fetch.NodeFetchContexts;
+import org.elasticsearch.xpack.esql.fetch.OpenFetchContexts;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -214,7 +216,8 @@ public class FetchActionIT extends AbstractEsqlIntegTestCase {
         FetchContextService contextService = new FetchContextService(
             searchService,
             internalCluster().getInstance(TransportService.class, node),
-            () -> clusterService(node).state().nodes()
+            () -> clusterService(node).state().nodes(),
+            new OpenFetchContexts(MeterRegistry.NOOP)
         );
         NodeFetchContexts contexts = contextService.newNodeContexts(
             null,

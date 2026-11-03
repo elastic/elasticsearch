@@ -28,6 +28,7 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -91,6 +92,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.fetch.FetchService;
+import org.elasticsearch.xpack.esql.fetch.OpenFetchContexts;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -682,7 +684,8 @@ public class ExternalPlanningBreakerTests extends ESTestCase {
             blockFactory,
             operators,
             readers,
-            null
+            null,
+            new OpenFetchContexts(MeterRegistry.NOOP)
         );
     }
 

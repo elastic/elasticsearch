@@ -69,15 +69,23 @@ public final class FetchContextService implements FetchContextTransport {
     private final SearchService searchService;
     private final TransportService transportService;
     private final Supplier<DiscoveryNodes> nodes;
+    private final OpenFetchContexts openContexts;
     private final Map<Long, FetchContextLease> leases = new ConcurrentHashMap<>();
 
     /**
-     * @param nodes the nodes of the local cluster, as of now
+     * @param nodes        the nodes of the local cluster, as of now
+     * @param openContexts counts the contexts this node opens as a data node
      */
-    public FetchContextService(SearchService searchService, TransportService transportService, Supplier<DiscoveryNodes> nodes) {
+    public FetchContextService(
+        SearchService searchService,
+        TransportService transportService,
+        Supplier<DiscoveryNodes> nodes,
+        OpenFetchContexts openContexts
+    ) {
         this.searchService = searchService;
         this.transportService = transportService;
         this.nodes = nodes;
+        this.openContexts = openContexts;
     }
 
     /**
@@ -302,6 +310,10 @@ public final class FetchContextService implements FetchContextTransport {
 
     SearchService searchService() {
         return searchService;
+    }
+
+    OpenFetchContexts openContexts() {
+        return openContexts;
     }
 
     Executor generic() {

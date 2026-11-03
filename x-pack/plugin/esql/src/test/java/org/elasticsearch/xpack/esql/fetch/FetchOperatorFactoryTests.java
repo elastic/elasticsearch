@@ -55,7 +55,7 @@ public class FetchOperatorFactoryTests extends ESTestCase {
             null
         );
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false));
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false), new FetchPhaseStats());
         assertThat(factory.fetchedTypes(), equalTo(List.of(ElementType.BYTES_REF, ElementType.BYTES_REF)));
         assertThat(factory.fetchPlan(), instanceOf(ProjectExec.class));
         ProjectExec project = (ProjectExec) factory.fetchPlan();
@@ -78,7 +78,13 @@ public class FetchOperatorFactoryTests extends ESTestCase {
     public void testATopNCutIsFetchedWhole() {
         Attribute doc = docAttribute();
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(fetchOver(topNOver(doc), doc), 0, null, new FetchFailures(false));
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(
+            fetchOver(topNOver(doc), doc),
+            0,
+            null,
+            new FetchFailures(false),
+            new FetchPhaseStats()
+        );
 
         assertThat(factory.batching(), equalTo(new FetchOperator.Batching.WholeCut(FetchOperator.MAX_PAGES_HELD)));
     }
@@ -91,7 +97,13 @@ public class FetchOperatorFactoryTests extends ESTestCase {
         Attribute doc = docAttribute();
         PhysicalPlan filtered = new FilterExec(Source.EMPTY, topNOver(doc), Literal.TRUE);
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(fetchOver(filtered, doc), 0, null, new FetchFailures(false));
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(
+            fetchOver(filtered, doc),
+            0,
+            null,
+            new FetchFailures(false),
+            new FetchPhaseStats()
+        );
 
         assertThat(factory.batching(), equalTo(new FetchOperator.Batching.WholeCut(FetchOperator.MAX_PAGES_HELD)));
     }
@@ -105,7 +117,7 @@ public class FetchOperatorFactoryTests extends ESTestCase {
         PhysicalPlan cut = new LimitExec(Source.EMPTY, new ExchangeSourceExec(Source.EMPTY, List.of(doc), false), limit, null);
         FetchExec exec = fetchOver(cut, doc);
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false));
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false), new FetchPhaseStats());
 
         assertThat(factory.batching(), equalTo(FetchOperator.Batching.Streaming.forFetched(exec.fetchedAttributes())));
     }
@@ -127,7 +139,13 @@ public class FetchOperatorFactoryTests extends ESTestCase {
         );
         PhysicalPlan cut = new LimitExec(Source.EMPTY, topNBy, new Literal(Source.EMPTY, 1000, DataType.INTEGER), null);
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(fetchOver(cut, doc), 0, null, new FetchFailures(false));
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(
+            fetchOver(cut, doc),
+            0,
+            null,
+            new FetchFailures(false),
+            new FetchPhaseStats()
+        );
 
         assertThat(factory.batching(), equalTo(new FetchOperator.Batching.WholeCut(FetchOperator.MAX_PAGES_HELD)));
     }
@@ -147,7 +165,7 @@ public class FetchOperatorFactoryTests extends ESTestCase {
         PhysicalPlan cut = new LimitExec(Source.EMPTY, limitBy, new Literal(Source.EMPTY, 1000, DataType.INTEGER), null);
         FetchExec exec = fetchOver(cut, doc);
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false));
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(exec, 0, null, new FetchFailures(false), new FetchPhaseStats());
 
         assertThat(factory.batching(), equalTo(FetchOperator.Batching.Streaming.forFetched(exec.fetchedAttributes())));
     }

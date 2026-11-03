@@ -160,6 +160,25 @@ public class NodeFetchContextsTests extends FetchContextsTestCase {
     }
 
     /**
+     * The node counts the contexts a request opens until their readers close, whether the request frees them or the
+     * coordinator does.
+     */
+    public void testTheNodeCountsTheContextsUntilTheirReadersClose() throws Exception {
+        createIndexWithDocs(INDEX);
+        NodeFetchContexts contexts = newNodeContexts();
+        List<SearchContext> opened = openEveryShard(contexts, INDEX);
+        assertThat(openContexts.current(), equalTo((long) SHARDS));
+        SearchContext contributing = randomFrom(opened);
+        contexts.originOf(contributing);
+        contexts.responded();
+        endRequest(contexts);
+        assertBusy(() -> assertThat("the request freed the others", openContexts.current(), equalTo(1L)));
+
+        assertTrue(searchService().freeReaderContext(contributing.readerContext().id()));
+        assertBusy(() -> assertThat(openContexts.current(), equalTo(0L)));
+    }
+
+    /**
      * A cancellation that reaches the request after its response frees the contributing contexts too, because the query
      * is over.
      */

@@ -13,13 +13,17 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -52,6 +56,7 @@ public class Metrics {
     protected static final String VIEW_RESOLVED_SETTINGS_PREFIX = "view_resolved_settings.";
     protected static final String FUNC_PREFIX = "functions.";
     protected static final String TOOK_PREFIX = "took.";
+    protected static final String FETCH_PHASE_PREFIX = "fetch_phase.";
 
     // map that holds total/failed counters for each client type (rest, kibana)
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
@@ -65,6 +70,8 @@ public class Metrics {
     private final Map<String, CounterMetric> viewSettingsMetrics;
     private final Map<String, Map<String, CounterMetric>> viewResolvedSettingsMetrics;
     private final Map<String, CounterMetric> functionMetrics;
+    // one counter per decision of the planner about the fetch phase, empty in builds without it
+    private final Map<Outcome, CounterMetric> fetchPhaseMetrics;
     private final TookMetrics tookMetrics = new TookMetrics();
 
     private final EsqlFunctionRegistry functionRegistry;
@@ -118,6 +125,20 @@ public class Metrics {
         viewResolvedSettingsMetrics = initResolvedSettingsMetrics(applicableViewSettings);
 
         functionMetrics = initFunctionMetrics();
+        fetchPhaseMetrics = initFetchPhaseMetrics();
+    }
+
+    private static Map<Outcome, CounterMetric> initFetchPhaseMetrics() {
+        if (EsqlFlags.FETCH_PHASE_FEATURE_FLAG.isEnabled() == false) {
+            return Map.of();
+        }
+        Map<Outcome, CounterMetric> metrics = new EnumMap<>(Outcome.class);
+        for (Outcome outcome : Outcome.values()) {
+            if (FetchPhaseOutcomes.isExplained(outcome)) {
+                metrics.put(outcome, new CounterMetric());
+            }
+        }
+        return Collections.unmodifiableMap(metrics);
     }
 
     private static Map<String, CounterMetric> initSettingsMetrics(List<QuerySettingDef<?>> settings) {
@@ -231,6 +252,17 @@ public class Metrics {
         tookMetrics.count(tookMillis);
     }
 
+    /**
+     * Counts a query whose planner decided {@code outcome} about the fetch phase. Call it once per query, with the outcome
+     * {@code EXPLAIN} shows.
+     */
+    public void incFetchPhase(Outcome outcome) {
+        CounterMetric counter = fetchPhaseMetrics.get(outcome);
+        if (counter != null) {
+            counter.inc();
+        }
+    }
+
     public Counters stats() {
         Counters counters = new Counters();
 
@@ -263,6 +295,10 @@ public class Metrics {
         }
 
         tookMetrics.counters(TOOK_PREFIX, counters);
+
+        for (Entry<Outcome, CounterMetric> entry : fetchPhaseMetrics.entrySet()) {
+            counters.inc(FETCH_PHASE_PREFIX + entry.getKey().name().toLowerCase(Locale.ROOT), entry.getValue().count());
+        }
 
         return counters;
     }

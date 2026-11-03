@@ -23,6 +23,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -346,7 +347,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
         when(transportService.getThreadPool()).thenReturn(threadPool);
         RecordingFetchContextTransport transport = new RecordingFetchContextTransport();
         FetchContextLease lease = new FetchContextLease(
-            new FetchContextService(null, transportService, () -> DiscoveryNodes.EMPTY_NODES),
+            new FetchContextService(null, transportService, () -> DiscoveryNodes.EMPTY_NODES, new OpenFetchContexts(MeterRegistry.NOOP)),
             transport,
             rootTask,
             threadContext.newRestorableContext(false),
@@ -381,7 +382,7 @@ public class QueryFetchClientTests extends ComputeTestCase {
         // the client holds no context in these tests, so the lease never sends a request
         return scope(
             new FetchContextLease(
-                new FetchContextService(null, null, () -> DiscoveryNodes.EMPTY_NODES),
+                new FetchContextService(null, null, () -> DiscoveryNodes.EMPTY_NODES, new OpenFetchContexts(MeterRegistry.NOOP)),
                 new RecordingFetchContextTransport(),
                 rootTask,
                 threadContext.newRestorableContext(false),
@@ -391,7 +392,15 @@ public class QueryFetchClientTests extends ComputeTestCase {
     }
 
     private QueryFetchScope scope(FetchContextLease.Execution fetchContexts) {
-        return new QueryFetchScope(rootTask, "query-session", EsqlTestUtils.TEST_CFG, drivers, new FetchFailures(false), fetchContexts);
+        return new QueryFetchScope(
+            rootTask,
+            "query-session",
+            EsqlTestUtils.TEST_CFG,
+            drivers,
+            new FetchFailures(false),
+            fetchContexts,
+            new FetchPhaseStats()
+        );
     }
 
     private DiscoveryNodes nodes() {

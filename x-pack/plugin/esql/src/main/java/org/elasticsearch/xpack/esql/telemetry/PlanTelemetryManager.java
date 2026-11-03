@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
 
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -31,6 +33,7 @@ public class PlanTelemetryManager {
     private final LongCounter viewSettingsCounterAll;
     private final LongCounter viewResolvedSettingsCounter;
     private final LongCounter linkedProjectsHistogram;
+    private final LongCounter fetchPhaseCounter;
 
     /**
      * Number of times a command is used.
@@ -98,6 +101,23 @@ public class PlanTelemetryManager {
      */
     public static final String LINKED_PROJECTS_HISTOGRAM = "es.esql.linked_projects.histogram";
 
+    /**
+     * Queries by what the planner did with the fetch phase, once per query. Only the queries that used the fetch phase or
+     * asked for it count, the ones {@code EXPLAIN} reports it for.
+     */
+    public static final String FETCH_PHASE_METRICS = "es.esql.fetch_phase.queries.total";
+
+    /**
+     * Attribute of the fetch phase counter: what the planner did, such as {@code applied} or {@code ineligible_shape}. A new
+     * metric must name its attributes with the {@code es_} prefix, unlike the older ones that use {@link #SUCCESS}.
+     */
+    public static final String FETCH_PHASE_OUTCOME = "es_esql_fetch_outcome";
+
+    /**
+     * Attribute of the fetch phase counter: the query was executed successfully or not
+     */
+    public static final String FETCH_PHASE_QUERY_SUCCESS = "es_esql_query_success";
+
     public static final String FEATURE_NAME = "feature_name";
 
     /**
@@ -154,6 +174,11 @@ public class PlanTelemetryManager {
             "Histogram of linked projects per esql query",
             "unit"
         );
+        fetchPhaseCounter = meterRegistry.registerLongCounter(
+            FETCH_PHASE_METRICS,
+            "ESQL fetch phase, total number of queries by what the planner did with it",
+            "unit"
+        );
     }
 
     /**
@@ -170,6 +195,19 @@ public class PlanTelemetryManager {
         if (metrics.linkedProjectsCount() != null) {
             linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.linkedProjectsCount()));
         }
+    }
+
+    /**
+     * Counts a query by what the planner did with the fetch phase.
+     */
+    public void publishFetchPhase(Outcome outcome, boolean success) {
+        fetchPhaseCounter.incrementBy(
+            1,
+            Map.ofEntries(
+                Map.entry(FETCH_PHASE_OUTCOME, outcome.name().toLowerCase(Locale.ROOT)),
+                Map.entry(FETCH_PHASE_QUERY_SUCCESS, success)
+            )
+        );
     }
 
     private void incCommand(String name, int count, boolean success) {

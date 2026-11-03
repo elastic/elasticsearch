@@ -26,6 +26,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
@@ -63,6 +64,7 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
 
     private final List<SearchContext> querySearchContexts = new ArrayList<>();
     protected FetchContextService service;
+    protected final OpenFetchContexts openContexts = new OpenFetchContexts(MeterRegistry.NOOP);
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -74,7 +76,8 @@ public abstract class FetchContextsTestCase extends ESSingleNodeTestCase {
         service = new FetchContextService(
             searchService(),
             getInstanceFromNode(TransportService.class),
-            () -> getInstanceFromNode(ClusterService.class).state().nodes()
+            () -> getInstanceFromNode(ClusterService.class).state().nodes(),
+            openContexts
         );
         registerHandlers();
     }

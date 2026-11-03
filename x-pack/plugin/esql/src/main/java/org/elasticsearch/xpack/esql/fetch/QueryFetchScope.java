@@ -24,6 +24,7 @@ import java.util.function.Supplier;
  * @param fetchFailures  the shards whose fetch failed, which the query reports once its computes are done
  * @param fetchContexts  the contexts the data nodes keep for the fetch of this execution, which it frees as soon as its cut
  *                       and its fetch no longer read them
+ * @param stats          what the fetches of the query sent and loaded, for its query log and usage counters
  */
 public record QueryFetchScope(
     CancellableTask rootTask,
@@ -31,12 +32,14 @@ public record QueryFetchScope(
     Configuration configuration,
     Supplier<ActionListener<DriverCompletionInfo>> completionInfo,
     FetchFailures fetchFailures,
-    FetchContextLease.Execution fetchContexts
+    FetchContextLease.Execution fetchContexts,
+    FetchPhaseStats stats
 ) {
     public QueryFetchScope {
         Objects.requireNonNull(rootTask, "rootTask");
         Objects.requireNonNull(completionInfo, "completionInfo");
         Objects.requireNonNull(fetchFailures, "fetchFailures");
         Objects.requireNonNull(fetchContexts, "fetchContexts");
+        Objects.requireNonNull(stats, "stats");
     }
 }

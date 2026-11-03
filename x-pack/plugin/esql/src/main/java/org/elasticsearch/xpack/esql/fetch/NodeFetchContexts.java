@@ -133,6 +133,8 @@ public final class NodeFetchContexts implements DocOriginResolver, Releasable {
             // taken last: the query search context already holds a reference, so the context can't be gone
             nodeLease = readerContext.markAsUsed(keepAlive.millis());
             register(new OpenContext(readerContext, origin(querySearchContext), nodeLease, new Flags()));
+            // the request's reference keeps the reader open, so the count can't miss its close
+            service.openContexts().opened(readerContext);
             success = true;
             return querySearchContext;
         } finally {

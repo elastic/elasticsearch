@@ -258,13 +258,14 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         PhysicalPlan fetchPlan,
         Batching batching,
         Client client,
-        FetchFailures failures
+        FetchFailures failures,
+        FetchPhaseStats stats
     ) implements OperatorFactory {
         /**
          * The operator of {@code exec}. The nodes that own the documents load the fetched columns with a plan built here,
          * without an extraction preference, so each column gets the element type of its data type.
          */
-        static Factory forExec(FetchExec exec, int docChannel, Client client, FetchFailures failures) {
+        static Factory forExec(FetchExec exec, int docChannel, Client client, FetchFailures failures, FetchPhaseStats stats) {
             List<Attribute> fetched = exec.fetchedAttributes();
             Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
             PhysicalPlan load = new FieldExtractExec(
@@ -277,12 +278,12 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
             List<ElementType> fetchedTypes = fetched.stream()
                 .map(a -> PlannerUtils.toElementType(a.dataType(), MappedFieldType.FieldExtractPreference.NONE))
                 .toList();
-            return new Factory(docChannel, fetchedTypes, fetchPlan, Batching.forExec(exec), client, failures);
+            return new Factory(docChannel, fetchedTypes, fetchPlan, Batching.forExec(exec), client, failures, stats);
         }
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new FetchOperator(driverContext, docChannel, fetchedTypes, fetchPlan, batching, client, failures);
+            return new FetchOperator(driverContext, docChannel, fetchedTypes, fetchPlan, batching, client, failures, stats);
         }
 
         @Override
@@ -332,6 +333,10 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
     private final Client client;
     private final FetchFailures fetchFailures;
     /**
+     * What the fetches of the query sent, which every batch adds to once its nodes answered.
+     */
+    private final FetchPhaseStats stats;
+    /**
      * The response headers of every node. The completion of a page only sees the ones of the node that answered last.
      */
     private final ResponseHeadersCollector nodeHeaders;
@@ -376,7 +381,8 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         PhysicalPlan fetchPlan,
         Batching batching,
         Client client,
-        FetchFailures fetchFailures
+        FetchFailures fetchFailures,
+        FetchPhaseStats stats
     ) {
         super(driverContext, client.threadContext(), batching.maxPagesHeld());
         this.docChannel = docChannel;
@@ -385,6 +391,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         this.batching = batching;
         this.client = client;
         this.fetchFailures = fetchFailures;
+        this.stats = stats;
         this.nodeHeaders = new ResponseHeadersCollector(client.threadContext());
     }
 
@@ -647,6 +654,13 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
          * For each shard of the batch, {@code 1} once its fetch failed and the batch goes on without its rows.
          */
         private final AtomicIntegerArray failedShards;
+        /**
+         * The names of the nodes the batch sent a request to, and their documents. Set by the thread that sends the batch,
+         * which holds a reference until it sent them all, so {@link #onResponded} reads them complete.
+         */
+        private final List<String> contacted = new ArrayList<>();
+        private long contactedDocuments;
+        private long sentNanos;
 
         BatchFetch(List<Page> cuts, FetchBatchPlanner.Batch batch, ActionListener<FetchedBatch> listener) {
             this.cuts = cuts;
@@ -663,6 +677,7 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         }
 
         void send() {
+            sentNanos = System.nanoTime();
             try (RefCountingRunnable refs = new RefCountingRunnable(this::onResponded)) {
                 for (int n = 0; n < batch.nodes().size(); n++) {
                     if (failures.hasFailure()) {
@@ -681,6 +696,8 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
                     );
                     try {
                         client.fetch(target, node.clusterAlias(), node.shards(), fetchPlan, nodeListener);
+                        contacted.add(target.getName());
+                        contactedDocuments += node.docCount();
                     } catch (Exception e) {
                         nodeListener.onFailure(e);
                     }
@@ -692,6 +709,9 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
          * Runs on the thread of the last node to answer, or on the thread that sent the batch when no request went out.
          */
         private void onResponded() {
+            if (contacted.isEmpty() == false) {
+                stats.batchEnded(contactedDocuments, contacted, System.nanoTime() - sentNanos);
+            }
             Exception failure = failures.getFailure();
             List<Page> fetched = new ArrayList<>();
             for (int n = 0; n < fetchedByNode.length(); n++) {

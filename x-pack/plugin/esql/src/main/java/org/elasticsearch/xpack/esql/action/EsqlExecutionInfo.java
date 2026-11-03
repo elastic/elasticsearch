@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.esql.fetch.FetchPhaseStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -132,6 +133,11 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * metering independently of the scan counters, so an external-source query that ends up scanning nothing is still metered.
      */
     private transient volatile boolean externalSource;
+    /**
+     * What the fetch phase did for the query, for the query log and the usage counters. Coordinator-only, like the other
+     * transient fields: every execution of the query adds to it, and it is not serialized.
+     */
+    private final transient FetchPhaseStats fetchPhase = new FetchPhaseStats();
 
     private final EsqlQueryProfile queryProfile;
 
@@ -262,6 +268,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     @Nullable
     public ExternalPlanningReservation externalPlanning() {
         return externalPlanning;
+    }
+
+    public FetchPhaseStats fetchPhase() {
+        return fetchPhase;
     }
 
     /**

@@ -86,6 +86,7 @@ public class FetchOperatorTests extends ComputeTestCase {
     private ThreadPool threadPool;
     /** The status of the operator the last {@link #run} drove, read just before it closed. */
     private FetchOperator.Status lastStatus;
+    private final FetchPhaseStats stats = new FetchPhaseStats();
 
     @Before
     public void startThreadPool() {
@@ -1199,6 +1200,40 @@ public class FetchOperatorTests extends ComputeTestCase {
         assertThat(lastStatus.gatherNanos(), greaterThan(0L));
     }
 
+    /**
+     * The stats of the query add up what every batch sent: one request per node, the documents it asked for, and each node
+     * once.
+     */
+    public void testTheStatsOfTheQueryAddUpTheRequestsOfEveryBatch() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        List<List<Ref>> input = List.of(
+            List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(1), 0, 2), new Ref(ORIGINS.get(0), 0, 1)),
+            List.of(new Ref(ORIGINS.get(2), 3, 4))
+        );
+        run(blockFactory, client, input).forEach(Page::releaseBlocks);
+
+        assertThat(stats.requests(), equalTo((long) client.requests.size()));
+        assertThat(stats.nodesContacted(), equalTo(2));
+        assertThat("rows of the same document fetch it once", stats.documents(), equalTo(3L));
+        assertThat(stats.tookNanos(), greaterThan(0L));
+    }
+
+    /**
+     * A request that can't be sent isn't one the query sent, and its documents don't count.
+     */
+    public void testTheStatsOfTheQueryLeaveOutARequestThatCantBeSent() throws Exception {
+        BlockFactory blockFactory = blockFactory();
+        FakeClient client = new FakeClient(blockFactory);
+        client.throwingNode = "n1";
+        List<Ref> input = List.of(new Ref(ORIGINS.get(0), 0, 1), new Ref(ORIGINS.get(2), 0, 2));
+        run(blockFactory, client, List.of(input), new FetchFailures(true)).forEach(Page::releaseBlocks);
+
+        assertThat(stats.requests(), equalTo(1L));
+        assertThat(stats.nodesContacted(), equalTo(1));
+        assertThat(stats.documents(), equalTo(1L));
+    }
+
     public void testDescribe() {
         assertThat(
             factory(new FakeClient(blockFactory())).describe(),
@@ -1267,20 +1302,20 @@ public class FetchOperatorTests extends ComputeTestCase {
         responded.actionGet(TimeValue.timeValueSeconds(10));
     }
 
-    private static FetchOperator.Factory factory(FetchOperator.Client client) {
+    private FetchOperator.Factory factory(FetchOperator.Client client) {
         return factory(client, new FetchFailures(false));
     }
 
-    private static FetchOperator.Factory factory(FetchOperator.Client client, FetchFailures failures) {
+    private FetchOperator.Factory factory(FetchOperator.Client client, FetchFailures failures) {
         return factory(client, failures, randomBatching());
     }
 
-    private static FetchOperator.Factory factory(FetchOperator.Client client, FetchOperator.Batching batching) {
+    private FetchOperator.Factory factory(FetchOperator.Client client, FetchOperator.Batching batching) {
         return factory(client, new FetchFailures(false), batching);
     }
 
-    private static FetchOperator.Factory factory(FetchOperator.Client client, FetchFailures failures, FetchOperator.Batching batching) {
-        return new FetchOperator.Factory(0, FETCHED_TYPES, null, batching, client, failures);
+    private FetchOperator.Factory factory(FetchOperator.Client client, FetchFailures failures, FetchOperator.Batching batching) {
+        return new FetchOperator.Factory(0, FETCHED_TYPES, null, batching, client, failures, stats);
     }
 
     /**

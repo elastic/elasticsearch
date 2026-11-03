@@ -1060,11 +1060,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     RoutingNode localRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
                     if (localRoutingNode != null) {
                         for (final ShardRouting shardRouting : localRoutingNode) {
-                            final var shardAllocationKey = ShardAllocationKey.fromRouting(shardRouting);
-                            if (shardRouting.index().equals(index)
-                                && pendingAllocationStates.get(
-                                    shardAllocationKey
-                                ) instanceof PendingAllocationState.FailureReported == false) {
+                            boolean thisIndex = shardRouting.index().equals(index);
+                            final var key = ShardAllocationKey.fromRouting(shardRouting);
+                            boolean alreadyFailed = pendingAllocationStates.get(key) instanceof PendingAllocationState.FailureReported;
+                            if (thisIndex && alreadyFailed == false) {
                                 sendFailShard(
                                     shardRouting,
                                     newIndexMetadata.primaryTerm(shardRouting.id()),

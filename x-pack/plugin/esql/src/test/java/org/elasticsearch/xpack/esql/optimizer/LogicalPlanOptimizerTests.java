@@ -3632,12 +3632,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * {@snippet lang="text":
-     * EsqlProject[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
-     * uages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{r}#17]]
-     * \_Limit[1000[INTEGER],false]
-     *   \_Filter[salary{r}#17 > 20[INTEGER]]
-     *     \_MvExpand[salary{f}#11,salary{r}#17]
-     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * Project[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, languages{f}#10,
+     * last_name{f}#11, long_noidx{f}#17, salary{r}#18]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Filter[salary{r}#18 > 20[INTEGER]]
+     *     \_MvExpand[salary{f}#12,salary{r}#18]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      * }
      */
     public void testPushDownMvExpandPastProject() {
@@ -3657,15 +3657,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * {@snippet lang="text":
-     * Project[[a{r}#13, b{r}#14 AS b#8]]
+     * Project[[a{r}#29, b{r}#30]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[$$a$b$0{r}#15,b{r}#14]
+     *   \_MvExpand[$$a$mv_expand$31{r$}#32,b{r}#30]
      *     \_Limit[1000[INTEGER],true,false]
-     *       \_MvExpand[a{r}#6,a{r}#13]
-     *         \_Eval[[a{r}#6 AS $$a$b$0#15]]
+     *       \_MvExpand[a{r}#22,a{r}#29]
+     *         \_Eval[[a{r}#22 AS $$a$mv_expand$31#32]]
      *           \_Limit[1000[INTEGER],false,false]
-     *             \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS a#6]]
-     *               \_LocalRelation[[a{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
+     *             \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS a#22]]
+     *               \_LocalRelation[[a{r}#20],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]}]
      * }
      */
     public void testPushDownMvExpandPastProject2() {
@@ -3688,12 +3688,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * {@snippet lang="text":
-     * Project[[b{r}#22]]
+     * Project[[b{r}#52]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[$$a$b$0{r}#23,b{r}#22]
-     *     \_Eval[[2[INTEGER] AS $$a$b$0#23]]
+     *   \_MvExpand[a{r}#34,b{r}#52]
+     *     \_Eval[[2[INTEGER] AS a#34]]
      *       \_Limit[1000[INTEGER],false,false]
-     *         \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *         \_EsRelation[test][_meta_field{f}#47, emp_no{f}#41, first_name{f}#42, ..]
      * }
      */
     public void testPushDownMvExpandPastProject3() {
@@ -3714,12 +3714,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * {@snippet lang="text":
-     * Project[[b{r}#16 AS b#12, $$a$temp_name$17{r}#18 AS a#9]]
+     * Project[[b{r}#66, $$a$temp_name$67{r}#68 AS a#59]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[a{r}#4,b{r}#16]
-     *     \_Eval[[12[INTEGER] AS $$a$temp_name$17#18]]
+     *   \_MvExpand[a{r}#54,b{r}#66]
+     *     \_Eval[[12[INTEGER] AS $$a$temp_name$67#68]]
      *       \_Limit[1000[INTEGER],false,false]
-     *         \_LocalRelation[[a{r}#4],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]]}]
+     *         \_LocalRelation[[a{r}#54],Page{blocks=[IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]]}]
      * }
      */
     public void testPushDownMvExpandPastProject4() {
@@ -3741,22 +3741,21 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * {@snippet lang="text":
-     * Project[[$$salary$temp_name$57{r$}#58 AS salary#53]]
+     * Project[[$$salary$mv_expand$123{r$}#124 AS salary#119]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[$$salary$converted_to$keyword{r$}#56,$$salary$temp_name$57{r$}#58]
+     *   \_MvExpand[$$salary$converted_to$keyword{r$}#122,$$salary$mv_expand$123{r$}#124]
      *     \_Limit[1000[INTEGER],false,false]
-     *       \_UnionAll[[_meta_field{r}#42, emp_no{r}#43, first_name{r}#44, gender{r}#45, hire_date{r}#46, job{r}#47, job.raw{r}#48, l
-     * anguages{r}#49, last_name{r}#50, long_noidx{r}#51, salary{r}#52, $$salary$converted_to$keyword{r$}#56]]
-     *         |_Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19, l
-     * anguages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15, $$salary$converted_to$keyword{r$}#54]]
-     *         | \_Eval[[TOSTRING(salary{f}#15) AS $$salary$converted_to$keyword#54]]
-     *         |   \_EsRelation[employees][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
-     *         \_Project[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38, l
-     * anguages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{f}#26, $$salary$converted_to$keyword{r$}#55]]
-     *           \_Eval[[null[KEYWORD] AS _meta_field#32, null[INTEGER] AS emp_no#33, null[KEYWORD] AS first_name#34, null[TEXT] AS ge
-     * nder#35, null[DATETIME] AS hire_date#36, null[TEXT] AS job#37, null[KEYWORD] AS job.raw#38, null[INTEGER] AS languages#39,
-     * null[KEYWORD] AS last_name#40, null[LONG] AS long_noidx#41, TOSTRING(salary{f}#26) AS $$salary$converted_to$keyword#55]]
-     *             \_EsRelation[employees][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *       \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
+     *         |_Project[[_meta_field{f}#82, emp_no{f}#76, first_name{f}#77, gender{f}#78, hire_date{f}#83, job{f}#84, job.raw{f}#85,
+     * languages{f}#79, last_name{f}#80, long_noidx{f}#86, salary{f}#81, $$salary$converted_to$keyword{r$}#120]]
+     *         | \_Eval[[TO_STRING(salary{f}#81) AS $$salary$converted_to$keyword#120]]
+     *         |   \_EsRelation[employees][_meta_field{f}#82, emp_no{f}#76, first_name{f}#77, ..]
+     *         \_Project[[_meta_field{r}#98, emp_no{r}#99, first_name{r}#100, gender{r}#101, hire_date{r}#102, job{r}#103, job.raw{r}#104,
+     * languages{r}#105, last_name{r}#106, long_noidx{r}#107, salary{f}#92, $$salary$converted_to$keyword{r$}#121]]
+     *           \_Eval[[null[KEYWORD] AS _meta_field#98, null[INTEGER] AS emp_no#99, null[KEYWORD] AS first_name#100, null[TEXT] AS
+     * gender#101, null[DATETIME] AS hire_date#102, null[TEXT] AS job#103, null[KEYWORD] AS job.raw#104, null[INTEGER] AS languages#105,
+     * null[KEYWORD] AS last_name#106, null[LONG] AS long_noidx#107, TO_STRING(salary{f}#92) AS $$salary$converted_to$keyword#121]]
+     *             \_EsRelation[employees][_meta_field{f}#93, emp_no{f}#87, first_name{f}#88, ..]
      * }
      */
     public void testPushDownMvExpandPastProject5() {
@@ -3785,23 +3784,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * {@snippet lang="text":
-     * Project[[$$salary$temp_name$61{r$}#62 AS salary#57, $$salary$converted_to$keyword{r$}#60 AS tmp#9]]
+     * Project[[$$salary$mv_expand$185{r$}#186 AS salary#179, $$salary$converted_to$keyword$mv_expand$183{r$}#184 AS tmp#131]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[$$salary$converted_to$keyword$salary$0{r}#63,$$salary$temp_name$61{r$}#62]
-     *     \_Eval[[$$salary$converted_to$keyword{r$}#60 AS $$salary$converted_to$keyword$salary$0#63]]
+     *   \_MvExpand[$$salary$converted_to$keyword{r$}#182,$$salary$mv_expand$185{r$}#186]
+     *     \_Eval[[$$salary$converted_to$keyword{r$}#182 AS $$salary$converted_to$keyword$mv_expand$183#184]]
      *       \_Limit[1000[INTEGER],false,false]
-     *         \_UnionAll[[_meta_field{r}#46, emp_no{r}#47, first_name{r}#48, gender{r}#49, hire_date{r}#50, job{r}#51, job.raw{r}#52, l
-     * anguages{r}#53, last_name{r}#54, long_noidx{r}#55, salary{r}#56, $$salary$converted_to$keyword{r$}#60]]
-     *           |_Project[[_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, gender{f}#16, hire_date{f}#21, job{f}#22, job.raw{f}#23, l
-     * anguages{f}#17, last_name{f}#18, long_noidx{f}#24, salary{f}#19, $$salary$converted_to$keyword{r$}#58]]
-     *           | \_Eval[[TOSTRING(salary{f}#19) AS $$salary$converted_to$keyword#58]]
-     *           |   \_EsRelation[employees][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
-     *           \_Project[[_meta_field{r}#36, emp_no{r}#37, first_name{r}#38, gender{r}#39, hire_date{r}#40, job{r}#41, job.raw{r}#42, l
-     * anguages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{f}#30, $$salary$converted_to$keyword{r$}#59]]
-     *             \_Eval[[null[KEYWORD] AS _meta_field#36, null[INTEGER] AS emp_no#37, null[KEYWORD] AS first_name#38, null[TEXT] AS ge
-     * nder#39, null[DATETIME] AS hire_date#40, null[TEXT] AS job#41, null[KEYWORD] AS job.raw#42, null[INTEGER] AS languages#43,
-     * null[KEYWORD] AS last_name#44, null[LONG] AS long_noidx#45, TOSTRING(salary{f}#30) AS $$salary$converted_to$keyword#59]]
-     *               \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
+     *         \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
+     *           |_Project[[_meta_field{f}#142, emp_no{f}#136, first_name{f}#137, gender{f}#138, hire_date{f}#143, job{f}#144,
+     * job.raw{f}#145, languages{f}#139, last_name{f}#140, long_noidx{f}#146, salary{f}#141, $$salary$converted_to$keyword{r$}#180]]
+     *           | \_Eval[[TO_STRING(salary{f}#141) AS $$salary$converted_to$keyword#180]]
+     *           |   \_EsRelation[employees][_meta_field{f}#142, emp_no{f}#136, first_name{f}#13..]
+     *           \_Project[[_meta_field{r}#158, emp_no{r}#159, first_name{r}#160, gender{r}#161, hire_date{r}#162, job{r}#163,
+     * job.raw{r}#164, languages{r}#165, last_name{r}#166, long_noidx{r}#167, salary{f}#152, $$salary$converted_to$keyword{r$}#181]]
+     *             \_Eval[[null[KEYWORD] AS _meta_field#158, null[INTEGER] AS emp_no#159, null[KEYWORD] AS first_name#160, null[TEXT] AS
+     * gender#161, null[DATETIME] AS hire_date#162, null[TEXT] AS job#163, null[KEYWORD] AS job.raw#164, null[INTEGER] AS languages#165,
+     * null[KEYWORD] AS last_name#166, null[LONG] AS long_noidx#167, TO_STRING(salary{f}#152) AS $$salary$converted_to$keyword#181]]
+     *               \_EsRelation[employees][_meta_field{f}#153, emp_no{f}#147, first_name{f}#14..]
      * }
      */
     public void testPushDownMvExpandPastProject6() {
@@ -3832,23 +3830,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * {@snippet lang="text":
-     * Project[[$$salary$converted_to$keyword{r$}#60 AS salary#6, tmp{r}#57]]
+     * Project[[$$salary$converted_to$keyword$mv_expand$245{r$}#246 AS salary#190, tmp{r}#241]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[$$salary$converted_to$keyword$tmp$0{r}#61,tmp{r}#57]
-     *     \_Eval[[$$salary$converted_to$keyword{r$}#60 AS $$salary$converted_to$keyword$tmp$0#61]]
+     *   \_MvExpand[$$salary$converted_to$keyword{r$}#244,tmp{r}#241]
+     *     \_Eval[[$$salary$converted_to$keyword{r$}#244 AS $$salary$converted_to$keyword$mv_expand$245#246]]
      *       \_Limit[1000[INTEGER],false,false]
-     *         \_UnionAll[[_meta_field{r}#46, emp_no{r}#47, first_name{r}#48, gender{r}#49, hire_date{r}#50, job{r}#51, job.raw{r}#52, l
-     * anguages{r}#53, last_name{r}#54, long_noidx{r}#55, salary{r}#56, $$salary$converted_to$keyword{r$}#60]]
-     *           |_Project[[_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, gender{f}#16, hire_date{f}#21, job{f}#22, job.raw{f}#23, l
-     * anguages{f}#17, last_name{f}#18, long_noidx{f}#24, salary{f}#19, $$salary$converted_to$keyword{r$}#58]]
-     *           | \_Eval[[TOSTRING(salary{f}#19) AS $$salary$converted_to$keyword#58]]
-     *           |   \_EsRelation[employees][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
-     *           \_Project[[_meta_field{r}#36, emp_no{r}#37, first_name{r}#38, gender{r}#39, hire_date{r}#40, job{r}#41, job.raw{r}#42, l
-     * anguages{r}#43, last_name{r}#44, long_noidx{r}#45, salary{f}#30, $$salary$converted_to$keyword{r$}#59]]
-     *             \_Eval[[null[KEYWORD] AS _meta_field#36, null[INTEGER] AS emp_no#37, null[KEYWORD] AS first_name#38, null[TEXT] AS ge
-     * nder#39, null[DATETIME] AS hire_date#40, null[TEXT] AS job#41, null[KEYWORD] AS job.raw#42, null[INTEGER] AS languages#43,
-     * null[KEYWORD] AS last_name#44, null[LONG] AS long_noidx#45, TOSTRING(salary{f}#30) AS $$salary$converted_to$keyword#59]]
-     *               \_EsRelation[employees][_meta_field{f}#31, emp_no{f}#25, first_name{f}#26, ..]
+     *         \_BranchPlan[[null=INDEX, unnamed_view_1=SUBQUERY]]
+     *           |_Project[[_meta_field{f}#204, emp_no{f}#198, first_name{f}#199, gender{f}#200, hire_date{f}#205, job{f}#206,
+     * job.raw{f}#207, languages{f}#201, last_name{f}#202, long_noidx{f}#208, salary{f}#203, $$salary$converted_to$keyword{r$}#242]]
+     *           | \_Eval[[TO_STRING(salary{f}#203) AS $$salary$converted_to$keyword#242]]
+     *           |   \_EsRelation[employees][_meta_field{f}#204, emp_no{f}#198, first_name{f}#19..]
+     *           \_Project[[_meta_field{r}#220, emp_no{r}#221, first_name{r}#222, gender{r}#223, hire_date{r}#224, job{r}#225,
+     * job.raw{r}#226, languages{r}#227, last_name{r}#228, long_noidx{r}#229, salary{f}#214, $$salary$converted_to$keyword{r$}#243]]
+     *             \_Eval[[null[KEYWORD] AS _meta_field#220, null[INTEGER] AS emp_no#221, null[KEYWORD] AS first_name#222, null[TEXT] AS
+     * gender#223, null[DATETIME] AS hire_date#224, null[TEXT] AS job#225, null[KEYWORD] AS job.raw#226, null[INTEGER] AS languages#227,
+     * null[KEYWORD] AS last_name#228, null[LONG] AS long_noidx#229, TO_STRING(salary{f}#214) AS $$salary$converted_to$keyword#243]]
+     *               \_EsRelation[employees][_meta_field{f}#215, emp_no{f}#209, first_name{f}#21..]
      * }
      */
     public void testPushDownMvExpandPastProject7() {
@@ -3880,14 +3877,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * {@snippet lang="text":
-     * Project[[_meta_field{f}#18, $$emp_no$temp_name$28{r$}#29 AS salary#27, first_name{f}#13, gender{f}#14, hire_date{f}#19
-     * , job{f}#20, job.raw{f}#21, languages{f}#15 AS x#5, last_name{f}#16, long_noidx{f}#22, language_code{r}#25, language_name{r}#26]]
+     * Project[[_meta_field{f}#262, $$salary$mv_expand$272{r$}#273 AS salary#271, first_name{f}#257, gender{f}#258, hire_date{f}#263,
+     * job{f}#264, job.raw{f}#265, languages{f}#259 AS x#249, last_name{f}#260, long_noidx{f}#266, language_code{r}#269,
+     * language_name{r}#270]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[emp_no{f}#12,$$emp_no$temp_name$28{r$}#29]
-     *     \_Enrich[ANY,languages_idx[KEYWORD],languages{f}#15,{"match":{"indices":[],"match_field":"id","enrich_fields":["language_c
-     * ode","language_name"]}},{=languages_idx},[language_code{r}#25, language_name{r}#26]]
+     *   \_MvExpand[emp_no{f}#256,$$salary$mv_expand$272{r$}#273]
+     *     \_Enrich[ANY,languages_idx[KEYWORD],languages{f}#259,{"match":{"indices":[],"match_field":"id","enrich_fields":["language_code",
+     * "language_name"]}},{=languages_idx},[language_code{r}#269, language_name{r}#270]]
      *       \_Limit[1000[INTEGER],false,false]
-     *         \_EsRelation[employees][_meta_field{f}#18, emp_no{f}#12, first_name{f}#13, ..]
+     *         \_EsRelation[employees][_meta_field{f}#262, emp_no{f}#256, first_name{f}#25..]
      * }
      */
     public void testPushDownMvExpandPastProject8() {

@@ -33,7 +33,6 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.rest.action.admin.indices.CreateIndexCapabilities;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -904,7 +903,7 @@ public class CsvTestsDataLoader {
             if (dataset == null) {
                 throw new IllegalArgumentException("Dataset [" + indexName + "] not found in CSV_DATASET");
             }
-            load(client, dataset, INDEX_CREATOR);
+            load(client, dataset, INDEX_CREATOR, false);
             loadedDatasets.add(dataset.indexName());
         }
         if (loadedDatasets.isEmpty() == false) {
@@ -930,7 +929,9 @@ public class CsvTestsDataLoader {
             timeSeriesOnly,
             capabilityCheck
         )) {
-            load(client, dataset, indexCreator);
+            boolean disableBatchIndexing = dataset.batchIndexingDisabled()
+                && capabilityCheck.test(EsqlCapabilities.Cap.INDEX_BATCH_INDEXING_SETTING);
+            load(client, dataset, indexCreator, disableBatchIndexing);
             loadedDatasets.add(dataset.indexName);
         }
         forceMerge(client, loadedDatasets);
@@ -1218,11 +1219,11 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void load(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
+    private static void load(RestClient client, TestDataset dataset, IndexCreator indexCreator, boolean disableBatchIndexing)
+        throws IOException {
         logger.debug("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
         Settings settings = dataset.loadSettings();
-        if (dataset.batchIndexingDisabled()
-            && checkCapability(client, "PUT", "/{index}", CreateIndexCapabilities.BATCH_INDEXING_SETTING_CAPABILITY)) {
+        if (disableBatchIndexing) {
             settings = Settings.builder().put(settings).put(IndexSettings.BATCH_INDEXING.getKey(), false).build();
         }
         if (dataset.dataStream()) {
@@ -1869,8 +1870,9 @@ public class CsvTestsDataLoader {
         }
 
         /**
-         * Creates the index with {@code index.batch_indexing: false} on clusters that know that setting. Clusters without it (older
-         * versions in BWC suites) don't batch, so the dataset is indexed the same way everywhere.
+         * Creates the index with {@code index.batch_indexing: false} when the loader's capability check reports
+         * {@link EsqlCapabilities.Cap#INDEX_BATCH_INDEXING_SETTING}. Clusters without that setting (older versions in BWC suites)
+         * don't batch, so the dataset is indexed the same way everywhere.
          */
         public TestDataset withBatchIndexingDisabled() {
             return new TestDataset(
@@ -1979,7 +1981,7 @@ public class CsvTestsDataLoader {
         throws IOException {
         Set<String> loaded = new HashSet<>();
         for (TestDataset dataset : datasets) {
-            load(client, dataset, indexCreator);
+            load(client, dataset, indexCreator, false);
             loaded.add(dataset.indexName());
         }
         if (loaded.isEmpty() == false) {

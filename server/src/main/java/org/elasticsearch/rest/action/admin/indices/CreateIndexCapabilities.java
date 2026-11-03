@@ -53,11 +53,6 @@ public class CreateIndexCapabilities {
 
     private static final String DISABLE_SEQUENCE_NUMBERS_CAPABILITY = "disable_sequence_numbers";
 
-    /**
-     * The {@code index.batch_indexing} setting is known, so tests can pin it without older nodes rejecting it as an unknown setting.
-     */
-    public static final String BATCH_INDEXING_SETTING_CAPABILITY = "batch_indexing_setting";
-
     private static final String REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD = "reject_runtime_field_shadowing_sort_field";
 
     /**
@@ -89,7 +84,6 @@ public class CreateIndexCapabilities {
                 POORLY_FORMATTED_BAD_REQUEST,
                 HUNSPELL_DICT_400,
                 DISABLE_SEQUENCE_NUMBERS_CAPABILITY,
-                BATCH_INDEXING_SETTING_CAPABILITY,
                 REJECT_RUNTIME_FIELD_SHADOWING_SORT_FIELD
             )
         );

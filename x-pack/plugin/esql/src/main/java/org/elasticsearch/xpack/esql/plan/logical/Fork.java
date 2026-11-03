@@ -227,6 +227,7 @@ public final class Fork extends MergePlan implements TelemetryAware {
 
     /**
      * FORK keeps merging {@code _score} as a plain reference for now, see {@link MergePlan#withScoreAttributeFromChildren}.
+     * TODO: this is a known issue (https://github.com/elastic/elasticsearch/issues/161746), and will fixed in the future.
      */
     @Override
     protected boolean mergesScoreAsMetadata() {

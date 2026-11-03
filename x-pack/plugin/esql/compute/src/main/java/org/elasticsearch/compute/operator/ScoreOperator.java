@@ -48,6 +48,9 @@ public class ScoreOperator extends AbstractPageMappingOperator {
     @Override
     protected Page process(Page page) {
         assert page.getBlockCount() > scoreBlockPosition : "Expected to get a score block in position " + scoreBlockPosition;
+        if (page.getBlock(scoreBlockPosition).areAllValuesNull()) {
+            return page;
+        }
 
         Block[] blocks = new Block[page.getBlockCount()];
         for (int i = 0; i < page.getBlockCount(); i++) {

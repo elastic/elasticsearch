@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -156,8 +157,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
     }
 
     /**
-     * Whether {@link #withScoreAttributeFromChildren} may merge {@code _score} as a {@link MetadataAttribute}. {@link Fork}
-     * opts out for now and keeps merging it as a plain reference.
+     * Whether {@link #withScoreAttributeFromChildren} may merge {@code _score} as a {@link MetadataAttribute}.
      */
     protected boolean mergesScoreAsMetadata() {
         return true;
@@ -286,8 +286,24 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                 });
                 case MergePlan merge -> {
                     if (merge.children().isEmpty() == false) {
+                        Set<String> nullsFromMerge = null;
+                        for (LogicalPlan child : merge.children()) {
+                            Set<String> nullsInBranch = child.output().stream()
+                                .filter(attr -> onlyNull.contains(attr.id()))
+                                .map(Attribute::name)
+                                .collect(Collectors.toSet());
+
+                            if (nullsFromMerge == null) {
+                                nullsFromMerge = nullsInBranch;
+                            } else {
+                                nullsFromMerge.retainAll(nullsInBranch);
+                            }
+                            if (nullsFromMerge.isEmpty()) {
+                                break;
+                            }
+                        }
                         for (Attribute out : merge.output()) {
-                            if (merge.children().stream().allMatch(child -> columnOnlyNull(child, out.name(), onlyNull))) {
+                            if (nullsFromMerge.contains(out.name())) {
                                 onlyNull.add(out.id());
                             }
                         }
@@ -318,8 +334,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
 
     /**
      * {@link Expressions#isGuaranteedNull}, also accepting an attribute already known to be null-only and looking through
-     * functions that are null whenever an argument is: a typed null such as {@code null::double}, which is how a null
-     * gets the type of the sibling branches' column, is a cast of a null literal until the optimizer folds it.
+     * functions that are null whenever an argument is null.
      */
     private static boolean isGuaranteedNull(Expression e, Set<NameId> onlyNull) {
         if (Expressions.isGuaranteedNull(e) || (e instanceof Attribute attr && onlyNull.contains(attr.id()))) {

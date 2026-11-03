@@ -4636,7 +4636,7 @@ public class EsqlCapabilities {
          * {@code null} through that search. A branch that computed its own {@code _score} keeps the merged column out
          * of scoring, as it does for a single source.
          */
-        UNION_ALL_KEEPS_METADATA_SCORE,
+        FROM_SUBQUERY_MERGE_KEEPS_METADATA_SCORE,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

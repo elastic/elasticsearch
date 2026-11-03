@@ -180,7 +180,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     final RecoveryPriority current = indexShard.recoveryState().getRecoveryPriority();
                     final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
                     if (current != updated) {
-                        pendingRecovery.raiseRecoveryPriority(updated, sourceNodeId);
+                        pendingRecovery.raiseRecoveryPriority(updated);
                     }
                 }
                 // Note that the PendingRecovery captures the IndexMetadata that was passed in when the recovery was enqueued, so it does
@@ -319,7 +319,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
                     if (current != updated) {
                         it.remove();
-                        pending.raiseRecoveryPriority(updated, sourceNodeId);
+                        pending.raiseRecoveryPriority(updated);
                         reprioritized.add(pending);
                     }
                 }
@@ -632,8 +632,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return isCritical() ? RecoverySchedulingListener.PriorityGroup.CRITICAL : RecoverySchedulingListener.PriorityGroup.NON_CRITICAL;
         }
 
-        /// Raises the priority of this recovery because its source node `sourceNodeId` is marked for removal.
-        void raiseRecoveryPriority(RecoveryPriority updated, String sourceNodeId) {
+        /// Raises the priority of this recovery to `updated`
+        void raiseRecoveryPriority(RecoveryPriority updated) {
             RecoveryState state = recoveryState();
             RecoveryPriority current = state.getRecoveryPriority();
             assert updated.ordinal() < current.ordinal()
@@ -644,15 +644,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             // changes the group and these counts need no update. A reprioritization that moves a recovery to the other
             // group would have to update them too.
             assert current.isCritical() == updated.isCritical()
-                : "recovery priority update must not change the priority group, updated priority : " + updated + " , state " + state;
+                : "recovery priority update should not change the priority group, updated priority : " + updated + " , state " + state;
 
-            logger.debug(
-                "raising priority of recovery from [{}] to [{}] because source node [{}] is marked for removal: {}",
-                current,
-                updated,
-                sourceNodeId,
-                state
-            );
+            logger.debug("raising priority of recovery from [{}] to [{}]: {}", current, updated, state);
             state.setRecoveryPriority(updated);
         }
     }

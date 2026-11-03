@@ -328,7 +328,7 @@ public final class VectorBinarySet extends VectorBinaryOperator {
             } else if (PromqlLabels.isMetadataLabel(attr)
                 || MetadataAttribute.TIMESERIES.equals(attr.name())
                 || attr.name().startsWith(MetadataAttribute.TIMESERIES + "$")) {
-                    // Alias.toAttribute of packed metadata is UnresolvedAttribute named _timeseries — still tsIdentity.
+                    // Alias.toAttribute of packed metadata is UnresolvedAttribute named _timeseries - still tsIdentity.
                     timeSeriesMetadataAttr = attr;
                 }
         }

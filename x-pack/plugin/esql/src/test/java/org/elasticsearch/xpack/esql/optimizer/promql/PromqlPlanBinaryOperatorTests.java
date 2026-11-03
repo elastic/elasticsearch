@@ -618,7 +618,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
     }
 
     /**
-     * Shape 3 (asymmetric): concrete {@code by} × opaque selector with {@code on (cluster)}. Match keys are declared by
+     * Shape 3 (asymmetric): concrete {@code by} x opaque selector with {@code on (cluster)}. Match keys are declared by
      * {@code on}; Resolve materializes {@code cluster} from the selector's rest.
      */
     public void testVectorMatchOnAllowsOpaqueSelectorOperand() {

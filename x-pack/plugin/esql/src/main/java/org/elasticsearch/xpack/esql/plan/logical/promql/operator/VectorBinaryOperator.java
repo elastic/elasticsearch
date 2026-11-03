@@ -139,12 +139,12 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /**
-     * Result identity for vector×vector / vector×scalar matching. Scalar×vector keeps the vector's labels (with
+     * Result identity for vector x vector / vector x scalar matching. Scalar x vector keeps the vector's labels (with
      * {@code __name__} dropped when {@link #dropMetricName}); group_left/right and ignoring reshape metadata; default
      * match keeps the left identity when label sets agree.
      */
     private List<Attribute> computeOutputAttributes() {
-        // Instant vector × scalar: apply the operator to every sample; identity is the vector's (scalars have none).
+        // Instant vector x scalar: apply the operator to every sample; identity is the vector's (scalars have none).
         if (PromqlPlan.returnsScalar(left())) {
             return withoutMetricName(right().output());
         }
@@ -241,7 +241,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     /**
      * Opaque many-side under group_left/right: includes come from the one side (null if absent); prior promoted
-     * labels on many stay — already promoted beside metadata and must not be dropped.
+     * labels on many stay - already promoted beside metadata and must not be dropped.
      */
     private List<Attribute> groupedOverOpaqueMany(List<Attribute> many, UnresolvedPromqlAttribute timeSeriesMetadata, List<Attribute> one) {
         var unset = new LinkedHashSet<>(timeSeriesMetadata.unset());
@@ -344,7 +344,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     /**
      * Join is the general case; the fold is an optimisation. {@link #requiresIndependentPipelines} decides up front only
      * what fixes the operands' translation context; everything else is decided once, from the translated operands, in
-     * {@link #translateOverSharedFrame}. Scalar step-broadcast is a join shape decided inside the join translator — not
+     * {@link #translateOverSharedFrame}. Scalar step-broadcast is a join shape decided inside the join translator - not
      * a third mode.
      */
     @Override
@@ -356,7 +356,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     /**
-     * Whether the operands must translate as independent pipelines before anything is known about their plans — the
+     * Whether the operands must translate as independent pipelines before anything is known about their plans - the
      * properties that pick the translation context rather than describe the result: explicit vector matching, a
      * source-backed scalar (which broadcasts on {@code step}), and selectors disagreeing on {@code offset} (one shared
      * TimeSeriesAggregate carries a single evaluation timestamp; each independent pipeline shifts {@code @timestamp}
@@ -379,7 +379,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     /**
      * Scalar with no source-backed selector: a literal, {@code time()}, {@code pi()}, or arithmetic over those.
-     * Contrasts with {@code scalar(sum(…))}, which collapses source data and must broadcast independently.
+     * Contrasts with {@code scalar(sum(...))}, which collapses source data and must broadcast independently.
      */
     private static boolean isPureScalar(LogicalPlan plan) {
         return PromqlPlan.returnsScalar(plan) && hasSourceBackedExpression(plan) == false;
@@ -437,10 +437,10 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
 
     /**
      * Translates both operands under this frame, then decides once: the operator folds when both operands turn out to
-     * share the frame — both still raw over the shared source, or both one {@link TimeSeriesAggregate} over it with the
-     * same grain (see {@link #frame}) — and otherwise joins the independent pipelines. A pure scalar shares whichever
+     * share the frame - both still raw over the shared source, or both one {@link TimeSeriesAggregate} over it with the
+     * same grain (see {@link #frame}) - and otherwise joins the independent pipelines. A pure scalar shares whichever
      * frame the other operand has. Filter-mode {@code v > lit} is specialized here so parents that call translate
-     * (label_replace, avg, topk, …) see an already-filtered vector.
+     * (label_replace, avg, topk, ...) see an already-filtered vector.
      */
     private IntermediateResult translateOverSharedFrame(TranslationContext context) {
         IntermediateResult left = context.translate(left());
@@ -510,7 +510,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             // Both raw over the shared source (a pure scalar reads it too): the expressions compose; the frame is still
             // pending and the selector predicates stay deferred with it.
             plan = left.plan();
-            // unless: never AND the right selector onto the scan — an empty right matcher would wipe left
+            // unless: never AND the right selector onto the scan - an empty right matcher would wipe left
             // (promfuzz-vm 981). Null the right value where its filter fails so Case(IS NULL, left) keeps left.
             if (this instanceof VectorBinarySet set && set.op() == VectorBinarySet.SetOp.SUBTRACT) {
                 filter = left.pendingFilter();
@@ -538,9 +538,9 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             ? Kind.AFTER_INITIAL_AGGREGATE
             : Kind.BEFORE_INITIAL_AGGREGATE;
         Attribute step = left.step() != null ? left.step() : right.step();
-        // Scalar×UnionAll (e.g. {@code (a or b) * 2}) composes an Eval over the union. Eval name-shadowing can leave a
+        // Scalar x UnionAll (e.g. {@code (a or b) * 2}) composes an Eval over the union. Eval name-shadowing can leave a
         // channel absent from output(); later Projects then throw {@code Cannot project block} (#158164). Pin the
-        // vector side before building the binary — the same materialization joins already apply. A shared-frame fold
+        // vector side before building the binary - the same materialization joins already apply. A shared-frame fold
         // of two aggregates has no UnionAll here ({@link #frame} refuses it), so this does not collapse two values.
         if (kind.afterInitialAggregation && plan.anyMatch(UnionAll.class::isInstance)) {
             IntermediateResult vector = left.kind().afterInitialAggregation ? left : right;
@@ -570,7 +570,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * A collapsed operand's frame: the one {@link TimeSeriesAggregate} it computes directly over the shared source, the
      * value-only {@link Eval}s stacked on it (top-down), the conjunction of the {@link Filter}s stacked on it, and
      * whether it aggregates across series. Two frames share a grain when they group the same way and both collapse
-     * per series or both across them — [step] alone means per series under a raw collapse and across all series under
+     * per series or both across them - [step] alone means per series under a raw collapse and across all series under
      * {@code sum(...)}, so the grouping names alone do not tell them apart.
      */
     private record Frame(TimeSeriesAggregate aggregate, List<Eval> evals, Expression filter, boolean acrossSeries) {
@@ -605,7 +605,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         return null;
     }
 
-    /** Whether every field an Eval defines is the sample value — a relabel defines label columns instead. */
+    /** Whether every field an Eval defines is the sample value - a relabel defines label columns instead. */
     private static boolean definesValueOnly(TranslationContext context, Eval eval) {
         return eval.fields().stream().allMatch(field -> field.name().equals(context.cmd().valueColumnName()));
     }
@@ -659,7 +659,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
      * {@code step} + match keys. The join reads keys and result labels from the operands as references: a label comes
      * back as a concrete column wherever the operand can carry it, and a label the operand dropped binds to null.
      * <p>
-     * For vector×vector: how the sides are ordered (probe vs build), how fields are placed (match key packed next to
+     * For vector x vector: how the sides are ordered (probe vs build), how fields are placed (match key packed next to
      * step, build value and {@code group_x} labels carried across), and what is projected. The result exposes its step
      * under the enclosing translation's step identity and only the labels it declares.
      */
@@ -681,7 +681,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
     }
 
     private IntermediateResult joinIndependentPipelines(TranslationContext context, IntermediateResult left, IntermediateResult right) {
-        // Source-backed scalar()×vector (and scalar×scalar): step-only broadcast — still this join mode, not a fold.
+        // Source-backed scalar() x vector (and scalar x scalar): step-only broadcast - still this join mode, not a fold.
         if (PromqlPlan.returnsScalar(left()) || PromqlPlan.returnsScalar(right())) {
             return translateAsBroadcastJoin(context, left, right);
         }
@@ -695,7 +695,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         IntermediateResult probe = probeRight ? right : left;
         IntermediateResult build = reidentify(context, probeRight ? left : right);
         // Layout pin runs inside emitInput *after* PackDims so join-key UnresolvedPromqlAttributes resolve into the
-        // collapse before any pin Project (resolveProject does not forward needs — pinning first null-filled keys).
+        // collapse before any pin Project (resolveProject does not forward needs - pinning first null-filled keys).
         List<String> keyLabels = keyLabels();
         Input probeInput = emitInput(context, new Operand(probe, probeRight ? right() : left()), keyLabels);
         Input buildInput = emitInput(context, new Operand(build, probeRight ? left() : right()), keyLabels);
@@ -802,7 +802,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         if (filter != null) {
             plan = new Filter(source(), plan, filter);
         }
-        // pinnedAttribute keeps Alias id while value is unresolved — toAttribute snapshots never rebind in Projects.
+        // pinnedAttribute keeps Alias id while value is unresolved - toAttribute snapshots never rebind in Projects.
         Attribute valueAttr = TranslationContext.pinnedAttribute(valueAlias);
         Attribute stepAttr = TranslationContext.pinnedAttribute(stepAlias);
         List<NamedExpression> projected = new ArrayList<>(List.of(valueAttr, stepAttr));
@@ -824,7 +824,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
         String valueName = TemporaryNameGenerator.locallyUniqueTemporaryName(cmd.valueColumnName());
         // A nested {@code or} is UnionAll + TopNBy with tightly coupled attribute ids. Rewriting those subtrees
         // (or even re-iding the step column projected above them) desyncs the dedup keys. Nested across-series
-        // keep a value Alias Bind has not resolved yet — renaming in-place drops the column. Eval-wrap only;
+        // keep a value Alias Bind has not resolved yet - renaming in-place drops the column. Eval-wrap only;
         // keep the child value so the Alias resolves. {@link #emitHashJoin} / scalar-broadcast Project to the
         // columns they need (projecting here previously dropped a channel and broke page layout at runtime).
         if (input.plan().anyMatch(UnionAll.class::isInstance)
@@ -912,7 +912,7 @@ public abstract sealed class VectorBinaryOperator extends BinaryPlan implements 
             fields = List.of(input.step());
         } else {
             // Prometheus treats an empty label value as absent. label_replace's delete sentinel is {@code ""}, while a
-            // sibling that never had the label packs null — normalize empties to null before PackDims so signatures match.
+            // sibling that never had the label packs null - normalize empties to null before PackDims so signatures match.
             // Only named key labels (keyword) are rewritten; metadata / empty-signature slots stay as-is.
             LogicalPlan keyed = input.plan();
             List<Attribute> packKey = new ArrayList<>(key.size());

@@ -59,7 +59,7 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
     @Override
     public List<Attribute> output() {
         if (output == null) {
-            // Prometheus drops the metric name from value transforms (ceil, abs, …).
+            // Prometheus drops the metric name from value transforms (ceil, abs, ...).
             output = withoutMetricName(source(), child().output());
         }
         return output;

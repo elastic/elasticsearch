@@ -804,7 +804,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                             // on(...)/ignoring(...) declare the match keys as unresolved label refs; ResolvePromqlAttributes
                             // materializes them from time-series metadata/_timeseries (#157669). Default matching (including an unmatched
                             // op composed over a prior match) packs a metadata signature for opaque sides and named keys
-                            // for concrete ones — same joinKey path as concrete×opaque without nesting.
+                            // for concrete ones - same joinKey path as concrete x opaque without nesting.
                             failures.add(fail(lp, "vector matching requires operands with concrete label sets [{}]", lp.sourceText()));
                         }
                     }
@@ -1114,9 +1114,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     /**
      * Whether vector matching still needs every operand to name its labels up front. {@code on(...)} / {@code ignoring(...)}
-     * declare the match keys; unresolved refs materialize them from an opaque {@code _timeseries}. Default matching —
-     * including an unmatched op composed over a prior match — packs a metadata signature for any opaque side (and named
-     * keys from a concrete sibling), so opaque×concrete does not need labels named up front. Explicit {@code group_*}
+     * declare the match keys; unresolved refs materialize them from an opaque {@code _timeseries}. Default matching -
+     * including an unmatched op composed over a prior match - packs a metadata signature for any opaque side (and named
+     * keys from a concrete sibling), so opaque x concrete does not need labels named up front. Explicit {@code group_*}
      * without {@code on}/{@code ignoring} over a single opaque side still does.
      */
     private static boolean needsConcreteMatchKeys(VectorBinaryOperator op) {
@@ -1142,7 +1142,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     /**
      * Verifies the operands of a binary operator whose both sides read source data.
      * <p>
-     * Nested across-series, aggregated×raw, different offsets, and {@code scalar()}×labeled join or
+     * Nested across-series, aggregated x raw, different offsets, and {@code scalar()} x labeled join or
      * step-broadcast ({@link EsqlCapabilities.Cap#PROMQL_BINARY_INDEPENDENT_JOIN}). Opaque
      * {@code topk}/{@code bottomk}/{@code limitk}/{@code limit_ratio} join under typed {@code _timeseries};
      * keyword metadata keeps the pre-typed rejection (cannot regroup those results). Concrete named-label
@@ -1185,7 +1185,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * A {@code topk}/{@code bottomk}/… whose output names at least one label (no time-series metadata). Those join on the named labels;
+     * A {@code topk}/{@code bottomk}/... whose output names at least one label (no time-series metadata). Those join on the named labels;
      * an unlabeled or opaque reduction cannot under keyword metadata (bind regrouping).
      */
     private static boolean joinableConcreteReduction(LogicalPlan plan) {

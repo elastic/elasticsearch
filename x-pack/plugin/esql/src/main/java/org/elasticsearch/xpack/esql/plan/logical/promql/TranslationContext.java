@@ -323,7 +323,7 @@ public record TranslationContext(
                 ir = collapsed;
             }
             // Filter-mode comparisons (metric > x) apply their Filter inside VectorBinaryOperator.translateOverSharedFrame
-            // so nested parents (label_replace, aggregations, …) see a filtered vector. Vector-matched comparisons
+            // so nested parents (label_replace, aggregations, ...) see a filtered vector. Vector-matched comparisons
             // already filter inside the join path.
         }
 
@@ -339,7 +339,7 @@ public record TranslationContext(
         return new IntermediateResult(plan, pinnedAttribute(valueAlias), ir.step(), null, kind);
     }
 
-    /** Same id as alias while unresolved — Projects must not freeze a toAttribute snapshot. */
+    /** Same id as alias while unresolved - Projects must not freeze a toAttribute snapshot. */
     public static Attribute pinnedAttribute(Alias alias) {
         if (alias.resolved()) {
             return alias.toAttribute();

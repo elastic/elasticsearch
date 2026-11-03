@@ -21,6 +21,19 @@ public class SourceSchemaTests extends ESTestCase {
         assertEquals(0, schema.getNonLeafParent(0)); // self-referential root
     }
 
+    public void testEmptyNameNonLeafIsAChildOfRootNotTheRoot() {
+        SourceSchema schema = new SourceSchema();
+        int empty = schema.appendNonLeaf("", 0);
+        assertNotEquals("an empty name must not resolve to the root", 0, empty);
+        assertEquals(2, schema.nonLeafCount());
+        assertEquals("", schema.getNonLeafName(empty));
+        assertEquals(0, schema.getNonLeafParent(empty));
+        // Still idempotent, and the lookup finds the child rather than the root.
+        assertEquals(empty, schema.appendNonLeaf("", 0));
+        assertEquals(empty, schema.findNonLeaf("", 0));
+        assertEquals(2, schema.nonLeafCount());
+    }
+
     public void testAppendNonLeafIdempotent() {
         SourceSchema schema = new SourceSchema();
         int idx1 = schema.appendNonLeaf("user", 0);

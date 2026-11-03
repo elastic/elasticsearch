@@ -1,0 +1,6 @@
+pr: 163913
+summary: Stop an empty-named object merging into its parent in ESCF
+area: Columnar
+type: bug
+issues:
+ - 163829

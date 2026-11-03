@@ -51,15 +51,15 @@ public final class SourceSchema {
         this.leaves = new FieldLevel(INITIAL_CAPACITY);
 
         // Add root at index 0, self-referential parent
-        nonLeaves.append("", 0);
+        nonLeaves.appendRoot();
     }
 
     /**
      * Constructor for reading: builds from pre-parsed non-leaf and leaf arrays.
      */
     public SourceSchema(List<String> nonLeafNames, int[] nonLeafParents, List<String> leafNames, int[] leafParents) {
-        this.nonLeaves = new FieldLevel(nonLeafNames, nonLeafParents);
-        this.leaves = new FieldLevel(leafNames, leafParents);
+        this.nonLeaves = new FieldLevel(nonLeafNames, nonLeafParents, true);
+        this.leaves = new FieldLevel(leafNames, leafParents, false);
     }
 
     public int nonLeafCount() {
@@ -189,11 +189,12 @@ public final class SourceSchema {
             this.lookup = new ObjectIntHashMap<>(initialCapacity);
         }
 
-        FieldLevel(List<String> names, int[] parents) {
+        FieldLevel(List<String> names, int[] parents, boolean hasRoot) {
             this.names = new ArrayList<>(names);
             this.parents = Arrays.copyOf(parents, names.size());
             this.lookup = new ObjectIntHashMap<>(names.size());
-            for (int i = 0; i < names.size(); i++) {
+            // The root, when this level has one, is deliberately left out of the lookup. See appendRoot().
+            for (int i = hasRoot ? 1 : 0; i < names.size(); i++) {
                 lookup.put(new FieldKey(parents[i], names.get(i)), i);
             }
         }
@@ -212,6 +213,19 @@ public final class SourceSchema {
 
         int find(String name, int parentIdx) {
             return lookup.getOrDefault(new FieldKey(parentIdx, name), MISSING);
+        }
+
+        /**
+         * Appends the root as index 0 without registering it for lookup by name. The root is always
+         * reached by index, so it never needs a lookup entry, and giving it one would make a document
+         * field named "" at the top level resolve to the root itself: the object's fields would then be
+         * written into the root instead of under the "" key, and a leaf the root already has would be
+         * reported as a duplicate. An empty name is legal JSON, so it has to stay a distinct child.
+         */
+        void appendRoot() {
+            assert names.isEmpty() : "root must be the first non-leaf";
+            names.add("");
+            parents[0] = 0;
         }
 
         int append(String name, int parentIdx) {

@@ -52,6 +52,26 @@ public class EscfEncoderTests extends ESTestCase {
             {"empty":{},"x":1}""");
     }
 
+    public void testEmptyNameLeaf() throws IOException {
+        assertRoundTrip("""
+            {"":1}""");
+    }
+
+    public void testEmptyNameObject() throws IOException {
+        assertRoundTrip("""
+            {"":{"x":1}}""");
+    }
+
+    public void testNestedEmptyNameObjectsBesideSibling() throws IOException {
+        assertRoundTrip("""
+            {"":{"":{"x":1}},"y":2}""");
+    }
+
+    public void testEmptyNameObjectSharingLeafNameWithRoot() throws IOException {
+        assertRoundTrip("""
+            {"x":1,"":{"x":2}}""");
+    }
+
     public void testEmptyObjectDistinctFromAbsent() throws IOException {
         // doc 0 has "obj" as an empty object; doc 1 doesn't have "obj" at all. These must not collapse
         // into the same (absent) representation.

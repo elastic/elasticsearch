@@ -649,7 +649,7 @@ public final class CostBasedOptimizer {
                 );
             }
             if (aggregateEvidenceKnown(group, aggregate) == false) {
-                String reason = "input rows or grouping NDV are unknown";
+                String reason = "input rows are unknown";
                 return new Enumeration(
                     List.of(aggregateAlternative(AggMode.COORDINATOR, false)),
                     List.of(new Exclusion(AggMode.DISTRIBUTED.name(), ExclusionCode.UNKNOWN_STATISTICS, reason)),
@@ -1492,6 +1492,8 @@ public final class CostBasedOptimizer {
 
         /**
          * Estimates the number of groups of {@code aggregate} as the product of the grouping columns' NDVs, capped by the input rows.
+         * A column without an NDV contributes the input rows, the most groups it can produce, with {@link Provenance#DEFAULT}.
+         * That lets the coordinator fit check reject a coordinator aggregation that could hold too many groups.
          * Its provenance is the weakest of the inputs, and at least {@link Provenance#DERIVED} when several columns are combined.
          */
         static GroupEstimate groupEstimate(Aggregate aggregate, PlanStats inputStats) {
@@ -1516,7 +1518,11 @@ public final class CostBasedOptimizer {
                 ColumnStats column = inputStats == null ? null : inputStats.column(attribute);
                 Estimate ndv = column == null ? Estimate.UNKNOWN : column.ndv();
                 if (ndv.isUnknown()) {
-                    return GroupEstimate.UNKNOWN;
+                    // A column has at most one distinct value per row, so the input rows bound its NDV.
+                    provenance = weaker(provenance, Provenance.DEFAULT);
+                    value = safeMultiply(value, Math.max(1, rows));
+                    upperBound = safeMultiply(upperBound, Math.max(1, rowsUpper));
+                    continue;
                 }
                 provenance = weaker(provenance, ndv.provenance());
                 value = safeMultiply(value, Math.max(1, estimateValue(ndv, 1)));

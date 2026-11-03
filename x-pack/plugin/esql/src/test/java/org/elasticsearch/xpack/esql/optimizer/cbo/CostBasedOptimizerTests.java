@@ -107,11 +107,25 @@ public class CostBasedOptimizerTests extends ESTestCase {
         assertEquals(JoinStrategy.MATERIALIZED, decisions.join(join).orElseThrow());
     }
 
-    public void testUnknownGroupingNdvKeepsCoordinatorAggregate() {
+    public void testUnknownGroupingNdvOnLargeInputDistributesAggregate() {
         Attribute key = attribute("group_key");
         EsRelation input = relation("input", key);
         Aggregate aggregate = new Aggregate(Source.EMPTY, input, List.of(key), List.of(key));
         PlanStats inputStats = stats(100_000_000, 6_400_000_000d, 64, key, Estimate.UNKNOWN);
+
+        Map<LogicalPlan, PlanStats> statistics = new IdentityHashMap<>();
+        statistics.put(input, inputStats);
+
+        PlanDecisions decisions = optimize(aggregate, statistics, 128L * 1024 * 1024);
+
+        assertEquals(AggMode.DISTRIBUTED, decisions.aggregate(aggregate.aggregates()).orElseThrow());
+    }
+
+    public void testUnknownGroupingNdvOnSmallInputKeepsCoordinatorAggregate() {
+        Attribute key = attribute("group_key");
+        EsRelation input = relation("input", key);
+        Aggregate aggregate = new Aggregate(Source.EMPTY, input, List.of(key), List.of(key));
+        PlanStats inputStats = stats(100_000, 6_400_000d, 64, key, Estimate.UNKNOWN);
 
         Map<LogicalPlan, PlanStats> statistics = new IdentityHashMap<>();
         statistics.put(input, inputStats);

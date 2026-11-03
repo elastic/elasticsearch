@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -77,8 +78,6 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     private final LockFactory lockFactory = new SingleInstanceLockFactory();
 
     private final AtomicReference<Thread> updatingCommitThread = Assertions.ENABLED ? new AtomicReference<>() : null;// only used in asserts
-    protected volatile Map<String, BlobFileRanges> currentMetadata = Map.of();
-    protected volatile long currentDataSetSizeInBytes = 0L;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
 
     BlobStoreCacheDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
@@ -112,8 +111,17 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         this.blobContainer.compareAndSet(null, blobContainer); // set once
     }
 
+    /**
+     * Returns the file metadata this directory currently publishes.
+     * <p>
+     * Callers must not mutate the returned map. Implementations either return an immutable map or a map that only
+     * the directory itself mutates.
+     */
+    protected abstract Map<String, BlobFileRanges> getCurrentMetadata();
+
     public boolean containsFile(String name) {
-        if (currentMetadata.isEmpty()) {
+        final var metadata = getCurrentMetadata();
+        if (metadata.isEmpty()) {
             try {
                 for (String s : super.listAll()) {
                     if (name.equals(s)) {
@@ -124,7 +132,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
                 throw new AssertionError("never throws");
             }
         }
-        return currentMetadata.containsKey(name);
+        return metadata.containsKey(name);
     }
 
     public boolean isMarkedAsCorrupted() {
@@ -136,22 +144,37 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * unless one is already running. Concurrent calls while a task is executing are coalesced into a single follow-up.
      */
     protected void maybeScheduleObsoleteRegionsEviction() {
+        maybeScheduleObsoleteRegionsEviction(null);
+    }
+
+    /**
+     * Same as {@link #maybeScheduleObsoleteRegionsEviction()}, but only the current metadata files that are still live are considered
+     * as referenced.
+     *
+     * @param liveFilesSupplier supplies the files still in use, called when the eviction task executes
+     */
+    protected void maybeScheduleObsoleteRegionsEviction(@Nullable Supplier<Set<String>> liveFilesSupplier) {
         if (submittedObsoleteRegionsEvictionTasks.incrementAndGet() == 1) {
-            submitObsoleteRegionsEviction();
+            submitObsoleteRegionsEviction(liveFilesSupplier);
         }
     }
 
-    private void submitObsoleteRegionsEviction() {
+    private void submitObsoleteRegionsEviction(@Nullable Supplier<Set<String>> liveFilesSupplier) {
         cacheService.submitAsyncEviction(() -> {
             final long regionsEvictionTasks = submittedObsoleteRegionsEvictionTasks.get();
             assert regionsEvictionTasks > 0 : regionsEvictionTasks;
 
-            final Map<String, BlobFileRanges> metadata = currentMetadata;
+            final Map<String, BlobFileRanges> metadata = getCurrentMetadata();
+            final Set<String> liveFiles = liveFilesSupplier != null ? liveFilesSupplier.get() : null;
 
             final Map<Long, BitSet> activeRegionsByBccGen = new HashMap<>();
             long maxBccGeneration = -1L;
 
-            for (var file : metadata.values()) {
+            for (var entry : metadata.entrySet()) {
+                if (liveFiles != null && liveFiles.contains(entry.getKey()) == false) {
+                    continue;
+                }
+                final var file = entry.getValue();
                 long bccGen = file.getBatchedCompoundCommitTermAndGeneration().generation();
                 int startRegion = cacheService.getRegion(file.fileOffset());
                 int endRegion = cacheService.getEndingRegion(file.fileOffset() + file.fileLength());
@@ -209,7 +232,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             final long remainingTasks = submittedObsoleteRegionsEvictionTasks.addAndGet(-regionsEvictionTasks);
             assert remainingTasks >= 0 : remainingTasks;
             if (remainingTasks > 0) {
-                submitObsoleteRegionsEviction();
+                submitObsoleteRegionsEviction(liveFilesSupplier);
             }
         });
     }
@@ -226,19 +249,19 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      */
     @Nullable
     BlobLocation getBlobLocation(String fileName) {
-        var blobFileRanges = currentMetadata.get(fileName);
+        var blobFileRanges = getCurrentMetadata().get(fileName);
         return blobFileRanges != null ? blobFileRanges.blobLocation() : null;
     }
 
     public Collection<BlobFileRanges> getBlobFileRanges() {
-        return Collections.unmodifiableCollection(currentMetadata.values());
+        return Collections.unmodifiableCollection(getCurrentMetadata().values());
     }
 
     /**
      * Returns position of the file in the surrounding blob
      */
     public long getPosition(String fileName, long pos, int length) {
-        var blobFileRanges = currentMetadata.get(fileName);
+        var blobFileRanges = getCurrentMetadata().get(fileName);
         return blobFileRanges != null ? blobFileRanges.getPosition(pos, length) : pos;
     }
 
@@ -247,7 +270,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * {@link SharedBlobCacheService#UNKNOWN_TIMESTAMP} when the file is unknown or carries no timestamp range.
      */
     public long getTimestampMillis(String fileName) {
-        var blobFileRanges = currentMetadata.get(fileName);
+        var blobFileRanges = getCurrentMetadata().get(fileName);
         return blobFileRanges != null
             ? BlobFileRanges.midpointMillisOrUnknownForCache(blobFileRanges.timestampRange())
             : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
@@ -287,7 +310,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     // TODO this method works because we never prune old commits files
     public OptionalLong getPrimaryTerm(String segmentsFileName) throws FileNotFoundException {
-        final var blobFileRanges = currentMetadata.get(segmentsFileName);
+        final var blobFileRanges = getCurrentMetadata().get(segmentsFileName);
         if (blobFileRanges != null) {
             return OptionalLong.of(blobFileRanges.primaryTerm());
         }
@@ -299,18 +322,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         throw exception;
     }
 
-    public void updateMetadata(Map<String, BlobFileRanges> metadata, long dataSetSizeInBytes) {
-        assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
-        try {
-            currentMetadata = metadata;
-            currentDataSetSizeInBytes = dataSetSizeInBytes;
-        } finally {
-            assert assertCompareAndSetUpdatingCommitThread(Thread.currentThread(), null);
-        }
-    }
-
     public boolean metadataContainsReplicatedRanges() {
-        return currentMetadata.values().stream().anyMatch(BlobFileRanges::hasReplicatedRanges);
+        return getCurrentMetadata().values().stream().anyMatch(BlobFileRanges::hasReplicatedRanges);
     }
 
     protected boolean assertCompareAndSetUpdatingCommitThread(Thread current, Thread updated) {
@@ -329,7 +342,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     @Override
     public String[] listAll() throws IOException {
-        final var current = currentMetadata;
+        final var current = getCurrentMetadata();
         final String[] list;
         if (current.isEmpty()) {
             list = super.listAll();
@@ -349,7 +362,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     @Override
     public long fileLength(String name) throws IOException {
-        final var current = currentMetadata;
+        final var current = getCurrentMetadata();
         if (current.isEmpty()) {
             return super.fileLength(name);
         }
@@ -395,7 +408,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        final var current = currentMetadata;
+        final var current = getCurrentMetadata();
         if (current.isEmpty()) {
             return super.openInput(name, context);
         }
@@ -524,11 +537,12 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return 0L;
     }
 
+    /**
+     * @return the size of the latest commit this directory publishes. This can differ from {@link #estimateSizeInBytes()},
+     *         which is zero because these directories store no files locally.
+     */
     @Override
-    public long estimateDataSetSizeInBytes() {
-        // data set size is equal to the size of the last commit fetched from the object store
-        return currentDataSetSizeInBytes;
-    }
+    public abstract long estimateDataSetSizeInBytes();
 
     /**
      * @return the {@link BlobStoreCacheDirectory} to use for pre-warming, warming or reading BCC purpose.
@@ -537,11 +551,14 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
     public abstract BlobStoreCacheDirectory createNewBlobStoreCacheDirectoryForWarming();
 
     /**
-     * @return the {@link BlobStoreCacheDirectory} for a single BCC metadata read through cache.
+     * @param metadata           the file metadata to publish on the returned directory
+     * @param dataSetSizeInBytes the data set size to publish on the returned directory
+     * @return the {@link BlobStoreCacheDirectory} for a single BCC metadata read through cache, populated with {@code metadata}
      */
-    public BlobStoreCacheDirectory createPerBccMetadataReadDirectory() {
-        return createNewBlobStoreCacheDirectoryForWarming();
-    }
+    public abstract BlobStoreCacheDirectory createPerBccMetadataReadDirectory(
+        Map<String, BlobFileRanges> metadata,
+        long dataSetSizeInBytes
+    );
 
     private static UnsupportedOperationException unsupportedException() {
         assert false : "this operation is not supported and should have not be called";

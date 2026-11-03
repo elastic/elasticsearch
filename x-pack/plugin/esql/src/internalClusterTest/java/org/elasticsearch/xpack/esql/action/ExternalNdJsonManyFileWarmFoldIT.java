@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheTestAccess;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
 import java.nio.file.Files;
@@ -162,20 +163,56 @@ public class ExternalNdJsonManyFileWarmFoldIT extends AbstractWarmDatasetAggrega
             assertThat("the grown set must warm again after one scan", response.documentsFound(), equalTo(0L));
         }
 
+        // A moved mtime is a new version of a local file, even with the same bytes: the listing still names the old one, so
+        // resolution's read of the touched file fails with the object-changed condition. That failure is caught during
+        // resolution, before anything has run, so resolution drops the listing and lists again: the query re-scans.
         Path touched = dir.resolve("part-0.ndjson");
         Files.setLastModifiedTime(touched, FileTime.fromMillis(Files.getLastModifiedTime(touched).toMillis() + 2_000));
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
-            assertThat("TTL-hot listing must ignore a touched mtime and keep the warm aggregate", response.documentsFound(), equalTo(0L));
-        }
-        ExternalSourceCacheTestAccess.invalidateListings(cacheService);
-        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
-            assertCount(response, newTotal);
-            assertThat("after listing expiry a touched mtime must re-scan", response.documentsFound(), equalTo(newTotal));
+            assertThat("resolution re-lists the touched set, so the query re-scans it", response.documentsFound(), equalTo(newTotal));
         }
         try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
             assertCount(response, newTotal);
             assertThat("the touched set must warm again after one scan", response.documentsFound(), equalTo(0L));
+        }
+    }
+
+    /**
+     * A partition filter lists the dataset under its own filter-hint key. A rewrite of a file under that filter fails the first read
+     * with the object-changed condition, and the failure drops the cached listings of the dataset. The next query lists again and
+     * returns the rewritten file's rows.
+     */
+    public void testRewrittenFileUnderPartitionFilterFailsThenReadsNewRows() throws Exception {
+        Path dir = createTempDir();
+        Path y2024 = Files.createDirectories(dir.resolve("year=2024"));
+        Path y2025 = Files.createDirectories(dir.resolve("year=2025"));
+        long part0Rows = writeNdjsonFile(y2024.resolve("part-0.ndjson"), 0);
+        long part1Rows = writeNdjsonFile(y2024.resolve("part-1.ndjson"), part0Rows);
+        writeNdjsonFile(y2025.resolve("part-0.ndjson"), 1_000_000L);
+        String dataset = registerDataset(
+            "ndjson_partition_rewrite",
+            globUri(dir, "*/*.ndjson"),
+            Map.of("segment_size", "64kb", "target_split_size", "256mb")
+        );
+        String query = "FROM " + dataset + " | WHERE year == 2024 | STATS c = COUNT(*)";
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertCount(response, part0Rows + part1Rows);
+        }
+
+        // A rewrite with two rows: a new length and a new modification time, so the listed version is stale.
+        Files.writeString(y2024.resolve("part-0.ndjson"), "{\"a\":0,\"b\":0}\n{\"a\":1,\"b\":10}\n");
+        Exception changed = expectThrows(
+            Exception.class,
+            () -> run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5)).close()
+        );
+        // The read ran on a data node, so the failure arrives as a wrapper that keeps the condition, not the exception class.
+        assertTrue(
+            "the first read under the stale listing must fail with the object-changed condition",
+            ExternalException.hasCondition(changed, ExternalException.Condition.OBJECT_CHANGED)
+        );
+        try (var response = run(syncEsqlQueryRequest(query).profile(true), TimeValue.timeValueMinutes(5))) {
+            assertCount(response, 2L + part1Rows);
         }
     }
 

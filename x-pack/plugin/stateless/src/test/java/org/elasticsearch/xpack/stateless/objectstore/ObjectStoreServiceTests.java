@@ -47,6 +47,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
@@ -1388,6 +1389,74 @@ public class ObjectStoreServiceTests extends ESTestCase {
                     Level.WARN,
                     "*translog file*uploaded in*ms*"
                 )
+            );
+        }
+    }
+
+    public void testTranslogUploadRecordsDurationAndSize() throws Exception {
+        final var time = new AtomicLong(0);
+        final var meterRegistry = new RecordingMeterRegistry();
+        final long uploadDuration = randomLongBetween(0, 1_000_000);
+
+        try (
+            var testHarness = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                1,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                meterRegistry
+            ) {
+                @Override
+                protected ThreadPool createThreadPool(Settings nodeSettings) {
+                    return new TestThreadPool("test", nodeSettings, StatelessPlugin.statelessExecutorBuilders(nodeSettings, true)) {
+                        @Override
+                        public long relativeTimeInMillis() {
+                            return time.get();
+                        }
+                    };
+                }
+
+                @Override
+                public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                    return new FilterBlobContainer(innerContainer) {
+                        @Override
+                        protected BlobContainer wrapChild(BlobContainer child) {
+                            return child;
+                        }
+
+                        @Override
+                        public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+                            throws IOException {
+                            if (purpose == OperationPurpose.TRANSLOG) {
+                                time.addAndGet(uploadDuration);
+                            }
+                            super.writeBlob(purpose, blobName, bytes, failIfAlreadyExists);
+                        }
+                    };
+                }
+            }
+        ) {
+            final var bytes = new BytesArray(randomByteArrayOfLength(between(1, 64) * 1024));
+            final var future = new PlainActionFuture<Void>();
+            testHarness.objectStoreService.uploadTranslogFile("translog", bytes, future);
+            safeGet(future);
+
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.TRANSLOG_UPLOAD_DURATION_HISTOGRAM)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .toList(),
+                equalTo(List.of(uploadDuration))
+            );
+            assertThat(
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, ObjectStoreService.TRANSLOG_UPLOAD_SIZE_HISTOGRAM)
+                    .stream()
+                    .map(Measurement::getLong)
+                    .toList(),
+                equalTo(List.of(ByteSizeUnit.BYTES.toKB(bytes.length())))
             );
         }
     }

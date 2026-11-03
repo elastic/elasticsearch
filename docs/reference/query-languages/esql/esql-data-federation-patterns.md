@@ -2,7 +2,7 @@
 navigation_title: "Resource patterns"
 description: "Reference for ES|QL Data Federation resource pattern syntax, including wildcards, character classes, alternation, numeric ranges, and file exclusions."
 applies_to:
-  stack: experimental 9.6+
+  stack: preview 9.6+
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -218,7 +218,7 @@ In addition to the pattern syntax, a storage provider can restrict which resourc
 $$$s3-resource-requirements$$$
 ### Amazon S3 resource restrictions
 ```{applies_to}
-stack: experimental 9.6+
+stack: preview 9.6+
 ```
 
 {{es}} rejects an Amazon S3 resource when the AWS SDK routes its bucket identifier somewhere other than the regional object endpoint. Setting `endpoint` on the data source does not override this behavior for S3 on Outposts aliases.
@@ -263,7 +263,7 @@ Writing `"resource": "s3://logs-bucket/access/{year}/*.parquet"` instead would r
 
 ### Exclude non-data objects
 ```{applies_to}
-stack: experimental 9.6+
+stack: preview 9.6+
 ```
 
 #### Exclusion behavior

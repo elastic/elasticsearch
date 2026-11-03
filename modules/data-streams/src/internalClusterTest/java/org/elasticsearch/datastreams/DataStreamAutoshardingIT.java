@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -521,7 +522,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shardRouting = shardRouting.initialize(assignedShardNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -529,7 +530,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
         stats.docs = new DocsStats(100, 0, randomByteSizeValue().getBytes());
         stats.store = new StoreStats();
         stats.indexing = new IndexingStats(
-            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, targetWriteLoad)
+            new IndexingStats.Stats(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, false, 1, 234, 234, 1000, 0.123, targetWriteLoad)
         );
         return new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null, null, false, 0);
     }

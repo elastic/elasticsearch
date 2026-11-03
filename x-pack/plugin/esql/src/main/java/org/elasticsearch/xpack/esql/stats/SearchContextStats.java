@@ -23,20 +23,26 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.codec.tsdb.PartitionedDocValues;
+import org.elasticsearch.index.mapper.AbstractScriptFieldType;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -154,9 +160,9 @@ public class SearchContextStats implements SearchStats {
      * A field ES|QL can extract from this shard: present in the mapping and not under a nested
      * parent. {@link org.elasticsearch.xpack.esql.session.IndexResolver} applies {@code -nested}
      * on the field-caps request, so treating nested subfields as present here would make
-     * {@code exists}/{@code count} disagree with extraction.
+     * {@code exists}/{@code count} or pushed-down predicates disagree with extraction.
      */
-    private static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
+    public static boolean isExtractableMappedField(SearchExecutionContext context, String field) {
         return context.isMappedField(field) && isNestedSubfield(context, field) == false;
     }
 
@@ -203,6 +209,49 @@ public class SearchContextStats implements SearchStats {
     @Override
     public boolean hasDocValues(FieldName field) {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
+    }
+
+    @Override
+    public boolean isQueryable(FieldName field, DataType type, boolean comparesValuesAsRead) {
+        boolean held = false;
+        for (SearchExecutionContext context : contexts) {
+            if (isQueryable(context, field.string(), type, comparesValuesAsRead) == false) {
+                return false;
+            }
+            held |= isExtractableMappedField(context, field.string());
+        }
+        return held;
+    }
+
+    /**
+     * Whether the shard of {@code context} can query {@code field} as ES|QL reads it, as {@code type}: from its doc values, or from a
+     * runtime field where expensive queries are allowed. A shard that cannot hold the field can query it too, as nothing matches.
+     * A shard that reads the field from {@code _source} checks the values it reads instead.
+     *
+     * @param comparesValuesAsRead whether the query compares the values as read, which a {@code keyword} with a normalizer does not
+     */
+    public static boolean isQueryable(SearchExecutionContext context, String field, DataType type, boolean comparesValuesAsRead) {
+        MappedFieldType fieldType = context.getFieldType(field);
+        if (isExtractableMappedField(context, field) == false) {
+            // A sub-field of a nested object, say, is a field ES|QL does not read, but a query on it could match
+            return fieldType == null;
+        }
+        if (context instanceof EsqlSearchExecutionContext esql && esql.readsFromSource(field)) {
+            return false;
+        }
+        return fieldType.isAggregatable()
+            && (fieldType instanceof AbstractScriptFieldType<?> == false || context.allowExpensiveQueries())
+            && dataType(fieldType) == type
+            && (comparesValuesAsRead == false
+                || (fieldType instanceof KeywordFieldMapper.KeywordFieldType k && k.hasNormalizer()) == false);
+    }
+
+    /** The type ES|QL reads a field of {@code fieldType} as. A key of a {@code flattened} field is a {@code keyword}. */
+    private static DataType dataType(MappedFieldType fieldType) {
+        if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType) {
+            return DataType.KEYWORD;
+        }
+        return EsqlDataTypeRegistry.INSTANCE.fromEs(fieldType.familyTypeName(), fieldType.getMetricType()).widenSmallNumeric();
     }
 
     @Override
@@ -472,6 +521,20 @@ public class SearchContextStats implements SearchStats {
                     return false;
                 }
             } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+        if (contexts.isEmpty()) {
+            return false;
+        }
+        for (SearchExecutionContext ctx : contexts) {
+            final MappedFieldType type = ctx.getFieldType(name.string());
+            if ((type instanceof KeywordFieldMapper.KeywordFieldType keyword && keyword.emptyStringReadsAsNull()) == false) {
                 return false;
             }
         }

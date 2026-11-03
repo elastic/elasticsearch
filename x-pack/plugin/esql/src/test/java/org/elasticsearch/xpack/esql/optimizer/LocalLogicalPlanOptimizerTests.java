@@ -55,6 +55,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -261,14 +264,12 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
     /**
      * {@snippet lang="text":
-     * Project[[first_name{f}#7, last_name{r}#17]]
-     * \_Limit[1000[INTEGER],true]
-     *   \_MvExpand[last_name{f}#10,last_name{r}#17]
-     *     \_Project[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15, lang
-     * uages{f}#9, last_name{r}#10, long_noidx{f}#16, salary{f}#11]]
-     *       \_Eval[[null[KEYWORD] AS last_name]]
-     *         \_Limit[1000[INTEGER],false]
-     *           \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * Project[[first_name{f}#8, last_name{r}#18]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[last_name{f}#11,last_name{r}#18]
+     *     \_Eval[[null[KEYWORD] AS last_name#11]]
+     *       \_Limit[1000[INTEGER],false,false]
+     *         \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      * }
      */
     public void testMissingFieldInMvExpand() {
@@ -281,20 +282,17 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var testStats = statsForMissingField("last_name");
         var localPlan = localPlan(plan, testStats);
 
-        // It'd be much better if this project was pushed down past the MvExpand, because MvExpand's cost scales with the number of
-        // involved attributes/columns.
         var project = as(localPlan, Project.class);
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
         var limit1 = asLimit(project.child(), 1000, true);
         var mvExpand = as(limit1.child(), MvExpand.class);
-        var project2 = as(mvExpand.child(), Project.class);
-        var eval = as(project2.child(), Eval.class);
-        assertEquals(eval.fields().size(), 1);
-        var lastName = eval.fields().get(0);
-        assertEquals(lastName.name(), "last_name");
-        assertEquals(lastName.child(), new Literal(EMPTY, null, KEYWORD));
+        var eval = as(mvExpand.child(), Eval.class);
+        assertEquals(1, eval.fields().size());
+        var lastName = eval.fields().getFirst();
+        assertEquals("last_name", lastName.name());
+        assertEquals(new Literal(EMPTY, null, KEYWORD), lastName.child());
         var limit2 = asLimit(eval.child(), 1000, false);
         var relation = as(limit2.child(), EsRelation.class);
         assertThat(Expressions.names(relation.output()), not(contains("last_name")));
@@ -1386,6 +1384,69 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         // The field must remain a FieldAttribute — not replaced with a constant Literal
         assertThat(fullTextFunction.field(), instanceOf(FieldAttribute.class));
         assertThat(Expressions.name(fullTextFunction.field()), equalTo("first_name"));
+    }
+
+    private static EsqlTestUtils.TestSearchStats emptyStringReadsAsNull(String field) {
+        return new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean emptyStringReadsAsNull(FieldAttribute.FieldName name) {
+                return name.string().equals(field);
+            }
+        };
+    }
+
+    public void testEqualsEmptyStringBecomesIsNull() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name == ""
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("first_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNull = as(filter.condition(), IsNull.class);
+        assertThat(Expressions.name(isNull.field()), equalTo("first_name"));
+    }
+
+    public void testNotEqualsEmptyStringBecomesIsNotNull() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name != ""
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("first_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var isNotNull = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.name(isNotNull.field()), equalTo("first_name"));
+    }
+
+    public void testEmptyStringIsLeftAloneOnAnOrdinaryField() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name == ""
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("last_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), Equals.class);
+    }
+
+    public void testANonEmptyStringIsLeftAlone() {
+        var plan = testAnalyzer().coordinatorPlan("""
+            from test
+            | where first_name == "John"
+            """);
+
+        var localPlan = localPlan(plan, emptyStringReadsAsNull("first_name"));
+
+        var limit = as(localPlan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        as(filter.condition(), Equals.class);
     }
 
     public void testConstantFieldReplacedOutsideFullTextFunction() {

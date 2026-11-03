@@ -44,6 +44,7 @@ import org.apache.lucene.util.IOFunction;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.bwc.Elasticsearch900Lucene101Codec;
@@ -2165,6 +2166,10 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
     }
 
     abstract static class BytesRefBuilderStub implements BlockLoader.BytesRefBuilder {
+        @Override
+        public BlockLoader.BytesRefBuilder appendBytesReference(BytesReference value) {
+            throw new UnsupportedOperationException();
+        }
 
         @Override
         public BlockLoader.BytesRefBuilder appendBytesRef(BytesRef value) {

@@ -53,6 +53,21 @@ public class SchemaCacheKeyTests extends ESTestCase {
      * The path string is deliberately excluded. It dominates the retained graph and is not this change's to
      * shrink; what this pins is the part that is.
      */
+    /**
+     * A rewrite that keeps the modification time moves the version, so the record of the old contents is a different key.
+     * The version survives dropping the sample depth, which the statistics address is built from.
+     */
+    public void testVersionSeparatesRecordsWithTheSameModificationTime() {
+        DatasetIdentity identity = TestDatasetIdentities.identity("csv", "", Map.of());
+        SchemaCacheKey first = SchemaCacheKey.build("s3://b/f.csv", 1000L, "e1", identity, false);
+        SchemaCacheKey second = SchemaCacheKey.build("s3://b/f.csv", 1000L, "e2", identity, false);
+        assertNotEquals("the same mtime at another version is another record", first, second);
+        assertEquals("e1", first.version());
+        SchemaCacheKey sampled = SchemaCacheKey.buildShared("s3://b/f.csv", 1000L, "e1", identity, 400);
+        assertEquals("the sample depth is dropped, the version is kept", "e1", sampled.withoutSampleDepth().version());
+        assertNull("a key built without a version has none", SchemaCacheKey.build("s3://b/f.csv", 1000L, identity, false).version());
+    }
+
     public void testThePerFileKeyFootprintStaysSmall() {
         assumeTrue("footprint figures are pinned for the compressed-reference layout", RamUsageEstimator.COMPRESSED_REFS_ENABLED);
 
@@ -64,11 +79,11 @@ public class SchemaCacheKeyTests extends ESTestCase {
 
         // Header + six longs + the cached hash. A nested object or a retained string makes this 72.
         assertEquals("DatasetIdentity must stay six longs and an int behind one reference", 64L, identityShallow);
-        // Header, one identity reference, one path reference, a long and an int. A fifth component makes
-        // this 40, which is what it measured while the key still carried the read-addressing it no longer
-        // needs - the statistics address is a StatisticsKey now.
-        assertEquals("the per-file key must stay at four components", 32L, keyShallow);
-        assertEquals("and the pair is what replaced three retained strings", 96L, keyShallow + identityShallow);
+        // Header, one identity reference, one path reference, a long, an int and the version reference. The version
+        // is what makes a rewrite that keeps the modification time a different record (see SchemaCacheKey), and it
+        // costs one reference per key: 40 bytes where the four-component key measured 32.
+        assertEquals("the per-file key is five components: four and the object version", 40L, keyShallow);
+        assertEquals("and the pair is what replaced three retained strings", 104L, keyShallow + identityShallow);
     }
 
     /**

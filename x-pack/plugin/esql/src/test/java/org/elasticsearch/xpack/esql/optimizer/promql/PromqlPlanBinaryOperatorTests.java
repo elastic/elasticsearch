@@ -19,16 +19,21 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
@@ -48,6 +53,8 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InnerJoin;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -708,6 +715,133 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(plan.collect(InnerJoin.class), hasSize(1));
     }
 
+    /**
+     * A count is at least 1 for an element and a group with none is no element. Fused with the other operand's aggregate,
+     * an operand's count reads 0 in a group that only the other operand's rows create; the plan turns that 0 into null so
+     * the pair drops with the unmatched ones, for the series count and for the sample count alike.
+     */
+    public void testEmptyCountOperandIsNull() {
+        for (String promql : List.of(
+            "count by (cluster) (network.bytes_in) - count by (cluster) (network.cost{pod=\"one\"})",
+            "count_over_time(network.bytes_in[5m]) - count_over_time(network.cost{pod=\"one\"}[5m])",
+            "sum by (cluster) (count_over_time(network.bytes_in[5m])) - sum by (cluster) (count_over_time(network.cost{pod=\"one\"}[5m]))",
+            "count(network.bytes_in{pod=~\"nope\"}) - count(network.cost{pod=~\"nope\"})"
+        )) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + promql + ")");
+            assertThat(promql + ": one null-when-empty count per operand\n" + plan, zeroCountGuards(plan), hasSize(2));
+        }
+    }
+
+    /**
+     * A range function over a series without a sample in the window is no element. Fused with the other operand's
+     * aggregate, an operand's {@code count_over_time} reads 0 and its {@code present_over_time} false for every series its
+     * matchers reject; each maps to null before the across-series {@code count} sees it, so the count covers the matching
+     * series only.
+     */
+    public void testEmptyRangeOperandIsNull() {
+        Eval countOverTime = acrossSeriesInput("count_over_time");
+        assertThat(countOverTime.toString(), zeroCountGuards(countOverTime), hasSize(2));
+        Eval presentOverTime = acrossSeriesInput("present_over_time");
+        List<Case> falseAsNull = new ArrayList<>();
+        presentOverTime.forEachExpressionDown(Case.class, c -> {
+            if (c.children().size() == 3 && Literal.TRUE.equals(c.children().get(1)) && Literal.NULL.equals(c.children().get(2))) {
+                falseAsNull.add(c);
+            }
+        });
+        assertThat(presentOverTime.toString(), falseAsNull, hasSize(2));
+    }
+
+    /**
+     * Fused with another operand's aggregate, an operand's {@code absent_over_time} reads true for every series its
+     * matchers reject. True stays only for a series the operand selects: one with a row passing its matchers in the window.
+     */
+    public void testFusedAbsentOverTimeStaysOnlyForSelectedSeries() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m result=(max by (cluster) (absent_over_time(network.bytes_in[5m])) "
+                + "- max by (cluster) (absent_over_time(network.cost{pod=\"one\"}[5m])))"
+        );
+        List<Present> selected = timestampPresence(plan);
+        assertThat(plan.toString(), selected, hasSize(2));
+        List<Expression> selectedFilters = selected.stream().filter(Present::hasFilter).map(Present::filter).toList();
+        assertThat(plan.toString(), selectedFilters, hasSize(1));
+        assertEquals(List.of("pod"), selectedFilters.getFirst().references().stream().map(Attribute::name).toList());
+    }
+
+    /**
+     * A series a metric selector selects has a sample of the metric, so a metric's {@code absent_over_time} never has an
+     * element, fused or not: no row-presence check of the series is planned for it.
+     */
+    public void testFusedAbsentOverTimeOfMetricsChecksNoRowPresence() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m result=(max by (cluster) (absent_over_time(network.eth0.tx[5m])) "
+                + "- max by (cluster) (absent_over_time(network.eth0.rx{pod=\"one\"}[5m])))"
+        );
+        assertThat(plan.toString(), timestampPresence(plan), hasSize(0));
+    }
+
+    /** The {@code present(@timestamp)} checks of whether an operand reads a row of the series in the window. */
+    private static List<Present> timestampPresence(LogicalPlan plan) {
+        List<Present> presence = new ArrayList<>();
+        plan.forEachExpressionDown(Present.class, p -> {
+            if (p.field() instanceof Attribute field && field.name().equals("@timestamp")) {
+                presence.add(p);
+            }
+        });
+        return presence;
+    }
+
+    /**
+     * The input of the across-series aggregate of two fused operands, each counting {@code rangeFunction} over one metric:
+     * the per-series range values the outer {@code count}s read.
+     */
+    private Eval acrossSeriesInput(String rangeFunction) {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m result=(count by (cluster) ("
+                + rangeFunction
+                + "(network.bytes_in[5m])) - count by (cluster) ("
+                + rangeFunction
+                + "(network.cost{pod=\"one\"}[5m])))"
+        );
+        List<Aggregate> outer = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat(plan.toString(), outer, hasSize(1));
+        assertThat(plan.toString(), outer.getFirst().child(), instanceOf(Eval.class));
+        return (Eval) outer.getFirst().child();
+    }
+
+    /** A range function maps to null once, however many operators compose over it. */
+    public void testChainedRangeCountsMapOnce() {
+        LogicalPlan plan = planPromql(
+            "PROMQL index=k8s step=1m result=(count_over_time(network.bytes_in[5m]) - count_over_time(network.cost[5m]) "
+                + "- count_over_time(network.total_bytes_in[5m]))"
+        );
+        assertThat(plan.toString(), zeroCountGuards(plan), hasSize(3));
+    }
+
+    /**
+     * The operator leaves a null value for a series without a partner; the enclosing {@code count} counts no element for a
+     * group of such series, so the group is no element either rather than a count of 0.
+     */
+    public void testCountOverUnmatchedPairsIsNoElement() {
+        for (String promql : List.of(
+            "count by (pod) (network.bytes_in / network.cost)",
+            "count by (cluster) (sum by (pod, cluster) (network.bytes_in) / sum by (pod, cluster) (network.cost{pod!=\"one\"}))"
+        )) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + promql + ")");
+            assertThat(promql + ": the enclosing count maps 0 to no element\n" + plan, zeroCountGuards(plan), hasSize(1));
+        }
+    }
+
+    /** The {@code CASE(count == 0, null, count)} guards that map a count of 0 to no element. */
+    private static List<Case> zeroCountGuards(LogicalPlan plan) {
+        List<Case> guards = new ArrayList<>();
+        plan.forEachExpressionDown(Case.class, c -> {
+            if (c.children().getFirst() instanceof Equals eq && eq.right() instanceof Literal l && Long.valueOf(0L).equals(l.value())) {
+                guards.add(c);
+            }
+        });
+        return guards;
+    }
+
     private static void assertNoIndexBackedPromqlPlan(LogicalPlan plan) {
         assertThat(plan.collect(PromqlCommand.class), hasSize(0));
         assertThat(plan.collect(UnresolvedRelation.class), hasSize(0));
@@ -744,6 +878,82 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         );
         assertThat(outputNames("sum without (pod) (sum by (pod) (requests) / sum by (pod) (errors))"), equalTo(List.of("result", "step")));
         assertThat(outputNames("count without (cluster) (sum(requests) + sum(errors))"), equalTo(List.of("result", "step")));
+    }
+
+    /**
+     * When {@code __name__} is a dimension, every metric lives in its own series, so an unmatched binary operator between
+     * different metrics folded into one shared frame would find one side null on every row and silently return nothing.
+     * Default matching over opaque operands needs match keys derived from runtime-defined labels, so it is rejected.
+     */
+    public void testDifferentMetricsInSeparateSeriesRejected() {
+        for (String promql : List.of(
+            "node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes",
+            "node_memory_MemAvailable_bytes > bool node_memory_MemTotal_bytes",
+            "rate(node_cpu_seconds_total[5m]) / node_memory_MemTotal_bytes",
+            "(node_memory_MemAvailable_bytes + 1) * node_memory_MemTotal_bytes",
+            "sum(node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes",
+            "sum by (instance) (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)"
+        )) {
+            VerificationException e = expectThrows(VerificationException.class, () -> planPrometheusLayout(promql));
+            assertThat(
+                promql,
+                e.getMessage(),
+                containsString("binary operations between different metrics require aggregating both operands by the labels to match on")
+            );
+        }
+    }
+
+    /** Shapes over a {@code __name__}-dimension index that evaluate correctly and must keep planning. */
+    public void testSameMetricOrAggregatedOperandsAllowedInSeparateSeries() {
+        for (String promql : List.of(
+            "node_memory_MemTotal_bytes / node_memory_MemTotal_bytes",
+            "node_memory_MemTotal_bytes{job=\"node\"} - node_memory_MemTotal_bytes{instance=\"a:9100\"}",
+            "rate(node_cpu_seconds_total[5m]) / node_cpu_seconds_total",
+            "node_memory_MemTotal_bytes * 8",
+            "node_memory_MemTotal_bytes > 5",
+            "sum by (instance) (node_memory_MemAvailable_bytes) / sum by (instance) (node_memory_MemTotal_bytes)",
+            "sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)",
+            "node_memory_MemAvailable_bytes or node_memory_MemTotal_bytes"
+        )) {
+            assertNotNull(promql, planPrometheusLayout(promql));
+        }
+    }
+
+    /**
+     * Plans against the layout of {@code metrics-prometheus@template}: {@code labels} and {@code metrics} are passthrough
+     * objects, so each sub-field is also exposed under its bare name, and {@code labels.__name__} is a dimension.
+     */
+    private LogicalPlan planPrometheusLayout(String promql) {
+        EsField name = dimension("__name__");
+        EsField instance = dimension("instance");
+        EsField job = dimension("job");
+        EsField available = metric("node_memory_MemAvailable_bytes", DataType.DOUBLE);
+        EsField total = metric("node_memory_MemTotal_bytes", DataType.DOUBLE);
+        EsField cpu = metric("node_cpu_seconds_total", DataType.COUNTER_DOUBLE);
+        Map<String, EsField> labels = Map.of(name.getName(), name, instance.getName(), instance, job.getName(), job);
+        Map<String, EsField> metrics = Map.of(available.getName(), available, total.getName(), total, cpu.getName(), cpu);
+        Map<String, EsField> mapping = new HashMap<>(labels);
+        mapping.putAll(metrics);
+        mapping.put("@timestamp", DateEsField.dateEsField("@timestamp", Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("labels", new EsField("labels", DataType.OBJECT, labels, false, EsField.TimeSeriesFieldType.NONE));
+        mapping.put("metrics", new EsField("metrics", DataType.OBJECT, metrics, false, EsField.TimeSeriesFieldType.NONE));
+        var index = new EsIndex(
+            "metrics-node.prometheus-default",
+            mapping,
+            Map.of("metrics-node.prometheus-default", new IndexProperties(IndexMode.TIME_SERIES, 0)),
+            Map.of(),
+            Map.of()
+        );
+        var analyzed = tsAnalyzer().addIndex(index).query("PROMQL index=metrics-node.prometheus-default step=1m result=(" + promql + ")");
+        return logicalOptimizerWithLatestVersion.optimize(analyzed);
+    }
+
+    private static EsField dimension(String name) {
+        return new KeywordEsField(name, Map.of(), true, 0, false, false, EsField.TimeSeriesFieldType.DIMENSION);
+    }
+
+    private static EsField metric(String name, DataType type) {
+        return new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.METRIC);
     }
 
     private List<String> outputNames(String promql) {

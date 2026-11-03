@@ -53,6 +53,11 @@ public abstract class DelegatingStorageProvider implements StorageProvider {
     }
 
     @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return delegate().newObject(path, length, lastModified, version);
+    }
+
+    @Override
     public StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException {
         return delegate().listObjects(prefix, recursive);
     }

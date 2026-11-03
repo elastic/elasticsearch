@@ -11,6 +11,7 @@ The following constructs are not evaluated yet, so they return a client error (4
 - Comparison operators: evaluated only at the top level of an expression and only with a scalar literal on the right-hand side. Comparisons between two instant vectors, and nested comparisons, return a client error (4xx).
 - Group modifiers: `on(...)`, `ignoring(...)`, `group_left`, `group_right`.
 - The `@` modifier.
+- {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Scalar function calls as horizons in `predict_linear`, such as `predict_linear(metric[1h], time())` or `predict_linear(metric[1h], scalar(sum(other_metric)))`. The horizon must be a number in seconds, a duration literal, or arithmetic on literals.
 - Subqueries, such as `max_over_time(rate(http_requests_total)[1h:])`.
 - Selectors without a metric name, and regex matchers on `__name__`, such as `{__name__=~"node_.*"}`.
 - Binary expressions with a `without(...)` aggregation as an operand, and `without(...)` aggregations nested inside another `without(...)` aggregation, such as `sum without (pod) (max without (container) (...))`. Use `by(...)` instead.

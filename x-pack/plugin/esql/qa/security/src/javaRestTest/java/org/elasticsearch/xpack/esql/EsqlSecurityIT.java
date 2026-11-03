@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -67,6 +68,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
     protected static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
     private static final String INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL = "index-dynamic-disabled";
     private static final String LOOKUP_INDEX_FOR_UNMAPPED_FIELDS_LOAD_ALL = "lookup-index-dynamic-disabled";
+    private static final String INDEX_UNMAPPED_CONTAINER = "index-unmapped-container";
+    private static final String INDEX_UNMAPPED_SOURCE = "index-unmapped-source";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";
     /** The {@code _unmapped_fields} of the two {@link #INDEX_PARTIAL_MAPPING} documents for a user who may see all of them. */
     private static final Map<String, Object> PARTIAL_MAPPING_SALES = Map.of(
@@ -105,7 +108,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
-        // Federation is only on by default in snapshot builds; the data source and dataset authorization tests need it on.
+        // Pinned so the data source and dataset authorization tests do not depend on the default, which is off on a
+        // stateless release build.
         .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test-admin", "x-pack-test-password", "test-admin", true)
@@ -144,6 +148,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             false
         )
         .user("fls_unmapped_load_all_lookup_join_user", "x-pack-test-password", "read_unmapped_load_all,fls_user2", false)
+        .user("fls_unmapped_container_user", "x-pack-test-password", "fls_unmapped_container_except_k", false)
         .user("lookup_unmapped_load_all_user", "x-pack-test-password", "read_unmapped_load_all,read_lookup_unmapped_load_all", false)
         .user(
             "fls_lookup_unmapped_load_all_user",
@@ -1669,6 +1674,80 @@ public class EsqlSecurityIT extends ESRestTestCase {
         );
         assertThat(result.values("org"), equalTo(List.of("sales", "engineering", "marketing")));
         assertThat(result.values("value"), equalTo(Arrays.asList(40.0, null, 32.0)));
+    }
+
+    /**
+     * A columnar index with flattened unmapped fields keeps them in its {@code _unmapped} field, which field-level security does
+     * not filter by key. Every unmapped field read or searched there is checked against the role on its own.
+     */
+    public void testFLS_HidesUnmappedFieldKeptInTheUnmappedField() throws Exception {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "unmapped fields are read from the _unmapped field",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))
+        );
+        Settings settings = Settings.builder()
+            .put("index.mode", "columnar")
+            .put("index.mapping.flattened_unmapped_fields.enabled", true)
+            .put("index.number_of_shards", 1)
+            .build();
+        createIndex(INDEX_UNMAPPED_CONTAINER, settings, "\"properties\": { \"other\": { \"type\": \"keyword\" } }");
+        Request indexDoc = new Request("PUT", INDEX_UNMAPPED_CONTAINER + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "k": "a", "visible": "v", "other": "x" }""");
+        client().performRequest(indexDoc);
+
+        String from = "SET unmapped_fields=\"load\"; FROM " + INDEX_UNMAPPED_CONTAINER;
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "v")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | WHERE k == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | STATS c = COUNT(k)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | WHERE k == \"a\" | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "v")))
+        );
+    }
+
+    /**
+     * An index that does not map {@code k} keeps it in {@code _source}, where the shard reads it and runs a pushed filter on it.
+     * Field-level security hides it there as it hides a mapped field: it reads as null and no filter on it matches.
+     */
+    public void testFLS_HidesUnmappedFieldReadFromSource() throws Exception {
+        assumeTrue(
+            "unmapped fields are resolved by each shard",
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))
+        );
+        createIndex(INDEX_UNMAPPED_SOURCE, Settings.EMPTY, "\"dynamic\": false, \"properties\": { \"other\": { \"type\": \"keyword\" } }");
+        Request indexDoc = new Request("PUT", INDEX_UNMAPPED_SOURCE + "/_doc/1?refresh=true");
+        indexDoc.setJsonEntity("""
+            { "k": "a", "visible": "v", "other": "x" }""");
+        client().performRequest(indexDoc);
+
+        String from = "SET unmapped_fields=\"load\"; FROM " + INDEX_UNMAPPED_SOURCE;
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(Arrays.asList(null, "v")))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | WHERE k == \"a\" | STATS c = COUNT(*)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("fls_unmapped_container_user", from + " | STATS c = COUNT(k)")),
+            matchesMap().extraOk().entry("values", List.of(List.of(0)))
+        );
+        assertMap(
+            entityAsMap(runESQLCommand("test-admin", from + " | WHERE k == \"a\" | KEEP k, visible | LIMIT 10")),
+            matchesMap().extraOk().entry("values", List.of(List.of("a", "v")))
+        );
     }
 
     public void testLookupJoin_UnmappedSourceField_NotReturned_WithUnmappedFieldsLoadAll() throws Exception {
@@ -3995,7 +4074,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 ResponseException.class,
                 () -> runESQLCommand(
                     "ds_dataset_query_ok_plus_dls",
-                    "SET wildcards_match_datasets = true; FROM " + dls + ",-" + dls + " | STATS COUNT(*)"
+                    "SET wildcards_match_datasets = true; FROM " + dls + ",-" + dls + "* | STATS COUNT(*)"
                 )
             );
             assertThat(
@@ -4005,6 +4084,74 @@ public class EsqlSecurityIT extends ESRestTestCase {
             );
         } finally {
             deleteDatasetAsAdmin(dls);
+        }
+    }
+
+    /**
+     * A view over an authorized dataset is expanded and the inner dataset is reached. The dataset's missing S3
+     * resource fails the query with 400 naming that dataset — the same discriminator as a direct {@code FROM <dataset>}.
+     */
+    public void testViewOverDatasetAuthorized() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        final String view = "security_it_ds_keep_view_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        createView("test-admin", view, "FROM " + dataset);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_partial", "FROM " + view + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString(dataset));
+        } finally {
+            deleteView("test-admin", view);
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * {@code user1} can read {@code other-view-user1} but not the dataset in its body. The expanded name is hidden
+     * the same way an unauthorized exact dataset is: 400 {@code Unknown index}, not a 403 existence leak.
+     */
+    public void testViewOverDatasetUnauthorizedIsUnknownIndex() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin("security_it_ds_keep_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT));
+        createView("test-admin", "other-view-user1", "FROM " + dataset);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("user1", "FROM other-view-user1 | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_BAD_REQUEST));
+            assertThat(ex.getMessage(), containsString("Unknown index [" + dataset + "]"));
+        } finally {
+            deleteView("test-admin", "other-view-user1");
+            deleteDatasetAsAdmin(dataset);
+        }
+    }
+
+    /**
+     * DLS on the underlying dataset (or a view name in {@code security_it_ds_*}) rejects {@code FROM <view>} the same
+     * way a direct {@code FROM <dataset>} is rejected.
+     */
+    public void testViewOverDatasetDeniedWithDls() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String dataset = createSecurityItDatasetAsAdmin();
+        final String view = "security_it_ds_view_" + randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        createView("test-admin", view, "FROM " + dataset);
+        try {
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runESQLCommand("ds_dataset_query_dls", "FROM " + view + " | STATS COUNT(*)")
+            );
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            assertThat(ex.getMessage(), containsString("document or field level security"));
+        } finally {
+            deleteView("test-admin", view);
+            deleteDatasetAsAdmin(dataset);
         }
     }
 

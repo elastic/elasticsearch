@@ -58,6 +58,7 @@ import static org.apache.parquet.schema.LogicalTypeAnnotation.dateType;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.decimalType;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.float16Type;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.stringType;
+import static org.apache.parquet.schema.LogicalTypeAnnotation.timeType;
 import static org.apache.parquet.schema.LogicalTypeAnnotation.timestampType;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
@@ -540,27 +541,153 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     }
 
     /**
-     * A physical {@code TIME(MICROS)} column maps to LONG at inference, so a declared {@code date_nanos} over
-     * it is reachable once {@code supports(LONG, DATE_NANOS)} holds. TIME is nanos-of-day, not an epoch — and
-     * {@code isMicrosTimestamp} tests the Timestamp annotation, so before the allow-list a Time annotation fell
-     * through to divisor 1 while the scan separately scales x1_000: a guaranteed mis-prune. Both the comparison
-     * and the IN path must decline.
+     * A physical {@code TIME(MICROS)} column reads as {@code date_nanos} holding a nanosecond-of-day, while the
+     * footer statistics hold the raw microseconds — so the bound must be scaled down by 1_000 before it is pushed,
+     * exactly as for a {@code TIMESTAMP(MICROS)} column. Pushing the nanosecond literal verbatim would prune row
+     * groups the query matches, so the test asserts the scaled value is there and the unscaled one is not.
      */
-    public void testDeclaredDateNanosOverTimeColumnDeclinesPushdown() {
+    public void testDateNanosOverTimeColumnPushesTheScaledBound() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("t")
+            .named("test");
+        long nanosOfDay = 43_200_000_000_000L; // 12:00:00
+        long microsOfDay = nanosOfDay / 1_000L;
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATE_NANOS), lit(nanosOfDay, DataType.DATE_NANOS), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull("date_nanos over TIME(MICROS) is a plain unit scale and must push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(microsOfDay)));
+        assertThat("the nanosecond literal never reaches the footer", fp.toString(), not(containsString(String.valueOf(nanosOfDay))));
+
+        Expression inExpr = new In(Source.EMPTY, attr("t", DataType.DATE_NANOS), List.of(lit(nanosOfDay, DataType.DATE_NANOS)));
+        FilterPredicate inFp = new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema);
+        assertNotNull("date_nanos IN over TIME(MICROS) must push", inFp);
+        assertThat(inFp.toString(), containsString(String.valueOf(microsOfDay)));
+    }
+
+    /**
+     * An {@code INT32} {@code TIME(MILLIS)} column reads as {@code date}, and its stored millisecond of day IS the
+     * epoch-millis value a literal carries, so the bound pushes unscaled against the physical {@code intColumn}.
+     * This column pushed through the LONG arm before it became temporal; the assertion that the day scale is NOT
+     * applied is what separates the new arm from the {@code DATE} arm beside it.
+     */
+    public void testDatetimeOverInt32TimeMillisColumnPushesUnscaled() {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("t")
+            .named("test");
+        int millisOfDay = 37_230_000; // 10:20:30
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATETIME), datetimeLit(millisOfDay), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull("a millisecond of day is already the epoch-millis value and must push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(millisOfDay)));
+        // Under the DATE arm's day scale the bound would floor to 0, which prunes nothing and reads as a pass.
+        assertThat("the day scale belongs to DATE, not TIME", fp.toString(), not(containsString("(t, 0)")));
+    }
+
+    /**
+     * The same column under {@code IN}, which is a separate translator and was missed when the comparison arm was
+     * added. Before TIME became temporal this set pushed through {@code translateLongIn}'s {@code INT32} arm, so a
+     * decline here is a pruning regression against main rather than a pre-existing gap.
+     * {@code integralDecodeScalesRelativeToRawStats} returns {@code false} for {@code TIME(MILLIS)}, which is what
+     * let the LONG path push it, and that method is unchanged.
+     */
+    public void testDatetimeInOverInt32TimeMillisColumnPushesUnscaled() {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("t")
+            .named("test");
+        int morning = 37_230_000; // 10:20:30
+        int evening = 73_830_000; // 20:30:30
+
+        Expression in = new In(Source.EMPTY, attr("t", DataType.DATETIME), List.of(datetimeLit(morning), datetimeLit(evening)));
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(in)).toFilterPredicate(schema);
+        assertNotNull("an IN over a millisecond-of-day column must push, as it did before TIME became temporal", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(morning)));
+        assertThat(fp.toString(), containsString(String.valueOf(evening)));
+    }
+
+    /**
+     * A literal outside {@code int} range is dropped from the pushed set rather than declining the whole predicate.
+     * The remaining set is an exact subset, which is what keeps it correct when the {@code IN} is wrapped in
+     * {@code NOT} -- the {@code DATE} arm beside it can only drop whole literals for the same reason.
+     */
+    public void testDatetimeInOverInt32TimeMillisDropsOutOfRangeLiteral() {
+        MessageType schema = Types.buildMessage()
+            .required(INT32)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("t")
+            .named("test");
+        int morning = 37_230_000;
+
+        Expression in = new In(
+            Source.EMPTY,
+            attr("t", DataType.DATETIME),
+            List.of(datetimeLit(morning), datetimeLit(Integer.MAX_VALUE + 1L))
+        );
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(in)).toFilterPredicate(schema);
+        assertNotNull("the in-range literal still pushes", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(morning)));
+    }
+
+    /**
+     * {@code TIME(NANOS)} is the identity: the file's unit is the block's, so the bound pushes unchanged. Pinned
+     * beside the {@code MICROS} case so a fix that scales every TIME unit by 1_000 fails here.
+     */
+    public void testDateNanosOverTimeNanosColumnPushesUnscaled() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("t")
+            .named("test");
+        long nanosOfDay = 43_200_000_000_123L;
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATE_NANOS), lit(nanosOfDay, DataType.DATE_NANOS), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull(fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanosOfDay)));
+    }
+
+    /**
+     * The complement of the decline below: a declared {@code long} over a {@code TIME(NANOS)} column pushes the
+     * literal unchanged, because {@code castBlock(DATE_NANOS -> LONG)} is the identity and the footer already holds
+     * that same nanosecond-of-day. Pinned so that widening the decline to every {@code TIME} unit loses pruning
+     * loudly rather than silently.
+     */
+    public void testDeclaredLongOverTimeNanosColumnPushes() {
+        MessageType schema = Types.buildMessage()
+            .required(INT64)
+            .as(timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("t")
+            .named("test");
+        long nanosOfDay = 43_200_000_000_123L;
+
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.LONG), lit(nanosOfDay, DataType.LONG), null);
+        FilterPredicate fp = new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema);
+        assertNotNull("a long bound over TIME(NANOS) is the identity and must push", fp);
+        assertThat(fp.toString(), containsString(String.valueOf(nanosOfDay)));
+    }
+
+    /**
+     * A {@code TIME(MICROS)} column DECLARED as an integral type is the case that must still decline: the decode
+     * then hands back the nanosecond-of-day as a plain number while the footer holds microseconds, and an integral
+     * predicate carries no unit to reconcile them. {@code integralDecodeScalesRelativeToRawStats} owns that decline
+     * and is the reason the inventory keeps its TIME arm.
+     */
+    public void testDeclaredLongOverTimeMicrosColumnDeclinesPushdown() {
         MessageType schema = Types.buildMessage()
             .required(INT64)
             .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
             .named("t")
             .named("test");
 
-        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.DATE_NANOS), lit(43_200_000_000_000L, DataType.DATE_NANOS), null);
-        assertNull("date_nanos over TIME(MICROS) must not push", new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema));
-
-        Expression inExpr = new In(Source.EMPTY, attr("t", DataType.DATE_NANOS), List.of(lit(43_200_000_000_000L, DataType.DATE_NANOS)));
-        assertNull(
-            "date_nanos IN over TIME(MICROS) must not push",
-            new ParquetPushedExpressions(List.of(inExpr)).toFilterPredicate(schema)
-        );
+        Expression cmp = new GreaterThan(Source.EMPTY, attr("t", DataType.LONG), lit(43_200_000_000_000L, DataType.LONG), null);
+        assertNull("a long bound over TIME(MICROS) must not push", new ParquetPushedExpressions(List.of(cmp)).toFilterPredicate(schema));
     }
 
     /**
@@ -1371,7 +1498,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
      */
     public void testDatetimeIsNullDeclinesWhenDecodeCanNull() {
         MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
-        Expression isNull = new org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
+        Expression isNull = new IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
         FilterPredicate fp = new ParquetPushedExpressions(List.of(isNull)).toFilterPredicate(schema, Map.of("ts", "yyyyMMdd"));
         assertNull("IS NULL over a decode-can-null datetime column must decline", fp);
     }
@@ -1379,7 +1506,7 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
     /** A plain inferred datetime (bare INT64, no format) never nulls at decode, so IS NULL keeps pushing. */
     public void testDatetimeIsNullStillPushesWhenDecodeCannotNull() {
         MessageType schema = Types.buildMessage().required(INT64).named("ts").named("test");
-        Expression isNull = new org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
+        Expression isNull = new IsNull(Source.EMPTY, attr("ts", DataType.DATETIME));
         FilterPredicate fp = new ParquetPushedExpressions(List.of(isNull)).toFilterPredicate(schema);
         assertNotNull("IS NULL over a non-nulling inferred datetime must still push", fp);
     }
@@ -1388,9 +1515,11 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
      * The IS NULL pushdown gate must track {@link ParquetColumnDecoding#decodeCanNull} across the WHOLE truth table,
      * not the two cells the pair above pins. A decode that can mint a null from a physically-present value (a rescaling
      * temporal read at its range edge, or a format parse failure) makes the decoded null-set larger than the physical
-     * one, so {@code eq(col, null)} would prune a row group whose {@code nullCount == 0}. Only the identity reads keep
-     * the push: bare {@code INT64} / {@code TIMESTAMP(MILLIS)} datetime, {@code TIMESTAMP(NANOS)} date_nanos, and the
-     * no-format {@code INT32} date. Mutating {@code decodeCanNull} to {@code declaredFormat != null} reds this.
+     * one, so {@code eq(col, null)} would prune a row group whose {@code nullCount == 0}. What declines is narrower
+     * than "anything that rescales": a narrowing is total, so only a read that can leave a value with no
+     * representation at all declines -- {@code TIMESTAMP(MICROS)}, whose out-of-nanos-range values the decode nulls,
+     * the millis-to-nanos widen of a bare {@code INT64}, and any format parse. Mutating {@code decodeCanNull} to
+     * {@code declaredFormat != null} reds this.
      */
     public void testIsNullPushdownGateMatchesDecodeCanNullTruthTable() {
         LogicalTypeAnnotation.TimeUnit millis = LogicalTypeAnnotation.TimeUnit.MILLIS;
@@ -1398,20 +1527,32 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         LogicalTypeAnnotation.TimeUnit nanos = LogicalTypeAnnotation.TimeUnit.NANOS;
         record Case(String name, MessageType schema, DataType declared, String format, boolean pushes) {}
         List<Case> cases = List.of(
-            // DATETIME: identity over bare / MILLIS pushes; the rescaling MICROS / NANOS reads decline.
+            // DATETIME: the identity reads over bare / MILLIS push, and so does the NANOS narrowing -- floorDiv is
+            // total over the whole long domain. MICROS is the one decline: its out-of-nanos-range values are nulled in
+            // the decode, before any narrowing.
             new Case("datetime / bare INT64", int64Ts(null), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MILLIS)", int64Ts(timestampType(true, millis)), DataType.DATETIME, null, true),
             new Case("datetime / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATETIME, null, false),
-            new Case("datetime / TIMESTAMP(NANOS)", int64Ts(timestampType(true, nanos)), DataType.DATETIME, null, false),
+            new Case("datetime / TIMESTAMP(NANOS)", int64Ts(timestampType(true, nanos)), DataType.DATETIME, null, true),
             new Case("datetime / bare INT64 + epoch_second", int64Ts(null), DataType.DATETIME, "epoch_second", false),
-            // DATE_NANOS: identity only over NANOS; bare / MICROS / MILLIS all rescale and decline.
+            // DATE_NANOS: NANOS is the identity and TIME is bounded by the day, so both push; the bare INT64's
+            // millis->nanos widen nulls outside 1677..2262, and MICROS/MILLIS scale into the same edge.
             new Case("date_nanos / bare INT64", int64Ts(null), DataType.DATE_NANOS, null, false),
             new Case("date_nanos / TIMESTAMP(MILLIS)", int64Ts(timestampType(true, millis)), DataType.DATE_NANOS, null, false),
             new Case("date_nanos / TIMESTAMP(MICROS)", int64Ts(timestampType(true, micros)), DataType.DATE_NANOS, null, false),
             new Case("date_nanos / TIMESTAMP(NANOS)", int64Ts(timestampType(true, nanos)), DataType.DATE_NANOS, null, true),
             new Case("date_nanos / bare INT64 + epoch_second", int64Ts(null), DataType.DATE_NANOS, "epoch_second", false),
-            // INT32 inferred DATE (days -> millis) never nulls -> keeps the push.
-            new Case("date / INT32(DATE)", int32DateTs(), DataType.DATETIME, null, true)
+            // A well-formed TIME value is bounded by the day, far inside the scale's edge -- but nothing enforces
+            // that a file obeys its own annotation, and the MICROS unit carries the same overflow guard a timestamp
+            // does, so a value past the bound nulls and IS NULL has to decline. NANOS has no guard on its path and
+            // its decode is the identity, so it pushes.
+            new Case("date_nanos / TIME(MICROS)", int64Ts(timeType(true, micros)), DataType.DATE_NANOS, null, false),
+            new Case("date_nanos / TIME(NANOS)", int64Ts(timeType(true, nanos)), DataType.DATE_NANOS, null, true),
+            new Case("datetime / TIME(MICROS)", int64Ts(timeType(true, micros)), DataType.DATETIME, null, false),
+            new Case("datetime / TIME(NANOS)", int64Ts(timeType(true, nanos)), DataType.DATETIME, null, true),
+            // INT32 inferred DATE (days -> millis) and TIME(MILLIS) (already the millisecond of day) never null.
+            new Case("date / INT32(DATE)", int32DateTs(), DataType.DATETIME, null, true),
+            new Case("date / INT32(TIME(MILLIS))", int32TimeTs(), DataType.DATETIME, null, true)
         );
         for (Case c : cases) {
             Expression isNull = new IsNull(Source.EMPTY, attr("ts", c.declared()));
@@ -2898,9 +3039,14 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
             : Types.buildMessage().required(INT64).as(annotation).named("ts").named("test");
     }
 
-    /** A single-column {@code ts} INT32 schema annotated {@code DATE} — the only INT32 datetime shape (days -> millis). */
+    /** A single-column {@code ts} INT32 schema annotated {@code DATE} — the day-count INT32 datetime shape. */
     private static MessageType int32DateTs() {
         return Types.buildMessage().required(INT32).as(dateType()).named("ts").named("test");
+    }
+
+    /** The other INT32 datetime shape: {@code TIME(MILLIS)}, whose value is already the millisecond of day. */
+    private static MessageType int32TimeTs() {
+        return Types.buildMessage().required(INT32).as(timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS)).named("ts").named("test");
     }
 
     private static Literal lit(Object value, DataType type) {

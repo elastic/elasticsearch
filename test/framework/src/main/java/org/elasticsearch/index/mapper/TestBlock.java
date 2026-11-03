@@ -14,6 +14,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.hamcrest.Matcher;
@@ -75,6 +76,11 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
+                    public BytesRefsFromDocValuesBuilder appendBytesReference(BytesReference value) {
+                        return appendBytesRef(value.toBytesRef());
+                    }
+
+                    @Override
                     public BytesRefsFromDocValuesBuilder appendBytesRef(BytesRef value) {
                         add(BytesRef.deepCopyOf(value));
                         return this;
@@ -103,6 +109,11 @@ public class TestBlock implements BlockLoader.Block {
                 class BytesRefsBuilder extends TestBlock.Builder implements BlockLoader.BytesRefBuilder {
                     private BytesRefsBuilder() {
                         super(expectedCount);
+                    }
+
+                    @Override
+                    public BytesRefsBuilder appendBytesReference(BytesReference value) {
+                        return appendBytesRef(value.toBytesRef());
                     }
 
                     @Override

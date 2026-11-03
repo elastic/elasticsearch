@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162397
+summary: Fix `WHERE ... OR `_score` ...` queries
+type: bug

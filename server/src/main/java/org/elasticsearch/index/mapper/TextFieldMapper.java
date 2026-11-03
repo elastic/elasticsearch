@@ -65,6 +65,7 @@ import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.SummaryPolicy;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -343,7 +344,7 @@ public final class TextFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
                 m -> ((TextFieldMapper) m).docValuesParameters,
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
             this.analyzers = new TextParams.Analyzers(
@@ -451,6 +452,9 @@ public final class TextFieldMapper extends FieldMapper {
                 index,
                 store,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 indexOptions,
                 norms,
                 termVectors,
@@ -625,6 +629,15 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
+
+    /**
+     * Writes a recorded offsets value back into synthetic source when the offsets of an array are too large to store.
+     * The recorded value is the raw UTF-8 value as a {@link BytesRef}; shared by the text-family mappers that record offsets this way.
+     */
+    public static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var bytesRef = (BytesRef) v;
+        b.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    };
 
     private static class PhraseWrappedAnalyzer extends ElasticsearchAnalyzerWrapper {
 
@@ -2296,7 +2309,7 @@ public final class TextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
             return;
         }
@@ -2346,7 +2359,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         if (recordOffsets) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(value));
+            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(value), OFFSETS_FALLBACK);
         }
 
         if (isIndexed() || fieldType.stored()) {

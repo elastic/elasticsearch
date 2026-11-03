@@ -3336,6 +3336,7 @@ null
 # ON * covers every semantic_text field of the index, and each one warns that it falls back to standard.
 implicitOnSemanticTextViaStar
 required_capability: highlight_implicit_query_and_fields
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | WHERE MATCH(semantic_text_field, "prosper")
@@ -3355,6 +3356,7 @@ live long and prosper                                                 | live lon
 # Same as above but on a dense-inference semantic_text field, to cover both inference kinds.
 implicitOnSemanticTextDenseViaStar
 required_capability: highlight_implicit_query_and_fields
+required_capability: semantic_text_field_caps
 
 FROM semantic_text
 | WHERE MATCH(semantic_text_dense_field, "prosper")

@@ -10,6 +10,20 @@ setup:
       reason: "uses query monitoring"
 
   - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              message:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+
+  - do:
       bulk:
         index: "test"
         refresh: true

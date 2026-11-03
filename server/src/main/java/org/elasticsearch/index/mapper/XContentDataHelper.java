@@ -65,6 +65,17 @@ public final class XContentDataHelper {
     }
 
     /**
+     * Build a {@link BytesRef} wrapping a byte array containing the encoded form of a UTF-8 string, the same form
+     * {@link #encodeToken(XContentParser)} produces for a string token.
+     */
+    static BytesRef encodeString(BytesRef utf8) {
+        byte[] bytes = new byte[utf8.length + 1];
+        bytes[0] = (byte) STRING_ENCODING;
+        System.arraycopy(utf8.bytes, utf8.offset, bytes, 1, utf8.length);
+        return new BytesRef(bytes);
+    }
+
+    /**
      * Build a {@link BytesRef} wrapping a byte array containing an encoded form
      * of the passed XContentBuilder contents.
      */

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 // begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -176,6 +177,13 @@ $if(BytesRef)$
      * returns null. Callers must not release the returned block as no extra reference is retained by this method.
      */
     OrdinalBytesRefBlock asOrdinals();
+
+    /**
+     * An estimate of the bytes this block's values spell, as opposed to the memory it holds, taken without
+     * reading the values one by one. Exact unless the values are read through a dictionary, where each one
+     * counts as the dictionary's average term.
+     */
+    long estimateTotalValueBytes();
 
 $elseif(boolean)$
     /**
@@ -425,6 +433,9 @@ $endif$
         Builder append$Type$($type$ value);
 
 $if(BytesRef)$
+        @Override
+        Builder appendBytesReference(BytesReference value);
+
         /**
          * Appends a BytesRef to the current entry using a {@link PagedBytesCursor}.
          */

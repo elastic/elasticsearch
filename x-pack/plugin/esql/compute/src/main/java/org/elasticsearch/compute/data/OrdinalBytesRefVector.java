@@ -96,6 +96,13 @@ public final class OrdinalBytesRefVector extends AbstractBlockRefCounted impleme
         return this;
     }
 
+    @Override
+    public long estimateTotalValueBytes() {
+        // Each value counts as the dictionary's average term, so the ordinals are never read.
+        final int terms = bytes.getPositionCount();
+        return terms == 0 ? 0 : bytes.estimateTotalValueBytes() * getPositionCount() / terms;
+    }
+
     public IntVector getOrdinalsVector() {
         return ordinals;
     }

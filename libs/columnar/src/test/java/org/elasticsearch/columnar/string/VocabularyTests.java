@@ -483,6 +483,27 @@ public class VocabularyTests extends ColumnarStringTestCase {
         assertTrue("kept what repeats", termsOf(surveyed).contains("off"));
     }
 
+    /**
+     * A value longer than a {@code BytesRefHash} can hold fits well inside the byte bound, so the bound does not turn it away. The
+     * survey has to leave it out itself, so that the writer finds no term for it and writes it as an escape, rather than letting
+     * the table throw.
+     */
+    public void testValueTooLongForTheTermTableIsLeftOut() throws IOException {
+        final String tooLong = "x".repeat(40_000);
+        final List<BytesRef> values = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            values.add(new BytesRef(tooLong));
+        }
+        for (int i = 0; i < 400; i++) {
+            values.add(new BytesRef(i % 2 == 0 ? "on" : "off"));
+        }
+        final Vocabulary.Terms surveyed = survey(values, ROOMY);
+        assertNotNull("the short terms were still found", surveyed);
+        assertTrue("kept what repeats", termsOf(surveyed).contains("on"));
+        assertTrue("kept what repeats", termsOf(surveyed).contains("off"));
+        assertFalse("the table cannot hold it", termsOf(surveyed).contains(tooLong));
+    }
+
     /** A handful of terms holding most of the column, over a long tail of terms seen once. */
     private List<BytesRef> zipfish() {
         final List<BytesRef> values = new ArrayList<>();

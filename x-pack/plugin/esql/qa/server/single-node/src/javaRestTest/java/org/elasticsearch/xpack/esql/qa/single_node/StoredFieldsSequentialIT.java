@@ -120,6 +120,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("driver_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("profile", getProfileMatcher())
                 .extraOk()
         );

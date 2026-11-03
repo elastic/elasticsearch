@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.planner;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +50,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -80,13 +82,13 @@ import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.BlockLoaderWarnings;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -98,6 +100,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallel
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 
@@ -153,6 +156,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * Convert a {@link QueryBuilder} into a real {@link Query lucene query}.
          */
         public abstract Query toQuery(QueryBuilder queryBuilder);
+
+        /**
+         * A {@link Query lucene query} for the documents that have a value for {@code fieldName}. Unlike {@link #toQuery}
+         * it leaves the state of the shard's search context alone, so drivers can call it while they run.
+         */
+        public abstract Query existsQuery(String fieldName);
 
         public abstract IndexSettings indexSettings();
 
@@ -301,16 +310,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         DriverContext driverContext,
         int shardId,
         Attribute attr,
-        MappedFieldType.FieldExtractPreference fieldExtractPreference
+        MappedFieldType.FieldExtractPreference fieldExtractPreference,
+        @Nullable UnmappedFields.Walk unmappedFieldsWalk
     ) {
-        DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
-        if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
-            shardContext = wrapWithUnmappedFieldContext(shardContext, getFieldName(fa));
-        }
-        if (attr instanceof UnmappedFieldsAttribute unmapped) {
-            return ValuesSourceReaderOperator.load(
-                shardContext.ctx.unmappedFields().allFieldsBlockLoader(plannerSettings.sourceReservationFactor(), unmapped.pattern())
-            );
+        DefaultShardContext shardContext = ((DefaultShardContext) shardContexts.get(shardId)).withSourceWalk(unmappedFieldsWalk);
+        if (attr instanceof UnmappedFieldsAttribute) {
+            return ValuesSourceReaderOperator.load(shardContext.ctx.unmappedFields().allFieldsBlockLoader(unmappedFieldsWalk));
         }
 
         // Apply any block loader function if present
@@ -328,6 +333,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
         boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
         UnionTypeEsField unionTypes = findUnionTypes(attr);
+        if (unionTypes == null && attr.dataType() != DataType.KEYWORD && shardContext.readsFromSource(fieldName)) {
+            // A field read from _source is read as a keyword: a column of another type reads it only through a conversion
+            return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
+        }
         if (unionTypes == null) {
             BlockLoader blockLoader = shardContext.blockLoader(
                 fieldName,
@@ -363,7 +372,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 return ValuesSourceReaderOperator.LOAD_CONSTANT_NULLS;
             }
             fieldName = getFieldName((Attribute) convert.field());
-            shardContext = wrapWithUnmappedFieldContext(shardContext, fieldName);
             conversion = potentiallyUnmapped;
         }
         if (conversion instanceof BlockLoaderExpression ble) {
@@ -443,59 +451,6 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 plannerSettings.blockLoaderSizeScript()
             )
         );
-    }
-
-    static DefaultShardContext wrapWithUnmappedFieldContext(DefaultShardContext ctx, String fullFieldName) {
-        return new DefaultShardContextForUnmappedField(ctx, fullFieldName);
-    }
-
-    /** A hack to pretend an unmapped field still exists. */
-    private static class DefaultShardContextForUnmappedField extends DefaultShardContext {
-        /** The one field this context pretends is mapped; any other name behaves exactly as on the context it wraps. */
-        private final String fullFieldName;
-
-        DefaultShardContextForUnmappedField(DefaultShardContext ctx, String fullFieldName) {
-            super(ctx.index, ctx.releasable, ctx.ctx, ctx.aliasFilter);
-            this.fullFieldName = fullFieldName;
-        }
-
-        @Override
-        public boolean isMappedField(String name) {
-            // For the unmapped field we are loading, bypass the mapped-field gate.
-            // This allows both truly unmapped fields (which use a source-based loader) and
-            // dynamic subfields of flattened fields (which use the keyed block loader) to
-            // produce real values rather than ConstantNull.
-            return name.equals(fullFieldName) || super.isMappedField(name);
-        }
-
-        @Override
-        public BlockLoader blockLoader(
-            String name,
-            boolean asUnsupportedSource,
-            MappedFieldType.FieldExtractPreference fieldExtractPreference,
-            BlockLoaderFunctionConfig blockLoaderFunctionConfig,
-            org.elasticsearch.index.mapper.blockloader.Warnings warnings,
-            ByteSizeValue blockLoaderSizeOrdinals,
-            ByteSizeValue blockLoaderSizeScript
-        ) {
-            // An unmapped field has no field type to ask for a loader, so the mapping is asked for one that reads it as such.
-            if (asUnsupportedSource == false && name.equals(fullFieldName) && super.fieldType(name) == null) {
-                // Neither LOAD nor LOAD_ALL fuses a function into loading an unmapped field, and its loader has nowhere to put
-                // one - so catch it here rather than let it be dropped and surface as a wrong value much later.
-                assert blockLoaderFunctionConfig == null
-                    : "cannot fuse [" + blockLoaderFunctionConfig + "] into loading unmapped field [" + name + "]";
-                return ((DefaultShardContext) this).ctx.unmappedFields().blockLoader(name);
-            }
-            return super.blockLoader(
-                name,
-                asUnsupportedSource,
-                fieldExtractPreference,
-                blockLoaderFunctionConfig,
-                warnings,
-                blockLoaderSizeOrdinals,
-                blockLoaderSizeScript
-            );
-        }
     }
 
     private static @Nullable UnionTypeEsField findUnionTypes(Attribute attr) {
@@ -657,6 +612,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQuery(q));
             }
         });
+        UnmappedFields.Walk unmappedFieldsWalk = unmappedFieldsWalk(attributes);
         for (Attribute attr : attributes) {
             DataType dataType = attr.dataType();
             var preference = fieldExtractPreference.apply(attr);
@@ -665,13 +621,36 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 driverContext,
                 s,
                 attr,
-                preference
+                preference,
+                unmappedFieldsWalk
             );
             String fieldName = getFieldName(attr);
             boolean nullsFiltered = nullsFilteredFields.contains(fieldName);
             fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, buildLoader));
         }
         return fieldInfos;
+    }
+
+    /**
+     * The walk that reads, in one pass over a document, the fields among {@code attributes} that may be unmapped and the
+     * {@code _unmapped_fields} column, or {@code null} if there are none.
+     */
+    @Nullable
+    private UnmappedFields.Walk unmappedFieldsWalk(List<Attribute> attributes) {
+        Set<String> names = new HashSet<>();
+        UnmappedFieldsPattern pattern = null;
+        for (Attribute attr : attributes) {
+            if (attr instanceof FieldAttribute fa) {
+                PlannerUtils.collectUnmappedFieldName(fa, names);
+            } else if (attr instanceof UnmappedFieldsAttribute unmapped) {
+                assert pattern == null : "more than one unmapped fields column in " + attributes;
+                pattern = unmapped.pattern();
+            }
+        }
+        if (names.isEmpty() && pattern == null) {
+            return null;
+        }
+        return new UnmappedFields.Walk(names, pattern, plannerSettings.sourceReservationFactor());
     }
 
     private MinCompetitiveQuery.Factory planMinCompetitive(@Nullable LuceneMinCompetitiveTimestampTopN pilot) {
@@ -757,7 +736,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorMode,
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
-            targetChunkRows
+            targetChunkRows,
+            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold())
         );
     }
 
@@ -773,6 +753,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
         private final ShardSearchStats shardSearchStats;
+        /** The walk of {@code _source} that the fields one extraction reads from it share, or {@code null} for a walk each. */
+        @Nullable
+        private final UnmappedFields.Walk sourceWalk;
 
         public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
             this.index = index;
@@ -782,6 +765,32 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             // Build the shardIdentifier once up front so we can reuse references to it in many places.
             this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
             this.shardSearchStats = ctx.stats();
+            this.sourceWalk = null;
+        }
+
+        private DefaultShardContext(DefaultShardContext context, UnmappedFields.Walk sourceWalk) {
+            this.index = context.index;
+            this.releasable = context.releasable;
+            this.ctx = context.ctx;
+            this.aliasFilter = context.aliasFilter;
+            this.shardIdentifier = context.shardIdentifier;
+            this.shardSearchStats = context.shardSearchStats;
+            this.sourceWalk = sourceWalk;
+        }
+
+        /** This context, reading the fields it reads from {@code _source} through {@code sourceWalk} when it reads them. */
+        DefaultShardContext withSourceWalk(@Nullable UnmappedFields.Walk sourceWalk) {
+            return sourceWalk == null ? this : new DefaultShardContext(this, sourceWalk);
+        }
+
+        /** The context this shard resolves field names with. */
+        public SearchExecutionContext executionContext() {
+            return ctx;
+        }
+
+        /** Whether this shard reads the field {@code name} from {@code _source}, as it maps no field and keeps no key of that name. */
+        boolean readsFromSource(String name) {
+            return ctx instanceof EsqlSearchExecutionContext esql && esql.readsFromSource(name);
         }
 
         @Override
@@ -842,6 +851,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         }
 
         @Override
+        public Query existsQuery(String fieldName) {
+            MappedFieldType fieldType = fieldType(fieldName);
+            return fieldType == null ? new MatchNoDocsQuery("unmapped field [" + fieldName + "]") : fieldType.existsQuery(ctx);
+        }
+
+        @Override
         public IndexSettings indexSettings() {
             return ctx.getIndexSettings();
         }
@@ -871,6 +886,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             if (fieldType == null) {
                 // the field does not exist in this context
                 return ConstantNull.INSTANCE;
+            }
+            if (readsFromSource(name)) {
+                // Neither LOAD nor LOAD_ALL fuses a function into loading a field read from _source, and its loader has nowhere to
+                // put one - so catch it here rather than let it be dropped and surface as a wrong value much later.
+                assert blockLoaderFunctionConfig == null
+                    : "cannot fuse [" + blockLoaderFunctionConfig + "] into loading [" + name + "] from _source";
+                UnmappedFields unmappedFields = ctx.unmappedFields();
+                return sourceWalk != null && sourceWalk.reads(name)
+                    ? unmappedFields.blockLoader(name, sourceWalk)
+                    : unmappedFields.blockLoader(name);
             }
             // Exclude fields that field caps hides from the coordinator so the shard does not load a differently-typed block:
             // - flattened sub-keys: fieldType() is non-null but the key is not in the mapping (#154508)

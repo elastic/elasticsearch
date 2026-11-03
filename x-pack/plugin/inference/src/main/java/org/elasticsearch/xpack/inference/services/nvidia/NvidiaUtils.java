@@ -69,7 +69,7 @@ public final class NvidiaUtils {
      * @return true if the content is too large, false otherwise
      */
     public static boolean isContentTooLarge(HttpResult result, String contentTooLargeMessage) {
-        int statusCode = result.response().getStatusLine().getStatusCode();
+        int statusCode = result.response().getCode();
         if (statusCode == 413) {
             return true;
         }

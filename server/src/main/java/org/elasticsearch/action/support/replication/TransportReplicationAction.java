@@ -62,6 +62,8 @@ import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -996,8 +998,12 @@ public abstract class TransportReplicationAction<
                 assert request.waitForActiveShards() != ActiveShardCount.DEFAULT
                     : "request waitForActiveShards must be set in resolveRequest";
 
-                final ShardRouting primary = state.routingTable(project.get().id()).shardRoutingTable(request.shardId()).primaryShard();
+                final ProjectId projectId = project.get().id();
+                final ShardRouting primary = state.routingTable(projectId).shardRoutingTable(request.shardId()).primaryShard();
                 if (primary.active() == false) {
+                    if (failIfPrimaryBeingRestored(projectId, state)) {
+                        return;
+                    }
                     logger.trace(
                         "primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], "
                             + "cluster state version [{}]",
@@ -1029,6 +1035,25 @@ public abstract class TransportReplicationAction<
                     performRemoteAction(state, primary, node);
                 }
             }
+        }
+
+        /**
+         * Fails the request straight away if the primary is being restored by a restore whose caller asked for the exception to be
+         * reported.
+         *
+         * @return {@code true} if the request was failed, {@code false} if the caller should wait for the primary as usual
+         */
+        private boolean failIfPrimaryBeingRestored(ProjectId projectId, ClusterState state) {
+            final ShardRestoringException restoringException = RestoreService.reportableRestoreException(
+                projectId,
+                request.shardId(),
+                state
+            );
+            if (restoringException == null) {
+                return false;
+            }
+            finishAsFailed(restoringException);
+            return true;
         }
 
         private void performLocalAction(ClusterState state, ShardRouting primary, DiscoveryNode node, IndexMetadata indexMetadata) {

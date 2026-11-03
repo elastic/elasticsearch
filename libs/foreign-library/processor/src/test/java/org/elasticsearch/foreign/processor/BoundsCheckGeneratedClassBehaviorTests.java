@@ -11,7 +11,6 @@ package org.elasticsearch.foreign.processor;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 
 /**
  * Behavioral tests for {@link ImplClassWriter}-generated bounds-check code: unlike
@@ -368,16 +367,40 @@ public class BoundsCheckGeneratedClassBehaviorTests extends ProcessorTestCase {
         }
     }
 
-    /** Fills the whole segment with ascending byte values and returns it. */
-    private static MemorySegment fill(MemorySegment segment) {
-        return fill(segment, (int) segment.byteSize());
-    }
+    /**
+     * Test that the emitted checks compute the required size correctly as longs, so they work on a
+     * segment larger than {@code Integer.MAX_VALUE} bytes is accepted  (see #143232).
+     */
+    @SuppressWarnings("restricted")
+    public void testChecksDoNotOverflowBeyondIntRange() throws Throwable {
+        LoadedLibrary lib = loadLibrary("test.MemCmpLib", """
+            package test;
+            import java.lang.foreign.MemorySegment;
+            import org.elasticsearch.foreign.LibrarySpecification;
+            import org.elasticsearch.foreign.Function;
+            import org.elasticsearch.foreign.MatrixSegment;
+            import org.elasticsearch.foreign.VectorSegment;
+            @LibrarySpecification
+            public interface MemCmpLib {
+                @Function("memcmp")
+                int memcmp(
+                    @VectorSegment(countParam = "n", elementBits = 8) MemorySegment a,
+                    @MatrixSegment(rowsParam = "n", colsParam = "n", elementBits = 8) MemorySegment b,
+                    long n);
+            }
+            """);
 
-    /** Fills the first {@code count} bytes of the segment with ascending byte values and returns it. */
-    private static MemorySegment fill(MemorySegment segment, int count) {
-        for (int i = 0; i < count; i++) {
-            segment.set(ValueLayout.JAVA_BYTE, i, (byte) i);
+        // rows = cols = n = 50_000 -> the matrix needs n*n = 2.5e9 bytes, more than Integer.MAX_VALUE.
+        final long n = 50_000L;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment real = arena.allocate(n);
+            // We fake a large segment as a small real allocation reinterpreted to a larger size.
+            // This is safe as the memcmp call below only reads the first n bytes anyway; we just use it to trigger the validation.
+            MemorySegment large = real.reinterpret(n * n);
+            assertEquals(0, (int) lib.call("memcmp", large, large, n));
+
+            MemorySegment tooSmall = real.reinterpret(n * n - 1);
+            lib.expectThrows(IndexOutOfBoundsException.class, "memcmp", large, tooSmall, n);
         }
-        return segment;
     }
 }

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -83,13 +83,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
     }
 
     private static HttpResult httpResult(int statusCode) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
-
-        return new HttpResult(httpResponse, new byte[0]);
+        return new HttpResult(new BasicHttpResponse(statusCode), new byte[0]);
     }
 
     public void testToRestStatus_ReturnsBadRequest_WhenStatusIs501() {
@@ -143,10 +137,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
             }
         };
 
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(500);
-        var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        var response = new BasicHttpResponse(500);
         var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("test-id");
 
@@ -270,10 +261,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
             }
         };
 
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(500);
-        var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        var response = new BasicHttpResponse(500);
         var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("test-id");
 
@@ -286,14 +274,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
     }
 
     private static HttpResponse mock200Response() {
-        int statusCode = 200;
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
-
-        return response;
+        return new BasicHttpResponse(200);
     }
 
     private static BaseResponseHandler getBaseResponseHandler() {

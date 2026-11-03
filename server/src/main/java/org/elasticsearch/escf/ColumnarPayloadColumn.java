@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 
@@ -60,6 +61,19 @@ public final class ColumnarPayloadColumn extends LuceneBinaryColumn {
     ) {
         final EscfColumn column = EscfColumn.from(data);
         return new ColumnarPayloadColumn(column, name, fieldType, densityOf(column), null, valuelessDocs, typeWhenValueless);
+    }
+
+    /**
+     * Whether a batch has to carry the field's terms column. It does when the column has entries, which is what the postings need, and
+     * also when it has none but some document is valueless, which is only for the field's metadata: a batch takes a field's index
+     * options from its columns, not its documents, so a batch whose documents are all valueless would otherwise present the field with
+     * only the doc-values column's {@code IndexOptions.NONE}. An empty terms column states the index options and adds no postings.
+     *
+     * @param terms          the terms column being built, or {@code null} if the field indexes no terms
+     * @param valuelessDocs  the documents whose payload holds no value, or {@code null} if the field does not track them
+     */
+    public static boolean needsTermsColumn(@Nullable EscfColumnBuilder terms, @Nullable FixedBitSet valuelessDocs) {
+        return terms != null && (terms.isEmpty() == false || (valuelessDocs != null && valuelessDocs.cardinality() > 0));
     }
 
     /** The type the {@link #rowFieldCursor() row cursor} gives {@code doc}, which is {@link #fieldType()} for all but the valueless. */

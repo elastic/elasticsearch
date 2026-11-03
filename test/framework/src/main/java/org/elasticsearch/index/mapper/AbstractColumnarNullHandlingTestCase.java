@@ -20,18 +20,25 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexMode;
@@ -54,9 +61,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -85,6 +94,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public abstract class AbstractColumnarNullHandlingTestCase extends MapperServiceTestCase {
 
     protected static final String FIELD = "field";
+    private static final String TSDB_DIMENSION = "dimension";
+    private static final int TSDB_ROUTING_HASH = 17;
+    private static final BytesRef TSDB_TSID = new BytesRef(new byte[] { 0x10, 0x20, 0x30, 0x40, 0x50 });
 
     protected abstract String fieldTypeName();
 
@@ -447,17 +459,18 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         throws IOException {
         final MappingLookup mappingLookup = mapperService.mappingLookup();
         final IndexSettings indexSettings = mapperService.getIndexSettings();
-        assertTrue(
-            "the field must take the batch path, otherwise this test proves nothing",
-            ((FieldMapper) mappingLookup.getMapper(FIELD)).supportsColumnarParse(indexSettings)
-        );
+        assertTrue("the field must take the batch path, otherwise this test proves nothing", takesBatchPath(mapperService));
 
         final int docCount = sources.size();
         final BytesReference[] sourceBytes = new BytesReference[docCount];
         final IndexRequest[] requests = new IndexRequest[docCount];
+        final boolean tsdb = indexSettings.getMode().isTsdb();
         for (int i = 0; i < docCount; i++) {
             sourceBytes[i] = new BytesArray(sources.get(i).getBytes(StandardCharsets.UTF_8));
-            requests[i] = new IndexRequest("index").id("d" + i).source(sourceBytes[i], XContentType.JSON);
+            requests[i] = new IndexRequest("index").id(tsdb ? null : "d" + i).source(sourceBytes[i], XContentType.JSON);
+            if (tsdb) {
+                requests[i].routing(TimeSeriesRoutingHashFieldMapper.encode(TSDB_ROUTING_HASH)).tsid(TSDB_TSID);
+            }
         }
 
         try (
@@ -500,24 +513,209 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
      * disagreement over the field's index options is raised here, by Lucene, as the batch is added.
      */
     private void addBatch(MapperService mapperService, MappedColumns columns, int expectedDocs) throws IOException {
-        final IndexWriterConfig iwc = new IndexWriterConfig(
-            IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics())
-        ).setCodec(
-            new PerFieldMapperCodec(
-                Lucene104Codec.Mode.BEST_SPEED,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                ElasticsearchStoredFieldsFormat.Mode.LUCENE,
-                mapperService,
-                BigArrays.NON_RECYCLING_INSTANCE,
-                null
-            )
-        );
-        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, iwc)) {
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
             iw.addBatch(columns.toColumnBatch());
             try (DirectoryReader reader = DirectoryReader.open(iw)) {
                 assertEquals(expectedDocs, reader.numDocs());
             }
         }
+    }
+
+    /**
+     * Indexes a valued batch and a batch in which no document holds a value, in the given order, in every index mode that is not a
+     * vector one and, for a strictly columnar mode, with and without the ColumNAR codec, through whichever path the index maps the
+     * field on. Every index is tried before failing, so a failure names them all.
+     */
+    private void indexValuelessBatchInEveryIndexMode(boolean valuedFirst) throws IOException {
+        final List<IndexMode> batchMapped = new ArrayList<>();
+        final List<String> rejected = new ArrayList<>();
+        for (IndexMode indexMode : List.of(
+            IndexMode.STANDARD,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOGSDB,
+            IndexMode.LOOKUP,
+            IndexMode.COLUMNAR,
+            IndexMode.LOGSDB_COLUMNAR
+        )) {
+            for (boolean withCodec : indexMode.isStrictColumnar() ? new boolean[] { true, false } : new boolean[] { true }) {
+                final MapperService mapperService = createMapperService(
+                    columnarVersion(withCodec),
+                    indexModeSettings(indexMode),
+                    indexModeMapping(indexMode)
+                );
+                final boolean batchPath = takesBatchPath(mapperService);
+                if (batchPath) {
+                    batchMapped.add(indexMode);
+                }
+                final List<String> valued = valuedBatch(mapperService);
+                final List<String> valueless = valuelessBatch(mapperService);
+                try {
+                    indexBatches(
+                        mapperService,
+                        batchPath,
+                        valuedFirst ? List.of(valued, valueless) : List.of(valueless, valued),
+                        valued.size()
+                    );
+                } catch (IllegalArgumentException e) {
+                    rejected.add(
+                        "["
+                            + indexMode
+                            + "] codec="
+                            + withCodec
+                            + " "
+                            + (batchPath ? "batch" : "row")
+                            + " path rejected "
+                            + valueless
+                            + ": "
+                            + e.getMessage()
+                    );
+                }
+            }
+        }
+        assertThat(batchMapped, hasItems(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
+        assertThat(rejected, empty());
+    }
+
+    /**
+     * Indexes {@code batches} one after another into the same writer, the way a shard receives one bulk request after another, and
+     * checks that only the {@code valuedDocs} documents holding a value got postings for the field.
+     */
+    private void indexBatches(MapperService mapperService, boolean batchPath, List<List<String>> batches, int valuedDocs)
+        throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, batchIndexWriterConfig(mapperService))) {
+            int expectedDocs = 0;
+            for (List<String> batch : batches) {
+                if (batchPath) {
+                    withMappedColumns(mapperService, batch, columns -> iw.addBatch(columns.toColumnBatch()));
+                } else {
+                    iw.addDocuments(parseRows(mapperService, batch));
+                }
+                expectedDocs += batch.size();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                final String index = "["
+                    + mapperService.getIndexSettings().getMode()
+                    + "] "
+                    + mapperService.getIndexSettings().getIndexVersionCreated();
+                assertEquals(index, expectedDocs, reader.numDocs());
+                assertEquals(index + " only the documents holding a value have postings", valuedDocs, docsWithPostings(reader));
+            }
+        }
+    }
+
+    private static int docsWithPostings(DirectoryReader reader) throws IOException {
+        int docs = 0;
+        for (LeafReaderContext leaf : reader.leaves()) {
+            final Terms terms = leaf.reader().terms(FIELD);
+            if (terms == null) {
+                continue;
+            }
+            final FixedBitSet withPostings = new FixedBitSet(leaf.reader().maxDoc());
+            final TermsEnum termsEnum = terms.iterator();
+            PostingsEnum postings = null;
+            while (termsEnum.next() != null) {
+                postings = termsEnum.postings(postings, PostingsEnum.NONE);
+                for (int doc = postings.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = postings.nextDoc()) {
+                    withPostings.set(doc);
+                }
+            }
+            docs += withPostings.cardinality();
+        }
+        return docs;
+    }
+
+    private static boolean takesBatchPath(MapperService mapperService) {
+        return ((FieldMapper) mapperService.mappingLookup().getMapper(FIELD)).supportsColumnarParse(mapperService.getIndexSettings());
+    }
+
+    private static List<LuceneDocument> parseRows(MapperService mapperService, List<String> sources) {
+        final boolean tsdb = mapperService.getIndexSettings().getMode().isTsdb();
+        final List<LuceneDocument> docs = new ArrayList<>();
+        for (String source : sources) {
+            final SourceToParse toParse = new SourceToParse(
+                tsdb ? null : "row",
+                new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON,
+                tsdb ? TimeSeriesRoutingHashFieldMapper.encode(TSDB_ROUTING_HASH) : null
+            );
+            docs.addAll(mapperService.documentMapper().parse(toParse).docs());
+        }
+        return docs;
+    }
+
+    private static Settings indexModeSettings(IndexMode indexMode) {
+        final Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName());
+        if (indexMode.isTsdb()) {
+            settings.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), TSDB_DIMENSION)
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+                .put(IndexSettings.SYNTHETIC_ID.getKey(), false);
+        }
+        return settings.build();
+    }
+
+    private XContentBuilder indexModeMapping(IndexMode indexMode) throws IOException {
+        return mapping(b -> {
+            if (indexMode.isTsdb()) {
+                b.startObject(TSDB_DIMENSION).field("type", "keyword").field("time_series_dimension", true).endObject();
+            }
+            b.startObject(FIELD).field("type", fieldTypeName()).field("index", true).endObject();
+        });
+    }
+
+    private static String indexModeDoc(MapperService mapperService, @Nullable String field) {
+        final List<String> entries = new ArrayList<>();
+        if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {
+            entries.add("\"@timestamp\":1735689600000");
+        }
+        if (mapperService.getIndexSettings().getMode().isTsdb()) {
+            entries.add("\"" + TSDB_DIMENSION + "\":\"a\"");
+        }
+        if (field != null) {
+            entries.add(field);
+        }
+        return "{" + String.join(",", entries) + "}";
+    }
+
+    private static IndexWriterConfig batchIndexWriterConfig(MapperService mapperService) {
+        return new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService, mapperService.getMapperMetrics().tokenCountingMetrics()))
+            .setCodec(
+                new PerFieldMapperCodec(
+                    Lucene104Codec.Mode.BEST_SPEED,
+                    ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                    ElasticsearchStoredFieldsFormat.Mode.LUCENE,
+                    mapperService,
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    null
+                )
+            );
+    }
+
+    /** A batch in which no document holds a value, with an all-null array among them so that the field still writes a payload. */
+    private static List<String> valuelessBatch(MapperService mapperService) {
+        final List<String> batch = new ArrayList<>();
+        batch.add(allNullArrayDoc(mapperService));
+        final int extra = randomIntBetween(0, 4);
+        for (int i = 0; i < extra; i++) {
+            batch.add(
+                randomFrom(
+                    allNullArrayDoc(mapperService),
+                    indexModeDoc(mapperService, "\"" + FIELD + "\":[null,null]"),
+                    indexModeDoc(mapperService, "\"" + FIELD + "\":[]"),
+                    indexModeDoc(mapperService, null)
+                )
+            );
+        }
+        Collections.shuffle(batch, random());
+        return batch;
+    }
+
+    private static String allNullArrayDoc(MapperService mapperService) {
+        return indexModeDoc(mapperService, "\"" + FIELD + "\":[null]");
+    }
+
+    private List<String> valuedBatch(MapperService mapperService) {
+        return List.of(indexModeDoc(mapperService, "\"" + FIELD + "\":\"" + sampleValue() + "\""));
     }
 
     /** Maps a valued document alongside {@code other} through the batch path and indexes both. */
@@ -564,6 +762,14 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
 
     public void testBatchAbsentFieldIndexesAlongsideValue() throws IOException {
         addBatchAlongsideValue("{}");
+    }
+
+    public void testBatchOfOnlyValuelessDocsIndexesAfterValuedBatch() throws IOException {
+        indexValuelessBatchInEveryIndexMode(true);
+    }
+
+    public void testBatchOfOnlyValuelessDocsIndexesBeforeValuedBatch() throws IOException {
+        indexValuelessBatchInEveryIndexMode(false);
     }
 
     /** A bare null reaches no column at all, so the document does not carry the field. */

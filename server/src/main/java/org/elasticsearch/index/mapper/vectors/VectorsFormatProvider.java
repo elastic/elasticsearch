@@ -37,15 +37,15 @@ public interface VectorsFormatProvider {
         DenseVectorFieldMapper.VectorSimilarity similarity,
         DenseVectorFieldMapper.ElementType elementType,
         ExecutorService mergingExecutorService,
-        int maxMergingWorkers
+        int maxMergingWorkers,
+        ExecutorService quantizerExecutorService
     );
 
     /**
      * Returns whether a particular vector index type is allowed (e.g. by licensing) for an index created on the given version.
      * <p>
      * This method is intended for eager decisions such as selecting defaults. Implementations should not throw.
-     * Enforced checks must still happen in {@link #getKnnVectorsFormat(IndexSettings, DenseVectorFieldMapper.DenseVectorIndexOptions,
-     * DenseVectorFieldMapper.VectorSimilarity, DenseVectorFieldMapper.ElementType, ExecutorService, int)}.
+     * Enforced checks must still happen in {@link #getKnnVectorsFormat}.
      */
     default boolean isVectorIndexTypeAllowed(IndexVersion indexVersionCreated, DenseVectorFieldMapper.VectorIndexType indexType) {
         return false;

@@ -1,0 +1,5 @@
+area: Search
+issues: [ ]
+pr: 161478
+summary: Improve automaton accounting to properly size automata retained over the lifetime of the query
+type: enhancement

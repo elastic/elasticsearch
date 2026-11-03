@@ -121,7 +121,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 )
             );
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
-            CircuitBreaker cb = new NoopCircuitBreaker("testcb");
+            CircuitBreaker cb = NoopCircuitBreaker.INSTANCE;
             EqlSession eqlSession = new EqlSession(
                 esClient,
                 eqlConfiguration,

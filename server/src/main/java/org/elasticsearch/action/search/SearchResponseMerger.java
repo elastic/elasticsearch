@@ -16,12 +16,19 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
@@ -41,11 +48,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
 
@@ -64,32 +74,46 @@ import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs
  * - scroll requests are not supported
  * - field collapsing is supported, but whenever inner_hits are requested, they will be retrieved by each cluster locally after the fetch
  * phase, through the {@link ExpandSearchPhase}. Such inner_hits are not merged together as part of hits reduction.
+ * - only the hits of the merged response stay charged until it is released, as for a local search, not its aggregations, suggest or
+ * profile results
  */
 // TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
 // from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
 // cluster response would have the fetch results.
 public final class SearchResponseMerger implements Releasable {
+    // Suffixed so a trip here isn't mistaken for the coordinator's own fetch charge.
+    static final String BREAKER_LABEL = ChildMemoryCircuitBreaker.CATEGORY_FETCH + "[ccs]";
+
     final int from;
     final int size;
     final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
     private final SearchCoordinatorContext searchCoordinatorContext;
+    @Nullable
+    private final CircuitBreaker circuitBreaker;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
+    private final AtomicLong reservedBytes = new AtomicLong();
+    // Charges handed over with hits that were already charged, moved to the merged response.
+    private final List<Releasable> adoptedCharges = new CopyOnWriteArrayList<>();
+    private final Set<SearchHit> hitsWithAdoptedCharge = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+    private boolean hitsChargeTransferred;
 
-    private final Releasable releasable = LeakTracker.wrap(() -> {
-        for (SearchResponse searchResponse : searchResponses) {
-            searchResponse.decRef();
-        }
-    });
+    private final Releasable releasable = LeakTracker.wrap(this::releaseResponses);
 
+    /**
+     * @param circuitBreaker charged for the responses until they are merged and for the hits the merged response keeps, see
+     *                       {@link #getMergedResponse(Clusters)}, or {@code null} if the responses are charged elsewhere, as for partial
+     *                       results
+     */
     SearchResponseMerger(
         int from,
         int size,
         int trackTotalHitsUpTo,
         SearchTimeProvider searchTimeProvider,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        SearchCoordinatorContext searchCoordinatorContext
+        SearchCoordinatorContext searchCoordinatorContext,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         this.from = from;
         this.size = size;
@@ -97,17 +121,91 @@ public final class SearchResponseMerger implements Releasable {
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
         this.aggReduceContextBuilder = aggReduceContextBuilder; // might be null if there are no aggregations
         this.searchCoordinatorContext = searchCoordinatorContext;
+        this.circuitBreaker = circuitBreaker;
     }
 
     /**
      * Add a search response to the list of responses to be merged together into one.
      * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
+     * <p>
+     * Until then, every response is held in full while the slowest cluster answers, so it is charged to the circuit breaker first. A
+     * response whose hits are already charged, as the local cluster's are, hands that charge over instead.
+     *
+     * @throws CircuitBreakingException if this node cannot hold the response, which is then not added
      */
     public void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
+        reserve(searchResponse);
         searchResponse.mustIncRef();
         searchResponses.add(searchResponse);
+    }
+
+    private void reserve(SearchResponse searchResponse) {
+        if (circuitBreaker == null) {
+            return;
+        }
+        // Leaves out the hits if they are already charged.
+        long bytes = TransportMultiSearchAction.estimateActualBytes(searchResponse);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+        reservedBytes.addAndGet(bytes);
+        Releasable hitsCharge = searchResponse.transferCoordinatorFetchCharge();
+        if (hitsCharge != null) {
+            adoptedCharges.add(hitsCharge);
+            Collections.addAll(hitsWithAdoptedCharge, searchResponse.getHits().getHits());
+        }
+    }
+
+    private void releaseResponses() {
+        for (SearchResponse searchResponse : searchResponses) {
+            searchResponse.decRef();
+        }
+        Releasables.close(adoptedCharges);
+        long bytes = reservedBytes.getAndSet(0L);
+        if (bytes > 0L) {
+            circuitBreaker.addWithoutBreaking(-bytes, BREAKER_LABEL);
+        }
+    }
+
+    /**
+     * Moves the charge for the hits the merged response keeps onto it, so they stay charged until it is released, such as once a REST
+     * response is written. The rest is released when this merger closes. Adopted charges move whole, since they can't be split.
+     */
+    @Nullable
+    private Releasable transferHitsCharge(SearchHits mergedHits) {
+        if (circuitBreaker == null) {
+            return null;
+        }
+        if (hitsChargeTransferred) {
+            // The first merged response holds the charge, and its hits are the same objects.
+            return null;
+        }
+        hitsChargeTransferred = true;
+        long bytes = estimateHitBytes(mergedHits.getHits(), hitsWithAdoptedCharge);
+        // Each hit was estimated the same way when its response was added.
+        assert bytes <= reservedBytes.get() : "merged hits [" + bytes + "] exceed the reservation [" + reservedBytes.get() + "]";
+        reservedBytes.addAndGet(-bytes);
+        List<Releasable> charges = new ArrayList<>(adoptedCharges);
+        adoptedCharges.clear();
+        if (bytes > 0L) {
+            charges.add(Releasables.assertOnce(() -> circuitBreaker.addWithoutBreaking(-bytes, BREAKER_LABEL)));
+        }
+        return charges.isEmpty() ? null : Releasables.wrap(charges);
+    }
+
+    /**
+     * Estimates {@code hits} as {@link #add} does, leaving out {@code alreadyCharged}.
+     */
+    static long estimateHitBytes(SearchHit[] hits, Set<SearchHit> alreadyCharged) {
+        CountingStreamOutput counter = new CountingStreamOutput();
+        counter.setTransportVersion(TransportVersion.current());
+        long bytes = 0L;
+        for (SearchHit hit : hits) {
+            if (alreadyCharged.contains(hit) == false) {
+                bytes += TransportMultiSearchAction.estimateHitBytes(hit, counter);
+            }
+        }
+        return bytes;
     }
 
     int numResponses() {
@@ -117,6 +215,9 @@ public final class SearchResponseMerger implements Releasable {
     /**
      * Returns the merged response of all SearchResponses received so far. Can be called at any point,
      * including when only some clusters have finished, in order to get "incremental" partial results.
+     * <p>
+     * With a circuit breaker, call it once all clusters have answered: only the first merged response takes the charge for its hits.
+     * Partial results use a merger without one.
      * @param clusters The Clusters object for the search to report on the status of each cluster
      *                 involved in the cross-cluster search
      * @return merged response
@@ -212,10 +313,11 @@ public final class SearchResponseMerger implements Releasable {
         setTopDocsShardIndex(shards, topDocsList);
         TopDocs topDocs = mergeTopDocs(topDocsList, size, from);
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
+        List<SearchHits> topHitsToRelease = null;
         try {
             setSuggestShardIndex(shards, groupedSuggestions);
             Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-            final List<SearchHits> topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
+            topHitsToRelease = (aggs.isEmpty() || aggReduceContextBuilder == null) ? null : new ArrayList<>();
             InternalAggregations reducedAggs = aggs.isEmpty()
                 ? InternalAggregations.EMPTY
                 : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction(topHitsToRelease));
@@ -250,10 +352,16 @@ public final class SearchResponseMerger implements Releasable {
                 topHitsToRelease,
                 null
             );
+            topHitsToRelease = null;
             mergedResponse.setDirectoryMetrics(mergedDirectoryMetrics);
+            mergedResponse.adoptCoordinatorFetchCharge(transferHitsCharge(mergedResponse.getHits()));
             return mergedResponse;
         } finally {
             mergedSearchHits.decRef();
+            // the reduce took a ref on every top_hits hit it kept, and remote hits pin the inbound network buffer until released
+            if (topHitsToRelease != null) {
+                topHitsToRelease.forEach(SearchHits::decRef);
+            }
         }
     }
 

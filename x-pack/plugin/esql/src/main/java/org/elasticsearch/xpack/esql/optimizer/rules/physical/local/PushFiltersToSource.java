@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware.FinishedTranslatable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -19,9 +22,9 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.FilterEvaluationOrderEstimator;
-import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.PhysicalNames;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.querydsl.query.BestEffortQueryBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,8 +76,13 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, EsQueryExec queryExec, LocalPhysicalOptimizerContext ctx) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
-        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates);
-        return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, List.of());
+        PushdownClassification classified = classifyFilters(
+            filterExec.condition(),
+            pushdownPredicates,
+            AttributeMap.emptyAttributeMap(),
+            pushdownPredicates.bestEffort()
+        );
+        return rewrite(pushdownPredicates, filterExec, queryExec, classified, List.of());
     }
 
     private static PhysicalPlan planFilterExec(
@@ -84,9 +93,14 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
     ) {
         LucenePushdownPredicates pushdownPredicates = LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags());
         AttributeMap<Attribute> aliasReplacedBy = getAliasReplacedBy(evalExec);
-        PushdownClassification classified = classifyFilters(filterExec.condition(), pushdownPredicates, aliasReplacedBy);
+        PushdownClassification classified = classifyFilters(
+            filterExec.condition(),
+            pushdownPredicates,
+            aliasReplacedBy,
+            pushdownPredicates.bestEffort()
+        );
         classified.pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(pushdownPredicates, filterExec, queryExec, classified.pushable, classified.nonPushable, evalExec.fields());
+        return rewrite(pushdownPredicates, filterExec, queryExec, classified, evalExec.fields());
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
@@ -113,17 +127,22 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LucenePushdownPredicates pushdownPredicates,
         FilterExec filterExec,
         EsQueryExec queryExec,
-        List<Expression> pushable,
-        List<Expression> nonPushable,
+        PushdownClassification classified,
         List<Alias> evalFields
     ) {
+        List<Expression> nonPushable = classified.nonPushable;
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
-        List<Expression> newPushable = combineEligiblePushableToRange(pushable);
-        if (newPushable.size() > 0) { // update the executable with pushable conditions
-            Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
-            QueryBuilder planQuery = queryDSL.toQueryBuilder();
+        List<Expression> newPushable = combineEligiblePushableToRange(classified.pushable);
+        if (newPushable.size() > 0 || classified.bestEffort.isEmpty() == false) { // update the executable with pushable conditions
+            List<QueryBuilder> queries = new ArrayList<>();
+            queries.add(queryExec.query());
+            if (newPushable.isEmpty() == false) {
+                Query queryDSL = TRANSLATOR_HANDLER.asQuery(pushdownPredicates, Predicates.combineAnd(newPushable));
+                queries.add(queryDSL.toQueryBuilder());
+            }
+            queries.addAll(classified.bestEffort);
             Queries.Clause combiningQueryClauseType = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
-            var query = Queries.combine(combiningQueryClauseType, asList(queryExec.query(), planQuery));
+            var query = Queries.combine(combiningQueryClauseType, queries);
             queryExec = new EsQueryExec(
                 queryExec.source(),
                 queryExec.indexPattern(),
@@ -250,9 +269,25 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             return filterExec;
         }
 
-        String formatName = resolveFormatName(externalExec.config(), externalExec.sourcePath());
-        FilterPushdownSupport pushdownSupport = resolveFilterPushdownSupport(formatName, ctx);
+        FormatReader formatReader = resolveFormatReader(externalExec.sourceType(), ctx);
+        FilterPushdownSupport pushdownSupport = formatReader != null ? formatReader.filterPushdownSupport() : null;
         if (pushdownSupport == null) {
+            return filterExec;
+        }
+
+        // Withhold pushdown when the reader cannot honour skip_row on its filtered decode path. Parquet turns on
+        // late materialization the moment a predicate reaches it, and that path emits pages without the row-drop
+        // compaction, so a coercion failure would silently null the cell and keep the row -- null_field semantics
+        // for a skip_row read. Leaving the predicate in the FilterExec above the source costs the row-group and
+        // page-index skipping but keeps results correct on both counts: the filter still runs, and every batch
+        // goes through the decode path that drops rows.
+        //
+        // This must happen here, at the mint, rather than at the operator factory. The pushed filter is the only
+        // signal the reader keys late materialization off, and by the time the factory sees the plan the FilterExec
+        // for a Pushability.YES conjunct has already been dropped -- so the factory can neither suppress the filter
+        // (rows would leak unfiltered) nor undo the late-mat decision it implies.
+        if (formatReader.dropsRowsUnderPushedFilter() == false
+            && externalExec.declaredReadSpec().dropsRowsOnCoercionFailure(ErrorPolicy.forReader(externalExec.config(), formatReader))) {
             return filterExec;
         }
 
@@ -333,20 +368,18 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return expr.references().stream().anyMatch(a -> columnNames.contains(a.name()));
     }
 
-    static String resolveFormatName(Map<String, Object> config, String sourcePath) {
-        return FormatNameResolver.resolve(config, sourcePath);
-    }
-
     /**
-     * Resolves filter pushdown support for the given format via {@link FormatReader#filterPushdownSupport()}.
+     * Resolves the configured reader for the given format, or {@code null} when the rule has no way to look one up
+     * (no external context, no registry, format unregistered). Callers read both
+     * {@link FormatReader#filterPushdownSupport()} and {@link FormatReader#dropsRowsUnderPushedFilter()} off it, so
+     * it returns the reader rather than the support object alone.
+     * Keys on {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec#sourceType()}, the same
+     * origin as {@code InsertExternalFieldExtraction} / {@code PushStatsToExternalSource} — not a last-dot of
+     * {@code sourcePath()}, which would mis-read a compressed text file as {@code gz}.
      */
-    private static FilterPushdownSupport resolveFilterPushdownSupport(String formatName, LocalPhysicalOptimizerContext ctx) {
-        FormatReaderRegistry formatReaderRegistry = ctx.external() == null ? null : ctx.external().formatReaderRegistry();
-        if (formatReaderRegistry == null) {
-            return null;
-        }
-        FormatReader formatReader = formatReaderRegistry.findByName(formatName);
-        return formatReader != null ? formatReader.filterPushdownSupport() : null;
+    static FormatReader resolveFormatReader(String formatName, LocalPhysicalOptimizerContext ctx) {
+        FormatReaderRegistry formatReaderRegistry = ctx == null || ctx.external() == null ? null : ctx.external().formatReaderRegistry();
+        return formatReaderRegistry != null ? formatReaderRegistry.findByName(formatName) : null;
     }
 
     private static PhysicalPlan planFilterExec(FilterExec filterExec, ParameterizedQueryExec pqExec, LocalPhysicalOptimizerContext ctx) {
@@ -395,10 +428,22 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         return filterExec;
     }
 
-    private record PushdownClassification(List<Expression> pushable, List<Expression> nonPushable) {}
+    /**
+     * @param bestEffort the queries of the filters every shard runs as well as it can (see {@link BestEffortQueryBuilder}), which
+     *                   also stay in {@code nonPushable}
+     */
+    private record PushdownClassification(List<Expression> pushable, List<Expression> nonPushable, List<QueryBuilder> bestEffort) {}
 
     private static PushdownClassification classifyFilters(Expression condition, LucenePushdownPredicates pushdownPredicates) {
         return classifyFilters(condition, pushdownPredicates, AttributeMap.emptyAttributeMap());
+    }
+
+    private static PushdownClassification classifyFilters(
+        Expression condition,
+        LucenePushdownPredicates pushdownPredicates,
+        AttributeMap<Attribute> aliasReplacedBy
+    ) {
+        return classifyFilters(condition, pushdownPredicates, aliasReplacedBy, null);
     }
 
     /**
@@ -407,21 +452,32 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
      * the translatability check, but the original (unresolved) expressions are stored
      * so that non-pushable filters still reference the EvalExec output attributes.
      */
+    /**
+     * @param bestEffortPredicates the predicates to push a filter that some shards here cannot query to every shard anyway,
+     *                             see {@link LucenePushdownPredicates#bestEffort()}; {@code null} to push only what every shard can query
+     */
     private static PushdownClassification classifyFilters(
         Expression condition,
         LucenePushdownPredicates pushdownPredicates,
-        AttributeMap<Attribute> aliasReplacedBy
+        AttributeMap<Attribute> aliasReplacedBy,
+        @Nullable LucenePushdownPredicates bestEffortPredicates
     ) {
         List<Expression> conjuncts = splitAnd(condition);
 
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
+        List<QueryBuilder> bestEffort = new ArrayList<>();
         for (Expression exp : conjuncts) {
             Expression resExp = aliasReplacedBy.isEmpty()
                 ? exp
                 : exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
             switch (translatable(resExp, pushdownPredicates).finish()) {
-                case NO -> nonPushable.add(exp);
+                case NO -> {
+                    if (bestEffortPredicates != null && translatable(resExp, bestEffortPredicates).finish() != FinishedTranslatable.NO) {
+                        bestEffort.add(bestEffortQuery(resExp, bestEffortPredicates));
+                    }
+                    nonPushable.add(exp);
+                }
                 case YES -> pushable.add(exp);
                 case RECHECK -> {
                     pushable.add(exp);
@@ -429,6 +485,20 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 }
             }
         }
-        return new PushdownClassification(pushable, nonPushable);
+        return new PushdownClassification(pushable, nonPushable, bestEffort);
+    }
+
+    /**
+     * The query of {@code filter} that each shard runs if it can query every field the filter reads, and replaces with a match of
+     * every document otherwise.
+     */
+    private static QueryBuilder bestEffortQuery(Expression filter, LucenePushdownPredicates bestEffortPredicates) {
+        List<BestEffortQueryBuilder.Field> fields = new ArrayList<>();
+        filter.forEachDown(FieldAttribute.class, fa -> {
+            FieldAttribute queried = fa.getExactInfo().hasExact() ? fa.exactAttribute() : fa;
+            fields.add(new BestEffortQueryBuilder.Field(queried.fieldName().string(), queried.dataType(), fa.isPotentiallyUnmapped()));
+        });
+        Query query = TRANSLATOR_HANDLER.asQuery(bestEffortPredicates, filter);
+        return new BestEffortQueryBuilder(query.toQueryBuilder(), fields.stream().distinct().toList());
     }
 }

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -266,9 +268,10 @@ public class InboundHandler {
         );
 
         try {
-            messageListener.onRequestReceived(requestId, action);
+            final int requestSize = header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE;
+            messageListener.onRequestReceived(requestId, action, requestSize);
             if (reg != null) {
-                reg.addRequestStats(header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE);
+                reg.addRequestStats(requestSize);
             }
 
             if (message.isShortCircuit()) {
@@ -285,7 +288,9 @@ public class InboundHandler {
                 message.close();
                 message = null;
             } catch (Exception e) {
-                assert ignoreDeserializationErrors : e;
+                // A breaker trip is rejected work rather than a deserialization defect, so it must not trip the assertion. The enclosing
+                // catch still sends the failure back to the sender.
+                assert ignoreDeserializationErrors || e instanceof CircuitBreakingException : e;
                 throw e;
             }
             try {
@@ -368,7 +373,11 @@ public class InboundHandler {
         var header = message.getHeader();
         assert header.actionName.equals(TransportHandshaker.HANDSHAKE_ACTION_NAME);
         final long requestId = header.getRequestId();
-        messageListener.onRequestReceived(requestId, TransportHandshaker.HANDSHAKE_ACTION_NAME);
+        messageListener.onRequestReceived(
+            requestId,
+            TransportHandshaker.HANDSHAKE_ACTION_NAME,
+            header.getNetworkMessageSize() + TcpHeader.BYTES_REQUIRED_FOR_MESSAGE_SIZE
+        );
         // Cannot short circuit handshakes
         assert message.isShortCircuit() == false;
         final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
@@ -417,18 +426,31 @@ public class InboundHandler {
         final var executor = handler.executor();
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             // no need to provide a buffer release here, we never escape the buffer when handling directly
-            doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message);
+            doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message, TransportResponseHandler.NO_RESERVATION);
         } else {
-            // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
+            // The message waits for the executor in serialized form, so the handler can reserve memory for it until it is read.
+            final Releasable reservation;
+            try {
+                final Releasable reserved = handler.reserveResponseBytes(message.getContentLength());
+                // Closed after the read and again by the fail-safe in #onAfter below. Most handlers reserve nothing, so skip the wrapper.
+                reservation = reserved == TransportResponseHandler.NO_RESERVATION ? reserved : Releasables.releaseOnce(reserved);
+            } catch (CircuitBreakingException e) {
+                logger.debug(() -> "Circuit breaker tripped reserving memory for response from [" + remoteAddress + "]", e);
+                message.close();
+                handleException(handler, new RemoteTransportException("Failed to reserve memory for response to [" + handler + "]", e));
+                return;
+            }
+            // release the buffer and the reservation once we deserialize the message, but have a fail-safe in #onAfter below in case that
+            // didn't work out
             executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
                 @Override
                 protected void doRun() {
-                    doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message);
+                    doHandleResponse(handler, remoteAddress, stream, /* autocloses */ message, reservation);
                 }
 
                 @Override
                 public void onAfter() {
-                    message.close();
+                    Releasables.close(message, reservation);
                 }
             });
         }
@@ -440,19 +462,35 @@ public class InboundHandler {
      * @param remoteAddress remote address that the message was sent from
      * @param stream bytes stream for reading the message
      * @param inboundMessage inbound message, guaranteed to get closed by this method
+     * @param reservation memory reserved for the message, guaranteed to get closed by this method
      * @param <T> response message type
      */
     private <T extends TransportResponse> void doHandleResponse(
         TransportResponseHandler<T> handler,
         InetSocketAddress remoteAddress,
         final StreamInput stream,
-        InboundMessage inboundMessage
+        InboundMessage inboundMessage,
+        Releasable reservation
     ) {
         final T response;
-        try (inboundMessage) {
+        try (inboundMessage; reservation) {
             response = handler.read(stream);
             verifyResponseReadFully(inboundMessage.getHeader(), handler, stream);
         } catch (Exception e) {
+            // Reading a message reserves memory for the structures it builds, so a breaker can trip part-way through reading a message
+            // that is itself perfectly well-formed. That is rejected work rather than a deserialization defect, so deliver the breaker
+            // exception itself rather than burying it in a TransportSerializationException: the latter is not an
+            // ElasticsearchWrapperException, so ExceptionsHelper#unwrapCause stops at it and every caller that classifies a rejection by
+            // type stops recognising it, losing both the 429 status and the breaker's byte-limit metadata. Only a breaker trip thrown
+            // directly by the reader is exempt, so that a corrupt stream failing somewhere further down still surfaces as a read failure.
+            if (e instanceof CircuitBreakingException) {
+                logger.debug(() -> "Circuit breaker tripped deserializing response from [" + remoteAddress + "]", e);
+                doHandleException(
+                    handler,
+                    new RemoteTransportException("Failed to deserialize response from handler [" + handler + "]", e)
+                );
+                return;
+            }
             final TransportException serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",
                 e

@@ -18,7 +18,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -956,7 +955,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
     ) {
         return controller.newSearchPhaseResults(
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            NoopCircuitBreaker.INSTANCE,
             () -> false,
             SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(),

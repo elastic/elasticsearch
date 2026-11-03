@@ -377,7 +377,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .build();
             dimensionErrorSuffix = "dimension ";
         }
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createMapperService(settings, mapping(b -> {
+        Exception e = expectThrows(Exception.class, () -> createMapperService(settings, mapping(b -> {
             for (int i = 0; i <= max; i++) {
                 b.startObject("field" + i)
                     .field("type", randomFrom("ip", "keyword", "long", "integer", "byte", "short"))

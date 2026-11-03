@@ -22,8 +22,10 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -201,13 +203,15 @@ public class NodeCacheCommitmentMetricsTests extends ESTestCase {
         env.metrics.onNewInfo(v1);
 
         // Simulate the first APM gauge poll: computation is triggered from v1 and boosted metrics are returned
-        final var boostedFromFirstPoll = env.metrics.getBoostedCommitmentMetrics();
+        final var boostedFromFirstPoll = new ArrayList<RecordedMeasurement>();
+        env.metrics.recordBoostedCommitmentMetrics(recordInto(boostedFromFirstPoll));
 
         // A new ClusterInfo arrives before the second gauge is polled
         env.metrics.onNewInfo(v2);
 
         // Simulate the second APM gauge poll: total metrics must come from v1, not v2
-        final var totalFromSecondPoll = env.metrics.getTotalCommitmentMetrics();
+        final var totalFromSecondPoll = new ArrayList<RecordedMeasurement>();
+        env.metrics.recordTotalCommitmentMetrics(recordInto(totalFromSecondPoll));
 
         final var node1Boosted = boostedFromFirstPoll.stream()
             .filter(m -> env.node1.getId().equals(m.attributes().get("es_node_id")))
@@ -227,6 +231,12 @@ public class NodeCacheCommitmentMetricsTests extends ESTestCase {
             node1Total.value(),
             closeTo(v1Commitments.totalCacheCommitmentInBytes() / (double) v1Commitments.cacheSizeInBytes(), 1e-9)
         );
+    }
+
+    private record RecordedMeasurement(double value, Map<String, Object> attributes) {}
+
+    private static DoubleAsyncMeasurement recordInto(List<RecordedMeasurement> recorded) {
+        return (value, attributes) -> recorded.add(new RecordedMeasurement(value, attributes));
     }
 
     private NodeCacheSizeAndCommitments randomNodeCacheSizeAndCommitments() {

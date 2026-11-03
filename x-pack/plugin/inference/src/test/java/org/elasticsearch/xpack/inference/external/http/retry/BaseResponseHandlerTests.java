@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.BasicHttpResponse;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -26,8 +26,64 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class BaseResponseHandlerTests extends ESTestCase {
+
+    private static final String INFERENCE_ID = "id";
+
     public void testToRestStatus_ReturnsBadRequest_WhenStatusIs500() {
         assertThat(toRestStatus(500), is(RestStatus.BAD_REQUEST));
+    }
+
+    public void testConstructNonStreamingException_AppendsErrorMessage_WhenErrorStructureFound() {
+        var exception = BaseResponseHandler.constructNonStreamingException(
+            BaseResponseHandler.BAD_REQUEST,
+            mockRequest(),
+            httpResult(400),
+            new ErrorResponse("some error")
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is("Received a bad request status code for request from inference entity id [id] status [400]. Error message: [some error]")
+        );
+    }
+
+    public void testConstructNonStreamingException_OmitsErrorMessage_WhenErrorStructureNotFound() {
+        var exception = BaseResponseHandler.constructNonStreamingException(
+            BaseResponseHandler.BAD_REQUEST,
+            mockRequest(),
+            httpResult(400),
+            ErrorResponse.UNDEFINED_ERROR
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(exception.getMessage(), is("Received a bad request status code for request from inference entity id [id] status [400]"));
+    }
+
+    public void testConstructNonStreamingException_OmitsErrorMessage_WhenErrorResponseIsNull() {
+        var exception = BaseResponseHandler.constructNonStreamingException(
+            BaseResponseHandler.SERVER_ERROR,
+            mockRequest(),
+            httpResult(500),
+            null
+        );
+
+        // toRestStatus maps anything >= 500 onto BAD_REQUEST
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is("Received a server error status code for request from inference entity id [id] status [500]")
+        );
+    }
+
+    private static OutboundRequest mockRequest() {
+        var outboundRequest = mock(OutboundRequest.class);
+        when(outboundRequest.getInferenceEntityId()).thenReturn(INFERENCE_ID);
+        return outboundRequest;
+    }
+
+    private static HttpResult httpResult(int statusCode) {
+        return new HttpResult(new BasicHttpResponse(statusCode), new byte[0]);
     }
 
     public void testToRestStatus_ReturnsBadRequest_WhenStatusIs501() {
@@ -81,10 +137,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
             }
         };
 
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(500);
-        var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        var response = new BasicHttpResponse(500);
         var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("test-id");
 
@@ -208,10 +261,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
             }
         };
 
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(500);
-        var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
+        var response = new BasicHttpResponse(500);
         var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn("test-id");
 
@@ -224,14 +274,7 @@ public class BaseResponseHandlerTests extends ESTestCase {
     }
 
     private static HttpResponse mock200Response() {
-        int statusCode = 200;
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-
-        var response = mock(HttpResponse.class);
-        when(response.getStatusLine()).thenReturn(statusLine);
-
-        return response;
+        return new BasicHttpResponse(200);
     }
 
     private static BaseResponseHandler getBaseResponseHandler() {

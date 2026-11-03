@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -45,7 +45,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.features.FeatureService;
@@ -176,7 +178,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                     }
                 },
                 new TimeSeriesEligibleWriteWindowLocator(),
-                DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                BigArrays.NON_RECYCLING_INSTANCE
             );
         }
 
@@ -296,6 +299,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void setupAction() {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
+        // the action sizes the request context for indexing pressure accounting, which needs a real thread context
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.executor(eq(ThreadPool.Names.WRITE_COORDINATION))).thenReturn(writeCoordinationExecutor);
         when(threadPool.executor(eq(ThreadPool.Names.SYSTEM_WRITE_COORDINATION))).thenReturn(systemWriteCoordinationExecutor);
         MockitoAnnotations.openMocks(this);

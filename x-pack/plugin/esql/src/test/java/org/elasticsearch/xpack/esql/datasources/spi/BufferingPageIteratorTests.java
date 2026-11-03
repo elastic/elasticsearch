@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Contract tests for {@link BufferingPageIterator} — the one place where the external-format page
- * iterators (NDJSON / CSV / parquet-rs) release the single buffered look-ahead {@link Page} on
+ * iterators (NDJSON / CSV) release the single buffered look-ahead {@link Page} on
  * {@code close()}. The reader-level regressions live next to each reader; here we pin the base
  * class's invariants directly with a fake subclass so a future refactor of any one reader can't
  * silently reintroduce the leak the base class was created to kill.

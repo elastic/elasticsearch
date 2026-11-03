@@ -37,14 +37,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.index.fielddata.SortedBinaryDocValues.ValueMode;
+import static org.elasticsearch.index.fielddata.SortableBinaryDocValues.ValueMode;
 
 /**
  * Finds all fields with a single-value. If a field has a multi-value, it emits
@@ -172,7 +172,7 @@ public final class SingleValueMatchQuery extends Query {
                     return null;
                 }
                 /*
-                 * SortedBinaryDocValues are available for most fields, but they
+                 * SortableBinaryDocValues are available for most fields, but they
                  * are made available by eagerly converting non-bytes values to
                  * utf-8 strings. The eager conversion is quite expensive. So
                  * we specialize on numeric fields and fields with ordinals to
@@ -267,11 +267,16 @@ public final class SingleValueMatchQuery extends Query {
 
             private ScorerSupplier scorerSupplier(
                 LeafReaderContext context,
-                SortedBinaryDocValues sortedBinaryDocValues,
+                SortableBinaryDocValues sortedBinaryDocValues,
                 float boost,
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
+                // Where the field knows the documents holding one value, they are the answer, as a singleton's doc values are.
+                final DocIdSetIterator singleValuedDocs = sortedBinaryDocValues.singleValuedDocs();
+                if (singleValuedDocs != null) {
+                    return new DocIdSetIteratorScorerSupplier(boost, scoreMode, singleValuedDocs);
+                }
                 var approximationIterator = getApproximationIterator(context.reader(), fieldData.getFieldName(), maxDoc);
                 if (FieldData.unwrapSingleton(sortedBinaryDocValues) != null
                     || sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED) {
@@ -338,7 +343,7 @@ public final class SingleValueMatchQuery extends Query {
             } else {
                 var sortedBinaryDocValues = lfd.getBytesValues();
                 if (sortedBinaryDocValues.getValueMode() == ValueMode.SINGLE_VALUED
-                    && sortedBinaryDocValues.getSparsity() == SortedBinaryDocValues.Sparsity.DENSE) {
+                    && sortedBinaryDocValues.getSparsity() == SortableBinaryDocValues.Sparsity.DENSE) {
                     continue;
                 }
                 return super.rewrite(indexSearcher);

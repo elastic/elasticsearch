@@ -19,7 +19,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,12 +37,12 @@ public class PutMappingRequestTests extends ESTestCase {
         assertNotNull("source validation should fail", ex);
         assertTrue(ex.getMessage().contains("source is missing"));
 
-        r.source("", XContentType.JSON);
+        r.source("");
         ex = r.validate();
         assertNotNull("source validation should fail", ex);
         assertTrue(ex.getMessage().contains("source is empty"));
 
-        r.source("somevalidmapping", XContentType.JSON);
+        r.source("somevalidmapping");
         ex = r.validate();
         assertNull("validation should succeed", ex);
 

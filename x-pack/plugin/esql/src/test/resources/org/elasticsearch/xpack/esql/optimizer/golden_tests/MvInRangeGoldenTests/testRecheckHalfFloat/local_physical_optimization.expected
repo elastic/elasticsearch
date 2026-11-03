@@ -6,18 +6,11 @@ LimitExec[1000[INTEGER],null]
         \_FilterExec[MVINRANGE(half_float{f}#8,1.0[DOUBLE],2.0[DOUBLE])]
           \_FieldExtractExec[[half_float{f}#8]<[],[],[]>,_doc{f}#20]
             \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#20], limit[], sort[] estimatedRowSize[7430] queryBuilderAndTags [[QueryBuilderAndTags[query={
-  "bool" : {
-    "filter" : [
-      {
-        "range" : {
-          "half_float" : {
-            "gte" : 1.0,
-            "lte" : 2.0,
-            "boost" : 0.0
-          }
-        }
-      }
-    ],
-    "boost" : 1.0
+  "range" : {
+    "half_float" : {
+      "gte" : 1.0,
+      "lte" : 2.0,
+      "boost" : 0.0
+    }
   }
 }, tags=[]]]]

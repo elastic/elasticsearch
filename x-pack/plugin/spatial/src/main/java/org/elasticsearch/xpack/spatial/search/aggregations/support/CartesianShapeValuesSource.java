@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xpack.spatial.index.fielddata.CartesianShapeValues;
@@ -40,7 +40,7 @@ public abstract class CartesianShapeValuesSource extends ShapeValuesSource<Carte
         }
 
         @Override
-        public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+        public SortableBinaryDocValues bytesValues(LeafReaderContext context) {
             return indexFieldData.load(context).getBytesValues();
         }
 

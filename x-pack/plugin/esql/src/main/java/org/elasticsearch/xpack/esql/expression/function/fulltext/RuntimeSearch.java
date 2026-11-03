@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -33,19 +31,15 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TokenStreamMatching;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.RuntimeSearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
@@ -56,9 +50,9 @@ import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
  * is matched directly against the analyzed query terms.
  * <p>
  * The block-level walking (multivalue any-value semantics, null handling, per-thread scratch) is shared here through
- * a single {@code Text} evaluator; what differs between functions is only how a single value's token stream is
- * matched, expressed as a {@link TokenStreamMatcher} ({@link AnyTermMatcher} for {@code match},
- * {@link PhraseMatcher} for {@code match_phrase}).
+ * a single {@code Text} evaluator. How one value's tokens are matched is Elasticsearch's to say, and comes from
+ * {@link TokenStreamMatching}: {@link TokenStreamMatching.AnyTerm} for {@code match},
+ * {@link TokenStreamMatching.Phrase} for {@code match_phrase}.
  */
 public final class RuntimeSearch {
 
@@ -67,105 +61,6 @@ public final class RuntimeSearch {
     private static final Similarity BOOLEAN_SIMILARITY = new BooleanSimilarity();
 
     private RuntimeSearch() {}
-
-    /**
-     * Decides whether a single value's token stream matches the query. The stream is already reset; implementations
-     * consume it (typically through {@link TermToBytesRefAttribute}) and must not close it.
-     */
-    public interface TokenStreamMatcher {
-        boolean matches(TokenStream stream) throws IOException;
-    }
-
-    /**
-     * Matches when any analyzed token equals any of the query terms — the OR semantics of runtime {@code match}.
-     */
-    public record AnyTermMatcher(Set<BytesRef> queryTerms) implements TokenStreamMatcher {
-        @Override
-        public boolean matches(TokenStream stream) throws IOException {
-            TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-            // TODO: Use the operator specified in the query options. For now, we use OR, meaning we stop as soon as
-            // we find a match.
-            while (stream.incrementToken()) {
-                if (queryTerms.contains(term.getBytesRef())) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-
-    /**
-     * Matches when all query terms appear in order at consecutive token positions (slop 0) — the semantics of
-     * runtime {@code match_phrase}.
-     */
-    public record PhraseMatcher(List<BytesRef> queryTerms) implements TokenStreamMatcher {
-        @Override
-        public boolean matches(TokenStream stream) throws IOException {
-            TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-            PositionIncrementAttribute positionIncrement = stream.addAttribute(PositionIncrementAttribute.class);
-            // matched[k] being true means the first k + 1 query terms matched a run of tokens at consecutive
-            // positions, ending at the previous token (prev) or at the current one (curr).
-            boolean[] prev = new boolean[queryTerms.size()];
-            boolean[] curr = new boolean[queryTerms.size()];
-            while (stream.incrementToken()) {
-                if (positionIncrement.getPositionIncrement() != 1) {
-                    // A position gap (or a stacked token) breaks adjacency: with slop 0 a phrase only matches
-                    // tokens at consecutive positions.
-                    Arrays.fill(prev, false);
-                }
-                BytesRef token = term.getBytesRef();
-                for (int k = queryTerms.size() - 1; k > 0; k--) {
-                    curr[k] = prev[k - 1] && ByteMatchers.equals(token, queryTerms.get(k));
-                }
-                curr[0] = ByteMatchers.equals(token, queryTerms.get(0));
-                if (curr[queryTerms.size() - 1]) {
-                    return true;
-                }
-                boolean[] swap = prev;
-                prev = curr;
-                curr = swap;
-            }
-            return false;
-        }
-    }
-
-    /**
-     * Analyzes the given query string into the ordered list of its terms. With the standard analyzer (the only one
-     * supported for now) tokens are emitted at consecutive positions, so the order of the list is enough to describe
-     * a phrase; query-side position gaps cannot happen.
-     */
-    static List<BytesRef> analyzeTerms(Analyzer analyzer, String query) throws IOException {
-        List<BytesRef> terms = new ArrayList<>();
-
-        try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, query)) {
-            stream.reset();
-            TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-            while (stream.incrementToken()) {
-                terms.add(BytesRef.deepCopyOf(term.getBytesRef()));
-            }
-            stream.end();
-        }
-        return terms;
-    }
-
-    /**
-     * Like {@link #analyzeTerms}, but returns each distinct term with the number of times it occurs in the query.
-     * Used for scoring, where a pushed-down match query gets one clause per occurrence: a term repeated N times
-     * weighs N.
-     */
-    static Map<BytesRef, Integer> analyzeTermsWithCounts(Analyzer analyzer, String query) throws IOException {
-        Map<BytesRef, Integer> terms = new HashMap<>();
-
-        try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, query)) {
-            stream.reset();
-            TermToBytesRefAttribute term = stream.addAttribute(TermToBytesRefAttribute.class);
-            while (stream.incrementToken()) {
-                terms.merge(BytesRef.deepCopyOf(term.getBytesRef()), 1, Integer::sum);
-            }
-            stream.end();
-        }
-        return terms;
-    }
 
     /**
      * Exact (unanalyzed) value equality, shared by the runtime full-text functions for types that a pushed-down
@@ -190,7 +85,7 @@ public final class RuntimeSearch {
     static boolean processText(
         @Position int position,
         BytesRefBlock fieldBlock,
-        @Fixed TokenStreamMatcher matcher,
+        @Fixed TokenStreamMatching.Matcher matcher,
         @Fixed Analyzer analyzer,
         @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) throws IOException {
@@ -204,9 +99,8 @@ public final class RuntimeSearch {
         for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
             boolean foundMatch;
             scratch = fieldBlock.getBytesRef(valueIndex, scratch);
-            // Because we use the standard analyzer and options cannot be specified, the analyzed token stream can be
-            // matched directly. Once we accept options (analyzer, slop), we might need a different execution path,
-            // e.g. a Lucene MemoryIndex.
+            // The analyzed token stream is matched directly; queries with options (or phrase queries under a
+            // non-standard analyzer, where position gaps matter) take the Lucene MemoryIndex path instead.
             try (TokenStream stream = analyzer.tokenStream(CONTENT_FIELD, scratch.utf8ToString())) {
                 stream.reset();
                 foundMatch = matcher.matches(stream);
@@ -224,17 +118,18 @@ public final class RuntimeSearch {
      * {@link org.elasticsearch.xpack.esql.core.querydsl.query.Query} (e.g. a {@code MatchQuery} with options).
      * The query is compiled once into a Lucene {@link Query} against a synthetic
      * {@link RuntimeSearchExecutionContext}, and each row is then matched by indexing its value into a temporary
-     * {@link MemoryIndex}. The same {@code analyzer} is used for both query compilation and per-row indexing,
-     * so tokenization stays consistent. ({@code null} selects the standard analyzer)
+     * {@link MemoryIndex}. Like an indexed text field's {@code search_analyzer}/{@code analyzer} pair, the
+     * {@code queryAnalyzer} covers the query string and the {@code valuesAnalyzer} covers the per-row values;
+     * {@code null} selects the standard analyzer for either.
      */
     public static ExpressionEvaluator.Factory textEvaluatorForQuery(
         Source source,
         ExpressionEvaluator.Factory fieldEvaluator,
         org.elasticsearch.xpack.esql.core.querydsl.query.Query query,
-        @Nullable NamedAnalyzer analyzer
+        @Nullable NamedAnalyzer queryAnalyzer,
+        @Nullable NamedAnalyzer valuesAnalyzer
     ) {
-        NamedAnalyzer namedAnalyzer = analyzer == null ? Lucene.STANDARD_ANALYZER : analyzer;
-        Query luceneQuery = compileQuery(query, namedAnalyzer);
+        Query luceneQuery = compileQuery(query, queryAnalyzer == null ? Lucene.STANDARD_ANALYZER : queryAnalyzer);
         if (luceneQuery instanceof MatchAllDocsQuery) {
             return ConstantEvaluators.CONSTANT_TRUE_FACTORY;
         }
@@ -244,7 +139,7 @@ public final class RuntimeSearch {
         return new RuntimeSearchTextWithLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
-            withPositionIncrementGap(namedAnalyzer),
+            withPositionIncrementGap(valuesAnalyzer == null ? Lucene.STANDARD_ANALYZER : valuesAnalyzer),
             luceneQuery,
             context -> new MemoryIndex(),
             context -> new BytesRef()
@@ -262,10 +157,10 @@ public final class RuntimeSearch {
         Source source,
         ExpressionEvaluator.Factory fieldEvaluator,
         org.elasticsearch.xpack.esql.core.querydsl.query.Query query,
-        @Nullable NamedAnalyzer analyzer
+        @Nullable NamedAnalyzer queryAnalyzer,
+        @Nullable NamedAnalyzer valuesAnalyzer
     ) {
-        NamedAnalyzer namedAnalyzer = analyzer == null ? Lucene.STANDARD_ANALYZER : analyzer;
-        Query luceneQuery = compileQuery(query, namedAnalyzer);
+        Query luceneQuery = compileQuery(query, queryAnalyzer == null ? Lucene.STANDARD_ANALYZER : queryAnalyzer);
         if (luceneQuery instanceof MatchAllDocsQuery) {
             return ConstantEvaluators.constantDouble(1.0);
         }
@@ -275,7 +170,7 @@ public final class RuntimeSearch {
         return new RuntimeSearchScoreLuceneQueryEvaluator.Factory(
             source,
             fieldEvaluator,
-            withPositionIncrementGap(namedAnalyzer),
+            withPositionIncrementGap(valuesAnalyzer == null ? Lucene.STANDARD_ANALYZER : valuesAnalyzer),
             luceneQuery,
             context -> new MemoryIndex(),
             context -> new BytesRef()
@@ -312,10 +207,19 @@ public final class RuntimeSearch {
     @Nullable
     public static NamedAnalyzer resolveNamedAnalyzer(Map<String, Object> options, EvaluatorMapper.ToEvaluator toEvaluator) {
         Object analyzerName = options.get(ANALYZER_FIELD.getPreferredName());
-        if (analyzerName == null) {
+        return analyzerName == null ? null : resolveNamedAnalyzer(BytesRefs.toString(analyzerName), toEvaluator);
+    }
+
+    /**
+     * Resolves an analyzer name (e.g. the values analyzer declared through {@code TO_TEXT}) into a
+     * {@link NamedAnalyzer} through the evaluator context's registry lookup. Returns {@code null} for a
+     * {@code null} name.
+     */
+    @Nullable
+    public static NamedAnalyzer resolveNamedAnalyzer(@Nullable String name, EvaluatorMapper.ToEvaluator toEvaluator) {
+        if (name == null) {
             return null;
         }
-        String name = BytesRefs.toString(analyzerName);
         Analyzer analyzer = toEvaluator.getAnalyzer(name);
         // Registry lookups return NamedAnalyzer in practice, but the interface only promises Analyzer
         return analyzer instanceof NamedAnalyzer namedAnalyzer ? namedAnalyzer : new NamedAnalyzer(name, AnalyzerScope.GLOBAL, analyzer);

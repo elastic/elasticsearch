@@ -519,7 +519,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         long expectedShardSize,
         String reason,
         RoutingChangesObserver changes,
-        ShardRouting.RecoveryPriority recoveryPriority
+        RecoveryPriority recoveryPriority
     ) {
         ensureMutable();
         relocatingShards++;
@@ -910,9 +910,25 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private ShardRouting moveFailedShardToUnassigned(ShardRouting shard, UnassignedInfo unassignedInfo) {
         assert shard.unassigned() == false : "only assigned shards can be moved to unassigned (" + shard + ")";
         remove(shard);
-        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED);
+        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, failedShardRecoveryPriority(shard));
         unassignedShards.add(unassigned);
         return unassigned;
+    }
+
+    /// Returns the priority with which to recover a shard which has failed. If the shard was active then the failure
+    /// has reduced availability, so it takes priority [RecoveryPriority#UNASSIGNED_UNEXPECTED]. If the
+    /// shard failed before becoming active then the failure has not reduced availability, and recovering it again is
+    /// just a retry, so it keeps the last priority it had.
+    private static RecoveryPriority failedShardRecoveryPriority(ShardRouting failedShard) {
+        // TODO: a reshard split target primary takes over writes for its share of the documents at HANDOFF, before it becomes
+        // active, so its failure in that window does reduce availability. It then keeps UNASSIGNED_PERFORMANCE_SCALING and its
+        // recovery queues behind any pending split clones. It should be UNASSIGNED_UNEXPECTED. In practice, the window
+        // is small but this should still be fixed.
+        if (failedShard.initializing()) {
+            assert failedShard.relocatingNodeId() == null && failedShard.recoveryPriority().isValidForUnassigned() : failedShard;
+            return failedShard.recoveryPriority();
+        }
+        return RecoveryPriority.UNASSIGNED_UNEXPECTED;
     }
 
     /**
@@ -923,7 +939,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert shard.unassigned() == false : "only assigned shards can be moved to unassigned (" + shard + ")";
         assert shard.primary() : "only primary can be demoted to replica (" + shard + ")";
         remove(shard);
-        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED)
+        ShardRouting unassigned = shard.moveToUnassigned(unassignedInfo, RecoveryPriority.UNASSIGNED_UNEXPECTED)
             .moveUnassignedFromPrimary();
         unassignedShards.add(unassigned);
         return unassigned;

@@ -226,11 +226,11 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
-        return segments(true);
+        return segments(true, false);
     }
 
     @Override
-    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+    public List<Segment> segments(boolean includeVectorFormatsInfo, boolean includeAutoCalibration) {
         throw new UnsupportedOperationException("hollow shard does not support reading segments");
     }
 
@@ -284,6 +284,17 @@ public class HollowIndexEngine extends Engine {
         Function<Searcher, Searcher> searcherWrapper
     ) {
         throwShardNotAvailableException("gets are not supported on a hollow engine");
+        return null;
+    }
+
+    @Override
+    public GetResult getForUpdate(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        throwShardNotAvailableException("updates are not supported on a hollow engine");
         return null;
     }
 

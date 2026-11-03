@@ -199,7 +199,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
         }
 
         @Override
-        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+        public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
             ActionType<Response> action,
             Request request,
             ActionListener<Response> listener

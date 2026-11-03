@@ -220,16 +220,18 @@ public class WildcardLike extends RegexMatch<WildcardPattern> implements AnyNull
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(field()) ? Translatable.YES : Translatable.NO;
+        return pushdownPredicates.isPushableValueAttribute(field()) ? Translatable.YES : Translatable.NO;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         var field = field();
         LucenePushdownPredicates.checkIsPushableAttribute(field);
+        // A field pushable only over its values is named as it stands, and its value is what the pattern matches.
+        final boolean overValues = LucenePushdownPredicates.pushesOverValuesOnly(pushdownPredicates, field);
         return translateField(
-            handler.nameOf(field instanceof FieldAttribute fa ? fa.exactAttribute() : field),
-            pushdownPredicates.flags().stringLikeOnIndex()
+            handler.nameOf(overValues == false && field instanceof FieldAttribute fa ? fa.exactAttribute() : field),
+            overValues || pushdownPredicates.flags().stringLikeOnIndex()
         );
     }
 

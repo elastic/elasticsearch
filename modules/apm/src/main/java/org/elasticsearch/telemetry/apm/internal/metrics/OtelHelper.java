@@ -16,13 +16,11 @@ import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.telemetry.apm.internal.MetricValidator;
-import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
-import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.DoubleAsyncMeasurement;
+import org.elasticsearch.telemetry.metric.LongAsyncMeasurement;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 class OtelHelper {
     private static final Logger logger = LogManager.getLogger(OtelHelper.class);
@@ -59,88 +57,53 @@ class OtelHelper {
         return builder.build();
     }
 
-    static Consumer<ObservableDoubleMeasurement> doubleMeasurementCallback(
-        String metricName,
-        Supplier<Collection<DoubleWithAttributes>> observer
-    ) {
-        return doubleCallback(metricName, observer, false);
+    static Consumer<ObservableDoubleMeasurement> doubleMeasurementCallback(String metricName, Consumer<DoubleAsyncMeasurement> callback) {
+        return doubleCallback(metricName, callback, false);
     }
 
     // Async counters skip 0-valued observations: an unobserved series is dropped by the SDK, matching the APM agent (which did
     // not emit idle counters). Gauges keep 0, since for a gauge 0 is a real value.
     static Consumer<ObservableDoubleMeasurement> doubleCounterMeasurementCallback(
         String metricName,
-        Supplier<Collection<DoubleWithAttributes>> observer
+        Consumer<DoubleAsyncMeasurement> callback
     ) {
-        return doubleCallback(metricName, observer, true);
+        return doubleCallback(metricName, callback, true);
     }
 
     private static Consumer<ObservableDoubleMeasurement> doubleCallback(
         String metricName,
-        Supplier<Collection<DoubleWithAttributes>> observer,
+        Consumer<DoubleAsyncMeasurement> callback,
         boolean suppressZeroValues
     ) {
         return measurement -> {
-            Collection<DoubleWithAttributes> observations;
             try {
-                observations = observer.get();
+                callback.accept(new OtelDoubleAsyncMeasurement(metricName, measurement, suppressZeroValues));
             } catch (RuntimeException err) {
-                assert false : "observer must not throw [" + err.getMessage() + "]";
+                assert false : "callback must not throw [" + err.getMessage() + "]";
                 logger.error("doubleMeasurementCallback observer unexpected error", err);
-                return;
-            }
-            if (observations == null) {
-                return;
-            }
-            for (DoubleWithAttributes observation : observations) {
-                if (observation != null) {
-                    if (suppressZeroValues && observation.value() == 0.0) {
-                        continue;
-                    }
-                    measurement.record(observation.value(), OtelHelper.fromMap(metricName, observation.attributes()));
-                }
             }
         };
     }
 
-    static Consumer<ObservableLongMeasurement> longMeasurementCallback(
-        String metricName,
-        Supplier<Collection<LongWithAttributes>> observer
-    ) {
-        return longCallback(metricName, observer, false);
+    static Consumer<ObservableLongMeasurement> longMeasurementCallback(String metricName, Consumer<LongAsyncMeasurement> callback) {
+        return longCallback(metricName, callback, false);
     }
 
-    static Consumer<ObservableLongMeasurement> longCounterMeasurementCallback(
-        String metricName,
-        Supplier<Collection<LongWithAttributes>> observer
-    ) {
-        return longCallback(metricName, observer, true);
+    static Consumer<ObservableLongMeasurement> longCounterMeasurementCallback(String metricName, Consumer<LongAsyncMeasurement> callback) {
+        return longCallback(metricName, callback, true);
     }
 
     private static Consumer<ObservableLongMeasurement> longCallback(
         String metricName,
-        Supplier<Collection<LongWithAttributes>> observer,
+        Consumer<LongAsyncMeasurement> callback,
         boolean suppressZeroValues
     ) {
         return measurement -> {
-            Collection<LongWithAttributes> observations;
             try {
-                observations = observer.get();
+                callback.accept(new OtelLongAsyncMeasurement(metricName, measurement, suppressZeroValues));
             } catch (RuntimeException err) {
-                assert false : "observer must not throw [" + err.getMessage() + "]";
+                assert false : "callback must not throw [" + err.getMessage() + "]";
                 logger.error("longMeasurementCallback observer unexpected error", err);
-                return;
-            }
-            if (observations == null) {
-                return;
-            }
-            for (LongWithAttributes observation : observations) {
-                if (observation != null) {
-                    if (suppressZeroValues && observation.value() == 0L) {
-                        continue;
-                    }
-                    measurement.record(observation.value(), OtelHelper.fromMap(metricName, observation.attributes()));
-                }
             }
         };
     }

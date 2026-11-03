@@ -20,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EndpointClusterState;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.metadata.EndpointMetadataClusterState;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -91,7 +92,8 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         }
 
         if (inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD) == false
-            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false) {
+            || inferenceFeatureService.hasFeature(InferenceFeatures.INTERNAL_DELETE_INFERENCE_ENDPOINTS_ACTION) == false
+            || inferenceFeatureService.hasFeature(InferenceFeatures.DOCUMENT_EXTRACTION_TASK_TYPE) == false) {
             logger.info("Skipping sending authorization request, because the cluster is currently upgrading and missing required features");
             listener.onResponse(ActionResponse.Empty.INSTANCE);
             return;
@@ -140,7 +142,7 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
     private List<Model> selectEndpointsToPersist(ElasticInferenceServiceAuthorizationModel authModel) {
         logger.debug("Received authorization response, {}", authModel);
 
-        var scopedAuthModel = authModel.newLimitedToTaskTypes(EnumSet.copyOf(ElasticInferenceService.IMPLEMENTED_TASK_TYPES));
+        var scopedAuthModel = scopeAuthModel(authModel);
         logger.debug("Authorization entity limited to service task types, {}", scopedAuthModel);
 
         List<Model> endpoints = scopedAuthModel.getEndpoints(scopedAuthModel.getEndpointIds());
@@ -154,6 +156,18 @@ public class TransportRefreshAuthorizedEndpointsAction extends HandledTransportA
         return endpoints.stream()
             .filter(model -> shouldPersistEndpoint(model, existingById.get(model.getInferenceEntityId())))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Limits the authorization to the task types the service implements, which excludes the ones the cluster can't read yet.
+     */
+    private ElasticInferenceServiceAuthorizationModel scopeAuthModel(ElasticInferenceServiceAuthorizationModel authModel) {
+        var taskTypes = EnumSet.copyOf(ElasticInferenceService.IMPLEMENTED_TASK_TYPES);
+        // Nodes that are not upgraded yet can't read decision endpoints, a later poll persists them once the cluster is upgraded
+        if (inferenceFeatureService.hasFeature(InferenceFeatures.DECISION_TASK_TYPE) == false) {
+            taskTypes.remove(TaskType.DECISION);
+        }
+        return authModel.newLimitedToTaskTypes(taskTypes);
     }
 
     private static boolean shouldPersistEndpoint(Model newEndpoint, @Nullable EndpointClusterState existingEndpoint) {

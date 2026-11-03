@@ -49,4 +49,9 @@ public enum MetricQuality {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(getId());
     }
+
+    /// Ironically, the "lowest" quality has the highest ordinal, so that's why this comparison looks backwards
+    public boolean isLowerQualityThan(MetricQuality other) {
+        return this.compareTo(other) > 0;
+    }
 }

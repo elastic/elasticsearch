@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class RenameProcessorFactoryTests extends ESTestCase {
 
@@ -35,8 +36,8 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RenameProcessor renameProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
-        assertThat(renameProcessor.getField().newInstance(Map.of()).execute(), equalTo("old_field"));
-        assertThat(renameProcessor.getTargetField().newInstance(Map.of()).execute(), equalTo("new_field"));
+        assertThat(renameProcessor.getField(), hasToString("old_field"));
+        assertThat(renameProcessor.getTargetField(), hasToString("new_field"));
         assertThat(renameProcessor.isIgnoreMissing(), equalTo(false));
         assertThat(renameProcessor.isOverrideEnabled(), equalTo(false));
     }
@@ -49,8 +50,8 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RenameProcessor renameProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
-        assertThat(renameProcessor.getField().newInstance(Map.of()).execute(), equalTo("old_field"));
-        assertThat(renameProcessor.getTargetField().newInstance(Map.of()).execute(), equalTo("new_field"));
+        assertThat(renameProcessor.getField(), hasToString("old_field"));
+        assertThat(renameProcessor.getTargetField(), hasToString("new_field"));
         assertThat(renameProcessor.isIgnoreMissing(), equalTo(true));
     }
 
@@ -62,8 +63,8 @@ public class RenameProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RenameProcessor renameProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(renameProcessor.getTag(), equalTo(processorTag));
-        assertThat(renameProcessor.getField().newInstance(Map.of()).execute(), equalTo("old_field"));
-        assertThat(renameProcessor.getTargetField().newInstance(Map.of()).execute(), equalTo("new_field"));
+        assertThat(renameProcessor.getField(), hasToString("old_field"));
+        assertThat(renameProcessor.getTargetField(), hasToString("new_field"));
         assertThat(renameProcessor.isOverrideEnabled(), equalTo(true));
     }
 

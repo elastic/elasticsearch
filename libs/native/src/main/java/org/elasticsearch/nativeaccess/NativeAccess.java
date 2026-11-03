@@ -157,12 +157,6 @@ public interface NativeAccess {
     Systemd systemd();
 
     /**
-     * Returns an accessor to zstd compression functions.
-     * @return an object used to compress and decompress bytes using zstd
-     */
-    Zstd getZstd();
-
-    /**
      * Retrieves the actual number of bytes of disk storage used to store a specified file.
      *
      * @param path the path to the file
@@ -171,11 +165,6 @@ public interface NativeAccess {
     OptionalLong allocatedSizeInBytes(Path path);
 
     void tryPreallocate(Path file, long size);
-
-    /**
-     * Returns Parquet-rs native functions, or an empty optional if unavailable on this platform.
-     */
-    Optional<ParquetRsFunctions> getParquetRsFunctions();
 
     /**
      * Creates a new {@link MappedSegment} using a shared arena. The segment can be used

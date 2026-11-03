@@ -77,9 +77,24 @@ public class RestCancellableNodeClient extends FilterClient {
         Request request,
         ActionListener<Response> listener
     ) {
+        executeAndReturnTask(action, request, listener);
+    }
+
+    /**
+     * Like {@link #execute(ActionType, ActionRequest, ActionListener)}, but returns the task tracking the request, so that callers can
+     * also cancel it for reasons other than the HTTP channel being closed, such as a timeout. The task is still cancelled if the HTTP
+     * channel closes before completion.
+     *
+     * @see NodeClient#executeAndReturnTask(ActionType, ActionRequest, ActionListener)
+     */
+    public <Request extends ActionRequest, Response extends ActionResponse> Task executeAndReturnTask(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener());
         TaskHolder taskHolder = new TaskHolder();
-        Task task = client.executeLocally(action, request, new ActionListener<>() {
+        Task task = client.executeAndReturnTask(action, request, new ActionListener<>() {
             @Override
             public void onResponse(Response response) {
                 try {
@@ -102,6 +117,7 @@ public class RestCancellableNodeClient extends FilterClient {
         final TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
         closeListener.registerTask(taskHolder, taskId);
         closeListener.maybeRegisterChannel(httpChannel);
+        return task;
     }
 
     private void cancelTask(TaskId taskId) {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161120
+summary: Match CSV and TSV columns by header name under `first_file_wins`
+type: bug

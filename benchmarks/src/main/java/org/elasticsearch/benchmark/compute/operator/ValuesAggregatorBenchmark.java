@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -77,11 +78,11 @@ public class ValuesAggregatorBenchmark {
         new BytesRef("Cairo") };
     static {
         assert KEYWORDS.length == UNIQUE_VALUES;
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(NoopCircuitBreaker.INSTANCE)
         .build();
 
     static {

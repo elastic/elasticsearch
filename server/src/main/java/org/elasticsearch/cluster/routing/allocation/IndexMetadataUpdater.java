@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -125,6 +126,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                 var indexChanges = changesGroupedByIndex.get(index);
                 final IndexMetadata oldIndexMetadata = projectMetadata.getIndexSafe(index);
                 IndexMetadata updatedIndexMetadata = oldIndexMetadata;
+                List<ShardId> splitTargets = new ArrayList<>();
                 for (Map.Entry<ShardId, Updates> shardEntry : indexChanges) {
                     ShardId shardId = shardEntry.getKey();
                     Updates updates = shardEntry.getValue();
@@ -135,18 +137,21 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                         shardId,
                         updates
                     );
-                    IndexReshardingMetadata reshardingMetadata = updatedIndexMetadata.getReshardingMetadata();
-                    boolean splitTarget = reshardingMetadata != null
-                        && reshardingMetadata.isSplit()
-                        && reshardingMetadata.getSplit().isTargetShard(shardId.id());
-                    updatedIndexMetadata = updates.increaseTerm
-                        ? splitTarget
-                            ? updatedIndexMetadata.withSetPrimaryTerm(
-                                shardId.id(),
-                                splitPrimaryTerm(updatedIndexMetadata, reshardingMetadata, shardId)
-                            )
-                            : updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
-                        : updatedIndexMetadata;
+                    if (updates.increaseTerm) {
+                        if (IndexReshardingMetadata.isSplitTarget(shardId, updatedIndexMetadata.getReshardingMetadata())) {
+                            // Defer split-target term bumps until after all other increments so
+                            // splitPrimaryTerm sees the final source term and target stays >= source.
+                            splitTargets.add(shardId);
+                        } else {
+                            updatedIndexMetadata = updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id());
+                        }
+                    }
+                }
+                for (ShardId shardId : splitTargets) {
+                    updatedIndexMetadata = updatedIndexMetadata.withSetPrimaryTerm(
+                        shardId.id(),
+                        splitPrimaryTerm(updatedIndexMetadata, updatedIndexMetadata.getReshardingMetadata(), shardId)
+                    );
                 }
                 if (updatedIndexMetadata != oldIndexMetadata) {
                     updatedIndices.put(updatedIndexMetadata.getIndex().getName(), updatedIndexMetadata.withIncrementedVersion());

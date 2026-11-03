@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import com.carrotsearch.hppc.IntIntHashMap;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -31,14 +32,16 @@ import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.BytesRefSwissHash;
+import org.elasticsearch.swisshash.LongLongSwissHash;
+import org.elasticsearch.swisshash.TimeSeriesPartitionedHash;
 
 /**
  * An optimized block hash that receives two blocks: tsid and timestamp, which are sorted.
  * Since the incoming data is sorted, this block hash checks tsid ordinals to avoid redundant
  * hash lookups for consecutive positions with the same tsid and timestamp.
- * Delegates to a {@link BytesRefLongBlockHash} for the actual hashing.
  */
-public final class TimeSeriesBlockHash extends BlockHash {
+public final class TimeSeriesBlockHash extends PartitionedBlockHash {
 
     private final int tsidChannel;
     private final int timestampChannel;
@@ -49,6 +52,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
     private final boolean trackTimestamp;
     private long minTimestamp = Long.MAX_VALUE;
     private long maxTimestamp = Long.MIN_VALUE;
+    private TimeSeriesPartitionedHash partitioned;
 
     public TimeSeriesBlockHash(
         int tsidChannel,
@@ -77,6 +81,72 @@ public final class TimeSeriesBlockHash extends BlockHash {
     @Override
     public void close() {
         Releasables.close(tsidHash, finalHash);
+    }
+
+    @Override
+    public void clear() {
+        tsidHash.clear();
+        finalHash.clear();
+        minTimestamp = Long.MAX_VALUE;
+        maxTimestamp = Long.MIN_VALUE;
+    }
+
+    @Override
+    public long estimatedBytesForPartitioning() {
+        return estimatedKeyBytes(tsidHash.getBytesRefs()) + finalHash.size() * (Long.BYTES * 2);
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (finalHash instanceof LongLongSwissHash swiss) {
+            swiss.ensureCapacity(size);
+        }
+    }
+
+    private TimeSeriesPartitionedHash partitioned() {
+        if (partitioned == null) {
+            if (tsidHash instanceof BytesRefSwissHash bytes && finalHash instanceof LongLongSwissHash longlong) {
+                partitioned = new TimeSeriesPartitionedHash(bytes, longlong, blockFactory.bigArrays());
+            } else {
+                throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+            }
+        }
+        return partitioned;
+    }
+
+    @Override
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        var keys = partitioned().splitPartition(breaker, partitionSplitter);
+        return new KeysWithTimestamps(keys, minTimestamp(), maxTimestamp());
+    }
+
+    private record KeysWithTimestamps(PartitionedHashKeys delegate, long minTimestamp, long maxTimestamp) implements PartitionedHashKeys {
+        @Override
+        public int keysInPartition(int partition) {
+            return delegate.keysInPartition(partition);
+        }
+
+        @Override
+        public void releasePartition(CircuitBreaker breaker, int partition) {
+            delegate.releasePartition(breaker, partition);
+        }
+
+        @Override
+        public void releaseAll(CircuitBreaker breaker) {
+            delegate.releaseAll(breaker);
+        }
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        final KeysWithTimestamps withTimestamps = (KeysWithTimestamps) keys;
+        minTimestamp = Math.min(minTimestamp, withTimestamps.minTimestamp);
+        maxTimestamp = Math.max(maxTimestamp, withTimestamps.maxTimestamp);
+        keys = withTimestamps.delegate;
+        if (keys.keysInPartition(partitionIndex) == 0) {
+            return true;
+        }
+        return partitioned().combinePartition(keys, partitionIndex, resultIds);
     }
 
     @Override
@@ -113,6 +183,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
         int prevGroupId = (int) hashOrdToGroup(finalHash.add(tsid, prevTimestamp));
         if (timestamps.isConstant() || constantTimestamp(timestamps, prevTimestamp, positionCount)) {
             try (var groups = blockFactory.newConstantIntVector(prevGroupId, positionCount)) {
+                assert assertKeysMatchGroups(0, groups, tsidVector, timestamps);
                 addInput.add(0, groups);
             }
             return;
@@ -131,6 +202,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             groupsIds = groupBuilder.build();
         }
         try (groupsIds) {
+            assert assertKeysMatchGroups(0, groupsIds, tsidVector, timestamps);
             addInput.add(0, groupsIds);
         }
     }
@@ -144,6 +216,31 @@ public final class TimeSeriesBlockHash extends BlockHash {
             if (timestamps.getLong(i) != firstTimestamp) {
                 return false;
             }
+        }
+        return true;
+    }
+
+    private boolean assertKeysMatchGroups(int positionOffset, IntVector groupIds, BytesRefVector tsids, LongVector timestamps) {
+        BytesRef expectedTsid = new BytesRef();
+        BytesRef groupTsid = new BytesRef();
+        for (int p = 0; p < groupIds.getPositionCount(); p++) {
+            int groupId = groupIds.getInt(p);
+            int position = positionOffset + p;
+            long timestamp = timestamps.getLong(position);
+            long groupTimestamp = timestampForGroup(groupId);
+            assert timestamp == groupTimestamp
+                : "timestamp "
+                    + timestamp
+                    + " at position "
+                    + position
+                    + " was assigned to group "
+                    + groupId
+                    + " whose timestamp is "
+                    + groupTimestamp;
+            tsids.getBytesRef(position, expectedTsid);
+            tsidHash.get(tsidForGroup(groupId), groupTsid);
+            assert expectedTsid.bytesEquals(groupTsid)
+                : "tsid " + expectedTsid + " at position " + position + " was assigned to group " + groupId + " whose tsid is " + groupTsid;
         }
         return true;
     }
@@ -178,6 +275,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             }
             try (var groupsVector = blockFactory.newIntArrayVector(groupIds, ordinalsLength, acquiredBytes)) {
                 acquiredBytes = 0;
+                assert assertKeysMatchGroups(0, groupsVector, tsidVector, timestamps);
                 addInput.add(0, groupsVector);
             }
         } finally {
@@ -201,6 +299,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
             }
             try (var groupIds = blockFactory.newIntArrayVector(ords, positionCount, acquiredBytes)) {
                 acquiredBytes = 0;
+                assert assertKeysMatchGroups(0, groupIds, tsidVector, timestamps);
                 addInput.add(0, groupIds);
             }
         } finally {
@@ -229,7 +328,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
     }
 
     private Block[] buildOrdinalKeys(IntVector selected) {
-        if (selected.getPositionCount() == finalHash.size()) {
+        if (partitioned == null && selected.getPositionCount() == finalHash.size()) {
             return buildFullDictionaryOrdinalKeys(selected);
         }
         return buildPageLocalDictionaryOrdinalKeys(selected);
@@ -369,6 +468,14 @@ public final class TimeSeriesBlockHash extends BlockHash {
 
     public long numGroups() {
         return finalHash.size();
+    }
+
+    /**
+     * The number of distinct tsids seen by this hash. The tsid ordinals returned by {@link #tsidForGroup(long)}
+     * are dense in {@code [0, numTsids())}, so they can be used directly as array indices.
+     */
+    public int numTsids() {
+        return Math.toIntExact(tsidHash.size());
     }
 
     private void maybeScanTimestampsFromFinalHash() {

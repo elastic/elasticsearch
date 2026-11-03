@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157868
+summary: Drop Parquet reader kill-switches
+type: enhancement

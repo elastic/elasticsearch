@@ -28,9 +28,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
-import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
@@ -95,7 +95,6 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
             // Both recovery and new commit notifications backfill referenced BCC metadata-read regions only after parsing referenced CCs
             // via this path.
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
-            .put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_TIMESTAMP_BACKFILL_ENABLED_SETTING.getKey(), true)
             // Enough room to keep every region cached for the duration of the test (no eviction).
             .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(16))
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
@@ -481,10 +480,10 @@ public class SearchShardCacheTimestampBackfillIT extends AbstractStatelessPlugin
         var indexObjectStore = getObjectStoreService(indexNode);
         for (var blob : commitsContainer.listBlobs(operationPurpose).entrySet()) {
             var blobName = blob.getKey();
-            if (StatelessCompoundCommit.startsWithBlobPrefix(blobName) == false) {
+            if (BatchedCompoundCommit.startsWithBlobPrefix(blobName) == false) {
                 continue;
             }
-            var generation = StatelessCompoundCommit.parseGenerationFromBlobName(blobName);
+            var generation = BatchedCompoundCommit.parseGenerationFromBlobName(blobName);
             var iterator = indexObjectStore.readBatchedCompoundCommitFromStoreIncrementally(
                 shardId,
                 new PrimaryTermAndGeneration(primaryTerm, generation),

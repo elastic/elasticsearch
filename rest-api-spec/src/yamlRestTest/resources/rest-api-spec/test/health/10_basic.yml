@@ -43,5 +43,14 @@
   - is_true: indicators.data_stream_lifecycle.status
   - is_true: indicators.data_stream_lifecycle.symptom
 
+---
+"cluster health file settings indicator":
+  - requires:
+      cluster_features: "gte_v9.0.0"
+      reason: "file_settings health indicator was added in 9.0.0"
+
+  - do:
+      health_report: { }
+
   - is_true: indicators.file_settings.status
   - is_true: indicators.file_settings.symptom

@@ -1131,6 +1131,25 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(filter.test(null), equalTo(false));
     }
 
+    public void testTsidPrefixedDimensionsSettingRequiresClusterFeature() {
+        Predicate<Template> filter = IndexTemplateRegistry.NODE_FEATURE_FILTERS.get(MapperFeatures.TSDB_TSID_PREFIXED_DIMENSIONS);
+        assertThat(filter, notNullValue());
+        assertThat(
+            filter.test(
+                new Template(
+                    Settings.builder()
+                        .putList(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey(), "resource.attributes.*")
+                        .build(),
+                    null,
+                    null
+                )
+            ),
+            equalTo(true)
+        );
+        assertThat(filter.test(new Template(Settings.EMPTY, null, null)), equalTo(false));
+        assertThat(filter.test(null), equalTo(false));
+    }
+
     public void testFeatureAbsentFiltersMatchingComponentTemplate() {
         // FEATURE_ONE is not reported by any node, so templates matching its filter must be excluded.
         TestRegistryWithNodeFeatureFilters registry = createRegistryWithFilters(Map.of(FEATURE_ONE, MATCHES_COMPONENT_TWO));

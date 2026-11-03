@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadCounters;
+
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -15,13 +17,12 @@ import java.util.concurrent.atomic.LongAdder;
  * {@link CsvFormatReader#formatName()} so that a CSV instance reports {@code "csv"} and a TSV
  * instance reports {@code "tsv"}.
  */
-public final class CsvReaderCounters {
+public final class CsvReaderCounters implements FormatReadCounters {
 
     private final String format;
     private final LongAdder rowsEmitted = new LongAdder();
     private final LongAdder parseErrors = new LongAdder();
     private volatile boolean headerDetected = false;
-    private final LongAdder totalReadNanos = new LongAdder();
 
     public CsvReaderCounters(String format) {
         this.format = format;
@@ -43,13 +44,8 @@ public final class CsvReaderCounters {
         headerDetected = true;
     }
 
-    public void addReadNanos(long nanos) {
-        if (nanos > 0) {
-            totalReadNanos.add(nanos);
-        }
-    }
-
+    @Override
     public CsvReaderStatus snapshot() {
-        return new CsvReaderStatus(format, rowsEmitted.sum(), parseErrors.sum(), headerDetected, totalReadNanos.sum());
+        return new CsvReaderStatus(format, rowsEmitted.sum(), parseErrors.sum(), headerDetected);
     }
 }

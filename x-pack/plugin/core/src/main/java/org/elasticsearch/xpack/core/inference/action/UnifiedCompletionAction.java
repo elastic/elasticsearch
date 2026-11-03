@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.InferenceContext;
 
@@ -30,15 +32,22 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
     }
 
     public static class Request extends BaseInferenceActionRequest {
+
+        /**
+         * Template ids owned by the Elastic Inference Service start with a dot, mirroring the dot-prefixed endpoint ids it owns.
+         */
+        public static final String TEMPLATE_ID_PREFIX = ".";
+
         public static Request parseRequest(
             String inferenceEntityId,
             TaskType taskType,
+            boolean stream,
             TimeValue timeout,
             InferenceContext context,
             XContentParser parser
         ) throws IOException {
-            var unifiedRequest = UnifiedCompletionRequest.PARSER.apply(parser, null);
-            return new Request(inferenceEntityId, taskType, unifiedRequest, context, timeout);
+            var unifiedRequestBody = UnifiedCompletionRequestBody.PARSER.apply(parser, null);
+            return new Request(inferenceEntityId, taskType, new UnifiedCompletionRequest(unifiedRequestBody, stream), context, timeout);
         }
 
         private final String inferenceEntityId;
@@ -89,12 +98,8 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             return unifiedCompletionRequest;
         }
 
-        /**
-         * The Unified API only supports streaming so we always return true here.
-         * @return true
-         */
         public boolean isStreaming() {
-            return true;
+            return unifiedCompletionRequest.stream();
         }
 
         public TimeValue getTimeout() {
@@ -103,25 +108,65 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
 
         @Override
         public ActionRequestValidationException validate() {
-            if (unifiedCompletionRequest == null || unifiedCompletionRequest.messages() == null) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [messages] cannot be null");
-                return e;
+            var body = unifiedCompletionRequest.body();
+            var messages = body.messages();
+            var template = body.template();
+
+            if (messages == null && template == null) {
+                return validationError("Field [messages] cannot be null");
             }
 
-            if (unifiedCompletionRequest.messages().isEmpty()) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [messages] cannot be an empty array");
-                return e;
+            if (messages != null && template != null) {
+                return validationError("Fields [messages] and [template] are mutually exclusive");
+            }
+
+            if (messages != null && messages.isEmpty()) {
+                return validationError("Field [messages] cannot be an empty array");
+            }
+
+            if (template != null) {
+                var templateError = validateTemplate(body);
+                if (templateError != null) {
+                    return templateError;
+                }
             }
 
             if (taskType.isAnyOrSame(TaskType.CHAT_COMPLETION) == false) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError("Field [taskType] must be [chat_completion]");
-                return e;
+                return validationError("Field [taskType] must be [chat_completion]");
             }
 
             return null;
+        }
+
+        /**
+         * Structural checks only. The service that owns the template validates the variables against the template's schema.
+         * Tool fields are rejected because tool definitions carry descriptions and parameter schemas, which is prompt content
+         * the caller must not author when a template is used.
+         */
+        private static ActionRequestValidationException validateTemplate(UnifiedCompletionRequestBody body) {
+            var template = body.template();
+            if (Strings.isNullOrBlank(template.id())) {
+                return validationError("Field [template.id] cannot be empty");
+            }
+            if (template.id().startsWith(TEMPLATE_ID_PREFIX) == false) {
+                return validationError("Field [template.id] must start with a dot ([.])");
+            }
+            if (template.version() < 1) {
+                return validationError("Field [template.version] must be a positive integer");
+            }
+            if (body.tools() != null && body.tools().isEmpty() == false) {
+                return validationError("Field [tools] cannot be specified with [template]");
+            }
+            if (body.toolChoice() != null) {
+                return validationError("Field [tool_choice] cannot be specified with [template]");
+            }
+            return null;
+        }
+
+        private static ActionRequestValidationException validationError(String message) {
+            var e = new ActionRequestValidationException();
+            e.addValidationError(message);
+            return e;
         }
 
         @Override
@@ -141,7 +186,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         @Override
         public boolean equals(Object o) {
             if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
+            var request = (Request) o;
             return super.equals(o)
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && taskType == request.taskType

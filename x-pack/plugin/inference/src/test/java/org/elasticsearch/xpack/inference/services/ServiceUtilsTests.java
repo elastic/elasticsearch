@@ -312,6 +312,25 @@ public class ServiceUtilsTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> createUri(null));
     }
 
+    public void testCreateUri_WithSettingName_CreatesUri() {
+        var uri = createUri("www.elastic.co", "url");
+
+        assertNotNull(uri);
+        assertThat(uri.toString(), is("www.elastic.co"));
+    }
+
+    public void testCreateUri_WithSettingName_ThrowsExceptionWithFieldContext_WithInvalidUrl() {
+        var exception = expectThrows(IllegalArgumentException.class, () -> createUri("^^", "url"));
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "[service_settings] Invalid url [^^] received for field [url]. "
+                    + "Error: unable to parse url [^^]. Reason: Illegal character in path"
+            )
+        );
+    }
+
     public void testExtractOptionalUri_ReturnsUri_WhenFieldIsValid() {
         var validation = new ValidationException();
         Map<String, Object> map = Map.of("url", "www.elastic.co");
@@ -1217,8 +1236,8 @@ public class ServiceUtilsTests extends ESTestCase {
 
     private static TimeValue getExpectedTimeoutForTaskType(TaskType taskType) {
         return switch (taskType) {
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING, RERANK, EMBEDDING -> TimeValue.THIRTY_SECONDS;
-            case COMPLETION, CHAT_COMPLETION -> TimeValue.timeValueSeconds(120);
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING, RERANK, EMBEDDING, DECISION -> TimeValue.THIRTY_SECONDS;
+            case COMPLETION, CHAT_COMPLETION, DOCUMENT_EXTRACTION -> TimeValue.timeValueSeconds(120);
             default -> throw new IllegalArgumentException("Invalid task type " + taskType);
         };
     }

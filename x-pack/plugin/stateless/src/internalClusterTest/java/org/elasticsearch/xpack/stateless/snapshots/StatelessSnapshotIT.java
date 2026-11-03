@@ -297,19 +297,19 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         getCacheService(indexShardBlobStoreCacheDirectory).forceEvict((key) -> true);
         final var testTelemetryPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
         testTelemetryPlugin.collect();
-        long readsBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
-        long missesBeforeSnapshot = testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
+        long readsBeforeSnapshot = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong();
+        long missesBeforeSnapshot = testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong();
 
         final var snapshotName = randomSnapshotName();
         createSnapshot(repoName, snapshotName, List.of(indexName), List.of());
         // Assert snapshot does not lead to any cache activities
         testTelemetryPlugin.collect();
         assertThat(
-            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(),
+            testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.read.total").getLast().getLong(),
             equalTo(readsBeforeSnapshot)
         );
         assertThat(
-            testTelemetryPlugin.getLongGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(),
+            testTelemetryPlugin.getLongAsyncGaugeMeasurement("es.blob_cache.miss.total").getLast().getLong(),
             equalTo(missesBeforeSnapshot)
         );
     }

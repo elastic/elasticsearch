@@ -37,7 +37,8 @@ public class TsvExternalRowDropParityIT extends AbstractExternalRowDropParityIT 
         StringBuilder sb = new StringBuilder("id:integer\tname:keyword\tvalue:double\n");
         for (int i = 0; i < rows; i++) {
             if (malformed && i == badRow) {
-                sb.append("notanint\trow_").append(i).append('\t').append(i + 0.5).append('\n'); // non-numeric id -> dropped
+                // An extra column -> wrong-width STRUCTURAL drop; see the CSV sibling for why not a coercion drop.
+                sb.append(i).append("\trow_").append(i).append('\t').append(i + 0.5).append("\textra").append('\n');
             } else {
                 sb.append(i).append("\trow_").append(i).append('\t').append(i + 0.5).append('\n');
             }

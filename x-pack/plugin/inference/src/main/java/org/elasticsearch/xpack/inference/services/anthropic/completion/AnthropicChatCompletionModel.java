@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.anthropic.completion;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -47,7 +47,7 @@ public class AnthropicChatCompletionModel extends AnthropicModel {
      * leaving the original instance untouched. Used by the {@code chat_completion} task type so that the model id
      * supplied in each unified inference call overrides the value persisted on the endpoint.
      */
-    public static AnthropicChatCompletionModel of(AnthropicChatCompletionModel model, UnifiedCompletionRequest request) {
+    public static AnthropicChatCompletionModel of(AnthropicChatCompletionModel model, UnifiedCompletionRequestBody request) {
         if (request.model() == null || Objects.equals(request.model(), model.getServiceSettings().modelId())) {
             return model;
         }

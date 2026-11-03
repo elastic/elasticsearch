@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.pushdown.PushdownLiteralConversion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -94,6 +95,35 @@ public class OrcPushdownFiltersTests extends ESTestCase {
 
     public void testCanConvertDatetime() {
         assertTrue(OrcPushdownFilters.canConvert(eq("ts", DataType.DATETIME, 1700000000000L)));
+    }
+
+    public void testCanConvertDateNanosLiteralOnDateColumnAfterConvert() {
+        Equals expr = new Equals(SOURCE, field("ts", DataType.DATETIME), literal(1_700_000_000_000_000_000L, DataType.DATE_NANOS));
+        assertTrue(OrcPushdownFilters.canConvert(PushdownLiteralConversion.rewrite(expr)));
+    }
+
+    public void testCanConvertIntegerLessThanDoubleAfterConvert() {
+        LessThan expr = new LessThan(SOURCE, field("id", DataType.INTEGER), literal(5.5, DataType.DOUBLE));
+        assertTrue(OrcPushdownFilters.canConvert(PushdownLiteralConversion.rewrite(expr)));
+    }
+
+    public void testCanConvertNestedMixedOrAndAfterConvert() {
+        Expression mixed = new Equals(SOURCE, field("ts", DataType.DATETIME), literal(1_700_000_000_000_000_000L, DataType.DATE_NANOS));
+        Expression pushable = eq("age", DataType.INTEGER, 30);
+        Expression other = eq("score", DataType.DOUBLE, 9.5);
+        assertTrue(
+            OrcPushdownFilters.canConvert(PushdownLiteralConversion.rewrite(new Or(SOURCE, new And(SOURCE, mixed, pushable), other)))
+        );
+    }
+
+    public void testResolveTypeDateNanos() {
+        assertNull(OrcPushdownFilters.resolveType(DataType.DATE_NANOS));
+    }
+
+    public void testCannotConvertDateLiteralOnDateNanosColumnEvenAfterConvert() {
+        // Conversion widens the literal to date_nanos, but ORC still has no DATE_NANOS PredicateLeaf type.
+        Equals expr = new Equals(SOURCE, field("ts", DataType.DATE_NANOS), literal(1_700_000_000_000L, DataType.DATETIME));
+        assertFalse(OrcPushdownFilters.canConvert(PushdownLiteralConversion.rewrite(expr)));
     }
 
     public void testCannotConvertUnsupportedType() {

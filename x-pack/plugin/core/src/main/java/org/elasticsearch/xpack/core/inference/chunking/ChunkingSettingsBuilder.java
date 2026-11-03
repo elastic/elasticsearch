@@ -22,10 +22,20 @@ public class ChunkingSettingsBuilder {
     public static final float WORDS_PER_TOKEN = 0.75f;
 
     public static ChunkingSettings fromMap(Map<String, Object> settings) {
-        return fromMap(settings, true);
+        return fromMap(settings, true, false);
     }
 
     public static ChunkingSettings fromMap(Map<String, Object> settings, boolean returnDefaultValues) {
+        return fromMap(settings, returnDefaultValues, false);
+    }
+
+    /**
+     * @param enforceRequestLimits when {@code true}, policy limits such as the maximum separator count for
+     *                             recursive chunking are enforced. Pass {@code true} for user-facing request paths
+     *                             and {@code false} for persistence-read paths that may encounter settings created
+     *                             before the limit existed.
+     */
+    public static ChunkingSettings fromMap(Map<String, Object> settings, boolean returnDefaultValues, boolean enforceRequestLimits) {
 
         if (returnDefaultValues) {
             if (settings == null) {
@@ -51,7 +61,7 @@ public class ChunkingSettingsBuilder {
             case NONE -> NoneChunkingSettings.INSTANCE;
             case WORD -> WordBoundaryChunkingSettings.fromMap(new HashMap<>(settings));
             case SENTENCE -> SentenceBoundaryChunkingSettings.fromMap(new HashMap<>(settings));
-            case RECURSIVE -> RecursiveChunkingSettings.fromMap(new HashMap<>(settings));
+            case RECURSIVE -> RecursiveChunkingSettings.fromMap(new HashMap<>(settings), enforceRequestLimits);
         };
     }
 

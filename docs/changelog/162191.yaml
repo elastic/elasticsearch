@@ -1,0 +1,7 @@
+area: Mapping
+issues:
+ - 161862
+pr: 162191
+summary: "Skip the keyword `MAX_TERM_LENGTH` check for non-indexed binary doc values\
+  \ fields [#161862]"
+type: enhancement

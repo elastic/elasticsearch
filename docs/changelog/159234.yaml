@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 144495
+pr: 159234
+summary: Interpolate rate across sparse buckets
+type: enhancement

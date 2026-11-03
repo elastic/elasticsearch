@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -374,7 +375,7 @@ public class RecoveryTargetTests extends ESTestCase {
     public void testStageSequenceEnforcement() {
         final DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("1").roles(emptySet()).build();
         final AssertionError error = expectThrows(AssertionError.class, () -> {
-            Stage[] stages = Stage.values();
+            final Stage[] stages = EnumSet.complementOf(EnumSet.of(Stage.CREATED)).toArray(Stage[]::new);
             int i = randomIntBetween(0, stages.length - 1);
             int j = randomValueOtherThan(i, () -> randomIntBetween(0, stages.length - 1));
             Stage t = stages[i];
@@ -400,10 +401,10 @@ public class RecoveryTargetTests extends ESTestCase {
         });
         assertThat(error.getMessage(), startsWith("can't move recovery to stage"));
         // but reset should be always possible.
-        Stage[] stages = Stage.values();
-        int i = randomIntBetween(1, stages.length - 1);
-        ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
-        list.addAll(Arrays.asList(stages));
+        final List<Stage> stagesWithoutCreated = List.copyOf(EnumSet.complementOf(EnumSet.of(Stage.CREATED)));
+        int i = randomIntBetween(1, stagesWithoutCreated.size() - 1);
+        ArrayList<Stage> list = new ArrayList<>(stagesWithoutCreated.subList(0, i));
+        list.addAll(stagesWithoutCreated);
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             new ShardId("bla", "_na_", 0),
             discoveryNode.getId(),

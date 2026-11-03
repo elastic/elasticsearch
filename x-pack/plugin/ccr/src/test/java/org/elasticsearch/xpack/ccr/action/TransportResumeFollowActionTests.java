@@ -359,6 +359,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         replicatedSettings.add(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         replicatedSettings.add(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING);
         replicatedSettings.add(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT);
+        replicatedSettings.add(IndexSettings.DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD);
 
         for (Setting<?> setting : IndexScopedSettings.BUILT_IN_INDEX_SETTINGS) {
             // removed settings have no effect, they are only there for BWC
@@ -384,6 +385,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         settings.put(IndexMetadata.SETTING_CREATION_DATE, "");
         settings.put(IndexMetadata.SETTING_VERSION_UPGRADED, "");
         settings.put(IndexMetadata.SETTING_VERSION_UPGRADED_STRING, "");
+        settings.put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), "");
 
         Settings result = TransportResumeFollowAction.filter(settings.build());
         assertThat(result.size(), equalTo(0));

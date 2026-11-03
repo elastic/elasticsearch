@@ -68,6 +68,29 @@ public class LinkerHelper {
         return LINKER.downcallHandle(functionAddress, functionDescriptor, options);
     }
 
+    public static void assertRawAddressNative(MemorySegment segment) {
+        // null is left to the downcall, which rejects it the same way with or without -ea
+        assert segment == null || segment.isNative() : "raw address requires a native memory segment";
+    }
+
+    public static void assertNative(MemorySegment segment) {
+        // null is left to the downcall, which rejects it the same way with or without -ea
+        assert segment == null || segment.isNative() : "non-critical bindings require native memory segments";
+    }
+
+    /**
+     * Returns a segment's native address for a binding that passes raw pointers to native code.
+     */
+    public static long rawAddress(MemorySegment segment) {
+        assert segment.scope().isAlive() : "raw address requires a live memory segment";
+        return segment.address();
+    }
+
+    public static void assertLive(MemorySegment segment) {
+        assert segment.scope().isAlive()
+            : "raw address requires its memory segment to be kept alive. Avoid closing or dropping references to its Arena";
+    }
+
     /**
      * Shared capture-state buffer for {@code @CaptureSystemError} calls. A single segment is enough on
      * any platform: {@link Linker.Option#captureStateLayout()} spans every capture state the platform
@@ -149,5 +172,21 @@ public class LinkerHelper {
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
+    }
+
+    /**
+     * Marshals a native {@code char*} return value into a Java {@code String}, or {@code null} for a null
+     * pointer. A pointer returned from a downcall arrives as a zero-length {@link MemorySegment}; reading
+     * the C string first requires {@link MemorySegment#reinterpret(long) reinterpreting} it to a bound so
+     * the terminating NUL can be found. {@code reinterpret} is a restricted (native-access) method, so
+     * hosting it here keeps the {@code load_native_libraries} entitlement on this shared module instead of
+     * forcing it onto every library that binds a string-returning function. Generated {@code $Impl} classes
+     * call this rather than inlining the reinterpret themselves.
+     */
+    public static String readString(MemorySegment segment) {
+        if (segment.address() == 0) {
+            return null;
+        }
+        return MemorySegmentAdapter.getString(segment.reinterpret(Long.MAX_VALUE), 0);
     }
 }

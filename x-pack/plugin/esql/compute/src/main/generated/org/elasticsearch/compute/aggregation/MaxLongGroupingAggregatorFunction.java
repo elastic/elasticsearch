@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -38,7 +39,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
 
   MaxLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
     this.channels = channels;
-    this.state = new LongArrayState(driverContext.bigArrays(), MaxLongAggregator.init());
+    this.state = new LongArrayState(driverContext.bigArrays(), driverContext.breaker(), MaxLongAggregator.init());
     this.driverContext = driverContext;
   }
 
@@ -127,7 +128,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), vValue));
+          MaxLongAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -144,7 +145,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         long vValue = vVector.getLong(valuesPosition);
-        state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxLongAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -191,7 +192,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), max.getLong(valuesPosition)));
+          MaxLongAggregator.combine(state, groupId, max.getLong(valuesPosition));
         }
       }
     }
@@ -214,7 +215,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
         int vEnd = vStart + vBlock.getValueCount(valuesPosition);
         for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
           long vValue = vBlock.getLong(vOffset);
-          state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), vValue));
+          MaxLongAggregator.combine(state, groupId, vValue);
         }
       }
     }
@@ -231,7 +232,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         long vValue = vVector.getLong(valuesPosition);
-        state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxLongAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -278,7 +279,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
         if (seen.getBoolean(valuesPosition)) {
-          state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), max.getLong(valuesPosition)));
+          MaxLongAggregator.combine(state, groupId, max.getLong(valuesPosition));
         }
       }
     }
@@ -295,7 +296,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
       int vEnd = vStart + vBlock.getValueCount(valuesPosition);
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
-        state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), vValue));
+        MaxLongAggregator.combine(state, groupId, vValue);
       }
     }
   }
@@ -305,7 +306,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       long vValue = vVector.getLong(valuesPosition);
-      state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), vValue));
+      MaxLongAggregator.combine(state, groupId, vValue);
     }
   }
 
@@ -345,7 +346,7 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
       if (seen.getBoolean(valuesPosition)) {
-        state.set(groupId, MaxLongAggregator.combine(state.getOrDefault(groupId), max.getLong(valuesPosition)));
+        MaxLongAggregator.combine(state, groupId, max.getLong(valuesPosition));
       }
     }
   }
@@ -395,6 +396,47 @@ public final class MaxLongGroupingAggregatorFunction implements GroupingAggregat
   private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
       GroupingAggregatorEvaluationContext ctx) {
     blocks[offset] = state.toValuesBlock(selectedInPage, driverContext);
+  }
+
+  @Override
+  public void maybeEnsureCapacity(int size) {
+    state.ensureCapacity(size);
+  }
+
+  @Override
+  public boolean supportPartitioning() {
+    return true;
+  }
+
+  @Override
+  public GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(
+      CircuitBreaker breaker) {
+    return state.createPartitioningSplitter(breaker);
+  }
+
+  @Override
+  public void combinePartition(GroupingAggregatorFunction.PartitionedState source, int partition,
+      boolean appendOnly, int[] dstIds, int length) {
+    if (length == 0) {
+      return;
+    }
+    long[] values = state.partitionValues(source, partition);
+    boolean[] seen = state.partitionSeen(source, partition);
+    if (seen == null) {
+      if (appendOnly) {
+        state.appendPartition(values, dstIds[0], length);
+      } else {
+        for (int i = 0; i < length; i++) {
+          MaxLongAggregator.combine(state, dstIds[i], values[i]);
+        }
+      }
+      return;
+    }
+    for (int i = 0; i < length; i++) {
+      if (seen[i]) {
+        MaxLongAggregator.combine(state, dstIds[i], values[i]);
+      }
+    }
   }
 
   @Override

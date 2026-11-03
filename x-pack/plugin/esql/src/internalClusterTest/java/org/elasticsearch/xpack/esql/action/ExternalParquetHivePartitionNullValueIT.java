@@ -54,7 +54,7 @@ public class ExternalParquetHivePartitionNullValueIT extends AbstractExternalDat
         writeFiveColParquet(root.resolve("region=__HIVE_DEFAULT_PARTITION__"), List.of(3, 4));
         @SuppressWarnings("checkstyle:EmptyJavadoc") // the glob's '/**/' is misread as Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.parquet";
-        return registerDataset(name, glob, Map.of("hive_partitioning", true));
+        return registerDataset(name, glob, Map.of("partition_detection", "hive"));
     }
 
     public void testSortMaterializesNullPartitionValue() throws Exception {

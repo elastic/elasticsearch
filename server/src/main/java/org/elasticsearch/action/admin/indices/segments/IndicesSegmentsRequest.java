@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +23,10 @@ import java.util.Map;
 
 public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequest> {
 
+    private static final TransportVersion SEGMENT_AUTO_CALIBRATION = TransportVersion.fromName("segment_auto_calibration");
+
     private boolean includeVectorFormatsInfo;
+    private boolean includeAutoCalibration;
 
     public IndicesSegmentsRequest() {
         this(Strings.EMPTY_ARRAY);
@@ -31,6 +35,9 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
     public IndicesSegmentsRequest(StreamInput in) throws IOException {
         super(in);
         this.includeVectorFormatsInfo = in.readBoolean();
+        if (in.getTransportVersion().supports(SEGMENT_AUTO_CALIBRATION)) {
+            this.includeAutoCalibration = in.readBoolean();
+        }
     }
 
     public IndicesSegmentsRequest(String... indices) {
@@ -43,6 +50,15 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
         return this;
     }
 
+    public IndicesSegmentsRequest withAutoCalibration(boolean includeAutoCalibration) {
+        this.includeAutoCalibration = includeAutoCalibration;
+        return this;
+    }
+
+    public boolean isIncludeAutoCalibration() {
+        return includeAutoCalibration;
+    }
+
     public boolean isIncludeVectorFormatsInfo() {
         return includeVectorFormatsInfo;
     }
@@ -51,6 +67,9 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(includeVectorFormatsInfo);
+        if (out.getTransportVersion().supports(SEGMENT_AUTO_CALIBRATION)) {
+            out.writeBoolean(includeAutoCalibration);
+        }
     }
 
     @Override

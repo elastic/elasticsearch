@@ -12,9 +12,11 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.string.StringColumnSource;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BinaryDocValuesFormat;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
@@ -22,30 +24,23 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBin
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
+import java.util.function.BiFunction;
 
 /**
  * Block loader for multi-value binary fields which store count in a separate parallel numeric doc value column.
  */
 public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
-    /**
-     * Where a document's array order is recorded.
-     */
-    public enum ArrayOrderSource {
-        NONE,  // no ordering
-        INLINE  // order is already preserved in the binary blob, so reads the blob directly
-    }
-
     private final String fieldName;
-    private final ArrayOrderSource arrayOrderSource;
+    private final BinaryDocValuesFormat binaryFormat;
 
     public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName) {
-        this(fieldName, ArrayOrderSource.NONE);
+        this(fieldName, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
-    public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, ArrayOrderSource arrayOrderSource) {
+    public BytesRefsFromBinaryMultiSeparateCountBlockLoader(String fieldName, BinaryDocValuesFormat binaryFormat) {
         this.fieldName = fieldName;
-        this.arrayOrderSource = arrayOrderSource;
+        this.binaryFormat = binaryFormat;
     }
 
     @Override
@@ -81,6 +76,30 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
     @Override
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return switch (binaryFormat) {
+            case COLUMNAR_PAYLOAD -> {
+                // The count travels in the blob, so there is no companion column to load or advance on.
+                TrackingBinaryDocValues binary = TrackingBinaryDocValues.get(breaker, context, fieldName);
+                yield binary == null ? ConstantNull.COLUMN_READER : new ColumnarPayload(binary);
+            }
+            // Multi-slot documents exist (maxValue >= 2): decode the in-order inline-null format, advancing on the counts column since an
+            // all-null or empty array writes a count but no binary blob.
+            case ARRAY_ORDER_INLINE_NULL -> withCounts(breaker, context, ArrayOrderInlineNull::new);
+            case SEPARATE_COUNT -> withCounts(breaker, context, BytesRefsFromBinarySeparateCount::new);
+            // PLAIN is a single-valued columnar field — it should have been routed to BytesRefsFromBinaryBlockLoader.
+            case PLAIN -> throw new AssertionError("PLAIN field [" + fieldName + "] should not use the multi-valued block loader");
+        };
+    }
+
+    /**
+     * Resolves the binary column and its {@code .counts} companion, which both companion-carrying framings need, and
+     * hands them to {@code reader}.
+     */
+    private ColumnAtATimeReader withCounts(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        BiFunction<TrackingBinaryDocValues, TrackingNumericDocValues, ColumnAtATimeReader> reader
+    ) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
             return ConstantNull.COLUMN_READER;
@@ -90,12 +109,57 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
             // present blob is a single raw value and an absent blob is a lone null / empty array, which the plain reader emits as null.
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());
         }
-        if (arrayOrderSource == ArrayOrderSource.INLINE) {
-            // Multi-slot documents exist (maxValue >= 2): decode the in-order inline-null format, advancing on the counts column since an
-            // all-null or empty array writes a count but no binary blob.
-            return new ArrayOrderInlineNull(bc.binary(), bc.counts());
+        return reader.apply(bc.binary(), bc.counts());
+    }
+
+    /**
+     * Reader for the columnar codec's payload, where the slot count is carried in the blob. Drops nulls and emits the non-null values in
+     * document order; a document whose slots are all null, or which holds none at all, emits a null.
+     */
+    static class ColumnarPayload extends AbstractBytesRefsFromBinaryReader {
+
+        private final MultiValueColumnarPayloadBinaryDocValuesReader reader = new MultiValueColumnarPayloadBinaryDocValuesReader();
+        private final ColumnarStringPageReader pages;
+
+        ColumnarPayload(TrackingBinaryDocValues docValues) {
+            super(docValues);
+            this.pages = new ColumnarStringPageReader(docValues.breaker());
         }
-        return new BytesRefsFromBinarySeparateCount(bc.binary(), bc.counts());
+
+        /**
+         * A page read from the column where there is one. A segment that arrives as an overlay rather than as a column
+         * has its payloads decoded a document at a time.
+         */
+        @Override
+        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
+            if (docValues.docValues() instanceof StringColumnSource columnar) {
+                final BlockLoader.Block block = pages.read(columnar, factory, docs, offset);
+                if (block != null) {
+                    return block;
+                }
+            }
+            return super.read(factory, docs, offset, nullsFiltered);
+        }
+
+        @Override
+        public void read(int doc, BlockLoader.BytesRefBuilder builder) throws IOException {
+            if (docValues.docValues().advanceExact(doc) == false) {
+                builder.appendNull(); // field absent for this document
+                return;
+            }
+            reader.read(docValues.docValues().binaryValue(), builder);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(pages, super::close);
+        }
+
+        @Override
+        public String toString() {
+            return "BytesRefsFromColumnarPayload";
+        }
     }
 
     static class BytesRefsFromBinarySeparateCount extends AbstractBytesRefsFromBinaryReader {

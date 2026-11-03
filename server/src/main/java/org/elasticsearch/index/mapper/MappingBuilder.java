@@ -11,10 +11,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Mutable builder for a {@link Mapping}. Holds a {@link RootObjectMapper.Builder} and metadata field builders,
@@ -65,15 +67,31 @@ public class MappingBuilder {
     }
 
     /**
-     * Merges another {@link MappingBuilder} into this one, mutating this builder in place.
-     *
-     * @param incoming the incoming mapping builder to merge
-     * @param reason the reason for the merge
-     * @param newFieldsBudget how many new fields may be added during the merge
+     * Merges another {@link MappingBuilder} into this one, mutating this builder in place,
+     * enforcing all limits in the provided {@link ParseFieldLimits}.
      */
-    public void merge(MappingBuilder incoming, MergeReason reason, long newFieldsBudget) {
-        MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, reason, newFieldsBudget, isStrictColumnar);
+    public void merge(
+        MappingBuilder incoming,
+        MergeReason reason,
+        ParseFieldLimits fieldLimits,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        mergeWith(
+            incoming,
+            reason,
+            MapperMergeContext.root(
+                isSourceSynthetic(),
+                false,
+                reason,
+                fieldLimits,
+                isStrictColumnar,
+                isSourceColumnarStored(),
+                clusterSupportsFeature
+            )
+        );
+    }
 
+    private void mergeWith(MappingBuilder incoming, MergeReason reason, MapperMergeContext mergeContext) {
         // Merge root object builders
         MapperMergeContext objectMergeContext = mergeContext.createChildContext(null, rootBuilder.dynamic);
         rootBuilder.merge(incoming.rootBuilder, objectMergeContext, rootBuilder.leafName());
@@ -113,7 +131,13 @@ public class MappingBuilder {
      * @return the built {@link Mapping}
      */
     public Mapping build(MergeReason reason) {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(isSourceSynthetic(), isDataStream(), reason, isStrictColumnar);
+        MapperBuilderContext rootContext = MapperBuilderContext.root(
+            isSourceSynthetic(),
+            isDataStream(),
+            reason,
+            isStrictColumnar,
+            isSourceColumnarStored()
+        );
         RootObjectMapper root = rootBuilder.build(rootContext);
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()
@@ -127,6 +151,11 @@ public class MappingBuilder {
         // columnar_stored pre-computes the synthetic source at indexing time, so mappers must
         // prepare the same fallback storage (doc values, stored fields) they would in synthetic mode.
         return builder instanceof SourceFieldMapper.Builder sfb && (sfb.isSynthetic() || sfb.isColumnarStored());
+    }
+
+    private boolean isSourceColumnarStored() {
+        MetadataFieldMapper.Builder builder = metadataBuilders.get(SourceFieldMapper.NAME);
+        return builder instanceof SourceFieldMapper.Builder sfb && sfb.isColumnarStored();
     }
 
     private boolean isDataStream() {

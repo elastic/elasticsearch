@@ -184,7 +184,7 @@ AWS reports the requests and data transfer it bills, in the units it bills. To a
 
 ## Reduce S3 costs [s3-reduce-costs]
 
-To reduce S3 costs, send fewer requests and read less data. The following practices help:
+To reduce S3 costs, you'll need to minimize the number of requests sent and the amount of data read. The following practices help:
 
 - Run your cluster in the same AWS region as the bucket.
 - Store data as Parquet. Parquet reads only the columns a query needs and skips row groups that filters rule out. CSV and NDJSON read every row.

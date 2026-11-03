@@ -163,13 +163,33 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         }
     }
 
-    public record GroupSpec(int channel, ElementType elementType, @Nullable CategorizeDef categorizeDef, @Nullable TopNDef topNDef) {
+    /**
+     * @param nonNull {@code true} when the planner proved that the group has no null: the field is non-nullable in the mapping of
+     *                every index the query reads. A hash may then drop the room it keeps for nulls. It must give the same answer for the
+     *                partial and the final aggregation of a query, because the final stage combines the keys of the partial one, so
+     *                only set it from something that both stages see. {@code false} means "unknown", not "has nulls".
+     */
+    public record GroupSpec(
+        int channel,
+        ElementType elementType,
+        @Nullable CategorizeDef categorizeDef,
+        @Nullable TopNDef topNDef,
+        boolean nonNull
+    ) {
+        public GroupSpec(int channel, ElementType elementType, @Nullable CategorizeDef categorizeDef, @Nullable TopNDef topNDef) {
+            this(channel, elementType, categorizeDef, topNDef, false);
+        }
+
         public GroupSpec(int channel, ElementType elementType) {
             this(channel, elementType, null, null);
         }
 
         public GroupSpec(int channel, ElementType elementType, CategorizeDef categorizeDef) {
             this(channel, elementType, categorizeDef, null);
+        }
+
+        public GroupSpec withNonNull(boolean nonNull) {
+            return new GroupSpec(channel, elementType, categorizeDef, topNDef, nonNull);
         }
 
         public boolean isCategorize() {

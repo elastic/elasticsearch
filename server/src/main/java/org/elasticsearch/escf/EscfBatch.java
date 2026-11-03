@@ -124,6 +124,22 @@ public final class EscfBatch implements SourceBatch {
         return new EscfRow(this, docIndex);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A slice view sizes only its own rows: its columns are already windowed to the slice, so every
+     * column adds exactly {@link #docCount()} entries.
+     */
+    @Override
+    public int[] rowSizesInBytes() {
+        assert closed == false : "batch already closed";
+        final int[] sizes = new int[docCount];
+        for (EscfColumn column : columns) {
+            column.addSizesInBytes(sizes);
+        }
+        return sizes;
+    }
+
     /** The typed view for {@code columnIndex}. */
     public EscfColumn column(int columnIndex) {
         assert closed == false : "batch already closed";

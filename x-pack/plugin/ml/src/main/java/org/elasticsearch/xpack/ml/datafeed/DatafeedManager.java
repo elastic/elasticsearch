@@ -251,7 +251,10 @@ public class DatafeedManager {
                         listener.onFailure(e);
                     }
                 });
-                if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
+                if (request.getDatafeed().getEsqlQuery() != null) {
+                    // Rollup caps are keyed off the DSL indices list; ES|QL sources are validated in #160858.
+                    getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
+                } else if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
                     getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
                 } else {
                     executeAsyncWithOrigin(

@@ -163,11 +163,9 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
                 PartitionedKeyAndAggs partitioned = generations.get(g);
                 var partitionedKeys = partitioned.keys;
                 int numKeys = partitionedKeys.keysInPartition(p);
-                if (numKeys > 0) {
-                    ensureGenIds(g, numKeys);
-                    appendOnly[g] = blockHash.combinePartition(partitionedKeys, p, allGenIds[g]);
-                    op.rowsAddedInCurrentBatch += numKeys;
-                }
+                ensureGenIds(g, numKeys);
+                appendOnly[g] = blockHash.combinePartition(partitionedKeys, p, allGenIds[g]);
+                op.rowsAddedInCurrentBatch += numKeys;
                 partitionedKeys.releasePartition(breaker, p);
             }
             // now combine aggregations
@@ -195,7 +193,7 @@ final class PartitionedHashAggregations extends AbstractRefCounted implements Re
         private void ensureGenIds(int g, int numKeys) {
             int[] genIds = allGenIds[g];
             final int oldLength = genIds == null ? 0 : genIds.length;
-            if (oldLength < numKeys) {
+            if (genIds == null || oldLength < numKeys) {
                 final int newLength = ArrayUtil.oversize(numKeys, Integer.BYTES);
                 breaker.addEstimateBytesAndMaybeBreak((long) (newLength - oldLength) * Integer.BYTES, "PartitionedHashAggregations");
                 allGenIds[g] = new int[newLength];

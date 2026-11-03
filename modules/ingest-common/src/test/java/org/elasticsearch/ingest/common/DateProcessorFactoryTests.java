@@ -25,6 +25,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class DateProcessorFactoryTests extends ESTestCase {
 
@@ -43,8 +44,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         DateProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo(sourceField));
-        assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
+        assertThat(processor.getField(), hasToString(sourceField));
+        assertThat(processor.getTargetField(), hasToString(DateProcessor.DEFAULT_TARGET_FIELD));
         assertThat(processor.getFormats(), equalTo(List.of("dd/MM/yyyyy")));
         assertThat(processor.getTimezone(null), equalTo(ZoneOffset.UTC));
         assertThat(processor.getLocale(null), equalTo(Locale.ENGLISH));
@@ -138,7 +139,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("formats", List.of("dd/MM/yyyy", "dd-MM-yyyy"));
 
         DateProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getTargetField(), equalTo(targetField));
+        assertThat(processor.getTargetField(), hasToString(targetField));
     }
 
     public void testParseOutputFormat() throws Exception {

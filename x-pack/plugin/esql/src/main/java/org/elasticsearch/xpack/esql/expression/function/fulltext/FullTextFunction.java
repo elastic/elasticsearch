@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.FillNull;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -599,6 +600,11 @@ public abstract class FullTextFunction extends Function
         Holder<Attribute> current = new Holder<>((Attribute) fieldExpression);
         Holder<FieldAttribute> resolved = new Holder<>();
         plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+            // FILLNULL keeps the id of a column it fills until the optimizer expands it, but the column is no longer the field below.
+            if (p instanceof FillNull fillNull && fillNull.fills(current.get())) {
+                breakEarly.set(true);
+                return;
+            }
             if (p instanceof Project project) {
                 for (NamedExpression ne : project.projections()) {
                     if (ne instanceof Alias alias && alias.toAttribute().id().equals(current.get().id())) {

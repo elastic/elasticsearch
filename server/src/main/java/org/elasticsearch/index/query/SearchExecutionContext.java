@@ -29,6 +29,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.SharedAutomaton;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -153,6 +155,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
     private final Set<Query> preChargedQueries = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
     private final ConcurrentMap<AutomatonKey, SharedAutomaton> sharedAutomata = new ConcurrentHashMap<>();
+    private final List<Releasable> queryConstructionReleasables = new ArrayList<>();
 
     public SearchExecutionContext(
         int shardId,
@@ -984,12 +987,38 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Drops all pre-charge markers and shared automata. An override of {@link #releaseQueryConstructionMemory()} must call
-     * this, or it keeps automata alive that the breaker no longer accounts for.
+     * Registers {@code releasable} to run when this context's query construction memory is released. It is meant for breaker
+     * charges that several contexts share, so a charge can stay held while any context using it is open.
+     */
+    void addQueryConstructionReleasable(Releasable releasable) {
+        synchronized (queryConstructionReleasables) {
+            queryConstructionReleasables.add(releasable);
+        }
+    }
+
+    /**
+     * Whether a query built with this context registered a shared breaker charge that is still held. Lets callers that never
+     * release a context, such as the rewrite copy in {@code SearchService}, assert that no query was built with it.
+     */
+    public boolean hasQueryConstructionReleasables() {
+        synchronized (queryConstructionReleasables) {
+            return queryConstructionReleasables.isEmpty() == false;
+        }
+    }
+
+    /**
+     * Drops all pre-charge markers and shared automata and runs the registered releasables. An override of
+     * {@link #releaseQueryConstructionMemory()} must call this, or it keeps automata alive that the breaker no longer accounts for.
      */
     protected final void clearQueryConstructionState() {
         preChargedQueries.clear();
         sharedAutomata.clear();
+        final List<Releasable> releasables;
+        synchronized (queryConstructionReleasables) {
+            releasables = List.copyOf(queryConstructionReleasables);
+            queryConstructionReleasables.clear();
+        }
+        Releasables.close(releasables);
     }
 
     /**
@@ -997,18 +1026,20 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
-        clearQueryConstructionState();
-        if (circuitBreaker == null) {
-            return;
-        }
-        for (var entry : queryConstructionMemoryByLabel.entrySet()) {
-            long held = entry.getValue().getAndSet(0);
-            if (held > 0) {
-                circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+        try {
+            clearQueryConstructionState();
+        } finally {
+            if (circuitBreaker != null) {
+                for (var entry : queryConstructionMemoryByLabel.entrySet()) {
+                    long held = entry.getValue().getAndSet(0);
+                    if (held > 0) {
+                        circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+                    }
+                }
+                queryConstructionMemoryByLabel.clear();
+                queryConstructionMemoryUsed.set(0);
             }
         }
-        queryConstructionMemoryByLabel.clear();
-        queryConstructionMemoryUsed.set(0);
     }
 
     /**

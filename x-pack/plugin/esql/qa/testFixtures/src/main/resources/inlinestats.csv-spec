@@ -3855,6 +3855,25 @@ emp_no:integer | hire_date:datetime       |c:long  | yr:datetime
 10044          | 1994-05-21T00:00:00.000Z | 4      | 1994-01-01T00:00:00.000Z
 ;
 
+DateTruncInlinestatsCountStarWithFilterOnCount
+required_capability: inline_stats
+
+FROM employees
+| KEEP emp_no, hire_date
+| INLINE STATS c = count(*) by yr=date_trunc(1 year, hire_date)
+| WHERE c > 10
+| STATS n = count(*) BY yr, c
+| SORT yr
+;
+
+n:long | yr:datetime              | c:long
+11     | 1985-01-01T00:00:00.000Z | 11
+11     | 1986-01-01T00:00:00.000Z | 11
+15     | 1987-01-01T00:00:00.000Z | 15
+13     | 1989-01-01T00:00:00.000Z | 13
+12     | 1990-01-01T00:00:00.000Z | 12
+;
+
 ImplicitCastingMultiTypedBucketDateNanosByYear
 required_capability: inline_stats
 
@@ -5091,6 +5110,319 @@ FROM employees
 62060.27272727273 |3              |26436          
 63503.333333333336|4              |27215          
 62060.27272727273 |3              |28941          
+;
+
+aggFilter_FirstSeenShape_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY languages
+| WHERE hire_date == first_hired AND first_hired >= "1985-03-01"
+| KEEP emp_no, languages, hire_date, first_hired
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer |       hire_date:date     |    first_hired:date
+10029          |null               |1985-11-20T00:00:00.000Z  |1985-11-20T00:00:00.000Z
+10080          |5                  |1985-11-19T00:00:00.000Z  |1985-11-19T00:00:00.000Z
+10090          |2                  |1986-03-14T00:00:00.000Z  |1986-03-14T00:00:00.000Z
+10098          |4                  |1985-05-13T00:00:00.000Z  |1985-05-13T00:00:00.000Z
+;
+
+aggFilter_FirstSeenShape_TwoKeys_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY languages, gender
+| WHERE hire_date == first_hired AND first_hired >= "1986-01-01"
+| KEEP emp_no, languages, gender, hire_date, first_hired
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer | gender:keyword |       hire_date:date     |    first_hired:date
+10010          |4                  |null            |1989-08-24T00:00:00.000Z  |1989-08-24T00:00:00.000Z
+10014          |5                  |null            |1987-03-11T00:00:00.000Z  |1987-03-11T00:00:00.000Z
+10018          |2                  |null            |1987-04-03T00:00:00.000Z  |1987-04-03T00:00:00.000Z
+10027          |null               |F               |1989-07-07T00:00:00.000Z  |1989-07-07T00:00:00.000Z
+10079          |2                  |F               |1986-03-27T00:00:00.000Z  |1986-03-27T00:00:00.000Z
+10090          |2                  |M               |1986-03-14T00:00:00.000Z  |1986-03-14T00:00:00.000Z
+10095          |4                  |M               |1986-07-15T00:00:00.000Z  |1986-07-15T00:00:00.000Z
+;
+
+// A multi-valued grouping key joins every group of the row, so first_hired is multi-valued and both comparisons are null for
+// those rows. Filtering the groups before the join would leave some rows with a single value and return 10066 and 10071 too.
+aggFilter_FirstSeenShape_MultiValuedKey_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY job_positions
+| WHERE hire_date == first_hired AND first_hired >= "1986-01-01"
+| KEEP emp_no, job_positions, hire_date, first_hired
+| SORT emp_no
+;
+warning:Line 3:9: evaluation of [hire_date == first_hired] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 3:38: evaluation of [first_hired >= \"1986-01-01\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+emp_no:integer | job_positions:keyword |       hire_date:date     |    first_hired:date
+10053          |Support Engineer       |1986-02-04T00:00:00.000Z  |1986-02-04T00:00:00.000Z
+;
+
+// Every grouping key needs its own multi-valued guard. job_positions is the only multi-valued key and sits between gender and
+// languages, so guarding only the first or only the last key would drop some of its groups and return 55 rows.
+aggFilter_FirstSeenShape_ThreeKeys_MultiValuedMiddleKey_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS first_hired = MIN(hire_date) BY gender, job_positions, languages
+| WHERE MV_MIN(first_hired) >= "1988-01-01"
+| STATS n = COUNT(*), s = SUM(emp_no)
+;
+
+n:long | s:long
+37     | 371737
+;
+
+aggFilter_ExistingKeyCount_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS k = COUNT(languages), s = SUM(salary) BY languages
+| WHERE s > 500000
+| STATS n = COUNT(*), sk = SUM(k), ss = SUM(s)
+;
+
+n:long | sk:long | ss:long
+100    | 1640    | 83020037
+;
+
+// AVG(languages) is computed from SUM(languages) and COUNT(languages), so the guard reuses that count too.
+aggFilter_ExistingKeyCountFromAvg_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS a = AVG(languages), m = MAX(salary) BY languages
+| WHERE m > 70000
+| STATS n = COUNT(*), sa = SUM(a), sm = SUM(m)
+;
+
+n:long | sa:double | sm:long
+79     | 176.0     | 5870513
+;
+
+// Left rows of a group without a matching right row get a null aggregate, which IS NULL accepts.
+nullAcceptingAggFilter_IsNull_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary) WHERE salary > 73000 BY languages
+| WHERE max_salary IS NULL
+| STATS count = COUNT(*) BY languages
+| SORT languages
+;
+
+count:long | languages:integer
+21         |5
+;
+
+nullAcceptingAggFilter_Coalesce_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary) WHERE salary > 73000 BY languages
+| WHERE COALESCE(max_salary, 0) < 74000
+| STATS count = COUNT(*) BY languages, max_salary
+| SORT languages
+;
+
+count:long | languages:integer | max_salary:integer
+15         |1                  |73717
+19         |2                  |73578
+21         |5                  |null
+;
+
+aggFilter_NoGrouping_NoMatch_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary)
+| WHERE max_salary > 80000
+| KEEP emp_no, max_salary
+;
+
+emp_no:integer | max_salary:integer
+;
+
+aggFilter_NoGrouping_AllMatch_PastInlineJoin
+required_capability: inline_stats
+
+FROM employees
+| INLINE STATS max_salary = MAX(salary)
+| WHERE max_salary > 70000
+| KEEP emp_no, salary, max_salary
+| SORT salary DESC
+| LIMIT 3
+;
+
+emp_no:integer | salary:integer | max_salary:integer
+10029          |74999           |74999
+10045          |74970           |74999
+10007          |74572           |74999
+;
+
+aggFilter_NoGroupMatches_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 75000
+| KEEP emp_no, m
+;
+
+emp_no:integer | m:integer
+;
+
+aggFilter_NoGroupMatches_ThenStats_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 75000
+| STATS n = COUNT(*)
+;
+
+n:long
+0
+;
+
+aggFilter_NoGroupMatches_ThenLookupJoin_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+required_capability: join_lookup_v12
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 75000
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+;
+
+aggFilter_ThenLookupJoin_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+required_capability: join_lookup_v12
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 70000
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS n = COUNT(*) BY language_name
+| SORT language_name
+;
+
+n:long | language_name:keyword
+15     |English
+19     |French
+18     |German
+17     |Spanish
+10     |null
+;
+
+aggFilter_WithCountStar_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*), m = MAX(salary) BY languages
+| WHERE m > 70000
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_WithCountStarAndKeyCount_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS c = COUNT(*), k = COUNT(languages), m = MAX(salary) BY languages
+| WHERE m > 70000
+| KEEP emp_no, m
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_OnInnerOfTwoInlineJoins
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS m = MAX(salary) BY languages
+| INLINE STATS g = MIN(salary) BY gender
+| WHERE m > 70000
+| DROP g
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_OnOuterOfTwoInlineJoins
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS g = MIN(salary) BY gender
+| INLINE STATS m = MAX(salary) BY languages
+| WHERE m > 70000
+| DROP g
+| STATS n = COUNT(*), sm = SUM(m)
+;
+
+n:long | sm:long
+79     | 5870513
+;
+
+aggFilter_InForkBranches_PastInlineJoin
+required_capability: inline_stats
+required_capability: fix_inline_stats_group_by_null
+required_capability: fork_v9
+
+FROM employees
+| INLINE STATS m = MAX(salary), c = COUNT(*) BY languages
+| FORK (WHERE m > 74000 | KEEP emp_no, languages)
+       (WHERE c > 20 | KEEP emp_no, languages)
+| STATS n = COUNT(*) BY _fork, languages
+| SORT _fork, languages
+;
+
+n:long | _fork:keyword | languages:integer
+17     |fork1          |3
+18     |fork1          |4
+10     |fork1          |null
+21     |fork2          |5
 ;
 
 doubleInlineStatsPrunning_With_MV_Functions

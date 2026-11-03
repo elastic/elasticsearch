@@ -693,6 +693,52 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertStreamAgreesWithQuery(query);
     }
 
+    public void testDropNullColumnsKeepsUnmappedLoadedField() throws IOException {
+        Request createIndex = new Request("PUT", "/stream-test-unmapped");
+        createIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "dynamic": false,
+                "properties": {
+                  "value":        { "type": "integer" },
+                  "sparse_field": { "type": "keyword" }
+                }
+              }
+            }
+            """);
+        assertOK(client().performRequest(createIndex));
+
+        Request bulk = new Request("POST", "/_bulk?index=stream-test-unmapped&refresh=true");
+        bulk.setJsonEntity("""
+            {"index": {"_id": "1"}}
+            {"value": 1, "unmapped_message": "one"}
+            {"index": {"_id": "2"}}
+            {"value": 2, "unmapped_message": "two"}
+            {"index": {"_id": "3"}}
+            {"value": 3, "unmapped_message": "three"}
+            {"index": {"_id": "4"}}
+            {"value": 4, "unmapped_message": "four"}
+            """);
+        assertOK(client().performRequest(bulk));
+
+        String query = "SET unmapped_fields=\"LOAD\"; FROM stream-test-unmapped | SORT value | LIMIT 100 "
+            + "| KEEP value, unmapped_message, sparse_field";
+        List<Map<String, Object>> lines = stream(streamBody(query), "drop_null_columns=true", "batch_size=2");
+
+        Map<String, Object> header = lines.get(0);
+        assertThat("all_columns must list all three requested fields", columnList(header, "all_columns"), hasSize(3));
+
+        List<String> trimmedNames = columnNames(header, "columns");
+        assertTrue(
+            "unmapped_message is loaded from _source, invisible to field_caps, and must not be dropped",
+            trimmedNames.contains("unmapped_message")
+        );
+        assertFalse("sparse_field is empty and must still be dropped", trimmedNames.contains("sparse_field"));
+
+        assertColumnPopulatedInEveryRow(lines, trimmedNames.indexOf("unmapped_message"), "unmapped_message");
+        assertStreamAgreesWithQuery(query);
+    }
+
     public void testInlineStats() throws IOException {
         String esql = "FROM stream-test | INLINE STATS avg_val = AVG(value) | SORT value | LIMIT 10";
         assertStreamAgreesWithQueryIgnoringRowOrder(esql);

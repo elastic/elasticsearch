@@ -1277,3 +1277,33 @@ warning:Line 3:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered mu
 id_left:integer | name_str:keyword | extra1:keyword | other2:integer
 1               | Alice            | foo            | 2000
 ;
+
+lookupJoinExpressionThreeTimesWithEvalRenameDrop
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+
+FROM employees
+| WHERE emp_no <= 10005
+| EVAL lc = languages
+| LOOKUP JOIN languages_lookup ON lc == language_code
+| RENAME language_name AS lang
+| DROP lc, language_code
+| EVAL lc = languages - 1
+| LOOKUP JOIN languages_lookup ON lc == language_code
+| RENAME language_name AS lang_minus_one
+| DROP lc, language_code
+| EVAL lc = languages - 2
+| LOOKUP JOIN languages_lookup ON lc == language_code
+| RENAME language_name AS lang_minus_two
+| DROP lc, language_code
+| KEEP emp_no, languages, lang, lang_minus_one, lang_minus_two
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer | lang:keyword | lang_minus_one:keyword | lang_minus_two:keyword
+10001          | 2                 | French       | English                | null
+10002          | 5                 | null         | German                 | Spanish
+10003          | 4                 | German       | Spanish                | French
+10004          | 5                 | null         | German                 | Spanish
+10005          | 1                 | English      | null                   | null
+;

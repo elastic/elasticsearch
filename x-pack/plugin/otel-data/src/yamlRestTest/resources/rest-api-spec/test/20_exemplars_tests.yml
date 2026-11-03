@@ -42,3 +42,30 @@ setup:
   - match: { .$backing_index.mappings.properties.metric_name.time_series_dimension: true }
   - match: { .$backing_index.mappings.properties.value.type: double }
   - match: { .$backing_index.mappings.properties.filtered_attributes.properties.nested.type: flattened }
+---
+"Exemplars data streams hash resource attributes into the tsid like metrics":
+  - do:
+      bulk:
+        index: exemplars-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": "2020-01-01T00:00:01.000Z"
+            data_stream:
+              dataset: generic.otel
+              namespace: default
+              type: exemplars
+            resource:
+              attributes:
+                service.name: OtelSample
+            metric_name: request.duration
+            value: 0.42
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: exemplars-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: backing_index }
+  - do:
+      indices.get_settings:
+        index: $backing_index
+  - match: { .$backing_index.settings.index.time_series.tsid_prefixed_dimensions: ["resource.attributes.*"] }

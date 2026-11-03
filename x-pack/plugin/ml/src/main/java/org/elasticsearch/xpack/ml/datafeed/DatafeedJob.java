@@ -84,6 +84,7 @@ class DatafeedJob {
     private final Supplier<Long> currentTimeSupplier;
     private final DelayedDataDetector delayedDataDetector;
     private final Integer maxEmptySearches;
+    private final Integer maxConsecutiveExtractionFailures;
     private final long delayedDataCheckFreq;
     private final CrossClusterSearchStats crossClusterSearchStats;
     private final DatafeedFieldConflictTracker fieldConflictTracker = new DatafeedFieldConflictTracker();
@@ -117,6 +118,7 @@ class DatafeedJob {
         Supplier<Long> currentTimeSupplier,
         DelayedDataDetector delayedDataDetector,
         Integer maxEmptySearches,
+        Integer maxConsecutiveExtractionFailures,
         long latestFinalBucketEndTimeMs,
         long latestRecordTimeMs,
         boolean haveSeenDataPreviously,
@@ -138,6 +140,7 @@ class DatafeedJob {
         this.currentTimeSupplier = currentTimeSupplier;
         this.delayedDataDetector = delayedDataDetector;
         this.maxEmptySearches = maxEmptySearches;
+        this.maxConsecutiveExtractionFailures = maxConsecutiveExtractionFailures;
         this.latestFinalBucketEndTimeMs = latestFinalBucketEndTimeMs;
         long lastEndTime = Math.max(latestFinalBucketEndTimeMs, latestRecordTimeMs);
         if (lastEndTime > 0) {
@@ -166,8 +169,27 @@ class DatafeedJob {
         return maxEmptySearches;
     }
 
+    public Integer getMaxConsecutiveExtractionFailures() {
+        return maxConsecutiveExtractionFailures;
+    }
+
     public long numberOfSearchesIn24Hours() {
         return (60_000 * 60 * 24) / frequencyMs;
+    }
+
+    /**
+     * Resolves the effective threshold of consecutive extraction failures after which the datafeed stops itself.
+     * When the datafeed config leaves this unset, the default is roughly one day's worth of searches (at least one),
+     * so a persistently broken datafeed surfaces within a day rather than retrying indefinitely. A configured
+     * positive value is used verbatim. The config builder maps {@code -1} to the default (null), so a built config
+     * never holds a non-positive threshold; {@link DatafeedRunner} additionally treats any non-positive threshold as
+     * "never stop", which keeps us safe against a legacy {@code -1} arriving over the wire from an older node.
+     */
+    public long effectiveMaxConsecutiveExtractionFailures() {
+        if (maxConsecutiveExtractionFailures != null) {
+            return maxConsecutiveExtractionFailures;
+        }
+        return Math.max(1, numberOfSearchesIn24Hours());
     }
 
     public void finishReportingTimingStats() {

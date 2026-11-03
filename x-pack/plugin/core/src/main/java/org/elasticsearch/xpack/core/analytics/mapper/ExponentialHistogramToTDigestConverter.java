@@ -99,11 +99,6 @@ public class ExponentialHistogramToTDigestConverter {
                 assert currentCount > 0 : "next() must be called and return true before accessing current centroid";
                 return currentMean;
             }
-
-            @Override
-            public boolean hasNext() {
-                return negative.hasNext() || (zeroBucketConsumed == false && zeroBucket.count() > 0) || positive.hasNext();
-            }
         };
     }
 

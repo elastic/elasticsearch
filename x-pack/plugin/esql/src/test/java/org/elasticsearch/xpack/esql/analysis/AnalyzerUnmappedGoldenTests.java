@@ -1355,6 +1355,14 @@ public class AnalyzerUnmappedGoldenTests extends AnalyzerUnmappedGoldenTestCase 
             """).run();
     }
 
+    public void testLoadAllSubqueryFillNullAllColumnsFillsTheColumnLoadedForTheUnion() throws Exception {
+        assumeTrue("Requires FILLNULL", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        loadAll("""
+            FROM (FROM partial_mapping_sample_data), (FROM no_mapping_sample_data | FILLNULL "x" ON *)
+            | KEEP @timestamp
+            """).stages(EnumSet.of(Stage.ANALYSIS, Stage.LOGICAL_OPTIMIZATION)).run();
+    }
+
     // KEEP of an unmapped name is a mention: LOAD_ALL loads it from _source on the unrestricted sibling too.
     public void testLoadAllSubqueryKeepUnmappedLoadsOnSibling() throws Exception {
         loadAll("""

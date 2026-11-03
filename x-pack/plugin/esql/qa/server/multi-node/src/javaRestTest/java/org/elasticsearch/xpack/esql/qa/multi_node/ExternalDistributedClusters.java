@@ -48,9 +48,9 @@ public class ExternalDistributedClusters {
             spec.feature(FeatureFlag.ESQL_EXTERNAL_GCS);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_AZURE);
             spec.feature(FeatureFlag.ESQL_EXTERNAL_ORC);
-            // Federation is only on by default in snapshot builds; this suite reads external sources. It is set here
-            // rather than relying on Clusters, which serverless substitutes with a builder that only defines node
-            // shape.
+            // Pinned so this suite, which reads external sources, does not depend on the default, which is off on a
+            // stateless release build. It is set here rather than relying on Clusters, which serverless substitutes
+            // with a builder that only defines node shape.
             spec.setting(Federation.FEDERATION_ENABLED.getKey(), "true");
             spec.plugin("inference-service-test");
             spec.module("repository-s3");

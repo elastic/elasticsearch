@@ -240,6 +240,7 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                 1,
                 1,
                 1,
+                1,
                 false,
                 1,
                 234,

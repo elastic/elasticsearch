@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164291
+summary: Keep limited spatial scans on SHARD
+type: bug

@@ -1,0 +1,12 @@
+// Apply JDWP only to the server. tests.jvm.argline also reaches the CLI JVM,
+// which would otherwise compete with the server for the debugger port.
+gradle.beforeProject { project ->
+    project.pluginManager.withPlugin('elasticsearch.run') {
+        project.extensions.getByName('testClusters').named('runTask').configure { cluster ->
+            cluster.nodes.each { node ->
+                def port = System.getProperty('query-stack.debug.port', '5005')
+                node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:${port}")
+            }
+        }
+    }
+}

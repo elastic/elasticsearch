@@ -160,4 +160,13 @@ public abstract class SimdVecLibraryTests extends ESTestCase {
             );
         }
     }
+
+    /**
+     * Asserts that {@code call} rejects a heap segment, as every binding without {@code @Critical} does.
+     * The generated binding checks this with an {@code assert}, so the failure is an {@link AssertionError}.
+     */
+    protected static void assertRejectsHeapSegments(ThrowingRunnable call) {
+        AssertionError e = expectThrows(AssertionError.class, call);
+        assertEquals("non-critical bindings require native memory segments", e.getMessage());
+    }
 }

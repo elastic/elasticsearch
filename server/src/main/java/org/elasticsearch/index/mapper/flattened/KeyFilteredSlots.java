@@ -9,10 +9,9 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
-
-import java.io.IOException;
 
 /**
  * Doc values of a {@code flattened} field in {@link MultiValuedBinaryDocValuesField.KeyedArrayOrderInlineNull} that hold slots of
@@ -21,14 +20,13 @@ import java.io.IOException;
  */
 public interface KeyFilteredSlots {
 
-    /** Positions on {@code doc} as stored, and returns whether it has any slot. */
-    boolean advanceExactStored(int doc) throws IOException;
+    /**
+     * The slots as they are stored, granted or not. Advancing them advances these doc values too, so a reader reads one or the other.
+     */
+    BinaryDocValues storedSlots();
 
-    /** The slots of the current document as stored, granted or not. */
-    BytesRef storedSlots() throws IOException;
-
-    /** The number of {@link #storedSlots}. */
-    int storedSlotCount() throws IOException;
+    /** The number of {@link #storedSlots} of each document, as stored. */
+    NumericDocValues storedCounts();
 
     /** Whether a reader may see the slots of {@code key}. */
     boolean grants(String key);

@@ -116,6 +116,28 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
+    /** A WHERE after the cut on the sort key runs between the cut and the fetch, so only the rows that pass are fetched. */
+    public void testWhereOnTheSortKeyAfterTheCut() {
+        runBoth("""
+            FROM employees
+            | SORT hire_date
+            | LIMIT 10
+            | WHERE hire_date > "1986-01-01"
+            | KEEP first_name, last_name, hire_date
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** A WHERE after the cut on the sort key and a fetched column splits: one condition before the fetch, one after. */
+    public void testWhereOnTheSortKeyAndAFetchedColumnAfterTheCut() {
+        runBoth("""
+            FROM employees
+            | SORT hire_date
+            | LIMIT 10
+            | WHERE hire_date > "1986-01-01" AND salary > 50000
+            | KEEP first_name, salary
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
     /** {@code HIGHLIGHT} after the cut reads the fetched text on the coordinator, so the fetch sits right below it. */
     public void testHighlightAfterTheCut() {
         String query = """

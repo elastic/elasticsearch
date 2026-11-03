@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -74,17 +75,21 @@ public class FetchOperatorFactoryTests extends ESTestCase {
      */
     public void testATopNCutIsFetchedWhole() {
         Attribute doc = docAttribute();
-        Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
-        Order order = new Order(Source.EMPTY, doc, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
-        PhysicalPlan cut = new TopNExec(
-            Source.EMPTY,
-            new ExchangeSourceExec(Source.EMPTY, List.of(doc), false),
-            List.of(order),
-            limit,
-            null
-        );
 
-        FetchOperator.Factory factory = FetchOperator.Factory.forExec(fetchOver(cut, doc), 0, null, new FetchFailures(false));
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(fetchOver(topNOver(doc), doc), 0, null, new FetchFailures(false));
+
+        assertThat(factory.batching(), equalTo(new FetchOperator.Batching.WholeCut(FetchOperator.MAX_PAGES_HELD)));
+    }
+
+    /**
+     * A filter between the {@code TopN} and the fetch only drops rows of the pages it passes on, so the cut is still
+     * complete when the first page arrives.
+     */
+    public void testATopNCutUnderAFilterIsFetchedWhole() {
+        Attribute doc = docAttribute();
+        PhysicalPlan filtered = new FilterExec(Source.EMPTY, topNOver(doc), Literal.TRUE);
+
+        FetchOperator.Factory factory = FetchOperator.Factory.forExec(fetchOver(filtered, doc), 0, null, new FetchFailures(false));
 
         assertThat(factory.batching(), equalTo(new FetchOperator.Batching.WholeCut(FetchOperator.MAX_PAGES_HELD)));
     }
@@ -105,6 +110,12 @@ public class FetchOperatorFactoryTests extends ESTestCase {
 
     private static FetchExec fetchOver(PhysicalPlan cut, Attribute doc) {
         return new FetchExec(Source.EMPTY, cut, doc, List.of(field("message", DataType.KEYWORD)), "idx", List.of("idx"), null);
+    }
+
+    private static TopNExec topNOver(Attribute doc) {
+        Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
+        Order order = new Order(Source.EMPTY, doc, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
+        return new TopNExec(Source.EMPTY, new ExchangeSourceExec(Source.EMPTY, List.of(doc), false), List.of(order), limit, null);
     }
 
     private static Attribute docAttribute() {

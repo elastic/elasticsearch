@@ -26,7 +26,8 @@ import java.util.Objects;
  * Loads the fetched columns of the rows that survived a cut from the nodes that own their documents.
  * <p>
  * The child produces the rows: the coordinator half of the cut over the exchange, with the {@code _doc} of each row
- * next to the columns the cut needed. Those documents left the nodes that read them and carry their origins, see
+ * next to the columns the cut needed, sometimes under a filter that reads only those columns. Those documents left the
+ * nodes that read them and carry their origins, see
  * {@link DocVector#origins()}. Like {@link FieldExtractExec}, the output is the child's output followed by the fetched
  * columns, so the plan above this node doesn't change.
  */

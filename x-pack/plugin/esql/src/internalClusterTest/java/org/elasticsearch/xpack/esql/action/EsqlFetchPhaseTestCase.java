@@ -444,6 +444,58 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
         assertFetchedOnly(run, "payload");
     }
 
+    /** A filter after the cut on the sort key drops rows before the fetch, so the fetch loads only the rows that pass. */
+    public void testAFilterOnTheSortKeyAfterTheCutFetchesOnlyTheRowsThatPass() {
+        Run run = runBoth(
+            "FROM " + indexName + " | SORT unique_sort DESC | LIMIT 10 | WHERE unique_sort % 2 == 0 | KEEP unique_sort, payload"
+        );
+        assertThat(
+            run.rows(),
+            equalTo(
+                List.of(
+                    List.of(62L, "payload-62"),
+                    List.of(60L, "payload-60"),
+                    List.of(58L, "payload-58"),
+                    List.of(56L, "payload-56"),
+                    List.of(54L, "payload-54")
+                )
+            )
+        );
+        assertFetched(run, 5);
+        assertLoadedOnlyBeforeTheCut(run, "unique_sort");
+        assertFetchedOnly(run, "payload");
+    }
+
+    /** A filter after the cut on a fetched column needs the fetched values, so the fetch loads every row of the cut. */
+    public void testAFilterOnAFetchedColumnAfterTheCutFetchesTheWholeCut() {
+        Run run = runBoth(
+            "FROM " + indexName + " | SORT unique_sort DESC | LIMIT 3 | WHERE payload != \"payload-62\" | KEEP unique_sort, payload"
+        );
+        assertThat(run.rows(), equalTo(List.of(List.of(63L, "payload-63"), List.of(61L, "payload-61"))));
+        assertFetched(run, 3);
+        assertFetchedOnly(run, "payload");
+    }
+
+    /**
+     * A filter after the cut on the sort key and a fetched column runs in two parts: the condition on the sort key before
+     * the fetch, the condition on the fetched column after it.
+     */
+    public void testAFilterOnTheSortKeyAndAFetchedColumnAfterTheCutSplitsAroundTheFetch() {
+        Run run = runBoth(
+            "FROM "
+                + indexName
+                + " | SORT unique_sort DESC | LIMIT 10"
+                + " | WHERE unique_sort % 2 == 0 AND payload != \"payload-62\""
+                + " | KEEP unique_sort, payload"
+        );
+        assertThat(
+            run.rows(),
+            equalTo(List.of(List.of(60L, "payload-60"), List.of(58L, "payload-58"), List.of(56L, "payload-56"), List.of(54L, "payload-54")))
+        );
+        assertFetched(run, 5);
+        assertFetchedOnly(run, "payload");
+    }
+
     /**
      * An expression before the cut runs on every candidate row, so its input loads before the cut and its value crosses
      * the exchange. The input crosses too when the query returns it, instead of being read a second time. The other

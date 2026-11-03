@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -125,9 +126,14 @@ public final class FetchOperator extends AsyncOperator<FetchOperator.Fetched> {
         /**
          * The batching of the cut that {@code exec} fetches the rows of. A {@code TopN} emits its pages only once its input
          * ended, so its cut is complete when the first page arrives. Every other cut streams, which is right for any cut.
+         * A filter between the cut and the fetch only drops rows of the pages it passes on, so the cut below it decides.
          */
         static Batching forExec(FetchExec exec) {
-            return exec.child() instanceof TopNExec ? new WholeCut(MAX_PAGES_HELD) : Streaming.forFetched(exec.fetchedAttributes());
+            PhysicalPlan cut = exec.child();
+            while (cut instanceof FilterExec filter) {
+                cut = filter.child();
+            }
+            return cut instanceof TopNExec ? new WholeCut(MAX_PAGES_HELD) : Streaming.forFetched(exec.fetchedAttributes());
         }
 
         /**

@@ -1,0 +1,5 @@
+FROM employees
+| SORT hire_date
+| LIMIT 10
+| WHERE hire_date > "1986-01-01" AND salary > 50000
+| KEEP first_name, salary

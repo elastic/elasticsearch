@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -61,7 +62,9 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering.SORTED;
 import static org.hamcrest.Matchers.contains;
@@ -181,6 +184,59 @@ public class PlanFetchTests extends ESTestCase {
         ).plan();
         FetchExec fetch = single(plan, FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name", "salary")));
+    }
+
+    /**
+     * A filter after the cut that reads only a column crossing the exchange drops rows before the fetch, so the fetch
+     * loads the other columns only for the rows that pass.
+     */
+    public void testAFilterOnAColumnThatCrossesTheExchangeRunsBeforeTheFetch() {
+        PhysicalPlan plan = plan(
+            "FROM employees | SORT hire_date | LIMIT 10 | WHERE hire_date > \"1990-01-01\" | KEEP first_name, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        FilterExec filter = as(fetch.child(), FilterExec.class);
+        assertThat(referencedNames(filter), equalTo(Set.of("hire_date")));
+        assertThat(filter.child(), instanceOf(TopNExec.class));
+        assertThat(plan.collect(FilterExec.class), hasSize(1));
+    }
+
+    /** A filter on a fetched column needs the fetched values, so it runs after the fetch. */
+    public void testAFilterOnAFetchedColumnRunsAfterTheFetch() {
+        PhysicalPlan plan = plan("FROM employees | SORT hire_date | LIMIT 10 | WHERE salary > 1000 | KEEP first_name, salary").plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(fetch.child(), instanceOf(TopNExec.class));
+        assertThat(single(plan, FilterExec.class).child(), sameInstance(fetch));
+    }
+
+    /**
+     * Each condition of a filter after the cut runs on its own side of the fetch: the one on the sort key before it, the
+     * one on a fetched column after it.
+     */
+    public void testAFilterSplitsItsConditionsAroundTheFetch() {
+        PhysicalPlan plan = plan(
+            "FROM employees | SORT hire_date | LIMIT 10 | WHERE hire_date > \"1990-01-01\" AND salary > 1000 | KEEP first_name, salary"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        FilterExec beforeTheFetch = as(fetch.child(), FilterExec.class);
+        assertThat(referencedNames(beforeTheFetch), equalTo(Set.of("hire_date")));
+        assertThat(beforeTheFetch.child(), instanceOf(TopNExec.class));
+        List<FilterExec> afterTheFetch = plan.collect(FilterExec.class).stream().filter(filter -> filter.child() == fetch).toList();
+        assertThat(afterTheFetch, hasSize(1));
+        assertThat(referencedNames(afterTheFetch.getFirst()), equalTo(Set.of("salary")));
+    }
+
+    /** A condition that reads a fetched column runs after the fetch, even when it also reads a column that crosses. */
+    public void testADisjunctionThatReadsAFetchedColumnRunsAfterTheFetch() {
+        PhysicalPlan plan = plan(
+            "FROM employees | SORT hire_date | LIMIT 10 | WHERE hire_date > \"1990-01-01\" OR salary > 1000 | KEEP first_name, salary"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(fetch.child(), instanceOf(TopNExec.class));
+        FilterExec filter = single(plan, FilterExec.class);
+        assertThat(filter.child(), sameInstance(fetch));
+        assertThat(referencedNames(filter), equalTo(Set.of("hire_date", "salary")));
     }
 
     /**
@@ -537,6 +593,10 @@ public class PlanFetchTests extends ESTestCase {
 
     private static List<String> names(List<Attribute> attributes) {
         return attributes.stream().map(Attribute::name).toList();
+    }
+
+    private static Set<String> referencedNames(FilterExec filter) {
+        return filter.condition().references().stream().map(Attribute::name).collect(Collectors.toSet());
     }
 
     private static List<String> namesAndTypes(List<Attribute> attributes) {

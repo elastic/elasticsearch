@@ -228,3 +228,38 @@ emp_no:integer | languages:integer
 10018          | 2
 10017          | 2
 ;
+
+
+filterOnTheSortKeyAfterTheLimit
+// With the fetch phase the filter runs between the TopN and the fetch, which then loads first_name and gender only for
+// the rows that pass.
+FROM employees
+| SORT emp_no
+| LIMIT 10
+| WHERE emp_no % 2 == 0
+| KEEP emp_no, first_name, gender
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10002          | Bezalel            | F
+10004          | Chirstian          | M
+10006          | Anneke             | F
+10008          | Saniya             | M
+10010          | Duangkaew          | null
+;
+
+
+filterOnTheSortKeyAndAnotherColumnAfterTheLimit
+// With the fetch phase the condition on the sort key runs before the fetch, and the one on gender after it, on the
+// fetched values.
+FROM employees
+| SORT emp_no
+| LIMIT 10
+| WHERE emp_no % 2 == 0 AND gender == "F"
+| KEEP emp_no, first_name, gender
+;
+
+emp_no:integer | first_name:keyword | gender:keyword
+10002          | Bezalel            | F
+10006          | Anneke             | F
+;

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
 import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.physical.CarriesDetachedDoc;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -79,6 +82,10 @@ import static org.elasticsearch.transport.RemoteClusterAware.isRemoteIndexName;
  * The data nodes plan the fragment as they plan any other. Node-level late materialization cuts the rows of a node's
  * shards once more, and loads the eager columns the cut doesn't read for the survivors only. The rows leave the node
  * with their {@code _doc}, which keeps naming the documents after it left.
+ * <p>
+ * A filter right after the cut runs before the fetch when its conditions read only columns that cross the exchange,
+ * like {@code WHERE ts > "2026-01-01"} right after the {@code LIMIT} above. The fetch then loads {@code a} and {@code b}
+ * only for the rows that pass.
  * <p>
  * {@link #demand} decides which columns cross the exchange as values. {@link #shape} lists the plans the rule accepts.
  * Every other plan keeps loading its columns eagerly, unchanged, and the reason is recorded in
@@ -130,17 +137,65 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
     /**
      * A plan the rule can rewrite.
      *
-     * @param coordinatorCut the coordinator half of the cut, the parent of the exchange
-     * @param fragmentRoot   the projection {@code ProjectAwayColumns} put on top of the fragment
+     * @param coordinatorCut      the coordinator half of the cut, the parent of the exchange
+     * @param filterAroundTheFetch the filter right after the cut, when some of its conditions run before the fetch
+     * @param fragmentRoot        the projection {@code ProjectAwayColumns} put on top of the fragment
      */
     private record Candidate(
         ExchangeExec exchange,
         FragmentExec fragment,
         Project fragmentRoot,
         UnaryExec coordinatorCut,
+        @Nullable FilterAroundTheFetch filterAroundTheFetch,
         EsRelation relation,
         Demand demand
     ) implements Shape {}
+
+    /**
+     * A filter right after the coordinator cut, split around the fetch. The conditions that read only columns crossing the
+     * exchange run before the fetch, so it loads the deferred columns only for the rows that pass. The others read a
+     * fetched column and run after it.
+     *
+     * @param conditionsBeforeTheFetch never empty
+     * @param conditionsAfterTheFetch  empty when every condition runs before the fetch
+     */
+    private record FilterAroundTheFetch(
+        FilterExec filter,
+        List<Expression> conditionsBeforeTheFetch,
+        List<Expression> conditionsAfterTheFetch
+    ) {
+        /**
+         * The split of {@code filter}, or {@code null} when every condition reads a fetched column, and the whole filter
+         * stays after the fetch.
+         *
+         * @param crossing the columns that cross the exchange as values
+         */
+        @Nullable
+        static FilterAroundTheFetch split(FilterExec filter, AttributeSet crossing) {
+            List<Expression> beforeTheFetch = new ArrayList<>();
+            List<Expression> afterTheFetch = new ArrayList<>();
+            for (Expression condition : Predicates.splitAnd(filter.condition())) {
+                (crossing.containsAll(condition.references()) ? beforeTheFetch : afterTheFetch).add(condition);
+            }
+            return beforeTheFetch.isEmpty() ? null : new FilterAroundTheFetch(filter, beforeTheFetch, afterTheFetch);
+        }
+
+        /** The rows the fetch reads: the cut, without the rows the conditions before the fetch drop. */
+        PhysicalPlan beforeTheFetch(PhysicalPlan cut) {
+            if (conditionsAfterTheFetch.isEmpty()) {
+                return filter.replaceChild(cut);
+            }
+            return new FilterExec(filter.source(), cut, Predicates.combineAnd(conditionsBeforeTheFetch));
+        }
+
+        /** What takes the place of the filter in the plan: the fetch, and the conditions that read a fetched column. */
+        PhysicalPlan afterTheFetch(FetchExec fetch) {
+            if (conditionsAfterTheFetch.isEmpty()) {
+                return fetch;
+            }
+            return new FilterExec(filter.source(), fetch, Predicates.combineAnd(conditionsAfterTheFetch));
+        }
+    }
 
     /**
      * The plans the fetch phase supports, checked in this order:
@@ -160,11 +215,15 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * {@code _doc} still names the document of every row after the command. Commands that duplicate rows, join them or
      * build them from several documents need that reason one by one.
      * <p>
-     * The fetch runs right above the coordinator cut, so the commands after it see the fetched columns. A {@code LIMIT}
-     * after the cut only drops more rows. It shows up above a {@code WHERE} that follows the cut, because the implicit
-     * limit of the query cannot move below a {@code WHERE}. {@code HIGHLIGHT} computes its columns from the values of
-     * the row alone, so it highlights the fetched text of the winners. The optimizer moves a sort and a limit below it
-     * unless the sort reads a generated highlight column, so it usually follows the cut.
+     * The fetch runs right above the coordinator cut, so the commands after it see the fetched columns. The exception is a
+     * filter right after the cut: its conditions that read no fetched column run between the cut and the fetch, see
+     * {@link FilterAroundTheFetch}. The optimizer pushes filters down as far as they go and combines the filters that
+     * follow each other, so the conditions that can move end up in that filter.
+     * <p>
+     * A {@code LIMIT} after the cut only drops more rows. It shows up above a {@code WHERE} that follows the cut, because
+     * the implicit limit of the query cannot move below a {@code WHERE}. {@code HIGHLIGHT} computes its columns from the
+     * values of the row alone, so it highlights the fetched text of the winners. The optimizer moves a sort and a limit
+     * below it unless the sort reads a generated highlight column, so it usually follows the cut.
      */
     private static Shape shape(PhysicalPlan plan) {
         List<ExchangeExec> exchanges = plan.collect(ExchangeExec.class);
@@ -185,9 +244,11 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
 
         AttributeSet.Builder readAfterExchange = AttributeSet.builder().addAll(plan.outputSet());
         PhysicalPlan node = plan;
+        PhysicalPlan afterTheCut = null;
         while (node.children().size() != 1 || node.children().getFirst() != exchange) {
             if (node instanceof UnaryExec unary && unary instanceof CarriesDetachedDoc) {
                 readAfterExchange.addAll(unary.references());
+                afterTheCut = unary;
                 node = unary.child();
             } else {
                 return ineligible("[" + node.nodeName() + "] runs after the cut");
@@ -235,7 +296,10 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         if (demand.deferred().isEmpty()) {
             return new Declined(Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS, "the cut reads every column, or the others cannot be fetched");
         }
-        return new Candidate(exchange, fragment, fragmentRoot, coordinatorCut, relation, demand);
+        FilterAroundTheFetch filterAroundTheFetch = afterTheCut instanceof FilterExec filter
+            ? FilterAroundTheFetch.split(filter, AttributeSet.of(demand.eager()))
+            : null;
+        return new Candidate(exchange, fragment, fragmentRoot, coordinatorCut, filterAroundTheFetch, relation, demand);
     }
 
     private static Declined ineligible(String reason) {
@@ -358,18 +422,22 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
 
         // the coordinator cuts the narrow rows, then fetches the deferred columns of the winners
         UnaryExec coordinatorCut = candidate.coordinatorCut();
+        PhysicalPlan cut = coordinatorCut.replaceChild(exchange);
+        FilterAroundTheFetch filter = candidate.filterAroundTheFetch();
         FetchExec fetch = new FetchExec(
             coordinatorCut.source(),
-            coordinatorCut.replaceChild(exchange),
+            filter == null ? cut : filter.beforeTheFetch(cut),
             doc,
             candidate.demand().deferred(),
             candidate.relation().indexPattern(),
             localIndices(candidate.relation()),
             null
         );
+        PhysicalPlan replaced = filter == null ? coordinatorCut : filter.filter();
+        PhysicalPlan replacement = filter == null ? fetch : filter.afterTheFetch(fetch);
 
         // the coordinator returns what it returned before, never _doc
-        PhysicalPlan rewritten = plan.transformDown(PhysicalPlan.class, node -> node == coordinatorCut ? fetch : node);
+        PhysicalPlan rewritten = plan.transformDown(PhysicalPlan.class, node -> node == replaced ? replacement : node);
         if (sameIds(rewritten.output(), plan.output()) == false) {
             rewritten = new ProjectExec(plan.source(), rewritten, plan.output());
         }

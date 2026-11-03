@@ -85,7 +85,7 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     mkdir /layers && \\
     n=0 && \\
     for pattern in <%= separateLayers.collect { "'" + it + "'" }.join(' ') %>; do \\
-        mkdir "/layers/\$n"; \\
+        mkdir "/layers/\$n" || exit 1; \\
         for path in \$pattern; do \\
             [ -d "\$path" ] || continue; \\
             mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\

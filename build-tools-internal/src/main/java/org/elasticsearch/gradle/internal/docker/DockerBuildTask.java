@@ -297,7 +297,12 @@ public abstract class DockerBuildTask extends DefaultTask {
                 }
 
                 if (parameters.getPush().getOrElse(false)) {
-                    spec.args("--output", "type=image,push=true" + rewriteTimestampOption);
+                    if (rewriteTimestamps) {
+                        // --push is shorthand for --output type=image,push=true, but only the exporter accepts options
+                        spec.args("--output", "type=image,push=true" + rewriteTimestampOption);
+                    } else {
+                        spec.args("--push");
+                    }
                 } else if (parameters.getPlatforms().get().size() == 1) {
                     if (isCrossPlatform && parameters.getOciImageLayout().isPresent()) {
                         // Load the image into the daemon (see the --load comment below) and additionally
@@ -323,7 +328,12 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // "no such object". It also prevents issues with newer Docker versions
                         // (23.0+) that may create manifest lists even for single-platform builds
                         // when BuildKit is enabled.
-                        spec.args("--output", "type=docker" + rewriteTimestampOption);
+                        if (rewriteTimestamps) {
+                            // --load is shorthand for --output type=docker, but only the exporter accepts options
+                            spec.args("--output", "type=docker" + rewriteTimestampOption);
+                        } else {
+                            spec.args("--load");
+                        }
                     }
                 }
             });

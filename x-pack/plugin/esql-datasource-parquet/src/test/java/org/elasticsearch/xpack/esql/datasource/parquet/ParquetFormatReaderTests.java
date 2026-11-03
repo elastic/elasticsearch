@@ -4273,6 +4273,18 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .named("l")
             .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
             .named("d")
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false))
+            .named("u")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.decimalType(4, 18))
+            .named("dec")
+            .optional(PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY)
+            .length(2)
+            .as(LogicalTypeAnnotation.float16Type())
+            .named("f16")
+            .optional(PrimitiveType.PrimitiveTypeName.INT96)
+            .named("i96")
             .named("test_schema");
 
         int rows = 512;
@@ -4285,13 +4297,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     g.add("i", r);
                     g.add("l", (long) r * 31);
                     g.add("d", r * 1.5);
+                    g.add("u", Integer.MIN_VALUE + r);
+                    g.add("dec", (long) r * 101);
+                    g.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(r * 0.5f)));
+                    g.add("i96", new NanoTime(2_451_545, 43_200_000_000_000L + r));
                 }
                 groups.add(g);
             }
             return groups;
         });
 
-        byte[][] expected = new byte[4][];
+        byte[][] expected = new byte[8][];
         for (int read = 0; read < 50; read++) {
             ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withBaselinePath();
             StorageObject storageObject = createStorageObject(parquetData);
@@ -4304,7 +4320,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertTrue(iterator.hasNext());
                 Page page = iterator.next();
                 try {
-                    for (int c = 0; c < 4; c++) {
+                    for (int c = 0; c < 8; c++) {
                         Block block = page.getBlock(c);
                         for (int pos = 0; pos < block.getPositionCount(); pos++) {
                             if (pos % 5 != 0) {
@@ -4314,12 +4330,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
                             // Single-valued, so the position indexes the backing array directly: this reads the
                             // masked element itself rather than going through the mask.
                             assertEquals("column " + c + " position " + pos, pos, block.getFirstValueIndex(pos));
-                            switch (c) {
-                                case 0 -> assertFalse("bool " + pos, ((BooleanBlock) block).getBoolean(pos));
-                                case 1 -> assertEquals("int " + pos, 0, ((IntBlock) block).getInt(pos));
-                                case 2 -> assertEquals("long " + pos, 0L, ((LongBlock) block).getLong(pos));
-                                case 3 -> assertEquals("double " + pos, 0.0, ((DoubleBlock) block).getDouble(pos), 0.0);
-                                default -> throw new AssertionError("unreachable column " + c);
+                            String where = "column " + c + " position " + pos;
+                            if (block instanceof BooleanBlock bb) {
+                                assertFalse(where, bb.getBoolean(pos));
+                            } else if (block instanceof IntBlock ib) {
+                                assertEquals(where, 0, ib.getInt(pos));
+                            } else if (block instanceof LongBlock lb) {
+                                assertEquals(where, 0L, lb.getLong(pos));
+                            } else if (block instanceof DoubleBlock db) {
+                                assertEquals(where, 0.0, db.getDouble(pos), 0.0);
+                            } else {
+                                throw new AssertionError("unexpected block type for " + where + ": " + block.getClass());
                             }
                         }
                         byte[] actual = serializedBytes(block);

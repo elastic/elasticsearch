@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -67,9 +68,18 @@ public class PrimarySortRangeTests extends ESTestCase {
      * on {@code other}, sorted by {@link #SORT_FIELD} if {@code reverse} is not {@code null}.
      */
     private void index(Boolean reverse) throws IOException {
+        index(reverse, NUM_DOCS / between(1, 3));
+    }
+
+    /**
+     * Like {@link #index(Boolean)} with segments of {@code docsPerSegment} docs. Segments are not merged, so
+     * the number of leaves is known.
+     */
+    private void index(Boolean reverse, int docsPerSegment) throws IOException {
         directory = newDirectory();
         IndexWriterConfig config = new IndexWriterConfig();
-        config.setMaxBufferedDocs(NUM_DOCS / between(1, 3));
+        config.setMaxBufferedDocs(docsPerSegment);
+        config.setMergePolicy(NoMergePolicy.INSTANCE);
         if (reverse != null) {
             config.setIndexSort(new Sort(new SortedNumericSortField(SORT_FIELD, SortField.Type.LONG, reverse)));
         }
@@ -195,7 +205,8 @@ public class PrimarySortRangeTests extends ESTestCase {
      */
     public void testSlicesCoverMatches() throws IOException {
         boolean reverse = randomBoolean();
-        index(reverse);
+        // One leaf, and a high concurrency so the leaf is large for the splitter: at least 5 times the slice size.
+        index(reverse, NUM_DOCS);
         long lower = between(0, NUM_VALUES - 10);
         long upper = lower + between(0, 8);
         IndexSearcher searcher = new IndexSearcher(reader);
@@ -204,7 +215,7 @@ public class PrimarySortRangeTests extends ESTestCase {
             ScoreMode.COMPLETE_NO_SCORES,
             1
         );
-        int taskConcurrency = between(2, 8);
+        int taskConcurrency = between(50, 200);
         int minDocsPerSlice = between(50, 500);
         List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
             searcher,
@@ -265,5 +276,66 @@ public class PrimarySortRangeTests extends ESTestCase {
             }
         }
         assertThat(sliceDocs, equalTo((long) NUM_DOCS));
+    }
+
+    /**
+     * A range that covers almost all docs must not give slices larger than the default for the whole leaf.
+     */
+    public void testWideRangeSlicesAreNotLargerThanDefault() throws IOException {
+        index(randomBoolean(), NUM_DOCS);
+        int taskConcurrency = between(5, 20);
+        int minDocsPerSlice = between(50, 500);
+        IndexSearcher searcher = new IndexSearcher(reader);
+        Weight weight = searcher.createWeight(
+            searcher.rewrite(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 1, NUM_VALUES - 2)),
+            ScoreMode.COMPLETE_NO_SCORES,
+            1
+        );
+        int defaultDesired = Math.max(minDocsPerSlice, Math.ceilDiv(NUM_DOCS, taskConcurrency));
+        for (List<PartialLeafReaderContext> group : LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            weight,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            minDocsPerSlice
+        )) {
+            for (PartialLeafReaderContext slice : group) {
+                assertThat(slice.maxDoc() - slice.minDoc(), lessThanOrEqualTo(defaultDesired * 5 / 4));
+            }
+        }
+    }
+
+    /**
+     * Small leaves are grouped as before, so many small segments do not get a slice each.
+     */
+    public void testSmallLeavesKeepDefaultSlices() throws IOException {
+        index(randomBoolean(), 500);
+        assertThat(reader.leaves().size(), equalTo(NUM_DOCS / 500));
+        IndexSearcher searcher = new IndexSearcher(reader);
+        Weight weight = searcher.createWeight(
+            searcher.rewrite(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 10, 12)),
+            ScoreMode.COMPLETE_NO_SCORES,
+            1
+        );
+        int taskConcurrency = between(2, 20);
+        int minDocsPerSlice = between(50, 500);
+        assertThat(
+            LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+                searcher,
+                taskConcurrency,
+                weight,
+                LuceneSliceQueue.LeafSplitGuard.NEVER,
+                minDocsPerSlice
+            ),
+            equalTo(
+                LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+                    searcher,
+                    taskConcurrency,
+                    null,
+                    LuceneSliceQueue.LeafSplitGuard.NEVER,
+                    minDocsPerSlice
+                )
+            )
+        );
     }
 }

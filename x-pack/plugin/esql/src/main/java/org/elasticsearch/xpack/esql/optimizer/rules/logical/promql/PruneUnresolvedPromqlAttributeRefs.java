@@ -295,9 +295,10 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
         }
 
         /**
-         * The initial aggregate collapses the source per series. A label it keys by, or carries while it keeps one row per
-         * series, is a field column; one it carries beside its metadata is a dimension the metadata keeps. One the source lacks
-         * is dropped from the keys. The source reads its metadata without the labels it leaves out.
+         * The initial aggregate collapses the source per series. A label it keys by or carries is a field column, dimension or
+         * not: a non-dimension field is a label of the series that its metadata does not hold, so carrying it beside the
+         * metadata keys by it too, as Prometheus keys by every label a WITHOUT leaves in. One the source lacks is dropped
+         * from the keys. The source reads its metadata without the labels it leaves out.
          */
         private LogicalPlan resolveCollapse(TimeSeriesAggregate node, List<UnresolvedPromqlAttribute> needs) {
             Alias value = (Alias) node.aggregates().getFirst();
@@ -334,9 +335,7 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
                 }
             }
             for (UnresolvedPromqlAttribute label : keys.labels()) {
-                Attribute column = grain.perSeries() || grain.labels().stream().anyMatch(label::reads)
-                    ? PromqlLabels.getField(raw, label.name())
-                    : PromqlLabels.getLabel(raw, label.name());
+                Attribute column = PromqlLabels.getField(raw, label.name());
                 if (column != null) {
                     groupKeys.add(column);
                 }

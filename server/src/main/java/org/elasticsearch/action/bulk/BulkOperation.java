@@ -470,33 +470,14 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                     final ShardId shardId = entry.getKey();
                     final List<BulkItemRequest> requests = entry.getValue();
-
-                    // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
                     var indexMetadata = project.getIndexSafe(shardId.getIndex());
-                    SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
-
-                    BulkShardRequest bulkShardRequest = new BulkShardRequest(
-                        shardId,
-                        splitShardCountSummary,
-                        bulkRequest.getRefreshPolicy(),
-                        requests.toArray(new BulkItemRequest[0]),
-                        bulkRequest.isSimulated()
-                    );
+                    BulkShardRequest bulkShardRequest = createBulkShardRequest(shardId, requests, indexMetadata, clusterState, nodeId);
 
                     SourceBatch shardBatch = shardBatches.get(shardId);
                     if (shardBatch != null) {
                         bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
                     }
 
-                    if (indexMetadata.getInferenceFields().isEmpty() == false) {
-                        bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
-                    }
-                    bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-                    bulkShardRequest.timeout(bulkRequest.timeout());
-                    bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
-                    if (task != null) {
-                        bulkShardRequest.setParentTask(nodeId, task.getId());
-                    }
                     boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
                     // Releases the batch when its shard request completes, ahead of the ref that may start the next phase.
                     undispatchedBatches.remove(shardId);
@@ -514,6 +495,39 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         } finally {
             Releasables.close(undispatchedBatches.values());
         }
+    }
+
+    /**
+     * Builds the request for one shard, carrying over the settings of the enclosing bulk request. The shard's batch, if any, is
+     * attached by the caller.
+     */
+    private BulkShardRequest createBulkShardRequest(
+        ShardId shardId,
+        List<BulkItemRequest> requests,
+        IndexMetadata indexMetadata,
+        ClusterState clusterState,
+        String nodeId
+    ) {
+        // Get effective shardCount for shardId and pass it on as parameter to new BulkShardRequest
+        SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shardId,
+            splitShardCountSummary,
+            bulkRequest.getRefreshPolicy(),
+            requests.toArray(new BulkItemRequest[0]),
+            bulkRequest.isSimulated()
+        );
+        if (indexMetadata.getInferenceFields().isEmpty() == false) {
+            bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
+        }
+        bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
+        bulkShardRequest.timeout(bulkRequest.timeout());
+        bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
+        if (task != null) {
+            bulkShardRequest.setParentTask(nodeId, task.getId());
+        }
+        return bulkShardRequest;
     }
 
     private void redirectFailuresOrCompleteBulkOperation() {

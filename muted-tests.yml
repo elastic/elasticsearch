@@ -361,11 +361,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRetryWhileFirstTryStillReadsUploadsCorrectBcc
   issue: https://github.com/elastic/elasticsearch/issues/163111
-- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testTranslogMasterFailureOnlyStressRecoveryTest
-  issue: https://github.com/elastic/elasticsearch/issues/163242
 - class: org.elasticsearch.xpack.esql.action.EsqlStreamDisruptionIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -440,11 +435,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testRetryRecoveryCommitRegistrationIfPrimaryMoves
   issue: https://github.com/elastic/elasticsearch/issues/164016
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRCS1DeprecationIT
-  tasks:
-  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
-  method: testUsingRCS1GeneratesDeprecationWarning
-  issue: https://github.com/elastic/elasticsearch/issues/163658
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   tasks:
   - :x-pack:plugin:ml:qa:multi-cluster-tests-with-security:yamlRestTest
@@ -554,3 +544,18 @@ tests:
   - :server:internalClusterTest
   method: testMetadataVersion
   issue: https://github.com/elastic/elasticsearch/issues/164246
+- class: org.elasticsearch.xpack.stateless.reshard.SnapshotsWithReshardingIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRestoreOverOpenIndexWhileResharding_onSeparateNodes_handoffInFlight
+  issue: https://github.com/elastic/elasticsearch/issues/164466
+- class: org.elasticsearch.system_indices.action.SystemDataStreamMigrationIT
+  tasks:
+  - :x-pack:plugin:migrate:internalClusterTest
+  method: testMigrationRestartAfterFailure
+  issue: https://github.com/elastic/elasticsearch/issues/164473
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap
+  issue: https://github.com/elastic/elasticsearch/issues/164484

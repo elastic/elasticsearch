@@ -84,6 +84,7 @@ processingCommand
     | {this.isDevVersion()}? lookupCommand
     | dedupCommand
     | {this.isDevVersion()}? fillNullCommand
+    | {EsqlCapabilities.Cap.INTO_COMMAND.isEnabled()}? intoCommand
     ;
 
 whereCommand
@@ -402,6 +403,10 @@ lookupCommand
 
 dedupCommand
     : DEDUP
+    ;
+
+intoCommand
+    : DEV_INTO indexPattern commandNamedParameters
     ;
 
 highlightCommand

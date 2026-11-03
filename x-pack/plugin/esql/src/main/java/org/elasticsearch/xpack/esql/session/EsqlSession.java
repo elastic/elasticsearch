@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DatasetResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -108,6 +110,8 @@ import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.into.IntoOptions;
+import org.elasticsearch.xpack.esql.into.IntoStats;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
@@ -128,6 +132,8 @@ import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Into;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedIpLocation;
@@ -141,6 +147,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
+import org.elasticsearch.xpack.esql.plan.physical.IntoExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -278,6 +285,18 @@ public class EsqlSession {
      * transport threads.
      */
     private volatile ExplainContext explainContext;
+
+    /**
+     * Set when the query ends in {@code INTO}, which is taken off right after parsing like {@code EXPLAIN}. The child
+     * runs as the query; its rows are written to {@link #destination()} and the result is the statistics row.
+     */
+       /**
+        * What an {@code INTO} query writes to and how. Whether the destination is a data stream is only known once it has
+        * been resolved against the cluster metadata, which happens after the plan is optimized.
+        */
+    private record IntoContext(String destination, IntoOptions options) {}
+
+    private volatile IntoContext intoContext;
     private final ProjectMetadata projectMetadata;
 
     /**
@@ -483,6 +502,16 @@ public class EsqlSession {
             // EXPLAIN command itself here.
             planTelemetry.command(explain);
         }
+        if (parsedPlan instanceof Into into) {
+            // INTO is taken off right after parsing like EXPLAIN: the child is the query that runs, with its rows going
+            // to the destination instead of the result. No result cap applies to what is written, so the child gets an
+            // explicit, unbounded limit (the analyzer requires one at the root) and an unbounded SORT is refused, since
+            // sorting would then mean holding the whole result.
+            Into.verifyProducer(into.child(), into.destination());
+            intoContext = new IntoContext(into.destination(), into.options());
+            planTelemetry.command(into);
+            parsedPlan = new Limit(into.source(), new Literal(into.source(), Integer.MAX_VALUE, DataType.INTEGER), into.child());
+        }
         parsingProfile.stop();
 
         // Resolve all query settings up front, immediately after parse, so every downstream phase only reads
@@ -508,6 +537,17 @@ public class EsqlSession {
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
         request.setResolvedSettings(resolved);
+        if (intoContext != null
+            && intoContext.options().approximate() == false
+            && ApproximationSettings.isOn(QuerySettings.APPROXIMATION.get(resolved))) {
+            // An approximate answer is one thing to display and another to persist with no sign that it was estimated,
+            // so writing one has to be asked for at the point of the write.
+            throw new VerificationException(
+                "INTO cannot be used with approximation unless \"{}\": true, since the rows written would be based on a sample",
+                IntoOptions.APPROXIMATE
+            );
+        }
+
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
         // View and IN subquery resolution. IN_SUBQUERY telemetry is gathered from the result (ViewResolutionResult.hasInSubquery)
@@ -603,7 +643,7 @@ public class EsqlSession {
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
         ZoneId timeZone = QuerySettings.TIME_ZONE.get(resolved);
-        Configuration configuration = new Configuration(
+        Configuration baseConfiguration = new Configuration(
             Instant.now(Clock.tick(Clock.system(timeZone), Duration.ofNanos(1))),
             request.locale() != null ? request.locale() : Locale.US,
             // TODO: plug-in security
@@ -622,6 +662,16 @@ public class EsqlSession {
             resolved,
             viewResolution.viewQueries()
         );
+        // An INTO query's rows are written rather than returned, so no result cap applies to them, and a partial
+        // result is a failure rather than an answer: the destination would otherwise hold part of one.
+        Configuration configuration = intoContext == null
+            ? baseConfiguration
+            : new ConfigurationBuilder(baseConfiguration).resultTruncationMaxSizeRegular(Integer.MAX_VALUE)
+                .resultTruncationDefaultSizeRegular(Integer.MAX_VALUE)
+                .resultTruncationMaxSizeTimeseries(Integer.MAX_VALUE)
+                .resultTruncationDefaultSizeTimeseries(Integer.MAX_VALUE)
+                .allowPartialResults(false)
+                .build();
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into BranchPlan. ViewShadowRelation siblings and nested
@@ -789,17 +839,13 @@ public class EsqlSession {
                     if (EsqlCCSUtils.returnSuccessWithEmptyResult(executionInfo, e)) {
                         EsqlCCSUtils.updateExecutionInfoToReturnEmptyResult(executionInfo, e);
                         executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
+                        // An INTO query answers with its statistics row even when nothing was read, so that it is
+                        // the shape the caller expects: nothing was written.
+                        List<Attribute> schema = intoContext == null ? Analyzer.NO_FIELDS : IntoStats.ATTRIBUTES;
+                        List<Page> pages = intoContext == null ? List.of() : List.of(new IntoStats().toPage(blockFactory));
                         listener.onResponse(
                             new Versioned<>(
-                                new Result(
-                                    Analyzer.NO_FIELDS,
-                                    List.of(),
-                                    Map.of(),
-                                    configuration,
-                                    DriverCompletionInfo.EMPTY,
-                                    executionInfo,
-                                    null
-                                ),
+                                new Result(schema, pages, Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo, null),
                                 TransportVersion.current()
                             )
                         );
@@ -839,6 +885,12 @@ public class EsqlSession {
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
         assert planningCpu.isMeteringCurrentThread() : "planning reached its end on a thread without an open planning CPU measurement";
         executionInfo.queryProfile().planningCpuNanos(planningCpu.finish());
+
+        if (intoContext != null) {
+            // Refused before anything is read. The destination is checked later, in ComputeService, once the caller is
+            // known to be allowed to write to it.
+            verifyInto(configuration);
+        }
 
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
@@ -1066,6 +1118,26 @@ public class EsqlSession {
         planRunner.run(PlanRunner.Role.OUTPUT, resultPlan, configuration, foldContext, planTimeProfile, listener);
     }
 
+    /**
+     * Refuses an {@code INTO} query that cannot be written whatever the destination is: {@code unmapped_fields=LOAD_ALL}
+     * adds an {@code _unmapped_fields} column, a JSON object of each document's unmapped fields, which the writer would
+     * store as one object field of that name rather than as the top-level fields it stands for, and whose keys the
+     * mapping check cannot see up front. The destination itself is checked by {@code ComputeService}, once the caller is
+     * known to be allowed to write to it.
+     */
+    private void verifyInto(Configuration configuration) {
+        if (QuerySettings.UNMAPPED_FIELDS.get(configuration.resolvedSettings()).loadsAllUnmappedFields()) {
+            throw new VerificationException("INTO cannot be used with [unmapped_fields=LOAD_ALL]");
+        }
+    }
+
+    /** Puts the {@code INTO} root back on the final plan, so its rows are written and the result is the statistics row. */
+    private PhysicalPlan withInto(PhysicalPlan physicalPlan) {
+        return intoContext == null
+            ? physicalPlan
+            : new IntoExec(physicalPlan.source(), physicalPlan, intoContext.destination(), intoContext.options(), null);
+    }
+
     private void executeSubPlans(
         LogicalPlan optimizedPlan,
         Configuration configuration,
@@ -1113,7 +1185,7 @@ public class EsqlSession {
             // into ExternalSourceCacheService before delivering Result.
             runner.run(
                 PlanRunner.Role.OUTPUT,
-                physicalPlan,
+                withInto(physicalPlan),
                 configuration,
                 foldContext,
                 planTimeProfile,
@@ -1487,7 +1559,7 @@ public class EsqlSession {
                         }
                         runner.run(
                             PlanRunner.Role.OUTPUT,
-                            newPhysicalPlan,
+                            withInto(newPhysicalPlan),
                             configuration,
                             foldContext,
                             planTimeProfile,

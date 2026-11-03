@@ -481,7 +481,7 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
      * Returns {@code false} if value comparison can no longer be trusted for the remaining steps
      * in this pipeline iteration. The gate latches to {@code false} and never re-opens.
      */
-    private static boolean updateDeterminismGate(
+    static boolean updateDeterminismGate(
         boolean currentGate,
         CommandGenerator.CommandDescription current,
         QueryExecuted refResult,

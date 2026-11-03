@@ -117,8 +117,14 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
     private static final List<String> CAPTURED_LOGGERS = List.of(
         "org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction",
         "org.elasticsearch.xpack.stateless.recovery.StatelessSearchNodeRecoveryListener",
-        "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService"
+        "org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService",
+        "org.elasticsearch.xpack.stateless.recovery.ActivationQueryRangesPrefetcher"
     );
+
+    static final int P5_ITEM_SORT = 1;
+    static final int P5_ITEM_ID = 2;
+    static final int P5_ITEM_RANGES = 4;
+    static final int P5_ITEM_NOWHOLE = 8;
 
     enum QueryType {
         MATCH,
@@ -142,20 +148,42 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         PTR_NOENG("1mb", true, true),
         // phase 4: PTR_NOENG + the pointer's open-time bytes written in the cache (no header/footer/metadata warming from the store);
         // PTR_NOENG ignores them (stateless.cheap_shard.fast_activation.use_pointer_open_bytes: false) on the same pointer
-        PTR_META("1mb", true, true);
+        PTR_META("1mb", true, true),
+        // phase 5: PTR_META + one first-query item each (see setFastActivation), and all of them
+        P5_SORT("1mb", true, true, P5_ITEM_SORT),
+        P5_ID("1mb", true, true, P5_ITEM_ID),
+        P5_RANGES("1mb", true, true, P5_ITEM_RANGES),
+        P5_NOWHOLE("1mb", true, true, P5_ITEM_NOWHOLE),
+        P5_ALL("1mb", true, true, P5_ITEM_SORT | P5_ITEM_ID | P5_ITEM_RANGES | P5_ITEM_NOWHOLE);
 
         final String rangeSize;
         final boolean parallel;
         final boolean pointerNoEngine;
+        /** phase 5 items enabled (bit set of {@code P5_ITEM_*}); {@code -1} for modes without the pointer's open bytes */
+        final int p5Items;
+
+        Mode(String rangeSize, boolean parallel, boolean pointerNoEngine, int p5Items) {
+            this.rangeSize = rangeSize;
+            this.parallel = parallel;
+            this.pointerNoEngine = pointerNoEngine;
+            this.p5Items = p5Items;
+        }
+
+        /** the pointer's open-time bytes are used (phase 4 PTR_META and every phase 5 mode) */
+        boolean meta() {
+            return this == PTR_META || p5Items > 0;
+        }
+
+        boolean p5(int item) {
+            return p5Items > 0 && (p5Items & item) != 0;
+        }
 
         Mode(String rangeSize, boolean parallel) {
             this(rangeSize, parallel, false);
         }
 
         Mode(String rangeSize, boolean parallel, boolean pointerNoEngine) {
-            this.rangeSize = rangeSize;
-            this.parallel = parallel;
-            this.pointerNoEngine = pointerNoEngine;
+            this(rangeSize, parallel, pointerNoEngine, 0);
         }
     }
 
@@ -201,7 +229,17 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
                 true,
                 reps,
                 merges,
-                List.of(Mode.BASE, Mode.PAR_1M, Mode.PTR_NOENG, Mode.PTR_META),
+                List.of(
+                    Mode.BASE,
+                    Mode.PAR_1M,
+                    Mode.PTR_NOENG,
+                    Mode.PTR_META,
+                    Mode.P5_SORT,
+                    Mode.P5_ID,
+                    Mode.P5_RANGES,
+                    Mode.P5_NOWHOLE,
+                    Mode.P5_ALL
+                ),
                 latencies
             );
         }
@@ -1076,7 +1114,19 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
             FastSearchActivationSettings.FAST_ACTIVATION_DISCOVERY_SETTING.getKey(),
             mode.pointerNoEngine ? "pointer" : "registration"
         );
-        settings.put(FastSearchActivationSettings.FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING.getKey(), mode == Mode.PTR_META);
+        settings.put(FastSearchActivationSettings.FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING.getKey(), mode.meta());
+        // phase 5 items (default off; PTR_META is the phase-4 configuration): sort doc values prefetch, fetch _id doc values prefetch,
+        // query-range prefetch at activation (budget -Dtests.sweep.p5_ranges_max, default 16mb), no whole-small-blob warming
+        settings.put(FastSearchActivationSettings.FAST_ACTIVATION_PREFETCH_SORT_DOC_VALUES_SETTING.getKey(), mode.p5(P5_ITEM_SORT))
+            .put(SearchService.FETCH_PHASE_PREFETCH_ID_DOC_VALUES.getKey(), mode.p5(P5_ITEM_ID))
+            .put(
+                FastSearchActivationSettings.FAST_ACTIVATION_PREFETCH_QUERY_RANGES_MAX_SIZE_SETTING.getKey(),
+                mode.p5(P5_ITEM_RANGES) ? System.getProperty("tests.sweep.p5_ranges_max", "16mb") : "0b"
+            )
+            .put(
+                FastSearchActivationSettings.FAST_ACTIVATION_SKIP_WHOLE_BLOB_WARMING_WITH_OPEN_BYTES_SETTING.getKey(),
+                mode.p5(P5_ITEM_NOWHOLE)
+            );
         // phase 4: -Dtests.sweep.meta_whole_blob_threshold=0b drops the whole-small-blob warming in PTR_META (an ES warming policy: with
         // the open-time bytes in the pointer nothing else is needed to open the reader)
         final String metaWholeBlobThreshold = System.getProperty("tests.sweep.meta_whole_blob_threshold");

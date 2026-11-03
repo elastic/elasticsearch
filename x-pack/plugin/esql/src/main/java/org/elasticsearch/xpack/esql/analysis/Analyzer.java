@@ -2287,20 +2287,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Picks the attributes of a merge branch's output in {@code mergeColumns} order, keeping every branch attribute that carries
-         * a given name. The branch output is indexed by name once so the cost is linear in the schema width: a merge over thousands
-         * of columns would otherwise rescan the branch output for every merge column, saturating the analysis thread pool (#163560).
+         * Picks the attributes of a merge branch's output in {@code mergeColumns} order. The branch output is indexed by name once
+         * so the cost is linear in the schema width: a merge over thousands of columns would otherwise rescan the branch output for
+         * every merge column, saturating the analysis thread pool (#163560). A plan's output never repeats a name, so each merge
+         * column matches at most one branch attribute.
          */
         static List<Attribute> alignToMergeColumns(List<String> mergeColumns, List<Attribute> branchOutput) {
-            Map<String, List<Attribute>> branchAttributesByName = new HashMap<>();
+            Map<String, Attribute> branchAttributesByName = HashMap.newHashMap(branchOutput.size());
             for (Attribute attr : branchOutput) {
-                branchAttributesByName.computeIfAbsent(attr.name(), k -> new ArrayList<>(1)).add(attr);
+                Attribute previous = branchAttributesByName.put(attr.name(), attr);
+                assert previous == null : "duplicate attribute name [" + attr.name() + "] in merge branch output " + branchOutput;
             }
             List<Attribute> aligned = new ArrayList<>(mergeColumns.size());
             for (String name : mergeColumns) {
-                List<Attribute> matches = branchAttributesByName.get(name);
-                if (matches != null) {
-                    aligned.addAll(matches);
+                Attribute match = branchAttributesByName.get(name);
+                if (match != null) {
+                    aligned.add(match);
                 }
             }
             return aligned;

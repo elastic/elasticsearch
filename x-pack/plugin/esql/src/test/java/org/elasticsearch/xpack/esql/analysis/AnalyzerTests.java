@@ -3838,20 +3838,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
     }
 
     /**
-     * Every branch attribute carrying a merge column's name is kept, in merge column order.
-     */
-    public void testAlignToMergeColumnsKeepsDuplicateNames() {
-        Attribute a1 = referenceAttribute("a", KEYWORD);
-        Attribute b = referenceAttribute("b", INTEGER);
-        Attribute a2 = referenceAttribute("a", LONG);
-        Attribute c = referenceAttribute("c", KEYWORD);
-
-        List<Attribute> aligned = Analyzer.ResolveRefs.alignToMergeColumns(List.of("b", "a", "missing"), List.of(a1, b, a2, c));
-
-        assertThat(aligned, equalTo(List.of(b, a1, a2)));
-    }
-
-    /**
      * A FORK over a wide index aligns every branch to all of its columns. The alignment used to be quadratic in the number of
      * columns (#163560); this checks the wide case still resolves to correctly aligned branches.
      */

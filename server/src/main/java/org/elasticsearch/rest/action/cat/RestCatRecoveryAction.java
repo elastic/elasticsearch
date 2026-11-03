@@ -50,6 +50,7 @@ public class RestCatRecoveryAction extends AbstractCatAction {
         Sets.union(
             COMMON_QUERY_PARAMETERS,
             Set.of(
+                "index",
                 "detailed",
                 "active_only",
                 IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
@@ -59,7 +60,6 @@ public class RestCatRecoveryAction extends AbstractCatAction {
             )
         )
     );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("index")));
 
     @Override
     public List<Route> routes() {
@@ -74,11 +74,6 @@ public class RestCatRecoveryAction extends AbstractCatAction {
     @Override
     public Set<String> supportedQueryParameters() {
         return SUPPORTED_QUERY_PARAMETERS;
-    }
-
-    @Override
-    public Set<String> allSupportedParameters() {
-        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

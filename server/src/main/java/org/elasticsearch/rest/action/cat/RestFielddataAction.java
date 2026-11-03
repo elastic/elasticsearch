@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.INTERNAL)
 public class RestFielddataAction extends AbstractCatAction {
 
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(COMMON_QUERY_PARAMETERS, Set.of("fields")));
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(Sets.union(COMMON_QUERY_PARAMETERS, Set.of("fields")));
 
     @Override
     public List<Route> routes() {
@@ -47,12 +47,7 @@ public class RestFielddataAction extends AbstractCatAction {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return COMMON_QUERY_PARAMETERS;
-    }
-
-    @Override
-    public Set<String> allSupportedParameters() {
-        return ALL_SUPPORTED_PARAMETERS;
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

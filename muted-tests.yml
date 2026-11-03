@@ -469,3 +469,8 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testHollowEngineWithConcurrentNonHollowFlush
   issue: https://github.com/elastic/elasticsearch/issues/164263
+- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
+  tasks:
+  - :x-pack:plugin:searchable-snapshots:internalClusterTest
+  method: testRetryPointInTimeAfterNodeDrop
+  issue: https://github.com/elastic/elasticsearch/issues/164396

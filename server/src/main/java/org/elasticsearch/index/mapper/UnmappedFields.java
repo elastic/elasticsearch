@@ -96,10 +96,10 @@ public final class UnmappedFields {
      * object the mapping parses: a document with a value there is rejected, so the mapping alone rules it out.
      */
     public boolean mayExist(String name) {
-        return holdsNoValue(name) == false && skipped("", name) == false && mayExist();
+        return isParsedObject(name) == false && skipped("", name) == false && mayExist();
     }
 
-    private boolean holdsNoValue(String name) {
+    private boolean isParsedObject(String name) {
         return mappingLookup.objectMappers().get(name) instanceof ObjectMapper object && object.isEnabled();
     }
 

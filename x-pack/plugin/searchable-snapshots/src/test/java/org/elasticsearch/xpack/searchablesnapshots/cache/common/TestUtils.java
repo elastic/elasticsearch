@@ -78,13 +78,15 @@ public final class TestUtils {
             final long start = randomLongBetween(0L, Math.max(0L, cacheFile.getLength() - 1L));
             final long end = randomLongBetween(Math.min(start + 1L, cacheFile.getLength()), cacheFile.getLength());
             final ByteRange range = ByteRange.of(start, end);
-            futures.add(
-                cacheFile.populateAndRead(range, range, channel -> Math.toIntExact(end - start), (channel, from, to, progressUpdater) -> {
-                    consumer.apply(channel, from, to);
-                    ranges.add(ByteRange.of(from, to));
-                    progressUpdater.accept(to);
-                }, deterministicTaskQueue.getThreadPool().generic())
-            );
+            futures.add(cacheFile.populateAndRead(range, range, (channel, onReadComplete) -> {
+                try (onReadComplete) {
+                    return Math.toIntExact(end - start);
+                }
+            }, (channel, from, to, progressUpdater) -> {
+                consumer.apply(channel, from, to);
+                ranges.add(ByteRange.of(from, to));
+                progressUpdater.accept(to);
+            }, deterministicTaskQueue.getThreadPool().generic()));
         }
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(futures.stream().allMatch(Future::isDone));

@@ -329,7 +329,7 @@ public class CacheFile {
 
     @FunctionalInterface
     public interface RangeAvailableHandler {
-        int onRangeAvailable(FileChannel channel) throws IOException;
+        int onRangeAvailable(FileChannel channel, Releasable onReadComplete) throws IOException;
     }
 
     @FunctionalInterface
@@ -360,7 +360,7 @@ public class CacheFile {
             final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                 rangeToWrite,
                 rangeToRead,
-                rangeListener(rangeToRead, reader, future, reference, decrementRef)
+                rangeListener(rangeToRead, reader, future, reference, decrementRef, () -> {})
                 // read path: claim gaps immediately rather than deferring to the executor
             ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
 
@@ -404,25 +404,41 @@ public class CacheFile {
      *         target range is neither available nor pending.
      */
     @Nullable
-    public Future<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
+    public Future<Integer> readIfAvailableOrPending(
+        final ByteRange rangeToRead,
+        final Releasable onReadComplete,
+        final RangeAvailableHandler reader
+    ) {
         final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+        final boolean availableOrPending;
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
-            decrementRef = Releasables.releaseOnce(reference::decRef);
-            if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, future, reference, decrementRef))) {
-                return future;
-            } else {
-                decrementRef.close();
-                return null;
-            }
+            decrementRef = Releasables.assertOnce(reference::decRef);
+            availableOrPending = tracker.waitForRangeIfPending(
+                rangeToRead,
+                rangeListener(rangeToRead, reader, future, reference, decrementRef, onReadComplete)
+            );
         } catch (Exception e) {
-            releaseAndFail(future, decrementRef, e);
+            releaseAndFail(future, Releasables.wrap(decrementRef, onReadComplete), e);
+            return future;
+        }
+
+        if (availableOrPending) {
+            return future;
+        }
+
+        // No listener was registered. Release locally, outside the catch that handles registration failures.
+        try {
+            Releasables.close(decrementRef, onReadComplete);
+            return null;
+        } catch (Exception e) {
+            future.onFailure(e);
             return future;
         }
     }
 
-    private static void releaseAndFail(PlainActionFuture<Integer> future, Releasable decrementRef, Exception e) {
+    private static void releaseAndFail(ActionListener<Integer> future, Releasable decrementRef, Exception e) {
         try {
             Releasables.close(decrementRef);
         } catch (Exception ex) {
@@ -434,16 +450,33 @@ public class CacheFile {
     private static ActionListener<Void> rangeListener(
         ByteRange rangeToRead,
         RangeAvailableHandler reader,
-        PlainActionFuture<Integer> future,
+        ActionListener<Integer> rangeSizeListener,
         FileChannelReference reference,
-        Releasable releasable
+        Releasable releasable,
+        Releasable onReadComplete
     ) {
-        return ActionListener.runAfter(future.delegateFailureAndWrap((l, success) -> {
-            final int read = reader.onRangeAvailable(reference.fileChannel);
-            assert read == rangeToRead.length()
-                : "partial read [" + read + "] does not match the range to read [" + rangeToRead.end() + '-' + rangeToRead.start() + ']';
-            l.onResponse(read);
-        }), releasable::close);
+        return ActionListener.releaseAfter(new ActionListener<>() {
+            @Override
+            public void onResponse(Void ignored) {
+                ActionListener.run(rangeSizeListener, l -> {
+                    final int read = reader.onRangeAvailable(reference.fileChannel, onReadComplete);
+                    assert read == rangeToRead.length()
+                        : "partial read ["
+                            + read
+                            + "] does not match the range to read ["
+                            + rangeToRead.end()
+                            + '-'
+                            + rangeToRead.start()
+                            + ']';
+                    l.onResponse(read);
+                });
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                releaseAndFail(rangeSizeListener, onReadComplete, e);
+            }
+        }, releasable);
     }
 
     /**

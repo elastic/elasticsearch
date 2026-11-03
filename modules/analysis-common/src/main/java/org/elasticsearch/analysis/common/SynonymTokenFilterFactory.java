@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.synonym.SynonymFilter;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -29,6 +29,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.lucene.analysis.synonym.XSynonymFilter;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.io.IOException;
@@ -185,6 +186,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private boolean fixedRulesRead;
     private String fixedRules;
     private Object sharingKey;
+    private final boolean legacyFilter;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
@@ -194,7 +196,32 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         SynonymsManagementAPIService synonymsManagementAPIService,
         CircuitBreaker circuitBreaker
     ) {
+        this(
+            indexSettings,
+            env,
+            name,
+            settings,
+            synonymsManagementAPIService,
+            circuitBreaker,
+            indexSettings.getIndexVersionCreated().before(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH)
+        );
+    }
+
+    /**
+     * @param legacyFilter {@code true} to use the pre-{@link IndexVersions#SYNONYM_FILTER_USES_SYNONYM_GRAPH} {@link XSynonymFilter},
+     *                     {@code false} for Lucene's {@link SynonymGraphFilter}
+     */
+    SynonymTokenFilterFactory(
+        IndexSettings indexSettings,
+        Environment env,
+        String name,
+        Settings settings,
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        CircuitBreaker circuitBreaker,
+        boolean legacyFilter
+    ) {
         super(name);
+        this.legacyFilter = legacyFilter;
         this.settings = settings;
 
         this.synonymsSource = SynonymsSource.fromSettings(settings);
@@ -284,10 +311,18 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         if (rules == null) {
             return this;
         }
-        return new Key(synonymsSource, "wordnet".equalsIgnoreCase(format), expand, lenient, analysisMode, rules);
+        return new Key(synonymsSource, "wordnet".equalsIgnoreCase(format), expand, lenient, analysisMode, rules, legacyFilter);
     }
 
-    private record Key(SynonymsSource source, boolean wordnet, boolean expand, boolean lenient, AnalysisMode mode, Object rules) {}
+    private record Key(
+        SynonymsSource source,
+        boolean wordnet,
+        boolean expand,
+        boolean lenient,
+        AnalysisMode mode,
+        Object rules,
+        boolean legacyFilter
+    ) {}
 
     /**
      * A non-updateable {@code synonyms_path} keys on the file content read at build time, but a reload of a
@@ -329,7 +364,13 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
         ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
-        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader, ts -> new SynonymFilter(ts, synonyms, false));
+        return buildChainedFactory(
+            name(),
+            synonyms,
+            analysisMode,
+            rulesReader,
+            legacyFilter ? ts -> new XSynonymFilter(ts, synonyms, false) : ts -> new SynonymGraphFilter(ts, synonyms, false)
+        );
     }
 
     /**

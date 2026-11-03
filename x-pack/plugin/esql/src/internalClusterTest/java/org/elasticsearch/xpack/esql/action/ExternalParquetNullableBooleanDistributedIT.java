@@ -31,8 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
  * Reproduces #164372: a nullable Parquet boolean column co-queried with an index must aggregate across both.
  *
  * <p>Masked positions of a nullable batch are left unassigned and serialized with the rest; deserializing a
- * boolean rejects any byte that is neither zero nor one. Hence two data nodes, since nothing reads a masked
- * position in-process, and enough rows to compile the write path, which otherwise normalises the byte first.
+ * boolean rejects any byte that is neither zero nor one. Two data nodes, because nothing reads a masked position
+ * in-process. Whether any given run fails depends on what the recycled memory held, so the query is repeated:
+ * with tens of thousands of masked positions per run the failure is usual, and repetition makes it reliable.
  * Per-type coverage is in the reader's unit tests, far more cheaply; this pins the distributed path.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
@@ -43,7 +44,7 @@ public class ExternalParquetNullableBooleanDistributedIT extends AbstractExterna
     private static final int DATASET_ROWS = FILES * ROWS_PER_FILE;
     private static final int INDEX_DOCS = 10;
     private static final String INDEX = "disjoint_idx";
-    /** Enough executions for the write path to be compiled; one cold run cannot fail. */
+    /** Enough executions to make a data-dependent failure reliable. */
     private static final int RUNS = 10;
 
     @Override
@@ -93,7 +94,7 @@ public class ExternalParquetNullableBooleanDistributedIT extends AbstractExterna
         assertThat(mixedCount(dataset), equalTo((long) DATASET_ROWS + INDEX_DOCS));
     }
 
-    /** Repeated because one cold run cannot fail: the byte only reaches the stream once the write path is compiled. */
+    /** Repeated because a single run's failure depends on what the reused memory held. */
     public void testNullableBooleanColumnAggregatesAcrossSources() throws Exception {
         createDisjointIndex();
         String dataset = registerSingleTypeDataset("ds_bool_null", "optional boolean b;", (g, i) -> {

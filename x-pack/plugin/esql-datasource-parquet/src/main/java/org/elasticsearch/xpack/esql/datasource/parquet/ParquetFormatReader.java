@@ -4766,7 +4766,9 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                             isNull = new BitSet(rows);
                         }
                         isNull.set(i);
-                        // Allocated for a dense column, so uninitialized; the slot is serialized whatever the mask says.
+                        // A dense column's array is uninitialized here, and this position is serialized whatever
+                        // the mask says. Assigning costs one store per overflow; a condition covering the whole
+                        // column would zero every dense MICROS column for an overflow that is rare.
                         values[i] = 0L;
                         noNulls = false;
                         anyOverflow = true;

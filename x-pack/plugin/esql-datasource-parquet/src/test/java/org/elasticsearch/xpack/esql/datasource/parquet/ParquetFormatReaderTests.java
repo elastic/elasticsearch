@@ -4255,6 +4255,88 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * The whole-column arms, which {@code withBaselinePath} selects. The batch arms have their own determinism
+     * cells, but reverting a whole-column allocation on its own leaves the rest of the suite green, so these are
+     * asserted here directly: a masked position must read as the type's zero, not merely agree between reads.
+     * Comparing reads alone can only false-pass, because memory that happens to be reproducible agrees with
+     * itself — a fresh zeroed region, or an allocation too large for the TLAB fast path that the JVM zeroed
+     * anyway, both named in {@link UninitializedArrays}.
+     */
+    public void testNullableWholeColumnsDefineMaskedPositions() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.BOOLEAN)
+            .named("b")
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("i")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("l")
+            .optional(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("d")
+            .named("test_schema");
+
+        int rows = 512;
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>(rows);
+            for (int r = 0; r < rows; r++) {
+                Group g = factory.newGroup();
+                if (r % 5 != 0) {
+                    g.add("b", r % 4 == 0);
+                    g.add("i", r);
+                    g.add("l", (long) r * 31);
+                    g.add("d", r * 1.5);
+                }
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        byte[][] expected = new byte[4][];
+        for (int read = 0; read < 50; read++) {
+            ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withBaselinePath();
+            StorageObject storageObject = createStorageObject(parquetData);
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    storageObject,
+                    FormatReadContext.builder().batchSize(rows).informationalWarningSink(w -> {}).build()
+                )
+            ) {
+                assertTrue(iterator.hasNext());
+                Page page = iterator.next();
+                try {
+                    for (int c = 0; c < 4; c++) {
+                        Block block = page.getBlock(c);
+                        for (int pos = 0; pos < block.getPositionCount(); pos++) {
+                            if (pos % 5 != 0) {
+                                continue;
+                            }
+                            assertTrue("column " + c + " position " + pos + " must be null", block.isNull(pos));
+                            // Single-valued, so the position indexes the backing array directly: this reads the
+                            // masked element itself rather than going through the mask.
+                            assertEquals("column " + c + " position " + pos, pos, block.getFirstValueIndex(pos));
+                            switch (c) {
+                                case 0 -> assertFalse("bool " + pos, ((BooleanBlock) block).getBoolean(pos));
+                                case 1 -> assertEquals("int " + pos, 0, ((IntBlock) block).getInt(pos));
+                                case 2 -> assertEquals("long " + pos, 0L, ((LongBlock) block).getLong(pos));
+                                case 3 -> assertEquals("double " + pos, 0.0, ((DoubleBlock) block).getDouble(pos), 0.0);
+                                default -> throw new AssertionError("unreachable column " + c);
+                            }
+                        }
+                        byte[] actual = serializedBytes(block);
+                        if (expected[c] == null) {
+                            expected[c] = actual;
+                        } else {
+                            assertArrayEquals("column " + c + " serialized form changed on read " + read, expected[c], actual);
+                        }
+                    }
+                } finally {
+                    page.releaseBlocks();
+                }
+            }
+            drainWarnings();
+        }
+    }
+
     /** Serialized bytes, copied out before close returns the stream's pages to the recycler. */
     private static byte[] serializedBytes(Block block) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {

@@ -246,7 +246,7 @@ public class AzureBlobStore implements BlobStore {
         return switch (purpose) {
             case SNAPSHOT_DATA -> Optional.ofNullable(dataAccessTier);
             case SNAPSHOT_METADATA -> Optional.ofNullable(metadataAccessTier);
-            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> Optional.empty();
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, TRANSLOG_WITH_ATTEMPT_TIMEOUT, RESHARDING -> Optional.empty();
         };
     }
 

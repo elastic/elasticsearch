@@ -214,7 +214,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         return switch (purpose) {
             case SNAPSHOT_DATA -> dataStorageClass;
             case SNAPSHOT_METADATA -> metadataStorageClass;
-            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> null;
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, TRANSLOG_WITH_ATTEMPT_TIMEOUT, RESHARDING -> null;
         };
     }
 

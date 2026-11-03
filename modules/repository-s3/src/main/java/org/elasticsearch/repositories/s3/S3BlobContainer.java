@@ -278,7 +278,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         uploadPartRequestBuilder.partNumber(number);
         uploadPartRequestBuilder.contentLength(size);
         uploadPartRequestBuilder.sdkPartType(lastPart ? SdkPartType.LAST : SdkPartType.DEFAULT);
-        S3BlobStore.configureRequestForMetrics(uploadPartRequestBuilder, blobStore, Operation.PUT_MULTIPART_OBJECT, purpose);
+        S3BlobStore.configureUploadRequest(uploadPartRequestBuilder, blobStore, Operation.PUT_MULTIPART_OBJECT, purpose);
         return uploadPartRequestBuilder.build();
     }
 
@@ -694,7 +694,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 }
             }
         }
-        S3BlobStore.configureRequestForMetrics(putRequestBuilder, s3BlobStore, Operation.PUT_OBJECT, purpose);
+        S3BlobStore.configureUploadRequest(putRequestBuilder, s3BlobStore, Operation.PUT_OBJECT, purpose);
         final var putRequest = putRequestBuilder.build();
         try (var client = s3BlobStore.clientReference()) {
             client.client().putObject(putRequest, body.get());

@@ -84,7 +84,8 @@ compares by UUID and shard number, `AbstractIndexShardComponent#shardId` is
 
 `ESIntegTestCase#createIndex` creates a temporary index and renames it to the
 requested name, unless the name matches a composable template, starts with `.`
-or `<`, or the caller opts out. Every integration test that creates an index
+or `<`, the creation settings carry an API block that forbids metadata writes
+(such an index cannot be renamed, by design), or the caller opts out. Every integration test that creates an index
 through that helper therefore exercises the rename. The suite-wide result of
 running `:server:internalClusterTest` with this enabled is recorded under
 "Failure inventory" below.

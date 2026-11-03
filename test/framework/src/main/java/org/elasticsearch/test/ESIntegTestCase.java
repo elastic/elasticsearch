@@ -93,6 +93,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -872,7 +873,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // We don't rename the index if the name matches an index template or if the name starts with special characters.
         final var clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final String template = MetadataIndexTemplateService.findV2Template(clusterState.metadata().getProject(), name, true);
-        if (rename == false || renameIndexOnCreate() == false || template != null || name.startsWith(".") || name.startsWith("<")) {
+        if (rename == false
+            || renameIndexOnCreate() == false
+            || template != null
+            || name.startsWith(".")
+            || name.startsWith("<")
+            || blocksMetadataWrites(indexSettings)) {
             final var createIndexRequestBuilder = prepareCreate(name);
             if (indexSettings != null) {
                 createIndexRequestBuilder.setSettings(indexSettings);
@@ -891,6 +897,22 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
         // Rename the temporary index to the desired name
         assertAcked(client().admin().indices().aliases(renameIndexRequest(tempName, name)).actionGet());
+    }
+
+    /**
+     * Whether the index would be created with an API block that forbids metadata writes, such as {@code index.blocks.read_only}.
+     * Such an index cannot be renamed, by design, so {@link #createIndex} creates it under its final name directly.
+     */
+    private static boolean blocksMetadataWrites(@Nullable Settings indexSettings) {
+        if (indexSettings == null) {
+            return false;
+        }
+        for (IndexMetadata.APIBlock block : IndexMetadata.APIBlock.values()) {
+            if (block.getBlock().contains(ClusterBlockLevel.METADATA_WRITE) && indexSettings.getAsBoolean(block.settingName(), false)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

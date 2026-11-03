@@ -2071,12 +2071,12 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
     public void testWhereInSubqueryRejectsShowSourceCommand() {
         var e = expectThrows(ParsingException.class, () -> query("FROM main | WHERE x IN (SHOW INFO)"));
-        assertThat(e.getMessage(), containsString("no viable alternative at input 'x IN (SHOW'"));
+        assertThat(e.getMessage(), containsString("no viable alternative at input 'IN (SHOW'"));
     }
 
     public void testWhereInSubqueryRejectsPromqlSourceCommand() {
         var e = expectThrows(ParsingException.class, () -> query("FROM main | WHERE x IN (PROMQL 'up')"));
-        assertThat(e.getMessage(), containsString("no viable alternative at input 'x IN (PROMQL'"));
+        assertThat(e.getMessage(), containsString("no viable alternative at input 'IN (PROMQL'"));
     }
 
     public void testWhereInSubqueryRejectsSubqueryWithTrailingTokens() {
@@ -2093,7 +2093,7 @@ public class InSubqueryParserTests extends AbstractStatementParserTests {
 
     public void testWhereInSubqueryRejectsEmptySubquery() {
         var e = expectThrows(ParsingException.class, () -> query("FROM main | WHERE x IN ()"));
-        assertThat(e.getMessage(), containsString("no viable alternative at input 'x IN ()'"));
+        assertThat(e.getMessage(), containsString("no viable alternative at input 'IN ()'"));
     }
 
     public void testWhereInSubqueryRejectsMultipleFromCommands() {

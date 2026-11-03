@@ -34,11 +34,6 @@ public abstract class TestRecoverySchedulingListener implements RecoveryScheduli
     }
 
     @Override
-    public void onQueuedRecoveryReprioritizedOnTarget() {
-        onRecoverySchedulingChange();
-    }
-
-    @Override
     public void onQueuedRecoveryDiscardedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         onRecoverySchedulingChange();
     }

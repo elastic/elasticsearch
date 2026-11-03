@@ -2511,18 +2511,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testQueuedRelocationIsReprioritizedWhenSourceNodeIsMarkedForRemoval() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(1);
-        final var reprioritizedCount = new AtomicInteger();
-        final var service = newStartedService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            new RecoverySchedulingListener() {
-                @Override
-                public void onQueuedRecoveryReprioritizedOnTarget() {
-                    reprioritizedCount.incrementAndGet();
-                }
-            }
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
         final var blockedRecoveryListener = new AtomicReference<RecoveryListener>();
         service.enqueue(
             ProjectId.DEFAULT,
@@ -2584,9 +2573,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 relocationTargetShard
             )
         );
-        taskQueue.runAllRunnableTasks();
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(assignedPriority));
-        assertThat(reprioritizedCount.get(), equalTo(0));
 
         service.clusterChanged(
             clusterChangedEventWithShutdowns(
@@ -2604,11 +2591,9 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 relocationTargetShard
             )
         );
-        taskQueue.runAllRunnableTasks();
         assertThat(service.currentQueueSize(), equalTo(2));
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
         assertThat(splitTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
-        assertThat(reprioritizedCount.get(), equalTo(1));
 
         blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
@@ -2619,18 +2604,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testRelocationEnqueuedAfterSourceNodeIsMarkedForRemovalIsReprioritized() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(1);
-        final var reprioritizedInQueue = new AtomicInteger();
-        final var service = newStartedService(
-            taskQueue.getThreadPool(),
-            DefaultProjectResolver.INSTANCE,
-            clusterService,
-            new RecoverySchedulingListener() {
-                @Override
-                public void onQueuedRecoveryReprioritizedOnTarget() {
-                    reprioritizedInQueue.incrementAndGet();
-                }
-            }
-        );
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
         final var blockedRecoveryListener = new AtomicReference<RecoveryListener>();
         service.enqueue(
             ProjectId.DEFAULT,
@@ -2677,7 +2651,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             l -> l.onRecoveryDone(relocationTargetShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
         );
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
-        assertThat(reprioritizedInQueue.get(), equalTo(0));
 
         blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
@@ -2701,7 +2674,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         when(state.metadata()).thenReturn(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, nodeShutdowns).build());
         when(state.getRoutingNodes()).thenReturn(routingNodes);
         when(routingNodes.node(clusterService.localNode().getId())).thenReturn(routingNode);
-        for (IndexShard localShard : localShards) {
+        for (final var localShard : localShards) {
             final var shardId = localShard.shardId();
             final var routing = localShard.routingEntry();
             when(routingNode.getByShardId(shardId)).thenReturn(routing);
@@ -2749,20 +2722,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ProjectResolver projectResolver,
         ClusterService clusterService
     ) {
-        return newStartedService(threadPool, projectResolver, clusterService, RecoverySchedulingListener.NOOP);
-    }
-
-    private static ThrottlingRecoveryService newStartedService(
-        ThreadPool threadPool,
-        ProjectResolver projectResolver,
-        ClusterService clusterService,
-        RecoverySchedulingListener schedulingListener
-    ) {
         final var service = new ThrottlingRecoveryService(
             threadPool,
             projectResolver,
             clusterService,
-            schedulingListener,
+            RecoverySchedulingListener.NOOP,
             monitorWithNoGates(threadPool),
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );

@@ -69,7 +69,7 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 ///
 /// Queued recoveries are ordered according to their [RecoveryState#getRecoveryPriority()]. This is usually the priority the
 /// master assigned when it created the shard routing. However, this service can also dynamically raise the priority of some queued
-/// recoveries, e.g. when the cluster state shows that a node has started shutting down (see [#reprioritizePendingRecoveries]).
+/// recoveries, e.g. when the cluster state shows that a node has started shutting down (see [#clusterChanged]).
 /// A raised priority is never lowered again, even if the shutdown that caused it is later cancelled.
 public final class ThrottlingRecoveryService extends AbstractLifecycleComponent implements ClusterStateListener {
 
@@ -107,7 +107,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
     /// The node ids marked for removal from the last cluster state seen by [#clusterChanged].
-    private volatile Set<String> nodesMarkedForRemoval = Set.of();
+    /// Guarded by the [ThrottlingRecoveryService] instance lock.
+    private Set<String> nodesMarkedForRemoval = Set.of();
 
     public ThrottlingRecoveryService(
         ThreadPool threadPool,
@@ -274,7 +275,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// cluster state update, i.e. the shard is no longer assigned to this node under the allocation ID it was
     /// queued or cancelled for (it was reallocated elsewhere, unassigned, or this node has left the cluster entirely).
     ///
-    /// Also triggers reprioritization of queued recoveries when node shutdowns change.
+    /// Also raises the priority of queued relocations whose source node has just been marked for removal to
+    /// [RecoveryPriority#RELOCATION_CAN_REMAIN_NO], if it is lower. Running recoveries are left alone. The master will give
+    /// [RecoveryPriority#RELOCATION_CAN_REMAIN_NO] to relocations from a node marked for removal, but only if the shutdown
+    /// was registered before the relocation was added to the cluster state. A relocation started earlier by the balancer
+    /// could then get starved behind recoveries that are now less important.
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final RoutingNode localNode = event.state().getRoutingNodes().node(clusterService.localNode().getId());
@@ -282,6 +287,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         synchronized (this) {
             if (isClosed()) {
                 return;
+            }
+            final NodesShutdownMetadata nodeShutdowns = event.state().metadata().nodeShutdowns();
+            if (nodeShutdowns != event.previousState().metadata().nodeShutdowns()) {
+                nodesMarkedForRemoval = nodeShutdowns.getAllNodeIdsMarkedForRemoval();
             }
             if (localNode == null) {
                 assert clusterService.localNode().canContainData() == false
@@ -293,10 +302,13 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             }
             cancelledAllocationIds.entrySet()
                 .removeIf((cancellation) -> allocationIdIsOutdated(localNode, cancellation.getValue(), cancellation.getKey()));
+            // Recoveries whose priority is raised are removed and re-added, since the queue orders on that priority
+            final List<PendingRecovery> reprioritized = new ArrayList<>();
             final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
             while (it.hasNext()) {
                 final PendingRecovery pending = it.next();
                 final RecoveryState recoveryState = pending.recoveryState();
+                final String sourceNodeId = pending.indexShard().routingEntry().relocatingNodeId();
                 if (allocationIdIsOutdated(localNode, recoveryState.getShardId(), pending.allocationId())) {
                     onDequeued(pending);
                     it.remove();
@@ -305,8 +317,17 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     // easier testing. Indeed, a pending recovery never started, and if its allocation ID has changed or localNode
                     // became `null`, the old IndexShard object those stats belong to would have already been closed.
                     pending.stats().targetQueuedRecoveryDiscarded(recoveryState.getRecoverySource().getType());
+                } else if (sourceNodeId != null && nodesMarkedForRemoval.contains(sourceNodeId)) {
+                    final RecoveryPriority current = recoveryState.getRecoveryPriority();
+                    final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+                    if (current != updated) {
+                        it.remove();
+                        pending.raiseRecoveryPriority(updated);
+                        reprioritized.add(pending);
+                    }
                 }
             }
+            pendingRecoveries.addAll(reprioritized);
         }
         for (PendingRecovery stale : staleRecoveries) {
             final RecoveryState state = stale.recoveryState();
@@ -322,57 +343,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     );
                 schedulingListener.onQueuedRecoveryDiscardedOnTarget(state.getRecoverySource().getType(), stale.priorityGroup());
             });
-        }
-        final NodesShutdownMetadata nodeShutdowns = event.state().metadata().nodeShutdowns();
-        if (nodeShutdowns != event.previousState().metadata().nodeShutdowns()) {
-            final Set<String> previousNodesMarkedForRemoval = nodesMarkedForRemoval;
-            nodesMarkedForRemoval = nodeShutdowns.getAllNodeIdsMarkedForRemoval();
-            if (previousNodesMarkedForRemoval.containsAll(nodesMarkedForRemoval) == false) {
-                // Get off the cluster applier thread. Generic executor has unbounded queue and thread shutdown happens
-                // after service close so this runnable should never get rejected.
-                executor.execute(this::reprioritizePendingRecoveries);
-            }
-        }
-    }
-
-    /// Raises the priority of the queued relocations from a node marked for removal (see [#nodesMarkedForRemoval]) to
-    /// [RecoveryPriority#RELOCATION_CAN_REMAIN_NO], if it is lower. Running recoveries are left alone.
-    ///
-    /// The master only gives [RecoveryPriority#RELOCATION_CAN_REMAIN_NO] to relocations away from a node marked for removal
-    /// if the shutdown was registered before it started the relocation. A relocation started earlier by the balancer keeps
-    /// its lower priority, and could get starved behind recoveries that are now less important.
-    ///
-    /// Only node shutdowns are currently handled. A relocation for which `canRemain` on its source node later returns
-    /// [org.elasticsearch.cluster.routing.allocation.decider.Decision#NO] for other reasons keeps its priority.
-    private void reprioritizePendingRecoveries() {
-        final Set<String> latestNodeRemovals = nodesMarkedForRemoval;
-        if (latestNodeRemovals.isEmpty()) {
-            return;
-        }
-        final List<PendingRecovery> reprioritized = new ArrayList<>();
-        synchronized (this) {
-            if (isClosed()) {
-                return;
-            }
-            final Iterator<PendingRecovery> it = pendingRecoveries.iterator();
-            while (it.hasNext()) {
-                final PendingRecovery pending = it.next();
-                final String sourceNodeId = pending.indexShard().routingEntry().relocatingNodeId();
-                if (sourceNodeId == null || latestNodeRemovals.contains(sourceNodeId) == false) {
-                    continue;
-                }
-                final RecoveryPriority current = pending.recoveryState().getRecoveryPriority();
-                final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
-                if (current != updated) {
-                    it.remove();
-                    pending.raiseRecoveryPriority(updated);
-                    reprioritized.add(pending);
-                }
-            }
-            pendingRecoveries.addAll(reprioritized);
-        }
-        for (int i = 0; i < reprioritized.size(); i++) {
-            schedulingListener.onQueuedRecoveryReprioritizedOnTarget();
         }
     }
 

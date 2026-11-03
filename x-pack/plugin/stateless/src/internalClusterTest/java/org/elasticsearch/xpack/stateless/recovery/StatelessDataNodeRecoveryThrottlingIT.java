@@ -38,9 +38,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
-import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -707,24 +705,9 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         );
 
         // Shut down the source node of the relocations, which are still queued on the target node behind the split targets.
-        // The target node reprioritizes its queue asynchronously after applying the shutdown, so wait for it before
-        // freeing any slot. Otherwise, a freed slot could go to a split target ahead of a not yet reprioritized relocation.
-        final var reprioritized = new CountDownLatch(relocations);
-        final var reprioritizationListener = new RecoverySchedulingListener() {
-            @Override
-            public void onQueuedRecoveryReprioritizedOnTarget() {
-                reprioritized.countDown();
-            }
-        };
-        // Registered before the shutdown, so that no reprioritization it triggers can be missed
-        final var schedulingListeners = internalCluster().getInstance(CompositeRecoverySchedulingListener.class, targetNode);
-        schedulingListeners.addListener(reprioritizationListener);
-        try {
-            triggerSigtermShutdown(shuttingDownNode);
-            safeAwait(reprioritized);
-        } finally {
-            schedulingListeners.removeListener(reprioritizationListener);
-        }
+        // The put-shutdown response is only sent once every node has applied the shutdown, and the target node raises the
+        // priority of its queued relocations while applying it.
+        triggerSigtermShutdown(shuttingDownNode);
         final var priorities = getRelocationPriorities(evacuatedIndex, targetNode);
         assertThat(priorities.size(), equalTo(relocations));
         assertThat(priorities.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO)));
@@ -839,23 +822,8 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         assertThat(relocationsBeforeShutdown.size(), equalTo(relocations));
         assertThat(relocationsBeforeShutdown.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)));
 
-        // The target node raises the priority of the relocations that were queued when their source node was marked for removal
-        final var reprioritized = new CountDownLatch(queuedRelocations);
-        final var reprioritizationListener = new RecoverySchedulingListener() {
-            @Override
-            public void onQueuedRecoveryReprioritizedOnTarget() {
-                reprioritized.countDown();
-            }
-        };
-        // Registered before the shutdown, so that no reprioritization it triggers can be missed
-        final var schedulingListeners = internalCluster().getInstance(CompositeRecoverySchedulingListener.class, targetNode);
-        schedulingListeners.addListener(reprioritizationListener);
-        try {
-            triggerSigtermShutdown(sourceNode);
-            safeAwait(reprioritized);
-        } finally {
-            schedulingListeners.removeListener(reprioritizationListener);
-        }
+        // The target node raises the priority of the relocations that were queued when their source node was marked for removal.
+        triggerSigtermShutdown(sourceNode);
         // The shutdown also forces the remaining shards off the source node. They queue behind the relocation that holds the slot.
         awaitRecoveryCountStats(
             Map.of(

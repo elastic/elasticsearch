@@ -51,13 +51,6 @@ public class CompositeRecoverySchedulingListener implements RecoverySchedulingLi
     }
 
     @Override
-    public void onQueuedRecoveryReprioritizedOnTarget() {
-        for (RecoverySchedulingListener listener : listeners) {
-            listener.onQueuedRecoveryReprioritizedOnTarget();
-        }
-    }
-
-    @Override
     public void onQueuedRecoveryDiscardedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {
         for (RecoverySchedulingListener listener : listeners) {
             listener.onQueuedRecoveryDiscardedOnTarget(type, priorityGroup);

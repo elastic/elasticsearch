@@ -3608,6 +3608,11 @@ public class EsqlCapabilities {
         PROMQL_CHANGES(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for PromQL {@code predict_linear()} with a literal horizon in seconds.
+         */
+        PROMQL_PREDICT_LINEAR(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */
@@ -4673,11 +4678,17 @@ public class EsqlCapabilities {
         METRICS_INFO_FIELD_PRESENCE,
 
         /**
-         * The usage information for ESQL counts queries by the client in {@code X-elastic-product-origin}: {@code queries.kibana}
-         * for Kibana, the new {@code queries.other} for any other origin, and {@code queries.rest} for a request without
-         * the header. Before this, every query was counted as {@code rest}.
+         * Each shard resolves a field the plan reads that some shards may not map to what it holds, and runs a filter pushed to it
+         * where it can query that field, or matches every document for the filter to check.
          */
-        USAGE_QUERIES_OTHER_CLIENT,
+        UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
+
+        /**
+         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
+         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
+         * for a request without the header. Before this, every query was counted as {@code rest}.
+         */
+        USAGE_QUERIES_BY_CLIENT,
 
         /**
          * Does the usage information for ESQL count queries by the API they came in on ({@code entry_points.<entry_point>})?

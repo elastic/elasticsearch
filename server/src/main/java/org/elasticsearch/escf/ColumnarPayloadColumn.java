@@ -65,11 +65,8 @@ public final class ColumnarPayloadColumn extends LuceneBinaryColumn {
     }
 
     /**
-     * Whether a batch should emit the field's terms column. It should when the column has entries, which is what the postings need, and
-     * also when it has none but some document is valueless, which is only for the field's metadata: a batch takes a field's index
-     * options from its columns, not its documents, so a batch whose documents are all valueless would otherwise present the field with
-     * only the doc-values column's {@code IndexOptions.NONE} and fail Lucene's schema validation. An empty terms column states the index
-     * options and adds no postings.
+     * Whether to emit the terms column for a batch. Even when empty, the column must be emitted if the batch contains valueless
+     * documents, so Lucene sees the field's index options during schema validation. The empty column produces no postings.
      *
      * @param terms          the terms column being built, or {@code null} if the field indexes no terms
      * @param valuelessDocs  the documents whose payload holds no value, or {@code null} if the field does not track them

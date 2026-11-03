@@ -520,11 +520,6 @@ tests:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testCancelTailRequest
   issue: https://github.com/elastic/elasticsearch/issues/153203
-- class: org.elasticsearch.multiproject.test.XpackWithMultipleProjectsClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
-  method: test {yaml=esql/46_downsample/Sort from multiple indices one with aggregate metric double}
-  issue: https://github.com/elastic/elasticsearch/issues/164215
 - class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

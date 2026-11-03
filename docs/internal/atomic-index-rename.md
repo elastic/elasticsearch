@@ -624,14 +624,28 @@ Decided in favour of mutation; see T4 for the reasoning and the caveats
 
 ### D4. Preconditions for a first release
 
-Proposed: allow open and closed plain indices and any data stream backing or
-failure index, write indices included; refuse system indices, indices with a snapshot,
-restore or resize in flight, and CCR followers. Do not require the index to be
-read-only: the zero-downtime reindex use case depends on renaming a live index,
-and nothing in the write path keys on the name. The prototype does respect
-index metadata blocks (`read_only`, `metadata`), exactly as delete and close
-do, because a rename is a metadata write; a `write` block alone does not stop a
-rename, which is what the ILM shrink and searchable snapshot flows need.
+What the prototype does: allow open and closed plain indices, any data stream
+backing or failure index (write indices included), CCR leaders and followers
+(T14) and mounted searchable snapshot indices; refuse system indices and
+system index names, and indices with a snapshot or restore in flight (T6).
+A resize in flight is not refused and is tested (`RenameIndexResizeIT`). Do
+not require the index to be read-only: the zero-downtime reindex use case
+depends on renaming a live index, and nothing in the write path keys on the
+name. The prototype does respect index metadata blocks (`read_only`,
+`metadata`), exactly as delete and close do, because a rename is a metadata
+write; a `write` block alone does not stop a rename, which is what the ILM
+shrink and searchable snapshot flows need.
+
+Still to decide, found by the D2 audit: whether to refuse indices that a
+feature owns by naming convention and tracks by name (`.ml-*`, `.transform-*`,
+`.enrich-*`, profiling, the serverless metering records), and whether to
+refuse a rename while a feature is building the index under a name it stored
+in its own state (ILM's shrink and searchable snapshot actions, downsample
+tasks). Renaming those breaks the feature the way deleting them would; a delete
+is allowed today, so refusing a rename would be stricter than the status quo.
+The cheapest consistent rule is to refuse nothing beyond system indices and
+document it; the safest is to refuse hidden indices by default with an
+override, the way the delete of a system index needs the system-index header.
 
 ### D5. Mixed-version clusters
 

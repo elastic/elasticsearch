@@ -2,7 +2,7 @@
 
 ## `topk` [promql-fn-topk]
 
-{applies_to}`stack: ga 9.5`
+{applies_to}`stack: ga 9.6`
 
 :::{include} brief-summary/topk.md
 :::

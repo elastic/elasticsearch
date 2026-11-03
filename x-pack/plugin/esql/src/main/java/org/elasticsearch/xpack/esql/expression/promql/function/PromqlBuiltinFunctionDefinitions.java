@@ -66,7 +66,7 @@ public class PromqlBuiltinFunctionDefinitions {
                 + "When used with `by`, `topk` ranks independently within each group."
         )
         .example("topk(3, http_requests_total)")
-        .stack(PromqlFunctionDefinition.STACK_GA_9_5)
+        .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .stdDivergence(
             "`without(...)`, such as `topk without (instance) (1, x)`, and a `k` that isn't a number literal, such as "
                 + "`topk(scalar(a), b)`, aren't supported yet. "
@@ -174,7 +174,7 @@ public class PromqlBuiltinFunctionDefinitions {
             sum by (job2) (label_replace(http_requests_total, "job2", "$1", "job", "(.*)-server"))""")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
         .extendedDescription(
-            "The destination may be a new label or may overwrite a stored label (a dimension or `__name__`). Regular "
+            "The destination can be a new label or an existing stored label (a dimension or `__name__`). Regular "
                 + "expressions use the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement "
                 + "expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus."
         )
@@ -212,7 +212,7 @@ public class PromqlBuiltinFunctionDefinitions {
         .example("""
             sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "instance"))""")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .extendedDescription("The destination may be a new label or may overwrite a stored label (a dimension or `__name__`).")
+        .extendedDescription("The destination can be a new label or an existing stored label (a dimension or `__name__`).")
         .stdDivergence(
             LABEL_FUNCTION_NOT_SUPPORTED_YET
                 + "Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; "

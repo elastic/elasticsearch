@@ -15,8 +15,9 @@ In the examples on this page, `h` is a native histogram metric.
 **Supported**
 
 {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Native histograms, stored as `exponential_histogram` fields.
-`histogram_quantile`, `increase`, and `sum` support them, such as `histogram_quantile(0.9, sum by (job) (increase(h[5m])))`.
-{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `histogram_count`, `histogram_sum`, `histogram_avg`, `histogram_fraction`, and `changes` support them too.
+`histogram_quantile`, `histogram_count`, `histogram_sum`, `histogram_avg`, `increase`, and `sum` support them, such as `histogram_quantile(0.9, sum by (job) (increase(h[5m])))`.
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `histogram_fraction` and `changes` support them too.
 
 Classic histograms, stored as `_bucket` series with an `le` label, such as `histogram_quantile(0.9, sum by (le) (rate(x_bucket[5m])))`.
 
@@ -115,7 +116,7 @@ A range selector with a duration, such as `x[5m]` or `x[1h30m]`.
 
 **Supported**
 
-`offset` on instant and range selectors, such as `x offset 5m` and `rate(x[5m] offset 1h)`.
+{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` `offset` on instant and range selectors, such as `x offset 5m` and `rate(x[5m] offset 1h)`.
 
 **Behaves differently**
 

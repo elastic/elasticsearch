@@ -20,7 +20,7 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 55 | Form-encoded `POST` | `Content-Type: application/x-www-form-urlencoded` | `406 Not Acceptable`. {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Accepted when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true`, and the request is authenticated. TLS must terminate at {{es}}. Otherwise, use `GET` | Accepted | - |
+| 55 | Form-encoded `POST` | `Content-Type: application/x-www-form-urlencoded` | `406 Not Acceptable`.<br>{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` Accepted when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true`, and the request is authenticated. TLS must terminate at {{es}}. Otherwise, use `GET` | Accepted | - |
 | 56 | `warnings` and `infos` | `quantile(2, x)` | Not returned. The only warning is `results truncated due to limit` | Returned | - |
 :::
 
@@ -65,5 +65,5 @@ They apply only to the [{{prom}}-compatible HTTP API](/reference/query-languages
 
 | # | Construct | Example | Workaround | Issue |
 |---|---|---|---|---|
-| 59 | Exemplar queries | `GET /api/v1/query_exemplars` | In Grafana, remove the links under **Data sources** > **Elasticsearch** > **Exemplars** | [#154786]({{es-issue}}154786) |
+| 59 | Exemplar queries | `GET /api/v1/query_exemplars` | In Grafana, remove the links under **Data sources → Elasticsearch → Exemplars** | [#154786]({{es-issue}}154786) |
 :::

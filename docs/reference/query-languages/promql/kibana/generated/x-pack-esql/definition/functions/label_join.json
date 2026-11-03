@@ -2,7 +2,7 @@
   "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
   "type" : "metadata",
   "name" : "label_join",
-  "description" : "Joins the values of the source labels `src_label_1` .. `src_label_N` using `separator` and stores the result in the label `dst_label`. A missing source label contributes an empty string. The destination may be a new label or may overwrite a stored label (a dimension or `__name__`).",
+  "description" : "Joins the values of the source labels `src_label_1` .. `src_label_N` using `separator` and stores the result in the label `dst_label`. A missing source label contributes an empty string. The destination can be a new label or an existing stored label (a dimension or `__name__`).",
   "signatures" : [
     {
       "params" : [

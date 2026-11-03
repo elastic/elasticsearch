@@ -7,7 +7,7 @@
 :::{include} brief-summary/label_join.md
 :::
 
-The destination may be a new label or may overwrite a stored label (a dimension or `__name__`).
+The destination can be a new label or an existing stored label (a dimension or `__name__`).
 
 **Return type**
 

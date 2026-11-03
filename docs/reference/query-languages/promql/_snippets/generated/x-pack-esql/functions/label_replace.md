@@ -7,7 +7,7 @@
 :::{include} brief-summary/label_replace.md
 :::
 
-The destination may be a new label or may overwrite a stored label (a dimension or `__name__`). Regular expressions use the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus.
+The destination can be a new label or an existing stored label (a dimension or `__name__`). Regular expressions use the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus.
 
 **Return type**
 

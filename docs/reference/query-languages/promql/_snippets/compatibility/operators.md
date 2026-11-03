@@ -63,8 +63,9 @@ Each [operator reference entry](/reference/query-languages/promql/operators.md) 
 
 **Supported**
 
-`or` between instant vectors, such as `rate(a[5m]) or rate(b[5m])`.
+{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` `or` between instant vectors, such as `rate(a[5m]) or rate(b[5m])`.
 An `or` chain takes at most 8 operands by default.
+
 {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Change the limit with the `esql.query.max_branch_count_per_merge` cluster setting.
 
 **Not supported yet**
@@ -110,9 +111,8 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 **Supported**
 
-`sum`, `avg`, `min`, `max`, `count`, `quantile`, `stddev`, and `stdvar`, with `by(...)`, `without(...)`, or no grouping.
-{applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga` `topk`.
-{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `bottomk`, `limitk`, and `limit_ratio`.
+- `sum`, `avg`, `min`, `max`, `count`, `quantile`, `stddev`, and `stdvar`, with `by(...)`, `without(...)`, or no grouping.
+- {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `topk`, `bottomk`, `limitk`, and `limit_ratio`.
 
 **Not supported yet**
 

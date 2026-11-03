@@ -28,6 +28,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -111,7 +112,7 @@ public class StatelessReshardDisruptionBaseIT extends AbstractStatelessPluginInt
                         ShardRouting shardRouting = isIndexShard
                             ? shardRoutingTable.primaryShard()
                             : shardRoutingTable.unpromotableShards().get(0);
-                        return shardRouting.allocationId().equals(allocationId) == false && shardRouting.started();
+                        return Objects.equals(allocationId, shardRouting.allocationId()) == false && shardRouting.started();
                     });
 
                     safeAwait(failedAndRecoveredListener);

@@ -816,6 +816,11 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     // --- Parquet file writing ---
 
+    /**
+     * At least one cell for every decode arm, because each writes its kept values differently and so leaves the
+     * position it skips differently. Not a bijection: the long and double arms each serve two cells, since an
+     * unsigned long and a float reach them by a different route.
+     */
     private static final MessageType NULLABLE_TYPES_SCHEMA = Types.buildMessage()
         .optional(BOOLEAN)
         .named("opt_bool")
@@ -833,9 +838,6 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         .optional(INT32)
         .as(LogicalTypeAnnotation.intType(32, false))
         .named("opt_uint")
-        // At least one cell for every decode arm, because each writes its kept values differently and so leaves
-        // the position it skips differently. Not a bijection: the long and double arms each serve two cells,
-        // since an unsigned long and a float reach them by a different route.
         .optional(FLOAT)
         .named("opt_float")
         .optional(INT64)
@@ -926,7 +928,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                         assertMaskedPositionIsDefined(column, dataType, block, p);
                     }
                 }
-                byte[] actual = serialize(block);
+                byte[] actual = serializedBytes(block);
                 if (expected == null) {
                     expected = actual;
                 } else {
@@ -965,7 +967,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     }
 
     /** Serialized bytes, copied out before close returns the stream's pages to the recycler. */
-    private static byte[] serialize(Block block) throws IOException {
+    private static byte[] serializedBytes(Block block) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             Block.writeTypedBlock(block, out);
             return BytesReference.toBytes(out.bytes());

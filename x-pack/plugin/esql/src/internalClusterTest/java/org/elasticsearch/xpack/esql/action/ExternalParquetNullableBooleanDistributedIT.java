@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.ObjIntConsumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,25 +74,11 @@ public class ExternalParquetNullableBooleanDistributedIT extends AbstractExterna
     }
 
     private void createDisjointIndex() {
-        assertTrue(indicesAdmin().prepareCreate(INDEX).setMapping("other_field", "type=keyword").get().isAcknowledged());
+        assertAcked(indicesAdmin().prepareCreate(INDEX).setMapping("other_field", "type=keyword"));
         for (int i = 0; i < INDEX_DOCS; i++) {
             prepareIndex(INDEX).setSource("other_field", "v" + i).get();
         }
         refresh(INDEX);
-    }
-
-    /** The {@code round_robin} pragma is belt-and-braces: the default {@code adaptive} already distributes this shape. */
-    private long mixedCount(String dataset) {
-        EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + dataset + ", " + INDEX + " | STATS c = COUNT(*)");
-        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
-        request.acceptedPragmaRisks(true);
-        try (EsqlQueryResponse response = run(request, TIMEOUT)) {
-            return ((Number) getValuesList(response).get(0).get(0)).longValue();
-        }
-    }
-
-    private void assertMixedCount(String dataset) {
-        assertThat(mixedCount(dataset), equalTo((long) DATASET_ROWS + INDEX_DOCS));
     }
 
     /** Repeated because a single run's failure depends on what the reused memory held. */
@@ -103,7 +90,14 @@ public class ExternalParquetNullableBooleanDistributedIT extends AbstractExterna
             }
         });
         for (int run = 0; run < RUNS; run++) {
-            assertMixedCount(dataset);
+            // The round_robin pragma is belt-and-braces: the default adaptive strategy already distributes this shape.
+            EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + dataset + ", " + INDEX + " | STATS c = COUNT(*)");
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
+            request.acceptedPragmaRisks(true);
+            try (EsqlQueryResponse response = run(request, TIMEOUT)) {
+                long count = ((Number) getValuesList(response).get(0).get(0)).longValue();
+                assertThat(count, equalTo((long) DATASET_ROWS + INDEX_DOCS));
+            }
         }
     }
 }

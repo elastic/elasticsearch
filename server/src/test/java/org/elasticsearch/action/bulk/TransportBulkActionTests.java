@@ -881,6 +881,45 @@ public class TransportBulkActionTests extends ESTestCase {
         assertThat(bulkAction.resolveFailureInternal(failureStoreIndex1.getIndex().getName(), projectMetadata, testTime), is(nullValue()));
     }
 
+    /**
+     * Failure stores are not replicated by CCR, so failures for a replicated (follower) data stream must never be stored, whether the
+     * failure store is enabled through the data stream options or through the cluster setting.
+     */
+    public void testResolveFailureStoreFromMetadataForReplicatedDataStream() {
+        String enabledByOptions = "test-replicated-failure-enabled";
+        String enabledBySetting = "test-replicated-failure-default";
+        long testTime = randomMillisUpToYear9999();
+
+        IndexMetadata backingIndex1 = DataStreamTestHelper.createFirstBackingIndex(enabledByOptions, testTime).build();
+        IndexMetadata backingIndex2 = DataStreamTestHelper.createFirstBackingIndex(enabledBySetting, testTime).build();
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .dataStreams(
+                Map.of(
+                    enabledByOptions,
+                    DataStream.builder(enabledByOptions, List.of(backingIndex1.getIndex()))
+                        .setReplicated(true)
+                        .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+                        .build(),
+                    enabledBySetting,
+                    DataStream.builder(enabledBySetting, List.of(backingIndex2.getIndex()))
+                        .setReplicated(true)
+                        .setDataStreamOptions(DataStreamOptions.EMPTY)
+                        .build()
+                ),
+                Map.of()
+            )
+            .indices(Map.of(backingIndex1.getIndex().getName(), backingIndex1, backingIndex2.getIndex().getName(), backingIndex2))
+            .build();
+
+        assertThat(bulkAction.resolveFailureInternal(enabledByOptions, projectMetadata, testTime), is(false));
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), enabledBySetting)
+                .build()
+        );
+        assertThat(bulkAction.resolveFailureInternal(enabledBySetting, projectMetadata, testTime), is(false));
+    }
+
     public void testResolveFailureStoreFromTemplate() throws Exception {
         String dsTemplateWithFailureStoreEnabled = "test-data-stream-failure-enabled";
         String dsTemplateWithFailureStoreDefault = "test-data-stream-failure-default";

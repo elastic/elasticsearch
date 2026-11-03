@@ -18,6 +18,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -2216,6 +2217,53 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertResponse(prepareSearchAll(indexName), searchResponse -> {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) NUM_DOCS));
+        });
+    }
+
+    /**
+     * A rename while a split is in flight. The resharding state lives in the index metadata and moves with it, and the split source
+     * and target services address shards by UUID, so the split carries on across the rename and completes under the new name.
+     */
+    public void testRenameDuringReshard() throws Exception {
+        final String masterNode = startMasterOnlyNode();
+        final String indexNode = startIndexNode();
+        startSearchNode();
+        ensureStableCluster(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String renamedName = indexName + "-renamed";
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+        indexDocs(indexName, 100);
+        final var index = resolveIndex(indexName);
+
+        // hold the target shard at its hand-off until the rename is through, so that the split is in flight while the index is renamed
+        final CountDownLatch handOffStarted = new CountDownLatch(1);
+        final CyclicBarrier handOffBlock = new CyclicBarrier(2);
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TransportUpdateSplitTargetShardStateAction.TYPE.name().equals(action) && handOffStarted.getCount() > 0) {
+                handOffStarted.countDown();
+                safeAwait(handOffBlock);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        safeAwait(handOffStarted);
+
+        final var renameResponse = client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(indexName, renamedName))
+            .actionGet(SAFE_AWAIT_TIMEOUT);
+        assertTrue(renameResponse.isAcknowledged());
+        assertFalse(indexExists(indexName));
+        assertNotNull(indexMetadata(internalCluster().clusterService(masterNode).state(), index).getReshardingMetadata());
+
+        safeAwait(handOffBlock);
+        waitForReshardCompletion(renamedName);
+        checkNumberOfShardsSetting(indexNode, renamedName, 2);
+        ensureGreen(renamedName);
+        assertResponse(prepareSearchAll(renamedName), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
         });
     }
 

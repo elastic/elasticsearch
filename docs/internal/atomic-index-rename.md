@@ -54,13 +54,13 @@ under the old name afterwards fail with index not found.
 
 What may be renamed: open and closed plain indices, data stream backing and
 failure indices (write indices included), CCR leaders and followers, mounted
-searchable snapshot indices, resize sources with a resize in flight, and
-hidden indices that a feature owns by naming convention, since delete allows
-those too. What is refused: a data stream or an alias as the source, system
-indices and system index names, and an index with a snapshot or restore in
-flight. Index metadata blocks (`read_only`, `metadata`) refuse a rename the way
-they refuse a delete, because a rename is a metadata write; a `write` block
-alone does not.
+searchable snapshot indices, resize sources with a resize in flight, hidden
+indices that a feature owns by naming convention, since delete allows those
+too, and indices with a snapshot, restore or stateless reshard in flight,
+which carry on under the new name. What is refused: a data stream or an alias as the source,
+and system indices and system index names. Index metadata blocks (`read_only`,
+`metadata`) refuse a rename the way they refuse a delete, because a rename is
+a metadata write; a `write` block alone does not.
 
 The caller needs `manage` on both the current and the new name. The cluster
 must consist only of nodes that publish the `index.rename` node feature.
@@ -89,8 +89,7 @@ request removed, and two renames in one request chain.
 
 `MetadataRenameIndexService` makes the state-dependent checks inside the
 executor, against the state produced by the actions before the rename (the
-source exists, the new name passes `validateIndexName`, no snapshot or restore
-in flight), and then:
+source exists, the new name passes `validateIndexName`), and then:
 
 1. builds a new `IndexRoutingTable` for `new Index(target, uuid)` by rewriting
    the `ShardId` of every `ShardRouting`, and removes the old one;
@@ -99,7 +98,10 @@ in flight), and then:
    updated, and removes the old entry;
 4. if the index belongs to a data stream, replaces it in place through
    `DataStream#renameIndex`, which keeps the generation (the generation counts
-   rollovers and names the next backing index, so a rename must not move it).
+   rollovers and names the next backing index, so a rename must not move it);
+5. renames the index in every `SnapshotsInProgress` and `RestoreInProgress`
+   entry that includes it, so that a snapshot or restore in flight finalizes
+   under the new name (T5).
 
 Nothing in the cluster state marks the rename. The request is acknowledged
 once every node has applied the state, like any other aliases request. The
@@ -148,9 +150,13 @@ Costs:
   diff carries nothing. `DataStream.DataStreamIndices#equals` and `hashCode`
   now compare names as well as UUIDs for this reason, with a diff round-trip
   test. `IndexMetadata` and the routing table are diffed as maps keyed by name
-  and are safe; `SnapshotsInProgress` and `RestoreInProgress` keep the
-  start-time name by design (T6). Every future cluster state component that
-  stores an `Index` needs the same care.
+  and are safe; `RestoreInProgress` is copied whole on change. A
+  `SnapshotsInProgress` entry diffs its shard map by `ShardId`, so the diff of
+  a renamed entry carries the index map change but keeps the shard keys under
+  the old name; applying the diff re-keys them through the repository id the
+  two names share (`EntryDiff#reKeyRenamedShards`, with a round-trip test).
+  Every future cluster state component that stores an `Index` needs the same
+  care.
 - A `HashMap#put` whose key is equal to an existing key refreshes the value and
   keeps the first key object, so a long-lived map keyed by `Index` keeps the
   creation-time name in its keys while its values are current. Code that takes
@@ -266,10 +272,28 @@ shows the second snapshot uploading no segment file, the old-name snapshot
 deleted with the new-name one still restorable, and a third snapshot
 incremental again.
 
-Costs: a rename is refused while the index is in a snapshot or restore,
-because `SnapshotsInProgress` and `RepositoryShardId` carry the start-time
-name; and the repository needs a minimum-version marker before this ships,
-see the gaps below.
+A snapshot or restore in flight does not block the rename, which matters in
+serverless, where backups run on a schedule the user neither sees nor
+controls. The in-progress entries record an index by name, in the entry's
+index map and in its `ShardId` keys, and finalization collects the index
+metadata to store in the snapshot by that name; a rename that left the
+entries alone would finalize a snapshot without the index's metadata. So the
+rename rewrites the entries (step 5 of the master side): the `IndexId` keeps
+its id under the new name, the shard keys carry the new name, and the
+finalized snapshot lists the index under the name it has at completion, which
+is what a restore of it produces. The shard uploads that were already running
+are unaffected, since the data nodes address the local shard by UUID-equal
+`ShardId` and the repository by id. A status update from a data node that
+started the shard under the old name is matched by UUID
+(`Entry#indexIdForShard`), so a queued operation on that repository shard
+still starts when the previous one finishes.
+`RenameIndexSnapshotIT#testRenameWhileSnapshotting` and
+`testRenameWhileRestoring` cover both, including a restore of the snapshot
+taken across the rename.
+
+Costs: the repository needs a minimum-version marker before this ships, and a
+clone of a pre-rename snapshot that runs concurrently with a new snapshot of
+the renamed index is not serialized against it; see the gaps below.
 
 ### T6. Security authorizes both names, nothing more
 
@@ -354,8 +378,7 @@ UUID and is unaffected.
   feature the way deleting them would, and a delete is allowed today with the
   same privilege, so refusing would be stricter than the status quo for no
   clear gain. The reference docs should carry the same warning delete carries.
-  Only system indices and names, and indices with a snapshot or restore in
-  flight, are refused.
+  Only system indices and names are refused.
 - **The index need not be read-only.** The zero-downtime reindex use case
   depends on renaming a live index, and nothing in the write path keys on the
   name (`RenameIndexIT#testBulkIndexingDuringRename`).
@@ -388,8 +411,16 @@ UUID and is unaffected.
   (versions before 8.11 parse it as a dotted version string), so a new marker
   needs its own design. This must be solved first, either with a marker or by
   making the sharing invisible to old readers. The cleaner long-term form is a
-  format change that makes `id` the key and stores the name per snapshot,
-  which would also allow lifting the refusal of renames during a snapshot.
+  format change that makes `id` the key and stores the name per snapshot.
+- **Clones and snapshots of a renamed index are not serialized against each
+  other (T5).** The master keeps concurrent operations on the same repository
+  shard from running at once through `InFlightShardSnapshotStates` and
+  `RepositoryShardId`, both keyed by `IndexId` name. A clone of a snapshot
+  taken under the old name addresses the shard as `(old, id)` while a new
+  snapshot addresses it as `(new, id)`, so the two are not seen as the same
+  shard and could write the same shard container concurrently. The fix is to
+  key both by the repository id rather than the name; it is a consequence of
+  reusing the id across names, not of the rename during a snapshot.
 - **The rename trick must become randomized or opt-in (T8).**
 - **A strict by-name lookup method for authorization code (T2)**, so that
   reviewers do not have to spot the lenient `index(Index)` in security code.
@@ -430,15 +461,19 @@ Direct tests of the rename:
 - `RenameIndexIT`: simple and multiple renames, chains and swaps, recreating
   the original name, mapping changes and blocks across a rename, a metadata
   block refusing a rename, and bulk requests in flight across a rename.
-- `RenameIndexSnapshotIT` (refused during snapshot and restore, incremental
-  snapshot after rename), `RenameIndexResizeIT` (clone, shrink and split from
+- `RenameIndexSnapshotIT` (rename during a snapshot and during a restore,
+  incremental snapshot after rename), `RenameIndexResizeIT` (clone, shrink and split from
   a renamed source, rename of the source while a clone target recovers),
   `RenameSystemIndexIT` (system source and system destination name refused),
   `SearchableSnapshotsRenameIT` (mounted index renamed and recovered again
   after a full restart), `DataStreamRenameIT` and `DataStreamRenameMetadataTests`
   (backing and write index renames, rollover afterwards), `CcrRenameIT` (T7),
   `StatelessRenameIndexIT` (writes, refresh and search through the search tier,
-  and a search immediately after the acknowledgement), `ClusterInfoServiceIT`
+  and a search immediately after the acknowledgement),
+  `StatelessReshardIT#testRenameDuringReshard` (a split held at its hand-off
+  while the index is renamed completes under the new name: the resharding
+  state lives in the index metadata and the split services address shards by
+  UUID), `ClusterInfoServiceIT`
   (shard sizes refreshed after a rename), `RenameIndexSecurityTests` (T6),
   `IndexLifecycleInitialisationTests#testRenameIndexWhileWaitingOnStep` (ILM
   carrying on under the new name), `IndexRenameRollingUpgradeIT` (T9),
@@ -468,6 +503,13 @@ listed here as the places where names hide:
 - CCR retention lease renewals and leader metadata requests by name (T7).
 - `RBACEngine#shardIdAuthorized` accepting the lenient lookup (T2).
 - The serverless `SearchMetricsService` keeping stale names in map keys (T1).
+- `ShardStartedTaskExecutor` keying the timestamp ranges it updates by the
+  `Index` in the shard-started message, which carries the name the index had
+  when the recovery began; a shard finishing recovery across a rename failed
+  to start once and was retried on the next cluster state. It now uses the
+  index from the matched routing.
+- The `SnapshotsInProgress` entry diff keeping shard keys under the old name
+  (T1), which made every other node fail to apply the state.
 
 Tests that opt out of the trick, each with a comment saying why, fall into two
 classes: tests that wait for an engine or commit event filtered by index name

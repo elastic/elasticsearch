@@ -2022,8 +2022,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             private void tryStartNextTaskAfterSnapshotUpdated(ShardId shardId, ShardSnapshotStatus updatedState) {
                 // We applied the update for a shard snapshot state to its snapshot entry, now check if we can update
-                // either a clone or a snapshot
-                final IndexId indexId = entry.indices().get(shardId.getIndexName());
+                // either a clone or a snapshot. The update may carry the name the index had when the data node started the shard
+                // snapshot, so the index is resolved by UUID when the name no longer matches.
+                final IndexId indexId = entry.indexIdForShard(shardId);
                 if (indexId != null) {
                     final RepositoryShardId repoShardId = new RepositoryShardId(indexId, shardId.id());
                     if (SnapshotsServiceUtils.isQueued(entry.shardSnapshotStatusByRepoShardId().get(repoShardId))) {

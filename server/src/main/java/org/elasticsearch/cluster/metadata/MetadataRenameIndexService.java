@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.RestoreInProgress;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -20,12 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -45,10 +42,10 @@ public class MetadataRenameIndexService {
     private MetadataRenameIndexService() {}
 
     /**
-     * Validates the rename against the given state: the index must exist under {@code originalName}, {@code destinationName}
-     * must be a valid name that nothing else uses, and the index must not be part of a snapshot or restore in progress. The
-     * checks that do not depend on the current cluster state (feature support, system indices) are made by the transport action
-     * before the request is queued.
+     * Validates the rename against the given state: the index must exist under {@code originalName} and {@code destinationName}
+     * must be a valid name that nothing else uses. The checks that do not depend on the current cluster state (feature support,
+     * system indices) are made by the transport action before the request is queued. A snapshot or restore in flight does not
+     * refuse the rename: the in-progress entries are renamed with the index, see {@link #renameIndex}.
      */
     public static void validateRename(ProjectState projectState, String originalName, String destinationName) {
         final ProjectMetadata project = projectState.metadata();
@@ -57,28 +54,14 @@ public class MetadataRenameIndexService {
             throw new IndexNotFoundException(originalName);
         }
         MetadataCreateIndexService.validateIndexName(destinationName, project, projectState.routingTable());
-        final Index index = indexMetadata.getIndex();
-        final Map<Snapshot, Set<Index>> snapshottingIndices = SnapshotsServiceUtils.snapshottingIndicesBySnapshot(
-            projectState,
-            Set.of(index)
-        );
-        if (snapshottingIndices.isEmpty() == false) {
-            throw new SnapshotInProgressException(
-                "cannot rename index ["
-                    + originalName
-                    + "] because it is being snapshotted: "
-                    + SnapshotsServiceUtils.describeSnapshottingIndices(snapshottingIndices)
-                    + ". Try again after these snapshots finish, or cancel them."
-            );
-        }
-        if (RestoreService.restoringIndices(projectState, Set.of(index)).isEmpty() == false) {
-            throw new IllegalStateException("cannot rename index [" + originalName + "] because it is being restored");
-        }
     }
 
     /**
      * Builds the cluster state with {@code originalName} renamed to {@code destinationName}: the index metadata is re-keyed under
-     * the new name, the routing table and the index blocks are rewritten for it, and a data stream it belongs to is updated.
+     * the new name, the routing table and the index blocks are rewritten for it, a data stream it belongs to is updated, and the
+     * snapshots and restores in progress that include it track it under the new name from here on. The repository side of a
+     * snapshot in flight is unaffected, since the index keeps the repository id it is being written under; only the name the
+     * snapshot is finalized with changes.
      */
     public static ClusterState renameIndex(ProjectState projectState, String originalName, String destinationName) {
         validateRename(projectState, originalName, destinationName);
@@ -133,10 +116,20 @@ public class MetadataRenameIndexService {
         }
 
         logger.debug("renaming index [{}] to [{}] in project [{}]", originalName, destinationName, projectId);
-        return ClusterState.builder(currentState)
+        final ClusterState.Builder stateBuilder = ClusterState.builder(currentState)
             .putRoutingTable(projectId, rtBuilder.build())
             .blocks(clusterBlocks)
-            .putProjectMetadata(projectBuilder)
-            .build();
+            .putProjectMetadata(projectBuilder);
+        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
+        final SnapshotsInProgress renamedSnapshots = snapshotsInProgress.withRenamedIndex(projectId, index, newIndex);
+        if (renamedSnapshots != snapshotsInProgress) {
+            stateBuilder.putCustom(SnapshotsInProgress.TYPE, renamedSnapshots);
+        }
+        final RestoreInProgress restoreInProgress = RestoreInProgress.get(currentState);
+        final RestoreInProgress renamedRestores = restoreInProgress.withRenamedIndex(index, newIndex);
+        if (renamedRestores != restoreInProgress) {
+            stateBuilder.putCustom(RestoreInProgress.TYPE, renamedRestores);
+        }
+        return stateBuilder.build();
     }
 }

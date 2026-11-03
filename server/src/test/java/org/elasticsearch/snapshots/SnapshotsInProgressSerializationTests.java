@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ProjectRepo;
+import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -494,6 +495,99 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 );
             }
             default -> throw new IllegalArgumentException("invalid randomization case");
+        }
+    }
+
+    /**
+     * A rename keeps the index UUID and the repository id: the entry's index map and shard keys carry the new name, the shard
+     * statuses are unchanged, a shard id captured under the old name still resolves to the index's repository id, and an index
+     * the entry does not snapshot leaves it untouched.
+     */
+    public void testWithRenamedIndex() {
+        Entry entry;
+        do {
+            entry = randomSnapshot();
+        } while (entry.indices().isEmpty());
+        final String name = randomFrom(entry.indices().keySet());
+        final IndexId indexId = entry.indices().get(name);
+        final Index previous = entry.indexByName(name);
+        final Index current = new Index(name + "-renamed", previous.getUUID());
+        final IndexId expectedIndexId = new IndexId(current.getName(), indexId.getId());
+
+        final Entry renamed = entry.withRenamedIndex(previous, current);
+        assertNotSame(entry, renamed);
+        assertFalse(renamed.indices().containsKey(name));
+        assertThat(renamed.indices().get(current.getName()), equalTo(expectedIndexId));
+        assertThat(renamed.indices().size(), equalTo(entry.indices().size()));
+        assertThat(renamed.indexByName(current.getName()).getName(), equalTo(current.getName()));
+        assertThat(renamed.shards().size(), equalTo(entry.shards().size()));
+        for (Map.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards().entrySet()) {
+            final ShardId shardId = shard.getKey();
+            final String expectedName = previous.equals(shardId.getIndex()) ? current.getName() : shardId.getIndexName();
+            final ShardId renamedKey = renamed.shards()
+                .keySet()
+                .stream()
+                .filter(k -> k.equals(shardId))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("missing " + shardId));
+            assertThat(renamedKey.getIndexName(), equalTo(expectedName));
+            assertSame(shard.getValue(), renamed.shards().get(shardId));
+        }
+        assertThat(
+            renamed.shardSnapshotStatusByRepoShardId().keySet().stream().map(RepositoryShardId::index).collect(Collectors.toSet()),
+            equalTo(
+                Stream.concat(entry.indices().values().stream().filter(i -> i.getName().equals(name) == false), Stream.of(expectedIndexId))
+                    .collect(Collectors.toSet())
+            )
+        );
+        assertThat(renamed.state(), equalTo(entry.state()));
+
+        // a shard id captured before the rename resolves to the index's repository id by UUID
+        assertThat(renamed.indexIdForShard(new ShardId(previous, 0)), equalTo(expectedIndexId));
+        assertThat(renamed.indexIdForShard(new ShardId(current, 0)), equalTo(expectedIndexId));
+        assertNull(renamed.indexIdForShard(new ShardId(new Index("absent", randomAlphaOfLength(10)), 0)));
+
+        final Index unrelated = new Index(randomAlphaOfLength(12), randomAlphaOfLength(10));
+        assertSame(entry, entry.withRenamedIndex(unrelated, new Index("other", unrelated.getUUID())));
+
+        final SnapshotsInProgress snapshots = SnapshotsInProgress.EMPTY.withAddedEntry(entry);
+        final SnapshotsInProgress renamedSnapshots = snapshots.withRenamedIndex(entry.projectId(), previous, current);
+        assertNotSame(snapshots, renamedSnapshots);
+        assertThat(renamedSnapshots.forRepo(entry.projectId(), entry.repository()), equalTo(List.of(renamed)));
+        assertSame(snapshots, snapshots.withRenamedIndex(entry.projectId(), unrelated, new Index("other", unrelated.getUUID())));
+    }
+
+    /**
+     * A diff between an entry and its renamed form carries the index map change but, with shard ids equal by UUID, no change for
+     * the shard keys. Applying it must still produce the renamed entry, with the shard keys carrying the new name and the per
+     * repository shard statuses intact, whether the diff is applied in memory or after a round trip through the wire.
+     */
+    public void testDiffOfRenamedEntryCarriesShardKeys() throws IOException {
+        Entry entry;
+        do {
+            entry = randomSnapshot();
+        } while (entry.indices().isEmpty());
+        final String name = randomFrom(entry.indices().keySet());
+        final Index previous = entry.indexByName(name);
+        final Index current = new Index(name + "-renamed", previous.getUUID());
+        final SnapshotsInProgress before = SnapshotsInProgress.EMPTY.withAddedEntry(entry);
+        final SnapshotsInProgress after = before.withRenamedIndex(entry.projectId(), previous, current);
+        final Entry renamed = after.forRepo(entry.projectId(), entry.repository()).get(0);
+
+        final Diff<Custom> diff = after.diff(before);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        diff.writeTo(out);
+        final NamedDiff<Custom> diffFromStream = SnapshotsInProgress.readDiffFrom(out.bytes().streamInput());
+        for (Diff<Custom> applied : List.of(diff, diffFromStream)) {
+            final SnapshotsInProgress result = (SnapshotsInProgress) applied.apply(before);
+            final Entry resultEntry = result.forRepo(entry.projectId(), entry.repository()).get(0);
+            assertThat(resultEntry, equalTo(renamed));
+            assertThat(
+                resultEntry.shards().keySet().stream().map(ShardId::getIndexName).collect(Collectors.toSet()),
+                equalTo(renamed.shards().keySet().stream().map(ShardId::getIndexName).collect(Collectors.toSet()))
+            );
+            assertThat(resultEntry.shardSnapshotStatusByRepoShardId(), equalTo(renamed.shardSnapshotStatusByRepoShardId()));
+            assertThat(resultEntry.indexByName(current.getName()).getName(), equalTo(current.getName()));
         }
     }
 

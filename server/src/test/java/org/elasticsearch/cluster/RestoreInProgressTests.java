@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -23,6 +24,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -90,4 +93,52 @@ public class RestoreInProgressTests extends ESTestCase {
         return new RestoreInProgress.Builder().add(entry).build();
     }
 
+    /**
+     * A rename keeps the index UUID: the entry's index list and shard keys carry the new name and the shard statuses are unchanged,
+     * while a restore that does not include the index is left as it is.
+     */
+    public void testWithRenamedIndex() {
+        final Index previous = new Index("before", randomAlphaOfLength(10));
+        final Index current = new Index("after", previous.getUUID());
+        final Index other = new Index("other", randomAlphaOfLength(10));
+        final var status = new RestoreInProgress.ShardRestoreStatus(randomAlphaOfLength(5), RestoreInProgress.State.STARTED);
+        final var withIndex = new RestoreInProgress.Entry(
+            "uuid-1",
+            randomSnapshot(),
+            RestoreInProgress.State.STARTED,
+            randomBoolean(),
+            List.of("before", "other"),
+            Map.of(new ShardId(previous, 0), status, new ShardId(previous, 1), status, new ShardId(other, 0), status),
+            randomBoolean()
+        );
+        final var withoutIndex = new RestoreInProgress.Entry(
+            "uuid-2",
+            randomSnapshot(),
+            RestoreInProgress.State.STARTED,
+            randomBoolean(),
+            List.of("other"),
+            Map.of(new ShardId(other, 0), status)
+        );
+        final RestoreInProgress restores = new RestoreInProgress.Builder().add(withIndex).add(withoutIndex).build();
+
+        final RestoreInProgress renamed = restores.withRenamedIndex(previous, current);
+        assertNotSame(restores, renamed);
+        final RestoreInProgress.Entry renamedEntry = renamed.get("uuid-1");
+        assertThat(renamedEntry.indices(), equalTo(List.of("after", "other")));
+        assertThat(
+            renamedEntry.shards().keySet().stream().map(ShardId::getIndexName).collect(Collectors.toSet()),
+            equalTo(Set.of("after", "other"))
+        );
+        assertThat(renamedEntry.shards().size(), equalTo(3));
+        assertSame(status, renamedEntry.shards().get(new ShardId(current, 1)));
+        assertThat(renamedEntry.reportShardRestoring(), equalTo(withIndex.reportShardRestoring()));
+        assertSame(withoutIndex, renamed.get("uuid-2"));
+
+        final Index absent = new Index("absent", randomAlphaOfLength(10));
+        assertSame(restores, restores.withRenamedIndex(absent, new Index("absent-renamed", absent.getUUID())));
+    }
+
+    private static Snapshot randomSnapshot() {
+        return new Snapshot(randomAlphaOfLength(10), new SnapshotId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+    }
 }

@@ -530,11 +530,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testFailRecoveryCommitRegistrationIfIndexGetsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/164232
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  tasks:
-  - :x-pack:plugin:encryption:internalClusterTest
-  method: testRotationCycleWithNoHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/164186
 - class: org.elasticsearch.xpack.stateless.commits.StatelessStateNotRecoveredFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -610,3 +605,8 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-promql.rate_small_window_no_set_operator}
   issue: https://github.com/elastic/elasticsearch/issues/164427
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationUnmappedNullifyIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:unmapped-nullify.maxOverTimeOfKeyword}
+  issue: https://github.com/elastic/elasticsearch/issues/164433

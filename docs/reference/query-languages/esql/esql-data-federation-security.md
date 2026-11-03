@@ -18,19 +18,7 @@ When a data source connects to a private bucket, its encrypted credentials are s
 
 ### Credential encryption
 
-When a data source includes credentials, {{es}} encrypts them using the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md) before storing them in the cluster state.
-
-To store credentials, each node needs a cluster state encryption password in its keystore. On {{ech}} and {{ece}}, the password is provided automatically. On self-managed clusters, the [automatic security setup](docs-content://deploy-manage/security/self-auto-setup.md) creates one, but the setup doesn't run in every case, for example on upgraded clusters. If no password is configured, a `PUT /_query/data_source` request that includes credentials returns a `503` error. To configure one, refer to [protect the cluster state encryption key with a password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-key-password).
-
-A `503` error can also occur while the cluster is starting up and the key isn't loaded yet. Retry the request once the cluster is ready.
-
-:::{warning}
-Setting `cluster.state.encryption.required: false` lets a data source with credentials be created even when no encryption key is available. The credentials are then stored unencrypted in the cluster state, with only a warning in the logs. Keep the default unless you accept that risk.
-:::
-
-If you [reset the cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-key-reset), {{es}} deletes the credentials of every data source but keeps the rest of each definition. A GET request returns `null` for the deleted credentials. To restore access, update each data source with its credentials.
-
-{applies_to}`stack: preview 9.6+` Snapshots don't include credentials either. After a restore, update each data source with its credentials. Refer to [query limitations](esql-data-federation-querying.md#limitations).
+When a data source includes credentials, {{es}} encrypts them with the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md) before storing them in the cluster state. If cluster state encryption isn't configured, a request that includes credentials returns a `503` error.
 
 ### Credential masking
 

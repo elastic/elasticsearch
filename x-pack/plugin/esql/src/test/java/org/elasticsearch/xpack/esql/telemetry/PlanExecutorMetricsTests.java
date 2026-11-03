@@ -788,31 +788,37 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
-    public void testQueryWithProductOriginIsNotCountedUnderDirectClients() throws Exception {
-        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
-            PlanExecutor planExecutor = buildPlanExecutor(
-                mockIndexResolver(),
-                dataSourceModule,
-                CrossProjectModeDecider.NOOP,
-                meterRegistry
-            );
-            var executionInfo = createEsqlExecutionInfo(true);
-            executeEsql(
-                planExecutor,
-                createTransportActionServices(threadContextWithOrigin(randomFrom("kibana", "logstash-output-elasticsearch", "my-app"))),
-                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY).directClient(randomFrom(DirectClient.values())),
-                executionInfo,
-                planRunnerFor(executionInfo),
-                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
-            );
-            Counters stats = planExecutor.metrics().stats();
-            assertThat(stats.get("queries._all.total"), equalTo(1L));
-            assertThat(directClientTotal(stats), equalTo(0L));
-            List<Measurement> measurements = meterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
-            assertThat(measurements, hasSize(1));
-            assertThat(measurements.getFirst().attributes(), not(hasKey(PlanTelemetryManager.DIRECT_CLIENT)));
+    public void testEveryProductOriginIsLeftOutOfDirectClients() throws Exception {
+        for (QueryMetric client : QueryMetric.values()) {
+            if (client == QueryMetric.REST) {
+                continue;
+            }
+            String origin = client == QueryMetric.OTHER ? "my-app" : client.toString();
+            RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+            try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+                PlanExecutor planExecutor = buildPlanExecutor(
+                    mockIndexResolver(),
+                    dataSourceModule,
+                    CrossProjectModeDecider.NOOP,
+                    meterRegistry
+                );
+                var executionInfo = createEsqlExecutionInfo(true);
+                executeEsql(
+                    planExecutor,
+                    createTransportActionServices(threadContextWithOrigin(origin)),
+                    queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY).directClient(randomFrom(DirectClient.values())),
+                    executionInfo,
+                    planRunnerFor(executionInfo),
+                    ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+                );
+                Counters stats = planExecutor.metrics().stats();
+                assertThat(origin, stats.get("queries." + client + ".total"), equalTo(1L));
+                assertThat(origin, directClientTotal(stats), equalTo(0L));
+                List<Measurement> measurements = meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+                assertThat(origin, measurements, hasSize(1));
+                assertThat(origin, measurements.getFirst().attributes(), not(hasKey(PlanTelemetryManager.DIRECT_CLIENT)));
+            }
         }
     }
 
@@ -947,6 +953,14 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     public void testAnalyzeOnlyIsNotCounted() throws Exception {
+        assertAnalyzeOnlyIsNotCounted("kibana");
+    }
+
+    public void testAnalyzeOnlyWithoutProductOriginIsNotCountedUnderDirectClients() throws Exception {
+        assertAnalyzeOnlyIsNotCounted(null);
+    }
+
+    private void assertAnalyzeOnlyIsNotCounted(@Nullable String origin) throws Exception {
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             PlanExecutor planExecutor = buildPlanExecutor(
@@ -961,7 +975,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             var executionInfo = createEsqlExecutionInfo(true);
             executeEsql(
                 planExecutor,
-                createTransportActionServices(threadContextWithOrigin(null)),
+                createTransportActionServices(threadContextWithOrigin(origin)),
                 request,
                 executionInfo,
                 planRunnerFor(executionInfo),

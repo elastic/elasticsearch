@@ -73,6 +73,13 @@ public class PlanJsonLogIT extends AbstractEsqlIntegTestCase {
                 mockLog.addExpectation(seen("main logical", "JSON plan [logical:main]:*"));
                 mockLog.addExpectation(seen("main physical", "JSON plan [physical:main]:*"));
                 mockLog.addExpectation(seen("main optimized physical", "JSON plan [optimized_physical:main]:*"));
+                // The view body is logged once it has been resolved
+                mockLog.addExpectation(seen("resolved view", "JSON plan [resolved:emps_in_view]:*"));
+                // The local execution plan, whose operators name the physical plan node they were built from
+                mockLog.addExpectation(seen("data compute plan", "JSON plan [compute_plan:data]:*"));
+                mockLog.addExpectation(seen("final compute plan", "JSON plan [compute_plan:final]:*"));
+                mockLog.addExpectation(seen("data drivers", "JSON plan [drivers:data]:*\"plan_node_id\"*"));
+                mockLog.addExpectation(seen("final drivers", "JSON plan [drivers:final]:*\"plan_node_id\"*"));
                 mockLog.addExpectation(unseen("unlabelled physical", "JSON plan [physical]:*"));
                 mockLog.addExpectation(unseen("unlabelled optimized physical", "JSON plan [optimized_physical]:*"));
                 run(

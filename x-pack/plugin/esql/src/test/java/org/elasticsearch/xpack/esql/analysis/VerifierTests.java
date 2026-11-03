@@ -496,7 +496,7 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testForkWithSourceInOneBranch() {
         // A FORK/UnionAll branch that lacks a _source column present in a sibling branch gets that column null-filled by
         // Analyzer.resolveMergePlan with a Literal(null, DataType.SOURCE). That null SOURCE literal lands in a synthesized Eval.
-        // SOURCE is excluded from DataType.isRepresentable, so Eval.postAnalysisVerification must carve out a null SOURCE
+        // SOURCE is excluded from DataType.isRepresentableInExpression, so Eval.postAnalysisVerification must carve out a null SOURCE
         // literal or it wrongly fails the query with "EVAL does not support type [_source]".
         defaultAnalyzer().query("FROM test METADATA _source | FORK (WHERE emp_no > 0) (WHERE emp_no > 0 | DROP _source)");
     }
@@ -1047,7 +1047,7 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testUnsignedLongTypeMixInComparisons() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentableInExpression(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {
@@ -1085,7 +1085,7 @@ public class VerifierTests extends AnalyzerTestCase {
     public void testUnsignedLongTypeMixInArithmetics() {
         List<String> types = DataType.types()
             .stream()
-            .filter(dt -> dt.isNumeric() && DataType.isRepresentable(dt) && dt != UNSIGNED_LONG)
+            .filter(dt -> dt.isNumeric() && DataType.isRepresentableInExpression(dt) && dt != UNSIGNED_LONG)
             .map(DataType::typeName)
             .toList();
         for (var type : types) {

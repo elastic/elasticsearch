@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 163515
+summary: Let each shard resolve the fields the query names, and push filters to every shard, best effort
+type: enhancement

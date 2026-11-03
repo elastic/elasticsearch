@@ -7,14 +7,20 @@
 
 package org.elasticsearch.xpack.esql.formatter;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -29,7 +35,7 @@ public class TextFormatter {
 
     private final EsqlQueryResponse response;
     private final int[] width;
-    private final Function<Object, String> FORMATTER = Objects::toString;
+    private final Function<Object, String> FORMATTER = TextFormatter::valueToString;
     private final boolean includeHeader;
     private final boolean[] dropColumns;
 
@@ -140,6 +146,47 @@ public class TextFormatter {
         }
         if (padding > 0) {
             writer.append(PADDING_64, 0, padding);
+        }
+    }
+
+    /**
+     * Convert a value to its string representation for text output.
+     * Map instances (from SOURCE columns) are serialized as JSON.
+     */
+    private static String valueToString(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return mapToJson(map);
+        }
+        if (value instanceof List<?> list) {
+            for (Object v : list) {
+                if (v instanceof Map || v instanceof List) {
+                    return listToJson(list);
+                }
+            }
+        }
+        return Objects.toString(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String mapToJson(Map<?, ?> map) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.map((Map<String, Object>) map);
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static String listToJson(List<?> list) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startArray();
+            for (Object item : list) {
+                builder.value(item);
+            }
+            builder.endArray();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

@@ -191,7 +191,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             successfulShards,
             skippedShards,
             tookInMillis,
-            List.of(shardFailures),
+            shardFailures != null ? List.of(shardFailures) : List.of(),
             clusters
         );
     }
@@ -306,7 +306,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             successfulShards,
             skippedShards,
             tookInMillis,
-            List.of(shardFailures),
+            shardFailures != null ? List.of(shardFailures) : List.of(),
             clusters,
             pointInTimeId,
             topHitsToRelease,
@@ -361,7 +361,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.successfulShards = successfulShards;
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
-        this.shardFailures = List.copyOf(shardFailures);
+        this.shardFailures = shardFailures != null ? List.copyOf(shardFailures) : List.of();    // null is sometimes passed in by tests
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";

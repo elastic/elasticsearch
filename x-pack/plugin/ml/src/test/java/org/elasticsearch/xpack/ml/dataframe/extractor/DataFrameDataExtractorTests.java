@@ -794,7 +794,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
             capturedSearchRequests.add(searchRequestBuilder);
             SearchResponse searchResponse = alwaysResponse == null ? responses.remove() : alwaysResponse;
-            if (searchResponse.getShardFailures() != null) {
+            if (!searchResponse.getShardFailures().isEmpty()) {
                 throw new RuntimeException(searchResponse.getShardFailures().getFirst().getCause());
             }
             return searchResponse;

@@ -11,7 +11,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -51,7 +50,7 @@ import java.util.Objects;
 public class EqlRelation extends LeafPlan {
 
     /**
-     * EQL result mode, determined by a shallow parse of the query string at plan time. This is the plan-node-owned
+     * EQL result mode, determined by a shallow parse of the query string in the ES|QL parser. This is the plan-node-owned
      * enum that travels with the physical plan ({@code EqlSourceExec} serializes it via {@code writeEnum}). It is
      * derived from {@code EqlQueryIntrospection.Mode} — the eql-module facade that confines the {@code ql}/{@code eql}
      * parse-tree types — and kept deliberately distinct from it: this one is an ES|QL plan concern, that one an
@@ -84,9 +83,10 @@ public class EqlRelation extends LeafPlan {
     }
 
     private final IndexPattern indexPattern;
-    private final Expression query;
+    private final String query;
     private final Map<String, Object> options;
     private final Mode mode;
+    private final boolean hasExplicitLimit;
     private final List<Attribute> output;
     /**
      * The row {@code LIMIT} folded into the EQL request {@code size} by {@code PushLimitIntoEqlRelation}, or
@@ -107,20 +107,22 @@ public class EqlRelation extends LeafPlan {
     public EqlRelation(
         Source source,
         IndexPattern indexPattern,
-        Expression query,
+        String query,
         Map<String, Object> options,
         Mode mode,
+        boolean hasExplicitLimit,
         List<Attribute> output
     ) {
-        this(source, indexPattern, query, options, mode, output, null, null);
+        this(source, indexPattern, query, options, mode, hasExplicitLimit, output, null, null);
     }
 
     public EqlRelation(
         Source source,
         IndexPattern indexPattern,
-        Expression query,
+        String query,
         Map<String, Object> options,
         Mode mode,
+        boolean hasExplicitLimit,
         List<Attribute> output,
         Integer pushedLimit,
         @Nullable FieldCapabilitiesResponse preResolvedFieldCaps
@@ -130,6 +132,7 @@ public class EqlRelation extends LeafPlan {
         this.query = query;
         this.options = options;
         this.mode = mode;
+        this.hasExplicitLimit = hasExplicitLimit;
         this.output = output;
         this.pushedLimit = pushedLimit;
         this.preResolvedFieldCaps = preResolvedFieldCaps;
@@ -137,7 +140,7 @@ public class EqlRelation extends LeafPlan {
 
     /** Returns a copy with the row {@code LIMIT} folded into the request size (see {@link #pushedLimit}). */
     public EqlRelation withPushedLimit(int pushedLimit) {
-        return new EqlRelation(source(), indexPattern, query, options, mode, output, pushedLimit, preResolvedFieldCaps);
+        return new EqlRelation(source(), indexPattern, query, options, mode, hasExplicitLimit, output, pushedLimit, preResolvedFieldCaps);
     }
 
     /**
@@ -145,7 +148,17 @@ public class EqlRelation extends LeafPlan {
      * (nullified or {@code _source}-loaded) under {@code SET unmapped_fields}. Mirrors {@code EsRelation.withAttributes}.
      */
     public EqlRelation withAttributes(List<Attribute> newOutput) {
-        return new EqlRelation(source(), indexPattern, query, options, mode, newOutput, pushedLimit, preResolvedFieldCaps);
+        return new EqlRelation(
+            source(),
+            indexPattern,
+            query,
+            options,
+            mode,
+            hasExplicitLimit,
+            newOutput,
+            pushedLimit,
+            preResolvedFieldCaps
+        );
     }
 
     @Override
@@ -162,7 +175,18 @@ public class EqlRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EqlRelation> info() {
-        return NodeInfo.create(this, EqlRelation::new, indexPattern, query, options, mode, output, pushedLimit, preResolvedFieldCaps);
+        return NodeInfo.create(
+            this,
+            EqlRelation::new,
+            indexPattern,
+            query,
+            options,
+            mode,
+            hasExplicitLimit,
+            output,
+            pushedLimit,
+            preResolvedFieldCaps
+        );
     }
 
     public IndexPattern indexPattern() {
@@ -178,7 +202,7 @@ public class EqlRelation extends LeafPlan {
         return preResolvedFieldCaps;
     }
 
-    public Expression query() {
+    public String query() {
         return query;
     }
 
@@ -188,6 +212,10 @@ public class EqlRelation extends LeafPlan {
 
     public Mode mode() {
         return mode;
+    }
+
+    public boolean hasExplicitLimit() {
+        return hasExplicitLimit;
     }
 
     @Override
@@ -202,7 +230,7 @@ public class EqlRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, query, options, mode, output, pushedLimit);
+        return Objects.hash(indexPattern, query, options, mode, hasExplicitLimit, output, pushedLimit);
     }
 
     @Override
@@ -218,12 +246,13 @@ public class EqlRelation extends LeafPlan {
             && Objects.equals(query, other.query)
             && Objects.equals(options, other.options)
             && mode == other.mode
+            && hasExplicitLimit == other.hasExplicitLimit
             && Objects.equals(output, other.output)
             && Objects.equals(pushedLimit, other.pushedLimit);
     }
 
     @Override
     public String toString() {
-        return "EQL[" + query.sourceText() + "]" + output;
+        return "EQL[" + query + "]" + output;
     }
 }

@@ -25,6 +25,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -160,6 +161,18 @@ public class EqlCompositionParsingTests extends AbstractStatementParserTests {
             () -> prodParser.createStatement("FROM (EQL logs-* \"process where true\")")
         );
         assertThat(pe.getMessage(), containsString("line 1:"));
+    }
+
+    public void testInvalidEqlQueryInSubqueriesRejected() {
+        assumeSnapshotSubquerySupport();
+        assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+
+        expectError("FROM main_index, (EQL logs-* \"process where\")", "cannot parse EQL query [process where]");
+        expectError(
+            "FROM main_index | WHERE x IN (EQL logs-* ?q | KEEP pid)",
+            List.of(paramAsConstant("q", 5)),
+            "Query parameter [?q] must be a string to be used as an EQL query, found [integer]"
+        );
     }
 
     private void assumeSnapshotSubquerySupport() {

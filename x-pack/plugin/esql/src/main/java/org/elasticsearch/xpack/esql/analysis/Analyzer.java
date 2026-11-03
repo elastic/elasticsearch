@@ -29,7 +29,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
-import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -998,9 +997,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * Resolves the {@link UnresolvedEqlRelation} produced by the {@code EQL <indexPattern> "<query>"} source command into a
      * fully-typed {@link EqlRelation}. Two independent facts fix the output schema:
      * <ul>
-     *   <li>The EQL query string is parsed with the {@link org.elasticsearch.xpack.eql.parser.EqlParser} to determine the
-     *       result mode (event / sequence / sample). Sequence and sample queries prepend the synthetics {@code _sequence},
-     *       {@code _sequence_stage} and {@code join_keys}.</li>
+     *   <li>The result mode (event / sequence / sample) the parser derived from the EQL query string. Sequence and sample
+     *       queries prepend the synthetics {@code _sequence}, {@code _sequence_stage} and {@code join_keys}.</li>
      *   <li>The index pattern's field-caps mapping — resolved through the SAME shared path {@code FROM} uses
      *       ({@code IndexResolver} / {@link Analyzer#mappingAsAttributes}), carried in {@link AnalyzerContext#indexResolution()}
      *       keyed by the pattern — becomes one typed column per mapped field. Mapped types the converter cannot extract
@@ -1008,8 +1006,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      *       {@code FROM}.</li>
      * </ul>
      * If the index pattern did not resolve, the node is rewritten unresolved with the resolution message (the verifier turns
-     * it into the standard "Unknown index" failure). If the query string is not yet a folded literal (e.g. an unbound
-     * parameter), the node is left unresolved.
+     * it into the standard "Unknown index" failure).
      *
      * <p>A {@code METADATA} clause appends provenance columns (last, after the mapped fields). Only the fields the EQL
      * response envelope carries — {@code _index}, {@code _id}, {@code _source} — are supported; anything else is rejected.
@@ -1026,23 +1023,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedEqlRelation plan, AnalyzerContext context) {
-            String queryString = extractEqlQuery(plan.query());
-            if (queryString == null) {
-                // Not a simple literal yet (e.g. a parameter reference); leave unresolved for the verifier.
-                return plan;
-            }
-            EqlQueryIntrospection.Mode queryMode;
-            try {
-                queryMode = EqlQueryIntrospection.mode(queryString);
-            } catch (Exception e) {
-                throw new ParsingException(plan.source(), "cannot parse EQL query [{}]: {}", queryString, e.getMessage());
-            }
-            EqlRelation.Mode mode = switch (queryMode) {
-                case EVENT -> EqlRelation.Mode.EVENT;
-                case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
-                case SAMPLE -> EqlRelation.Mode.SAMPLE;
-            };
-
             IndexResolution resolution = context.indexResolution().get(plan.indexPattern());
             if (resolution == null || resolution.isValid() == false) {
                 // Mirror ResolveTable's invalid branch, including the equal-message short-circuit that avoids a rule loop.
@@ -1058,7 +1038,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             List<Attribute> mapped = mappingAsAttributes(plan.source(), resolution.get().mapping());
-            List<Attribute> synthetics = EqlRelation.syntheticColumns(plan.source(), mode);
+            List<Attribute> synthetics = EqlRelation.syntheticColumns(plan.source(), plan.mode());
             // A mapped field whose name collides with a synthetic (_sequence/_sequence_stage/join_keys) or a declared
             // metadata column would produce two output columns of the same name. Values stay correct (the converter
             // dispatches by attribute class, not name), but a downstream KEEP/SORT on that name is ambiguous, so fail
@@ -1098,7 +1078,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 plan.indexPattern(),
                 plan.query(),
                 plan.options(),
-                mode,
+                plan.mode(),
+                plan.hasExplicitLimit(),
                 finalOutput,
                 null,
                 context.eqlFieldCaps().get(plan.indexPattern())
@@ -1114,6 +1095,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.indexPattern(),
                     plan.query(),
                     plan.options(),
+                    plan.mode(),
+                    plan.hasExplicitLimit(),
                     plan.metadataFields(),
                     message
                 );
@@ -1166,17 +1149,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new UnsupportedAttribute(source, fa.name(), field, "EQL command does not yet support [" + typeName + "] fields");
             }
             return attr;
-        }
-
-        private static String extractEqlQuery(Expression query) {
-            if (query instanceof Literal literal && literal.value() != null) {
-                Object value = literal.value();
-                if (value instanceof BytesRef bytesRef) {
-                    return BytesRefs.toString(bytesRef);
-                }
-                return value.toString();
-            }
-            return null;
         }
     }
 

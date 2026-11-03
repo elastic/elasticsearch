@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -63,14 +59,8 @@ public class PushLimitIntoEqlRelation extends OptimizerRules.ParameterizedOptimi
      * over a tail fetches a suffix while the kept {@code Limit} trims a prefix, so the rows would depend on plan shape.
      */
     private static boolean pushKeepsLimitStable(EqlRelation relation) {
-        // The query is a folded string literal by the time this rule runs (ResolveEqlRelation requires it); if for any
-        // reason it is not, be conservative and do not push.
-        if (relation.query() instanceof Literal literal && literal.value() instanceof BytesRef bytesRef) {
-            boolean noExplicitLimit = EqlQueryIntrospection.hasExplicitLimit(BytesRefs.toString(bytesRef)) == false;
-            // result_position defaults to "head" in EqlRequests; only an explicit tail override makes the push unstable.
-            boolean tailRequested = "tail".equals(relation.options().get("result_position"));
-            return noExplicitLimit && tailRequested == false;
-        }
-        return false;
+        // result_position defaults to "head" in EqlRequests; only an explicit tail override makes the push unstable.
+        boolean tailRequested = "tail".equals(relation.options().get("result_position"));
+        return relation.hasExplicitLimit() == false && tailRequested == false;
     }
 }

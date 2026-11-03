@@ -9,6 +9,11 @@ package org.elasticsearch.xpack.eql.parser;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection.Mode.EVENT;
+import static org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection.Mode.SAMPLE;
+import static org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection.Mode.SEQUENCE;
+import static org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection.inspect;
+
 /**
  * Direct tests for {@link EqlQueryIntrospection}: the eql-module facade that reports an EQL query's result mode and
  * whether it carries its own explicit {@code head}/{@code tail} limit, both derived by parsing the query string. The
@@ -17,37 +22,32 @@ import org.elasticsearch.test.ESTestCase;
  */
 public class EqlQueryIntrospectionTests extends ESTestCase {
 
-    public void testModeEvent() {
-        assertEquals(EqlQueryIntrospection.Mode.EVENT, EqlQueryIntrospection.mode("process where true"));
+    public void testEventQuery() {
+        assertEquals(new EqlQueryIntrospection.Shape(EVENT, false), inspect("process where true"));
     }
 
-    public void testModeSequence() {
-        assertEquals(EqlQueryIntrospection.Mode.SEQUENCE, EqlQueryIntrospection.mode("sequence [process where true] [network where true]"));
+    public void testSequenceQuery() {
+        assertEquals(new EqlQueryIntrospection.Shape(SEQUENCE, false), inspect("sequence [process where true] [network where true]"));
     }
 
-    public void testModeSample() {
+    public void testSampleQuery() {
         assertEquals(
-            EqlQueryIntrospection.Mode.SAMPLE,
-            EqlQueryIntrospection.mode("sample by category [process where true] [network where true]")
+            new EqlQueryIntrospection.Shape(SAMPLE, false),
+            inspect("sample by category [process where true] [network where true]")
         );
     }
 
-    public void testNoExplicitLimit() {
-        // The parser inserts exactly one implicit head/tail limit, so a query with no user-written pipe has just one.
-        assertFalse(EqlQueryIntrospection.hasExplicitLimit("process where true"));
-        assertFalse(EqlQueryIntrospection.hasExplicitLimit("sequence [process where true] [network where true]"));
-        assertFalse(EqlQueryIntrospection.hasExplicitLimit("sample by category [process where true] [network where true]"));
-    }
-
     public void testExplicitHeadOrTailLimit() {
-        // A user-written | head/| tail adds a second limit node on top of the implicit one.
-        assertTrue(EqlQueryIntrospection.hasExplicitLimit("process where true | head 5"));
-        assertTrue(EqlQueryIntrospection.hasExplicitLimit("process where true | tail 3"));
-        assertTrue(EqlQueryIntrospection.hasExplicitLimit("sequence [process where true] [network where true] | head 2"));
+        assertEquals(new EqlQueryIntrospection.Shape(EVENT, true), inspect("process where true | head 5"));
+        assertEquals(new EqlQueryIntrospection.Shape(EVENT, true), inspect("process where true | tail 3"));
+        assertEquals(
+            new EqlQueryIntrospection.Shape(SEQUENCE, true),
+            inspect("sequence [process where true] [network where true] | head 2")
+        );
+        assertEquals(new EqlQueryIntrospection.Shape(EVENT, true), inspect("process where true | head 5 | tail 2"));
     }
 
     public void testMalformedQueryThrows() {
-        // Introspection parses the query, so a malformed one throws (the ES|QL command turns this into a ParsingException).
-        expectThrows(Exception.class, () -> EqlQueryIntrospection.mode("this is not eql"));
+        expectThrows(ParsingException.class, () -> inspect("this is not eql"));
     }
 }

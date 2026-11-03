@@ -24,6 +24,8 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.eql.EqlClientException;
+import org.elasticsearch.xpack.eql.parser.EqlQueryIntrospection;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -1155,7 +1158,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Indices are a first-class leading argument (like FROM), not a WITH option; resolution rides the
         // shared field-caps path in ResolveEqlRelation.
         IndexPattern indexPattern = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
-        Expression query = expression(ctx.stringOrParameter());
+        String query = eqlQuery(ctx.stringOrParameter());
+        EqlQueryIntrospection.Shape shape;
+        try {
+            shape = EqlQueryIntrospection.inspect(query);
+        } catch (RuntimeException e) {
+            // Broad on purpose: malformed input can also fail inside the EQL builders with non-client exceptions.
+            String reason = e instanceof EqlClientException ? ": " + e.getMessage() : "";
+            throw new ParsingException(source(ctx.stringOrParameter()), "cannot parse EQL query [{}]{}", query, reason);
+        }
+        EqlRelation.Mode mode = switch (shape.mode()) {
+            case EVENT -> EqlRelation.Mode.EVENT;
+            case SEQUENCE -> EqlRelation.Mode.SEQUENCE;
+            case SAMPLE -> EqlRelation.Mode.SAMPLE;
+        };
         MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
         Map<String, Object> config = new LinkedHashMap<>(options != null ? foldOptionLiterals("EQL", options.keyFoldedMap()) : Map.of());
         if (config.containsKey("indices")) {
@@ -1165,7 +1181,32 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Metadata columns (e.g. _index, _id, _source) are declared exactly as in FROM; the analyzer validates which
         // ones the EQL delegate can populate and appends them to the output.
         List<NamedExpression> metadataFields = visitMetadataFields(ctx.metadata());
-        return new UnresolvedEqlRelation(source, indexPattern, query, config, metadataFields);
+        return new UnresolvedEqlRelation(source, indexPattern, query, config, mode, shape.hasExplicitLimit(), metadataFields);
+    }
+
+    private String eqlQuery(EsqlBaseParser.StringOrParameterContext ctx) {
+        Expression query = expression(ctx);
+        if (query == MISSING_PARAMETER) {
+            // The "Unknown query parameter" error is already recorded; surface it instead of a misleading type error.
+            throw ParsingException.combineParsingExceptions(context.params().parsingErrors());
+        }
+        if (query instanceof Literal literal && literal.value() instanceof BytesRef bytesRef && DataType.isString(literal.dataType())) {
+            return BytesRefs.toString(bytesRef);
+        }
+        String found = switch (query) {
+            case Literal literal when literal.value() == null -> "null";
+            case Literal literal when literal.value() instanceof List<?> -> "multi-valued " + literal.dataType().typeName();
+            case Literal literal -> literal.dataType().typeName();
+            case UnresolvedNamePattern pattern -> "pattern";
+            case UnresolvedAttribute identifier -> "identifier";
+            default -> throw new IllegalStateException("unexpected EQL query expression [" + query + "]");
+        };
+        throw new ParsingException(
+            source(ctx),
+            "Query parameter [{}] must be a string to be used as an EQL query, found [{}]",
+            ctx.getText(),
+            found
+        );
     }
 
     /**

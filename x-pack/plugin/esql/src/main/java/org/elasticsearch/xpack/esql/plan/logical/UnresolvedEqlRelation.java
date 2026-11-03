@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,41 +26,46 @@ import java.util.Objects;
  *
  * <p>The command delegates execution to the EQL engine rather than re-implementing EQL as an ES|QL logical plan.
  * {@code indexPattern} is the target index pattern — a first-class leading argument like {@code FROM}, not a
- * {@code WITH} option; {@code query} carries the raw EQL query string (a literal or parameter reference);
- * {@code options} carries the folded {@code WITH {...}} tuning.
+ * {@code WITH} option; {@code query} carries the raw EQL query string, and {@code mode} / {@code hasExplicitLimit}
+ * the facts the parser derived from it; {@code options} carries the folded {@code WITH {...}} tuning.
  *
  * <p>Resolution happens in the analyzer ({@code ResolveEqlRelation}): the index pattern rides the shared
  * field-caps path (the same {@code IndexResolver}/{@code IndexResolution} {@code FROM} uses) to a typed output
- * schema, and the EQL query string is parsed to determine the result mode (event / sequence / sample), which
- * prepends the sequence synthetics. {@code metadataFields} carries the declared {@code METADATA} attributes
- * (e.g. {@code _index}, {@code _id}, {@code _source}); the analyzer validates which ones the EQL delegate can
- * populate and appends them to the output, last.
+ * schema, and a sequence or sample {@code mode} prepends the sequence synthetics. {@code metadataFields} carries the
+ * declared {@code METADATA} attributes (e.g. {@code _index}, {@code _id}, {@code _source}); the analyzer validates
+ * which ones the EQL delegate can populate and appends them to the output, last.
  *
  * @see EqlRelation the resolved counterpart carrying the typed output schema.
  */
 public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvable, TelemetryAware {
 
     private final IndexPattern indexPattern;
-    private final Expression query;
+    private final String query;
     private final Map<String, Object> options;
+    private final EqlRelation.Mode mode;
+    private final boolean hasExplicitLimit;
     private final List<NamedExpression> metadataFields;
     private final String unresolvedMsg;
 
     public UnresolvedEqlRelation(
         Source source,
         IndexPattern indexPattern,
-        Expression query,
+        String query,
         Map<String, Object> options,
+        EqlRelation.Mode mode,
+        boolean hasExplicitLimit,
         List<NamedExpression> metadataFields
     ) {
-        this(source, indexPattern, query, options, metadataFields, "Unresolved EQL query [" + query.sourceText() + "]");
+        this(source, indexPattern, query, options, mode, hasExplicitLimit, metadataFields, "Unresolved EQL query [" + query + "]");
     }
 
     public UnresolvedEqlRelation(
         Source source,
         IndexPattern indexPattern,
-        Expression query,
+        String query,
         Map<String, Object> options,
+        EqlRelation.Mode mode,
+        boolean hasExplicitLimit,
         List<NamedExpression> metadataFields,
         String unresolvedMsg
     ) {
@@ -69,6 +73,8 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
         this.indexPattern = indexPattern;
         this.query = query;
         this.options = options;
+        this.mode = mode;
+        this.hasExplicitLimit = hasExplicitLimit;
         this.metadataFields = metadataFields;
         this.unresolvedMsg = unresolvedMsg;
     }
@@ -85,15 +91,33 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
 
     @Override
     protected NodeInfo<UnresolvedEqlRelation> info() {
-        return NodeInfo.create(this, UnresolvedEqlRelation::new, indexPattern, query, options, metadataFields, unresolvedMsg);
+        return NodeInfo.create(
+            this,
+            UnresolvedEqlRelation::new,
+            indexPattern,
+            query,
+            options,
+            mode,
+            hasExplicitLimit,
+            metadataFields,
+            unresolvedMsg
+        );
     }
 
     public IndexPattern indexPattern() {
         return indexPattern;
     }
 
-    public Expression query() {
+    public String query() {
         return query;
+    }
+
+    public EqlRelation.Mode mode() {
+        return mode;
+    }
+
+    public boolean hasExplicitLimit() {
+        return hasExplicitLimit;
     }
 
     public Map<String, Object> options() {
@@ -133,7 +157,7 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
     @Override
     public int hashCode() {
         // No source(): equals() below ignores it, and equal nodes must hash equal.
-        return Objects.hash(indexPattern, query, options, metadataFields, unresolvedMsg);
+        return Objects.hash(indexPattern, query, options, mode, hasExplicitLimit, metadataFields, unresolvedMsg);
     }
 
     @Override
@@ -148,6 +172,8 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(query, other.query)
             && Objects.equals(options, other.options)
+            && mode == other.mode
+            && hasExplicitLimit == other.hasExplicitLimit
             && Objects.equals(metadataFields, other.metadataFields)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
@@ -159,6 +185,6 @@ public final class UnresolvedEqlRelation extends LeafPlan implements Unresolvabl
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + "EQL[" + query.sourceText() + "]";
+        return UNRESOLVED_PREFIX + "EQL[" + query + "]";
     }
 }

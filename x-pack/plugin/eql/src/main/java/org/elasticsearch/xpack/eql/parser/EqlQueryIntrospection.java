@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Structural facts about an EQL query string, derivable purely by parsing it: its {@link Mode result mode} and whether
@@ -39,15 +38,14 @@ public final class EqlQueryIntrospection {
         SAMPLE
     }
 
-    /**
-     * Parses {@code query} and returns its result mode. Throws the same exceptions as
-     * {@link EqlParser#createStatement(String)} for malformed queries.
-     *
-     * @param query the raw EQL query string
-     * @return the result mode
-     */
-    public static Mode mode(String query) {
+    public record Shape(Mode mode, boolean hasExplicitLimit) {}
+
+    public static Shape inspect(String query) {
         LogicalPlan plan = new EqlParser().createStatement(query);
+        return new Shape(mode(plan), hasExplicitLimit(plan));
+    }
+
+    private static Mode mode(LogicalPlan plan) {
         // The join node (sequence/sample) is wrapped by top-level nodes (e.g. head/tail ordering, projection),
         // so search down the tree rather than inspecting the root. forEachDown visits top-down; the first match
         // is the outermost join (EQL does not nest sequences/samples).
@@ -60,20 +58,8 @@ public final class EqlQueryIntrospection {
         return joins.get(0) instanceof Sample ? Mode.SAMPLE : Mode.SEQUENCE;
     }
 
-    /**
-     * Whether {@code query} carries its own explicit {@code head}/{@code tail} pipe. The parser always inserts one
-     * implicit head/tail limit; a user-written {@code | head}/{@code | tail} adds a second, so two or more
-     * {@link LimitWithOffset} nodes means the query limits itself. Callers (the ES|QL {@code EQL} source) use this to
-     * avoid pushing an ES|QL {@code LIMIT} into the request size on top of the query's own limit, which would fold
-     * into it and change which events are returned.
-     *
-     * @param query the raw EQL query string
-     * @return {@code true} if the query contains an explicit head/tail pipe
-     */
-    public static boolean hasExplicitLimit(String query) {
-        LogicalPlan plan = new EqlParser().createStatement(query);
-        AtomicInteger limits = new AtomicInteger();
-        plan.forEachDown(LimitWithOffset.class, l -> limits.incrementAndGet());
-        return limits.get() >= 2;
+    private static boolean hasExplicitLimit(LogicalPlan plan) {
+        // The parser always inserts one implicit head/tail limit; a user-written | head / | tail adds a second.
+        return plan.collect(LimitWithOffset.class::isInstance).size() >= 2;
     }
 }

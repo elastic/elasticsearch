@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -23,7 +21,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Unit tests for the parser-produced {@link UnresolvedEqlRelation} leaf: it reports itself unresolved (so the analyzer's
@@ -33,12 +30,12 @@ import static org.hamcrest.Matchers.startsWith;
 public class UnresolvedEqlRelationTests extends ESTestCase {
 
     private static final IndexPattern PATTERN = new IndexPattern(EMPTY, "logs-*");
-    private static final Expression QUERY = Literal.keyword(EMPTY, "process where true");
+    private static final String QUERY = "process where true | head 5";
     private static final Map<String, Object> OPTIONS = Map.of("size", 10);
     private static final List<NamedExpression> METADATA = List.of(MetadataAttribute.create(EMPTY, "_id"));
 
     private static UnresolvedEqlRelation relation() {
-        return new UnresolvedEqlRelation(EMPTY, PATTERN, QUERY, OPTIONS, METADATA);
+        return new UnresolvedEqlRelation(EMPTY, PATTERN, QUERY, OPTIONS, EqlRelation.Mode.EVENT, true, METADATA);
     }
 
     public void testUnresolvedContract() {
@@ -53,6 +50,8 @@ public class UnresolvedEqlRelationTests extends ESTestCase {
         UnresolvedEqlRelation relation = relation();
         assertThat(relation.indexPattern(), equalTo(PATTERN));
         assertThat(relation.query(), equalTo(QUERY));
+        assertThat(relation.mode(), equalTo(EqlRelation.Mode.EVENT));
+        assertTrue(relation.hasExplicitLimit());
         assertThat(relation.options(), equalTo(OPTIONS));
         assertThat(relation.metadataFields().stream().map(NamedExpression::name).toList(), contains("_id"));
     }
@@ -67,20 +66,54 @@ public class UnresolvedEqlRelationTests extends ESTestCase {
     }
 
     public void testToStringHasUnresolvedPrefix() {
-        assertThat(relation().toString(), startsWith("?EQL["));
+        assertThat(relation().toString(), equalTo("?EQL[" + QUERY + "]"));
     }
 
     public void testCustomUnresolvedMessageIsCarried() {
-        UnresolvedEqlRelation relation = new UnresolvedEqlRelation(EMPTY, PATTERN, QUERY, OPTIONS, METADATA, "Unknown index [logs-*]");
+        UnresolvedEqlRelation relation = new UnresolvedEqlRelation(
+            EMPTY,
+            PATTERN,
+            QUERY,
+            OPTIONS,
+            EqlRelation.Mode.EVENT,
+            true,
+            METADATA,
+            "Unknown index [logs-*]"
+        );
         assertThat(relation.unresolvedMessage(), equalTo("Unknown index [logs-*]"));
     }
 
     public void testEqualsAndHashCode() {
         checkEqualsAndHashCode(
             relation(),
-            r -> new UnresolvedEqlRelation(r.source(), PATTERN, QUERY, OPTIONS, METADATA),
-            r -> new UnresolvedEqlRelation(r.source(), PATTERN, Literal.keyword(EMPTY, "network where true"), OPTIONS, METADATA)
+            r -> new UnresolvedEqlRelation(r.source(), PATTERN, r.query(), OPTIONS, r.mode(), r.hasExplicitLimit(), METADATA),
+            UnresolvedEqlRelationTests::mutate
         );
+    }
+
+    private static UnresolvedEqlRelation mutate(UnresolvedEqlRelation r) {
+        return switch (between(0, 2)) {
+            case 0 -> new UnresolvedEqlRelation(
+                r.source(),
+                PATTERN,
+                r.query() + " | head 1",
+                OPTIONS,
+                r.mode(),
+                r.hasExplicitLimit(),
+                METADATA
+            );
+            case 1 -> new UnresolvedEqlRelation(
+                r.source(),
+                PATTERN,
+                r.query(),
+                OPTIONS,
+                EqlRelation.Mode.SAMPLE,
+                r.hasExplicitLimit(),
+                METADATA
+            );
+            case 2 -> new UnresolvedEqlRelation(r.source(), PATTERN, r.query(), OPTIONS, r.mode(), r.hasExplicitLimit() == false, METADATA);
+            default -> throw new AssertionError();
+        };
     }
 
     public void testWriteToThrowsCoordinatorLocal() {

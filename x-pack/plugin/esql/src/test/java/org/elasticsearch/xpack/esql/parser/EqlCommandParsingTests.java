@@ -8,19 +8,23 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedEqlRelation;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,8 +47,9 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         var plan = query("EQL logs-* \"process where true\"");
 
         UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
-        assertThat(eql.query(), instanceOf(Literal.class));
-        assertThat(BytesRefs.toString(as(eql.query(), Literal.class).value()), equalTo("process where true"));
+        assertThat(eql.query(), equalTo("process where true"));
+        assertThat(eql.mode(), equalTo(EqlRelation.Mode.EVENT));
+        assertFalse(eql.hasExplicitLimit());
         assertThat(eql.indexPattern().indexPattern(), equalTo("logs-*"));
         assertThat(eql.options().size(), equalTo(0));
     }
@@ -55,9 +60,83 @@ public class EqlCommandParsingTests extends AbstractStatementParserTests {
         var plan = query("EQL logs-* \"sequence [process where true] [network where true]\"");
 
         UnresolvedEqlRelation eql = as(plan, UnresolvedEqlRelation.class);
-        assertThat(
-            BytesRefs.toString(as(eql.query(), Literal.class).value()),
-            equalTo("sequence [process where true] [network where true]")
+        assertThat(eql.query(), equalTo("sequence [process where true] [network where true]"));
+        assertThat(eql.mode(), equalTo(EqlRelation.Mode.SEQUENCE));
+        assertFalse(eql.hasExplicitLimit());
+    }
+
+    public void testSampleQuery() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        UnresolvedEqlRelation eql = as(
+            query("EQL logs-* \"sample by category [process where true] [network where true]\""),
+            UnresolvedEqlRelation.class
+        );
+        assertThat(eql.mode(), equalTo(EqlRelation.Mode.SAMPLE));
+        assertFalse(eql.hasExplicitLimit());
+    }
+
+    public void testExplicitLimitOnSequence() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        UnresolvedEqlRelation eql = as(
+            query("EQL logs-* \"sequence [process where true] [network where true] | tail 2\""),
+            UnresolvedEqlRelation.class
+        );
+        assertThat(eql.mode(), equalTo(EqlRelation.Mode.SEQUENCE));
+        assertTrue(eql.hasExplicitLimit());
+    }
+
+    public void testStringQueryParameter() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        String sequence = "sequence [process where true] [network where true] | tail 2";
+        UnresolvedEqlRelation named = as(
+            query("EQL logs-* ?q", new QueryParams(List.of(paramAsConstant("q", sequence)))),
+            UnresolvedEqlRelation.class
+        );
+        assertThat(named.query(), equalTo(sequence));
+        assertThat(named.mode(), equalTo(EqlRelation.Mode.SEQUENCE));
+        assertTrue(named.hasExplicitLimit());
+
+        UnresolvedEqlRelation positional = as(
+            query("EQL logs-* ?1", new QueryParams(List.of(paramAsConstant(null, "process where true")))),
+            UnresolvedEqlRelation.class
+        );
+        assertThat(positional.query(), equalTo("process where true"));
+        assertThat(positional.mode(), equalTo(EqlRelation.Mode.EVENT));
+    }
+
+    public void testNonStringQueryParameterRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        String error = "line 1:12: Query parameter [{}] must be a string to be used as an EQL query, found [{}]";
+        expectError("EQL logs-* ?", List.of(paramAsConstant(null, 5)), LoggerMessageFormat.format(null, error, "?", "integer"));
+        expectError("EQL logs-* ?q", List.of(paramAsConstant("q", null)), LoggerMessageFormat.format(null, error, "?q", "null"));
+        expectError(
+            "EQL logs-* ?q",
+            List.of(paramAsConstant("q", List.of("process where true", "network where true"))),
+            LoggerMessageFormat.format(null, error, "?q", "multi-valued keyword")
+        );
+        expectError("EQL logs-* ?q", List.of(paramAsIdentifier("q", "f")), LoggerMessageFormat.format(null, error, "?q", "identifier"));
+        expectError("EQL logs-* ?q", List.of(paramAsPattern("q", "f*")), LoggerMessageFormat.format(null, error, "?q", "pattern"));
+    }
+
+    public void testUnknownQueryParameterReported() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        expectError("EQL logs-* ?q", List.of(paramAsConstant("p", "process where true")), "Unknown query parameter [q]");
+    }
+
+    public void testMalformedEqlQueryRejected() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        expectError("EQL logs-* \"process where\"", "line 1:12: cannot parse EQL query [process where]: ");
+        ParsingException internalFailure = expectThrows(ParsingException.class, () -> query("EQL logs-* \"process where x like null\""));
+        assertThat(internalFailure.getErrorMessage(), equalTo("cannot parse EQL query [process where x like null]"));
+        expectError(
+            "EQL logs-* \"sample by c [a where true] [b where true] | head 2\"",
+            "line 1:12: cannot parse EQL query [sample by c [a where true] [b where true] | head 2]"
         );
     }
 

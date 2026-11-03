@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -53,8 +52,8 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Unit tests for analysis of the {@code EQL <indexPattern> "<query>"} source command, which delegates execution to
  * the EQL engine. {@code ResolveEqlRelation} resolves the target index pattern through the SAME field-caps path
- * {@code FROM} uses — so the output is one typed column per mapped field — and parses the EQL query string to
- * determine the result mode (event / sequence / sample), prepending the sequence synthetics for non-event modes.
+ * {@code FROM} uses — so the output is one typed column per mapped field — and prepends the sequence synthetics when
+ * the result mode the parser derived is sequence or sample.
  * These tests assert the resolved schema for each mode, plus the unknown-index and unconvertible-type paths.
  */
 public class AnalyzerEqlTests extends ESTestCase {
@@ -185,16 +184,6 @@ public class AnalyzerEqlTests extends ESTestCase {
         assertThat(types(output), contains(KEYWORD, UNSUPPORTED));
     }
 
-    public void testMalformedEqlQueryFails() {
-        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
-
-        // A syntactically invalid EQL query string fails at resolve time (ResolveEqlRelation parses the string with the
-        // EQL parser) as a ParsingException — the most likely user error surfaces as a 400 with the offending query,
-        // not as a 500 deep in the EQL engine at runtime.
-        analyzer().addIndex(INDEX, "mapping-eql_test.json")
-            .error("EQL eql_test \"process where\"", ParsingException.class, containsString("cannot parse EQL query [process where]"));
-    }
-
     public void testUnionTypeFieldFlagged() {
         assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
 
@@ -239,23 +228,6 @@ public class AnalyzerEqlTests extends ESTestCase {
         Attribute blob = output.stream().filter(a -> a.name().equals("blob")).findFirst().orElseThrow();
         assertThat(blob, instanceOf(UnsupportedAttribute.class));
         assertThat(((UnsupportedAttribute) blob).field().getOriginalTypes(), contains("binary"));
-    }
-
-    public void testNumericQueryParamStringifiedThenRejected() {
-        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
-
-        // A non-string query literal (here a numeric parameter) is stringified before being handed to the EQL parser,
-        // which then rejects it — proving the extract path handles non-BytesRef literals, not only quoted strings.
-        analyzer().addIndex(INDEX, "mapping-eql_test.json")
-            .error("EQL eql_test ?", ParsingException.class, containsString("cannot parse EQL query [5]"), 5);
-    }
-
-    public void testNonLiteralQueryLeftUnresolvedForVerifier() {
-        assumeTrue("requires EQL command support", EsqlCapabilities.Cap.EQL_COMMAND.isEnabled());
-
-        // When the query is not a resolvable string literal (here a null-valued parameter), ResolveEqlRelation extracts
-        // no query string and leaves the node unresolved for the verifier to reject, rather than throwing at resolve time.
-        analyzer().addIndex(INDEX, "mapping-eql_test.json").error("EQL eql_test ?", containsString("Unresolved EQL query"), (Object) null);
     }
 
     public void testEventQuerySchemaWithMetadata() {

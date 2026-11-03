@@ -619,8 +619,18 @@ repository change separately.
 
 ## Failure inventory
 
+This section is a log of what the rename trick (T11) found, in the order it
+was found, not a current status. Every failure below is resolved, by a fix or
+by an opt-out, and the subsections after the baseline record what later
+sweeps and CI runs added. The current state is: all suites listed here pass
+on the PR head, and the open items are the two serverless-side test changes
+in the CI subsection.
+
+### Baseline sweep
+
 `:server:internalClusterTest` on main at f992e630 with the rename trick enabled
-in every `createIndex` call (2026-11-02, macOS, 15.5 minutes):
+in every `createIndex` call (2026-11-02, macOS, 15.5 minutes), before the
+aliases rework and the later merges with main:
 
 | Result | Count |
 |---|---|
@@ -628,7 +638,7 @@ in every `createIndex` call (2026-11-02, macOS, 15.5 minutes):
 | Failed | 6 |
 | Skipped | 14 |
 
-The six failures, and what each one says about the rename:
+The six failures of that sweep, and what each one said about the rename:
 
 - `ShardStateActionIT` (two tests plus the class-level cascade). The test runs a
   HIGH-priority looping master task that blocks every NORMAL-or-lower task. The
@@ -656,7 +666,10 @@ The six failures, and what each one says about the rename:
   `createIndex`.
 
 All four classes pass on plain main, and all four pass on the prototype when
-run on their own after the three opt-outs above.
+run on their own after the three opt-outs above. A later merge with main
+brought in `UpdateSettingsIT#testMultipleSettingsUpdateWithMetadataWriteBlock`,
+which creates a metadata-blocked index; the trick now skips such creations
+(see the CI subsection).
 
 No failure in the run points at a rename bug in the write path, search path,
 recovery, allocation, snapshots, blocks, mappings, settings or aliases: the

@@ -793,12 +793,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
             if (reason != null) {
                 logger.debug("{} removing index ({})", index, reason);
-                // Closing/reopening an index doesn't change a shard's allocation id or initializing-ness, so the
-                // sweep in updatePendingAllocationTracker wouldn't evict these on its own; removeIndex tears the
-                // shard down directly, without going through the per-shard branches below that pair shard removal
-                // with clearing this allocation's entry. Without this, a leftover InFlight/AwaitingRecoveryRetry
-                // ticket would block the shard from ever being recreated once the index reopens.
-                pendingAllocationStates.keySet().removeIf(key -> key.shardId().getIndex().equals(index));
                 indicesService.removeIndex(index, reason, "removing index (" + reason + ")", shardCloseExecutor, getShardsClosedListener());
                 if (cleanUpRemovedShards) {
                     deleteStoresOfShardsOutsideIndexRange(indexMetadata);

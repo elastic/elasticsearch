@@ -13,16 +13,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -38,6 +41,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
 import org.elasticsearch.index.shard.IndexShard;
@@ -51,7 +55,10 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -351,18 +358,44 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
     public void testPendingAllocationStateClearedWhenIndexCloses() {
         ShardRouting shardRouting = applyInitializingPrimary();
-        final var originalInFlight = currentInFlight(shardRouting);
+        Index index = shardRouting.index();
+        currentInFlight(shardRouting);
+
+        // Closing an index rebuilds its routing table with fresh, unassigned shards (see
+        // RoutingTable.Builder#addAsFromOpenToClose), so the sweep in updatePendingAllocationTracker
+        // evicts the stale ticket on its own via the currentRouting == null case.
+        applyState(stateWithIndexClosed(index));
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+
         int createsBefore = indicesService.createShardCalls.get();
 
-        // Closing the index doesn't change the shard's routing/allocation id, so without clearing
-        // pendingAllocationStates explicitly here, the old ticket would survive and block the shard
-        // from ever being recreated (see IndicesClusterStateService#removeIndicesAndShards).
-        applyState(stateWithIndexClosed(shardRouting.index()));
-
+        // Once the index reopens and the allocator assigns a fresh allocation, the shard is created
+        // normally -- nothing is left over from before the close to block it.
+        ShardRouting reopenedRouting = TestShardRouting.newShardRouting(
+            shardRouting.shardId(),
+            state.nodes().getLocalNodeId(),
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        assertNotEquals(shardRouting.allocationId().getId(), reopenedRouting.allocationId().getId());
+        applyState(stateWithIndexReopenedAndShardRouting(reopenedRouting));
         assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore + 1));
-        final var newTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting));
+        final var newTicket = indicesClusterStateService.pendingAllocationStates.get(allocationKey(reopenedRouting));
         assertThat(newTicket, instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class));
-        assertNotSame(originalInFlight, newTicket);
+    }
+
+    public void testPendingAllocationStateClearedWhenRestoredOverOpenIndex() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        Index index = shardRouting.index();
+        currentInFlight(shardRouting);
+
+        // A restore over an already-open index (different history UUID, same index UUID) rebuilds the
+        // routing table with fresh, unassigned shards the same way close/reopen does (see
+        // RoutingTable.Builder#addAsRestore), so the sweep evicts the stale ticket the same way.
+        applyState(stateWithIndexRestoredOverOpen(index));
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(shardRouting)));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
     }
 
     public void testPendingAllocationStateClearedWhenPrimaryTermBumped() {
@@ -394,6 +427,28 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
         assertNotNull(indicesService.getShardOrNull(shardRouting.shardId()));
         assertThat(indicesService.getShardOrNull(shardRouting.shardId()).recoveryState().getLocalRetries(), equalTo(0));
+    }
+
+    public void testFailureReportedEvictedWhenPrimaryTermBumped() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
+        assertNotNull(shard);
+        indicesClusterStateService.handleRecoveryFailure(
+            shardRouting,
+            FAIL_SEND,
+            primaryTerm(shardRouting),
+            new Exception("already failed to master"),
+            shard.recoveryState(),
+            currentInFlight(shardRouting)
+        );
+        assertTrue(isFailureReported(shardRouting));
+
+        // Same routing/allocation id, only the primary term advances -- exactly what a batched
+        // cluster-state application can produce without this node ever observing the shard as
+        // unassigned in between. failureReport should be evicted.
+        applyState(stateWithPrimaryTermBumped(shardRouting));
+
+        assertFalse(isFailureReported(shardRouting));
     }
 
     public void testInFlightTicketResetWhenPrimaryTermBumpedDuringLockWait() throws Exception {
@@ -941,8 +996,56 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
 
     private ClusterState stateWithIndexClosed(Index index) {
         IndexMetadata current = state.metadata().getProject().index(index);
-        IndexMetadata closed = IndexMetadata.builder(current).state(IndexMetadata.State.CLOSE).build();
-        return ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).put(closed, false)).build();
+        IndexMetadata closed = IndexMetadata.builder(current)
+            .state(IndexMetadata.State.CLOSE)
+            .settings(
+                Settings.builder().put(current.getSettings()).put(MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true)
+            )
+            .settingsVersion(current.getSettingsVersion() + 1)
+            .build();
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, state.routingTable())
+            .addAsFromOpenToClose(closed)
+            .build();
+        return ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata()).put(closed, false))
+            .routingTable(routingTable)
+            .build();
+    }
+
+    /// Simulates the index reopening and the allocator assigning `shardRouting` (a fresh allocation):
+    /// reopening and allocation are two separate cluster-state updates in production, but only the
+    /// combined end state matters for the tests using this helper.
+    private ClusterState stateWithIndexReopenedAndShardRouting(ShardRouting shardRouting) {
+        Index index = shardRouting.index();
+        IndexMetadata reopened = IndexMetadata.builder(state.metadata().getProject().index(index)).state(IndexMetadata.State.OPEN).build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
+        return ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata()).put(reopened, false))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .build();
+    }
+
+    /// Simulates a restore over an already-open index: same index UUID, different history UUID,
+    /// routing rebuilt via the real RoutingTable.Builder#addAsRestore production path.
+    private ClusterState stateWithIndexRestoredOverOpen(Index index) {
+        IndexMetadata current = state.metadata().getProject().index(index);
+        IndexMetadata restored = IndexMetadata.builder(current)
+            .settings(Settings.builder().put(current.getSettings()).put(IndexMetadata.SETTING_HISTORY_UUID, UUIDs.randomBase64UUID()))
+            .settingsVersion(current.getSettingsVersion() + 1)
+            .build();
+        SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
+            UUIDs.randomBase64UUID(),
+            new Snapshot("repo", new SnapshotId("snap", UUIDs.randomBase64UUID())),
+            IndexVersion.current(),
+            new IndexId(index.getName(), index.getUUID())
+        );
+        RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, state.routingTable())
+            .addAsRestore(restored, recoverySource)
+            .build();
+        return ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata()).put(restored, false))
+            .routingTable(routingTable)
+            .build();
     }
 
     private ClusterState stateWithPrimaryTermBumped(ShardRouting shardRouting) {

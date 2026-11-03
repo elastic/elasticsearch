@@ -27,6 +27,8 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -37,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -135,6 +138,60 @@ public class SkippedClusterStateIT extends ESIntegTestCase {
             dataTransport.clearAllRules();
             masterTransport.clearAllRules();
         }
+    }
+
+    /// Regression test for the `pendingAllocationStates` eviction bug in [IndicesClusterStateService],
+    /// for the close/reopen trigger rather than the shard-failure trigger used by
+    /// [#testFailedShardCacheEvictedAfterPrimaryTermBump].
+    ///
+    /// Verifies that a stale `FailureReported` ticket left behind while a node is partitioned away does
+    /// not survive a close and reopen of the index that happens entirely while the node is unreachable.
+    public void testPendingAllocationStateClearedAfterCloseReopenMissedWhilePartitioned() throws Exception {
+        final var masterNodeName = internalCluster().startMasterOnlyNode();
+        final var primaryNodeName = internalCluster().startDataOnlyNode();
+
+        final var index = createTestIndex();
+        final var shardId = new ShardId(index, SHARD_ID);
+        final var masterClusterService = internalCluster().getInstance(ClusterService.class, masterNodeName);
+        final var startedRouting = masterClusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
+        final var originalAllocationId = startedRouting.allocationId().getId();
+        final var icss = internalCluster().getInstance(IndicesClusterStateService.class, primaryNodeName);
+
+        final var partition = new NetworkDisruption(new TwoPartitions(masterNodeName, primaryNodeName), NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(partition);
+        partition.startDisrupting();
+        try {
+            // Fail the shard locally while partitioned: the failure can't reach master, so it stays a
+            // purely local FailureReported ticket -- the stale entry we're testing eviction of.
+            final var primaryShard = internalCluster().getInstance(IndicesService.class, primaryNodeName).getShardOrNull(shardId);
+            assertNotNull(primaryShard);
+            primaryShard.failShard("test", new IOException("simulated engine failure"));
+            assertBusy(
+                () -> assertTrue(
+                    icss.pendingAllocationStates.values()
+                        .stream()
+                        .anyMatch(s -> s instanceof IndicesClusterStateService.PendingAllocationState.FailureReported)
+                )
+            );
+
+            // Wait for master's fault detection to evict the now-unreachable node -- its shard shows
+            // unassigned, which is what lets close succeed without needing to reach it.
+            ensureStableCluster(1, masterNodeName);
+
+            assertAcked(client(masterNodeName).admin().indices().prepareClose(INDEX_NAME).setWaitForActiveShards(0));
+            assertAcked(client(masterNodeName).admin().indices().prepareOpen(INDEX_NAME).setWaitForActiveShards(0));
+        } finally {
+            partition.stopDisrupting();
+        }
+
+        ensureStableCluster(2, masterNodeName);
+        ensureGreen(TimeValue.timeValueSeconds(30), INDEX_NAME);
+
+        assertBusy(() -> assertTrue(icss.pendingAllocationStates.isEmpty()));
+
+        final var finalState = masterClusterService.state();
+        final var finalRouting = finalState.routingTable().shardRoutingTable(shardId).primaryShard();
+        assertThat(finalRouting.allocationId().getId(), equalTo(originalAllocationId));
     }
 
     /// Regression test for the "term is only increased as part of primary promotion" assertion

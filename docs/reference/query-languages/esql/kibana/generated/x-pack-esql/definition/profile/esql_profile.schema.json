@@ -10,37 +10,7 @@
         "query" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -50,37 +20,7 @@
         "planning" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -90,37 +30,7 @@
         "parsing" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -130,37 +40,7 @@
         "view_resolution" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -170,37 +50,7 @@
         "dataset_resolution" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -210,37 +60,7 @@
         "preanalysis" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -250,37 +70,7 @@
         "indices_resolution" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -290,37 +80,7 @@
         "enrich_resolution" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -330,37 +90,7 @@
         "inference_resolution" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -370,37 +100,7 @@
         "analysis" : {
           "anyOf" : [
             {
-              "type" : "object",
-              "properties" : {
-                "start_millis" : {
-                  "type" : "integer"
-                },
-                "start" : {
-                  "type" : "string"
-                },
-                "stop_millis" : {
-                  "type" : "integer"
-                },
-                "stop" : {
-                  "type" : "string"
-                },
-                "took_time" : {
-                  "type" : "string"
-                },
-                "took_millis" : {
-                  "type" : "integer"
-                },
-                "took_nanos" : {
-                  "type" : "integer"
-                }
-              },
-              "required" : [
-                "start_millis",
-                "stop_millis",
-                "took_millis",
-                "took_nanos"
-              ],
-              "additionalProperties" : false
+              "$ref" : "#/definitions/TimeSpan"
             },
             {
               "type" : "null"
@@ -542,65 +242,13 @@
         "first" : {
           "type" : "array",
           "items" : {
-            "type" : "object",
-            "properties" : {
-              "reason" : {
-                "type" : "string"
-              },
-              "thread_name" : {
-                "type" : "string"
-              },
-              "sleep" : {
-                "type" : "string"
-              },
-              "sleep_millis" : {
-                "type" : "integer"
-              },
-              "wake" : {
-                "type" : "string"
-              },
-              "wake_millis" : {
-                "type" : "integer"
-              }
-            },
-            "required" : [
-              "reason",
-              "thread_name",
-              "sleep_millis"
-            ],
-            "additionalProperties" : false
+            "$ref" : "#/definitions/DriverSleep"
           }
         },
         "last" : {
           "type" : "array",
           "items" : {
-            "type" : "object",
-            "properties" : {
-              "reason" : {
-                "type" : "string"
-              },
-              "thread_name" : {
-                "type" : "string"
-              },
-              "sleep" : {
-                "type" : "string"
-              },
-              "sleep_millis" : {
-                "type" : "integer"
-              },
-              "wake" : {
-                "type" : "string"
-              },
-              "wake_millis" : {
-                "type" : "integer"
-              }
-            },
-            "required" : [
-              "reason",
-              "thread_name",
-              "sleep_millis"
-            ],
-            "additionalProperties" : false
+            "$ref" : "#/definitions/DriverSleep"
           }
         }
       },
@@ -746,85 +394,7 @@
           }
         },
         "sleeps" : {
-          "type" : "object",
-          "properties" : {
-            "counts" : {
-              "type" : "object",
-              "additionalProperties" : {
-                "type" : "integer"
-              }
-            },
-            "first" : {
-              "type" : "array",
-              "items" : {
-                "type" : "object",
-                "properties" : {
-                  "reason" : {
-                    "type" : "string"
-                  },
-                  "thread_name" : {
-                    "type" : "string"
-                  },
-                  "sleep" : {
-                    "type" : "string"
-                  },
-                  "sleep_millis" : {
-                    "type" : "integer"
-                  },
-                  "wake" : {
-                    "type" : "string"
-                  },
-                  "wake_millis" : {
-                    "type" : "integer"
-                  }
-                },
-                "required" : [
-                  "reason",
-                  "thread_name",
-                  "sleep_millis"
-                ],
-                "additionalProperties" : false
-              }
-            },
-            "last" : {
-              "type" : "array",
-              "items" : {
-                "type" : "object",
-                "properties" : {
-                  "reason" : {
-                    "type" : "string"
-                  },
-                  "thread_name" : {
-                    "type" : "string"
-                  },
-                  "sleep" : {
-                    "type" : "string"
-                  },
-                  "sleep_millis" : {
-                    "type" : "integer"
-                  },
-                  "wake" : {
-                    "type" : "string"
-                  },
-                  "wake_millis" : {
-                    "type" : "integer"
-                  }
-                },
-                "required" : [
-                  "reason",
-                  "thread_name",
-                  "sleep_millis"
-                ],
-                "additionalProperties" : false
-              }
-            }
-          },
-          "required" : [
-            "counts",
-            "first",
-            "last"
-          ],
-          "additionalProperties" : false
+          "$ref" : "#/definitions/DriverSleeps"
         }
       },
       "required" : [
@@ -1997,439 +1567,92 @@
               "type" : "string"
             },
             "status" : {
-              "$ref" : "#/definitions/OperatorStatus_MMR"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_agg"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_async_external_source"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_async_operator"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_enrich"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_enrich_query_source"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_exchange_sink"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_exchange_source"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_external_field_extract"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_fetch_docs_source"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_grouped_limit"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_groupedtopn"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_hashagg"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_limit"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_linearScoreEval"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_lookup"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_lookup_query"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_lucene_source"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_metrics_info"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_mv_expand"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_page_mapping"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_page_mapping_to_iterator"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_sample"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_streaming_lookup"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_streaming_page"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_topn"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_ts_info"
-            }
-          },
-          "required" : [
-            "operator",
-            "status"
-          ],
-          "additionalProperties" : false
-        },
-        {
-          "type" : "object",
-          "properties" : {
-            "operator" : {
-              "type" : "string"
-            },
-            "status" : {
-              "$ref" : "#/definitions/OperatorStatus_values_source_reader"
+              "anyOf" : [
+                {
+                  "$ref" : "#/definitions/OperatorStatus_MMR"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_agg"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_async_external_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_async_operator"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_enrich"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_enrich_query_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_exchange_sink"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_exchange_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_external_field_extract"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_fetch_docs_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_grouped_limit"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_groupedtopn"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_hashagg"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_limit"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_linearScoreEval"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_lookup"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_lookup_query"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_lucene_source"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_metrics_info"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_mv_expand"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_page_mapping"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_page_mapping_to_iterator"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_sample"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_streaming_lookup"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_streaming_page"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_topn"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_ts_info"
+                },
+                {
+                  "$ref" : "#/definitions/OperatorStatus_values_source_reader"
+                }
+              ]
             }
           },
           "required" : [

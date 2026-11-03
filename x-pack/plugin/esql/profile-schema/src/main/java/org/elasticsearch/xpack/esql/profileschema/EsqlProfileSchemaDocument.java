@@ -12,6 +12,7 @@ import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.operator.ProfileSchema;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.TimeSpan;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
@@ -42,14 +43,36 @@ public final class EsqlProfileSchemaDocument {
      */
     public static Map<String, Object> create() {
         Map<String, Object> definitions = new LinkedHashMap<>();
-        definitions.put("EsqlProfile", copy(EsqlQueryResponse.PROFILE_SCHEMA.schema()));
+
+        Map<String, Object> esqlProfile = copy(EsqlQueryResponse.PROFILE_SCHEMA.schema());
+        Map<String, Object> nullableTimeSpan = ProfileSchema.nullable(ProfileSchema.ref("TimeSpan"));
+        for (String property : List.of(
+            EsqlQueryProfile.QUERY,
+            EsqlQueryProfile.PLANNING,
+            EsqlQueryProfile.PARSING,
+            EsqlQueryProfile.VIEW_RESOLUTION,
+            EsqlQueryProfile.DATASET_RESOLUTION,
+            EsqlQueryProfile.PRE_ANALYSIS,
+            EsqlQueryProfile.INDICES_RESOLUTION,
+            EsqlQueryProfile.ENRICH_RESOLUTION,
+            EsqlQueryProfile.INFERENCE_RESOLUTION,
+            EsqlQueryProfile.ANALYSIS
+        )) {
+            properties(esqlProfile).put(property, nullableTimeSpan);
+        }
+        definitions.put("EsqlProfile", esqlProfile);
         definitions.put("TimeSpan", copy(TimeSpan.PROFILE_SCHEMA.schema()));
-        definitions.put("DriverSleeps", copy(DriverSleeps.PROFILE_SCHEMA.schema()));
+
+        Map<String, Object> driverSleeps = copy(DriverSleeps.PROFILE_SCHEMA.schema());
+        properties(driverSleeps).put("first", ProfileSchema.array(ProfileSchema.ref("DriverSleep")));
+        properties(driverSleeps).put("last", ProfileSchema.array(ProfileSchema.ref("DriverSleep")));
+        definitions.put("DriverSleeps", driverSleeps);
         definitions.put("DriverSleep", copy(DriverSleeps.Sleep.PROFILE_SCHEMA.schema()));
         definitions.put("PlanProfile", copy(PlanProfile.PROFILE_SCHEMA.schema()));
 
         Map<String, Object> driverProfile = copy(DriverProfile.PROFILE_SCHEMA.schema());
         properties(driverProfile).put("operators", ProfileSchema.array(ProfileSchema.ref("OperatorStatus")));
+        properties(driverProfile).put("sleeps", ProfileSchema.ref("DriverSleeps"));
         definitions.put("DriverProfile", driverProfile);
 
         List<ProfileSchema.Variant<Operator.Status>> operatorVariants = EsqlProfileSchemaRegistry.operatorStatusVariants()
@@ -99,15 +122,22 @@ public final class EsqlProfileSchemaDocument {
     }
 
     private static Map<String, Object> operatorStatusSchema(List<ProfileSchema.Variant<Operator.Status>> variants) {
-        List<Map<String, Object>> alternatives = new ArrayList<>();
-        alternatives.add(strictObject(Map.of("operator", ProfileSchema.string()), List.of("operator")));
+        List<Map<String, Object>> statusAlternatives = new ArrayList<>();
         for (ProfileSchema.Variant<Operator.Status> variant : variants) {
-            Map<String, Object> properties = new LinkedHashMap<>();
-            properties.put("operator", ProfileSchema.string());
-            properties.put("status", ProfileSchema.ref(operatorDefinition(variant.name())));
-            alternatives.add(strictObject(properties, List.of("operator", "status")));
+            statusAlternatives.add(ProfileSchema.ref(operatorDefinition(variant.name())));
         }
-        return Map.of("anyOf", alternatives);
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("anyOf", statusAlternatives);
+        Map<String, Object> withStatusProperties = new LinkedHashMap<>();
+        withStatusProperties.put("operator", ProfileSchema.string());
+        withStatusProperties.put("status", status);
+        return Map.of(
+            "anyOf",
+            List.of(
+                strictObject(Map.of("operator", ProfileSchema.string()), List.of("operator")),
+                strictObject(withStatusProperties, List.of("operator", "status"))
+            )
+        );
     }
 
     private static Map<String, Object> formatReaderStatusSchema(List<ProfileSchema.Variant<FormatReaderStatus>> variants) {

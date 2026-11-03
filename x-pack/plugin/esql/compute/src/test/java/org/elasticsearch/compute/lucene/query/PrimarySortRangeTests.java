@@ -154,7 +154,10 @@ public class PrimarySortRangeTests extends ESTestCase {
         }
     }
 
-    public void testNoRangeOnPrimarySortField() throws IOException {
+    /**
+     * The index is sorted by {@link #SORT_FIELD}, but the filter is on {@code other}, so there is no range to find.
+     */
+    public void testFilterOnOtherFieldGivesNoRange() throws IOException {
         index(randomBoolean());
         assertThat(ranges(SortedNumericDocValuesField.newSlowRangeQuery("other", 1, 2)).keySet(), empty());
     }

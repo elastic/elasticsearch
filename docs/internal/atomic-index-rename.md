@@ -521,23 +521,40 @@ timing or master-queue assumptions the extra cluster state updates break
 
 ## Suggested sequence of production PRs
 
-Each step is independently reviewable and leaves `main` working without the
-rename being reachable until the last one.
+Each step is independently reviewable and leaves `main` working. The rename
+becomes reachable at step 6; everything before it is identity and lookup
+groundwork that is inert without the action, and everything after it widens
+what a rename may do.
 
 1. Test cleanup replacing `_na_` index UUIDs with unique ones (revive
-   elastic/elasticsearch#132443).
+   elastic/elasticsearch#132443). The serverless fixtures that share a UUID
+   (`ReplicaRankingContextTests`, `ReplicasUpdaterServiceTests`) go in a
+   serverless PR at the same time.
 2. `Index#equals`/`hashCode` by UUID (T1), with the `ShardId` follow-through
    and the `DataStreamIndices` equality fix.
 3. By-UUID index lookup and the lenient `index(Index)` (T2, T3), the strict
-   variant for authorization, `ClusterChangedEvent#indicesRenamed()`, and the
-   `index.rename` node feature (T9). Add a test that an ungated node refuses a
-   state containing a rename rather than deleting data.
-4. Data node rename handling (T4), including the logger re-creation and the
-   `RecoveryState` and `ClusterInfo` fixes.
-5. Randomized rename-on-create in `ESIntegTestCase` (T8), extended to the
-   module and x-pack internal cluster test suites.
-6. The `rename_index` aliases action, `MetadataRenameIndexService`, the
+   variant for authorization with the `RBACEngine` fix, the UUID uniqueness
+   validation, `ClusterChangedEvent#indicesRenamed()`, and the `index.rename`
+   node feature (T9). Add a test that an ungated node refuses a state
+   containing a rename rather than deleting data. The serverless
+   `SearchMetricsService` re-keying goes in a serverless PR once
+   `indicesRenamed()` exists.
+4. Data node and master rename handling (T4): `IndexShard#renameTo` with the
+   logger re-creation, the `RecoveryState`, `ClusterInfo` and
+   `ShardStartedTaskExecutor` fixes, and the ILM and CCR fixes (T7). None of
+   it is reachable yet, but it is the bulk of the review.
+5. The `rename_index` aliases action, `MetadataRenameIndexService`, the
    `_rename` shorthand endpoint, the transport version and the security tests
-   (T6), with the CCR and ILM fixes (T7).
-7. Repository `IndexId` reuse by UUID with the minimum-version marker (T5).
+   (T6). Ship it refusing an index with a snapshot or restore in flight, as
+   delete does, because lifting that depends on step 7.
+6. The rename-on-create trick in `ESIntegTestCase` (T8), randomized or
+   opt-in, extended to the module and x-pack internal cluster test suites. It
+   needs the action from step 5 to do anything, which is why it comes after
+   it; the opt-outs listed under test coverage come with it.
+7. Repository `IndexId` reuse by UUID with the minimum-version marker (T5),
+   then lifting the in-flight refusal on top of it: the in-progress entry
+   rewrite, the entry diff re-keying and the status update matching by UUID
+   all produce or rely on two names sharing a repository id, so they cannot
+   land before the repository handles that. The clone-versus-snapshot
+   serialization gap belongs here too.
 8. ILM and Upgrade Assistant adopting the rename.

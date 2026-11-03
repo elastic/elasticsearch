@@ -22,7 +22,8 @@ import java.util.Objects;
  *
  */
 public final class PlanTimeProfile implements Writeable, ToXContentObject {
-    public static final ProfileSchema<PlanTimeProfile> PROFILE_SCHEMA = ProfileSchema.<PlanTimeProfile>fragment(
+    public static final ProfileSchema<PlanTimeProfile> PROFILE_SCHEMA = ProfileSchema.fragment(
+        PlanTimeProfile.class,
         (builder, value, params) -> {
             if (value.logicalOptimizationNanos > 0) {
                 builder.field("logical_optimization_nanos", value.logicalOptimizationNanos);

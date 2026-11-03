@@ -319,7 +319,7 @@ public final class FetchDocsSourceOperator extends SourceOperator {
             "fetch_docs_source",
             Status::new
         );
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object((builder, value, params) -> {
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, (builder, value, params) -> {
             builder.startObject();
             builder.field("pages_emitted", value.pagesEmitted);
             builder.field("docs_emitted", value.docsEmitted);

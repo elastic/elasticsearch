@@ -28,8 +28,10 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
-    public static final ProfileSchema<ValuesSourceReaderOperatorStatus> PROFILE_SCHEMA = ProfileSchema.<
-        ValuesSourceReaderOperatorStatus>object((builder, status, params) -> status.writeProfile(builder))
+    public static final ProfileSchema<ValuesSourceReaderOperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        ValuesSourceReaderOperatorStatus.class,
+        (builder, status, params) -> status.writeProfile(builder)
+    )
         .required("readers_built", ProfileSchema.dynamicObject(ProfileSchema.integer()))
         .optional("converters_used", ProfileSchema.dynamicObject(ProfileSchema.integer()))
         .required("values_loaded", ProfileSchema.integer())

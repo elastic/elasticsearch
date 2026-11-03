@@ -403,7 +403,8 @@ public final class LookupQueryOperator implements Operator {
             "lookup_query",
             Status::new
         );
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
             (builder, status, params) -> status.writeProfile(builder)
         )
             .required("pages_received", ProfileSchema.integer())

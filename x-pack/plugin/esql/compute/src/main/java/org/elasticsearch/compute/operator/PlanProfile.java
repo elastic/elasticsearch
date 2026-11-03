@@ -25,7 +25,7 @@ public record PlanProfile(
     PlanTimeProfile planTimeProfile
 ) implements Writeable, ToXContentObject {
 
-    public static final ProfileSchema<PlanProfile> PROFILE_SCHEMA = ProfileSchema.<PlanProfile>object((builder, value, params) -> {
+    public static final ProfileSchema<PlanProfile> PROFILE_SCHEMA = ProfileSchema.of(PlanProfile.class, (builder, value, params) -> {
         builder.startObject();
         builder.field("description", value.description);
         builder.field("cluster_name", value.clusterName);

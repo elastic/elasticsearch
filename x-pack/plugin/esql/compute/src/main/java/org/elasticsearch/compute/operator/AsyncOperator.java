@@ -278,7 +278,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             "async_operator",
             Status::new
         );
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object((builder, status, params) -> {
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, (builder, status, params) -> {
             builder.startObject();
             status.innerToXContent(builder);
             return builder.endObject();

@@ -59,7 +59,8 @@ public record DriverProfile(
     DriverSleeps sleeps
 ) implements Writeable, ChunkedToXContentObject {
 
-    public static final ProfileSchema<DriverProfile> PROFILE_SCHEMA = ProfileSchema.<DriverProfile>chunkedObject(
+    public static final ProfileSchema<DriverProfile> PROFILE_SCHEMA = ProfileSchema.chunked(
+        DriverProfile.class,
         (value, params) -> Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
             b.field("description", value.description);
             b.field("cluster_name", value.clusterName);

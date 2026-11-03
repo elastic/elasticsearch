@@ -31,13 +31,16 @@ public record CsvReaderStatus(String format, long rowsEmitted, long parseErrors,
         "csv",
         CsvReaderStatus::new
     );
-    public static final ProfileSchema<CsvReaderStatus> PROFILE_SCHEMA = ProfileSchema.<CsvReaderStatus>object((builder, status, params) -> {
-        builder.field("format", status.format);
-        builder.field("rows_emitted", status.rowsEmitted);
-        builder.field("parse_errors", status.parseErrors);
-        builder.field("header_detected", status.headerDetected);
-        return builder;
-    })
+    public static final ProfileSchema<CsvReaderStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        CsvReaderStatus.class,
+        (builder, status, params) -> {
+            builder.field("format", status.format);
+            builder.field("rows_emitted", status.rowsEmitted);
+            builder.field("parse_errors", status.parseErrors);
+            builder.field("header_detected", status.headerDetected);
+            return builder;
+        }
+    )
         .required("format", ProfileSchema.enumeration("csv", "tsv"))
         .required("rows_emitted", ProfileSchema.integer())
         .required("parse_errors", ProfileSchema.integer())

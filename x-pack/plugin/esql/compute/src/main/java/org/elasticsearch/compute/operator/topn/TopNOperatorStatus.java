@@ -27,7 +27,8 @@ public class TopNOperatorStatus implements Operator.Status {
         "topn",
         TopNOperatorStatus::new
     );
-    public static final ProfileSchema<TopNOperatorStatus> PROFILE_SCHEMA = ProfileSchema.<TopNOperatorStatus>object(
+    public static final ProfileSchema<TopNOperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        TopNOperatorStatus.class,
         (builder, status, params) -> status.writeProfile(builder)
     )
         .required("receive_nanos", ProfileSchema.integer())

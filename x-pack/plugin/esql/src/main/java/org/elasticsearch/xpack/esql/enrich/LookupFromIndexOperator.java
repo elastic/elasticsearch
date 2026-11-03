@@ -360,7 +360,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             Status::new
         );
 
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(Status::toXContent)
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, Status::toXContent)
             .required("process_nanos", ProfileSchema.integer())
             .optional("process_time", ProfileSchema.string())
             .required("pages_received", ProfileSchema.integer())

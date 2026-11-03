@@ -657,7 +657,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             "parallel_hashagg_extra_fields",
             PartitioningStatus::new
         );
-        private static final ProfileSchema<PartitioningStatus> PARTITIONING_SCHEMA = ProfileSchema.<PartitioningStatus>object(
+        private static final ProfileSchema<PartitioningStatus> PARTITIONING_SCHEMA = ProfileSchema.of(
+            PartitioningStatus.class,
             (builder, status, params) -> builder
         )
             .required("add_input_nanos", ProfileSchema.integer())
@@ -678,7 +679,8 @@ public final class ParallelHashAggregationOperator implements Operator {
             .optional("inline_emit_time", ProfileSchema.string())
             .required("worker_tasks", ProfileSchema.integer())
             .build();
-        public static final ProfileSchema<PartitioningStatus> PROFILE_SCHEMA = ProfileSchema.<PartitioningStatus>fragment(
+        public static final ProfileSchema<PartitioningStatus> PROFILE_SCHEMA = ProfileSchema.fragment(
+            PartitioningStatus.class,
             (builder, status, params) -> {
                 status.writeProfile(builder);
                 return builder;

@@ -231,7 +231,8 @@ public class GroupedLimitOperator implements Operator, Accountable {
             "grouped_limit",
             Status::new
         );
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
             (builder, status, params) -> status.writeProfile(builder)
         )
             .required("limit_per_group", ProfileSchema.integer())

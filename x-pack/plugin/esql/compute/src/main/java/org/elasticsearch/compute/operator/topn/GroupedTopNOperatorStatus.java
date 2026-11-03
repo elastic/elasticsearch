@@ -27,7 +27,8 @@ public class GroupedTopNOperatorStatus implements Operator.Status {
         "groupedtopn",
         GroupedTopNOperatorStatus::new
     );
-    public static final ProfileSchema<GroupedTopNOperatorStatus> PROFILE_SCHEMA = ProfileSchema.<GroupedTopNOperatorStatus>object(
+    public static final ProfileSchema<GroupedTopNOperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        GroupedTopNOperatorStatus.class,
         (builder, status, params) -> status.writeProfile(builder)
     )
         .required("receive_nanos", ProfileSchema.integer())

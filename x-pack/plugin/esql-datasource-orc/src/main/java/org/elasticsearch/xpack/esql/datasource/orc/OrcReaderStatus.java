@@ -46,21 +46,24 @@ public record OrcReaderStatus(
         "orc",
         OrcReaderStatus::new
     );
-    public static final ProfileSchema<OrcReaderStatus> PROFILE_SCHEMA = ProfileSchema.<OrcReaderStatus>object((builder, status, params) -> {
-        builder.field("format", status.format());
-        builder.field("rows_emitted", status.rowsEmitted);
-        builder.field("footer_read_nanos", status.footerReadNanos);
-        builder.field("footer_size_bytes", status.footerSizeBytes);
-        builder.field("footer_cache_hits", status.footerCacheHits);
-        builder.field("footer_cache_misses", status.footerCacheMisses);
-        builder.field("stripes_in_file", status.stripesInFile);
-        builder.field("stripes_total", status.stripesTotal);
-        builder.field("predicate_pushdown_used", status.predicatePushdownUsed);
-        builder.field("predicate_columns", status.predicateColumns);
-        builder.field("columns_projected", status.columnsProjected);
-        builder.field("columns_total", status.columnsTotal);
-        return builder;
-    })
+    public static final ProfileSchema<OrcReaderStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        OrcReaderStatus.class,
+        (builder, status, params) -> {
+            builder.field("format", status.format());
+            builder.field("rows_emitted", status.rowsEmitted);
+            builder.field("footer_read_nanos", status.footerReadNanos);
+            builder.field("footer_size_bytes", status.footerSizeBytes);
+            builder.field("footer_cache_hits", status.footerCacheHits);
+            builder.field("footer_cache_misses", status.footerCacheMisses);
+            builder.field("stripes_in_file", status.stripesInFile);
+            builder.field("stripes_total", status.stripesTotal);
+            builder.field("predicate_pushdown_used", status.predicatePushdownUsed);
+            builder.field("predicate_columns", status.predicateColumns);
+            builder.field("columns_projected", status.columnsProjected);
+            builder.field("columns_total", status.columnsTotal);
+            return builder;
+        }
+    )
         .required("format", ProfileSchema.constant("orc"))
         .required("rows_emitted", ProfileSchema.integer())
         .required("footer_read_nanos", ProfileSchema.integer())

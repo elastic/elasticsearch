@@ -324,7 +324,8 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             "enrich_query_source",
             Status::new
         );
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
             (builder, status, params) -> status.writeProfile(builder)
         ).required("bytes_read", ProfileSchema.integer()).build();
 

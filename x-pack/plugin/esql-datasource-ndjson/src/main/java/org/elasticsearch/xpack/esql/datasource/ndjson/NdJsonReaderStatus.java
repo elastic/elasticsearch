@@ -29,7 +29,8 @@ public record NdJsonReaderStatus(long rowsEmitted, long parseErrors) implements 
         "ndjson",
         NdJsonReaderStatus::new
     );
-    public static final ProfileSchema<NdJsonReaderStatus> PROFILE_SCHEMA = ProfileSchema.<NdJsonReaderStatus>object(
+    public static final ProfileSchema<NdJsonReaderStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        NdJsonReaderStatus.class,
         (builder, status, params) -> {
             builder.field("format", status.format());
             builder.field("rows_emitted", status.rowsEmitted);

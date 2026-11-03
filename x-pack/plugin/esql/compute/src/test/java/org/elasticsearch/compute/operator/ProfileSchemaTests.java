@@ -20,7 +20,7 @@ import java.util.Map;
 public class ProfileSchemaTests extends ESTestCase {
 
     public void testWritesObjectAndDescribesItsFields() throws IOException {
-        ProfileSchema<Value> schema = ProfileSchema.<Value>object((builder, value, params) -> {
+        ProfileSchema<Value> schema = ProfileSchema.of(Value.class, (builder, value, params) -> {
             builder.startObject();
             builder.field("name", value.name());
             if (value.count() > 0) {
@@ -39,13 +39,14 @@ public class ProfileSchemaTests extends ESTestCase {
     }
 
     public void testRejectsDuplicateProperty() {
-        ProfileSchema.Builder<Value> builder = ProfileSchema.object((xContent, value, params) -> xContent);
+        ProfileSchema.Builder<Value> builder = ProfileSchema.of(Value.class, (xContent, value, params) -> xContent);
         builder.required("name", ProfileSchema.string());
         expectThrows(IllegalArgumentException.class, () -> builder.optional("name", ProfileSchema.string()));
     }
 
     public void testChunkedWriterIsUsedForDirectAndChunkedOutput() throws IOException {
-        ProfileSchema<Value> schema = ProfileSchema.<Value>chunkedObject(
+        ProfileSchema<Value> schema = ProfileSchema.chunked(
+            Value.class,
             (value, params) -> Iterators.concat(
                 Iterators.single((builder, chunkParams) -> builder.startObject().field("name", value.name())),
                 Iterators.single((builder, chunkParams) -> builder.endObject())

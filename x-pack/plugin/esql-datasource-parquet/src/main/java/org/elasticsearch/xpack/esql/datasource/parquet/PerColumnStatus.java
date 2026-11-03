@@ -29,13 +29,16 @@ public record PerColumnStatus(String materialization) implements Writeable, ToXC
 
     public static final String MATERIALIZATION_EAGER = "eager";
     public static final String MATERIALIZATION_LATE = "late";
-    public static final ProfileSchema<PerColumnStatus> PROFILE_SCHEMA = ProfileSchema.<PerColumnStatus>object((builder, status, params) -> {
-        builder.startObject();
-        if (status.materialization != null) {
-            builder.field("materialization", status.materialization);
+    public static final ProfileSchema<PerColumnStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        PerColumnStatus.class,
+        (builder, status, params) -> {
+            builder.startObject();
+            if (status.materialization != null) {
+                builder.field("materialization", status.materialization);
+            }
+            return builder.endObject();
         }
-        return builder.endObject();
-    }).optional("materialization", ProfileSchema.enumeration(MATERIALIZATION_EAGER, MATERIALIZATION_LATE)).build();
+    ).optional("materialization", ProfileSchema.enumeration(MATERIALIZATION_EAGER, MATERIALIZATION_LATE)).build();
 
     public PerColumnStatus(StreamInput in) throws IOException {
         this(in.readOptionalString());

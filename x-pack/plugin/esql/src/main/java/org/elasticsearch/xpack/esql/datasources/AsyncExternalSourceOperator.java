@@ -308,7 +308,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             Status::new
         );
 
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(Status::toXContent)
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, Status::toXContent)
             .required("pages_waiting", ProfileSchema.integer())
             .required("pages_emitted", ProfileSchema.integer())
             .required("rows_emitted", ProfileSchema.integer())

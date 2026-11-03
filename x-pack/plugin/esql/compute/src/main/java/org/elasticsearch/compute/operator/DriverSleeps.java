@@ -43,7 +43,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
             "esql_thread_name_in_driver_profile"
         );
 
-        public static final ProfileSchema<Sleep> PROFILE_SCHEMA = ProfileSchema.<Sleep>object((builder, value, params) -> {
+        public static final ProfileSchema<Sleep> PROFILE_SCHEMA = ProfileSchema.of(Sleep.class, (builder, value, params) -> {
             builder.startObject();
             builder.field("reason", value.reason);
             builder.field("thread_name", value.threadName);
@@ -97,7 +97,7 @@ public record DriverSleeps(Map<String, Long> counts, List<Sleep> first, List<Sle
         }
     }
 
-    public static final ProfileSchema<DriverSleeps> PROFILE_SCHEMA = ProfileSchema.<DriverSleeps>object((builder, value, params) -> {
+    public static final ProfileSchema<DriverSleeps> PROFILE_SCHEMA = ProfileSchema.of(DriverSleeps.class, (builder, value, params) -> {
         builder.startObject();
         builder.startObject("counts");
         for (Map.Entry<String, Long> count : value.counts.entrySet()) {

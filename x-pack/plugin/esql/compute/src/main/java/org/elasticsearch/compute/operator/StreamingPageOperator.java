@@ -120,7 +120,8 @@ public class StreamingPageOperator extends SinkOperator {
             "streaming_page",
             Status::new
         );
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
             (builder, status, params) -> status.writeProfile(builder)
         ).required("pages_emitted", ProfileSchema.integer()).required("rows_emitted", ProfileSchema.integer()).build();
 

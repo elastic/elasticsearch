@@ -760,11 +760,17 @@ public class StreamingLookupFromIndexOperator implements Operator {
             StreamingLookupStatus::new
         );
 
-        private static final Map<String, Object> LOOKUP_PLAN_SCHEMA = ProfileSchema.<Map.Entry<String, Set<String>>>object(
-            (builder, value, params) -> builder
-        ).required("workers", ProfileSchema.array(ProfileSchema.string())).required("plan", ProfileSchema.string()).build().schema();
+        private record LookupPlan(Set<String> workers, String plan) {
+            private static final ProfileSchema<LookupPlan> PROFILE_SCHEMA = ProfileSchema.of(LookupPlan.class, (builder, value, params) -> {
+                builder.startObject();
+                builder.array("workers", value.workers.toArray(String[]::new));
+                builder.field("plan", value.plan);
+                return builder.endObject();
+            }).required("workers", ProfileSchema.array(ProfileSchema.string())).required("plan", ProfileSchema.string()).build();
+        }
 
-        public static final ProfileSchema<StreamingLookupStatus> PROFILE_SCHEMA = ProfileSchema.<StreamingLookupStatus>object(
+        public static final ProfileSchema<StreamingLookupStatus> PROFILE_SCHEMA = ProfileSchema.of(
+            StreamingLookupStatus.class,
             StreamingLookupStatus::toXContent
         )
             .required("pages_received", ProfileSchema.integer())
@@ -774,7 +780,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             .required("planning_nanos", ProfileSchema.integer())
             .required("process_nanos", ProfileSchema.integer())
             .required("bytes_read", ProfileSchema.integer())
-            .optional("lookup_plans", ProfileSchema.array(LOOKUP_PLAN_SCHEMA))
+            .optional("lookup_plans", ProfileSchema.array(LookupPlan.PROFILE_SCHEMA.schema()))
             .build();
 
         // Reuse the streaming session ID version since streaming is not in production yet
@@ -864,10 +870,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             if (status.planToWorkers.isEmpty() == false) {
                 builder.startArray("lookup_plans");
                 for (Map.Entry<String, Set<String>> entry : status.planToWorkers.entrySet()) {
-                    builder.startObject();
-                    builder.array("workers", entry.getValue().toArray(String[]::new));
-                    builder.field("plan", entry.getKey());
-                    builder.endObject();
+                    LookupPlan.PROFILE_SCHEMA.write(builder, new LookupPlan(entry.getValue(), entry.getKey()), params);
                 }
                 builder.endArray();
             }

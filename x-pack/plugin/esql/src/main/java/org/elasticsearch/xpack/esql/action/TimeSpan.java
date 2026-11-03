@@ -25,7 +25,7 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  */
 public record TimeSpan(long startMillis, long startNanos, long stopMillis, long stopNanos) implements Writeable, ToXContentObject {
 
-    public static final ProfileSchema<TimeSpan> PROFILE_SCHEMA = ProfileSchema.<TimeSpan>object(TimeSpan::toXContent)
+    public static final ProfileSchema<TimeSpan> PROFILE_SCHEMA = ProfileSchema.of(TimeSpan.class, TimeSpan::toXContent)
         .required("start_millis", ProfileSchema.integer())
         .optional("start", ProfileSchema.string())
         .required("stop_millis", ProfileSchema.integer())

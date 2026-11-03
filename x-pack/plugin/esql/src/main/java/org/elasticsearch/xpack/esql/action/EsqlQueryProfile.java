@@ -53,7 +53,8 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
 
     private static final Map<String, Object> NULLABLE_TIME_SPAN = ProfileSchema.nullable(TimeSpan.PROFILE_SCHEMA.schema());
 
-    public static final ProfileSchema<EsqlQueryProfile> PROFILE_SCHEMA = ProfileSchema.<EsqlQueryProfile>fragment(
+    public static final ProfileSchema<EsqlQueryProfile> PROFILE_SCHEMA = ProfileSchema.fragment(
+        EsqlQueryProfile.class,
         EsqlQueryProfile::toXContent
     )
         .required(QUERY, NULLABLE_TIME_SPAN)

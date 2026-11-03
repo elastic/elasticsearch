@@ -46,33 +46,40 @@ public final class ProfileSchema<T> {
     }
 
     private final Map<String, Object> schema;
+    private final Class<T> javaType;
     private final Writer<T> writer;
     private final ChunkedWriter<T> chunkedWriter;
 
-    private ProfileSchema(Map<String, Object> schema, Writer<T> writer, ChunkedWriter<T> chunkedWriter) {
+    private ProfileSchema(Map<String, Object> schema, Class<T> javaType, Writer<T> writer, ChunkedWriter<T> chunkedWriter) {
         this.schema = Collections.unmodifiableMap(new LinkedHashMap<>(schema));
+        this.javaType = Objects.requireNonNull(javaType);
         this.writer = writer;
         this.chunkedWriter = chunkedWriter;
     }
 
-    /** Build a strict object schema. */
-    public static <T> Builder<T> object(Writer<T> writer) {
-        return new Builder<>(Objects.requireNonNull(writer), null, false);
+    /** Build a strict schema for an object of {@code javaType}. */
+    public static <T> Builder<T> of(Class<T> javaType, Writer<T> writer) {
+        return new Builder<>(javaType, Objects.requireNonNull(writer), null, false);
     }
 
-    /** Build a strict object schema whose production writer is chunked. */
-    public static <T> Builder<T> chunkedObject(ChunkedWriter<T> writer) {
-        return new Builder<>(null, Objects.requireNonNull(writer), false);
+    /** Build a strict schema for an object whose production writer is chunked. */
+    public static <T> Builder<T> chunked(Class<T> javaType, ChunkedWriter<T> writer) {
+        return new Builder<>(javaType, null, Objects.requireNonNull(writer), false);
     }
 
     /** Build an object fragment intended to be inlined into a containing object. */
-    public static <T> Builder<T> fragment(Writer<T> writer) {
-        return new Builder<>(Objects.requireNonNull(writer), null, true);
+    public static <T> Builder<T> fragment(Class<T> javaType, Writer<T> writer) {
+        return new Builder<>(javaType, Objects.requireNonNull(writer), null, true);
     }
 
     /** The draft-7 schema for this object or fragment. */
     public Map<String, Object> schema() {
         return schema;
+    }
+
+    /** The Java value described and written by this schema. */
+    public Class<T> javaType() {
+        return javaType;
     }
 
     /** Write the object or fragment using the writer colocated with its schema. */
@@ -178,13 +185,15 @@ public final class ProfileSchema<T> {
 
     /** Builds the ordered properties and required list for an object or inline fragment. */
     public static final class Builder<T> {
+        private final Class<T> javaType;
         private final Writer<T> writer;
         private final ChunkedWriter<T> chunkedWriter;
         private final boolean fragment;
         private final Map<String, Object> properties = new LinkedHashMap<>();
         private final List<String> required = new ArrayList<>();
 
-        private Builder(Writer<T> writer, ChunkedWriter<T> chunkedWriter, boolean fragment) {
+        private Builder(Class<T> javaType, Writer<T> writer, ChunkedWriter<T> chunkedWriter, boolean fragment) {
+            this.javaType = Objects.requireNonNull(javaType);
             this.writer = writer;
             this.chunkedWriter = chunkedWriter;
             this.fragment = fragment;
@@ -248,7 +257,7 @@ public final class ProfileSchema<T> {
             if (fragment == false) {
                 result.put("additionalProperties", false);
             }
-            return new ProfileSchema<>(result, writer, chunkedWriter);
+            return new ProfileSchema<>(result, javaType, writer, chunkedWriter);
         }
 
         private void property(String name, Map<String, Object> propertySchema) {

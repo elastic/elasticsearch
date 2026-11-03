@@ -26,7 +26,7 @@ import java.util.Map;
  */
 public record OperatorStatus(String operator, @Nullable Operator.Status status) implements Writeable, ToXContentObject {
 
-    public static final ProfileSchema<OperatorStatus> PROFILE_SCHEMA = ProfileSchema.<OperatorStatus>object((builder, value, params) -> {
+    public static final ProfileSchema<OperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(OperatorStatus.class, (builder, value, params) -> {
         builder.startObject();
         builder.field("operator", value.operator);
         if (value.status != null) {

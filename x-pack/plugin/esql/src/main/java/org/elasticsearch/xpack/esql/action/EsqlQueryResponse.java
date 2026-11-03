@@ -63,7 +63,8 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
     /** Schema and chunked writer for the value of the response's {@code profile} field. */
-    public static final ProfileSchema<ProfileValue> PROFILE_SCHEMA = ProfileSchema.<ProfileValue>chunkedObject(
+    public static final ProfileSchema<ProfileValue> PROFILE_SCHEMA = ProfileSchema.chunked(
+        ProfileValue.class,
         (value, params) -> Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((builder, chunkParams) -> {
             if (value.queryProfile() != null) {
                 EsqlQueryProfile.PROFILE_SCHEMA.write(builder, value.queryProfile(), chunkParams);

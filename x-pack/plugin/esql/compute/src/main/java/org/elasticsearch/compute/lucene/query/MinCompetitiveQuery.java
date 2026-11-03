@@ -245,7 +245,8 @@ public class MinCompetitiveQuery implements Releasable {
         int updateInvocations,
         long updateNanos
     ) implements Writeable, ToXContentObject {
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
             (builder, status, params) -> status.writeProfile(builder)
         )
             .required("changed_value", ProfileSchema.integer())

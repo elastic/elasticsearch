@@ -55,7 +55,8 @@ public record ParquetReaderStatus(
         "parquet",
         ParquetReaderStatus::new
     );
-    public static final ProfileSchema<ParquetReaderStatus> PROFILE_SCHEMA = ProfileSchema.<ParquetReaderStatus>object(
+    public static final ProfileSchema<ParquetReaderStatus> PROFILE_SCHEMA = ProfileSchema.of(
+        ParquetReaderStatus.class,
         (builder, status, params) -> {
             builder.field("format", status.format());
             builder.field("rows_emitted", status.rowsEmitted);

@@ -207,7 +207,7 @@ public abstract class AbstractPageMappingToIteratorOperator implements Operator 
             "page_mapping_to_iterator",
             Status::new
         );
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object((builder, status, params) -> {
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, (builder, status, params) -> {
             builder.startObject();
             status.innerToXContent(builder);
             return builder.endObject();

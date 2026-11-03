@@ -103,7 +103,8 @@ public class ExchangeSinkOperator extends SinkOperator {
             "exchange_sink",
             Status::new
         );
-        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.<Status>object(
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
             (builder, status, params) -> status.writeProfile(builder)
         ).required("pages_received", ProfileSchema.integer()).required("rows_received", ProfileSchema.integer()).build();
 

@@ -129,6 +129,7 @@ public class AshPostingsListWriter {
         final int effectiveTrainingFactor = useMergeTrainingFactor ? ashConfig.trainingFactor() : ashConfig.flushTrainingFactor();
         AsymmetricHashingQuantizer ashQuantizer = new AsymmetricHashingQuantizer(
             ashConfig.projectedDimsFraction(),
+            ashConfig.maxProjectedDims(),
             ashConfig.bitsPerDim(),
             AsymmetricHashingQuantizer.Method.LEARNED,
             ashConfig.trainingIterations(),

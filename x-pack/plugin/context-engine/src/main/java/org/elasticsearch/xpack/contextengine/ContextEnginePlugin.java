@@ -96,6 +96,16 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The rerank endpoint that orders session memory search hits. It must support the {@code rerank} task type with image and
+     * PDF documents as well as text; the default is the preconfigured multimodal Jina reranker.
+     */
+    public static final Setting<String> SESSION_MEMORY_RERANK_INFERENCE_ID = Setting.simpleString(
+        "xpack.context_engine.session_memory.rerank_inference_id",
+        ".jina-reranker-m0",
+        Setting.Property.NodeScope
+    );
+
     private final Settings settings;
     private final String sessionMemoryInferenceId;
 
@@ -106,7 +116,7 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(SESSION_MEMORY_INFERENCE_ID, AiIndexTemplateRegistry.AI_INDEX_REGISTRY_ENABLED);
+        return List.of(SESSION_MEMORY_INFERENCE_ID, SESSION_MEMORY_RERANK_INFERENCE_ID, AiIndexTemplateRegistry.AI_INDEX_REGISTRY_ENABLED);
     }
 
     @Override

@@ -1541,10 +1541,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ) {
             final var key = ShardAllocationKey.fromRouting(shardRouting);
             // Relies on InFlight#equals using reference-identity rather than value-equality
-            if (pendingAllocationStates.remove(key, inFlightTicket) == false) {
-                logger.debug("{} ignoring stale recovery success; no longer the current attempt", key);
-                return;
-            }
+            pendingAllocationStates.remove(key, inFlightTicket);
             shardStateAction.shardStarted(
                 shardRouting,
                 primaryTerm,

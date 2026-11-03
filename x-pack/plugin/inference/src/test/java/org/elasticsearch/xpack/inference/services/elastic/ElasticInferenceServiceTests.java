@@ -126,8 +126,10 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataFormat.URL;
 import static org.elasticsearch.inference.DataType.IMAGE;
+import static org.elasticsearch.inference.DataType.PDF;
 import static org.elasticsearch.inference.InferenceString.ofText;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.inference.InferenceStringTests.inferenceStringToMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
@@ -2423,6 +2425,17 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 inferenceStringGroups.get(i).inferenceStrings().stream().map(InferenceString::value).toList(),
                 equalTo(expectedChunks.get(i))
             );
+        }
+    }
+
+    public void testRequiresSingleInputEmbeddingRequestForPdf() throws IOException {
+        try (var service = createServiceWithMockSender()) {
+            Model model = mock(Model.class);
+            var pdfInput = createRandomUsingDataTypes(EnumSet.of(PDF));
+            var nonPdfInput = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(PDF)));
+
+            assertTrue(service.requiresSingleInputEmbeddingRequest(model, pdfInput));
+            assertFalse(service.requiresSingleInputEmbeddingRequest(model, nonPdfInput));
         }
     }
 

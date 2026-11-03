@@ -84,7 +84,7 @@ public class HashJoinMapperTests extends ESTestCase {
         PhysicalPlan physical = new Mapper().map(new Versioned<>(hashJoin, TransportVersion.current()));
 
         ProjectExec project = as(physical, ProjectExec.class);
-        // Left-outer: HashJoinExec directly under Project — no IsNotNull(marker) filter.
+        // Left-outer: HashJoinExec directly under Project - no IsNotNull(marker) filter.
         HashJoinExec join = as(project.child(), HashJoinExec.class);
         assertThat(join.addedFields().stream().anyMatch(a -> a.name().startsWith(JOIN_MARKER_PREFIX)), equalTo(true));
     }

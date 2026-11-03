@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.TranslationContext.IntermediateResult;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +27,11 @@ import java.util.Set;
  */
 public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall permits HistogramFraction, HistogramQuantile {
     public static final String LE_LABEL = "le";
+    /**
+     * Labels a classic histogram function leaves out of its input's metadata: {@code le}, which it collapses, and the metric
+     * name, which it drops like Prometheus does. Within one metric bucket rows differ by {@code le} alone.
+     */
+    private static final Set<String> COLLAPSED_LABELS = Set.of(LE_LABEL, LabelMatcher.NAME);
 
     private List<Attribute> output;
 
@@ -45,7 +51,7 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
             var keys = new ArrayList<Attribute>();
             for (Attribute attr : child().output()) {
                 if (PromqlLabels.isMetadataLabel(attr)) {
-                    keys.add(UnresolvedPromqlAttribute.metadata(source(), Set.of(LE_LABEL)));
+                    keys.add(UnresolvedPromqlAttribute.metadata(source(), COLLAPSED_LABELS));
                 } else if (MetadataAttribute.isTimeSeriesAttributeName(attr.name())
                     || LE_LABEL.equals(PromqlLabels.labelName(attr)) == false) {
                         keys.add(attr);
@@ -63,7 +69,7 @@ public abstract sealed class HistogramFunctionCall extends PromqlFunctionCall pe
     private List<Attribute> bucketKeys(TranslationContext context) {
         var keys = new ArrayList<Attribute>();
         if (PromqlLabels.metadataLabel(child().output()) != null) {
-            keys.add(UnresolvedPromqlAttribute.metadata(source(), Set.of(LE_LABEL)));
+            keys.add(UnresolvedPromqlAttribute.metadata(source(), COLLAPSED_LABELS));
         }
         keys.add(UnresolvedPromqlAttribute.label(source(), LE_LABEL));
         return keys;

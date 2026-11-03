@@ -346,4 +346,58 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
         NestedObjectMapper child = (NestedObjectMapper) parent.getMapper("c");
         assertTrue(child.isIncludeInRoot());
     }
+
+    /**
+     * A disabled object drops everything below it, so the settings of the objects it held are not recorded by prefix: a longer
+     * prefix inside the disabled one would let a field there be mapped dynamically.
+     */
+    public void testPrefixPropertiesBelowADisabledObjectAreNotRecorded() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        String disabledObject = """
+            {
+              "_doc": {
+                "properties": {
+                  "foo": {
+                    "enabled": false, "subobjects": false,
+                    "properties": {
+                      "bar": { "dynamic": "true", "properties": { "x": { "type": "keyword" } } }
+                    }
+                  }
+                }
+              }
+            }
+            """;
+
+        RootObjectMapper root = mapperService.parseMappings(new CompressedXContent(disabledObject))
+            .build(MergeReason.MAPPING_UPDATE)
+            .getRoot();
+
+        assertThat(root.getPrefixProperties().get("foo").enabled(), equalTo(false));
+        assertNull(root.getPrefixProperties().get("foo.bar"));
+    }
+
+    /**
+     * An object declared twice, through object notation and through a dotted key, is merged before what is below it is normalized,
+     * so that what is below sees the settings the merged object carries and not those of one of the declarations.
+     */
+    public void testDuplicateParentsAreMergedBeforeTheirDescendantsAreNormalized() throws IOException {
+        String duplicateParents = """
+            {
+              "_doc": {
+                "properties": {
+                  "a": { "dynamic": "false", "properties": { "x": { "type": "keyword" } } },
+                  "a.b": {
+                    "type": "object", "subobjects": false,
+                    "properties": { "c": { "type": "object", "dynamic": "false", "properties": { "y": { "type": "keyword" } } } }
+                  }
+                }
+              }
+            }
+            """;
+
+        Mapping mapping = parse(duplicateParents).build(MergeReason.MAPPING_UPDATE);
+
+        assertNotNull(mapping.getRoot().getMapper("a"));
+    }
 }

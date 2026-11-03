@@ -50,7 +50,6 @@ public class NestedObjectMapper extends ObjectMapper {
 
         private Explicit<Boolean> includeInRoot = Explicit.IMPLICIT_FALSE;
         private Explicit<Boolean> includeInParent = Explicit.IMPLICIT_FALSE;
-        private boolean parentIncludedInRoot = true;
         private final IndexVersion indexCreatedVersion;
         private final Function<Query, BitSetProducer> bitSetProducer;
         private final IndexSettings indexSettings;
@@ -146,9 +145,6 @@ public class NestedObjectMapper extends ObjectMapper {
                 );
             }
             NestedMapperBuilderContext nestedContext = childContext(context);
-            // the context says what the parent is now, which can differ from what was recorded if the parent was merged since
-            recordParentIncludes(context);
-            normalizeIncludes();
             final Query parentTypeFilter = context instanceof NestedMapperBuilderContext nc
                 ? nc.nestedTypeFilter
                 : Queries.newNonNestedFilter(indexCreatedVersion);
@@ -172,17 +168,9 @@ public class NestedObjectMapper extends ObjectMapper {
 
         @Override
         public void normalize(MapperBuilderContext context) {
-            // normalization of index templates can drop parent includes, so we record
-            // any here before normalizing.
-            recordParentIncludes(context);
             super.normalize(context);
-        }
-
-        private void recordParentIncludes(MapperBuilderContext context) {
-            parentIncludedInRoot = context instanceof NestedMapperBuilderContext nc ? nc.parentIncludedInRoot : true;
-        }
-
-        private void normalizeIncludes() {
+            // the root document counts as a parent that this object is included in
+            boolean parentIncludedInRoot = context instanceof NestedMapperBuilderContext nc ? nc.parentIncludedInRoot : true;
             if (parentIncludedInRoot && this.includeInParent.value()) {
                 this.includeInRoot = Explicit.IMPLICIT_FALSE;
             }

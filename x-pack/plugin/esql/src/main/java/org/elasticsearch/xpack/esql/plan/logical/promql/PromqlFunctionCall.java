@@ -168,7 +168,7 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
         if (child() instanceof RangeSelector rangeSelector) {
             window = context.cmd().resolveRangeWindow(rangeSelector.range());
         }
-        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration());
+        var promqlCtx = new PromqlContext(context.time(), window, child.step(), context.configuration(), context.cmd().timestamp());
         Expression operand = child.value();
         return context.eval(child, TranslationContext.emptyRangeAsNull(buildEsqlFunction(operand, promqlCtx), operand, context.time()));
     }

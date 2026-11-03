@@ -649,16 +649,18 @@ name. The prototype does respect index metadata blocks (`read_only`,
 write; a `write` block alone does not stop a rename, which is what the ILM
 shrink and searchable snapshot flows need.
 
-Still to decide, found by the D2 audit: whether to refuse indices that a
-feature owns by naming convention and tracks by name (`.ml-*`, `.transform-*`,
-`.enrich-*`, profiling, the serverless metering records), and whether to
-refuse a rename while a feature is building the index under a name it stored
-in its own state (ILM's shrink and searchable snapshot actions, downsample
-tasks). Renaming those breaks the feature the way deleting them would; a delete
-is allowed today, so refusing a rename would be stricter than the status quo.
-The cheapest consistent rule is to refuse nothing beyond system indices and
-document it; the safest is to refuse hidden indices by default with an
-override, the way the delete of a system index needs the system-index header.
+Decided (2026-11-03): stay consistent with delete. Hidden indices, and the
+indices a feature owns by naming convention and tracks by name (`.ml-*`,
+`.transform-*`, `.enrich-*`, profiling, the serverless metering records), may
+be renamed by anyone with `manage` on both names, and so may an index a
+feature is still building under a name it stored in its own state (ILM's
+shrink and searchable snapshot actions, downsample tasks). Renaming those
+breaks the feature the way deleting them would, and a delete is allowed
+today with the same privilege, so refusing a rename would be stricter than
+the status quo for no clear gain. The D2 audit found these holders; the
+reference docs should carry the same warning delete carries. The only
+refusals stay the ones above: system indices and names, and a snapshot or
+restore in flight (T6).
 
 ### D5. Mixed-version clusters
 

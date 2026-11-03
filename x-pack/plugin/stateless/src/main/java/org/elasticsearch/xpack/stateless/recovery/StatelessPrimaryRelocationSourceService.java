@@ -95,6 +95,14 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         Setting.Property.NodeScope
     );
 
+    /// how long the source waits for the prewarm to finish before acquiring permits
+    public static final Setting<TimeValue> PREWARM_WAIT_TIMEOUT_SETTING = Setting.timeSetting(
+        "stateless.cluster.primary_relocation.prewarm_wait_timeout",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(StatelessPrimaryRelocationSourceService.class);
 
     private final ClusterService clusterService;
@@ -114,6 +122,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     private volatile TimeValue slowRelocationWarningThreshold;
     private volatile TimeValue idLookupRecencyThreshold;
     private volatile TimeValue preFlushSlowUploadQueueThreshold;
+    private final TimeValue prewarmWaitTimeout;
 
     public StatelessPrimaryRelocationSourceService(
         Settings settings,
@@ -147,6 +156,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             .initializeAndWatch(ID_LOOKUP_RECENCY_THRESHOLD_SETTING, value -> this.idLookupRecencyThreshold = value);
         clusterService.getClusterSettings()
             .initializeAndWatch(PRE_FLUSH_SLOW_UPLOAD_QUEUE_THRESHOLD_SETTING, value -> this.preFlushSlowUploadQueueThreshold = value);
+        this.prewarmWaitTimeout = PREWARM_WAIT_TIMEOUT_SETTING.get(settings);
     }
 
     /// Registers the shared recovery scheduling listeners (available via Guice when the transport action is constructed).
@@ -337,7 +347,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             // send the "prewarm" after the preFlush so the prewarmed BCC is closer to the one we flush while holding the permits on the
             // target side
             final var prewarmStep = new SubscribableListener<Void>();
-            prewarmStep.addTimeout(TimeValue.timeValueSeconds(5), threadPool, recoveryExecutor);
+            prewarmStep.addTimeout(prewarmWaitTimeout, threadPool, recoveryExecutor);
             initiatePrewarm(parentClient, request, indexShard, prewarmStep);
             // prewarming is best-effort, in case of failures we continue
             prewarmStep.addListener(ActionListener.wrap(ignored -> l.onResponse(initialFlushDuration), e -> {

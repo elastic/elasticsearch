@@ -92,10 +92,15 @@ public final class UnmappedFields {
 
     /**
      * Whether {@code name}, which this shard does not map, may be an unmapped field of one of its documents. It decides as
-     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}.
+     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}, except at an
+     * object the mapping parses: a document with a value there is rejected, so the mapping alone rules it out.
      */
     public boolean mayExist(String name) {
-        return skipped("", name) == false && mayExist();
+        return holdsNoValue(name) == false && skipped("", name) == false && mayExist();
+    }
+
+    private boolean holdsNoValue(String name) {
+        return mappingLookup.objectMappers().get(name) instanceof ObjectMapper object && object.isEnabled();
     }
 
     /**

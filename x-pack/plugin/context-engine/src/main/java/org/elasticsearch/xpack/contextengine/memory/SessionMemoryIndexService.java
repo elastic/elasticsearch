@@ -17,6 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -107,7 +108,9 @@ public class SessionMemoryIndexService {
 
     /**
      * Runs a kNN search for the query over both {@code content.semantic} and {@code media}, embedding it with {@code inferenceId},
-     * and applies the request's filters inside each kNN clause so they narrow the candidates rather than the results.
+     * and applies the request's filters inside each kNN clause so they narrow the candidates rather than the results. The two
+     * clauses are combined with {@code dis_max} so a memory is scored by its best-matching field rather than the sum of both,
+     * which would otherwise rank every memory carrying media above text-only memories.
      */
     public void search(
         SearchSessionMemoryAction.Request request,
@@ -122,9 +125,9 @@ public class SessionMemoryIndexService {
             addTermFilter(filters, SessionMemory.SPACE_FIELD, request.space());
             addTermFilter(filters, SessionMemory.AI_INDEX_ID_FIELD, request.aiIndexId());
 
-            BoolQueryBuilder query = QueryBuilders.boolQuery().minimumShouldMatch(1);
+            DisMaxQueryBuilder query = QueryBuilders.disMaxQuery();
             for (String field : List.of(CONTENT_SEMANTIC_FIELD, SessionMemory.MEDIA_FIELD.getPreferredName())) {
-                query.should(knnQuery(field, request.query(), inferenceId, request.size(), filters));
+                query.add(knnQuery(field, request.query(), inferenceId, request.size(), filters));
             }
             SearchSourceBuilder source = new SearchSourceBuilder().query(query).size(request.size());
             SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source);

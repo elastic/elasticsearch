@@ -208,3 +208,36 @@ teardown:
           query: ""
 
   - match: { error.reason: "/.*\\[query\\]\\scannot\\sbe\\sempty.*/" }
+
+---
+"Search scores a memory by its best field so text-only memories can rank first":
+  - do:
+      context_engine.remember:
+        body:
+          id: "rank-text"
+          session_id: "session-3"
+          user_id: "user-1"
+          agent_id: "agent-1"
+          content: "The user prefers dark mode."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "rank-pdf"
+          session_id: "session-3"
+          user_id: "user-1"
+          agent_id: "agent-1"
+          content: "Slide deck from the offsite."
+          media:
+            - type: "pdf"
+              value: "data:application/pdf;base64,QnVkZ2V0IGFwcHJvdmVkIGZvciBRMy4="
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "The user prefers dark mode."
+          session_id: "session-3"
+
+  - match: { count: 2 }
+  - match: { results.0.memory.id: "rank-text" }
+  - match: { results.1.memory.id: "rank-pdf" }

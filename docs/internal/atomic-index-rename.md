@@ -617,6 +617,45 @@ See T6. Decide whether the full re-upload after a rename is acceptable for a
 first release (it is a cost, not a correctness problem) and schedule the
 repository change separately.
 
+What the cost is, precisely. A repository identifies an index by an `IndexId`
+(`name`, `id`): the `id` is a random string minted by `resolveNewIndices` the
+first time a *name* is snapshotted, and every blob of the index lives under
+`indices/<id>/<shard>/`. Incremental snapshots work by reading the shard's
+`index-N` listing under that path and uploading only the segment files it does
+not already have. After a rename the new name is unknown to the repository, so
+it mints a new `id`, finds an empty shard path, and uploads every segment file
+again. The old `id` keeps its blobs until the last snapshot referencing it is
+deleted; until then the index is stored twice. Restores are unaffected.
+
+Sketch of matching by UUID without a format change. The repository already
+records, per snapshot and `IndexId`, an index metadata identifier that starts
+with the cluster index UUID (`IndexMetaDataGenerations#buildUniqueIdentifier`),
+so when an index with UUID U arrives under a new name the master can find the
+`IndexId` last used for U and reuse its `id` under the new name:
+`new IndexId(newName, sameId)`. The shard paths then match and the upload is
+incremental again. Three places assume one name per `id` and need care:
+
+- `ShardGenerations` and `RepositoryData#indexSnapshots` are keyed by the
+  whole `IndexId` (name and `id`), so the new `IndexId` starts with no shard
+  generations and the data node would again see an empty listing. The
+  generations of the old `IndexId` have to be carried over when the snapshot
+  entry is built in `SnapshotsService`.
+- Snapshot deletion rewrites each affected shard's `index-N` per `IndexId`.
+  Two `IndexId`s sharing an `id` must be processed once, by `id`, or the two
+  rewrites of the same shard path race. Stale-container cleanup is already by
+  `id` (`survivingIndexIds`), so it is safe as is.
+- An older node reading a repository where two names share an `id` would run
+  the per-`IndexId` deletion twice. The repository's minimum-version marker
+  should be raised the first time an `id` is shared, so older nodes refuse to
+  write to it.
+
+The cleaner long-term form is a format change that makes `id` the key, stores
+the current name and the index UUID as attributes, and resolves names per
+snapshot from `SnapshotInfo`; that is also what would allow lifting the T6
+refusal of renames during a snapshot, since `SnapshotsInProgress` and
+`RepositoryShardId` would stop carrying names. Neither form is in the
+prototype.
+
 ## Failure inventory
 
 This section is a log of what the rename trick (T11) found, in the order it

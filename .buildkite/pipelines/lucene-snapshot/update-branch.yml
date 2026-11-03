@@ -6,6 +6,7 @@ steps:
         exit 1
       fi
     timeout_in_minutes: 5
+  - wait
   - trigger: "elasticsearch-agentic-workflow"
     label: ":robot_face: lucene-merge-conflicts"
     async: false

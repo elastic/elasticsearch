@@ -2207,7 +2207,7 @@ public final class TextFieldMapper extends FieldMapper {
                 }
             }
 
-            if (ColumnarPayloadColumn.needsTermsColumn(terms, valuelessDocs)) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }

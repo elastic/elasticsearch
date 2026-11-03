@@ -308,7 +308,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
                 Translog.writeHeaderWithSize(out, op);
                 final BytesReference source = op instanceof Translog.Index index ? index.source() : null;
-                // the serialized header is backed by the pages of out, so it must be checked before they are released
                 assertNoSeqNumberConflict(op.seqNo(), Translog.Serialized.create(out.bytes(), source, new CRC32()));
             }
         }

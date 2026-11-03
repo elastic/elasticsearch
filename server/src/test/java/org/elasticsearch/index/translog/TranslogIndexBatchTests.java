@@ -890,7 +890,6 @@ public class TranslogIndexBatchTests extends ESTestCase {
     }
 
     public void testSeqNumberConflictAssertsSameOpAfterBatch() throws IOException {
-        // A recovering replica can receive an op in a replicated batch and then again on its own, when recovery replays it.
         final IndexOperationBatch.TranslogRecord batchA = buildBatch(
             List.of(Map.of("k", "v1"), Map.of("k", "v2")),
             XContentType.JSON,

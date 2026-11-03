@@ -39,8 +39,10 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.HnswGraph;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -58,8 +60,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Exercises the CPU fallback of the GPU formats when the GPU can't build the graph, for flush and for merge, with a resource
- * manager that always fails the way it does when the estimated memory exceeds the GPU total memory. No GPU is used, so
- * unlike the GPU format tests, these tests also run on nodes without a GPU.
+ * manager that always fails the way it does when the estimated memory exceeds the GPU total memory.
  */
 public class GpuCpuFallbackTests extends ESTestCase {
 
@@ -67,6 +68,11 @@ public class GpuCpuFallbackTests extends ESTestCase {
     private static final int DIMS = 64;
     private static final int DOCS_PER_SEGMENT = 500;
     private static final int NUM_SEGMENTS = 3;
+
+    @BeforeClass
+    public static void beforeClass() {
+        assumeTrue("cuvs not supported", CuVSGPUSupport.instance().isSupported());
+    }
 
     public void testFloatFallback() throws Exception {
         testFallback(new ES92GpuHnswVectorsFormat(AlwaysFailingResourceManager::new, 0, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH));
@@ -103,8 +109,7 @@ public class GpuCpuFallbackTests extends ESTestCase {
         }
 
         // Merges take the fast path when the merged vectors are mmapped, and otherwise the slow path, which copies them into a
-        // cuVS host matrix before acquiring the GPU. Both must fall back to CPU, including when cuVS fails to copy the vectors,
-        // as it does on platforms it doesn't support.
+        // cuVS host matrix before acquiring the GPU. Both must fall back to CPU.
         Path path = createTempDir();
         try (Directory dir = randomBoolean() ? new MMapDirectory(path) : new NIOFSDirectory(path)) {
             // no merges while indexing, so that each flushed segment is kept as is until the force merge

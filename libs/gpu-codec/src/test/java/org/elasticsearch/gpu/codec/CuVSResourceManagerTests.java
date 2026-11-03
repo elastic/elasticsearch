@@ -317,8 +317,6 @@ public class CuVSResourceManagerTests extends ESTestCase {
         mgr.shutdown();
     }
 
-    // acquire and tryAcquire throw GPUGraphBuildException, which the writer handles by building the graph on CPU,
-    // when the estimated memory exceeds the GPU total memory, as waiting for other resources to be released can't help
     public void testAcquireThrowsWhenEstimateExceedsTotalMemory() throws Exception {
         var mgr = new MockPoolingCuVSResourceManager(2);
         // NN_DESCENT estimate: 2 * 64K vectors * 1024 dims * 4 bytes = 512MB > 256MB total

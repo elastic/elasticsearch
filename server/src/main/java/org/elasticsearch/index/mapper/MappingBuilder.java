@@ -131,19 +131,25 @@ public class MappingBuilder {
      * @return the built {@link Mapping}
      */
     public Mapping build(MergeReason reason) {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(
-            isSourceSynthetic(),
-            isDataStream(),
-            reason,
-            isStrictColumnar,
-            isSourceColumnarStored()
-        );
-        RootObjectMapper root = rootBuilder.build(rootContext);
+        RootObjectMapper root = rootBuilder.build(rootContext(reason));
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()
             .map(MetadataFieldMapper.Builder::build)
             .toArray(MetadataFieldMapper[]::new);
         return new Mapping(root, metadataMappers, meta);
+    }
+
+    /**
+     * Normalizes the whole builder tree
+     *
+     * @param reason the merge reason, used to configure the {@link MapperBuilderContext} for normalizing
+     */
+    public void normalize(MergeReason reason) {
+        rootBuilder.normalize(rootContext(reason));
+    }
+
+    private MapperBuilderContext rootContext(MergeReason reason) {
+        return MapperBuilderContext.root(isSourceSynthetic(), isDataStream(), reason, isStrictColumnar, isSourceColumnarStored());
     }
 
     private boolean isSourceSynthetic() {

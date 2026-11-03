@@ -1,0 +1,226 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ fn_qstr_relaxed_position_check, fn_kql_relaxed_position_check, join_lookup_v12 ]
+      reason: "QSTR and KQL are allowed after more commands"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              content:
+                type: text
+              id:
+                type: integer
+  - do:
+      indices.create:
+        index: test_lookup_safe
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              id:
+                type: integer
+              extra:
+                type: keyword
+  - do:
+      indices.create:
+        index: test_lookup_shadow
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              id:
+                type: integer
+              content:
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test" } }
+          - { "content": "This is a brown fox", "id": 1 }
+          - { "index": { "_index": "test" } }
+          - { "content": "This is a brown dog", "id": 2 }
+          - { "index": { "_index": "test" } }
+          - { "content": "There is also a white cat", "id": 3 }
+          - { "index": { "_index": "test" } }
+          - { "content": "The quick brown fox jumps over the lazy dog", "id": 4 }
+          - { "index": { "_index": "test_lookup_safe" } }
+          - { "id": 1, "extra": "one" }
+          - { "index": { "_index": "test_lookup_safe" } }
+          - { "id": 4, "extra": "four" }
+          - { "index": { "_index": "test_lookup_shadow" } }
+          - { "id": 1, "content": "one" }
+
+---
+"qstr after eval":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL len = LENGTH(content) | WHERE QSTR("content: fox") | KEEP id | SORT id'
+
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 4 }
+
+---
+"qstr after drop of the searched field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | DROP content | WHERE QSTR("content: fox") | KEEP id | SORT id'
+
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 4 }
+
+---
+"qstr after lookup join":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP JOIN test_lookup_safe ON id | WHERE QSTR("content: fox") | KEEP id, extra | SORT id'
+
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "one" }
+  - match: { values.1.0: 4 }
+  - match: { values.1.1: "four" }
+
+---
+"qstr after eval that redefines an indexed field":
+  - do:
+      catch: /.*\[QSTR\] function cannot be used after EVAL because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL content = "constant" | WHERE QSTR("content: fox")'
+
+---
+"qstr after rename to an indexed field":
+  - do:
+      catch: /.*\[QSTR\] function cannot be used after RENAME because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | RENAME id AS content | WHERE QSTR("content: fox")'
+
+---
+"qstr after lookup join that redefines an indexed field":
+  - do:
+      catch: /.*\[QSTR\] function cannot be used after LOOKUP JOIN because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP JOIN test_lookup_shadow ON id | WHERE QSTR("content: fox")'
+
+---
+"kql after eval":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL len = LENGTH(content) | WHERE KQL("content: fox") | KEEP id | SORT id'
+
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 4 }
+
+---
+"kql after drop of the searched field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | DROP content | WHERE KQL("content: fox") | KEEP id | SORT id'
+
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 4 }
+
+---
+"kql after lookup join":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP JOIN test_lookup_safe ON id | WHERE KQL("content: fox") | KEEP id, extra | SORT id'
+
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: "one" }
+  - match: { values.1.0: 4 }
+  - match: { values.1.1: "four" }
+
+---
+"kql after eval that redefines an indexed field":
+  - do:
+      catch: /.*\[KQL\] function cannot be used after EVAL because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL content = "constant" | WHERE KQL("content: fox")'
+
+---
+"kql after rename to an indexed field":
+  - do:
+      catch: /.*\[KQL\] function cannot be used after RENAME because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | RENAME id AS content | WHERE KQL("content: fox")'
+
+---
+"kql after lookup join that redefines an indexed field":
+  - do:
+      catch: /.*\[KQL\] function cannot be used after LOOKUP JOIN because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP JOIN test_lookup_shadow ON id | WHERE KQL("content: fox")'
+
+---
+"qstr after eval that redefines an indexed field with a narrowed projection":
+  - do:
+      catch: /.*\[QSTR\] function cannot be used after EVAL because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL content = "constant" | WHERE QSTR("content: fox") | KEEP id | SORT id'
+
+---
+"kql after eval that redefines an indexed field with a narrowed projection":
+  - do:
+      catch: /.*\[KQL\] function cannot be used after EVAL because \[content\] redefines a field used by the index.*/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | EVAL content = "constant" | WHERE KQL("content: fox") | KEEP id | SORT id'

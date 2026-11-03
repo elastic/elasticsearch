@@ -279,11 +279,89 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | LOOKUP JOIN test_lookup ON id
-            | WHERE id > 0 AND QSTR("lookup_content: fox")
+            | WHERE id > 0 AND QSTR("content: fox")
+            | KEEP id, lookup_content
+            | SORT id
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("line 3:3: [QSTR] function cannot be used after LOOKUP"));
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "lookup_content"));
+            assertValues(
+                resp.values(),
+                List.of(
+                    List.of(2, "This is a brown dog"),
+                    List.of(3, "This dog is really brown"),
+                    List.of(4, "The dog is brown but this document is very very long"),
+                    List.of(5, "There is also a white cat")
+                )
+            );
+        }
+    }
+
+    public void testWhereQstrOnColumnDroppedByProjection() {
+        var query = """
+            FROM test
+            | DROP content
+            | WHERE QSTR("content: fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        // QSTR searches the index, so it still matches on the dropped column
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertValues(resp.values(), List.of(List.of(2), List.of(3), List.of(4), List.of(5)));
+        }
+    }
+
+    public void testWhereQstrWithKeepRejectsRedefinedIndexedField() {
+        // KEEP narrows the fields requested from the index, so the field named only in the query string still has to be seen
+        var query = """
+            FROM test
+            | EVAL content = "constant"
+            | WHERE QSTR("content: fox")
+            | KEEP id
+            | SORT id
+            """;
+
+        var e = expectThrows(VerificationException.class, () -> run(query).close());
+        assertThat(e.getMessage(), containsString("[QSTR] function cannot be used after EVAL because [content] redefines a field"));
+    }
+
+    /**
+     * QSTR searches the fields of the index, never a column that another command added, so a field that only exists after
+     * the join matches nothing, even though several joined rows contain the term. This is a documented limitation, see
+     * "Position restriction on indexed fields" in limitations.md. Changing it, for example to an error, should be deliberate.
+     */
+    public void testQstrDoesNotSearchLookupJoinFields() {
+        var query = """
+            FROM test
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE QSTR("lookup_content: brown")
+            | KEEP id, lookup_content
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "lookup_content"));
+            assertValues(resp.values(), List.of());
+        }
+    }
+
+    /**
+     * Same limitation for a column computed by EVAL: it is not a field of the index, so QSTR on it matches nothing.
+     */
+    public void testQstrDoesNotSearchComputedColumns() {
+        var query = """
+            FROM test
+            | EVAL label = "brown"
+            | WHERE QSTR("label: brown")
+            | KEEP id, label
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "label"));
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testQstrAfterInlineStats() {
@@ -337,11 +415,12 @@ public class QueryStringIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE false
             | LOOKUP JOIN test_lookup ON id
-            | WHERE qstr("lookup_content: fox")
+            | WHERE qstr("content: fox")
             """;
 
-        var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[QSTR] function cannot be used after LOOKUP"));
+        try (var resp = run(query)) {
+            assertValues(resp.values(), List.of());
+        }
     }
 
     public void testAnalyzeWildcardAppliesStemming() {

@@ -23,10 +23,12 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificatio
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -47,6 +49,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -61,16 +64,15 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
@@ -304,22 +306,9 @@ public abstract class FullTextFunction extends Function
             || checkFullTextFunctionsAboveSubqueries
             || hasFilterPushdownTarget(plan) == false;
         if (checkCommandsBeforeExpression) {
-            if (isLookupJoinOnCondition == false) {
-                List.of(QueryString.class, Kql.class).forEach(functionClass -> {
-                    // Check for limitations of QSTR and KQL function.
-                    checkCommandsBeforeExpression(
-                        plan,
-                        condition,
-                        functionClass,
-                        lp -> (lp instanceof Filter
-                            || lp instanceof OrderBy
-                            || lp instanceof EsRelation
-                            || lp instanceof ParameterizedQuery
-                            || lp instanceof Sample),
-                        fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
-                        failures
-                    );
-                });
+            // Most filters have no QSTR/KQL, so skip their checks, which collect the indexed field names.
+            if (isLookupJoinOnCondition == false && condition.anyMatch(e -> e instanceof QueryString || e instanceof Kql)) {
+                checkQueryStringFunctions(plan, condition, failures);
             }
 
             // Collect the Aggregate nodes that belong to an INLINE STATS. Unlike a plain STATS, INLINE STATS keeps every input
@@ -368,6 +357,39 @@ public abstract class FullTextFunction extends Function
         );
     }
 
+    /**
+     * Checks where QSTR and KQL are used. They can't follow a source without a Lucene index, or {@code INLINE STATS}, and
+     * they are rejected after a command that redefines a field of the index, see {@link #asShadowingCommand}.
+     */
+    private static void checkQueryStringFunctions(LogicalPlan plan, Expression condition, Failures failures) {
+        Set<String> indexedNames = indexedFieldNames(plan);
+        List.of(QueryString.class, Kql.class)
+            .forEach(
+                functionClass -> checkCommandsBeforeExpression(
+                    plan,
+                    condition,
+                    functionClass,
+                    FullTextFunction::canPrecedeQueryString,
+                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    lp -> asShadowingCommand(lp, indexedNames),
+                    failures
+                )
+            );
+    }
+
+    /**
+     * Whether QSTR/KQL can follow {@code lp}. They need a Lucene index to search, so they can't follow a source without one.
+     * They also can't follow {@code INLINE STATS}: they have no attribute references, so the optimizer pushes them into the
+     * aggregate's input and changes its result. MATCH has references and stays above the aggregate.
+     */
+    private static boolean canPrecedeQueryString(LogicalPlan lp) {
+        return (lp instanceof ExternalRelation
+            || lp instanceof Row
+            || lp instanceof ShowInfo
+            || lp instanceof InlineStats
+            || lp instanceof InlineJoin) == false;
+    }
+
     private static void checkFullTextFunctionsInAggs(Aggregate agg, Failures failures) {
         agg.groupings().forEach(exp -> {
             exp.forEachDown(e -> {
@@ -378,6 +400,77 @@ public abstract class FullTextFunction extends Function
                 }
             });
         });
+    }
+
+    /**
+     * Names of the fields of the index (or indices) the plan reads from, which a QSTR/KQL query string resolves against.
+     */
+    private static Set<String> indexedFieldNames(LogicalPlan plan) {
+        Set<String> indexedNames = new HashSet<>();
+        plan.forEachDown(EsRelation.class, r -> {
+            // A LOOKUP JOIN's right-hand index is itself an EsRelation, just with indexMode() == LOOKUP. Its fields
+            // are not part of "the index" QSTR/KQL's text would resolve against (same reasoning fieldVerifier already
+            // uses for LOOKUP-side fields below) - counting them here would make the Join branch of asShadowingCommand
+            // compare a lookup field against itself and always "match", e.g. a lookup index's own `extra` field would
+            // spuriously shadow itself the moment it's joined in.
+            if (r.indexMode() != IndexMode.LOOKUP) {
+                for (Attribute attribute : r.output()) {
+                    if (attribute instanceof FieldAttribute fa) {
+                        indexedNames.add(fa.name());
+                    }
+                }
+            }
+        });
+        return indexedNames;
+    }
+
+    private record ShadowingCommand(String commandName, String fieldName) {}
+
+    /**
+     * Returns the command name and indexed field it redefines if {@code lp} introduces a new attribute whose name
+     * collides with {@code indexedNames}, or {@code null} otherwise. Deliberately checks only the names a node
+     * actually <em>introduces</em>, never its full output - most of a node's output is just indexed fields passed through
+     * unchanged from its child, which would otherwise always spuriously "match".
+     * <p>
+     * Most commands are named by the first word of their source text, as {@code checkCommandsBeforeExpression} does.
+     * {@code Project} and {@code Join} are named explicitly instead: a {@code Project} is the lowered form of
+     * {@code RENAME}, and the first word of {@code LOOKUP JOIN} would be just {@code "LOOKUP"} - the same reason
+     * {@code TopN} needs a hardcoded override there.
+     */
+    private static ShadowingCommand asShadowingCommand(LogicalPlan lp, Set<String> indexedNames) {
+        String commandName;
+        List<String> introducedNames;
+        if (lp instanceof GeneratingPlan<?> generating) {
+            // EVAL, ENRICH, GROK, DISSECT, URI_PARTS, USER_AGENT, IP_LOCATION, REGISTERED_DOMAIN, COMPLETION, RERANK and
+            // HIGHLIGHT all append their output columns, and PushDownAndCombineFilters pushes a reference-free filter past each
+            // of them. Their keywords are one word, so the first token of the source text names the command.
+            commandName = commandKeyword(lp.sourceText());
+            introducedNames = generating.generatedAttributes().stream().map(Attribute::name).toList();
+        } else if (lp instanceof Project project) {
+            // KEEP/DROP projections are plain Attribute references and introduce nothing; only a renaming
+            // Alias (RENAME x AS y) introduces a name that can shadow an indexed field.
+            commandName = "RENAME";
+            introducedNames = project.projections().stream().filter(ne -> ne instanceof Alias).map(NamedExpression::name).toList();
+        } else if (lp instanceof Join join) {
+            // Exclude the join's own key fields (config().rightFields()): an equi-join's key is guaranteed to carry
+            // the same value on both sides by the join condition itself, so it can't shadow anything even though
+            // it's technically part of the right relation's output. Without this exclusion, the common
+            // `LOOKUP JOIN x ON existingField` shape (joining on a real indexed field, not a renamed copy) would
+            // always "shadow itself" and be wrongly rejected - matches the same exclusion
+            // PushDownAndCombineFilters#scopeInlineStatsFilter makes for the identical reason.
+            commandName = "LOOKUP JOIN";
+            introducedNames = join.right()
+                .outputSet()
+                .subtract(AttributeSet.of(join.config().rightFields()))
+                .stream()
+                .map(Attribute::name)
+                .toList();
+        } else {
+            // Other commands either introduce no name (Filter, OrderBy, Sample, ...) or are rejected by the position check.
+            return null;
+        }
+        String fieldName = introducedNames.stream().filter(indexedNames::contains).findFirst().orElse(null);
+        return fieldName == null ? null : new ShadowingCommand(commandName, fieldName);
     }
 
     /**
@@ -399,58 +492,142 @@ public abstract class FullTextFunction extends Function
         java.util.function.Function<E, String> typeErrorMsgProvider,
         Failures failures
     ) {
-        Set<String> inheritedSourceTexts = new HashSet<>();
-        plan.forEachDown(UnionAll.class, unionAll -> inheritedSourceTexts.add(unionAll.sourceText()));
-        // A filter pushed into a UnionAll branch is checked independently after optimization, when its ancestor
-        // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
-        inheritedSourceTexts.add(plan.sourceText());
+        checkCommandsBeforeExpression(plan, condition, typeToken, commandCheck, typeErrorMsgProvider, lp -> null, failures);
+    }
+
+    /**
+     * Checks that every command before the function satisfies {@code commandCheck}, and that none of them introduces a name
+     * that {@code shadowCheck} reports as colliding with a field of the index. QSTR/KQL name their fields inside an opaque
+     * string, so the optimizer can push them below such a command, where the string would silently resolve against the raw
+     * indexed field instead of the redefined column. A command that fails {@code commandCheck} is reported once, without
+     * also being checked for shadowing.
+     * <p>
+     * The parameters are the same as for the overload without {@code shadowCheck}, which never reports shadowing.
+     *
+     * @param shadowCheck returns the shadowing command and field for a plan node, or {@code null} if it shadows nothing
+     */
+    private static <E extends Expression> void checkCommandsBeforeExpression(
+        LogicalPlan plan,
+        Expression condition,
+        Class<E> typeToken,
+        Predicate<LogicalPlan> commandCheck,
+        java.util.function.Function<E, String> typeErrorMsgProvider,
+        java.util.function.Function<LogicalPlan, ShadowingCommand> shadowCheck,
+        Failures failures
+    ) {
+        Set<String> inheritedSourceTexts = inheritedSourceTexts(plan);
         condition.forEachDown(typeToken, exp -> {
             // A runtime search is evaluated row by row over the values already in the page (see RuntimeSearch) instead
             // of querying a Lucene index, so it doesn't need a shard context or push-down to a data node.
             if (exp instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
                 return;
             }
+            String functionDescription = typeErrorMsgProvider.apply(exp);
             plan.forEachDown(LogicalPlan.class, lp -> {
                 if (commandCheck.test(lp) == false) {
-                    if (lp instanceof ExternalRelation externalRelation) {
-                        // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
-                        // fail here regardless of position. Name the actual limitation instead of the generic positional
-                        // message below, which reads like the function is misplaced rather than unsupported on this source.
-                        failures.add(
-                            fail(
-                                plan,
-                                "{} is not supported on federated data sources [{}]; it requires an index. Use "
-                                    + "MATCH(field, \"term\") for full-text search on non-indexed data.",
-                                typeErrorMsgProvider.apply(exp),
-                                externalRelation.datasetName() != null ? externalRelation.datasetName() : lp.sourceText()
-                            )
-                        );
-                        return;
-                    }
-                    String sourceText = lp.sourceText();
-                    String errorMessage;
-                    if (lp instanceof TopN) {
-                        // TopN is the optimized SORT + LIMIT. Its source is the SORT command, so the first
-                        // token would be "SORT", which is misleading: SORT alone is allowed before full-text.
-                        errorMessage = "SORT and LIMIT";
-                    } else if (inheritedSourceTexts.contains(sourceText)) {
-                        // UnionAll and analyzer-generated nodes around it can inherit the complete multi-source FROM clause. Report that
-                        // clause instead of its misleading first token.
-                        errorMessage = sourceText.length() > Node.TO_STRING_MAX_WIDTH
-                            ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..."
-                            : sourceText;
-                    } else {
-                        errorMessage = sourceText.split(" ")[0].toUpperCase(Locale.ROOT);
-                    }
-                    // Name the reason for functions that could have searched an expression instead, since for them the
-                    // restriction is not about the command at all. For the rest there is no alternative to point at.
-                    String qualifier = exp instanceof FullTextFunction ftf && ftf.supportsRuntimeSearch()
-                        ? " when it targets an indexed field"
-                        : "";
-                    failures.add(fail(plan, "{} cannot be used after {}{}", typeErrorMsgProvider.apply(exp), errorMessage, qualifier));
+                    failures.add(positionFailure(plan, lp, exp, functionDescription, inheritedSourceTexts));
+                    return;
+                }
+                ShadowingCommand shadowing = shadowCheck.apply(lp);
+                if (shadowing != null) {
+                    failures.add(shadowingFailure(plan, lp, functionDescription, shadowing, inheritedSourceTexts));
                 }
             });
         });
+    }
+
+    /**
+     * The failure for a function that follows {@code lp}, a command it can't follow.
+     */
+    private static Failure positionFailure(
+        LogicalPlan plan,
+        LogicalPlan lp,
+        Expression function,
+        String functionDescription,
+        Set<String> inheritedSourceTexts
+    ) {
+        if (lp instanceof ExternalRelation externalRelation) {
+            // Federated sources are never Lucene-backed, so functions gated to Lucene-only relations (e.g. KQL/QSTR)
+            // fail here regardless of position. Name the actual limitation instead of the generic positional
+            // message below, which reads like the function is misplaced rather than unsupported on this source.
+            return fail(
+                plan,
+                "{} is not supported on federated data sources [{}]; it requires an index. Use "
+                    + "MATCH(field, \"term\") for full-text search on non-indexed data.",
+                functionDescription,
+                externalRelation.datasetName() != null ? externalRelation.datasetName() : lp.sourceText()
+            );
+        }
+        String sourceText = lp.sourceText();
+        String commandName;
+        if (lp instanceof TopN) {
+            // TopN is the optimized SORT + LIMIT. Its source is the SORT command, so the first
+            // token would be "SORT", which is misleading: SORT alone is allowed before full-text.
+            commandName = "SORT and LIMIT";
+        } else if (inheritedSourceTexts.contains(sourceText)) {
+            // UnionAll and analyzer-generated nodes around it can inherit the complete multi-source FROM clause. Report that
+            // clause instead of its misleading first token.
+            commandName = abbreviateSource(sourceText);
+        } else {
+            commandName = commandKeyword(sourceText);
+        }
+        // Name the reason for functions that could have searched an expression instead, since for them the
+        // restriction is not about the command at all. For the rest there is no alternative to point at.
+        String qualifier = function instanceof FullTextFunction ftf && ftf.supportsRuntimeSearch()
+            ? " when it targets an indexed field"
+            : "";
+        return fail(plan, "{} cannot be used after {}{}", functionDescription, commandName, qualifier);
+    }
+
+    /**
+     * The failure for a function that follows {@code lp}, a command that redefines a field of the index.
+     */
+    private static Failure shadowingFailure(
+        LogicalPlan plan,
+        LogicalPlan lp,
+        String functionDescription,
+        ShadowingCommand shadowing,
+        Set<String> inheritedSourceTexts
+    ) {
+        if (inheritedSourceTexts.contains(lp.sourceText())) {
+            // An alignment node the analyzer inserted into a UnionAll branch has no command of its own, e.g.
+            // `TOLONG(counter) AS counter`, added because counter metrics can't flow through a UnionAll. It inherits
+            // the whole FROM clause as its source text. Naming it "EVAL" would point the user at a command they never
+            // wrote and a field they never mentioned, so report the FROM clause instead, like the other positional rejections.
+            return fail(plan, "{} cannot be used after {}", functionDescription, abbreviateSource(lp.sourceText()));
+        }
+        return fail(
+            plan,
+            "{} cannot be used after {} because [{}] redefines a field used by the index",
+            functionDescription,
+            shadowing.commandName(),
+            shadowing.fieldName()
+        );
+    }
+
+    /**
+     * Source texts that belong to the multi-source {@code FROM} clause rather than to a command the user wrote: UnionAll and
+     * the analyzer-inserted alignment nodes around it inherit it.
+     */
+    private static Set<String> inheritedSourceTexts(LogicalPlan plan) {
+        Set<String> inheritedSourceTexts = new HashSet<>();
+        plan.forEachDown(UnionAll.class, unionAll -> inheritedSourceTexts.add(unionAll.sourceText()));
+        // A filter pushed into a UnionAll branch is checked independently after optimization, when its ancestor
+        // UnionAll is no longer visible from this subtree. Such a filter inherits the UnionAll branch source.
+        inheritedSourceTexts.add(plan.sourceText());
+        return inheritedSourceTexts;
+    }
+
+    /**
+     * The keyword that starts a command's source text, such as {@code EVAL}. Splits on any whitespace, since the keyword can
+     * be followed by a line break.
+     */
+    private static String commandKeyword(String sourceText) {
+        return sourceText.split("\\s+", 2)[0].toUpperCase(Locale.ROOT);
+    }
+
+    private static String abbreviateSource(String sourceText) {
+        return sourceText.length() > Node.TO_STRING_MAX_WIDTH ? sourceText.substring(0, Node.TO_STRING_MAX_WIDTH) + "..." : sourceText;
     }
 
     /**

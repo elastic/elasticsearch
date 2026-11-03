@@ -918,6 +918,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                                         ShardSyncState.SyncMarker syncMarker = entry.getValue();
                                         boolean syncFinishedAccepted = shardSyncState.markSyncFinished(syncMarker);
                                         if (syncFinishedAccepted) {
+                                            assert syncMarker.primaryTerm() == shardSyncState.currentPrimaryTerm();
                                             modifiedShardSyncedLocations.add(shardSyncState);
                                         } else if (shardSyncState.isPrimaryTermStale()) {
                                             assert syncMarker.primaryTerm() < shardSyncState.currentPrimaryTerm();

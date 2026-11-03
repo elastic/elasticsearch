@@ -17,10 +17,12 @@ import java.io.IOException;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.StoredFields {
     private final LeafStoredFieldLoader loader;
     private final SourceLoader.Leaf sourceLoader;
+    private final Set<String> sourcePaths;
     private Source source;
     private int docId = -1;
     private int loaderDocId = -1;
@@ -28,9 +30,26 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
     private final Map<Object, Object> shared = new IdentityHashMap<>();
     private int sharedDocId = -1;
 
+    /**
+     * Reports the whole document as {@link #sourcePaths()}, for callers that do not restrict the source or do not track what they
+     * restricted it to.
+     */
     public BlockLoaderStoredFieldsFromLeafLoader(LeafStoredFieldLoader loader, SourceLoader.Leaf sourceLoader) {
+        this(loader, sourceLoader, Set.of());
+    }
+
+    /**
+     * @param sourcePaths the paths {@code sourceLoader} was built for, empty meaning the whole document, see {@link #sourcePaths()}
+     */
+    public BlockLoaderStoredFieldsFromLeafLoader(LeafStoredFieldLoader loader, SourceLoader.Leaf sourceLoader, Set<String> sourcePaths) {
         this.loader = loader;
         this.sourceLoader = sourceLoader;
+        this.sourcePaths = sourcePaths;
+    }
+
+    @Override
+    public Set<String> sourcePaths() {
+        return sourcePaths;
     }
 
     public void advanceTo(int docId) {

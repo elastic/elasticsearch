@@ -55,6 +55,11 @@ setup:
   - match: { acknowledged: true }
 
   - do:
+      cluster.health:
+        index: ".ml-stats-000001"
+        wait_for_status: yellow
+
+  - do:
       ml.stop_data_frame_analytics:
         id: "old_cluster_outlier_detection_job"
         force: true
@@ -100,6 +105,11 @@ setup:
       ml.start_data_frame_analytics:
         id: "old_cluster_regression_job"
   - match: { acknowledged: true }
+
+  - do:
+      cluster.health:
+        index: ".ml-stats-000001"
+        wait_for_status: yellow
 
   - do:
       ml.stop_data_frame_analytics:
@@ -182,6 +192,11 @@ setup:
       ml.start_data_frame_analytics:
         id: "mixed_cluster_outlier_detection_job"
   - match: { acknowledged: true }
+
+  - do:
+      cluster.health:
+        index: ".ml-stats-000001"
+        wait_for_status: yellow
 
   - do:
       ml.stop_data_frame_analytics:

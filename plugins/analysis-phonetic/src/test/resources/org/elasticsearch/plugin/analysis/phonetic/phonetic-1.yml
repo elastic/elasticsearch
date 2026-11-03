@@ -29,6 +29,10 @@ index:
       haasephonetikfilter:
         type: phonetic
         encoder: haasephonetik
+      koelnerphonetikfilter_limited:
+        type: phonetic
+        encoder: koelnerphonetik
+        max_variations: 64
       nysiisfilter:
         type: phonetic
         encoder: nysiis

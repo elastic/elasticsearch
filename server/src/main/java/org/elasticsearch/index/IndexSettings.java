@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -697,12 +698,16 @@ public final class IndexSettings {
      * the OTLP metrics ingest path may write documents as an {@link org.elasticsearch.escf.EscfBatch}
      * rather than individual XContent blobs, provided the cluster-level {@code indices.batch_indexing}
      * setting and its feature flag are also active.
+     *
+     * @deprecated use {@link #BATCH_INDEXING}. This setting is only kept registered as a fallback for {@link #BATCH_INDEXING}'s default.
      */
+    @Deprecated
     public static final Setting<Boolean> TIME_SERIES_BATCH_INDEXING = Setting.boolSetting(
         "index.time_series.batch_indexing",
         false,
         Property.Final,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.DeprecatedWarning
     );
 
     /**
@@ -733,6 +738,14 @@ public final class IndexSettings {
      */
     public boolean isES87TSDBCodecEnabled() {
         return es87TSDBCodecEnabled;
+    }
+
+    /**
+     * Returns {@code true} if this index opted in to batch indexing. Always {@code false} when the
+     * {@code batch_indexing} feature flag is off, because the setting cannot be enabled then.
+     */
+    public boolean isBatchIndexingEnabled() {
+        return batchIndexingEnabled;
     }
 
     public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
@@ -1136,6 +1149,39 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Per-index switch for batch indexing. Defaults to the value of the deprecated
+     * {@link #TIME_SERIES_BATCH_INDEXING} when that is explicitly set, otherwise to whether the index mode is strictly columnar.
+     * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
+     * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
+     * explicit {@code true} when the feature flag is off.
+     */
+    public static final Setting<Boolean> BATCH_INDEXING = Setting.boolSetting("index.batch_indexing", settings -> {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+            return Boolean.FALSE.toString();
+        }
+        if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
+            return Boolean.toString(TIME_SERIES_BATCH_INDEXING.get(settings));
+        }
+        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
+    }, value -> {
+        if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException(
+                "[index.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
+            );
+        }
+    }, Property.Final, Property.IndexScope);
+
+    /**
+     * Whether an index with the given settings is eligible for batch indexing: the feature flag is on and
+     * {@link #BATCH_INDEXING} resolves to {@code true}. Coordinators use this to decide whether to build a batch, so that their
+     * decision matches {@link #isBatchIndexingEnabled()} on the shard. The cluster-level kill switch is not included because it
+     * is node-local and dynamic; callers check it via {@link BatchIndexingEnabled}.
+     */
+    public static boolean isBatchIndexingEnabled(Settings indexSettings) {
+        return BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BATCH_INDEXING.get(indexSettings);
+    }
+
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
         settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),
@@ -1490,6 +1536,7 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
+    private final boolean batchIndexingEnabled;
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
@@ -1770,6 +1817,7 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        batchIndexingEnabled = BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && scopedSettings.get(BATCH_INDEXING);
         requestCacheEnabled = scopedSettings.get(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);

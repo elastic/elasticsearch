@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 163836
+summary: Ignore null metrics for mixed downsampled and regular indices
+type: bug

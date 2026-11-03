@@ -530,11 +530,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testFailRecoveryCommitRegistrationIfIndexGetsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/164232
-- class: org.elasticsearch.xpack.encryption.KeyRotationIT
-  tasks:
-  - :x-pack:plugin:encryption:internalClusterTest
-  method: testRotationCycleWithNoHandlers
-  issue: https://github.com/elastic/elasticsearch/issues/164186
 - class: org.elasticsearch.xpack.stateless.commits.StatelessStateNotRecoveredFileDeletionIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest
@@ -545,3 +540,53 @@ tests:
   - :modules:data-streams:internalClusterTest
   method: testReduceShardsOnRollover
   issue: https://github.com/elastic/elasticsearch/issues/164371
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  tasks:
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
+  method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
+  issue: https://github.com/elastic/elasticsearch/issues/164383
+- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
+  tasks:
+  - :x-pack:plugin:security:test
+  method: testVerifiesHostnameOfIpLiteralUrl
+  issue: https://github.com/elastic/elasticsearch/issues/164387
+- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
+  tasks:
+  - :x-pack:plugin:security:test
+  method: testPinnedFingerprintVerifiesHostnameOfIpLiteralUrl
+  issue: https://github.com/elastic/elasticsearch/issues/164389
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
+  tasks:
+  - :x-pack:plugin:logsdb:javaRestTest
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/164392
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
+  tasks:
+  - :x-pack:plugin:logsdb:javaRestTest
+  method: testHistogramAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/164408
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sIncreaseIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:prometheus-k8s-increase.increase_of_long_no_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/164421
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesIncreaseIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/164423
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesPromqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:k8s-timeseries-promql.increase_on_plain_numeric_long}
+  issue: https://github.com/elastic/elasticsearch/issues/164425
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesPromqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:k8s-timeseries-promql.rate_small_window_no_set_operator}
+  issue: https://github.com/elastic/elasticsearch/issues/164427
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationUnmappedNullifyIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:unmapped-nullify.maxOverTimeOfKeyword}
+  issue: https://github.com/elastic/elasticsearch/issues/164433

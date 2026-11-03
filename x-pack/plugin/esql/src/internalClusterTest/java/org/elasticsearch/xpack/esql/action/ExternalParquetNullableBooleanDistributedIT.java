@@ -28,16 +28,12 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * A nullable Parquet boolean column, co-queried with an index, must aggregate across both sources.
+ * Reproduces #164372: a nullable Parquet boolean column co-queried with an index must aggregate across both.
  *
- * <p>The reader allocates each batch's value array uninitialized, on the contract that it writes every element.
- * A nullable arm writes only the positions carrying a value, so the masked positions keep prior memory and are
- * serialized with the rest. Deserializing a boolean rejects any byte that is neither zero nor one, so the query
- * fails outright. Two data nodes, because nothing reads a masked position in-process, and enough rows for the
- * write path to be compiled, because the byte is otherwise normalised before it reaches the stream.
- *
- * <p>The per-type coverage lives in the reader's own unit tests, which assert the invariant directly and far
- * more cheaply; this case exists to pin the distributed path.
+ * <p>Masked positions of a nullable batch are left unassigned and serialized with the rest; deserializing a
+ * boolean rejects any byte that is neither zero nor one. Hence two data nodes, since nothing reads a masked
+ * position in-process, and enough rows to compile the write path, which otherwise normalises the byte first.
+ * Per-type coverage is in the reader's unit tests, far more cheaply; this pins the distributed path.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 2)
 public class ExternalParquetNullableBooleanDistributedIT extends AbstractExternalDataSourceIT {
@@ -83,11 +79,7 @@ public class ExternalParquetNullableBooleanDistributedIT extends AbstractExterna
         refresh(INDEX);
     }
 
-    /**
-     * Counts {@code FROM ds, idx | STATS COUNT(*)}. The {@code round_robin} pragma is belt-and-braces: for this
-     * shape the default {@code adaptive} strategy already distributes, because the query reduces, the split count
-     * exceeds the node count, and a mixed {@code FROM} has source siblings.
-     */
+    /** The {@code round_robin} pragma is belt-and-braces: the default {@code adaptive} already distributes this shape. */
     private long mixedCount(String dataset) {
         EsqlQueryRequest request = syncEsqlQueryRequest("FROM " + dataset + ", " + INDEX + " | STATS c = COUNT(*)");
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
@@ -101,12 +93,7 @@ public class ExternalParquetNullableBooleanDistributedIT extends AbstractExterna
         assertThat(mixedCount(dataset), equalTo((long) DATASET_ROWS + INDEX_DOCS));
     }
 
-    /** A nullable column, so the branch ships a null mask rather than a plain vector. */
-    /**
-     * The query is repeated because a single cold run cannot fail: the byte that breaks deserialization only
-     * reaches the stream once the write path has been compiled, so one execution passes whether or not the
-     * reader defines its masked positions.
-     */
+    /** Repeated because one cold run cannot fail: the byte only reaches the stream once the write path is compiled. */
     public void testNullableBooleanColumnAggregatesAcrossSources() throws Exception {
         createDisjointIndex();
         String dataset = registerSingleTypeDataset("ds_bool_null", "optional boolean b;", (g, i) -> {

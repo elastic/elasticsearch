@@ -827,18 +827,11 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     private static final int DETERMINISM_READS = 400;
 
     /**
-     * A block's serialized form must depend only on the file. Reading the same nullable column twice has to
-     * produce identical bytes.
-     * <p>
-     * A value array that is allocated uninitialized and then filled only at the positions carrying a value
-     * leaves the masked positions holding whatever the memory held before. Those positions are still
-     * serialized, so the bytes differ between reads even though every consumer honours the null mask and the
-     * results are correct. Asserting on the bytes catches that for every element type, rather than only for
-     * boolean, where deserialization happens to reject a byte that is neither zero nor one.
-     * <p>
-     * The read is repeated because the leftover memory is not guaranteed to differ between any two reads:
-     * a single pair can coincide. Repetition is what makes the divergence reliable, not JIT warm-up — the
-     * allocation hands back unzeroed memory from the first read onwards.
+     * Reading the same nullable column twice must produce identical bytes. A value array filled only at the
+     * positions carrying a value leaves masked positions holding prior memory, which is serialized even though
+     * every consumer honours the mask and the results are correct. Asserting on bytes catches that for every
+     * element type, not just boolean, where deserialization happens to reject a non-canonical byte. Repeated
+     * because any single pair of reads can coincide.
      */
     public void testNullableColumnSerializesDeterministically() throws IOException {
         UninitializedArrays.ensureUnsafeEnabled();
@@ -866,8 +859,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         byte[] expected = null;
         for (int read = 0; read < DETERMINISM_READS; read++) {
             try (Block block = fullRead(data, column, dataType)) {
-                // One batch covers one data page, not the whole row group, so take whatever it returns. A fresh
-                // reader starts at row 0 every time, so position p is row p and the null pattern is known.
+                // One batch is one data page, not the row group; a fresh reader starts at row 0, so position p is row p.
                 int positions = block.getPositionCount();
                 assertThat(column + " read nothing", positions, greaterThan(0));
                 for (int p = 0; p < positions; p++) {
@@ -883,11 +875,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         }
     }
 
-    /**
-     * The serialized bytes, copied out while the stream is still open: closing a {@link BytesStreamOutput}
-     * returns its pages to the recycler, so a {@link BytesReference} held past that point is a view over
-     * memory another caller may already have reused.
-     */
+    /** Serialized bytes, copied out before close returns the stream's pages to the recycler. */
     private static byte[] serialize(Block block) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             Block.writeTypedBlock(block, out);

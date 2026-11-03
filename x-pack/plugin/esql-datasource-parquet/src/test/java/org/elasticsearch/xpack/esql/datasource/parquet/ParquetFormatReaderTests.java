@@ -4149,10 +4149,9 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
-     * A {@code required} MICROS column whose value overflows the nanosecond range marks the position null, but the
-     * array was allocated for a dense column and so is uninitialized. The position is serialized with the rest
-     * regardless of the mask, so leaving it unassigned puts stale memory on the wire: two reads of the same file
-     * would not agree. A long slot never fails deserialization, so the serialized bytes are the only oracle.
+     * A {@code required} MICROS column whose value overflows nanoseconds marks the position null, but the array was
+     * allocated for a dense column. The position is serialized whatever the mask says, so leaving it unassigned puts
+     * stale memory on the wire. A long slot never fails deserialization, so the bytes are the only oracle.
      */
     public void testRequiredMicrosOverflowSerializesDeterministically() throws Exception {
         MessageType schema = Types.buildMessage()
@@ -4203,10 +4202,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
-    /**
-     * The block's serialized bytes, copied out while the stream is open: closing a {@link BytesStreamOutput}
-     * returns its pages to the recycler, so a reference held past that point may be reused memory.
-     */
+    /** Serialized bytes, copied out before close returns the stream's pages to the recycler. */
     private static byte[] serializedBytes(Block block) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             Block.writeTypedBlock(block, out);

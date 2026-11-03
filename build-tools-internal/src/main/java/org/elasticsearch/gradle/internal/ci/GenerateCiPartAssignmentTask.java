@@ -46,7 +46,7 @@ public abstract class GenerateCiPartAssignmentTask extends DefaultTask {
         Files.writeString(getAssignmentFile().get().getAsFile().toPath(), assignment.toJson());
         double[] minutes = CiPartPlanner.estimatedMinutes(assignment, config, durations);
         for (int i = 0; i < minutes.length; i++) {
-            getLogger().lifecycle(String.format(Locale.ROOT, "checkPart%d: ~%.1f min of tests (planner model)", i + 1, minutes[i]));
+            getLogger().lifecycle(String.format(Locale.ROOT, "part %d: ~%.1f min of tests (planner model)", i + 1, minutes[i]));
         }
     }
 }

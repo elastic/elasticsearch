@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -47,7 +48,7 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
     @Before
     public void indexTheSameDocumentsTwice() {
         createIndex(COLUMNAR, columnarSettings(), "@timestamp", "type=date", "kw", "type=keyword", "n", "type=long");
-        createIndex(PLAIN, Settings.EMPTY, "@timestamp", "type=date", "kw", "type=keyword", "n", "type=long");
+        createIndex(PLAIN, plainSettings(), "@timestamp", "type=date", "kw", "type=keyword", "n", "type=long");
         // Several refreshes, for more than one segment.
         final int batches = randomIntBetween(2, 4);
         int doc = 0;
@@ -67,7 +68,22 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
     }
 
     private static Settings columnarSettings() {
-        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR).build();
+        return noRequestCache(Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR)).build();
+    }
+
+    private static Settings plainSettings() {
+        return noRequestCache(Settings.builder()).build();
+    }
+
+    /**
+     * The searches here have no hits, so the request cache would keep their results, and with them the shard of the index, after
+     * the index is deleted, until its cleaner runs, once a minute. The whole class runs in about that time. When assertions are on,
+     * each shard holds a captured exception for every document it indexed, so the shards of all the tests would pile up and fill
+     * the 512MB test heap before the cleaner ran. These tests compare the counts of two indices, and a cached result would not change
+     * that, so the cache is left out.
+     */
+    private static Settings.Builder noRequestCache(Settings.Builder settings) {
+        return settings.put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false);
     }
 
     /**
@@ -197,7 +213,7 @@ public class ColumnarTermsAggregationTests extends ESSingleNodeTestCase {
         final String columnar = "columnar-multi";
         final String plain = "plain-multi";
         createIndex(columnar, columnarSettings(), "@timestamp", "type=date", "kw", "type=keyword");
-        createIndex(plain, Settings.EMPTY, "@timestamp", "type=date", "kw", "type=keyword");
+        createIndex(plain, plainSettings(), "@timestamp", "type=date", "kw", "type=keyword");
         final BulkRequestBuilder columnarBulk = client().prepareBulk();
         final BulkRequestBuilder plainBulk = client().prepareBulk();
         for (int doc = 0; doc < 3000; doc++) {

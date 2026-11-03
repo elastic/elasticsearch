@@ -12,6 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -49,7 +50,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
 
         @Override
         public ShardLongFieldRange getRawFieldRange(String field) {
-            try (Searcher searcher = acquireSearcher("rrf_rank_can_match_it")) {
+            try (Searcher searcher = acquireSearcher("rrf_rank_can_match_it", SplitShardCountSummary.IRRELEVANT)) {
                 final DirectoryReader directoryReader = searcher.getDirectoryReader();
 
                 final byte[] minPackedValue = PointValues.getMinPackedValue(directoryReader, field);

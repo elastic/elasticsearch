@@ -15,6 +15,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -71,6 +73,40 @@ public class SourceRowXContentParserTests extends ESTestCase {
     }
 
     /**
+     * Numbers around the limits of a short, an int and a long, read at the top level of a row and as elements of arrays and objects. The
+     * encoder widens an int to a long and a float to a double at the top level of a row, but a number that is an element of an array or an
+     * object keeps the narrower type it was stored as, and that is the only place the int and float branches of the accessors are reached.
+     * Only a value that a float holds exactly is stored as a float, so the values beyond the range of a long include powers of two: 2^64 and
+     * 2^100.
+     */
+    private static final List<String> RANGE_NUMBERS = List.of(
+        "32767",
+        "32768",
+        "-32768",
+        "-32769",
+        "70000",
+        "2147483647",
+        "2147483648",
+        "-2147483648",
+        "-2147483649",
+        "2147483647.5",
+        "-2147483648.5",
+        "1e10",
+        "9007199254740993",
+        "123456789012345678",
+        "9223372036854775807",
+        "9.223372036854775807E18",
+        "9.223372036854775808E18",
+        "-9.223372036854775808E18",
+        "9.3E18",
+        "1.8446744073709552E19",
+        "-1.8446744073709552E19",
+        "1.2676506002282294E30",
+        "1e40",
+        "1e-50"
+    );
+
+    /**
      * The typed accessors are what the row-path mappers call when a field falls back to {@link SourceRowXContentParser}. Callers such as
      * {@code ignore_malformed} rely on a value of the wrong type making a parser throw an {@link IllegalArgumentException}, which is what
      * the JSON parser does, so the row parser has to behave the same: for every kind of value and every typed accessor, it returns an
@@ -101,10 +137,62 @@ public class SourceRowXContentParserTests extends ESTestCase {
         for (String value : values) {
             sources.put(value, new BytesArray("{\"v\":" + value + "}"));
         }
+        for (String value : RANGE_NUMBERS) {
+            sources.put(value, new BytesArray("{\"v\":" + value + "}"));
+        }
         assertAccessorsMatch(XContentType.JSON, sources);
     }
 
+    /**
+     * Values the JSON text format cannot spell: NaN, the infinities and values beyond the range of a float. The range checks must reject
+     * the infinities and the huge values. NaN is neither below the minimum nor above the maximum, so it is not rejected and narrows to 0,
+     * as it does in the CBOR parser. The test pins that parity, not an endorsement of narrowing NaN to 0.
+     */
+    public void testTypedAccessorsMatchTheCborParserForNonFiniteNumbers() throws IOException {
+        final Map<String, BytesReference> sources = new LinkedHashMap<>();
+        final Map<String, Number> values = new LinkedHashMap<>();
+        values.put("double NaN", Double.NaN);
+        values.put("double +Infinity", Double.POSITIVE_INFINITY);
+        values.put("double -Infinity", Double.NEGATIVE_INFINITY);
+        values.put("float NaN", Float.NaN);
+        values.put("float +Infinity", Float.POSITIVE_INFINITY);
+        values.put("double 1e300", 1e300);
+        values.put("float 3e38", 3e38f);
+        for (Map.Entry<String, Number> value : values.entrySet()) {
+            try (XContentBuilder builder = XContentFactory.cborBuilder()) {
+                builder.startObject().field("v", value.getValue()).endObject();
+                sources.put(value.getKey(), BytesReference.bytes(builder));
+            }
+        }
+        assertAccessorsMatch(XContentType.CBOR, sources);
+    }
+
+    /**
+     * Reads {@link #RANGE_NUMBERS} as the only element of an array and as the value in an object that is the only element of an array.
+     */
+    public void testTypedAccessorsMatchTheJsonParserForElementsOfArraysAndObjects() throws IOException {
+        final Map<String, BytesReference> inArray = new LinkedHashMap<>();
+        final Map<String, BytesReference> inObject = new LinkedHashMap<>();
+        for (String value : RANGE_NUMBERS) {
+            inArray.put("[" + value + "]", new BytesArray("{\"d\":[" + value + "]}"));
+            inObject.put("[{\"k\":" + value + "}]", new BytesArray("{\"d\":[{\"k\":" + value + "}]}"));
+        }
+        // START_OBJECT, FIELD_NAME, START_ARRAY, then the value
+        assertAccessorsMatch(XContentType.JSON, inArray, 4);
+        // START_OBJECT, FIELD_NAME, START_ARRAY, START_OBJECT, FIELD_NAME, then the value
+        assertAccessorsMatch(XContentType.JSON, inObject, 6);
+    }
+
     private void assertAccessorsMatch(XContentType type, Map<String, BytesReference> sources) throws IOException {
+        // START_OBJECT, FIELD_NAME, then the value
+        assertAccessorsMatch(type, sources, 3);
+    }
+
+    /**
+     * Reads each accessor from the JSON parser and from the row parser, both positioned on the {@code valueToken}th token of each source,
+     * and fails with every difference found.
+     */
+    private void assertAccessorsMatch(XContentType type, Map<String, BytesReference> sources, int valueToken) throws IOException {
         final List<String> differences = new ArrayList<>();
         for (Map.Entry<String, BytesReference> entry : sources.entrySet()) {
             final BytesReference source = entry.getValue();
@@ -117,8 +205,8 @@ public class SourceRowXContentParserTests extends ESTestCase {
                         XContentParser json = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, source, type);
                         SourceRowXContentParser row = new SourceRowXContentParser(tree, batch.row(0))
                     ) {
-                        // Position both on the value: START_OBJECT, FIELD_NAME, then the value token.
-                        for (int i = 0; i < 3; i++) {
+                        // Read up to the value token.
+                        for (int i = 0; i < valueToken; i++) {
                             json.nextToken();
                             row.nextToken();
                         }

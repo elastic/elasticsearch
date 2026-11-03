@@ -1,0 +1,40 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.aggregation.blockhash;
+
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
+
+import java.util.List;
+
+/**
+ * Like {@link PackedValuesPartitionedBlockHashTests}, for groups that the planner proved to have no null. Their keys have no null
+ * bytes, and the input has no null.
+ */
+public class PackedValuesNonNullPartitionedBlockHashTests extends PartitionedBlockHashTestCase {
+    @Override
+    protected List<ElementType> keyTypes() {
+        List<ElementType> fixedWidth = List.of(ElementType.BOOLEAN, ElementType.INT, ElementType.LONG, ElementType.DOUBLE);
+        return randomList(1, 5, () -> randomFrom(fixedWidth));
+    }
+
+    @Override
+    protected List<BlockHash.GroupSpec> groups() {
+        return super.groups().stream().map(g -> g.withNonNull(true)).toList();
+    }
+
+    @Override
+    protected boolean nullsAllowed() {
+        return false;
+    }
+
+    @Override
+    protected PartitionedBlockHash newBlockHash(List<BlockHash.GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
+        return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
+    }
+}

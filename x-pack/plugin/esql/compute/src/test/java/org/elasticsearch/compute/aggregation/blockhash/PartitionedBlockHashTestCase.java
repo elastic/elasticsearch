@@ -120,7 +120,15 @@ public abstract class PartitionedBlockHashTestCase extends ComputeTestCase {
         }
     }
 
-    private List<BlockHash.GroupSpec> groups() {
+    /**
+     * Whether the random input may have nulls. A hash that the planner may build for groups with no null, see
+     * {@link BlockHash.GroupSpec#nonNull()}, must not be given any.
+     */
+    protected boolean nullsAllowed() {
+        return true;
+    }
+
+    protected List<BlockHash.GroupSpec> groups() {
         List<ElementType> keyTypes = keyTypes();
         List<BlockHash.GroupSpec> groups = new ArrayList<>(keyTypes.size());
         for (int c = 0; c < keyTypes.size(); c++) {
@@ -145,7 +153,7 @@ public abstract class PartitionedBlockHashTestCase extends ComputeTestCase {
                     blockFactory,
                     groups.get(g).elementType(),
                     positionCount,
-                    vector == false && randomBoolean(),
+                    nullsAllowed() && vector == false && randomBoolean(),
                     1,
                     vector ? 1 : between(1, 3),
                     0,

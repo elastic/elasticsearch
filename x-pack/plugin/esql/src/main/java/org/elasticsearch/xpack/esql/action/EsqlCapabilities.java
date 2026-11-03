@@ -2794,8 +2794,8 @@ public class EsqlCapabilities {
 
         /**
          * PromQL arithmetic/comparison binaries join independent operand pipelines when {@code getType} refuses a shared
-         * fold frame: different {@code offset}s, nested across-series next to another operand, aggregated×raw, and
-         * {@code scalar()}×labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/
+         * fold frame: different {@code offset}s, nested across-series next to another operand, aggregated x raw, and
+         * {@code scalar()} x labeled (step-broadcast). Opaque {@code topk}/{@code bottomk}/{@code limitk}/
          * {@code limit_ratio} join under typed {@code _timeseries}; the keyword path keeps its pre-typed rejection.
          * Gates csv-spec coverage of those shapes.
          */

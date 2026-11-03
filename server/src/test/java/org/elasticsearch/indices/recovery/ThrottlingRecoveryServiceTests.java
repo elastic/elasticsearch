@@ -1554,6 +1554,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var routingNodes = mock(RoutingNodes.class);
         final var routingNode = mock(RoutingNode.class);
         when(event.state()).thenReturn(state);
+        when(event.previousState()).thenReturn(state);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.getRoutingNodes()).thenReturn(routingNodes);
         when(routingNodes.node(clusterService.localNode().getId())).thenReturn(routingNode);
@@ -1640,6 +1641,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var routingNodes = mock(RoutingNodes.class);
         final var routingNode = mock(RoutingNode.class);
         when(event.state()).thenReturn(state);
+        when(event.previousState()).thenReturn(state);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.getRoutingNodes()).thenReturn(routingNodes);
         when(routingNodes.node(clusterService.localNode().getId())).thenReturn(routingNode);
@@ -2486,6 +2488,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var routingNodes = mock(RoutingNodes.class);
         final var routingNode = mock(RoutingNode.class);
         when(event.state()).thenReturn(state);
+        when(event.previousState()).thenReturn(state);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.getRoutingNodes()).thenReturn(routingNodes);
         when(routingNodes.node(clusterService.localNode().getId())).thenReturn(routingNode);
@@ -2508,7 +2511,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testQueuedRelocationIsReprioritizedWhenSourceNodeIsMarkedForRemoval() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(1);
-        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final var reprioritizedCount = new AtomicInteger();
+        final var service = newStartedService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            new RecoverySchedulingListener() {
+                @Override
+                public void onQueuedRecoveryReprioritizedOnTarget() {
+                    reprioritizedCount.incrementAndGet();
+                }
+            }
+        );
         final var blockedRecoveryListener = new AtomicReference<RecoveryListener>();
         service.enqueue(
             ProjectId.DEFAULT,
@@ -2518,7 +2532,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             blockedRecoveryListener::set
         );
         taskQueue.runAllRunnableTasks();
-        assertNotNull("blocker should be have been dispatched", blockedRecoveryListener.get());
+        assertNotNull("blocker should have been dispatched", blockedRecoveryListener.get());
 
         final var completionOrder = new CopyOnWriteArrayList<String>();
         final var splitTargetShard = mockIndexShard(
@@ -2550,30 +2564,34 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(2));
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(assignedPriority));
 
-        // Neither a restart of the source node nor the removal of another node should the recovery priority to be updated
+        // Neither a restart of the source node nor the removal of another node should cause the recovery priority to be updated
+        final var unrelatedShutdowns = randomBoolean()
+            ? nodeShutdowns("relocation-source", SingleNodeShutdownMetadata.Type.RESTART)
+            : nodeShutdowns(
+                "other-node",
+                randomFrom(
+                    SingleNodeShutdownMetadata.Type.REMOVE,
+                    SingleNodeShutdownMetadata.Type.REPLACE,
+                    SingleNodeShutdownMetadata.Type.SIGTERM
+                )
+            );
         service.clusterChanged(
             clusterChangedEventWithShutdowns(
                 clusterService,
-                randomBoolean()
-                    ? nodeShutdowns("relocation-source", SingleNodeShutdownMetadata.Type.RESTART)
-                    : nodeShutdowns(
-                        "other-node",
-                        randomFrom(
-                            SingleNodeShutdownMetadata.Type.REMOVE,
-                            SingleNodeShutdownMetadata.Type.REPLACE,
-                            SingleNodeShutdownMetadata.Type.SIGTERM
-                        )
-                    ),
+                NodesShutdownMetadata.EMPTY,
+                unrelatedShutdowns,
                 splitTargetShard,
                 relocationTargetShard
             )
         );
         taskQueue.runAllRunnableTasks();
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(assignedPriority));
+        assertThat(reprioritizedCount.get(), equalTo(0));
 
         service.clusterChanged(
             clusterChangedEventWithShutdowns(
                 clusterService,
+                unrelatedShutdowns,
                 nodeShutdowns(
                     "relocation-source",
                     randomFrom(
@@ -2590,6 +2608,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(2));
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
         assertThat(splitTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+        assertThat(reprioritizedCount.get(), equalTo(1));
 
         blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
@@ -2600,7 +2619,18 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     public void testRelocationEnqueuedAfterSourceNodeIsMarkedForRemovalIsReprioritized() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(1);
-        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final var reprioritizedInQueue = new AtomicInteger();
+        final var service = newStartedService(
+            taskQueue.getThreadPool(),
+            DefaultProjectResolver.INSTANCE,
+            clusterService,
+            new RecoverySchedulingListener() {
+                @Override
+                public void onQueuedRecoveryReprioritizedOnTarget() {
+                    reprioritizedInQueue.incrementAndGet();
+                }
+            }
+        );
         final var blockedRecoveryListener = new AtomicReference<RecoveryListener>();
         service.enqueue(
             ProjectId.DEFAULT,
@@ -2613,7 +2643,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertNotNull("blocker should have been dispatched", blockedRecoveryListener.get());
 
         service.clusterChanged(
-            clusterChangedEventWithShutdowns(clusterService, nodeShutdowns("relocation-source", SingleNodeShutdownMetadata.Type.REMOVE))
+            clusterChangedEventWithShutdowns(
+                clusterService,
+                NodesShutdownMetadata.EMPTY,
+                nodeShutdowns("relocation-source", SingleNodeShutdownMetadata.Type.REMOVE)
+            )
         );
         taskQueue.runAllRunnableTasks();
 
@@ -2643,6 +2677,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             l -> l.onRecoveryDone(relocationTargetShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
         );
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
+        assertThat(reprioritizedInQueue.get(), equalTo(0));
 
         blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         taskQueue.runAllRunnableTasks();
@@ -2651,13 +2686,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static ClusterChangedEvent clusterChangedEventWithShutdowns(
         ClusterService clusterService,
+        NodesShutdownMetadata previousNodeShutdowns,
         NodesShutdownMetadata nodeShutdowns,
         IndexShard... localShards
     ) {
         final var event = mock(ClusterChangedEvent.class);
+        final var previousState = mock(ClusterState.class);
         final var state = mock(ClusterState.class);
         final var routingNodes = mock(RoutingNodes.class);
         final var routingNode = mock(RoutingNode.class);
+        when(event.previousState()).thenReturn(previousState);
+        when(previousState.metadata()).thenReturn(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, previousNodeShutdowns).build());
         when(event.state()).thenReturn(state);
         when(state.metadata()).thenReturn(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, nodeShutdowns).build());
         when(state.getRoutingNodes()).thenReturn(routingNodes);
@@ -2710,11 +2749,20 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ProjectResolver projectResolver,
         ClusterService clusterService
     ) {
+        return newStartedService(threadPool, projectResolver, clusterService, RecoverySchedulingListener.NOOP);
+    }
+
+    private static ThrottlingRecoveryService newStartedService(
+        ThreadPool threadPool,
+        ProjectResolver projectResolver,
+        ClusterService clusterService,
+        RecoverySchedulingListener schedulingListener
+    ) {
         final var service = new ThrottlingRecoveryService(
             threadPool,
             projectResolver,
             clusterService,
-            RecoverySchedulingListener.NOOP,
+            schedulingListener,
             monitorWithNoGates(threadPool),
             ByteSizeValue.ofBytes(Long.MAX_VALUE)
         );

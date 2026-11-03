@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
@@ -37,7 +38,9 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.CompositeRecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.DataNodeRecoveryThrottlingSettings;
+import org.elasticsearch.indices.recovery.RecoverySchedulingListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -63,6 +66,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -134,6 +138,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
     @After
     public void clearNotPreferredToRemainNode() {
         NotPreferredToRemainDecider.nodeId = null;
+        NotPreferredToRemainDecider.indexName = null;
     }
 
     @After
@@ -701,22 +706,28 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             )
         );
 
-        // Shut down the source node of the relocations, which are still queued on the target node behind the split targets
-        safeGet(
-            clusterAdmin().execute(
-                PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TEST_REQUEST_TIMEOUT,
-                    getNodeId(shuttingDownNode),
-                    SIGTERM,
-                    "test",
-                    null,
-                    null,
-                    TimeValue.timeValueMinutes(1)
-                )
-            )
-        );
+        // Shut down the source node of the relocations, which are still queued on the target node behind the split targets.
+        // The target node reprioritizes its queue asynchronously after applying the shutdown, so wait for it before
+        // freeing any slot. Otherwise, a freed slot could go to a split target ahead of a not yet reprioritized relocation.
+        final var reprioritized = new CountDownLatch(relocations);
+        final var reprioritizationListener = new RecoverySchedulingListener() {
+            @Override
+            public void onQueuedRecoveryReprioritizedOnTarget() {
+                reprioritized.countDown();
+            }
+        };
+        // Registered before the shutdown, so that no reprioritization it triggers can be missed
+        final var schedulingListeners = internalCluster().getInstance(CompositeRecoverySchedulingListener.class, targetNode);
+        schedulingListeners.addListener(reprioritizationListener);
+        try {
+            triggerSigtermShutdown(shuttingDownNode);
+            safeAwait(reprioritized);
+        } finally {
+            schedulingListeners.removeListener(reprioritizationListener);
+        }
+        final var priorities = getRelocationPriorities(evacuatedIndex, targetNode);
+        assertThat(priorities.size(), equalTo(relocations));
+        assertThat(priorities.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO)));
         awaitRecoveryCountStats(
             Map.of(
                 targetNode,
@@ -777,17 +788,30 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         final var sourceNode = startIndexNode();
         // A single recovery slot, which the first relocation to start holds until its handoff is released
         final var targetNode = startIndexNode(incomingDataNodeThrottlingSettings(1, 100, false));
+        updateClusterSettings(Settings.builder().put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false));
 
-        final var indexName = randomIndexName();
+        // The shards of this index are made not preferred on the source node, so that they all relocate before the shutdown
+        final var notPreferredIndexName = randomIndexName();
+        // The shards of this index stay on the source node until the shutdown forces them off it.
+        final var evacuatedIndexName = randomIndexName();
+        final int forcedRelocations = between(1, 3);
         createIndex(
-            indexName,
-            // The balancer only moves a not-preferred shard if the move improves the balance, so only half of the shards relocate
-            indexSettings(2 * relocations, 0).put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", targetNode).build()
+            notPreferredIndexName,
+            indexSettings(relocations, 0).put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", targetNode).build()
         );
-        indexDocs(indexName, between(1, 50));
-        flush(indexName);
-        ensureGreen(indexName);
-        updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
+        createIndex(
+            evacuatedIndexName,
+            indexSettings(forcedRelocations, 0).put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", targetNode).build()
+        );
+        indexDocs(notPreferredIndexName, between(1, 50));
+        indexDocs(evacuatedIndexName, between(1, 50));
+        flush(notPreferredIndexName, evacuatedIndexName);
+        ensureGreen(notPreferredIndexName, evacuatedIndexName);
+        updateIndexSettings(
+            Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"),
+            notPreferredIndexName,
+            evacuatedIndexName
+        );
 
         // Stall the handoffs of the relocations, so that the relocations keep their recovery slots once started.
         final var stallHandoffs = new AtomicBoolean(true);
@@ -805,68 +829,59 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         final var targetExecutor = internalCluster().getInstance(ThreadPool.class, targetNode).generic();
 
         // The shards are not preferred on the source node, so they relocate to the target node with a non-critical priority
+        NotPreferredToRemainDecider.indexName = notPreferredIndexName;
         NotPreferredToRemainDecider.nodeId = getNodeId(sourceNode);
         ClusterRerouteUtils.reroute(client());
         awaitRecoveryCountStats(
             Map.of(targetNode, stats -> stats.currentAsTarget() == 1 && stats.currentAsTargetQueued() == queuedRelocations)
         );
-        final var relocationsBeforeShutdown = getRelocationPriorities(indexName, targetNode);
+        final var relocationsBeforeShutdown = getRelocationPriorities(notPreferredIndexName, targetNode);
         assertThat(relocationsBeforeShutdown.size(), equalTo(relocations));
         assertThat(relocationsBeforeShutdown.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)));
 
-        safeGet(
-            clusterAdmin().execute(
-                PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(
-                    TEST_REQUEST_TIMEOUT,
-                    TEST_REQUEST_TIMEOUT,
-                    getNodeId(sourceNode),
-                    SIGTERM,
-                    "test",
-                    null,
-                    null,
-                    TimeValue.timeValueMinutes(1)
+        // The target node raises the priority of the relocations that were queued when their source node was marked for removal
+        final var reprioritized = new CountDownLatch(queuedRelocations);
+        final var reprioritizationListener = new RecoverySchedulingListener() {
+            @Override
+            public void onQueuedRecoveryReprioritizedOnTarget() {
+                reprioritized.countDown();
+            }
+        };
+        // Registered before the shutdown, so that no reprioritization it triggers can be missed
+        final var schedulingListeners = internalCluster().getInstance(CompositeRecoverySchedulingListener.class, targetNode);
+        schedulingListeners.addListener(reprioritizationListener);
+        try {
+            triggerSigtermShutdown(sourceNode);
+            safeAwait(reprioritized);
+        } finally {
+            schedulingListeners.removeListener(reprioritizationListener);
+        }
+        // The shutdown also forces the remaining shards off the source node. They queue behind the relocation that holds the slot.
+        awaitRecoveryCountStats(
+            Map.of(
+                targetNode,
+                stats -> stats.currentAsTarget() == 1 && stats.currentAsTargetQueued() == queuedRelocations + forcedRelocations
+            )
+        );
+
+        final var priorities = getRelocationPriorities(notPreferredIndexName, targetNode);
+        assertThat(priorities.keySet(), equalTo(relocationsBeforeShutdown.keySet()));
+        // The recovery API reports the raised priority of the queued relocations. The one that started keeps its priority.
+        assertThat(
+            priorities.values().stream().collect(Collectors.groupingBy(Function.identity(), Collectors.counting())),
+            equalTo(
+                Map.of(
+                    RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+                    1L,
+                    RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
+                    (long) queuedRelocations
                 )
             )
         );
-        assertBusy(() -> {
-            final var priorities = getRelocationPriorities(indexName, targetNode);
-            // The target node raises the priority of the relocations that were queued when their source node was marked
-            // for removal, and leaves the one that had already started alone
-            assertThat(
-                relocationsBeforeShutdown.keySet().stream().collect(Collectors.groupingBy(priorities::get, Collectors.counting())),
-                equalTo(
-                    Map.of(
-                        RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED,
-                        1L,
-                        RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
-                        (long) queuedRelocations
-                    )
-                )
-            );
-            // The shutdown also forces the remaining shards off the source node, with the priority of a forced move
-            final var forcedRelocations = priorities.entrySet()
-                .stream()
-                .filter(entry -> relocationsBeforeShutdown.containsKey(entry.getKey()) == false)
-                .map(Map.Entry::getValue)
-                .toList();
-            assertThat(forcedRelocations.size(), equalTo(relocations));
-            assertThat(forcedRelocations, everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO)));
-        });
-        // The master does not reassign the priority of the relocations that started before the shutdown
-        internalCluster().clusterService(targetNode)
-            .state()
-            .getRoutingNodes()
-            .node(getNodeId(targetNode))
-            .shardsWithState(indexName, ShardRoutingState.INITIALIZING)
-            .filter(relocationTarget -> relocationsBeforeShutdown.containsKey(relocationTarget.shardId()))
-            .forEach(
-                relocationTarget -> assertThat(
-                    relocationTarget.toString(),
-                    relocationTarget.recoveryPriority(),
-                    equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)
-                )
-            );
+        // The forced relocations get the priority of a forced move from the master
+        final var forcedPriorities = getRelocationPriorities(evacuatedIndexName, targetNode);
+        assertThat(forcedPriorities.size(), equalTo(forcedRelocations));
+        assertThat(forcedPriorities.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO)));
 
         // Release the handoffs and let the relocations complete
         synchronized (stalledHandoffs) {
@@ -879,10 +894,30 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
                 throw new AssertionError(e);
             }
         }));
-        ensureGreen(indexName);
+        ensureGreen(notPreferredIndexName, evacuatedIndexName);
         final var state = internalCluster().clusterService().state();
         assertThat(state.getRoutingNodes().node(getNodeId(sourceNode)).size(), equalTo(0));
         internalCluster().stopNode(sourceNode);
+    }
+
+    /// Registers a [org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type#SIGTERM] shutdown for the given
+    /// node, which marks it for removal.
+    private void triggerSigtermShutdown(String nodeName) {
+        safeGet(
+            clusterAdmin().execute(
+                PutShutdownNodeAction.INSTANCE,
+                new PutShutdownNodeAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    getNodeId(nodeName),
+                    SIGTERM,
+                    "test",
+                    null,
+                    null,
+                    TimeValue.timeValueMinutes(1)
+                )
+            )
+        );
     }
 
     /// Returns the priority that the target node reports in the recovery API for each relocation of the index to it, which is the
@@ -897,7 +932,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             .setActiveOnly(true)
             .get()
             .shardRecoveryInfos()
-            .get(indexName)
+            .getOrDefault(indexName, List.of())
             .stream()
             .map(ShardRecoveryInfo::recoveryState)
             .filter(recoveryState -> recoveryState.getTargetNode().getId().equals(targetNodeId))
@@ -967,15 +1002,20 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         }
     }
 
-    /// Makes all the shards on the node [#nodeId] not preferred to remain there, so that the balancer moves them away
-    /// with [RecoveryPriority#RELOCATION_CAN_REMAIN_NOT_PREFERRED].
+    /// Makes the shards on the node [#nodeId] not preferred to remain there, so that the balancer moves them away with
+    /// [RecoveryPriority#RELOCATION_CAN_REMAIN_NOT_PREFERRED]. If [#indexName] is set, only the shards of that index are
+    /// affected, otherwise the shards of all indices are.
     public static class NotPreferredToRemainDecider extends AllocationDecider {
 
         static volatile String nodeId;
+        static volatile String indexName;
 
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            return node.nodeId().equals(nodeId) ? Decision.NOT_PREFERRED : Decision.YES;
+            final String index = indexName;
+            return node.nodeId().equals(nodeId) && (index == null || index.equals(indexMetadata.getIndex().getName()))
+                ? Decision.NOT_PREFERRED
+                : Decision.YES;
         }
     }
 }

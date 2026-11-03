@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -133,6 +134,22 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
                 assertThat(metadata.isNodeMarkedForRemoval("thenode"), is(false));
             }
         }
+    }
+
+    public void testGetAllNodeIdsMarkedForRemoval() {
+        final var metadata = createTestInstance();
+        final var expected = metadata.getAll()
+            .values()
+            .stream()
+            .filter(shutdown -> shutdown.getType() != SingleNodeShutdownMetadata.Type.RESTART)
+            .map(SingleNodeShutdownMetadata::getNodeId)
+            .collect(Collectors.toSet());
+        final var nodeIdsMarkedForRemoval = metadata.getAllNodeIdsMarkedForRemoval();
+        assertThat(nodeIdsMarkedForRemoval, equalTo(expected));
+        for (final var nodeId : metadata.getAll().keySet()) {
+            assertThat(nodeIdsMarkedForRemoval.contains(nodeId), equalTo(metadata.isNodeMarkedForRemoval(nodeId)));
+        }
+        assertThat(NodesShutdownMetadata.EMPTY.getAllNodeIdsMarkedForRemoval(), equalTo(Set.of()));
     }
 
     @Override

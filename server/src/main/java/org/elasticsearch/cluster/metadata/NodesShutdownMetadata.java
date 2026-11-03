@@ -135,7 +135,7 @@ public class NodesShutdownMetadata implements Metadata.ClusterCustom {
     /**
      * Returns all node ids that are scheduled for being permanently removed from the cluster.
      */
-    public Set<String> getAllNodesIdsMarkedForRemoval() {
+    public Set<String> getAllNodeIdsMarkedForRemoval() {
         return nodes.values()
             .stream()
             .filter(node -> node.getType().isRemovalType())

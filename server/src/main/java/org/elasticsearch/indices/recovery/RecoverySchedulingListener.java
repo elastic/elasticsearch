@@ -40,6 +40,10 @@ public interface RecoverySchedulingListener {
     /// Called when an outgoing peer recovery is queued on the source.
     default void onPeerRecoveryQueuedOnSource() {}
 
+    /// Called when the priority of an incoming recovery is raised while it is queued on the target, moving it ahead in the
+    /// queue (e.g. because its source node was marked for removal).
+    default void onQueuedRecoveryReprioritizedOnTarget() {}
+
     /// Called when a queued incoming recovery is discarded on the target without having ever run.
     default void onQueuedRecoveryDiscardedOnTarget(RecoverySource.Type type, PriorityGroup priorityGroup) {}
 

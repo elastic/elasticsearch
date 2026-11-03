@@ -136,6 +136,8 @@ curl -X GET "${ELASTICSEARCH_URL}/_query/dataset" \
 
 [`DELETE /_query/dataset/{name}`]({{es-apis}}operation/operation-esql-delete-dataset) deletes a dataset by name.
 
+Deleting a dataset doesn't check whether an [{{esql}} view](/reference/query-languages/esql/esql-views.md) reads from it. Views that read from a deleted dataset fail when queried.
+
 ::::{tab-set}
 :group: api-ref
 

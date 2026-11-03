@@ -40,6 +40,13 @@ import org.apache.lucene.util.fst.FST;
 import java.io.IOException;
 
 /**
+ * Fork of Lucene 10.5.2's {@code SynonymFilter}, removed upstream in {@code apache/lucene#16966}.
+ *
+ * <p>Used only by the {@code synonym} token filter on indices created before
+ * {@code IndexVersions#SYNONYM_FILTER_USES_SYNONYM_GRAPH}, so their analysis never changes. Never use it for new indices.
+ *
+ * <p>Delete only when no read-compatible index version predates that constant.
+ *
  * Matches single or multi word synonyms in a token stream. This token stream cannot properly handle
  * position increments != 1, ie, you should place this filter before filtering out stop words.
  *

@@ -111,7 +111,12 @@ public final class LuceneForks {
         permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),
-        permanent("org.elasticsearch.common.lucene.search.XMoreLikeThis", "Elasticsearch-specific more-like-this behaviour")
+        permanent("org.elasticsearch.common.lucene.search.XMoreLikeThis", "Elasticsearch-specific more-like-this behaviour"),
+        permanent(
+            "org.elasticsearch.lucene.analysis.synonym.XSynonymFilter",
+            "Legacy synonym filter output for indices created before SYNONYM_FILTER_USES_SYNONYM_GRAPH; "
+                + "removed from Lucene in apache/lucene#16966"
+        )
     );
 
     private LuceneForks() {}

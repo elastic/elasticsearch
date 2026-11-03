@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
@@ -57,6 +58,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.ingest.IngestMemoryAccountant;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -84,6 +86,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -129,11 +132,16 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     @Captor
     ArgumentCaptor<TriConsumer<Integer, Exception, IndexDocFailureStoreStatus>> failureHandler;
     @Captor
+    ArgumentCaptor<IngestMemoryAccountant> memoryAccountant;
+    @Captor
     ArgumentCaptor<ActionListener<Void>> listener;
     @Captor
     ArgumentCaptor<TransportResponseHandler<BulkResponse>> remoteResponseHandler;
     @Captor
     ArgumentCaptor<Iterable<DocWriteRequest<?>>> bulkDocsItr;
+
+    /** The indexing pressure that the action accounts to */
+    IndexingPressure indexingPressure;
 
     /** The actual action we want to test, with real indexing mocked */
     TestTransportBulkAction action;
@@ -153,6 +161,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     class TestTransportBulkAction extends TransportBulkAction {
         boolean isExecuted = false; // set when the "real" bulk execution happens
 
+        ActionListener<BulkResponse> executedListener; // the listener that the "real" bulk execution would complete
+
         boolean needToCheck; // pluggable return value for `needToCheck`
 
         boolean indexCreated = true; // If set to false, will be set to true by call to createIndex
@@ -166,7 +176,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 new NodeClient(Settings.EMPTY, TransportBulkActionIngestTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
                 ActionFilters.EMPTY,
                 TestIndexNameExpressionResolver.newInstance(),
-                new IndexingPressure(SETTINGS),
+                TransportBulkActionIngestTests.this.indexingPressure,
                 EmptySystemIndices.INSTANCE,
                 TestProjectResolvers.singleProject(projectId),
                 FailureStoreMetrics.NOOP,
@@ -194,6 +204,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ) {
             assertTrue(indexCreated);
             isExecuted = true;
+            executedListener = listener;
         }
 
         @Override
@@ -371,6 +382,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
         ingestService = mock(IngestService.class);
+        indexingPressure = new IndexingPressure(SETTINGS);
         action = new TestTransportBulkAction();
         singleItemBulkWriteAction = new TestSingleItemBulkWriteAction(action);
         reset(transportService); // call on construction of action
@@ -433,6 +445,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             redirectPredicate.capture(),
             redirectHandler.capture(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
         listener.getValue().onFailure(exception);
@@ -483,6 +496,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
         listener.getValue().onFailure(exception);
@@ -531,6 +545,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
         listener.getValue().onFailure(exception);
@@ -545,6 +560,117 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one
         verifyNoMoreInteractions(transportService);
+    }
+
+    private BulkRequest bulkWithPipelineFor(String index) {
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest = new IndexRequest(index).id("id");
+        indexRequest.source(Collections.emptyMap());
+        indexRequest.setPipeline("testpipeline");
+        bulkRequest.add(indexRequest);
+        return bulkRequest;
+    }
+
+    private IngestMemoryAccountant captureMemoryAccountant(BulkRequest bulkRequest) {
+        verify(ingestService).executeBulkRequest(
+            eq(projectId),
+            eq(bulkRequest.numberOfActions()),
+            any(),
+            any(),
+            any(),
+            any(),
+            any(),
+            memoryAccountant.capture(),
+            listener.capture()
+        );
+        return memoryAccountant.getValue();
+    }
+
+    /** An amount that no node-level limit allows, whatever the heap of the test JVM */
+    private static final long BEYOND_ANY_LIMIT = Long.MAX_VALUE / 4;
+
+    public void testIngestExpansionIsRejectedForUserIndicesButForcedForSystemIndices() throws Exception {
+        BulkRequest userBulk = bulkWithPipelineFor("index");
+        ActionTestUtils.execute(action, null, userBulk, ActionTestUtils.assertNoFailureListener(response -> {}));
+        IngestMemoryAccountant userAccountant = captureMemoryAccountant(userBulk);
+        long before = indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes();
+        expectThrows(EsRejectedExecutionException.class, () -> userAccountant.add(BEYOND_ANY_LIMIT));
+        assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(before));
+        assertThat(indexingPressure.stats().getIngestExpansionRejections(), equalTo(1L));
+
+        reset(ingestService);
+        BulkRequest systemBulk = bulkWithPipelineFor(".system");
+        ActionTestUtils.execute(action, null, systemBulk, ActionTestUtils.assertNoFailureListener(response -> {}));
+        IngestMemoryAccountant systemAccountant = captureMemoryAccountant(systemBulk);
+        systemAccountant.add(BEYOND_ANY_LIMIT);
+        assertThat(indexingPressure.stats().getCurrentIngestExpansionBytes(), equalTo(BEYOND_ANY_LIMIT));
+        assertThat(indexingPressure.stats().getIngestExpansionRejections(), equalTo(1L));
+    }
+
+    public void testIngestExpansionIsMixedBulkNotForced() throws Exception {
+        BulkRequest bulkRequest = bulkWithPipelineFor(".system");
+        IndexRequest userRequest = new IndexRequest("index").id("id");
+        userRequest.source(Collections.emptyMap());
+        userRequest.setPipeline("testpipeline");
+        bulkRequest.add(userRequest);
+        ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
+        IngestMemoryAccountant accountant = captureMemoryAccountant(bulkRequest);
+        expectThrows(EsRejectedExecutionException.class, () -> accountant.add(BEYOND_ANY_LIMIT));
+    }
+
+    public void testIngestExpansionIsTrackedWhenBulkIsAlreadyAccountedFor() throws Exception {
+        // the incremental bulk handler owns the charge for the wire size and the action gets a no-op releasable for it
+        BulkRequest bulkRequest = bulkWithPipelineFor("index");
+        bulkRequest.incrementalState(new BulkRequest.IncrementalState(Map.of(), true));
+        ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> {}));
+        IngestMemoryAccountant accountant = captureMemoryAccountant(bulkRequest);
+        assertThat(indexingPressure.stats().getCurrentCoordinatingBytes(), equalTo(0L));
+        accountant.add(1024);
+        assertThat(indexingPressure.stats().getCurrentIngestExpansionBytes(), equalTo(1024L));
+        expectThrows(EsRejectedExecutionException.class, () -> accountant.add(BEYOND_ANY_LIMIT));
+    }
+
+    public void testIngestExpansionIsHeldUntilBulkCompletes() throws Exception {
+        BulkRequest bulkRequest = bulkWithPipelineFor("index");
+        AtomicBoolean responseCalled = new AtomicBoolean(false);
+        ActionTestUtils.execute(action, null, bulkRequest, ActionTestUtils.assertNoFailureListener(response -> responseCalled.set(true)));
+        IngestMemoryAccountant accountant = captureMemoryAccountant(bulkRequest);
+        accountant.add(1024);
+        assertThat(indexingPressure.stats().getCurrentIngestExpansionBytes(), equalTo(1024L));
+
+        // every document finished its pipeline and the shard phase starts, which is when the expanded sources are retained the longest
+        bulkRequest.requests().forEach(r -> TransportBulkAction.getIndexWriteRequest(r).setPipeline(IngestService.NOOP_PIPELINE_NAME));
+        listener.getValue().onResponse(null);
+        assertTrue(action.isExecuted);
+        assertThat(indexingPressure.stats().getCurrentIngestExpansionBytes(), equalTo(1024L));
+
+        action.executedListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+        assertTrue(responseCalled.get());
+        assertThat(indexingPressure.stats().getCurrentIngestExpansionBytes(), equalTo(0L));
+        assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L));
+    }
+
+    public void testIngestExpansionIsHeldUntilIngestFinishesWhenBulkFailsEarly() throws Exception {
+        BulkRequest bulkRequest = bulkWithPipelineFor("index");
+        AtomicBoolean failureCalled = new AtomicBoolean(false);
+        ActionTestUtils.execute(action, null, bulkRequest, ActionListener.wrap(response -> fail("should have failed"), e -> {
+            failureCalled.set(true);
+        }));
+        IngestMemoryAccountant accountant = captureMemoryAccountant(bulkRequest);
+        accountant.add(1024);
+
+        // the bulk fails while documents are still in their pipelines, they stay charged as they still hold their sources
+        listener.getValue().onFailure(new Exception("fake exception"));
+        assertTrue(failureCalled.get());
+        assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(1024L));
+        accountant.add(1024);
+        assertThat(indexingPressure.stats().getCurrentIngestExpansionBytes(), equalTo(2048L));
+
+        // and are released once the ingest service reports that they all finished
+        TransportBulkAction.getIndexWriteRequest(bulkRequest.requests().get(0)).setPipeline(IngestService.NOOP_PIPELINE_NAME);
+        listener.getValue().onResponse(null);
+        assertThat(indexingPressure.stats().getCurrentIngestExpansionBytes(), equalTo(0L));
+        assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L));
     }
 
     public void testIngestForward() throws Exception {
@@ -563,7 +689,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -603,7 +729,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -667,6 +793,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
         assertEquals("default_pipeline", firstUpsert.getPipeline());
@@ -714,6 +841,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
         assertEquals(indexRequest1.getPipeline(), "default_pipeline");
@@ -764,6 +892,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
         listener.getValue().onFailure(exception);
@@ -857,6 +986,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
     }
@@ -897,6 +1027,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
     }
@@ -926,6 +1057,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
         indexRequest1.autoGenerateId();
@@ -965,6 +1097,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             any(),
             any(),
             failureHandler.capture(),
+            any(),
             listener.capture()
         );
         assertEquals(indexRequest.getPipeline(), "default_pipeline");

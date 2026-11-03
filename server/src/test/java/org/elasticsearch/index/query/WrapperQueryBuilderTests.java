@@ -175,6 +175,11 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         return new WrapperQueryBuilder(Strings.toString(queryBuilder));
     }
 
+    @Override
+    public void testInnerQueriesChargeBreakerOnce() {
+        assumeTrue("the inner query is a serialized string and is only built after a rewrite, so it can't carry a charge probe", false);
+    }
+
     public void testMaxNestedDepth() throws IOException {
         BoolQueryBuilderTests boolQueryBuilderTests = new BoolQueryBuilderTests();
         BoolQueryBuilder boolQuery = boolQueryBuilderTests.createQueryWithInnerQuery(new MatchAllQueryBuilder());

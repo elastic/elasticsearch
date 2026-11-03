@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.ChargeProbeQueryBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -38,9 +39,20 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
     }
 
     @Override
+    protected ChargeProbeQueryBuilder createChargeProbe() {
+        return new SpanChargeProbeQueryBuilder();
+    }
+
+    @Override
     protected SpanNearQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
         assertThat(queryBuilder, instanceOf(SpanQueryBuilder.class));
-        return new SpanNearQueryBuilder((SpanQueryBuilder) queryBuilder, 1);
+        SpanNearQueryBuilder spanNear = new SpanNearQueryBuilder((SpanQueryBuilder) queryBuilder, 1);
+        if (randomBoolean()) {
+            // TODO: Why do we need this?
+            // gaps only exist in the built query, which is why span_near builds its clauses with its own visitor
+            spanNear.addClause(new SpanNearQueryBuilder.SpanGapQueryBuilder(TEXT_FIELD_NAME, randomIntBetween(1, 3)));
+        }
+        return spanNear;
     }
 
     @Override

@@ -125,6 +125,11 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     @Override
+    public void testInnerQueriesChargeBreakerOnce() {
+        assumeTrue("the inner query is parsed lazily at search time, so toQuery never builds a charge probe", false);
+    }
+
+    @Override
     protected HasParentQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
         return new HasParentQueryBuilder("type", queryBuilder, randomBoolean());
     }

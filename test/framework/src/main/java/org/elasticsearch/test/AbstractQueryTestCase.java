@@ -22,6 +22,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -142,6 +143,38 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertEquals(expectedMessage, exception.getMessage());
         } finally {
             AbstractQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.getDefault(Settings.EMPTY));
+        }
+    }
+
+    /**
+     * Override when the builder's inner queries must be of a narrower type than a plain query.
+     */
+    protected ChargeProbeQueryBuilder createChargeProbe() {
+        return new ChargeProbeQueryBuilder();
+    }
+
+    /**
+     * Wrapping queries must charge the request breaker once per sub-query build, however deeply they are nested.
+     */
+    public void testInnerQueriesChargeBreakerOnce() throws IOException {
+        ChargeProbeQueryBuilder probe = createChargeProbe();
+        QueryBuilder query = probe;
+        try {
+            int depth = randomIntBetween(1, 3);
+            for (int i = 0; i < depth; i++) {
+                query = createQueryWithInnerQuery(query);
+            }
+        } catch (UnsupportedOperationException e) {
+            assumeNoException("Runs only for queries that support nesting", e);
+        }
+        CircuitBreaker breaker = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
+        try {
+            query.toQuery(context);
+            assertThat("the probe must be built at least once", probe.builtCount(), greaterThan(0));
+            assertEquals(query.toString(), probe.builtCount(), breaker.getUsed() / ChargeProbeQueryBuilder.PROBE_BYTES);
+        } finally {
+            context.releaseQueryConstructionMemory();
         }
     }
 

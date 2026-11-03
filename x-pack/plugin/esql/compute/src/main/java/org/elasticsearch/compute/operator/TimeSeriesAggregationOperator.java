@@ -164,12 +164,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     }
 
     @Override
-    protected boolean shouldEmitPartialResultsPeriodically() {
-        if (super.shouldEmitPartialResultsPeriodically() == false) {
+    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
+        if (super.shouldEmitPartialResultsPeriodically(incomingPage) == false) {
             return false;
         }
         for (GroupingAggregator aggregator : aggregators) {
-            if (aggregator.aggregatorFunction().canEmitPartialResultsPeriodically() == false) {
+            if (aggregator.aggregatorFunction().canEmitPartialResultsPeriodically(incomingPage) == false) {
                 return false;
             }
         }

@@ -114,7 +114,7 @@ For example: `sum by (instance) (a) / on(instance) sum by (instance) (b)`.
 
 | # | Construct | Example | {{es}} | {{prom}} | Issue |
 |---|---|---|---|---|---|
-| 30 | Different unaggregated metrics stored as separate series with a `__name__` dimension {applies_to}`stack: preview =9.4, ga =9.5` | `a / b` | No results | Series matched on their labels other than `__name__` | [#158184]({{es-issue}}158184) |
+| 30 | Different unaggregated metrics stored as separate series {applies_to}`stack: preview =9.4, ga =9.5` | `a / b` | No results | Series matched on their other labels | [#158184]({{es-issue}}158184) |
 :::
 
 ### Aggregation operators [prometheus-compatibility-aggregation-operators]

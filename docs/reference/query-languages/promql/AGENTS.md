@@ -45,15 +45,10 @@ subquery, function, and so on), or change a result so it matches Prometheus, upd
 - The Issue column links the public `elastic/elasticsearch` issue that tracks the feature, or `-` when there is none.
   Write the link with the `es-issue` substitution: `[#123]({{es-issue}}123)`.
 - Rows are numbered across all sections, in page order. Keep the numbers sequential when you add or remove a row.
-- Check the version badges. The page covers every 9.x version at once, so badges say which versions a line or row
-  applies to. Version ranges are inclusive.
-  - A row without a badge applies to every version.
-  - A Supported line, or a row whose difference only exists from some version on, gets `stack: ga <version>+` and
-    `serverless: ga`.
-  - When a change lifts a limitation or a difference, keep its row only when the Supported line doesn't already say
-    so, such as when the change lifts it in part, or when older versions return a different result without an error.
-    Badge the row with the versions it still applies to, such as `stack: ga 9.4-9.5` or `stack: ga =9.6`, and no
-    `serverless` badge. Otherwise remove the row and badge the Supported line with the version that lifts it.
+- Check the version badges. A row without a badge applies to every version. A difference that only exists from some
+  version on gets `stack: ga <version>+` and `serverless: ga`. Don't keep rows that only apply to older versions, such
+  as `stack: ga =9.5`: the badge renders as "Generally available in 9.5", which reads as if the limitation still
+  applies. When a change lifts a limitation, remove its row.
 - Unsupported functions are listed separately: their list is generated from `PromqlFunctionRegistry` by
   `PromqlKibanaDefinitionGeneratorTests`.
 

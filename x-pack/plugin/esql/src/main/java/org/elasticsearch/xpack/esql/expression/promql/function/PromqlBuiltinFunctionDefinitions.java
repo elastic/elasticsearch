@@ -47,15 +47,14 @@ public class PromqlBuiltinFunctionDefinitions {
      * translator (see {@code AcrossSeriesReduction#translate}) appends the ranking/limiting step itself.
      */
     private static final String LABEL_FUNCTION_NOT_SUPPORTED_YET =
-        "A call over series that aren't aggregated and outside an enclosing `by(...)` aggregation, such as "
-            + "`label_replace(x, ...)` on its own or under `without(...)`, and a destination label named `step`, which is an "
-            + "output column of the `PROMQL` command, aren't supported yet.\n\n"
+        "A call that isn't aggregated or is under `without(...)`, and a destination label named `step`, which is an output "
+            + "column of the `PROMQL` command, aren't supported yet.\n\n"
             + "{applies_to}`stack: ga =9.6` A call over an aggregation, such as `label_replace(sum by (job) (x), ...)`, "
             + "isn't supported yet.\n\n"
-            + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over an aggregation other than `by(...)`, "
-            + "such as `sum(x)`, a `without(...)` aggregation, or `topk`, a call over a binary operator, and a call that "
-            + "overwrites a grouping label, such as `label_replace(sum by (job) (x), \"job\", \"$1\", \"job\", \"(.*)\")`, "
-            + "aren't supported yet. Write a new label instead.\n\n";
+            + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over anything other than a `by(...)` aggregation, "
+            + "such as `sum(x)`, a `without(...)` aggregation, `topk`, or a binary operator, and a call that overwrites a "
+            + "grouping label, such as `label_replace(sum by (job) (x), \"job\", \"$1\", \"job\", \"(.*)\")`, aren't "
+            + "supported yet. Write a new label instead.\n\n";
 
     private static final String SORT_DIVERGENCE =
         "A call below the top level of the query, such as `abs(sort(x))`, isn't supported yet. {{prom}} applies the "
@@ -179,7 +178,10 @@ public class PromqlBuiltinFunctionDefinitions {
         .extendedDescription(
             "The destination can be a new label or an existing stored label (a dimension or `__name__`). Regular "
                 + "expressions use the RE2 engine (RE2 syntax including `(?P<name>)`, `$1`/`$name`/`${name}` replacement "
-                + "expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus."
+                + "expansion, no backreferences, fully anchored as `^(?s:regex)$`), matching Prometheus.\n\n"
+                + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under "
+                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as "
+                + "`label_replace(sum by (job) (x), \"dst\", \"$1\", \"job\", \"(.*)\")`."
         )
         .stdDivergence(
             LABEL_FUNCTION_NOT_SUPPORTED_YET
@@ -215,7 +217,12 @@ public class PromqlBuiltinFunctionDefinitions {
         .example("""
             sum by (endpoint) (label_join(http_requests_total, "endpoint", "/", "job", "instance"))""")
         .stack(PromqlFunctionDefinition.STACK_GA_9_6)
-        .extendedDescription("The destination can be a new label or an existing stored label (a dimension or `__name__`).")
+        .extendedDescription(
+            "The destination can be a new label or an existing stored label (a dimension or `__name__`).\n\n"
+                + "{applies_to}`stack: ga 9.7+` {applies_to}`serverless: ga` A call over a `by(...)` aggregation, directly or under "
+                + "`topk`, `bottomk`, `limitk`, or `limit_ratio`, is supported when the destination is a new label, such as "
+                + "`label_replace(sum by (job) (x), \"dst\", \"$1\", \"job\", \"(.*)\")`."
+        )
         .stdDivergence(
             LABEL_FUNCTION_NOT_SUPPORTED_YET
                 + "Reading or overwriting `__name__` behaves like {{prom}} only for {{prom}}-style data that stores `__name__` as a label; "

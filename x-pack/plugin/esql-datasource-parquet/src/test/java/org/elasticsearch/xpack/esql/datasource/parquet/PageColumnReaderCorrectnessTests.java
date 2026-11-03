@@ -821,6 +821,14 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         .named("opt_long")
         .optional(DOUBLE)
         .named("opt_double")
+        // An unsigned column sign-flip-encodes or widens each value it keeps, so its write loop is not the one
+        // the signed cells above exercise; the slot it leaves for a null is the same slot.
+        .optional(INT64)
+        .as(LogicalTypeAnnotation.intType(64, false))
+        .named("opt_ulong")
+        .optional(INT32)
+        .as(LogicalTypeAnnotation.intType(32, false))
+        .named("opt_uint")
         .named("nullable_types_test");
 
     private static final int DETERMINISM_ROWS = 1024;
@@ -846,6 +854,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                     g.append("opt_int", r);
                     g.append("opt_long", (long) r);
                     g.append("opt_double", r * 1.5);
+                    // Values above the signed maxima, so a dropped sign-flip or a sign-extension is visible too.
+                    g.append("opt_ulong", Long.MIN_VALUE + r);
+                    g.append("opt_uint", Integer.MIN_VALUE + r);
                 }
             }
         );
@@ -853,6 +864,8 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertColumnSerializesDeterministically(data, "opt_int", DataType.INTEGER);
         assertColumnSerializesDeterministically(data, "opt_long", DataType.LONG);
         assertColumnSerializesDeterministically(data, "opt_double", DataType.DOUBLE);
+        assertColumnSerializesDeterministically(data, "opt_ulong", DataType.UNSIGNED_LONG);
+        assertColumnSerializesDeterministically(data, "opt_uint", DataType.LONG);
     }
 
     private void assertColumnSerializesDeterministically(byte[] data, String column, DataType dataType) throws IOException {

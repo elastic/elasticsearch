@@ -29,12 +29,14 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -112,7 +114,7 @@ public class AiIndexRegistryService {
                 .setId(docId(stored.space(), stored.id()))
                 .setOpType(opType)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-                .setSource(stored.toXContent(jsonBuilder(), null))
+                .setSource(stored.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
                 .execute(
                     listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(Tuple.tuple(stored, indexResponse.getResult())))
                 );
@@ -183,7 +185,7 @@ public class AiIndexRegistryService {
         return new ResourceNotFoundException("AI index [" + id + "] not found in space [" + space + "]");
     }
 
-    private static AiIndex parse(java.io.InputStream source) throws IOException {
+    private static AiIndex parse(InputStream source) throws IOException {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, source)) {
             return AiIndex.fromXContent(parser);
         }

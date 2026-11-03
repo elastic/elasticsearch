@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -56,7 +57,7 @@ public class SessionEventsIndexService {
             clientWithOrigin.prepareIndex(ContextEnginePlugin.SESSION_EVENTS_DATA_STREAM_NAME)
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-                .setSource(stored.toXContent(jsonBuilder(), null))
+                .setSource(stored.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
                 .execute(listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(stored)));
         } catch (Exception e) {
             listener.onFailure(e);

@@ -42,8 +42,8 @@ public class SearchSessionMemoryAction {
 
     /**
      * Searches session memory by meaning. The query is text, or a non-text input object in the same shape as a
-     * {@code media} item, and is embedded once with the session memory endpoint and matched against both
-     * {@code content.semantic} and {@code media}. The optional filters narrow the candidate set before the vector search.
+     * {@code media} item, and is matched against both {@code content.semantic} and {@code media} through the session
+     * memory endpoint. The optional filters narrow the candidate set before the vector search.
      */
     public static class Request extends UntypedActionRequest implements ToXContentObject {
 

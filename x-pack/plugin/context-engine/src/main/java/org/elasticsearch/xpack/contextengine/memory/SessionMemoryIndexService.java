@@ -45,6 +45,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.CONTEXT_ENGINE_ORIGIN;
  */
 public class SessionMemoryIndexService {
 
+    private static final String CONTENT_SEMANTIC_FIELD = SessionMemory.CONTENT_FIELD.getPreferredName() + ".semantic";
+
     private final Client clientWithOrigin;
 
     public SessionMemoryIndexService(Client client) {
@@ -61,7 +63,7 @@ public class SessionMemoryIndexService {
             clientWithOrigin.prepareIndex(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME)
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
-                .setSource(stored.toXContent(jsonBuilder(), null))
+                .setSource(stored.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
                 .execute(listener.delegateFailureAndWrap((l, indexResponse) -> l.onResponse(stored)));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -104,8 +106,8 @@ public class SessionMemoryIndexService {
     }
 
     /**
-     * Embeds the query once with {@code inferenceId} and runs a kNN search over both {@code content.semantic} and {@code media},
-     * applying the request's filters inside each kNN clause so they narrow the candidates rather than the results.
+     * Runs a kNN search for the query over both {@code content.semantic} and {@code media}, embedding it with {@code inferenceId},
+     * and applies the request's filters inside each kNN clause so they narrow the candidates rather than the results.
      */
     public void search(
         SearchSessionMemoryAction.Request request,
@@ -143,8 +145,6 @@ public class SessionMemoryIndexService {
             listener.onFailure(e);
         }
     }
-
-    private static final String CONTENT_SEMANTIC_FIELD = SessionMemory.CONTENT_FIELD.getPreferredName() + ".semantic";
 
     private static void addTermFilter(List<QueryBuilder> filters, ParseField field, String value) {
         if (value != null) {

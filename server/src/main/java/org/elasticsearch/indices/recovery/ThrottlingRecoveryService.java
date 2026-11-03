@@ -107,7 +107,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
     /// The node shutdowns from the last cluster state seen by [#clusterChanged].
-    /// Guarded by the [ThrottlingRecoveryService] instance lock.
     private NodesShutdownMetadata nodeShutdowns = NodesShutdownMetadata.EMPTY;
 
     public ThrottlingRecoveryService(
@@ -175,7 +174,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     context,
                     threadPool.absoluteTimeInMillis()
                 );
-                // If its source node was marked for removal after its priority was set, promote the recovery to `RELOCATION_CAN_REMAIN_NO`.
+                // Queued relocations from a node marked for removal get reprioritized to `RELOCATION_CAN_REMAIN_NO` (if
+                // their current priority is lower). Note that nodeShutdowns is one cluster state behind here (we run
+                // before clusterChanged), so a shutdown in the state being applied will be handled by clusterChanged.
                 if (sourceNodeId != null && nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId)) {
                     final RecoveryPriority current = indexShard.recoveryState().getRecoveryPriority();
                     final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);

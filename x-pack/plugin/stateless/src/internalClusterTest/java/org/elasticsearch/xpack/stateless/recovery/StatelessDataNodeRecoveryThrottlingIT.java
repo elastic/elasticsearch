@@ -571,14 +571,14 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         }
         synchronized (stalledHandoffs) {
             stallHandoffs.set(false);
-            stalledHandoffs.forEach(handoff -> targetExecutor.execute(() -> {
-                try {
-                    handoff.run();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            }));
         }
+        stalledHandoffs.forEach(handoff -> targetExecutor.execute(() -> {
+            try {
+                handoff.run();
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }));
         awaitClusterState(state -> state.projectState().metadata().index(reshardedIndex).getReshardingMetadata() == null);
         ensureGreen(evacuatedIndex, reshardedIndex);
         final var state = internalCluster().clusterService().state();

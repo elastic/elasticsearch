@@ -102,9 +102,33 @@ index with routing over _bulk:
         refresh: true
         index: test
         body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "bird", "uid":"0f6a4c8e-3c1d-4b9a-9a7e-2f1d5c6b7a81", "ip": "10.10.55.4", "network": {"tx": 111, "rx": 222}}}}'
           - '{"index": {"routing": "foo"}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index.error.reason: '/specifying\ routing\ is\ not\ supported\ because\ the\ destination\ index\ \[test\]\ is\ in\ time.series\ mode/'}
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:52:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "bird", "uid":"0f6a4c8e-3c1d-4b9a-9a7e-2f1d5c6b7a81", "ip": "10.10.55.4", "network": {"tx": 333, "rx": 444}}}}'
+  - match: {errors: true}
+  - match: {items.0.index.result: created}
+  - match: {items.1.index.error.reason: '/specifying\ routing\ is\ not\ supported\ because\ the\ destination\ index\ \[test\]\ is\ in\ time.series\ mode/'}
+  - match: {items.2.index.result: created}
+  - set: {items.0.index._id: first_id}
+  - set: {items.2.index._id: third_id}
+
+  # The items around the rejected one are indexed, each with its own source
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              k8s.pod.name: bird
+          sort: ["@timestamp"]
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._id: $first_id}
+  - match: {hits.hits.0._source.k8s.pod.network.tx: 111}
+  - match: {hits.hits.1._id: $third_id}
+  - match: {hits.hits.1._source.k8s.pod.network.tx: 333}
 
 ---
 noop update:

@@ -122,6 +122,21 @@ public class RoutingPathExtractorTests extends ESTestCase {
         }
     }
 
+    public void testRejectsCustomRouting() throws IOException {
+        Map<String, Object> doc = Map.of("dim.host", "node-1");
+        IndexRouting.ExtractFromSource.ForRoutingPath strategy = forRoutingPath("dim.*");
+        IndexRequest request = toIndexRequest(doc).routing(randomAlphaOfLength(5));
+        try (EscfEncoder encoder = new EscfEncoder()) {
+            RoutingPathExtractor extractor = new RoutingPathExtractor(strategy);
+            encoder.parseToScratch(toJson(doc), XContentType.JSON, extractor);
+            Exception e = expectThrows(IllegalArgumentException.class, () -> extractor.computeShardId(request));
+            assertThat(
+                e.getMessage(),
+                equalTo("specifying routing is not supported because the destination index [test] is in time_series mode")
+            );
+        }
+    }
+
     public void testReuseAcrossDocumentsClearsBuilderState() throws IOException {
         // Same extractor, two different documents with different routing-path values should produce
         // the same shard ids as fresh extractors.

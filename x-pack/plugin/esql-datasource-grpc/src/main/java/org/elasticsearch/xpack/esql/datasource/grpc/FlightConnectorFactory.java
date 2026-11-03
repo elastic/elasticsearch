@@ -56,12 +56,21 @@ class FlightConnectorFactory implements ConnectorFactory {
     /** The deadline of the calls that only plan a read (schema, capabilities, discovery, a fragment's flight info). */
     private final TimeValue callTimeout;
 
+    /** What the satellites declared, kept for a short time so that a query does not repeat the capability round trip. */
+    private final SatelliteDeclarationCache declarations;
+
+    /** Without a declaration cache: every resolution reads the declaration, as the protocol describes. */
     FlightConnectorFactory() {
-        this(GrpcDataSourcePlugin.DEFAULT_CALL_TIMEOUT);
+        this(GrpcDataSourcePlugin.DEFAULT_CALL_TIMEOUT, TimeValue.ZERO);
     }
 
-    FlightConnectorFactory(TimeValue callTimeout) {
+    FlightConnectorFactory(TimeValue callTimeout, TimeValue declarationTtl) {
+        this(callTimeout, new SatelliteDeclarationCache(declarationTtl));
+    }
+
+    FlightConnectorFactory(TimeValue callTimeout, SatelliteDeclarationCache declarations) {
         this.callTimeout = callTimeout;
+        this.declarations = declarations;
     }
 
     @Override
@@ -154,7 +163,18 @@ class FlightConnectorFactory implements ConnectorFactory {
             ).getSchema();
             List<Attribute> attributes = FlightTypeMapping.toAttributes(arrowSchema);
             Map<String, Object> resolvedConfig = Map.of("endpoint", endpoint, "target", target);
-            Map<String, Object> stamp = fetchSatelliteCapabilities(client, target, arrowSchema, callTimeout);
+            // the id the satellite gives in the schema it answered, a call made at every resolution anyway: a kept declaration is
+            // current while the satellite says its id is unchanged (protocol section 5.2)
+            String declarationId = SatelliteDeclarationCache.validId(
+                arrowSchema.getCustomMetadata().get(SatelliteDeclarationCache.SCHEMA_METADATA_KEY)
+            );
+            Map<String, Object> declaration = declarations.resolve(
+                endpoint,
+                target,
+                declarationId,
+                () -> fetchDeclaration(client, target, callTimeout)
+            );
+            Map<String, Object> stamp = declaration == null ? null : stamp(client, target, arrowSchema, declaration, callTimeout);
             checkOptions(optionsOf(config), stamp);
             return new SimpleSourceMetadata(attributes, "flight", location, null, null, stamp, resolvedConfig);
         } catch (InterruptedException e) {
@@ -181,17 +201,11 @@ class FlightConnectorFactory implements ConnectorFactory {
     }
 
     /**
-     * One {@code DoAction} during resolution (protocol section 5.2). {@code UNIMPLEMENTED} means a plain Level 0 server and no
-     * stamp; any other failure, zero or several results or an unparsable body fails the resolution, so that a transient error does
-     * not silently turn pushdown off. The stamp is the declaration plus {@code listColumns}, the columns sent as Arrow lists, and
-     * {@code strictColumns}, the columns whose Arrow type the protocol can carry.
+     * One {@code DoAction} (protocol section 5.2), the satellite's checked declaration. {@code UNIMPLEMENTED} means a plain Level 0
+     * server and no declaration (null); any other failure, zero or several results or an unparsable body fails the resolution, so
+     * that a transient error does not silently turn pushdown off.
      */
-    private static Map<String, Object> fetchSatelliteCapabilities(
-        FlightClient client,
-        String target,
-        Schema arrowSchema,
-        TimeValue callTimeout
-    ) {
+    private static Map<String, Object> fetchDeclaration(FlightClient client, String target, TimeValue callTimeout) {
         List<Result> results = new ArrayList<>();
         try {
             client.doAction(
@@ -224,6 +238,22 @@ class FlightConnectorFactory implements ConnectorFactory {
             return null;
         }
         validateDeclaration(caps);
+        return caps;
+    }
+
+    /**
+     * The stamp that travels with the plan: the declaration plus what depends on the table as it is now and so is read on every
+     * resolution, not cached with the declaration: {@code totalRecords} (when {@code sum} is declared), {@code listColumns}, the
+     * columns sent as Arrow lists, and {@code strictColumns}, the columns whose Arrow type the protocol can carry.
+     */
+    private static Map<String, Object> stamp(
+        FlightClient client,
+        String target,
+        Schema arrowSchema,
+        Map<String, Object> caps,
+        TimeValue callTimeout
+    ) {
+        int version = negotiatedVersion(caps);
         if (version >= 1 && caps.get("aggregates") instanceof List<?> aggregates && aggregates.contains("sum")) {
             // ES pushes sum(integer) only when the table's record count proves that no accumulator can overflow (protocol section 8.7)
             caps.put(
@@ -381,7 +411,7 @@ class FlightConnectorFactory implements ConnectorFactory {
         if (endpoint == null) {
             throw new IllegalArgumentException("Flight connector requires 'endpoint' in config");
         }
-        return new FlightConnector(endpoint, callTimeout);
+        return new FlightConnector(endpoint, callTimeout, declarations);
     }
 
     @Override

@@ -52,6 +52,7 @@ class FlightConnector implements Connector {
 
     private final URI endpointURI;
     private final CallOption callTimeout;
+    private final SatelliteDeclarationCache declarations;
     private volatile boolean closed = false;
 
     FlightConnector(String endpoint) {
@@ -59,8 +60,13 @@ class FlightConnector implements Connector {
     }
 
     FlightConnector(String endpoint, TimeValue callTimeout) {
+        this(endpoint, callTimeout, new SatelliteDeclarationCache(TimeValue.ZERO));
+    }
+
+    FlightConnector(String endpoint, TimeValue callTimeout, SatelliteDeclarationCache declarations) {
         this.endpointURI = URI.create(endpoint);
         this.callTimeout = CallOptions.timeout(callTimeout.millis(), TimeUnit.MILLISECONDS);
+        this.declarations = declarations;
     }
 
     @Override
@@ -250,6 +256,10 @@ class FlightConnector implements Connector {
                 }
                 IllegalArgumentException rejected = rejection(t);
                 if (rejected != null) {
+                    if (request.fragment() != null) {
+                        // the fragment was built from a declaration this node may have kept: read it again for the next query
+                        declarations.invalidate(endpointURI.toString(), request.target());
+                    }
                     throw rejected;
                 }
                 if (t instanceof RuntimeException e) {

@@ -53,9 +53,23 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         Setting.Property.NodeScope
     );
 
+    static final TimeValue DEFAULT_DECLARATION_TTL = TimeValue.timeValueMinutes(1);
+
+    /**
+     * How long a node keeps the capability declaration a satellite answered, so that queries within it do not repeat the capability
+     * round trip. It bounds how long a satellite that lost a capability keeps failing the queries this node planned, and how long
+     * one that gained a capability goes unused. Zero reads the declaration on every query.
+     */
+    public static final Setting<TimeValue> FLIGHT_DECLARATION_TTL = Setting.timeSetting(
+        "esql.datasource.flight.declaration_ttl",
+        DEFAULT_DECLARATION_TTL,
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FLIGHT_CALL_TIMEOUT);
+        return List.of(FLIGHT_CALL_TIMEOUT, FLIGHT_DECLARATION_TTL);
     }
 
     private static boolean enabled() {
@@ -92,7 +106,7 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        return Map.of("flight", new FlightConnectorFactory(FLIGHT_CALL_TIMEOUT.get(settings)));
+        return Map.of("flight", new FlightConnectorFactory(FLIGHT_CALL_TIMEOUT.get(settings), FLIGHT_DECLARATION_TTL.get(settings)));
     }
 
     @Override

@@ -31,10 +31,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A satellite that serves one table of three rows, {@code id integer}, and can be told to stall, so that tests of the connector can
@@ -53,6 +55,14 @@ public final class BlockingSatelliteServer implements Closeable {
 
     /** The body of the capability answer. Tests change it to make the satellite declare something else. */
     public volatile String capabilities = CAPABILITIES;
+
+    /** The record count that {@code GetFlightInfo(path)} reports, -1 for unknown. */
+    public volatile long recordCount = -1;
+    /** When set, the capability action answers with this status instead of the declaration. */
+    public volatile CallStatus failCapabilitiesWith;
+
+    /** When set, the schema of {@code GetSchema} carries it as the declaration id (protocol section 5.2); null gives none. */
+    public volatile String schemaDeclarationId;
     /** When set, {@code GetFlightInfo(command)} does not answer until {@link #release} is counted down. */
     public volatile boolean blockInFlightInfo;
     /** When set, {@code DoGet} does not send the first batch until released or cancelled by the client. */
@@ -70,6 +80,8 @@ public final class BlockingSatelliteServer implements Closeable {
     public final CountDownLatch release = new CountDownLatch(1);
     /** Counted down when the satellite noticed that the client cancelled the {@code DoGet} call. */
     public final CountDownLatch doGetCancelled = new CountDownLatch(1);
+    /** How many times the capability action was called. */
+    public final AtomicInteger capabilityCalls = new AtomicInteger();
     public final List<String> fragments = new CopyOnWriteArrayList<>();
     public final AtomicBoolean servedRows = new AtomicBoolean();
 
@@ -90,7 +102,10 @@ public final class BlockingSatelliteServer implements Closeable {
     private final class Producer extends NoOpFlightProducer {
         @Override
         public SchemaResult getSchema(CallContext context, FlightDescriptor descriptor) {
-            return new SchemaResult(SCHEMA);
+            String id = schemaDeclarationId;
+            return new SchemaResult(
+                id == null ? SCHEMA : new Schema(SCHEMA.getFields(), Map.of(SatelliteDeclarationCache.SCHEMA_METADATA_KEY, id))
+            );
         }
 
         @Override
@@ -103,7 +118,7 @@ public final class BlockingSatelliteServer implements Closeable {
                     descriptor,
                     List.of(new FlightEndpoint(new Ticket("t".getBytes(StandardCharsets.UTF_8)), self)),
                     -1,
-                    -1
+                    recordCount
                 );
             }
             fragments.add(new String(descriptor.getCommand(), StandardCharsets.UTF_8));
@@ -126,6 +141,11 @@ public final class BlockingSatelliteServer implements Closeable {
         @Override
         public void doAction(CallContext context, Action action, StreamListener<Result> listener) {
             if ("esql.satellite.capabilities".equals(action.getType())) {
+                capabilityCalls.incrementAndGet();
+                if (failCapabilitiesWith != null) {
+                    listener.onError(failCapabilitiesWith.toRuntimeException());
+                    return;
+                }
                 listener.onNext(new Result(capabilities.getBytes(StandardCharsets.UTF_8)));
                 listener.onCompleted();
             } else {

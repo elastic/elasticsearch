@@ -197,6 +197,36 @@ public class FlightCancellationTests extends ESTestCase {
         }
     }
 
+    /**
+     * The fragment was built from a declaration this node may have kept: when the satellite rejects it, the node reads the
+     * declaration again for the next query.
+     */
+    public void testAFragmentThatIsRejectedMakesTheNextResolutionReadTheDeclarationAgain() throws Exception {
+        SatelliteDeclarationCache declarations = new SatelliteDeclarationCache(TimeValue.timeValueMinutes(1));
+        FlightConnectorFactory factory = new FlightConnectorFactory(TimeValue.timeValueSeconds(30), declarations);
+        String location = "flight://localhost:" + server.port() + "/t";
+        factory.resolveMetadata(location, Map.of());
+        factory.resolveMetadata(location, Map.of());
+        assertEquals("the second resolution used the kept declaration", 1, server.capabilityCalls.get());
+
+        server.rejectFragmentWith = CallStatus.INVALID_ARGUMENT.withDescription("the function div is not declared");
+        try (
+            FlightConnector connector = new FlightConnector(
+                "flight://localhost:" + server.port(),
+                TimeValue.timeValueSeconds(30),
+                declarations
+            );
+            ResultCursor cursor = connector.execute(request(), Split.SINGLE)
+        ) {
+            expectThrows(IllegalArgumentException.class, cursor::hasNext);
+        }
+
+        factory.resolveMetadata(location, Map.of());
+        assertEquals("the declaration was read again after the rejection", 2, server.capabilityCalls.get());
+        factory.resolveMetadata(location, Map.of());
+        assertEquals("and kept again", 2, server.capabilityCalls.get());
+    }
+
     public void testAnInternalFailureOfTheSatelliteIsNotMadeAClientError() throws Exception {
         server.rejectFragmentWith = CallStatus.INTERNAL.withDescription("boom");
         try (

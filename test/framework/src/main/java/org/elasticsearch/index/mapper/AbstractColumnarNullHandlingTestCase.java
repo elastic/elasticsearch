@@ -607,36 +607,68 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         addBatchAlongsideValue("{}");
     }
 
-    public void testColumnarValuelessBatchAfterValuedBatch() throws IOException {
-        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY, EVERY_VALUELESS_SHAPE));
+    public void testColumnarSingleAllNullArrayBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY));
     }
 
-    public void testColumnarValuelessBatchBeforeValuedBatch() throws IOException {
-        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(SINGLE_ALL_NULL_ARRAY, EVERY_VALUELESS_SHAPE, valuedBatch()));
+    public void testColumnarSingleAllNullArrayBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(SINGLE_ALL_NULL_ARRAY, valuedBatch()));
     }
 
-    public void testColumnarWithoutCodecValuelessBatchAfterValuedBatch() throws IOException {
-        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY, EVERY_VALUELESS_SHAPE));
+    public void testColumnarEveryValuelessShapeBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(valuedBatch(), EVERY_VALUELESS_SHAPE));
     }
 
-    public void testColumnarWithoutCodecValuelessBatchBeforeValuedBatch() throws IOException {
-        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(SINGLE_ALL_NULL_ARRAY, EVERY_VALUELESS_SHAPE, valuedBatch()));
+    public void testColumnarEveryValuelessShapeBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, true, List.of(EVERY_VALUELESS_SHAPE, valuedBatch()));
     }
 
-    public void testLogsdbColumnarValuelessBatchAfterValuedBatch() throws IOException {
-        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY, EVERY_VALUELESS_SHAPE));
+    public void testColumnarWithoutCodecSingleAllNullArrayBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY));
     }
 
-    public void testLogsdbColumnarValuelessBatchBeforeValuedBatch() throws IOException {
-        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(SINGLE_ALL_NULL_ARRAY, EVERY_VALUELESS_SHAPE, valuedBatch()));
+    public void testColumnarWithoutCodecSingleAllNullArrayBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(SINGLE_ALL_NULL_ARRAY, valuedBatch()));
     }
 
-    public void testLogsdbColumnarWithoutCodecValuelessBatchAfterValuedBatch() throws IOException {
-        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY, EVERY_VALUELESS_SHAPE));
+    public void testColumnarWithoutCodecEveryValuelessShapeBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(valuedBatch(), EVERY_VALUELESS_SHAPE));
     }
 
-    public void testLogsdbColumnarWithoutCodecValuelessBatchBeforeValuedBatch() throws IOException {
-        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(SINGLE_ALL_NULL_ARRAY, EVERY_VALUELESS_SHAPE, valuedBatch()));
+    public void testColumnarWithoutCodecEveryValuelessShapeBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.COLUMNAR, false, List.of(EVERY_VALUELESS_SHAPE, valuedBatch()));
+    }
+
+    public void testLogsdbColumnarSingleAllNullArrayBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY));
+    }
+
+    public void testLogsdbColumnarSingleAllNullArrayBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(SINGLE_ALL_NULL_ARRAY, valuedBatch()));
+    }
+
+    public void testLogsdbColumnarEveryValuelessShapeBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(valuedBatch(), EVERY_VALUELESS_SHAPE));
+    }
+
+    public void testLogsdbColumnarEveryValuelessShapeBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, List.of(EVERY_VALUELESS_SHAPE, valuedBatch()));
+    }
+
+    public void testLogsdbColumnarWithoutCodecSingleAllNullArrayBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(valuedBatch(), SINGLE_ALL_NULL_ARRAY));
+    }
+
+    public void testLogsdbColumnarWithoutCodecSingleAllNullArrayBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(SINGLE_ALL_NULL_ARRAY, valuedBatch()));
+    }
+
+    public void testLogsdbColumnarWithoutCodecEveryValuelessShapeBatchAfterValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(valuedBatch(), EVERY_VALUELESS_SHAPE));
+    }
+
+    public void testLogsdbColumnarWithoutCodecEveryValuelessShapeBatchBeforeValuedBatch() throws IOException {
+        assertBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, List.of(EVERY_VALUELESS_SHAPE, valuedBatch()));
     }
 
     /** A bare null reaches no column at all, so the document does not carry the field. */

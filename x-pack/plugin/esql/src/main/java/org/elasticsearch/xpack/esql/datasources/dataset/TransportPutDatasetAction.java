@@ -20,10 +20,11 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 
 public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodeProjectAction<PutDatasetAction.Request> {
     private final DatasetService datasetService;
-    private final ProjectResolver projectResolver;
+    private final FederationLicense federationLicense;
 
     @Inject
     public TransportPutDatasetAction(
@@ -32,7 +33,8 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DatasetService datasetService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        FederationLicense federationLicense
     ) {
         super(
             PutDatasetAction.NAME,
@@ -45,23 +47,7 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.datasetService = datasetService;
-        this.projectResolver = projectResolver;
-    }
-
-    @Override
-    protected void doExecute(Task task, PutDatasetAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // Coord-side pre-check: parent lookup + validator dispatch against local (possibly stale)
-        // cluster state. Fails fast without a master round-trip on unknown type, missing parent,
-        // or validator rejection. The task body re-validates against master's authoritative state.
-        try {
-            var projectId = projectResolver.getProjectId();
-            var project = clusterService.state().metadata().getProject(projectId);
-            datasetService.validatePutDataset(project, request);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
-        super.doExecute(task, request, listener);
+        this.federationLicense = federationLicense;
     }
 
     @Override
@@ -71,6 +57,7 @@ public class TransportPutDatasetAction extends AcknowledgedTransportMasterNodePr
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
+        federationLicense.check();
         datasetService.putDataset(state.projectId(), request, listener);
     }
 

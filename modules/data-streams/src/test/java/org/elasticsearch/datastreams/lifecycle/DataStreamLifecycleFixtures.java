@@ -18,12 +18,15 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -34,8 +37,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -230,5 +235,26 @@ public class DataStreamLifecycleFixtures {
             .addMinIndexDocsCondition(minDocs)
             .addMinPrimaryShardDocsCondition(minPrimaryShardDocs)
             .build();
+    }
+
+    public static DataStreamLifecycleSettings createDataStreamLifecycleSettings(
+        Boolean minimumLifecycleEnabled,
+        TimeValue globalDefaultRetention,
+        TimeValue globalMaxRetention
+    ) {
+        // Mimics the ILM plugin, which is the one registering the minimum lifecycle setting.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
+        Settings.Builder clusterSettingsBuilder = Settings.builder();
+        if (globalDefaultRetention != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), globalDefaultRetention);
+        }
+        if (globalMaxRetention != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalMaxRetention);
+        }
+        if (minimumLifecycleEnabled != null) {
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled);
+        }
+        return DataStreamLifecycleSettings.create(new ClusterSettings(clusterSettingsBuilder.build(), settingsSet));
     }
 }

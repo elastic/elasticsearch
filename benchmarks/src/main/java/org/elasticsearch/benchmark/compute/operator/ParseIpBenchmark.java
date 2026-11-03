@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 public class ParseIpBenchmark {
     private final BytesRef ip = new BytesRef("192.168.0.1");
-    private final BreakingBytesRefBuilder scratch = ParseIp.buildScratch(new NoopCircuitBreaker("request"));
+    private final BreakingBytesRefBuilder scratch = ParseIp.buildScratch(NoopCircuitBreaker.INSTANCE);
 
     @Benchmark
     public BytesRef leadingZerosRejected() {

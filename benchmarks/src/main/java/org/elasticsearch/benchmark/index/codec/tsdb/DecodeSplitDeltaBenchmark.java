@@ -11,8 +11,8 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.BoundaryBlockSupplier;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder;
@@ -75,7 +75,7 @@ import java.util.concurrent.TimeUnit;
 public class DecodeSplitDeltaBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final int SEED = 17;

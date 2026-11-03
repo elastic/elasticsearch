@@ -9,9 +9,16 @@
 
 package org.elasticsearch.index.search.geo;
 
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -725,6 +732,32 @@ public class GeoUtilsTests extends ESTestCase {
             parser.nextToken();
             return GeoUtils.parseGeoPoint(parser, randomBoolean(), effectivePoint);
         }
+    }
+
+    /**
+     * The distances are computed from a single-valued view over the geo points, so
+     * they must report the doc id iterator of those geo points.
+     */
+    public void testDistanceValuesPreservesDocIdIterator() {
+        DocIdSetIterator iterator = DocIdSetIterator.all(1);
+        var longValues = new LongValues() {
+            @Override
+            public long longValue() {
+                return new GeoPoint(1.0, 2.0).getEncoded();
+            }
+
+            @Override
+            public boolean advanceExact(int doc) {
+                return true;
+            }
+        };
+        SortedNumericLongValues encoded = SortedNumericLongValues.singleton(longValues, iterator);
+        MultiGeoPointValues points = new MultiGeoPointValues(encoded);
+        assertSame(iterator, points.docIdIterator());
+
+        SortedNumericDoubleValues distances = GeoUtils.distanceValues(GeoDistance.ARC, DistanceUnit.KILOMETERS, points, new GeoPoint(0, 0));
+        assertNotNull(SortedNumericDoubleValues.unwrapSingleton(distances));
+        assertSame(iterator, distances.docIdIterator());
     }
 
     private static void assertNormalizedPoint(GeoPoint input, GeoPoint expected) {

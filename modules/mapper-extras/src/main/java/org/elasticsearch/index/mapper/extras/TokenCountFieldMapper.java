@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -84,13 +85,23 @@ public class TokenCountFieldMapper extends FieldMapper {
                     IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { index, docValuesParameters, store, analyzer, nullValue, enablePositionIncrements, meta };
+            return new Parameter<?>[] {
+                index,
+                docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
+                store,
+                analyzer,
+                nullValue,
+                enablePositionIncrements,
+                meta };
         }
 
         @Override
@@ -245,8 +256,8 @@ public class TokenCountFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue() == false;
+    protected boolean shouldEnforceSingleValue(XContentParser.Token token) {
+        return docValuesParameters.multiValue() == false && (token != XContentParser.Token.VALUE_NULL || nullValue != null);
     }
 
     @Override

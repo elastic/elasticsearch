@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160301
+summary: "ES|QL|DS: Keep dataset registration secrets out of the audit log"
+type: enhancement

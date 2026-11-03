@@ -15,7 +15,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -170,7 +170,7 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
         }
 
         @Override
-        public SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
+        public SortableBinaryDocValues bytesValues(LeafReaderContext ctx) {
             throw new UnsupportedOperationException();
         }
 

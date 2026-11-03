@@ -30,7 +30,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentableInExpression;
 
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
@@ -94,7 +94,7 @@ public class MvCount extends AbstractMultivalueFunction implements AnyNullIsNull
     protected TypeResolution resolveFieldType() {
         return isType(
             field(),
-            dt -> isRepresentable(dt)
+            dt -> isRepresentableInExpression(dt)
                 && dt != DataType.DENSE_VECTOR
                 && dt != DataType.AGGREGATE_METRIC_DOUBLE
                 && dt != DataType.EXPONENTIAL_HISTOGRAM
@@ -154,12 +154,11 @@ public class MvCount extends AbstractMultivalueFunction implements AnyNullIsNull
         protected Block evalNullable(Block block) {
             try (var builder = driverContext.blockFactory().newIntBlockBuilder(block.getPositionCount())) {
                 for (int p = 0; p < block.getPositionCount(); p++) {
-                    int valueCount = block.getValueCount(p);
-                    if (valueCount == 0) {
+                    if (block.isNull(p)) {
                         builder.appendNull();
                         continue;
                     }
-                    builder.appendInt(valueCount);
+                    builder.appendInt(block.getValueCount(p));
                 }
                 return builder.build();
             }

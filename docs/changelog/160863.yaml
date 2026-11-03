@@ -1,0 +1,5 @@
+pr: 160863
+summary: Log the distinct shard failures of a suppressed REST error
+area: Infra/Logging
+type: enhancement
+issues: []

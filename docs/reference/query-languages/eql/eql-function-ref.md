@@ -762,7 +762,7 @@ stringContains(process.command_line, "start ")    // returns true
 stringContains(process.command_line, "explorer")  // returns false
 
 // Make matching case-insensitive
-stringContains~(process.command_line, "Regsvr32")  // returns false
+stringContains~(process.command_line, "Regsvr32")  // returns true
 
 // process.name = "regsvr32.exe"
 stringContains(command_line, process.name)        // returns true

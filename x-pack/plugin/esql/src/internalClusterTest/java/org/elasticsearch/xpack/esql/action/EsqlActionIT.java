@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -38,6 +39,7 @@ import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.ParallelHashAggregationOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -55,6 +57,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -64,8 +68,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
@@ -93,6 +99,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -109,6 +116,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION_V7;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXPLAIN;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FILLNULL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_IN_CLUSTER_STATE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY;
@@ -2174,6 +2182,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testQueryEmptyWithEval() {
+        try (EsqlQueryResponse resp = run("FROM none* | EVAL f1 = 1")) {
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("f1", "integer", null))));
+            assertFalse(resp.values().hasNext());
+        }
+    }
+
     public void testGroupingStatsOnMissingFields() {
         assumeTrue("Pragmas are only allowed in snapshots", Build.current().isSnapshot());
         assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));
@@ -2406,6 +2421,61 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(10, getValuesList(results).size());
         } finally {
             clearPersistentSettings(AnalyzerSettings.QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        }
+    }
+
+    public void testMaxFillNullFieldsSetting() {
+        assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
+        updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 1));
+        try {
+            var e = expectThrows(VerificationException.class, () -> run("from test | fillnull 0 on *"));
+            assertThat(
+                e.getMessage(),
+                containsString("exceeding the limit of 1 set by the [esql.query.max_fillnull_fields] cluster setting")
+            );
+            try (EsqlQueryResponse results = run("from test | fillnull 0 on count | keep count | limit 1")) {
+                assertThat(results.columns(), hasSize(1));
+            }
+        } finally {
+            clearPersistentSettings(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS);
+        }
+    }
+
+    public void testMaxFillNullFieldsSettingWithView() {
+        assumeTrue("requires FILLNULL capability", FILLNULL.isEnabled());
+        assumeTrue("Views require the capability to be enabled", VIEWS_IN_CLUSTER_STATE.isEnabled());
+        String viewName = "fillnull_view";
+        String query = "FROM " + viewName + " | FILLNULL 0 ON count, data";
+        assertAcked(
+            client().execute(
+                PutViewAction.INSTANCE,
+                new PutViewAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    new View(viewName, "FROM test | FILLNULL 0 ON count, data")
+                )
+            )
+        );
+        try {
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 3));
+            var e = expectThrows(VerificationException.class, () -> run(query));
+            assertThat(e.getMessage(), allOf(containsString("FILLNULL would fill 4 columns"), containsString("exceeding the limit of 3")));
+
+            updateClusterSettings(Settings.builder().put(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS.getKey(), 4));
+            try (EsqlQueryResponse results = run(query + " | KEEP count, data | LIMIT 1")) {
+                assertThat(results.columns(), hasSize(2));
+            }
+        } finally {
+            try {
+                clearPersistentSettings(EsqlFlags.ESQL_MAX_FILLNULL_FIELDS);
+            } finally {
+                assertAcked(
+                    client().execute(
+                        DeleteViewAction.INSTANCE,
+                        new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new String[] { viewName })
+                    )
+                );
+            }
         }
     }
 
@@ -3089,11 +3159,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     anyOf(containsString("EsQueryExec"), containsString("EsSourceExec"), containsString("LocalSourceExec"))
                 );
 
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
-
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);
                 // Final plan should contain OutputExec for final result output
@@ -3233,11 +3298,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     anyOf(containsString("AggregateExec"), containsString("HashAggregation"))
                 );
 
-                // === Node Reduce Plan Assertions ===
-                assertNotNull("Should have node_reduce plan", nodeReducePlan);
-                // node_reduce plan should contain ExchangeSinkExec for sending results to coordinator
-                assertThat("Node reduce plan should contain ExchangeSinkExec", nodeReducePlan, containsString("ExchangeSinkExec"));
-
                 // === Final Plan Assertions ===
                 assertNotNull("Should have final coordinator plan", finalPlan);
                 // Final plan should contain OutputExec for final result output
@@ -3369,6 +3429,54 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.session.EsqlSession:DEBUG",
+        reason = "asserts the size of sub-plan results is logged"
+    )
+    public void testInlineStatsLogsSubPlanResultsSize() {
+        assumeTrue("INLINE STATS requires the capability to be enabled", INLINE_STATS.isEnabled());
+        assertSubPlanResultsSizeLogged(
+            "FROM test | INLINE STATS m = MAX(data) BY color | INLINE STATS s = SUM(count) BY color",
+            Map.of("MAX(data)", 3, "SUM(count)", 3)
+        );
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.xpack.esql.session.EsqlSession:DEBUG",
+        reason = "asserts the size of sub-plan results is logged"
+    )
+    public void testInSubqueryLogsSubPlanResultsSize() {
+        assumeTrue("IN subquery requires the capability to be enabled", WHERE_IN_SUBQUERY.isEnabled());
+        assertSubPlanResultsSizeLogged(
+            "FROM test | WHERE count IN (FROM test | WHERE color == \"red\" | KEEP count)"
+                + " | WHERE data NOT IN (FROM test | WHERE color == \"green\" | KEEP data)",
+            Map.of("KEEP count", 20, "KEEP data", 10)
+        );
+    }
+
+    private void assertSubPlanResultsSizeLogged(String query, Map<String, Integer> rowsBySubPlan) {
+        try (var mockLog = MockLog.capture(EsqlSession.class)) {
+            rowsBySubPlan.forEach(
+                (subPlan, rows) -> mockLog.addExpectation(
+                    new MockLog.PatternSeenEventExpectation(
+                        subPlan,
+                        EsqlSession.class.getName(),
+                        Level.DEBUG,
+                        "Sub-plan results for \\[.*"
+                            + Pattern.quote(subPlan)
+                            + ".*\\]: \\["
+                            + rows
+                            + "\\] rows, \\[[\\d.]+[kmg]?b\\] of the \\[[\\d.]+[kmg]?b\\] allowed by "
+                            + "\\[esql\\.intermediate_local_relation_max_size\\]"
+                    )
+                )
+            );
+            try (EsqlQueryResponse ignored = run(query)) {
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
     /**
      * EXPLAIN of a query that reads from a view. Regression test for EXPLAIN silently skipping view
      * resolution: {@code Explain} was a {@code LeafPlan} with the inner query as a field rather than
@@ -3472,6 +3580,86 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     )
                 )
             );
+        }
+    }
+
+    public void testSingleNodeAggregationOptimization() {
+        BiFunction<EsqlQueryResponse.Profile, String, Integer> partitionedBlocksReceived = (profile, driverDescription) -> {
+            int received = 0;
+            for (DriverProfile driver : profile.drivers()) {
+                if (driver.description().contains(driverDescription) == false) {
+                    continue;
+                }
+                for (OperatorStatus operator : driver.operators()) {
+                    if (operator.status() instanceof HashAggregationOperator.Status status) {
+                        for (var extra : status.extraFields()) {
+                            if (extra instanceof ParallelHashAggregationOperator.PartitioningStatus partitioning) {
+                                received += partitioning.partitionedBlocksReceived();
+                            }
+                        }
+                    }
+                }
+            }
+            return received;
+        };
+
+        var dataNode = randomDataNode().getName();
+        String indexName = "single-node-index";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.routing.allocation.require._name", dataNode)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                )
+                .setMapping("long_key", "type=long", "int_key", "type=integer")
+        );
+        int numDocs = between(2000, 5000);
+        Map<List<Object>, Long> expected = new HashMap<>();
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            long longKey = between(0, 200);
+            int intKey = between(0, 100);
+            expected.merge(List.of(longKey, intKey), 1L, Long::sum);
+            bulk.add(new IndexRequest(indexName).id("doc-" + i).source("long_key", longKey, "int_key", intKey));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        var request = EsqlQueryRequest.syncEsqlQueryRequest(
+            "FROM single-node-index | STATS c = COUNT(*) BY long_key, int_key | LIMIT " + numDocs
+        );
+        request.profile(true);
+        request.acceptedPragmaRisks(true);
+        int partitioningThreshold = between(expected.size() / 4, expected.size() * 3 / 4);
+        request.pragmas(
+            new QueryPragmas(
+                Settings.builder()
+                    .put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), partitioningThreshold)
+                    .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 1)
+                    .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
+                    .build()
+            )
+        );
+        try (var resp = client(dataNode).execute(EsqlQueryAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS)) {
+            assertThat(partitionedBlocksReceived.apply(resp.profile(), "final"), greaterThan(0));
+            Map<List<Object>, Long> actual = new HashMap<>();
+            for (List<Object> row : getValuesList(resp)) {
+                assertNull(actual.put(List.of(row.get(1), row.get(2)), ((Number) row.get(0)).longValue()));
+            }
+            assertThat(actual.size(), equalTo(expected.size()));
+        }
+
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        var otherNode = randomValueOtherThan(dataNode, () -> randomDataNode().getName());
+        try (var resp = client(otherNode).execute(EsqlQueryAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS)) {
+            assertThat(partitionedBlocksReceived.apply(resp.profile(), "final"), equalTo(0));
+            assertThat(partitionedBlocksReceived.apply(resp.profile(), "node_reduce"), equalTo(0));
+            Map<List<Object>, Long> actual = new HashMap<>();
+            for (List<Object> row : getValuesList(resp)) {
+                assertNull(actual.put(List.of(row.get(1), row.get(2)), ((Number) row.get(0)).longValue()));
+            }
+            assertThat(actual, equalTo(expected));
         }
     }
 }

@@ -94,7 +94,11 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
-        this.waitForAllocation = new InferenceWaitForAllocation(assignmentService, this::inferOnBlockedRequest);
+        this.waitForAllocation = new InferenceWaitForAllocation(
+            assignmentService,
+            this::inferOnBlockedRequest,
+            threadPool::relativeTimeInMillis
+        );
         this.threadPool = threadPool;
     }
 

@@ -19,6 +19,7 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
     private static final Logger logger = LogManager.getLogger(ElasticsearchUncaughtExceptionHandler.class);
 
     @Override
+    @SuppressForbidden(reason = "top-level uncaught-exception handler must identify StackOverflowError to choose exit code")
     public void uncaughtException(Thread thread, Throwable t) {
         if (isFatalUncaught(t)) {
             try {

@@ -23,7 +23,6 @@ public class CsvReaderCountersTests extends ESTestCase {
         assertEquals(0L, snap.rowsEmitted());
         assertEquals(0L, snap.parseErrors());
         assertEquals(false, snap.headerDetected());
-        assertEquals(0L, snap.readNanos());
     }
 
     public void testFormatNameReflectsOwningReader() {
@@ -38,12 +37,10 @@ public class CsvReaderCountersTests extends ESTestCase {
         counters.addRowsEmitted(10);
         counters.addParseErrors(3);
         counters.markHeaderDetected();
-        counters.addReadNanos(987654);
         var snap = counters.snapshot();
         assertEquals(10L, snap.rowsEmitted());
         assertEquals(3L, snap.parseErrors());
         assertEquals(true, snap.headerDetected());
-        assertEquals(987654L, snap.readNanos());
     }
 
     public void testNonPositiveDeltasIgnored() {
@@ -52,12 +49,9 @@ public class CsvReaderCountersTests extends ESTestCase {
         counters.addRowsEmitted(-5);
         counters.addParseErrors(0);
         counters.addParseErrors(-1);
-        counters.addReadNanos(0);
-        counters.addReadNanos(-1);
         var snap = counters.snapshot();
         assertEquals(0L, snap.rowsEmitted());
         assertEquals(0L, snap.parseErrors());
-        assertEquals(0L, snap.readNanos());
     }
 
     public void testMarkHeaderDetectedIsMonotonic() {
@@ -84,7 +78,6 @@ public class CsvReaderCountersTests extends ESTestCase {
                     for (int i = 0; i < iterationsPerThread; i++) {
                         counters.addRowsEmitted(3);
                         counters.addParseErrors(1);
-                        counters.addReadNanos(40);
                         if (tid == 0 && i == 0) {
                             counters.markHeaderDetected();
                         }
@@ -103,11 +96,9 @@ public class CsvReaderCountersTests extends ESTestCase {
 
         long expectedLines = (long) threads * iterationsPerThread * 3;
         long expectedErrors = (long) threads * iterationsPerThread;
-        long expectedNanos = (long) threads * iterationsPerThread * 40;
         var snap = counters.snapshot();
         assertEquals(expectedLines, snap.rowsEmitted());
         assertEquals(expectedErrors, snap.parseErrors());
-        assertEquals(expectedNanos, snap.readNanos());
         assertEquals(true, snap.headerDetected());
     }
 

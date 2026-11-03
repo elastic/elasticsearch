@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xpack.inference.common.ValidationResult;
 
@@ -19,6 +18,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+
+import static org.elasticsearch.xpack.inference.services.SettingsScope.SERVICE_SETTINGS;
 
 /**
  * Shared base for service-specific OAuth2 client-credentials settings (e.g. Azure OpenAI, OpenAI).
@@ -71,7 +72,7 @@ public abstract class BaseOAuth2Settings implements ToXContentFragment, Writeabl
         validationException.addValidationError(
             Strings.format(
                 "[%s] all %s OAuth2 fields must be provided together; missing: %s",
-                ModelConfigurations.SERVICE_SETTINGS,
+                SERVICE_SETTINGS,
                 serviceDescription,
                 new TreeSet<>(missingFields)
             )

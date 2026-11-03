@@ -15,7 +15,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -333,12 +333,11 @@ final class DynamicFieldsBuilder {
             } else {
                 var indexSettings = context.indexSettings();
                 if (indexSettings.getDynamicStringsAutoText()) {
-                    return createDynamicField(
-                        new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false).addMultiField(
-                            new KeywordFieldMapper.Builder("keyword", context.indexSettings(), true).ignoreAbove(256)
-                        ),
-                        context
-                    );
+                    var textBuilder = new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false);
+                    if (indexSettings.getDynamicStringsAutoKeywordSubfield()) {
+                        textBuilder.addMultiField(new KeywordFieldMapper.Builder("keyword", indexSettings, true).ignoreAbove(256));
+                    }
+                    return createDynamicField(textBuilder, context);
                 } else {
                     return createDynamicField(new KeywordFieldMapper.Builder(name, indexSettings, false), context);
                 }
@@ -387,7 +386,7 @@ final class DynamicFieldsBuilder {
 
         @Override
         public boolean newDynamicBinaryField(DocumentParserContext context, String name) throws IOException {
-            return createDynamicField(new BinaryFieldMapper.Builder(name, SourceFieldMapper.isSynthetic(context.indexSettings())), context);
+            return createDynamicField(new BinaryFieldMapper.Builder(name, context.indexSettings()), context);
         }
     }
 
@@ -451,8 +450,7 @@ final class DynamicFieldsBuilder {
     private static final class FlattenedSink implements Strategy {
 
         private static boolean sink(DocumentParserContext context, String name) throws IOException {
-            FlattenedFieldMapper sink = (FlattenedFieldMapper) context.mappingLookup().getMapper(FlattenedFieldMapper.UNMAPPED_SINK_NAME);
-            sink.indexValueAtPath(context, context.path().pathAsText(name));
+            UnmappedSinkFieldMapper.absorb(context, name);
             return true;
         }
 

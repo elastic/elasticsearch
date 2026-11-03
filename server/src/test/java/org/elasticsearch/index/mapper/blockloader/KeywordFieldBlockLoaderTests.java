@@ -34,7 +34,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
     public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
 
-        var ignoreAbove = fieldMapping.get("ignore_above") == null
+        var ignoreAbove = (fieldMapping.get("ignore_above") == null || params.indexMode().isStrictColumnar())
             ? Integer.MAX_VALUE
             : ((Number) fieldMapping.get("ignore_above")).intValue();
 
@@ -55,7 +55,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
             || params.syntheticSource();
         if (hasDocValues && useDocValues) {
             // Columnar index modes preserve arrival order via offsets
-            boolean preserveOrder = params.indexMode().isColumnar();
+            boolean preserveOrder = params.indexMode().isStrictColumnar();
             var resultList = preserveOrder
                 ? convertValues.andThen(Stream::toList).apply(((List<String>) value).stream())
                 : convertValues.andThen(Stream::distinct)

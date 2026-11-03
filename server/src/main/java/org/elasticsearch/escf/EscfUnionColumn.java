@@ -10,6 +10,7 @@
 package org.elasticsearch.escf;
 
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntsRef;
@@ -52,7 +53,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    boolean getBooleanValue(int row) {
+    public boolean getBooleanValue(int row) {
         byte t = byteAt(typeVec, row);
         if (t == SourceValueType.TRUE) {
             return true;
@@ -64,42 +65,42 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    int getIntValue(int row) {
+    public int getIntValue(int row) {
         // INT values are stored as 4 bytes in the UNION column, so this reads directly rather than
         // narrowing getLongValue() as the base class does. Caller must have checked typeByteForPresent.
         return data.getIntLE(intAt(offsets, row));
     }
 
     @Override
-    float getFloatValue(int row) {
+    public float getFloatValue(int row) {
         // FLOAT values are stored as 4 raw bytes (bit-identical IEEE 754), not as a narrowed double.
         // Caller must have checked typeByteForPresent.
         return Float.intBitsToFloat(data.getIntLE(intAt(offsets, row)));
     }
 
     @Override
-    long getLongValue(int row) {
+    public long getLongValue(int row) {
         return data.getLongLE(intAt(offsets, row));
     }
 
     @Override
-    double getDoubleValue(int row) {
+    public double getDoubleValue(int row) {
         return Double.longBitsToDouble(data.getLongLE(intAt(offsets, row)));
     }
 
     @Override
-    Text getStringValue(int row) {
+    public Text getStringValue(int row) {
         BytesRef ref = value(row);
         return new Text(new XContentString.UTF8Bytes(ref.bytes, ref.offset, ref.length));
     }
 
     @Override
-    BytesRef getBinaryValue(int row) {
+    public BytesRef getBinaryValue(int row) {
         return value(row);
     }
 
     @Override
-    ArrayReader getArrayValue(int row) {
+    public ArrayReader getArrayValue(int row) {
         boolean fixed = byteAt(typeVec, row) == SourceValueType.FIXED_ARRAY;
         // InlineArrayReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
         BytesRef ref = value(row);
@@ -107,7 +108,7 @@ final class EscfUnionColumn extends EscfColumn {
     }
 
     @Override
-    KeyValueReader getKeyValue(int row) {
+    public KeyValueReader getKeyValue(int row) {
         // KeyValueReader takes a byte[]; materialise this one value's bytes (zero-copy when contiguous).
         BytesRef ref = value(row);
         return new KeyValueReader(ref.bytes, ref.offset, ref.length);
@@ -126,6 +127,40 @@ final class EscfUnionColumn extends EscfColumn {
     private BytesRef value(int row) {
         int off0 = intAt(offsets, row);
         return data.slice(off0, intAt(offsets, row + 1) - off0).toBytesRef();
+    }
+
+    @Override
+    public int sizeInBytes(int row) {
+        return isAbsent(row) ? 0 : sizeOfPresent(row);
+    }
+
+    @Override
+    public void addSizesInBytes(int[] sizes) {
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += sizeOfPresent(d);
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += sizeOfPresent(d);
+        }
+    }
+
+    /**
+     * Every row of a union carries its own type, so the size is settled per cell: a variable-length
+     * value (string, binary, inline array or key-value) is its payload length, read from the offset fence
+     * posts, and a fixed-width scalar is {@link SourceValueType#elemDataSize} of its type, floored at 0
+     * for the zero-byte types.
+     */
+    private int sizeOfPresent(int row) {
+        byte type = byteAt(typeVec, row);
+        if (SourceValueType.isVariable(type)) {
+            int base = offsets.offset + row;
+            return offsets.ints[base + 1] - offsets.ints[base];
+        }
+        return Math.max(SourceValueType.elemDataSize(type), 0);
     }
 
     @Override

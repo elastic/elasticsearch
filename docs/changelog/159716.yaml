@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 159716
+summary: Type HTTP 200 truncated reads like 206/S3
+type: bug

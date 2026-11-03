@@ -46,7 +46,6 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testDefaultNotPromptForPassword() throws Exception {
-        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         execute();
         Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));

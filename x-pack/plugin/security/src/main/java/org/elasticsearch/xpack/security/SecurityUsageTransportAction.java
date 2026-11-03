@@ -92,7 +92,6 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     ) {
         Map<String, Object> sslUsage = sslUsage(settings);
         Map<String, Object> tokenServiceUsage = tokenServiceUsage(settings);
-        Map<String, Object> apiKeyServiceUsage = apiKeyServiceUsage(settings);
         Map<String, Object> auditUsage = auditUsage(settings);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
@@ -110,6 +109,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         final AtomicReference<Map<String, Object>> domainsUsageRef = new AtomicReference<>(Map.of());
         final AtomicReference<Map<String, Object>> userProfileUsageRef = new AtomicReference<>(Map.of());
         final AtomicReference<Map<String, Object>> remoteClusterServerUsageRef = new AtomicReference<>(Map.of());
+        final AtomicReference<Map<String, Object>> restApiKeyUsageRef = new AtomicReference<>(Map.of());
 
         final boolean enabled = XPackSettings.SECURITY_ENABLED.get(settings);
 
@@ -127,7 +127,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
                             ipFilterUsage,
                             anonymousUsage,
                             tokenServiceUsage,
-                            apiKeyServiceUsage,
+                            apiKeyServiceUsage(settings, restApiKeyUsageRef.get()),
                             fips140Usage,
                             operatorPrivilegesUsage,
                             domainsUsageRef.get(),
@@ -157,6 +157,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
                 profileService.usageStats(listeners.acquire(userProfileUsageRef::set));
             }
             if (apiKeyService != null) {
+                apiKeyService.restApiKeyUsageStats(listeners.acquire(restApiKeyUsageRef::set));
                 apiKeyService.crossClusterApiKeyUsageStats(
                     listeners.acquire(
                         usage -> remoteClusterServerUsageRef.set(
@@ -196,8 +197,8 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         return singletonMap("enabled", TOKEN_SERVICE_ENABLED_SETTING.get(settings));
     }
 
-    static Map<String, Object> apiKeyServiceUsage(Settings settings) {
-        return singletonMap("enabled", API_KEY_SERVICE_ENABLED_SETTING.get(settings));
+    static Map<String, Object> apiKeyServiceUsage(Settings settings, Map<String, Object> restApiKeyUsage) {
+        return Map.of("enabled", API_KEY_SERVICE_ENABLED_SETTING.get(settings), "api_keys", restApiKeyUsage);
     }
 
     static Map<String, Object> auditUsage(Settings settings) {

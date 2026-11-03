@@ -26,6 +26,8 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
@@ -67,8 +69,10 @@ import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -190,6 +194,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_document_index_mode")).orElse(false);
     }
 
+    protected boolean fetchVectordbColumnarIndexModeSupported() throws IOException {
+        return clusterHasCapability("PUT", "/{index}", List.of(), List.of("vectordb_columnar_index_mode")).orElse(false);
+    }
+
     private static Boolean flattenedDatatypeSortedKeysSupported;
 
     private boolean flattenedDatatypeSortedKeysSupported() throws IOException {
@@ -277,16 +285,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
             );
         }
-        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
-            // Gate on the cluster capability rather than the test runner build: columnar index modes are only available when the
-            // feature flag is enabled on the nodes (e.g. they are disabled in upgrade clusters), in which case these tests skip.
+        if (indexMode.isStrictColumnar()) {
+            // Gate on cluster capabilities rather than the test runner build. This also checks the remote cluster in CCQ tests.
+            boolean modeSupported = indexMode == IndexMode.VECTORDB_COLUMNAR
+                ? fetchVectordbColumnarIndexModeSupported()
+                : clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false);
+            assumeTrue("Cluster does not support index.mode=" + indexMode.getName(), modeSupported);
             assumeTrue(
-                "Cluster does not have columnar index modes enabled",
-                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false)
-            );
-            assumeTrue(
-                "Cluster has nodes that do not support columnar index modes",
-                minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+                "Cluster has nodes that do not support index.mode=" + indexMode.getName(),
+                minVersion().supports(indexMode.getMinimalSupportedVersion())
             );
             assumeTrue(
                 "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
@@ -582,7 +589,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             String indexName = e.getKey();
             MapMatcher expectedValues = matchesMap();
             if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minVersion(), false)) {
-                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in vector database index modes).
                 expectedValues = expectedValues.entry(
                     "f_dense_vector",
                     matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05))
@@ -939,6 +946,13 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return false;
     }
 
+    /**
+     * Must match the {@code dense_vector} mapper's default: strict columnar modes leave it unindexed unless they're search optimized.
+     */
+    private static boolean denseVectorIndexedByDefault(IndexMode mode) {
+        return mode.isStrictColumnar() == false || mode.isSearchOptimizedColumnar();
+    }
+
     private static String fieldName(DataType type) {
         return type == DataType.DATETIME ? "@timestamp" : "f_" + type.esType();
     }
@@ -956,6 +970,15 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 config.field("type", type.esType());
                 if (indexMode.isTsdb()) {
                     config.field("time_series_dimension", true);
+                }
+            }
+            case DENSE_VECTOR -> {
+                config.field("type", type.esType());
+                if (denseVectorIndexedByDefault(indexMode)) {
+                    // On stateless nodes the default index type is bbq_disk, and snapshot builds store it in an ESNext format with
+                    // no on-disk compatibility across builds, so in a mixed cluster one version can't open segments the other wrote.
+                    // int8_hnsw is the stateful default for these dims.
+                    config.startObject("index_options").field("type", "int8_hnsw").endObject();
                 }
             }
             default -> config.field("type", type.esType());
@@ -1157,7 +1180,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 // See expectedType for an explanation
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, false)
                     && coordinatorVersion.supports(RESOLVE_FIELDS_RESPONSE_USED_TV)) {
-                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in IndexMode.VECTORDB_DOCUMENT).
+                    // Tolerance to accommodate both FLOAT and BFLOAT16 element types (default in vector database index modes).
                     yield matchesList().item(closeTo(0.5, 0.05)).item(closeTo(10.0, 0.05)).item(closeTo(5.9999995, 0.05));
                 }
                 if (DataType.DENSE_VECTOR.supportedVersion().supportedOn(minimumVersion, true) && Build.current().isSnapshot()) {
@@ -1461,7 +1484,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
-            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR -> true;
+            case TIME_SERIES, LOGSDB, COLUMNAR, LOGSDB_COLUMNAR, VECTORDB_COLUMNAR -> true;
             case STANDARD, LOOKUP, VECTORDB_DOCUMENT -> false;
         };
     }
@@ -1516,7 +1539,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
      * generally not backwards compatible, so we should only run this in the
      * single-node case.
      */
-    private void assertProfile(Map<?, ?> profile) {
+    private void assertProfile(Map<?, ?> profile) throws IOException {
         List<?> drivers = (List<?>) profile.get("drivers");
         boolean atleastOneDataDriver = false;
         for (Object d : drivers) {
@@ -1529,7 +1552,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertTrue("at least one data driver found", atleastOneDataDriver);
     }
 
-    private void assertDataDriverProfile(List<?> operators) {
+    private void assertDataDriverProfile(List<?> operators) throws IOException {
         int readerCount = 0;
         for (Object o : operators) {
             Map<?, ?> operator = (Map<?, ?>) o;
@@ -1543,7 +1566,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertThat(readerCount, equalTo(1));
     }
 
-    private void assertReadersBuilt(Map<?, ?> readersBuilt) {
+    private void assertReadersBuilt(Map<?, ?> readersBuilt) throws IOException {
         Map<String, List<String>> found = new TreeMap<>();
         for (Object k : readersBuilt.keySet()) {
             String key = k.toString();
@@ -1586,7 +1609,36 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(found, expected);
     }
 
-    ListMatcher loadersFor(DataType type) {
+    /**
+     * The loader a string field gets, which follows the binary layout the index writes its doc values in: the in-order column, or
+     * the ColumNAR codec's payload, which every strict-columnar index created from {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}
+     * uses. Read off the index rather than assumed, since an index can be created at an older version.
+     */
+    private String columnarStringLoader() throws IOException {
+        return usesColumnarCodec() ? "column_at_a_time:BytesRefsFromColumnarPayload" : "column_at_a_time:BlockDocValuesReader.Bytes";
+    }
+
+    private Boolean usesColumnarCodec;
+
+    private boolean usesColumnarCodec() throws IOException {
+        if (usesColumnarCodec == null) {
+            // Every index this run reads, since they are named after the mode and, where a run has one per node, after the node too.
+            // Only the single-node run asserts the loaders, so there is one answer to find.
+            Request request = new Request("GET", "/" + indexName(indexMode, null) + "*/_settings/index.version.created");
+            request.addParameter("flat_settings", "true");
+            Map<?, ?> response = entityAsMap(client().performRequest(request));
+            assertThat("no index to read the version off", response.keySet(), not(empty()));
+            usesColumnarCodec = false;
+            for (Object forIndex : response.values()) {
+                Map<?, ?> settings = (Map<?, ?>) ((Map<?, ?>) forIndex).get("settings");
+                IndexVersion created = IndexVersion.fromId(Integer.parseInt(settings.get("index.version.created").toString()));
+                usesColumnarCodec |= created.onOrAfter(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
+            }
+        }
+        return usesColumnarCodec;
+    }
+
+    ListMatcher loadersFor(DataType type) throws IOException {
         return switch (type) {
             case AGGREGATE_METRIC_DOUBLE -> matchesList().item("column_at_a_time:BlockDocValuesReader.AggregateMetricDouble");
             case BOOLEAN -> matchesList().item("column_at_a_time:BooleansFromDocValues.Singleton");
@@ -1599,7 +1651,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case FLATTENED -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                 : matchesList().item("column_at_a_time:");
-            case DENSE_VECTOR -> indexMode.isStrictColumnar()
+            // vectordb_columnar keeps dense_vector indexed, so it loads from the normalized vector values like non-columnar
+            // modes; the other strict-columnar modes store the vector as binary doc values.
+            case DENSE_VECTOR -> denseVectorIndexedByDefault(indexMode) == false
                 ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
                 : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
@@ -1624,7 +1678,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case KEYWORD -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
-                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
+                : indexMode.isStrictColumnar() ? matchesList().item(columnarStringLoader())
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")
@@ -1635,8 +1689,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                     ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                     : matchesList().item("column_at_a_time:constant_nulls");
             case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
-            case TEXT -> indexMode.isStrictColumnar() || syntheticSourceByDefault()
-                ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
+            case TEXT -> indexMode.isStrictColumnar() ? matchesList().item(columnarStringLoader())
+                : syntheticSourceByDefault() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
             case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             default -> matchesList();

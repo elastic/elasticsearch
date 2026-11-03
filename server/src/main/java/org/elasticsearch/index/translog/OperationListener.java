@@ -9,13 +9,15 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.index.engine.IndexOperationBatch;
+
 @FunctionalInterface
 public interface OperationListener {
 
     /**
      * This method is called when a new {@link Translog.Record} is added to the translog: either a single
-     * {@link Translog.Operation} (one sequence number) or a {@link Translog.IndexBatch} (one sequence
-     * number per contained operation).
+     * {@link Translog.Operation} (one sequence number) or an {@link IndexOperationBatch.TranslogRecord}
+     * (one sequence number per replayable row).
      *
      * @param operation the serialized record added to the translog
      * @param seqNos the sequence numbers of the operations the record carries

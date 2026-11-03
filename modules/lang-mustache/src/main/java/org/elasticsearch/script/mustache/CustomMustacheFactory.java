@@ -87,7 +87,7 @@ public final class CustomMustacheFactory extends DefaultMustacheFactory {
 
     private CustomMustacheFactory(String mediaType, boolean detectMissingParams) {
         super(resourceName -> null); // we do not resolve templates via files or the classpath, etc.
-        setObjectHandler(new CustomReflectionObjectHandler(detectMissingParams));
+        setObjectHandler(new CustomObjectHandler(detectMissingParams));
         this.encoder = createEncoder(mediaType);
     }
 

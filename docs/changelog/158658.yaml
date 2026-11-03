@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 158658
+summary: ESQL:DS. Resume short obj reads. fail closed
+type: bug

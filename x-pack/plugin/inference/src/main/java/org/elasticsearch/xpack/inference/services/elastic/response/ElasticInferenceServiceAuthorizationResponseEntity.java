@@ -87,10 +87,45 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         @Nullable String endOfLifeDate,
         @Nullable Configuration configuration,
         @Nullable EndpointMetadata.Display display,
+        @Nullable EndpointMetadata.ModelIdentity modelIdentity,
         @Nullable String fingerprint,
         List<EndpointMetadata.EndpointRegion> regions,
-        boolean deniedByRegionPolicy
+        boolean deniedByRegionPolicy,
+        @Nullable EndpointMetadata.Capabilities capabilities
     ) {
+
+        public AuthorizedEndpoint(
+            String id,
+            String modelName,
+            TaskTypeObject taskType,
+            String status,
+            @Nullable List<String> properties,
+            String releaseDate,
+            @Nullable String endOfLifeDate,
+            @Nullable Configuration configuration,
+            @Nullable EndpointMetadata.Display display,
+            @Nullable EndpointMetadata.ModelIdentity modelIdentity,
+            @Nullable String fingerprint,
+            List<EndpointMetadata.EndpointRegion> regions,
+            boolean deniedByRegionPolicy
+        ) {
+            this(
+                id,
+                modelName,
+                taskType,
+                status,
+                properties,
+                releaseDate,
+                endOfLifeDate,
+                configuration,
+                display,
+                modelIdentity,
+                fingerprint,
+                regions,
+                deniedByRegionPolicy,
+                null
+            );
+        }
 
         public static final String RELEASE_DATE = "release_date";
         public static final String END_OF_LIFE_DATE = "end_of_life_date";
@@ -102,9 +137,11 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
         private static final String PROPERTIES = "properties";
         private static final String CONFIGURATION = "configuration";
         private static final String DISPLAY = "display";
+        private static final String MODEL_IDENTITY = "model_identity";
         private static final String FINGERPRINT = "fingerprint";
         private static final String REGIONS = "regions";
         private static final String DENIED_BY_REGION_POLICY = "denied_by_region_policy";
+        private static final String CAPABILITIES = "capabilities";
 
         @SuppressWarnings("unchecked")
         public static ConstructingObjectParser<AuthorizedEndpoint, Void> AUTHORIZED_ENDPOINT_PARSER = new ConstructingObjectParser<>(
@@ -120,9 +157,11 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 (String) args[6],
                 (Configuration) args[7],
                 (EndpointMetadata.Display) args[8],
-                (String) args[9],
-                args[10] != null ? (List<EndpointMetadata.EndpointRegion>) args[10] : List.of(),
-                args[11] != null && (Boolean) args[11]
+                (EndpointMetadata.ModelIdentity) args[9],
+                (String) args[10],
+                args[11] != null ? (List<EndpointMetadata.EndpointRegion>) args[11] : List.of(),
+                args[12] != null && (Boolean) args[12],
+                (EndpointMetadata.Capabilities) args[13]
             )
         );
 
@@ -140,6 +179,11 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 (p, c) -> EndpointMetadata.Display.parse(p),
                 new ParseField(DISPLAY)
             );
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> EndpointMetadata.ModelIdentity.parse(p),
+                new ParseField(MODEL_IDENTITY)
+            );
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
             AUTHORIZED_ENDPOINT_PARSER.declareObjectArray(
                 optionalConstructorArg(),
@@ -147,6 +191,11 @@ public record ElasticInferenceServiceAuthorizationResponseEntity(List<Authorized
                 new ParseField(REGIONS)
             );
             AUTHORIZED_ENDPOINT_PARSER.declareBoolean(optionalConstructorArg(), new ParseField(DENIED_BY_REGION_POLICY));
+            AUTHORIZED_ENDPOINT_PARSER.declareObject(
+                optionalConstructorArg(),
+                (p, c) -> EndpointMetadata.Capabilities.parse(p),
+                new ParseField(CAPABILITIES)
+            );
         }
     }
 

@@ -17,8 +17,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
 import java.io.IOException;
@@ -33,9 +32,7 @@ import java.util.Optional;
 public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer permits
     Int7uOSQVectorScorer.DotProductScorer, Int7uOSQVectorScorer.EuclideanScorer, Int7uOSQVectorScorer.MaxInnerProductScorer {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
     // Size of the corrections trailer that follows each quantized vector in the codec's per-vector
@@ -112,7 +109,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
     final float upperInterval;
     final float additionalCorrection;
     final int quantizedComponentSum;
-    final FixedSizeScratch scratch;
+    final FixedSizeSegmentScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
@@ -136,7 +133,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        this.query = MemorySegment.ofArray(quantizedQuery);
+        this.query = MemorySegmentUtils.nativeCopyOf(quantizedQuery);
         this.lowerInterval = lowerInterval;
         this.upperInterval = upperInterval;
         this.additionalCorrection = additionalCorrection;
@@ -144,7 +141,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         // Scratch sized to the full per-vector record (vector + corrections), so that the same
         // backing slice can be used for both the dot product (first vectorByteSize bytes) and the
         // corrections (trailing CORRECTIONS_BYTES bytes).
-        this.scratch = new FixedSizeScratch((int) vectorPitch);
+        this.scratch = new FixedSizeSegmentScratch((int) vectorPitch);
     }
 
     abstract float applyCorrections(float rawScore, MemorySegment correctionsSlice);
@@ -157,7 +154,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         long vectorOffset = (long) node * vectorPitch;
         input.seek(vectorOffset);
         return IndexInputUtils.withFloatSlice(input, (int) vectorPitch, scratch, seg -> {
-            int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize);
+            int dotProduct = DISTANCE_FUNCS.dotProductI7u(seg, query, vectorByteSize);
             return applyCorrections(dotProduct, seg.asSlice(vectorByteSize, CORRECTIONS_BYTES));
         });
     }
@@ -191,7 +188,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
             final int idx = i;
             input.seek(offsets[i]);
             IndexInputUtils.withVoidSlice(input, (int) vectorPitch, scratch, seg -> {
-                int rawScore = DISTANCE_FUNCS.dotProductI7u(query, seg, vectorByteSize);
+                int rawScore = DISTANCE_FUNCS.dotProductI7u(seg, query, vectorByteSize);
                 scores[idx] = applyCorrections(rawScore, seg.asSlice(vectorByteSize, CORRECTIONS_BYTES));
             });
             maxScore = Math.max(maxScore, scores[idx]);

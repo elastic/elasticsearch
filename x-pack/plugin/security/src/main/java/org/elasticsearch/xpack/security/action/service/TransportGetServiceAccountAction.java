@@ -19,15 +19,33 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAct
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
+import org.elasticsearch.xpack.core.security.action.service.ServiceAccountType;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.function.Predicate;
 
+/**
+ * Reports the service accounts a request selects. Built-in accounts are known to every node, while user-managed ones
+ * have to be read from the account store, so a request naming both kinds is answered from two sources and merged.
+ * When asked, the profile uids of the user-managed accounts' authors are looked up subsequently.
+ */
 public class TransportGetServiceAccountAction extends HandledTransportAction<GetServiceAccountRequest, GetServiceAccountResponse> {
 
+    private final ServiceAccountService serviceAccountService;
+    private final ProfileService profileService;
+
     @Inject
-    public TransportGetServiceAccountAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportGetServiceAccountAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ServiceAccountService serviceAccountService,
+        ProfileService profileService
+    ) {
         super(
             GetServiceAccountAction.NAME,
             transportService,
@@ -35,10 +53,37 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
             GetServiceAccountRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.serviceAccountService = serviceAccountService;
+        this.profileService = profileService;
     }
 
     @Override
     protected void doExecute(Task task, GetServiceAccountRequest request, ActionListener<GetServiceAccountResponse> listener) {
+        final List<ServiceAccountInfo> builtInInfos = request.getType().contains(ServiceAccountType.BUILT_IN)
+            ? builtInAccountInfos(request)
+            : List.of();
+        if (request.getType().contains(ServiceAccountType.USER_MANAGED) == false) {
+            listener.onResponse(newResponse(builtInInfos, List.of()));
+            return;
+        }
+        serviceAccountService.getUserManagedAccountInfos(
+            request.getNamespace(),
+            request.getServiceName(),
+            listener.delegateFailureAndWrap((delegate, userManagedInfos) -> {
+                if (request.withProfileUid()) {
+                    ServiceAccountAuthorProfileUids.resolve(
+                        profileService,
+                        userManagedInfos,
+                        delegate.map(resolvedInfos -> newResponse(builtInInfos, resolvedInfos))
+                    );
+                } else {
+                    delegate.onResponse(newResponse(builtInInfos, userManagedInfos));
+                }
+            })
+        );
+    }
+
+    private static List<ServiceAccountInfo> builtInAccountInfos(GetServiceAccountRequest request) {
         Predicate<ServiceAccount> filter = Predicates.always();
         if (request.getNamespace() != null) {
             filter = filter.and(v -> v.id().namespace().equals(request.getNamespace()));
@@ -46,12 +91,19 @@ public class TransportGetServiceAccountAction extends HandledTransportAction<Get
         if (request.getServiceName() != null) {
             filter = filter.and(v -> v.id().serviceName().equals(request.getServiceName()));
         }
-        final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getServiceAccounts()
+        return ServiceAccountService.getBuiltInServiceAccounts()
             .values()
             .stream()
             .filter(filter)
-            .map(v -> new ServiceAccountInfo(v.id().asPrincipal(), v.roleDescriptor()))
-            .toArray(ServiceAccountInfo[]::new);
-        listener.onResponse(new GetServiceAccountResponse(serviceAccountInfos));
+            .<ServiceAccountInfo>map(v -> new ServiceAccountInfo.BuiltIn(v.id().asPrincipal(), v.roleDescriptor()))
+            .toList();
+    }
+
+    private static GetServiceAccountResponse newResponse(List<ServiceAccountInfo> builtInInfos, List<ServiceAccountInfo> userManagedInfos) {
+        final List<ServiceAccountInfo> infos = new ArrayList<>(builtInInfos.size() + userManagedInfos.size());
+        infos.addAll(builtInInfos);
+        infos.addAll(userManagedInfos);
+        infos.sort(Comparator.comparing(ServiceAccountInfo::principal));
+        return new GetServiceAccountResponse(infos.toArray(ServiceAccountInfo[]::new));
     }
 }

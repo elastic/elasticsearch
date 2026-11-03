@@ -16,6 +16,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.telemetry.TransformCrossProjectMetrics;
 
@@ -58,11 +59,12 @@ public class TransformCrossProjectMetricsIT extends TransformSingleNodeTestCase 
     }
 
     public void testCpsGaugesPublishForRunningTransform() throws Exception {
+        assumeTrue("Only relevant when CPS feature flag is on", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var telemetry = getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).findFirst().orElseThrow();
 
         // both gauges are registered at node startup (CPS enabled + transform role)
         assertThat(
-            telemetry.getRegisteredMetrics(InstrumentType.LONG_GAUGE),
+            telemetry.getRegisteredMetrics(InstrumentType.LONG_ASYNC_GAUGE),
             hasItems(
                 TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT,
                 TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT
@@ -108,15 +110,15 @@ public class TransformCrossProjectMetricsIT extends TransformSingleNodeTestCase 
         assertBusy(() -> {
             telemetry.resetMeter();
             telemetry.collect();
-            assertThat(telemetry.getLongGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT), empty());
-            assertThat(telemetry.getLongGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT), empty());
+            assertThat(telemetry.getLongAsyncGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_UIAM_AUTH_CURRENT), empty());
+            assertThat(telemetry.getLongAsyncGaugeMeasurement(TransformCrossProjectMetrics.TRANSFORM_CPS_ACTIVE_CURRENT), empty());
         }, 30, TimeUnit.SECONDS);
 
         deleteTransform(transformId);
     }
 
     private static long measurement(TestTelemetryPlugin telemetry, String metric, String attribute, String value) {
-        var matches = telemetry.getLongGaugeMeasurement(metric)
+        var matches = telemetry.getLongAsyncGaugeMeasurement(metric)
             .stream()
             .filter(measurement -> value.equals(measurement.attributes().get(attribute)))
             .toList();

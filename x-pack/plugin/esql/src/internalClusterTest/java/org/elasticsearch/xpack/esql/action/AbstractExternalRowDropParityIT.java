@@ -34,10 +34,12 @@ import static org.hamcrest.Matchers.equalTo;
  * <p>The invariant, asserted for every format:
  * <ul>
  *   <li><b>Clean, multi-stripe:</b> warm MIN/MAX AND COUNT all short-circuit ({@code documentsFound == 0}).</li>
- *   <li><b>A dropped row (error_mode=skip_row, malformed row mid-file):</b> warm MIN/MAX AND COUNT all STILL
- *       short-circuit over the surviving rows. The cache fingerprint pins error_mode, so a full scan drops the
- *       SAME row -- every statistic (COUNT and extrema alike) over the survivors is exact vs that scan, and COUNT
- *       is not singled out.</li>
+ *   <li><b>A dropped row (error_mode=skip_row, STRUCTURAL malformation mid-file):</b> warm MIN/MAX AND COUNT all
+ *       STILL short-circuit over the surviving rows. A structural drop -- a wrong-width row, a non-JSON line -- is
+ *       decided while tokenising, before and independently of what the query projects, so every scan shape drops
+ *       the SAME row. Every statistic (COUNT and extrema alike) over the survivors is therefore exact vs a full
+ *       scan, and COUNT is not singled out. A COERCION drop is the other class and does not reach here: it is
+ *       decided by the projection, so it suppresses the stats publish outright and the follow-up query re-scans.</li>
  * </ul>
  *
  * <p>A small stripe grid ({@code esql.external.cache.stripe.size=64kb}) over a &gt;1MB uncompressed file forces many
@@ -64,7 +66,8 @@ public abstract class AbstractExternalRowDropParityIT extends AbstractExternalDa
     /**
      * The raw fixture text: {@code rows} rows with an integer {@code id} column running {@code 0..rows-1}. When
      * {@code malformed} is true, the row at {@code rows/2} is replaced by a row the format drops under skip_row
-     * (a non-numeric id for CSV/TSV, a non-JSON line for NDJSON) -- a MID-file row, so it is never the MIN or MAX.
+     * (a wrong-width row for CSV/TSV, a non-JSON line for NDJSON -- STRUCTURAL drops in every format, so every
+     * scan shape drops the same row) -- a MID-file row, so it is never the MIN or MAX.
      */
     protected abstract String buildContent(int rows, boolean malformed);
 
@@ -97,10 +100,11 @@ public abstract class AbstractExternalRowDropParityIT extends AbstractExternalDa
     }
 
     /**
-     * THE PARITY INVARIANT under a row drop: warm MIN/MAX AND COUNT all short-circuit over the surviving rows.
-     * The dropped row is mid-file (never the MIN or MAX), and the cache fingerprint pins error_mode -- so a full
-     * scan drops the SAME row and every statistic over the survivors (COUNT and extrema alike) is exact vs that
-     * scan. COUNT is NOT treated differently from the extrema. Identical for every format.
+     * THE PARITY INVARIANT under a STRUCTURAL row drop: warm MIN/MAX AND COUNT all short-circuit over the
+     * surviving rows. The dropped row is mid-file (never the MIN or MAX); the cache fingerprint pins error_mode,
+     * and a structural malformation is caught while tokenising, so a full scan -- of any projection -- drops the
+     * SAME row and every statistic over the survivors (COUNT and extrema alike) is exact vs that scan. COUNT is
+     * NOT treated differently from the extrema. Identical for every format.
      */
     public void testRowDropWarmMinMaxAndCountAllShortCircuitOverSurvivors() throws Exception {
         String ds = registerFixture("drop_" + format(), true, Map.of("error_mode", "skip_row"));

@@ -9,12 +9,13 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.foreign.CloseableByteBuffer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.PosixCLibrary;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -29,12 +30,12 @@ public class Systemd {
 
     private final PosixCLibrary libc;
     private final String socketPath;
-    private final CloseableByteBuffer buffer;
+    private final MemorySegment segment;
 
-    Systemd(PosixCLibrary libc, String socketPath, CloseableByteBuffer buffer) {
+    Systemd(PosixCLibrary libc, String socketPath) {
         this.libc = libc;
         this.socketPath = socketPath;
-        this.buffer = buffer;
+        this.segment = Arena.ofAuto().allocate(64);
     }
 
     /**
@@ -72,11 +73,9 @@ public class Systemd {
 
             byte[] bytes = state.getBytes(StandardCharsets.US_ASCII);
             final long bytesSent;
-            synchronized (buffer) {
-                buffer.buffer().clear();
-                buffer.buffer().put(0, bytes);
-                buffer.buffer().limit(bytes.length);
-                bytesSent = libc.send(sockfd, MemorySegment.ofBuffer(buffer.buffer()), bytes.length, 0);
+            synchronized (segment) {
+                MemorySegment.copy(bytes, 0, segment, ValueLayout.JAVA_BYTE, 0, bytes.length);
+                bytesSent = libc.send(sockfd, segment, bytes.length, 0);
             }
 
             if (bytesSent == -1) {

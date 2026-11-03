@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.instrumentation;
 
 import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesGetter;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestResponse;
 
 import java.util.List;
@@ -32,6 +33,7 @@ final class OtelAttributesGetter implements HttpServerAttributesGetter<RequestAn
         return request.urlQuery();
     }
 
+    @Nullable
     @Override
     public String getHttpRoute(RequestAndRoute request) {
         return request.matchedRoute();

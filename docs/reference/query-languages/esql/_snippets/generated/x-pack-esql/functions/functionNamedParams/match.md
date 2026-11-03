@@ -3,7 +3,7 @@
 ### Supported function named parameters
 
 `analyzer`
-:   (keyword) Analyzer used to convert the text in the query value into token. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used.
+:   (keyword) Analyzer used to convert the text in the query value into tokens. Defaults to the index-time analyzer mapped for the field. If no analyzer is mapped, the index’s default analyzer is used. For expressions not backed by an index, defaults to the values analyzer declared through `TO_TEXT` (`standard` when none is declared).
 
 `auto_generate_synonyms_phrase_query`
 :   (boolean) If true, match phrase queries are automatically created for multi-term synonyms. Defaults to true.
@@ -21,7 +21,7 @@
 :   (keyword) Method used to rewrite the query. See the rewrite parameter for valid values and more information. If the fuzziness parameter is not 0, the match query uses a fuzzy_rewrite method of top_terms_blended_freqs_${max_expansions} by default.
 
 `lenient`
-:   (boolean) If false, format-based errors, such as providing a text query value for a numeric field, are returned. Defaults to false.
+:   (boolean) If false, format-based errors, such as a text query value for a numeric field, are returned. If true, such values do not match. Defaults to true.
 
 `max_expansions`
 :   (integer) Maximum number of terms to which the query will expand. Defaults to 50.

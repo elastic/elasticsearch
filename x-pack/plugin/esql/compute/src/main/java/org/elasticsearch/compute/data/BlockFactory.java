@@ -23,16 +23,29 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.lang.ref.Cleaner;
 import java.util.BitSet;
 
 public class BlockFactory {
+
     public static final String LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING = "esql.block_factory.local_breaker.over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(8);
+    /**
+     * Local breakers should reserve as much as they can to minimize calls to the global breaker.
+     * Live drivers are bounded by roughly 1.5 * CPUs, and CPUs scale with heap, so the reserve is sized by heap:
+     * - under 4GB: 8KB / 512KB
+     * - 4GB to 8GB: 128KB / 2MB
+     * - over 8GB: 512KB / 4MB
+     */
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = defaultLocalBreakerOverReserved(
+        JvmInfo.jvmInfo().getMem().getHeapMax()
+    );
 
     public static final String LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING = "esql.block_factory.local_breaker.max_over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(512);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = defaultLocalBreakerMaxOverReserved(
+        JvmInfo.jvmInfo().getMem().getHeapMax()
+    );
 
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
@@ -91,6 +104,16 @@ public class BlockFactory {
         return breaker;
     }
 
+    /**
+     * Returns the Arrow {@link BufferAllocator} bound to this factory. One root allocator per
+     * top-level factory; child factories share it. There is no per-query close hook
+     * ({@code BlockFactory} is not {@link org.elasticsearch.core.Releasable}).
+     *
+     * @deprecated Do not allocate storage-read buffers here. Those paths use heap {@code byte[]}
+     *             charged to {@link #breaker()}. This allocator remains for wrapping Arrow vectors
+     *             (compute ArrowBuf blocks, Flight).
+     */
+    @Deprecated
     public BufferAllocator arrowAllocator() {
         // There's one root Arrow allocator per top-level block factory.
         // Ideally, we should have one child allocator per ESQL query to check buffer leaks at the end of each query, but there's no
@@ -718,4 +741,23 @@ public class BlockFactory {
         return maxPrimitiveArrayBytes;
     }
 
+    static ByteSizeValue defaultLocalBreakerOverReserved(ByteSizeValue heapSize) {
+        if (heapSize.getBytes() < ByteSizeValue.ofGb(4).getBytes()) {
+            return ByteSizeValue.ofKb(8);
+        }
+        if (heapSize.getBytes() < ByteSizeValue.ofGb(8).getBytes()) {
+            return ByteSizeValue.ofKb(128);
+        }
+        return ByteSizeValue.ofKb(512);
+    }
+
+    static ByteSizeValue defaultLocalBreakerMaxOverReserved(ByteSizeValue heapSize) {
+        if (heapSize.getBytes() < ByteSizeValue.ofGb(4).getBytes()) {
+            return ByteSizeValue.ofKb(512);
+        }
+        if (heapSize.getBytes() < ByteSizeValue.ofGb(8).getBytes()) {
+            return ByteSizeValue.ofMb(2);
+        }
+        return ByteSizeValue.ofMb(4);
+    }
 }

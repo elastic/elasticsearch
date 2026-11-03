@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NullMisuseSuggestion;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -37,7 +38,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class InsensitiveEquals extends InsensitiveBinaryComparison implements EvaluatorMapper, AnyNullIsNull {
+public class InsensitiveEquals extends InsensitiveBinaryComparison implements EvaluatorMapper, AnyNullIsNull, NullMisuseSuggestion {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "InsensitiveEquals",
@@ -151,5 +152,10 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison implements Ev
             return new InsensitiveEqualsEvaluator.Factory(source(), leftEval, rightEval);
         }
         throw new EsqlIllegalArgumentException("resolved type for [" + this + "] but didn't implement mapping");
+    }
+
+    @Override
+    public String nullMisuseAlternative() {
+        return NullMisuseSuggestion.equalsNullToIsNull(left(), right(), false);
     }
 }

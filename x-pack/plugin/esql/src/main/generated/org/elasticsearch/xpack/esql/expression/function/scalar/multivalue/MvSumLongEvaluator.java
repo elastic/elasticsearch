@@ -45,11 +45,11 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
     int positionCount = v.getPositionCount();
     try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         try {
           int first = v.getFirstValueIndex(p);
           int end = first + valueCount;

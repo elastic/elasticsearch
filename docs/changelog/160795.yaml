@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160795
+summary: Add a small field-caps cache
+type: enhancement

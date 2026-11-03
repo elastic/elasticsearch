@@ -43,6 +43,7 @@ final class ColumnarArrayReader implements ArrayReader {
 
     @Override
     public boolean isNull() {
+        // TODO: this is an encoder detail not a guarantee and should change. Due to two bitsets there actually can be nulls.
         return false;
     }
 

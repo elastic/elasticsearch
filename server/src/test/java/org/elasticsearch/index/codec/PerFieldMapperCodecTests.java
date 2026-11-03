@@ -13,6 +13,11 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.string.DictionaryPolicy;
+import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -24,6 +29,7 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
@@ -43,6 +49,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -125,6 +133,31 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 },
                 "message": {
                     "type": "text"
+                }
+            }
+        }
+        """;
+
+    private static final String COLUMNAR_MAPPING = """
+        {
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "category": {
+                    "type": "keyword"
+                },
+                "size": {
+                    "type": "long"
+                },
+                "score": {
+                    "type": "double"
+                },
+                "body": {
+                    "type": "text"
+                },
+                "payload": {
+                    "type": "binary"
                 }
             }
         }
@@ -522,6 +555,194 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         );
         final DocValuesFormat format = supplier.getDocValuesFormatForField("gauge");
         assertFalse("Expected non-ES95 format", format instanceof ES95TSDBDocValuesFormat);
+    }
+
+    public void testColumnarUsedForKeywordInColumnarMode() throws IOException {
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(mode, randomColumnarEligibleIndexVersion());
+            assertThat("mode=" + mode, supplier.getDocValuesFormatForField("category"), instanceOf(ColumNARDocValuesFormat.class));
+        }
+    }
+
+    public void testColumnarNotUsedForNonKeywordField() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
+        assertFalse(
+            "long companion field must not be routed to ColumNAR",
+            supplier.getDocValuesFormatForField("size") instanceof ColumNARDocValuesFormat
+        );
+        assertFalse(
+            "double companion field must not be routed to ColumNAR",
+            supplier.getDocValuesFormatForField("score") instanceof ColumNARDocValuesFormat
+        );
+    }
+
+    public void testColumnarNotUsedInNonColumnarMode() throws IOException {
+        final IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(nonColumnarMode, randomColumnarEligibleIndexVersion());
+        assertFalse("mode=" + nonColumnarMode, supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotUsedForOldIndexVersion() throws IOException {
+        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), oldVersion);
+        assertFalse(supplier.getDocValuesFormatForField("category") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarUsedForTextInColumnarMode() throws IOException {
+        for (IndexMode mode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(mode, randomColumnarEligibleIndexVersion());
+            assertThat("mode=" + mode, supplier.getDocValuesFormatForField("body"), instanceOf(ColumNARDocValuesFormat.class));
+        }
+    }
+
+    public void testColumnarNotUsedForTextInNonColumnarMode() throws IOException {
+        final IndexMode nonColumnarMode = randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(nonColumnarMode, randomColumnarEligibleIndexVersion());
+        assertFalse("mode=" + nonColumnarMode, supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
+    }
+
+    public void testColumnarNotUsedForTextOnOldIndexVersion() throws IOException {
+        final IndexVersion oldVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), oldVersion);
+        assertFalse(supplier.getDocValuesFormatForField("body") instanceof ColumNARDocValuesFormat);
+    }
+
+    /** A text column is written without a dictionary; a keyword column with one. */
+    public void testTextAsksForNoDictionary() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
+        final StringColumnOptions text = supplier.columnarStringOptionsOf("body");
+        assertNotNull("a columnar text field is written as a string column", text);
+        assertEquals("surveying a text column for a dictionary is not worth it", DictionaryPolicy.NONE, text.dictionary());
+        assertEquals(
+            "a keyword column is still worth a dictionary",
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            supplier.columnarStringOptionsOf("category").dictionary()
+        );
+    }
+
+    /** The field says how its string column is written, and a field that is not one says nothing. */
+    public void testColumnarStringOptionsComeFromTheField() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
+        final StringColumnOptions options = supplier.columnarStringOptionsOf("category");
+        assertNotNull("a columnar keyword field is written as a string column", options);
+        assertEquals("a keyword column is worth a dictionary", StringColumnOptions.DEFAULT_DICTIONARY, options.dictionary());
+        assertNull("a long field is not a string column", supplier.columnarStringOptionsOf("size"));
+        assertNull("a double field is not a string column", supplier.columnarStringOptionsOf("score"));
+    }
+
+    /** A field the codec does not store is not written as a string column, whatever its type. */
+    public void testColumnarStringOptionsAbsentWhenTheCodecIsOff() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            randomColumnarMode(),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG)
+        );
+        assertNull(supplier.columnarStringOptionsOf("category"));
+    }
+
+    /**
+     * A vectordb index never scans {@code _id} -- the only read of it is the top-N fetch -- so it is written
+     * with its own format instance, cutting a block at 128 documents rather than the thousands the scanned
+     * columns around it are written in.
+     */
+    public void testVectorDbColumnarIdDocValuesFormat() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            IndexMode.VECTORDB_COLUMNAR,
+            randomColumnarEligibleIndexVersion()
+        );
+        final DocValuesFormat idFormat = supplier.getDocValuesFormatForField(IdFieldMapper.NAME);
+        final DocValuesFormat otherFormat = supplier.getDocValuesFormatForField("size");
+
+        assertNotSame("_id is written by its own instance", idFormat, otherFormat);
+        assertThat("but by the same format, so one reader serves both", idFormat.getName(), equalTo(otherFormat.getName()));
+        assertThat(((ES819TSDBDocValuesFormat) idFormat).binaryBlockCountThreshold(), equalTo(128));
+        assertThat(((ES819TSDBDocValuesFormat) otherFormat).binaryBlockCountThreshold(), equalTo(8096));
+    }
+
+    /**
+     * A vectordb index reads its keyword and text columns a few documents at a time, so their chunks are cut at
+     * one block of values and 32KB rather than the thousands a scanned column is written in. Each field keeps its own
+     * policies: text still has no dictionary, keyword still has one.
+     */
+    public void testVectorDbColumnarStringColumnsUseSmallChunks() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
+            IndexMode.VECTORDB_COLUMNAR,
+            randomColumnarEligibleIndexVersion()
+        );
+        for (String field : List.of("category", "body")) {
+            assertThat(field, supplier.getDocValuesFormatForField(field), instanceOf(ColumNARDocValuesFormat.class));
+            final StringColumnOptions.Sizes sizes = supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING).sizes();
+            assertThat(field, sizes.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
+            assertThat(field, sizes.escapeChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
+            assertThat(field, sizes.compressedOrdinalBlockSize(), equalTo(512));
+            assertThat(field, sizes.valuesPerBlock(), equalTo(StringColumnOptions.DEFAULT_VALUES_PER_BLOCK));
+        }
+        assertEquals(DictionaryPolicy.NONE, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).dictionary());
+        assertEquals(
+            StringColumnOptions.DEFAULT_DICTIONARY,
+            supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).dictionary()
+        );
+        final StringColumnOptions.Sizes payload = supplier.resolveStringColumnOptions("payload", ColumnarFieldType.STRING).sizes();
+        assertThat("a payload column is never given larger chunks", payload.plainChunks(), equalTo(new ChunkBounds(32 * 1024, 128)));
+    }
+
+    public void testStringColumnOptionsKeepEachFieldsFramingInEveryColumnarMode() throws IOException {
+        final List<IndexMode> modes = List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
+        final String mapping = """
+            {
+                "properties": {
+                    "category": { "type": "keyword" },
+                    "host": { "type": "keyword", "multi_value": false },
+                    "body": { "type": "text" }
+                }
+            }
+            """;
+        for (IndexMode mode : modes) {
+            final Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), mode)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, randomColumnarEligibleIndexVersion())
+                .build();
+            final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings, "test");
+            mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+            final PerFieldFormatSupplier supplier = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+            for (String field : List.of("category", "host", "body")) {
+                assertThat(
+                    "mode=" + mode + " " + field,
+                    supplier.getDocValuesFormatForField(field),
+                    instanceOf(ColumNARDocValuesFormat.class)
+                );
+            }
+            assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("category", ColumnarFieldType.STRING).singleValued());
+            assertTrue("mode=" + mode, supplier.resolveStringColumnOptions("host", ColumnarFieldType.STRING).singleValued());
+            assertFalse("mode=" + mode, supplier.resolveStringColumnOptions("body", ColumnarFieldType.STRING).singleValued());
+        }
+    }
+
+    public void testStringColumnOptionsAreNotGuessedForAFieldWithoutThem() throws IOException {
+        final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(randomColumnarMode(), randomColumnarEligibleIndexVersion());
+        for (String field : List.of("unmapped", "size")) {
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> supplier.resolveStringColumnOptions(field, ColumnarFieldType.STRING)
+            );
+            assertThat(e.getMessage(), containsString("field [" + field + "]"));
+        }
+    }
+
+    private static IndexMode randomColumnarMode() {
+        return randomFrom(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR);
+    }
+
+    private static IndexVersion randomColumnarEligibleIndexVersion() {
+        return IndexVersionUtils.randomVersionBetween(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG, IndexVersion.current());
+    }
+
+    private PerFieldFormatSupplier createColumnarFormatSupplier(final IndexMode mode, final IndexVersion indexVersion) throws IOException {
+        final Settings.Builder settings = Settings.builder();
+        settings.put(IndexSettings.MODE.getKey(), mode);
+        settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
+        final MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
+        mapperService.merge("type", new CompressedXContent(COLUMNAR_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);
+        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
     private PerFieldFormatSupplier createFormatSupplierWithVersion(

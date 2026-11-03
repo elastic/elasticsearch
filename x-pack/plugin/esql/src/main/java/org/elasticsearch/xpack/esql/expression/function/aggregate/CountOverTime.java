@@ -50,7 +50,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         .ternary(CountOverTime::new)
         .name("count_over_time");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .withinSeries(CountOverTime::new)
+        .withinSeries((source, field, window, timestamp) -> new CountOverTime(source, promqlSample(field), window, timestamp))
         .description("Returns the count of all values in the specified time range.")
         .example("count_over_time(http_requests_total[5m])")
         .stack(PromqlFunctionDefinition.STACK_PREVIEW_9_4_GA_9_5)
@@ -80,6 +80,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -103,11 +104,11 @@ public class CountOverTime extends TimeSeriesAggregateFunction
         ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
+        this(source, field, timestamp, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
     }
 
-    public CountOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
-        super(source, field, filter, window, List.of(timestamp));
+    public CountOverTime(Source source, Expression field, Expression timestamp, Expression filter, Expression window) {
+        super(source, List.of(field, timestamp), filter, window, List.of());
         this.timestamp = timestamp;
     }
 
@@ -117,13 +118,8 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public CountOverTime withFilter(Expression filter) {
-        return new CountOverTime(source(), field(), filter, window(), timestamp);
-    }
-
-    @Override
     protected NodeInfo<CountOverTime> info() {
-        return NodeInfo.create(this, CountOverTime::new, field(), filter(), window(), timestamp);
+        return NodeInfo.create(this, CountOverTime::new, field(), timestamp, filter(), window());
     }
 
     @Override
@@ -154,7 +150,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction
     @Override
     public Expression surrogate() {
         if (field().dataType() == EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
-            var mergeOverTime = new HistogramMergeOverTime(source(), field(), filter(), window(), timestamp);
+            var mergeOverTime = new HistogramMergeOverTime(source(), field(), timestamp, filter(), window());
             return new Coalesce(
                 source(),
                 new ToLong(source(), ExtractHistogramComponent.create(source(), mergeOverTime, HistogramBlock.Component.COUNT)),
@@ -162,6 +158,17 @@ public class CountOverTime extends TimeSeriesAggregateFunction
             );
         }
         return null;
+    }
+
+    /**
+     * PromQL counts a histogram as one sample, not as the observations it holds. The count component has a value exactly
+     * where the histogram does, so counting it counts the histograms.
+     */
+    static Expression promqlSample(Expression field) {
+        if (field.resolved() && (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST)) {
+            return ExtractHistogramComponent.create(field.source(), field, HistogramBlock.Component.COUNT);
+        }
+        return field;
     }
 
     @Override

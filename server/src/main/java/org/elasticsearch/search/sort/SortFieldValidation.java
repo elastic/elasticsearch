@@ -178,9 +178,12 @@ public final class SortFieldValidation {
         for (int fieldIdx : fieldIdsWithMixedNumericSorts) {
             // Rewrite the sort field to DOUBLE
             SortField originalField = newSortFields[fieldIdx];
-            SortField doubleField = new SortField(originalField.getField(), SortField.Type.DOUBLE, originalField.getReverse());
-            doubleField.setMissingValue(originalField.getMissingValue());
-            newSortFields[fieldIdx] = doubleField;
+            newSortFields[fieldIdx] = new SortField(
+                originalField.getField(),
+                SortField.Type.DOUBLE,
+                originalField.getReverse(),
+                originalField.getMissingValue()
+            );
 
             // Convert all sort values to Double
             for (TopDocs topDocs : results) {
@@ -203,7 +206,7 @@ public final class SortFieldValidation {
         return type == SortField.Type.INT || type == SortField.Type.LONG || type == SortField.Type.FLOAT || type == SortField.Type.DOUBLE;
     }
 
-    private static SortField.Type getType(SortField sortField) {
+    public static SortField.Type getType(SortField sortField) {
         if (sortField instanceof SortedNumericSortField sf) {
             return sf.getNumericType();
         } else if (sortField instanceof SortedSetSortField) {

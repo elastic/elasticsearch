@@ -1098,7 +1098,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
          * Extracting the NestedIdentity of the first child and second grandchild results in a source that looks like this:
          * { "children" : { "grandchildren" : { "field" : "value2" } } }
          *
-         * If the relevant child source object does not exist in the root, then we return {@link Source#empty(XContentType)}
+         * If the nested path is missing or has no source objects, return {@link Source#empty(XContentType)}.
          */
         @SuppressWarnings("unchecked")
         public Source extractSource(Source root) {
@@ -1113,7 +1113,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
                 String nestedPath = nested.getField().string();
                 current.put(nestedPath, new HashMap<>());
                 List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSources(nestedPath, rootSourceAsMap);
-                if (nestedParsedSource == null) {
+                if (nestedParsedSource == null || nestedParsedSource.isEmpty()) {
                     return Source.empty(root.sourceContentType());
                 }
                 if (nested.getOffset() > nestedParsedSource.size() - 1) {

@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.openai.completion;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.oauth2.OAuth2ClusterSettings;
 import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
@@ -44,7 +44,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
 
     public static OpenAiChatCompletionModel of(
         OpenAiChatCompletionModel model,
-        UnifiedCompletionRequest request,
+        UnifiedCompletionRequestBody request,
         ThreadPool threadPool,
         TokenCache tokenCache,
         OAuth2ClusterSettings oauth2ClusterSettings

@@ -10,6 +10,7 @@
 package org.elasticsearch.search.profile.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.profile.AbstractProfiler;
 import org.elasticsearch.search.profile.Timer;
 
@@ -86,6 +87,14 @@ public final class QueryProfiler extends AbstractProfiler<QueryProfileBreakdown,
      */
     public long getRewriteTime() {
         return ((InternalQueryProfileTree) profileTree).getRewriteTime();
+    }
+
+    /**
+     * Tag the top-level queries profiled from now on with the position of the rescorer that runs them, so they can be told apart
+     * from the main query. Pass {@code null} once the rescorer is done.
+     */
+    public void setRescorer(@Nullable Integer rescorer) {
+        ((InternalQueryProfileTree) profileTree).setRescorer(rescorer);
     }
 
     /**

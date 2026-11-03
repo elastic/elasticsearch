@@ -18,26 +18,26 @@ import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.util.Optional;
 
 public abstract sealed class Float32VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     final int dimensions;
     final int vectorByteSize;
     final IndexInput input;
     final MemorySegment query;
-    final FixedSizeScratch scratch;
+    final FixedSizeSegmentScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
         checkDimensions(queryVector.length, values.dimension());
@@ -62,8 +62,8 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
         assert queryVector.length == values.dimension();
         this.dimensions = values.dimension();
         this.vectorByteSize = values.getVectorByteLength();
-        this.query = MemorySegment.ofArray(queryVector);
-        this.scratch = new FixedSizeScratch(vectorByteSize);
+        this.query = MemorySegmentUtils.nativeCopyOf(queryVector);
+        this.scratch = new FixedSizeSegmentScratch(vectorByteSize);
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
@@ -92,7 +92,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 input,
                 vectorByteSize,
                 scratch,
-                memorySegment -> DISTANCE_FUNCS.dotProductF32(query, memorySegment, dimensions)
+                memorySegment -> DISTANCE_FUNCS.dotProductF32(memorySegment, query, dimensions)
             );
 
             return VectorUtil.normalizeToUnitInterval(dotProduct);
@@ -108,18 +108,19 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) nodes[i] * vectorByteSize;
             }
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
             boolean resolved = IndexInputUtils.withSliceAddresses(
                 input,
                 offsets,
                 vectorByteSize,
                 numNodes,
                 addrsScratch,
-                addrs -> DISTANCE_FUNCS.dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrs -> DISTANCE_FUNCS.dotProductF32BulkSparse(addrs, query, dimensions, numNodes, segment)
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
-                    scores[i] = VectorUtil.normalizeToUnitInterval(scores[i]);
+                    scores[i] = VectorUtil.normalizeToUnitInterval(segment.getAtIndex(ValueLayout.JAVA_FLOAT, i));
                     max = Math.max(max, scores[i]);
                 }
                 return max;
@@ -142,7 +143,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 input,
                 vectorByteSize,
                 scratch,
-                memorySegment -> DISTANCE_FUNCS.squareDistanceF32(query, memorySegment, dimensions)
+                memorySegment -> DISTANCE_FUNCS.squareDistanceF32(memorySegment, query, dimensions)
             );
             return VectorUtil.normalizeDistanceToUnitInterval(sqDist);
         }
@@ -157,18 +158,19 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) nodes[i] * vectorByteSize;
             }
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
             boolean resolved = IndexInputUtils.withSliceAddresses(
                 input,
                 offsets,
                 vectorByteSize,
                 numNodes,
                 addrsScratch,
-                addrs -> DISTANCE_FUNCS.squareDistanceF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrs -> DISTANCE_FUNCS.squareDistanceF32BulkSparse(addrs, query, dimensions, numNodes, segment)
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
-                    scores[i] = VectorUtil.normalizeDistanceToUnitInterval(scores[i]);
+                    scores[i] = VectorUtil.normalizeDistanceToUnitInterval(segment.getAtIndex(ValueLayout.JAVA_FLOAT, i));
                     max = Math.max(max, scores[i]);
                 }
                 return max;
@@ -191,7 +193,7 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
                 input,
                 vectorByteSize,
                 scratch,
-                memorySegment -> DISTANCE_FUNCS.dotProductF32(query, memorySegment, dimensions)
+                memorySegment -> DISTANCE_FUNCS.dotProductF32(memorySegment, query, dimensions)
             );
             return VectorUtil.scaleMaxInnerProductScore(dotProduct);
         }
@@ -206,18 +208,19 @@ public abstract sealed class Float32VectorScorer extends RandomVectorScorer.Abst
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) nodes[i] * vectorByteSize;
             }
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
             boolean resolved = IndexInputUtils.withSliceAddresses(
                 input,
                 offsets,
                 vectorByteSize,
                 numNodes,
                 addrsScratch,
-                addrs -> DISTANCE_FUNCS.dotProductF32BulkSparse(addrs, query, dimensions, numNodes, MemorySegment.ofArray(scores))
+                addrs -> DISTANCE_FUNCS.dotProductF32BulkSparse(addrs, query, dimensions, numNodes, segment)
             );
             if (resolved) {
                 float max = Float.NEGATIVE_INFINITY;
                 for (int i = 0; i < numNodes; ++i) {
-                    scores[i] = VectorUtil.scaleMaxInnerProductScore(scores[i]);
+                    scores[i] = VectorUtil.scaleMaxInnerProductScore(segment.getAtIndex(ValueLayout.JAVA_FLOAT, i));
                     max = Math.max(max, scores[i]);
                 }
                 return max;

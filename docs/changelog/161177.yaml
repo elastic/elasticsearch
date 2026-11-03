@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 161177
+summary: Pack single-valued pages with nulls in bulk
+type: enhancement

@@ -11,6 +11,10 @@ import org.elasticsearch.inference.ChunkingStrategy;
 
 public class ChunkerBuilder {
     public static Chunker fromChunkingStrategy(ChunkingStrategy chunkingStrategy) {
+        return fromChunkingStrategy(chunkingStrategy, RecursiveChunkingSettings.DEFAULT_REGEX_READ_LIMIT_FACTOR);
+    }
+
+    public static Chunker fromChunkingStrategy(ChunkingStrategy chunkingStrategy, int regexReadLimitFactor) {
         if (chunkingStrategy == null) {
             return new WordBoundaryChunker();
         }
@@ -19,7 +23,7 @@ public class ChunkerBuilder {
             case NONE -> NoopChunker.INSTANCE;
             case WORD -> new WordBoundaryChunker();
             case SENTENCE -> new SentenceBoundaryChunker();
-            case RECURSIVE -> new RecursiveChunker();
+            case RECURSIVE -> new RecursiveChunker(regexReadLimitFactor);
         };
     }
 }

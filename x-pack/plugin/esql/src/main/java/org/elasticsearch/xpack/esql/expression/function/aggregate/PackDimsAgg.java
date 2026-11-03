@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PackDimsAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -33,7 +35,7 @@ public class PackDimsAgg extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "PackDimsAgg",
-        PackDimsAgg::new
+        PackDimsAgg::readFrom
     );
 
     public static final TransportVersion PACK_DIMS_AGG_VERSION = TransportVersion.fromName("pack_dims_agg");
@@ -42,19 +44,33 @@ public class PackDimsAgg extends AggregateFunction implements ToAggregator {
         if (dimensions.isEmpty()) {
             throw new IllegalArgumentException("PackDimsAgg requires at least one dim");
         }
-        return new PackDimsAgg(source, dimensions.getFirst(), Literal.TRUE, NO_WINDOW, dimensions.subList(1, dimensions.size()));
+        return new PackDimsAgg(source, dimensions, Literal.TRUE, NO_WINDOW);
     }
 
-    public PackDimsAgg(Source source, Expression field, Expression filter, Expression window, List<? extends Expression> extraDims) {
-        super(source, field, filter, window, extraDims);
+    public PackDimsAgg(Source source, List<? extends Expression> dimensions, Expression filter, Expression window) {
+        super(source, dimensions, filter, window, List.of());
     }
 
-    private PackDimsAgg(StreamInput in) throws IOException {
-        super(in);
+    private static PackDimsAgg readFrom(StreamInput in) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        Expression window = readWindow(in);
+        List<Expression> extraDims = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new PackDimsAgg(source, CollectionUtils.combine(List.of(field), extraDims), filter, window);
     }
 
-    public List<Expression> dims() {
-        return CollectionUtils.combine(List.of(field()), parameters());
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Legacy serialization format for backwards compatibility
+        source().writeTo(out);
+        out.writeNamedWriteable(fields().get(0));
+        out.writeNamedWriteable(filter());
+        if (out.getTransportVersion().supports(WINDOW_INTERVAL)) {
+            out.writeNamedWriteable(window());
+        }
+        out.writeNamedWriteableCollection(fields().subList(1, fields().size()));
     }
 
     @Override
@@ -64,16 +80,17 @@ public class PackDimsAgg extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<PackDimsAgg> info() {
-        return NodeInfo.create(this, PackDimsAgg::new, field(), filter(), window(), parameters());
+        return NodeInfo.create(this, PackDimsAgg::new, fields(), filter(), window());
     }
 
     @Override
     public PackDimsAgg replaceChildren(List<Expression> newChildren) {
-        Expression field = newChildren.get(0);
-        Expression filter = newChildren.get(1);
-        Expression window = newChildren.get(2);
-        List<Expression> extraDims = newChildren.subList(3, newChildren.size());
-        return new PackDimsAgg(source(), field, filter, window, extraDims);
+        // children layout: dimensions[], filter, window
+        int n = newChildren.size();
+        List<Expression> dimensions = newChildren.subList(0, n - 2);
+        Expression filter = newChildren.get(n - 2);
+        Expression window = newChildren.get(n - 1);
+        return new PackDimsAgg(source(), dimensions, filter, window);
     }
 
     @Override
@@ -92,9 +109,8 @@ public class PackDimsAgg extends AggregateFunction implements ToAggregator {
     @Override
     protected TypeResolution resolveType() {
         TypeResolution resolution = TypeResolution.TYPE_RESOLVED;
-        List<Expression> dims = dims();
-        for (int i = 0; i < dims.size(); i++) {
-            resolution = resolution.and(TypeResolutions.isExact(dims.get(i), sourceText(), fromIndex(i)));
+        for (int i = 0; i < fields().size(); i++) {
+            resolution = resolution.and(TypeResolutions.isExact(fields().get(i), sourceText(), fromIndex(i)));
             if (resolution.unresolved()) {
                 return resolution;
             }

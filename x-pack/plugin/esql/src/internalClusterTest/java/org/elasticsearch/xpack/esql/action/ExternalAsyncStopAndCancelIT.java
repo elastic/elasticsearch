@@ -27,7 +27,9 @@ import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractTestStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -68,7 +70,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * are tested below; each diverges on whether the response body is partial, fully gone, or a hard error.
  * Backing the tests is a controllable {@code slowfile://} fixture that serves a fast leading prefix and
  * then trickles one byte at a time, so the query is observably mid-stream when STOP / cancel / DELETE
- * land. Follow-up to elastic/esql-planning#535.
+ * land.
  */
 @SuppressForbidden(reason = "test fixture uses local file paths via PathUtils.get to back the slowfile:// scheme")
 public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
@@ -135,6 +137,10 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
     /** Storage provider that delegates to the local filesystem but inserts a trickle on every read past
      *  {@link #leadingBytes}; see {@link SlowInputStream} for the read semantics. */
     public static final class SlowFileStorageProvider implements StorageProvider {
+        @Override
+        public StorageChildren listChildren(StoragePath prefix, int limit) {
+            return null; // directory-aware listing is irrelevant to this test double
+        }
 
         @Override
         public StorageObject newObject(StoragePath path) {
@@ -188,7 +194,7 @@ public class ExternalAsyncStopAndCancelIT extends AbstractEsqlIntegTestCase {
         return org.elasticsearch.core.PathUtils.get(path.localPath());
     }
 
-    private static final class SlowFileObject implements StorageObject {
+    private static final class SlowFileObject extends AbstractTestStorageObject {
         private final StoragePath path;
         private final Path file;
 

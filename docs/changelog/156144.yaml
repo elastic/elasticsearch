@@ -1,0 +1,5 @@
+area: Authentication
+issues: []
+pr: 156144
+summary: Expose certificate fingerprints in PKI role mappings
+type: enhancement

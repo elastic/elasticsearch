@@ -24,6 +24,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
@@ -65,8 +66,17 @@ public record UpcallModel(
      * {@code MemorySegment} types. Emits {@link Kind#ERROR} diagnostics and returns {@code null} on
      * any validation failure.
      */
-    static UpcallModel from(int paramIndex, TypeElement upcallType, VariableElement param, Types types, Messager messager) {
+    static UpcallModel from(
+        int paramIndex,
+        TypeElement upcallType,
+        VariableElement param,
+        Types types,
+        Elements elements,
+        Messager messager
+    ) {
         String qualifiedName = upcallType.getQualifiedName().toString();
+        // Binary name uses '$' for nested classes (e.g. Outer$Inner), which ClassDesc.of() requires.
+        String binaryName = elements.getBinaryName(upcallType).toString();
         if (upcallType.getAnnotation(FunctionalInterface.class) == null) {
             messager.printMessage(Kind.ERROR, "@Upcall type '" + qualifiedName + "' must be annotated with @FunctionalInterface", param);
             return null;
@@ -121,7 +131,7 @@ public record UpcallModel(
             samParamTypes.add(paramType);
         }
 
-        return new UpcallModel(paramIndex, qualifiedName, sam.getSimpleName().toString(), returnType, List.copyOf(samParamTypes));
+        return new UpcallModel(paramIndex, binaryName, sam.getSimpleName().toString(), returnType, List.copyOf(samParamTypes));
     }
 
     private static boolean isSupported(NativeType type) {

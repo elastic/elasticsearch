@@ -16,7 +16,7 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceResponseItem;
 
 import java.util.ArrayList;
@@ -49,8 +49,8 @@ public class CompletionOutputBuilderTests extends ComputeTestCase {
                 responses.add(new BulkInferenceResponseItem(null, new int[] { 0 }, currentPos));
             } else {
                 // Regular response with position value counts [1]
-                ChatCompletionResults results = new ChatCompletionResults(
-                    List.of(new ChatCompletionResults.Result("Completion result #" + currentPos))
+                CompletionResults results = new CompletionResults(
+                    List.of(new CompletionResults.Result("Completion result #" + currentPos))
                 );
                 InferenceAction.Response response = new InferenceAction.Response(results);
                 responses.add(new BulkInferenceResponseItem(response, new int[] { 1 }, currentPos));
@@ -84,12 +84,12 @@ public class CompletionOutputBuilderTests extends ComputeTestCase {
 
         for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
             int numResults = between(1, 5);
-            List<ChatCompletionResults.Result> results = new ArrayList<>();
+            List<CompletionResults.Result> results = new ArrayList<>();
             for (int i = 0; i < numResults; i++) {
-                results.add(new ChatCompletionResults.Result("Result " + currentPos + "-" + i));
+                results.add(new CompletionResults.Result("Result " + currentPos + "-" + i));
             }
 
-            ChatCompletionResults chatResults = new ChatCompletionResults(results);
+            CompletionResults chatResults = new CompletionResults(results);
             InferenceAction.Response response = new InferenceAction.Response(chatResults);
             responses.add(new BulkInferenceResponseItem(response, new int[] { numResults }, currentPos));
         }
@@ -122,12 +122,12 @@ public class CompletionOutputBuilderTests extends ComputeTestCase {
                 return new BulkInferenceResponseItem(null, new int[] { 0 }, currentPos);
             } else {
                 // Multi-valued response
-                List<ChatCompletionResults.Result> results = new ArrayList<>();
+                List<CompletionResults.Result> results = new ArrayList<>();
                 for (int i = 0; i < valueCount; i++) {
-                    results.add(new ChatCompletionResults.Result("Value " + currentPos + "-" + i));
+                    results.add(new CompletionResults.Result("Value " + currentPos + "-" + i));
                 }
 
-                ChatCompletionResults chatResults = new ChatCompletionResults(results);
+                CompletionResults chatResults = new CompletionResults(results);
                 InferenceAction.Response response = new InferenceAction.Response(chatResults);
                 return (new BulkInferenceResponseItem(response, new int[] { valueCount }, currentPos));
             }
@@ -158,8 +158,8 @@ public class CompletionOutputBuilderTests extends ComputeTestCase {
 
         CompletionOutputBuilder outputBuilder = new CompletionOutputBuilder(blockFactory());
         List<BulkInferenceResponseItem> responses = IntStream.range(0, inputPage.getPositionCount()).mapToObj(currentPos -> {
-            List<ChatCompletionResults.Result> results = List.of(new ChatCompletionResults.Result("Completion result #" + currentPos));
-            InferenceAction.Response response = new InferenceAction.Response(new ChatCompletionResults(results));
+            List<CompletionResults.Result> results = List.of(new CompletionResults.Result("Completion result #" + currentPos));
+            InferenceAction.Response response = new InferenceAction.Response(new CompletionResults(results));
             return new BulkInferenceResponseItem(response, new int[] { 1 }, currentPos);
         }).toList();
 

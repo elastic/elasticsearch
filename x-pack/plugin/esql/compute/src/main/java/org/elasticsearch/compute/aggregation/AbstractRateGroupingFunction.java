@@ -15,18 +15,73 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
+import java.time.Duration;
 import java.util.Arrays;
 
 import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.indexInPage;
 import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.pageIndex;
 
-class AbstractRateGroupingFunction {
+abstract class AbstractRateGroupingFunction {
+    /**
+     * Maximum empty interval across which rate-like aggregations interpolate between populated buckets.
+     */
+    static final long MAX_LOOKBACK_MILLIS = Duration.ofMinutes(5).toMillis();
+
+    private int lastSliceIndex = -1;
+    private final int sliceChannel;
+
+    AbstractRateGroupingFunction(int sliceChannel) {
+        this.sliceChannel = sliceChannel;
+    }
+
+    abstract void flushRawBuffers();
+
+    final boolean maybeFlushOnNewSlice(Page page) {
+        IntVector sliceIndices = ((IntBlock) page.getBlock(sliceChannel)).asVector();
+        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
+        int sliceIndex = sliceIndices.getInt(0);
+        if (sliceIndex > lastSliceIndex) {
+            flushRawBuffers();
+            lastSliceIndex = sliceIndex;
+            return true;
+        }
+        return false;
+    }
+
+    public final boolean canEmitPartialResultsPeriodically(Page incomingPage) {
+        return maybeFlushOnNewSlice(incomingPage);
+    }
+
+    static boolean isPreviousGroupWithinLookback(
+        TimeSeriesGroupingAggregatorEvaluationContext context,
+        int previousGroupId,
+        int currentGroupId
+    ) {
+        return previousGroupId >= 0
+            && context.rangeStartInMillis(currentGroupId) - context.rangeEndInMillis(previousGroupId) <= MAX_LOOKBACK_MILLIS;
+    }
+
+    static boolean isNextGroupWithinLookback(TimeSeriesGroupingAggregatorEvaluationContext context, int currentGroupId, int nextGroupId) {
+        return nextGroupId >= 0
+            && context.rangeStartInMillis(nextGroupId) - context.rangeEndInMillis(currentGroupId) <= MAX_LOOKBACK_MILLIS;
+    }
+
+    /**
+     * Splits an empty interval evenly between its surrounding populated buckets.
+     */
+    static double interpolationBoundaryInSeconds(long previousBucketEndMillis, long nextBucketStartMillis) {
+        assert previousBucketEndMillis <= nextBucketStartMillis;
+        return (previousBucketEndMillis + (nextBucketStartMillis - previousBucketEndMillis) / 2.0) / 1000.0;
+    }
+
     /**
      * Buffers data points in two arrays: one for timestamps and one for values, partitioned into multiple slices.
      * Each slice is sorted in descending order of timestamp. A new slice is created when a data point has a
@@ -125,6 +180,38 @@ class AbstractRateGroupingFunction {
             breaker.addWithoutBreaking(-acquiredBytes);
             acquiredBytes = 0;
         }
+    }
+
+    static boolean assertRawTimestampsWithinBuckets(
+        RawBuffer rawBuffer,
+        TimeSeriesGroupingAggregatorEvaluationContext context,
+        long timestampUnitsPerMillis
+    ) {
+        for (int slice = 0; slice < rawBuffer.sliceCount; slice++) {
+            int groupId = rawBuffer.sliceGroupIds[slice];
+            int start = rawBuffer.sliceStarts[slice];
+            int end = slice + 1 < rawBuffer.sliceCount ? rawBuffer.sliceStarts[slice + 1] : rawBuffer.timestamps.size();
+            long bucketStart = context.rangeStartInMillis(groupId) * timestampUnitsPerMillis;
+            long bucketEnd = context.rangeEndInMillis(groupId) * timestampUnitsPerMillis;
+            for (int position = start; position < end; position++) {
+                long timestamp = rawBuffer.timestamps.get(position);
+                assert timestamp >= bucketStart && timestamp <= bucketEnd
+                    : "raw timestamp "
+                        + timestamp
+                        + " at buffer position "
+                        + position
+                        + " in slice "
+                        + slice
+                        + " was assigned to group "
+                        + groupId
+                        + " outside bucket ["
+                        + bucketStart
+                        + ", "
+                        + bucketEnd
+                        + "]";
+            }
+        }
+        return true;
     }
 
     record FlushQueues(RawBuffer buffer, int minGroupId, int maxGroupId, int[] runningOffsets, int[] sliceOffsets) {

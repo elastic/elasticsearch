@@ -8,16 +8,18 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ConcurrencyLimiterTests extends ESTestCase {
 
     public void testAcquireAndRelease() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(5);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(5, false));
         assertEquals(5, limiter.availablePermits());
         limiter.acquire();
         assertEquals(4, limiter.availablePermits());
@@ -26,7 +28,7 @@ public class ConcurrencyLimiterTests extends ESTestCase {
     }
 
     public void testBlocksWhenExhausted() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1, 60_000L);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 60_000L);
         limiter.acquire();
         assertEquals(0, limiter.availablePermits());
 
@@ -53,7 +55,7 @@ public class ConcurrencyLimiterTests extends ESTestCase {
     }
 
     public void testTimeoutThrows() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(1, 50L);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 50L);
         limiter.acquire();
 
         expectThrows(TimeoutException.class, limiter::acquire);
@@ -61,8 +63,46 @@ public class ConcurrencyLimiterTests extends ESTestCase {
         limiter.release();
     }
 
+    public void testTimeoutMessageWhenSettingCannotRaiseLimit() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("gs", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 50L);
+        limiter.acquire();
+        TimeoutException thrown = expectThrows(TimeoutException.class, limiter::acquire);
+        assertEquals(
+            "Timed out waiting for a concurrency permit for [gs] after [50]ms (max permits [1]). "
+                + "[esql.external.max_concurrent_requests] cannot raise this node's limit.",
+            thrown.getMessage()
+        );
+        limiter.release();
+    }
+
+    public void testTimeoutMessageWhenSettingCanRaiseLimit() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, true), 50L);
+        limiter.acquire();
+        TimeoutException thrown = expectThrows(TimeoutException.class, limiter::acquire);
+        assertEquals(
+            "Timed out waiting for a concurrency permit for [s3] after [50]ms (max permits [1]). "
+                + "Raise [esql.external.max_concurrent_requests] in the node's configuration and restart the node "
+                + "to increase the limit.",
+            thrown.getMessage()
+        );
+        limiter.release();
+    }
+
+    public void testTimeoutMessageWhenParseFloorBinds() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false, true), 50L);
+        limiter.acquire();
+        TimeoutException thrown = expectThrows(TimeoutException.class, limiter::acquire);
+        assertEquals(
+            "Timed out waiting for a concurrency permit for [s3] after [50]ms (max permits [1]). "
+                + "[esql.external.max_concurrent_requests] cannot raise this node's limit: "
+                + "the parse-floor of [4] is the binding constraint.",
+            thrown.getMessage()
+        );
+        limiter.release();
+    }
+
     public void testDisabledWithZeroPermits() throws Exception {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(0);
+        ConcurrencyLimiter limiter = ConcurrencyLimiter.UNLIMITED;
         assertFalse(limiter.isEnabled());
         assertEquals(Integer.MAX_VALUE, limiter.availablePermits());
         limiter.acquire();
@@ -77,8 +117,113 @@ public class ConcurrencyLimiterTests extends ESTestCase {
     }
 
     public void testMaxPermits() {
-        ConcurrencyLimiter limiter = new ConcurrencyLimiter(42);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(42, false));
         assertTrue(limiter.isEnabled());
         assertEquals(42, limiter.maxPermits());
+    }
+
+    public void testTryAcquireBargesWithoutBlocking() throws Exception {
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 30_000L);
+        limiter.acquire();
+        long start = System.nanoTime();
+        assertFalse(limiter.tryAcquire());
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        assertTrue("tryAcquire must not wait, took " + elapsedMs + "ms", elapsedMs < 1_000);
+        limiter.release();
+        assertTrue(limiter.tryAcquire());
+        limiter.release();
+    }
+
+    public void testUnlimitedTryAcquireAlwaysSucceeds() {
+        assertTrue(ConcurrencyLimiter.UNLIMITED.tryAcquire());
+        ConcurrencyLimiter.UNLIMITED.release();
+    }
+
+    public void testUncontendedAcquireDoesNotRecordWait() throws Exception {
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(
+            "s3",
+            new ExternalSourceSettings.BlobStoreConcurrency(2, false),
+            60_000L,
+            tracker
+        );
+        limiter.acquire();
+        limiter.acquire();
+        assertEquals(0, tracker.outstanding.get());
+        assertEquals(0, tracker.grants.get());
+        limiter.release();
+        limiter.release();
+    }
+
+    public void testTimeoutRecordsFinished() throws Exception {
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter("s3", new ExternalSourceSettings.BlobStoreConcurrency(1, false), 50L, tracker);
+        limiter.acquire();
+        expectThrows(TimeoutException.class, limiter::acquire);
+        assertEquals(0, tracker.outstanding.get());
+        assertEquals(0, tracker.grants.get());
+        assertEquals(1, tracker.finished.get());
+        limiter.release();
+    }
+
+    public void testContendedAcquireRecordsWaitAndGrant() throws Exception {
+        RecordingTracker tracker = new RecordingTracker();
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(
+            "s3",
+            new ExternalSourceSettings.BlobStoreConcurrency(1, false),
+            60_000L,
+            tracker
+        );
+        limiter.acquire();
+        CountDownLatch parked = new CountDownLatch(1);
+        tracker.onWait = parked::countDown;
+        Thread blocker = new Thread(() -> {
+            try {
+                limiter.acquire();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        try {
+            blocker.start();
+            assertTrue(parked.await(5, TimeUnit.SECONDS));
+            assertBusy(() -> assertEquals(Thread.State.TIMED_WAITING, blocker.getState()));
+            assertEquals(1, tracker.outstanding.get());
+            limiter.release();
+            blocker.join(TimeUnit.SECONDS.toMillis(5));
+            assertFalse(blocker.isAlive());
+            assertEquals(0, tracker.outstanding.get());
+            assertEquals(1, tracker.grants.get());
+            assertEquals(0, tracker.finished.get());
+        } finally {
+            blocker.interrupt();
+            blocker.join(TimeUnit.SECONDS.toMillis(5));
+        }
+    }
+
+    private static final class RecordingTracker implements AdmissionTracker {
+        private final AtomicInteger outstanding = new AtomicInteger();
+        private final AtomicInteger grants = new AtomicInteger();
+        private final AtomicInteger finished = new AtomicInteger();
+        private volatile Runnable onWait = () -> {};
+
+        @Override
+        public Wait waitStarted(String gate, String waiter) {
+            outstanding.incrementAndGet();
+            onWait.run();
+            return new Wait() {
+                @Override
+                public void granted() {
+                    outstanding.decrementAndGet();
+                    grants.incrementAndGet();
+                }
+
+                @Override
+                public void finished() {
+                    outstanding.decrementAndGet();
+                    finished.incrementAndGet();
+                }
+            };
+        }
     }
 }

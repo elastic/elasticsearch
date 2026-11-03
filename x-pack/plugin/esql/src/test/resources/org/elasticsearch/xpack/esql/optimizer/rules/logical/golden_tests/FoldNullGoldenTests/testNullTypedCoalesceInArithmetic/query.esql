@@ -1,0 +1,5 @@
+FROM employees
+| EVAL x = COALESCE(null, null) * 2
+| KEEP emp_no, x
+| SORT emp_no
+| LIMIT 20

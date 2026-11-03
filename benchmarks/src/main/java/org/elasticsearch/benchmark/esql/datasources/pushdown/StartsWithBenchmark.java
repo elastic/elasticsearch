@@ -10,7 +10,7 @@
 package org.elasticsearch.benchmark.esql.datasources.pushdown;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.benchmark.Utils;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 public class StartsWithBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     /** Prefix length in bytes. Sweep brackets the JDK partial-inline window (~32 bytes). */

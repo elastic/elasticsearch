@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -153,7 +154,8 @@ public class MockAzureBlobStore {
         })
             .filter(e -> e.getValue().isCommitted())
             .peek(e -> e.getValue().checkLeaseForRead(leaseId))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            // Real Azure List Blobs returns names in lexicographic order.
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, TreeMap::new));
     }
 
     public String acquireLease(String path, int leaseTimeSeconds, @Nullable String proposedLeaseId) {
@@ -199,6 +201,8 @@ public class MockAzureBlobStore {
         private final Map<String, BytesReference> blocks;
         private volatile BytesReference contents;
         private volatile Instant lastModified = Instant.now();
+        /** Bumped on every content change, so that each write has an ETag of its own, as on the real service. */
+        private volatile long version = 1;
 
         private AzureBlockBlob() {
             this.blocks = new ConcurrentHashMap<>();
@@ -206,6 +210,11 @@ public class MockAzureBlobStore {
 
         public Instant lastModified() {
             return lastModified;
+        }
+
+        /** The quoted ETag of the current content. It changes with every write, so a rewritten blob never looks unchanged. */
+        public String etag() {
+            return "\"" + version + "\"";
         }
 
         @Nullable
@@ -235,6 +244,7 @@ public class MockAzureBlobStore {
                 final BytesReference[] resolvedContents = blockIds.stream().map(blocks::get).toList().toArray(new BytesReference[0]);
                 contents = CompositeBytesReference.of(resolvedContents);
                 lastModified = Instant.now();
+                version++;
             }
         }
 
@@ -262,6 +272,7 @@ public class MockAzureBlobStore {
                 this.blocks.clear();
                 this.copyInfo = copyInfo;
                 this.lastModified = Instant.now();
+                this.version++;
             }
         }
 

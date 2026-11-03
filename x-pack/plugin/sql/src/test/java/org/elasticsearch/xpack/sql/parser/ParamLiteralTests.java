@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.util.List;
@@ -30,7 +31,7 @@ public class ParamLiteralTests extends ESTestCase {
     private final SqlParser parser = new SqlParser();
 
     private LogicalPlan parse(String sql, SqlTypedParamValue... parameters) {
-        return parser.createStatement(sql, List.of(parameters), UTC);
+        return parser.createStatement(sql, List.of(parameters), UTC, SqlPlugin.DEFAULT_MAX_QUERY_LENGTH);
     }
 
     public void testMultipleParamLiteralsWithUnresolvedAliases() {

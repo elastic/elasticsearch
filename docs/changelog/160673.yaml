@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 160673
+summary: Cache `ignore_above` in `IndexSettings` for keyword mappers
+type: enhancement

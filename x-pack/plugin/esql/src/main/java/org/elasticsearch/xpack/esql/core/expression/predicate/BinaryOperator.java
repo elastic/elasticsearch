@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -62,7 +63,7 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
         List<Expression> commutativeChildren = new ArrayList<>(2);
         collectCommutative(commutativeChildren, this);
         // sort
-        commutativeChildren.sort((l, r) -> Integer.compare(l.semanticHash(), r.semanticHash()));
+        commutativeChildren.sort(Expressions::compareStable);
 
         // reduce all children using the current operator - this method creates a balanced tree
         while (commutativeChildren.size() > 1) {

@@ -12,11 +12,15 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
@@ -26,6 +30,7 @@ import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.FileSettingsHealthInfo;
+import org.elasticsearch.health.node.HealthIndicatorDisplayValues;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -37,10 +42,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
-import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -61,11 +70,21 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private DiscoveryNode node2;
     private HealthInfo healthInfo;
     private FeatureService featureService;
+    private boolean multiProject;
+    private Set<ProjectId> projectIds;
+    private ProjectResolver projectResolver;
 
     @Before
-    public void initNodes() throws Exception {
+    public void initNodes() {
         node1 = DiscoveryNodeUtils.create(randomAlphaOfLength(10), randomUUID());
         node2 = DiscoveryNodeUtils.create(randomAlphaOfLength(10), randomUUID());
+        multiProject = randomBoolean();
+        projectIds = multiProject
+            ? IntStream.range(0, randomIntBetween(1, 5)).mapToObj(i -> randomUniqueProjectId()).collect(Collectors.toSet())
+            : Set.of(randomProjectIdOrDefault());
+        projectResolver = multiProject
+            ? TestProjectResolvers.allProjects()
+            : TestProjectResolvers.singleProjectOnly(projectIds.iterator().next());
         healthInfo = new HealthInfo(
             Map.of(),
             null,
@@ -96,7 +115,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     GREEN,
                     RepositoryIntegrityHealthIndicatorService.ALL_REPOS_HEALTHY,
-                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size())),
+                    new SimpleHealthIndicatorDetails(Map.of("total_repositories", repos.size() * projectIds.size())),
                     Collections.emptyList(),
                     Collections.emptyList()
                 )
@@ -105,35 +124,36 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testIsYellowWhenAtLeastOneRepoIsCorrupted() {
-        var repos = appendToCopy(
-            randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)),
-            createRepositoryMetadata("corrupted-repo", true)
-        );
+        var corruptedRepos = createNamedRepositories("corrupted-repo-", true);
+        var repos = concatLists(randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)), corruptedRepos);
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
 
-        List<String> corruptedRepos = List.of("corrupted-repo");
+        List<String> corruptedNames = displayNames(corruptedRepos);
+        int corrupted = corruptedNames.size();
         assertThat(
             service.calculate(true, healthInfo),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     YELLOW,
-                    "Detected [1] corrupted snapshot repository.",
-                    createDetails(repos.size(), 1, corruptedRepos, 0, 0),
+                    "Detected [" + corrupted + "] corrupted snapshot " + (corrupted == 1 ? "repository" : "repositories") + ".",
+                    createDetails(repos.size() * projectIds.size(), corrupted, corruptedNames, 0, 0),
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
-                    List.of(new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedRepos))))
+                    List.of(new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedNames))))
                 )
             )
         );
     }
 
     public void testIsYellowWhenAtLeastOneRepoIsUnknown() {
-        var repos = randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
-        repos.add(createRepositoryMetadata("unknown-repo", false));
+        var unknownRepos = createNamedRepositories("unknown-repo-", false);
+        var repos = concatLists(randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)), unknownRepos);
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
-        healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(List.of("unknown-repo"), List.of()));
+        List<String> unknownNames = displayNames(unknownRepos);
+        int unknown = unknownNames.size();
+        healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(unknownNames, List.of()));
 
         assertThat(
             service.calculate(true, healthInfo),
@@ -141,16 +161,13 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                 new HealthIndicatorResult(
                     NAME,
                     YELLOW,
-                    "Detected [1] unknown snapshot repository.",
-                    createDetails(repos.size(), 0, List.of(), 1, 0),
+                    "Detected [" + unknown + "] unknown snapshot " + (unknown == 1 ? "repository" : "repositories") + ".",
+                    createDetails(repos.size() * projectIds.size(), 0, List.of(), unknown, 0),
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     List.of(
                         new Diagnosis(
                             UNKNOWN_DEFINITION,
-                            List.of(
-                                new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, List.of("unknown-repo")),
-                                new Diagnosis.Resource(List.of(node1))
-                            )
+                            List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, unknownNames), new Diagnosis.Resource(List.of(node1)))
                         )
                     )
                 )
@@ -159,11 +176,13 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testIsYellowWhenAtLeastOneRepoIsInvalid() {
-        var repos = randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
-        repos.add(createRepositoryMetadata("invalid-repo", false));
+        var invalidRepos = createNamedRepositories("invalid-repo-", false);
+        var repos = concatLists(randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)), invalidRepos);
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
-        healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(List.of(), List.of("invalid-repo")));
+        List<String> invalidNames = displayNames(invalidRepos);
+        int invalid = invalidNames.size();
+        healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(List.of(), invalidNames));
 
         assertThat(
             service.calculate(true, healthInfo),
@@ -171,16 +190,13 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                 new HealthIndicatorResult(
                     NAME,
                     YELLOW,
-                    "Detected [1] invalid snapshot repository.",
-                    createDetails(repos.size(), 0, List.of(), 0, 1),
+                    "Detected [" + invalid + "] invalid snapshot " + (invalid == 1 ? "repository" : "repositories") + ".",
+                    createDetails(repos.size() * projectIds.size(), 0, List.of(), 0, invalid),
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     List.of(
                         new Diagnosis(
                             INVALID_DEFINITION,
-                            List.of(
-                                new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, List.of("invalid-repo")),
-                                new Diagnosis.Resource(List.of(node1))
-                            )
+                            List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, invalidNames), new Diagnosis.Resource(List.of(node1)))
                         )
                     )
                 )
@@ -189,40 +205,54 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testIsYellowWhenEachRepoTypeIsPresent() {
+        var corruptedRepos = createNamedRepositories("corrupted-repo-", true);
+        var unknownRepos = createNamedRepositories("unknown-repo-", false);
+        var invalidRepos = createNamedRepositories("invalid-repo-", false);
         var repos = randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
-        repos.add(createRepositoryMetadata("corrupted-repo", true));
-        repos.add(createRepositoryMetadata("unknown-repo", false));
-        repos.add(createRepositoryMetadata("invalid-repo", false));
+        repos.addAll(corruptedRepos);
+        repos.addAll(unknownRepos);
+        repos.addAll(invalidRepos);
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
-        healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(List.of("unknown-repo"), List.of()));
-        healthInfo.repositoriesInfoByNode().put(node2.getId(), new RepositoriesHealthInfo(List.of(), List.of("invalid-repo")));
+        List<String> corruptedNames = displayNames(corruptedRepos);
+        List<String> unknownNames = displayNames(unknownRepos);
+        List<String> invalidNames = displayNames(invalidRepos);
+        int corrupted = corruptedNames.size();
+        int unknown = unknownNames.size();
+        int invalid = invalidNames.size();
+        healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(unknownNames, List.of()));
+        healthInfo.repositoriesInfoByNode().put(node2.getId(), new RepositoriesHealthInfo(List.of(), invalidNames));
 
-        var corrupted = List.of("corrupted-repo");
         assertThat(
             service.calculate(true, healthInfo),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     YELLOW,
-                    "Detected [1] corrupted snapshot repository, and [1] unknown snapshot repository, and [1] invalid snapshot repository.",
-                    createDetails(repos.size(), 1, corrupted, 1, 1),
+                    "Detected ["
+                        + corrupted
+                        + "] corrupted snapshot "
+                        + (corrupted == 1 ? "repository" : "repositories")
+                        + ", and ["
+                        + unknown
+                        + "] unknown snapshot "
+                        + (unknown == 1 ? "repository" : "repositories")
+                        + ", and ["
+                        + invalid
+                        + "] invalid snapshot "
+                        + (invalid == 1 ? "repository" : "repositories")
+                        + ".",
+                    createDetails(repos.size() * projectIds.size(), corrupted, corruptedNames, unknown, invalid),
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     List.of(
-                        new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corrupted))),
+                        new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedNames))),
                         new Diagnosis(
                             UNKNOWN_DEFINITION,
-                            List.of(
-                                new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, List.of("unknown-repo")),
-                                new Diagnosis.Resource(List.of(node1))
-                            )
+                            List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, unknownNames), new Diagnosis.Resource(List.of(node1)))
                         ),
                         new Diagnosis(
                             INVALID_DEFINITION,
-                            List.of(
-                                new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, List.of("invalid-repo")),
-                                new Diagnosis.Resource(List.of(node2))
-                            )
+                            List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, invalidNames), new Diagnosis.Resource(List.of(node2)))
                         )
                     )
                 )
@@ -231,7 +261,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testIsGreenWhenNoMetadata() {
-        var clusterState = createClusterStateWith(null);
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(List.of()));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
 
         assertThat(
@@ -253,19 +283,63 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var repos = randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
+        var verbose = randomBoolean();
 
         assertThat(
-            service.calculate(true, new HealthInfo(Map.of(), null, Map.of(), FileSettingsHealthInfo.INDETERMINATE)),
+            service.calculate(verbose, new HealthInfo(Map.of(), null, Map.of(), FileSettingsHealthInfo.INDETERMINATE)),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
                     UNKNOWN,
                     RepositoryIntegrityHealthIndicatorService.NO_REPO_HEALTH_INFO,
-                    new SimpleHealthIndicatorDetails(
-                        Map.of("total_repositories", repos.size(), "corrupted_repositories", 0, "corrupted", List.of())
-                    ),
+                    verbose
+                        ? new SimpleHealthIndicatorDetails(
+                            Map.of(
+                                "total_repositories",
+                                repos.size() * projectIds.size(),
+                                "corrupted_repositories",
+                                0,
+                                "corrupted",
+                                List.of()
+                            )
+                        )
+                        : HealthIndicatorDetails.EMPTY,
                     Collections.emptyList(),
                     Collections.emptyList()
+                )
+            )
+        );
+    }
+
+    /**
+     * If repositories have already been marked as corrupted, the result should stay yellow even when nodes have not
+     * reported any repository health yet.
+     */
+    public void testIsYellowWhenCorruptedReposExistAndNoHealthInfoIsAvailable() {
+        var corruptedRepos = createNamedRepositories("corrupted-repo-", true);
+        var repos = concatLists(randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)), corruptedRepos);
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
+        var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
+        var verbose = randomBoolean();
+        List<String> corruptedNames = displayNames(corruptedRepos);
+        int corrupted = corruptedNames.size();
+
+        assertThat(
+            service.calculate(verbose, new HealthInfo(Map.of(), null, Map.of(), FileSettingsHealthInfo.INDETERMINATE)),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    YELLOW,
+                    "Detected [" + corrupted + "] corrupted snapshot " + (corrupted == 1 ? "repository" : "repositories") + ".",
+                    verbose
+                        ? createDetails(repos.size() * projectIds.size(), corrupted, corruptedNames, 0, 0)
+                        : HealthIndicatorDetails.EMPTY,
+                    RepositoryIntegrityHealthIndicatorService.IMPACTS,
+                    verbose
+                        ? List.of(
+                            new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedNames)))
+                        )
+                        : List.of()
                 )
             )
         );
@@ -286,9 +360,12 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         final List<String> invalidRepos = new ArrayList<>();
         Map<String, RepositoriesHealthInfo> repoHealthInfo = new HashMap<>();
         ids.forEach(i -> {
-            unknownRepos.add("unknown-repo-" + i);
-            invalidRepos.add("invalid-repo-" + i);
-            repoHealthInfo.put("node-" + i, new RepositoriesHealthInfo(List.of("unknown-repo-" + i), List.of("invalid-repo-" + i)));
+            unknownRepos.addAll(displayNames("unknown-repo-" + i));
+            invalidRepos.addAll(displayNames("invalid-repo-" + i));
+            repoHealthInfo.put(
+                "node-" + i,
+                new RepositoriesHealthInfo(displayNames("unknown-repo-" + i), displayNames("invalid-repo-" + i))
+            );
         });
         healthInfo = new HealthInfo(
             healthInfo.diskInfoByNode(),
@@ -297,24 +374,38 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
             FileSettingsHealthInfo.INDETERMINATE
         );
 
-        assertThat(
-            service.calculate(true, 10, healthInfo).diagnosisList(),
-            equalTo(createDiagnoses(repos, nodes, unknownRepos, invalidRepos, 10))
+        List<String> expectedCorruptedDetails = limitSize(displayNames(repos), 10);
+        var expectedDetails = createDetails(
+            repos.size() * projectIds.size(),
+            repos.size() * projectIds.size(),
+            expectedCorruptedDetails,
+            unknownRepos.size(),
+            invalidRepos.size()
         );
 
-        assertThat(
-            service.calculate(true, 0, healthInfo).diagnosisList(),
-            equalTo(createDiagnoses(repos, nodes, unknownRepos, invalidRepos, 0))
-        );
+        var resultLimitedToTen = service.calculate(true, 10, healthInfo);
+        assertThat(resultLimitedToTen.diagnosisList(), equalTo(createDiagnoses(repos, nodes, unknownRepos, invalidRepos, 10)));
+        assertThat(resultLimitedToTen.details(), equalTo(expectedDetails));
+
+        var resultLimitedToZero = service.calculate(true, 0, healthInfo);
+        assertThat(resultLimitedToZero.diagnosisList(), equalTo(createDiagnoses(repos, nodes, unknownRepos, invalidRepos, 0)));
+        assertThat(resultLimitedToZero.details(), equalTo(expectedDetails));
     }
 
     public void testSkippingFieldsWhenVerboseIsFalse() {
-        var repos = appendToCopy(
-            randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)),
-            createRepositoryMetadata("corrupted-repo", true)
-        );
+        boolean corrupted = randomBoolean();
+        boolean unknown = corrupted == false;
+        var problemRepos = createNamedRepositories(corrupted ? "corrupted-repo-" : unknown ? "unknown-repo-" : "invalid-repo-", corrupted);
+        var repos = concatLists(randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)), problemRepos);
         var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
+        List<String> problemNames = displayNames(problemRepos);
+        int problems = problemNames.size();
+        if (unknown) {
+            healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(problemNames, List.of()));
+        } else if (corrupted == false) {
+            healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(List.of(), problemNames));
+        }
 
         assertThat(
             service.calculate(false, healthInfo),
@@ -322,10 +413,220 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                 new HealthIndicatorResult(
                     NAME,
                     YELLOW,
-                    "Detected [1] corrupted snapshot repository.",
+                    "Detected ["
+                        + problems
+                        + "] "
+                        + (corrupted ? "corrupted" : unknown ? "unknown" : "invalid")
+                        + " snapshot "
+                        + (problems == 1 ? "repository" : "repositories")
+                        + ".",
                     HealthIndicatorDetails.EMPTY,
                     RepositoryIntegrityHealthIndicatorService.IMPACTS,
                     List.of()
+                )
+            )
+        );
+    }
+
+    public void testUnhealthyRepositoryReportedByMultipleNodesIsDeduplicated() {
+        boolean unknown = randomBoolean();
+        String repoName = unknown ? "unknown-repo" : "invalid-repo";
+        List<String> displayedRepoNames = displayNames(repoName);
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(List.of(createRepositoryMetadata(repoName, false))));
+        var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
+        var repoHealth = unknown
+            ? new RepositoriesHealthInfo(displayedRepoNames, List.of())
+            : new RepositoriesHealthInfo(List.of(), displayedRepoNames);
+        healthInfo.repositoriesInfoByNode().put(node1.getId(), repoHealth);
+        healthInfo.repositoriesInfoByNode().put(node2.getId(), repoHealth);
+
+        int repoCount = displayedRepoNames.size();
+        List<DiscoveryNode> expectedNodes = Stream.of(node1, node2).sorted(DISCOVERY_NODE_COMPARATOR).toList();
+        assertThat(
+            service.calculate(true, healthInfo),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    YELLOW,
+                    "Detected ["
+                        + repoCount
+                        + "] "
+                        + (unknown ? "unknown" : "invalid")
+                        + " snapshot "
+                        + (repoCount == 1 ? "repository" : "repositories")
+                        + ".",
+                    createDetails(repoCount, 0, List.of(), unknown ? repoCount : 0, unknown ? 0 : repoCount),
+                    RepositoryIntegrityHealthIndicatorService.IMPACTS,
+                    List.of(
+                        new Diagnosis(
+                            unknown ? UNKNOWN_DEFINITION : INVALID_DEFINITION,
+                            List.of(
+                                new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, displayedRepoNames),
+                                new Diagnosis.Resource(expectedNodes)
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    /**
+     * If one project is fine and another has a bad snapshot repository, the cluster should report yellow and
+     * only name the bad repos.
+     */
+    public void testIsYellowWhenOneProjectIsHealthyAndAnotherIsUnhealthy() {
+        var healthyProject = randomUniqueProjectId();
+        var unhealthyProject = randomUniqueProjectId();
+        var healthyRepos = randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
+        boolean corrupted = randomBoolean();
+        boolean unknown = corrupted == false;
+        var problemRepos = createNamedRepositories(corrupted ? "corrupted-repo-" : unknown ? "unknown-repo-" : "invalid-repo-", corrupted);
+        var clusterState = createClusterStateWith(Map.of(healthyProject, healthyRepos, unhealthyProject, problemRepos));
+        var service = createRepositoryIntegrityHealthIndicatorService(clusterState, TestProjectResolvers.allProjects());
+        List<String> problemNames = displayNames(unhealthyProject, problemRepos);
+        int problems = problemNames.size();
+        if (unknown) {
+            healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(problemNames, List.of()));
+        } else if (corrupted == false) {
+            healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(List.of(), problemNames));
+        }
+
+        List<Diagnosis> expectedDiagnoses = corrupted
+            ? List.of(new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, problemNames))))
+            : List.of(
+                new Diagnosis(
+                    unknown ? UNKNOWN_DEFINITION : INVALID_DEFINITION,
+                    List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, problemNames), new Diagnosis.Resource(List.of(node1)))
+                )
+            );
+        assertThat(
+            service.calculate(true, healthInfo),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    YELLOW,
+                    "Detected ["
+                        + problems
+                        + "] "
+                        + (corrupted ? "corrupted" : unknown ? "unknown" : "invalid")
+                        + " snapshot "
+                        + (problems == 1 ? "repository" : "repositories")
+                        + ".",
+                    createDetails(
+                        healthyRepos.size() + problemRepos.size(),
+                        corrupted ? problems : 0,
+                        corrupted ? problemNames : List.of(),
+                        unknown ? problems : 0,
+                        (corrupted || unknown) ? 0 : problems
+                    ),
+                    RepositoryIntegrityHealthIndicatorService.IMPACTS,
+                    expectedDiagnoses
+                )
+            )
+        );
+    }
+
+    /**
+     * An empty project should not make the cluster look like it has no repositories when another project still has some.
+     */
+    public void testEmptyAndNonEmptyProjects() {
+        var emptyProject = randomUniqueProjectId();
+        var populatedProject = randomUniqueProjectId();
+        boolean unhealthy = randomBoolean();
+        var populatedRepos = unhealthy
+            ? createNamedRepositories("corrupted-repo-", true)
+            : randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
+        var clusterState = createClusterStateWith(Map.of(emptyProject, List.of(), populatedProject, populatedRepos));
+        var service = createRepositoryIntegrityHealthIndicatorService(clusterState, TestProjectResolvers.allProjects());
+
+        if (unhealthy) {
+            List<String> corruptedNames = displayNames(populatedProject, populatedRepos);
+            int corrupted = corruptedNames.size();
+            assertThat(
+                service.calculate(true, healthInfo),
+                equalTo(
+                    new HealthIndicatorResult(
+                        NAME,
+                        YELLOW,
+                        "Detected [" + corrupted + "] corrupted snapshot " + (corrupted == 1 ? "repository" : "repositories") + ".",
+                        createDetails(populatedRepos.size(), corrupted, corruptedNames, 0, 0),
+                        RepositoryIntegrityHealthIndicatorService.IMPACTS,
+                        List.of(
+                            new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedNames)))
+                        )
+                    )
+                )
+            );
+        } else {
+            assertThat(
+                service.calculate(true, healthInfo),
+                equalTo(
+                    new HealthIndicatorResult(
+                        NAME,
+                        GREEN,
+                        RepositoryIntegrityHealthIndicatorService.ALL_REPOS_HEALTHY,
+                        new SimpleHealthIndicatorDetails(Map.of("total_repositories", populatedRepos.size())),
+                        Collections.emptyList(),
+                        Collections.emptyList()
+                    )
+                )
+            );
+        }
+    }
+
+    /**
+     * Problems of different kinds in different projects are added together even when those projects use the same repository names.
+     */
+    public void testYellowProjectsAreAggregated() {
+        var corruptedProject = randomUniqueProjectId();
+        var unknownProject = randomUniqueProjectId();
+        var invalidProject = randomUniqueProjectId();
+        var repos = createNamedRepositories("repo-", false);
+        var corruptedRepos = repos.stream().map(repository -> createRepositoryMetadata(repository.name(), true)).toList();
+        var clusterState = createClusterStateWith(Map.of(corruptedProject, corruptedRepos, unknownProject, repos, invalidProject, repos));
+        var service = createRepositoryIntegrityHealthIndicatorService(clusterState, TestProjectResolvers.allProjects());
+        List<String> corruptedNames = displayNames(corruptedProject, corruptedRepos);
+        List<String> unknownNames = displayNames(unknownProject, repos);
+        List<String> invalidNames = displayNames(invalidProject, repos);
+        int corrupted = corruptedNames.size();
+        int unknown = unknownNames.size();
+        int invalid = invalidNames.size();
+        healthInfo.repositoriesInfoByNode().put(node1.getId(), new RepositoriesHealthInfo(unknownNames, List.of()));
+        healthInfo.repositoriesInfoByNode().put(node2.getId(), new RepositoriesHealthInfo(List.of(), invalidNames));
+
+        assertThat(
+            service.calculate(true, healthInfo),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    YELLOW,
+                    "Detected ["
+                        + corrupted
+                        + "] corrupted snapshot "
+                        + (corrupted == 1 ? "repository" : "repositories")
+                        + ", and ["
+                        + unknown
+                        + "] unknown snapshot "
+                        + (unknown == 1 ? "repository" : "repositories")
+                        + ", and ["
+                        + invalid
+                        + "] invalid snapshot "
+                        + (invalid == 1 ? "repository" : "repositories")
+                        + ".",
+                    createDetails(corruptedRepos.size() + repos.size() + repos.size(), corrupted, corruptedNames, unknown, invalid),
+                    RepositoryIntegrityHealthIndicatorService.IMPACTS,
+                    List.of(
+                        new Diagnosis(CORRUPTED_DEFINITION, List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, corruptedNames))),
+                        new Diagnosis(
+                            UNKNOWN_DEFINITION,
+                            List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, unknownNames), new Diagnosis.Resource(List.of(node1)))
+                        ),
+                        new Diagnosis(
+                            INVALID_DEFINITION,
+                            List.of(new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, invalidNames), new Diagnosis.Resource(List.of(node2)))
+                        )
+                    )
                 )
             )
         );
@@ -342,10 +643,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
             new Diagnosis(
                 CORRUPTED_DEFINITION,
                 List.of(
-                    new Diagnosis.Resource(
-                        Type.SNAPSHOT_REPOSITORY,
-                        repos.stream().map(RepositoryMetadata::name).sorted().limit(maxAffectedResourcesCount).toList()
-                    )
+                    new Diagnosis.Resource(Type.SNAPSHOT_REPOSITORY, displayNames(repos).stream().limit(maxAffectedResourcesCount).toList())
                 )
             ),
             new Diagnosis(
@@ -385,21 +683,69 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private ClusterState createClusterStateWith(RepositoriesMetadata metadata) {
-        var builder = ClusterState.builder(new ClusterName("test-cluster")).nodes(DiscoveryNodes.builder().add(node1).add(node2).build());
-        if (metadata != null) {
-            builder.metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, metadata));
+        Map<ProjectId, List<RepositoryMetadata>> repositoriesByProject = new HashMap<>();
+        for (ProjectId projectId : projectIds) {
+            repositoriesByProject.put(projectId, metadata == null ? null : metadata.repositories());
         }
-        return builder.build();
+        return createClusterStateWith(repositoriesByProject);
+    }
+
+    private ClusterState createClusterStateWith(Map<ProjectId, List<RepositoryMetadata>> repositoriesByProject) {
+        var builder = ClusterState.builder(new ClusterName("test-cluster")).nodes(DiscoveryNodes.builder().add(node1).add(node2).build());
+        var metadataBuilder = Metadata.builder();
+        repositoriesByProject.forEach((projectId, repos) -> {
+            var projectBuilder = ProjectMetadata.builder(projectId);
+            if (repos != null) {
+                projectBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(repos));
+            }
+            metadataBuilder.put(projectBuilder);
+        });
+        return builder.metadata(metadataBuilder).build();
     }
 
     private static RepositoryMetadata createRepositoryMetadata(String name, boolean corrupted) {
         return new RepositoryMetadata(name, "uuid", "s3", Settings.EMPTY, corrupted ? CORRUPTED_REPO_GEN : EMPTY_REPO_GEN, EMPTY_REPO_GEN);
     }
 
+    private static List<RepositoryMetadata> createNamedRepositories(String namePrefix, boolean corrupted) {
+        return IntStream.range(0, randomIntBetween(1, 10)).mapToObj(i -> createRepositoryMetadata(namePrefix + i, corrupted)).toList();
+    }
+
+    private List<String> displayNames(String repositoryName) {
+        return projectIds.stream()
+            .map(projectId -> HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repositoryName, multiProject))
+            .sorted()
+            .toList();
+    }
+
+    private List<String> displayNames(List<RepositoryMetadata> repos) {
+        return projectIds.stream()
+            .flatMap(
+                projectId -> repos.stream()
+                    .map(repository -> HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repository.name(), multiProject))
+            )
+            .sorted()
+            .toList();
+    }
+
+    private static List<String> displayNames(ProjectId projectId, List<RepositoryMetadata> repos) {
+        return repos.stream()
+            .map(repository -> HealthIndicatorDisplayValues.getRepositoryDisplayName(projectId, repository.name(), true))
+            .sorted()
+            .toList();
+    }
+
     private RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {
+        return createRepositoryIntegrityHealthIndicatorService(clusterState, projectResolver);
+    }
+
+    private RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(
+        ClusterState clusterState,
+        ProjectResolver resolver
+    ) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        return new RepositoryIntegrityHealthIndicatorService(clusterService);
+        return new RepositoryIntegrityHealthIndicatorService(clusterService, resolver);
     }
 
     private SimpleHealthIndicatorDetails createDetails(int total, int corruptedCount, List<String> corrupted, int unknown, int invalid) {
@@ -410,7 +756,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                 "corrupted_repositories",
                 corruptedCount,
                 "corrupted",
-                corrupted,
+                limitSize(corrupted, 10),
                 "unknown_repositories",
                 unknown,
                 "invalid_repositories",

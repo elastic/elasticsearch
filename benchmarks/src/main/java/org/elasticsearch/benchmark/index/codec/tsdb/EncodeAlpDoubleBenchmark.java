@@ -10,9 +10,9 @@
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.AlpDecimalDoubleSupplier;
 import org.elasticsearch.benchmark.index.codec.tsdb.internal.CompressionMetrics;
+import org.elasticsearch.benchmark.internal.BenchmarkLogging;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
@@ -82,7 +82,7 @@ import java.util.concurrent.TimeUnit;
 public class EncodeAlpDoubleBenchmark {
 
     static {
-        Utils.configureBenchmarkLogging();
+        BenchmarkLogging.configure();
     }
 
     private static final int SEED = 17;

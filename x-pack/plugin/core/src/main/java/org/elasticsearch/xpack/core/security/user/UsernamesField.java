@@ -44,6 +44,8 @@ public final class UsernamesField {
     public static final String LAZY_ROLLOVER_ROLE = "_lazy_rollover";
     public static final String REINDEX_DATA_STREAM_NAME = "_reindex_data_stream";
     public static final String REINDEX_DATA_STREAM_ROLE = "_reindex_data_stream";
+    public static final String ENRICH_NAME = "_enrich";
+    public static final String ENRICH_ROLE = "_enrich";
 
     private UsernamesField() {}
 }

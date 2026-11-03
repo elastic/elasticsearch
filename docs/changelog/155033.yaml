@@ -1,0 +1,6 @@
+area: Suggesters
+issues:
+ - 32467
+pr: 155033
+summary: Omit completion suggestion options missing fetch results
+type: bug

@@ -79,9 +79,10 @@ public class AllocationDefDispatchTests extends AllocationTestCase {
     }
 
     public void testDefSameNameUnannotatedTargetChargesNothing() {
-        // "substring"/2 is annotated on String, so the receiver is pushed, but StringBuilder.substring(int, int) is not
-        // annotated — resolving to it must charge nothing.
-        assertEquals(0L, allocatedBytes("def sb = new StringBuilder(\"hello\"); sb.substring(0, 5); return \"x\";"));
+        // constantAllocating/0 is annotated on AllocationEstimatorTestObject, so the receiver is pushed, but the copy on
+        // AllocationInheritanceObject is not annotated. Resolving to it must charge nothing. Both live in the test fixture
+        // so that annotating more of the JDK cannot invalidate this.
+        assertEquals(0L, allocatedBytes("def o = new AllocationInheritanceObject(); o.constantAllocating(); return \"x\";"));
     }
 
     public void testDefDynamicEstimatorSanitizedAndTrips() {
@@ -140,5 +141,21 @@ public class AllocationDefDispatchTests extends AllocationTestCase {
 
     public void testDefInheritedConstantTripsLimit() {
         assertTripsLimit("def x = new AllocationInheritanceObject(); x.inheritedConstant(); return \"y\";");
+    }
+
+    public void testDefGetterShortcutCharged() {
+        // A def load of .estimatedValue resolves at runtime to getEstimatedValue(), which carries an estimator.
+        assertEquals(72L, allocatedBytes("def o = new AllocationEstimatorTestObject(); int v = o.estimatedValue; return \"x\";"));
+    }
+
+    public void testDefGetterShortcutTripsLimit() {
+        assertTripsLimit("def o = new AllocationEstimatorTestObject(); int v = o.estimatedValue; return \"x\";");
+    }
+
+    public void testDefGetterShortcutUnannotatedTargetChargesNothing() {
+        // The name matches an annotated getter elsewhere, so the script is pushed, but a map key read charges nothing extra.
+        long withoutRead = allocatedBytes("def m = ['estimatedValue': 1]; return \"x\";");
+        long withRead = allocatedBytes("def m = ['estimatedValue': 1]; int v = m.estimatedValue; return \"x\";");
+        assertEquals(withoutRead, withRead);
     }
 }

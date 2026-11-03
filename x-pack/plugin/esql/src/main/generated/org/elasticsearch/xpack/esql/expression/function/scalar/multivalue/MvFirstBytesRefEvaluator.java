@@ -40,11 +40,11 @@ public final class MvFirstBytesRefEvaluator extends AbstractMultivalueFunction.A
     try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef valueScratch = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
-        int valueCount = v.getValueCount(p);
-        if (valueCount == 0) {
+        if (v.isNull(p)) {
           builder.appendNull();
           continue;
         }
+        int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
         int end = first + valueCount;
         BytesRef result = MvFirst.process(v, first, end, valueScratch);

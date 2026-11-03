@@ -48,6 +48,9 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         private int[] retryExcludedDocs;
         private int[][] retrySeedDocs;
         private int retryRemainingK = -1;
+        private int finalizeCalls;
+        private int finalizePoolSize = -1;
+        private int finalizeFinalK = -1;
 
         void recordPostFilterDelegate(float selectivity) {
             postFilterDelegateCalls++;
@@ -57,8 +60,14 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         void recordRetry(int[] excluded, int[][] seedDocsPerLeaf, int remainingK) {
             retryCalls++;
             retryExcludedDocs = excluded.clone();
-            retrySeedDocs = seedDocsPerLeaf.clone();
+            retrySeedDocs = seedDocsPerLeaf == null ? null : seedDocsPerLeaf.clone();
             retryRemainingK = remainingK;
+        }
+
+        void recordFinalizeTopK(int poolSize, int finalK) {
+            finalizeCalls++;
+            finalizePoolSize = poolSize;
+            finalizeFinalK = finalK;
         }
 
         int postFilterDelegateCalls() {
@@ -84,6 +93,20 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         int retryRemainingK() {
             return retryRemainingK;
         }
+
+        int finalizeCalls() {
+            return finalizeCalls;
+        }
+
+        /** Size of the filter-passing pool handed to {@code finalizeTopK}. */
+        int finalizePoolSize() {
+            return finalizePoolSize;
+        }
+
+        /** The final result count {@code finalizeTopK} was asked to reduce the pool to. */
+        int finalizeFinalK() {
+            return finalizeFinalK;
+        }
     }
 
     private final VectorType vectorType;
@@ -93,13 +116,36 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     private final int numCandsParam;
     private final Query filter;
     private final float postFilterScale;
+    // postFilterExpectedBaseQueryDocMatches() = ceil(k * poolScale); 1.0f keeps k() == postFilterExpectedBaseQueryDocMatches(), the HNSW
+    // convention.
+    private final float poolScale;
     private final PostFilterMeta postFilterMeta;
     private final BitSetProducer parentsFilter;
+    // Mirrors the real queries' own flag: only a delegate/retry stashes the raw per-leaf candidates, so the
+    // inner query has to be built as one for getPostFilterCandidates() to return anything.
+    private final boolean postFilterDelegate;
 
     private PostFilterableKnnQuery innerDelegate;
 
     AssertingKnnQuery(VectorType vectorType, String field, float[] target, int k, int numCands, Query filter, float postFilterScale) {
-        this(vectorType, field, target, k, numCands, filter, postFilterScale, new PostFilterMeta(), null);
+        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, new PostFilterMeta(), null, false);
+    }
+
+    /**
+      * Variant that decouples {@link #postFilterExpectedBaseQueryDocMatches(List)} from {@link #k()}, as IVF does by expanding its own
+      * pool.
+      */
+    AssertingKnnQuery(
+        VectorType vectorType,
+        String field,
+        float[] target,
+        int k,
+        int numCands,
+        Query filter,
+        float postFilterScale,
+        float poolScale
+    ) {
+        this(vectorType, field, target, k, numCands, filter, postFilterScale, poolScale, new PostFilterMeta(), null, false);
     }
 
     AssertingKnnQuery(
@@ -112,7 +158,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         float postFilterScale,
         BitSetProducer parentsFilter
     ) {
-        this(vectorType, field, target, k, numCands, filter, postFilterScale, new PostFilterMeta(), parentsFilter);
+        this(vectorType, field, target, k, numCands, filter, postFilterScale, 1.0f, new PostFilterMeta(), parentsFilter, false);
     }
 
     private AssertingKnnQuery(
@@ -123,8 +169,10 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         int numCands,
         Query filter,
         float postFilterScale,
+        float poolScale,
         PostFilterMeta postFilterMeta,
-        BitSetProducer parentsFilter
+        BitSetProducer parentsFilter,
+        boolean postFilterDelegate
     ) {
         this.vectorType = vectorType;
         this.field = field;
@@ -133,8 +181,10 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         this.numCandsParam = numCands;
         this.filter = filter;
         this.postFilterScale = postFilterScale;
+        this.poolScale = poolScale;
         this.postFilterMeta = postFilterMeta;
         this.parentsFilter = parentsFilter;
+        this.postFilterDelegate = postFilterDelegate;
     }
 
     PostFilterMeta postFilterMeta() {
@@ -150,8 +200,28 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
 
     private Query createInnerQuery() {
         return switch (vectorType) {
-            case FLOAT -> new ESKnnFloatVectorQuery(field, target, kParam, numCandsParam, filter, Hnsw.DEFAULT);
-            case BYTE -> new ESKnnByteVectorQuery(field, toByteArray(target), kParam, numCandsParam, filter, Hnsw.DEFAULT);
+            case FLOAT -> new ESKnnFloatVectorQuery(
+                field,
+                target,
+                kParam,
+                numCandsParam,
+                filter,
+                Hnsw.DEFAULT,
+                false,
+                null,
+                postFilterDelegate
+            );
+            case BYTE -> new ESKnnByteVectorQuery(
+                field,
+                toByteArray(target),
+                kParam,
+                numCandsParam,
+                filter,
+                Hnsw.DEFAULT,
+                false,
+                null,
+                postFilterDelegate
+            );
             case DIVERSIFYING_FLOAT -> new ESDiversifyingChildrenFloatKnnVectorQuery(
                 field,
                 target,
@@ -159,7 +229,10 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
                 kParam,
                 numCandsParam,
                 parentsFilter,
-                Hnsw.DEFAULT
+                Hnsw.DEFAULT,
+                false,
+                null,
+                postFilterDelegate
             );
             case DIVERSIFYING_BYTE -> new ESDiversifyingChildrenByteKnnVectorQuery(
                 field,
@@ -168,7 +241,10 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
                 kParam,
                 numCandsParam,
                 parentsFilter,
-                Hnsw.DEFAULT
+                Hnsw.DEFAULT,
+                false,
+                null,
+                postFilterDelegate
             );
         };
     }
@@ -181,6 +257,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     @Override
     public Query createPostFilterDelegate(float filterSelectivity) {
         postFilterMeta.recordPostFilterDelegate(filterSelectivity);
+        // Stands in for computeScaledK: inflate this query's own k so k survive the filter.
         int scaledK = Math.max(1, (int) Math.ceil(kParam * postFilterScale));
         return new AssertingKnnQuery(
             vectorType,
@@ -190,8 +267,10 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
             numCandsParam,
             null,
             postFilterScale,
+            poolScale,
             postFilterMeta,
-            parentsFilter
+            parentsFilter,
+            true
         );
     }
 
@@ -200,6 +279,7 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
         assert isSorted(excluded) : "excludedDocs must be sorted: " + Arrays.toString(excluded);
         assert allSorted(seedDocsPerLeaf) : "each leaf's seedDocs must be sorted: " + Arrays.deepToString(seedDocsPerLeaf);
         assert remainingK > 0 : "remainingK must be > 0, got " + remainingK;
+        assert postFilterDelegate : "createRetryQuery expects a post-filter delegate, not the user's own query";
         postFilterMeta.recordRetry(excluded, seedDocsPerLeaf, remainingK);
         Query excludeFilter = excluded.length > 0 ? new ExcludeDocsQuery(excluded, reader) : null;
         return new AssertingKnnQuery(
@@ -210,8 +290,10 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
             numCandsParam,
             excludeFilter,
             postFilterScale,
+            poolScale,
             postFilterMeta,
-            parentsFilter
+            parentsFilter,
+            true
         );
     }
 
@@ -236,6 +318,21 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     @Override
     public long totalVectorOps() {
         return innerDelegate != null ? innerDelegate.totalVectorOps() : 0;
+    }
+
+    @Override
+    public int postFilterExpectedBaseQueryDocMatches(List<LeafReaderContext> leaves) {
+        return Math.max(kParam, (int) Math.ceil(kParam * poolScale));
+    }
+
+    /**
+     * Stands in for an engine-owned exact scoring pass: records that it ran and reduces the pool to the
+     * final count, keeping the pool's (score-descending) order.
+     */
+    @Override
+    public ScoreDoc[] finalizeTopK(IndexSearcher searcher, ScoreDoc[] candidatePool, int finalK) {
+        postFilterMeta.recordFinalizeTopK(candidatePool.length, finalK);
+        return candidatePool.length <= finalK ? candidatePool : Arrays.copyOf(candidatePool, finalK);
     }
 
     @Override
@@ -284,6 +381,9 @@ public class AssertingKnnQuery extends Query implements PostFilterableKnnQuery {
     }
 
     private static boolean allSorted(int[][] perLeaf) {
+        if (perLeaf == null) {
+            return true;
+        }
         for (int[] leaf : perLeaf) {
             if (leaf != null && isSorted(leaf) == false) return false;
         }

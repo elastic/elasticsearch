@@ -1,0 +1,7 @@
+area: Search
+issues:
+ - 157200
+pr: 157427
+summary: Update diversify retriever to return an error when diversifying on a field
+  that cannot produce dense embeddings
+type: bug

@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.lucene104.Lucene104ScalarQuantizedVectorScorer;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.elasticsearch.foreign.LibraryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
@@ -41,14 +42,9 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
     public static void getVectorScorerFactory() {
         factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
 
-        // check the factory is resolved as expected on the arches we expect
-        var arch = System.getProperty("os.arch");
-        var osName = System.getProperty("os.name");
-
+        // check the factory is resolved as expected on the platforms SimdVecLibrary is available on;
         // native support requires JDK 22+ (for heap segment support and native vec lib loading)
-        if (Runtime.version().feature() >= 22
-            && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
-                || arch.equals("amd64") && osName.equals("Linux"))) {
+        if (Runtime.version().feature() >= 22 && LibraryProvider.isAvailableOnCurrentPlatform(SimdVecLibrary.class)) {
             assertTrue(factory.usesNative());
         } else {
             // not an arch with native support, so shouldn't be native

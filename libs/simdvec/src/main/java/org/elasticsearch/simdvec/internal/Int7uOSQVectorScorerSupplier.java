@@ -17,8 +17,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.lucene.store.IndexInputUtils;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
 import java.io.IOException;
@@ -32,9 +31,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     Int7uOSQVectorScorerSupplier.DotProductSupplier, Int7uOSQVectorScorerSupplier.EuclideanSupplier,
     Int7uOSQVectorScorerSupplier.MaxInnerProductSupplier {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
     // Size of the corrections trailer that follows each quantized vector in the codec's per-vector
@@ -45,8 +42,8 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     protected final QuantizedByteVectorValues values;
     protected final int dims;
     protected final int vectorPitch;
-    final FixedSizeScratch firstScratch;
-    final FixedSizeScratch secondScratch;
+    final FixedSizeSegmentScratch queryScratch;
+    final FixedSizeSegmentScratch documentScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
     final float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
@@ -59,8 +56,8 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         // Scratches are sized to the full per-vector record (vector + corrections), so that the same
         // backing slice can be used for both the dot product (first dims bytes) and the corrections
         // (trailing {@code CORRECTIONS_BYTES} bytes).
-        this.firstScratch = new FixedSizeScratch(vectorPitch);
-        this.secondScratch = new FixedSizeScratch(vectorPitch);
+        this.queryScratch = new FixedSizeSegmentScratch(vectorPitch);
+        this.documentScratch = new FixedSizeSegmentScratch(vectorPitch);
     }
 
     protected abstract float applyCorrections(float rawScore, MemorySegment correctionsSlice, QueryContext query) throws IOException;
@@ -87,7 +84,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         return IndexInputUtils.withSlice(
             input,
             vectorPitch,
-            firstScratch,
+            queryScratch,
             seg -> new QueryContext(
                 ord,
                 seg.get(ValueLayout.JAVA_FLOAT_UNALIGNED, dims),
@@ -104,20 +101,20 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         }
     }
 
-    protected final float scoreFromOrds(QueryContext query, int secondOrd) throws IOException {
-        int firstOrd = query.ord;
-        checkOrdinal(firstOrd);
-        checkOrdinal(secondOrd);
+    protected final float scoreFromOrds(QueryContext query, int documentOrd) throws IOException {
+        int queryOrd = query.ord;
+        checkOrdinal(queryOrd);
+        checkOrdinal(documentOrd);
 
-        long firstVectorOffset = (long) firstOrd * vectorPitch;
-        long secondVectorOffset = (long) secondOrd * vectorPitch;
+        long queryVectorOffset = (long) queryOrd * vectorPitch;
+        long documentVectorOffset = (long) documentOrd * vectorPitch;
 
-        input.seek(firstVectorOffset);
-        return IndexInputUtils.withFloatSlice(input, vectorPitch, firstScratch, firstSeg -> {
-            input.seek(secondVectorOffset);
-            return IndexInputUtils.withFloatSlice(input, vectorPitch, secondScratch, secondSeg -> {
-                int rawScore = DISTANCE_FUNCS.dotProductI7u(firstSeg, secondSeg, dims);
-                return applyCorrections(rawScore, secondSeg.asSlice(dims, CORRECTIONS_BYTES), query);
+        input.seek(queryVectorOffset);
+        return IndexInputUtils.withFloatSlice(input, vectorPitch, queryScratch, querySeg -> {
+            input.seek(documentVectorOffset);
+            return IndexInputUtils.withFloatSlice(input, vectorPitch, documentScratch, documentSeg -> {
+                int rawScore = DISTANCE_FUNCS.dotProductI7u(documentSeg, querySeg, dims);
+                return applyCorrections(rawScore, documentSeg.asSlice(dims, CORRECTIONS_BYTES), query);
             });
         });
     }
@@ -134,7 +131,7 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         // Request vectorPitch bytes per slice (not dims): the doc-side corrections sit at offset
         // [dims, dims+CORRECTIONS_BYTES) of the same record, and we read them in
         // applyCorrectionsBulk via MemorySegment reinterpret.
-        return IndexInputUtils.withFloatSlice(input, vectorPitch, firstScratch, querySeg -> {
+        return IndexInputUtils.withFloatSlice(input, vectorPitch, queryScratch, querySeg -> {
             long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorPitch;
@@ -159,8 +156,8 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         for (int i = 0; i < numNodes; i++) {
             final int idx = i;
             input.seek(offsets[i]);
-            IndexInputUtils.withVoidSlice(input, vectorPitch, secondScratch, documentSeg -> {
-                int rawScore = DISTANCE_FUNCS.dotProductI7u(querySeg, documentSeg, dims);
+            IndexInputUtils.withVoidSlice(input, vectorPitch, documentScratch, documentSeg -> {
+                int rawScore = DISTANCE_FUNCS.dotProductI7u(documentSeg, querySeg, dims);
                 scores[idx] = applyCorrections(rawScore, documentSeg.asSlice(dims, CORRECTIONS_BYTES), query);
             });
             maxScore = Math.max(maxScore, scores[i]);

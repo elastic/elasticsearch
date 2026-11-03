@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -196,6 +197,11 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
+        protected MapperBuilderContext childContext(MapperBuilderContext context) {
+            return context.createChildContext(null, dynamic);
+        }
+
+        @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             if (context.isStrictColumnar() && enabled.explicit() && enabled.value() == false) {
                 throw new MapperParsingException(
@@ -203,9 +209,10 @@ public class RootObjectMapper extends ObjectMapper {
                         + " this would prevent all fields from being indexed"
                 );
             }
-            // Build child mappers first so that flattenBuildersIfNeeded has a chance to populate
-            // prefixProperties before we pass them to the RootObjectMapper constructor.
-            Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
+            // Normalize first so that flattening has a chance to populate prefixProperties before we pass them to the
+            // RootObjectMapper constructor.
+            normalize(context);
+            Map<String, Mapper> mappers = buildMappers(childContext(context));
             return new RootObjectMapper(
                 leafName(),
                 enabled,
@@ -232,6 +239,8 @@ public class RootObjectMapper extends ObjectMapper {
     private final Map<String, RuntimeField> runtimeFields;
     private final RootObjectMapperNamespaceValidator namespaceValidator;
     private final boolean sliceEnabled;
+    /** Computed on first use. */
+    private Boolean canRetainUnmappedFields;
     /**
      * Per-prefix settings captured during auto-flattening in strict columnar mode.
      * Keys are the full dotted paths of declared object mappers (e.g. {@code "attributes"},
@@ -297,6 +306,58 @@ public class RootObjectMapper extends ObjectMapper {
             namespaceValidator,
             sliceEnabled
         );
+    }
+
+    /**
+     * Whether a document indexed under this mapping may keep a field that no mapper holds: the mapping or one of its
+     * objects is disabled or has {@code dynamic} set to {@code false} or {@code flattened}, or the field is a runtime
+     * field, which can be removed from the mapping. A dynamic field skipped for exceeding a limit is not covered: it is
+     * recorded per document in {@code _ignored}.
+     */
+    public boolean canRetainUnmappedFields() {
+        Boolean canRetain = canRetainUnmappedFields;
+        if (canRetain == null) {
+            canRetain = runtimeFields.isEmpty() == false
+                || canRetainUnmappedFields(isEnabled(), dynamic, getMappers().values(), prefixProperties);
+            canRetainUnmappedFields = canRetain;
+        }
+        return canRetain;
+    }
+
+    private static boolean canRetainUnmappedFields(
+        boolean enabled,
+        @Nullable Dynamic dynamic,
+        Collection<Mapper> mappers,
+        Map<String, PrefixProperties> prefixProperties
+    ) {
+        if (enabled == false || retainsUnmappedFields(dynamic)) {
+            return true;
+        }
+        for (PrefixProperties properties : prefixProperties.values()) {
+            if (Boolean.FALSE.equals(properties.enabled()) || retainsUnmappedFields(properties.dynamic())) {
+                return true;
+            }
+        }
+        for (Mapper mapper : mappers) {
+            // Checks the object and, through its own mappers, every object below it.
+            if (mapper instanceof ObjectMapper object
+                && canRetainUnmappedFields(object.isEnabled(), object.dynamic(), object.getMappers().values(), Map.of())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean retainsUnmappedFields(@Nullable Dynamic dynamic) {
+        if (dynamic == null) {
+            // Inherited from the parent, which is checked on its own.
+            return false;
+        }
+        return switch (dynamic) {
+            // Every field holding a value gets a mapper, or the document is rejected.
+            case TRUE, STRICT -> false;
+            case FALSE, FLATTENED, RUNTIME -> true;
+        };
     }
 
     /**
@@ -484,11 +545,12 @@ public class RootObjectMapper extends ObjectMapper {
                     if (typeParser == null) {
                         throw new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
                     }
-                    validate(
-                        template,
-                        dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.root(false, false))
-                    );
+                    validate(template, dynamicType, (name, mapping) -> {
+                        Mapper.Builder builder = typeParser.parse(name, mapping, parserContext);
+                        MapperBuilderContext builderContext = MapperBuilderContext.root(false, false);
+                        builder.normalize(builderContext);
+                        builder.build(builderContext);
+                    });
                 }
                 lastError = null; // ok, the template is valid for at least one type
                 break;
@@ -771,10 +833,10 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         namespaceValidator.validateNamespace(subobjects(), mapper.leafName());
-        if (sliceEnabled && SliceIndexing.FIELD_NAME.equals(mapper.leafName())) {
+        if (sliceEnabled && SliceIndexing.isReservedFieldName(mapper.leafName())) {
             throw new IllegalArgumentException(
                 "["
-                    + SliceIndexing.FIELD_NAME
+                    + mapper.leafName()
                     + "] is a reserved field name and cannot be used when ["
                     + IndexSettings.SLICE_ENABLED.getKey()
                     + "] is true"

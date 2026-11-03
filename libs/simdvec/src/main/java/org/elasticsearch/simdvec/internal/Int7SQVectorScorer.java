@@ -19,8 +19,8 @@ import org.apache.lucene.util.quantization.LegacyQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.lucene.store.IndexInputUtils;
 import org.elasticsearch.lucene.store.MemorySegmentAccessInputAccess;
-import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.nativeaccess.SimdVecLibrary;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
+import org.elasticsearch.simdvec.SimdVecLibrary;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -29,9 +29,7 @@ import java.util.Optional;
 
 public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
-    private static final SimdVecLibrary DISTANCE_FUNCS = NativeAccess.instance()
-        .getVectorSimilarityFunctions()
-        .orElseThrow(AssertionError::new);
+    private static final SimdVecLibrary DISTANCE_FUNCS = SimdVecLibrary.instance().orElseThrow(AssertionError::new);
 
     final int vectorByteSize;
     final int vectorPitch;
@@ -39,9 +37,10 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     final MemorySegment query;
     final float scoreCorrectionConstant;
     final float queryCorrection;
-    final FixedSizeScratch scratch;
+    final FixedSizeSegmentScratch scratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
+    final SegmentBufferScratch scoresScratch = new SegmentBufferScratch();
 
     /** Return an optional whose value, if present, is the scorer. Otherwise, an empty optional is returned. */
     public static Optional<RandomVectorScorer> create(
@@ -75,10 +74,10 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         assert queryVector.length == values.getVectorByteLength();
         this.vectorByteSize = values.getVectorByteLength();
         this.vectorPitch = vectorByteSize + Float.BYTES;
-        this.query = MemorySegment.ofArray(queryVector);
+        this.query = MemorySegmentUtils.nativeCopyOf(queryVector);
         this.queryCorrection = queryCorrection;
         this.scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
-        this.scratch = new FixedSizeScratch(vectorPitch);
+        this.scratch = new FixedSizeSegmentScratch(vectorPitch);
     }
 
     static void checkInvariants(int maxOrd, int vectorByteLength, IndexInput input) {
@@ -118,7 +117,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             long byteOffset = (long) node * vectorPitch;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
-                int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize);
+                int dotProduct = DISTANCE_FUNCS.dotProductI7u(seg.asSlice(0, vectorByteSize), query, vectorByteSize);
                 assert dotProduct >= 0;
                 float nodeCorrection = Float.intBitsToFloat(seg.get(ValueLayout.JAVA_INT_UNALIGNED, vectorByteSize));
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
@@ -133,10 +132,12 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             }
             long[] offsets = getOffsets(nodes, numNodes);
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
             boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch, addrs -> {
-                DISTANCE_FUNCS.dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, MemorySegment.ofArray(scores));
+                DISTANCE_FUNCS.dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, segment);
                 for (int i = 0; i < numNodes; ++i) {
-                    float adjustedDistance = scores[i] * scoreCorrectionConstant + queryCorrection + getNodeCorrection(addrs, i);
+                    var dotProduct = segment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                    float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + getNodeCorrection(addrs, i);
                     scores[i] = VectorUtil.normalizeToUnitInterval(adjustedDistance);
                     maxScore[0] = Math.max(maxScore[0], scores[i]);
                 }
@@ -162,7 +163,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
                 input,
                 vectorPitch,
                 scratch,
-                seg -> DISTANCE_FUNCS.squareDistanceI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize)
+                seg -> DISTANCE_FUNCS.squareDistanceI7u(seg.asSlice(0, vectorByteSize), query, vectorByteSize)
             );
             float adjustedDistance = sqDist * scoreCorrectionConstant;
             return VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance);
@@ -175,10 +176,11 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             }
             long[] offsets = getOffsets(nodes, numNodes);
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
             boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch, addrs -> {
-                DISTANCE_FUNCS.squareDistanceI7uBulkSparse(addrs, query, vectorByteSize, numNodes, MemorySegment.ofArray(scores));
+                DISTANCE_FUNCS.squareDistanceI7uBulkSparse(addrs, query, vectorByteSize, numNodes, segment);
                 for (int i = 0; i < numNodes; ++i) {
-                    var squareDistance = scores[i];
+                    var squareDistance = segment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
                     float adjustedDistance = squareDistance * scoreCorrectionConstant;
                     scores[i] = VectorUtil.normalizeDistanceToUnitInterval(adjustedDistance);
                     maxScore[0] = Math.max(maxScore[0], scores[i]);
@@ -203,7 +205,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             long byteOffset = (long) node * vectorPitch;
             input.seek(byteOffset);
             return IndexInputUtils.withFloatSlice(input, vectorPitch, scratch, seg -> {
-                int dotProduct = DISTANCE_FUNCS.dotProductI7u(query, seg.asSlice(0, vectorByteSize), vectorByteSize);
+                int dotProduct = DISTANCE_FUNCS.dotProductI7u(seg.asSlice(0, vectorByteSize), query, vectorByteSize);
                 assert dotProduct >= 0;
                 float nodeCorrection = Float.intBitsToFloat(seg.get(ValueLayout.JAVA_INT_UNALIGNED, vectorByteSize));
                 float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + nodeCorrection;
@@ -218,10 +220,12 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             }
             long[] offsets = getOffsets(nodes, numNodes);
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
+            MemorySegment segment = scoresScratch.apply(numNodes * Float.BYTES);
             boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch, addrs -> {
-                DISTANCE_FUNCS.dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, MemorySegment.ofArray(scores));
+                DISTANCE_FUNCS.dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, segment);
                 for (int i = 0; i < numNodes; ++i) {
-                    float adjustedDistance = scores[i] * scoreCorrectionConstant + queryCorrection + getNodeCorrection(addrs, i);
+                    var dotProduct = segment.getAtIndex(ValueLayout.JAVA_FLOAT, i);
+                    float adjustedDistance = dotProduct * scoreCorrectionConstant + queryCorrection + getNodeCorrection(addrs, i);
                     scores[i] = VectorUtil.scaleMaxInnerProductScore(adjustedDistance);
                     maxScore[0] = Math.max(maxScore[0], scores[i]);
                 }

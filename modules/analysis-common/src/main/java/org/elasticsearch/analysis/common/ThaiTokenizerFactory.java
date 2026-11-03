@@ -29,4 +29,9 @@ public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
     public Tokenizer create() {
         return new ThaiTokenizer();
     }
+
+    @Override
+    public Object sharingKey() {
+        return getClass();
+    }
 }

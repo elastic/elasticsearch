@@ -92,7 +92,8 @@ public class KibanaExecutionContextClassifierTests extends ESTestCase {
             "apm.error_rate",
             "xpack.uptime.alerts.monitorStatus",
             "xpack.synthetics.alerts.monitorStatus",
-            "datasetQuality.degradedDocs"
+            "datasetQuality.degradedDocs",
+            "streams.rules.esql"
         )) {
             assertKibana(ruleContext(ruleType), Feature.OBSERVABILITY_RULE);
         }

@@ -128,7 +128,8 @@ public final class KibanaExecutionContextClassifier {
         "apm.",
         "xpack.uptime.",
         "xpack.synthetics.",
-        "datasetQuality."
+        "datasetQuality.",
+        "streams."
     );
 
     private KibanaExecutionContextClassifier() {}

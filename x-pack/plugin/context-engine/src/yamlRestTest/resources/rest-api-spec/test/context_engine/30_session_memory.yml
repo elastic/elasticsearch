@@ -25,9 +25,9 @@
   - match: { error.reason: "/.*\\[@timestamp\\].*/" }
 
 ---
-"Get session memory returns nothing for an unknown session":
+"List session memory returns nothing for an unknown session":
   - do:
-      context_engine.get_session_memory:
+      context_engine.list_session_memory:
         session_id: "no-such-session"
 
   - match: { count: 0 }

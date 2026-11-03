@@ -1,8 +1,8 @@
 {
-  "context_engine.get_session_memory": {
+  "context_engine.list_session_memory": {
     "documentation": {
       "url": null,
-      "description": "Returns the session memories stored for a session, newest first"
+      "description": "Lists Context Engine session memories matching the filters, newest first"
     },
     "stability": "experimental",
     "visibility": "private",
@@ -14,20 +14,26 @@
     "url": {
       "paths": [
         {
-          "path": "/_context_engine/session_memory/{session_id}",
+          "path": "/_context_engine/session_memory",
           "methods": [
             "GET"
-          ],
-          "parts": {
-            "session_id": {
-              "type": "string",
-              "description": "The session the memories belong to"
-            }
-          }
+          ]
         }
       ]
     },
     "params": {
+      "session_id": {
+        "type": "string",
+        "description": "Only return memories belonging to this session"
+      },
+      "user_id": {
+        "type": "string",
+        "description": "Only return memories belonging to this user"
+      },
+      "agent_id": {
+        "type": "string",
+        "description": "Only return memories written by this agent"
+      },
       "space": {
         "type": "string",
         "description": "Only return memories written for this Kibana space"

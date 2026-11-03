@@ -17,26 +17,28 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.util.List;
 
 @ServerlessScope(Scope.INTERNAL)
-public class RestGetSessionMemoryAction extends BaseRestHandler {
+public class RestListSessionMemoryAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "context_engine_get_session_memory_action";
+        return "context_engine_list_session_memory_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_context_engine/session_memory/{session_id}"));
+        return List.of(new Route(RestRequest.Method.GET, "/_context_engine/session_memory"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        GetSessionMemoryAction.Request getRequest = new GetSessionMemoryAction.Request(
+        ListSessionMemoryAction.Request listRequest = new ListSessionMemoryAction.Request(
             request.param("session_id"),
+            request.param("user_id"),
+            request.param("agent_id"),
             request.param("space"),
             request.param("ai_index_id"),
-            request.paramAsInt("size", GetSessionMemoryAction.DEFAULT_SIZE)
+            request.paramAsInt("size", ListSessionMemoryAction.DEFAULT_SIZE)
         );
-        return channel -> client.execute(GetSessionMemoryAction.INSTANCE, getRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(ListSessionMemoryAction.INSTANCE, listRequest, new RestToXContentListener<>(channel));
     }
 }

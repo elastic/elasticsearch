@@ -15,17 +15,19 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GetSessionMemoryActionRequestTests extends AbstractWireSerializingTestCase<GetSessionMemoryAction.Request> {
+public class ListSessionMemoryActionRequestTests extends AbstractWireSerializingTestCase<ListSessionMemoryAction.Request> {
 
     @Override
-    protected Writeable.Reader<GetSessionMemoryAction.Request> instanceReader() {
-        return GetSessionMemoryAction.Request::new;
+    protected Writeable.Reader<ListSessionMemoryAction.Request> instanceReader() {
+        return ListSessionMemoryAction.Request::new;
     }
 
     @Override
-    protected GetSessionMemoryAction.Request createTestInstance() {
-        return new GetSessionMemoryAction.Request(
-            randomAlphaOfLength(12),
+    protected ListSessionMemoryAction.Request createTestInstance() {
+        return new ListSessionMemoryAction.Request(
+            randomBoolean() ? null : randomAlphaOfLength(12),
+            randomBoolean() ? null : randomAlphaOfLength(8),
+            randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomAlphaOfLength(6),
             randomIntBetween(1, 1000)
@@ -33,21 +35,23 @@ public class GetSessionMemoryActionRequestTests extends AbstractWireSerializingT
     }
 
     @Override
-    protected GetSessionMemoryAction.Request mutateInstance(GetSessionMemoryAction.Request instance) {
-        return new GetSessionMemoryAction.Request(
-            randomValueOtherThan(instance.sessionId(), () -> randomAlphaOfLength(12)),
+    protected ListSessionMemoryAction.Request mutateInstance(ListSessionMemoryAction.Request instance) {
+        return new ListSessionMemoryAction.Request(
+            instance.sessionId(),
+            instance.userId(),
+            instance.agentId(),
             instance.space(),
             instance.aiIndexId(),
-            instance.size()
+            randomValueOtherThan(instance.size(), () -> randomIntBetween(1, 1000))
         );
     }
 
     public void testValidate() {
         assertThat(createTestInstance().validate(), nullValue());
+        assertThat(new ListSessionMemoryAction.Request(null, null, null, null, null, 10).validate(), nullValue());
 
-        ActionRequestValidationException e = new GetSessionMemoryAction.Request("", null, null, 0).validate();
+        ActionRequestValidationException e = new ListSessionMemoryAction.Request(null, null, null, null, null, 0).validate();
         assertThat(e, notNullValue());
-        assertThat(e.getMessage(), containsString("[session_id] cannot be null or empty"));
         assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
     }
 }

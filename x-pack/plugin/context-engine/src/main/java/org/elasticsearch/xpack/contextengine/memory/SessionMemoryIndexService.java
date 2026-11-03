@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.contextengine.ContextEnginePlugin;
+import org.elasticsearch.xpack.contextengine.memory.action.ListSessionMemoryAction;
 import org.elasticsearch.xpack.contextengine.memory.action.SearchSessionMemoryAction;
 
 import java.io.IOException;
@@ -72,23 +73,17 @@ public class SessionMemoryIndexService {
     }
 
     /**
-     * Returns the newest memories for a session, optionally narrowed to a space and an AI index.
+     * Returns the newest memories matching the request's filters, without any inference.
      */
-    public void getBySession(String sessionId, String space, String aiIndexId, int size, ActionListener<List<SessionMemory>> listener) {
+    public void list(ListSessionMemoryAction.Request request, ActionListener<List<SessionMemory>> listener) {
         try {
-            BoolQueryBuilder query = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(SessionMemory.SESSION_ID_FIELD.getPreferredName(), sessionId));
-            if (space != null) {
-                query.filter(QueryBuilders.termQuery(SessionMemory.SPACE_FIELD.getPreferredName(), space));
-            }
-            if (aiIndexId != null) {
-                query.filter(QueryBuilders.termQuery(SessionMemory.AI_INDEX_ID_FIELD.getPreferredName(), aiIndexId));
-            }
+            BoolQueryBuilder query = QueryBuilders.boolQuery();
+            filters(request.sessionId(), request.userId(), request.agentId(), request.space(), request.aiIndexId()).forEach(query::filter);
             SearchSourceBuilder source = new SearchSourceBuilder().query(query)
-                .size(size)
+                .size(request.size())
                 .sort(SessionMemory.TIMESTAMP_FIELD.getPreferredName(), SortOrder.DESC);
-            SearchRequest request = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source);
-            clientWithOrigin.search(request, ActionListener.wrap(searchResponse -> {
+            SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source);
+            clientWithOrigin.search(searchRequest, ActionListener.wrap(searchResponse -> {
                 List<SessionMemory> memories = new ArrayList<>();
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     memories.add(parseHit(hit));
@@ -118,12 +113,13 @@ public class SessionMemoryIndexService {
         ActionListener<List<SearchSessionMemoryAction.Hit>> listener
     ) {
         try {
-            List<QueryBuilder> filters = new ArrayList<>();
-            addTermFilter(filters, SessionMemory.SESSION_ID_FIELD, request.sessionId());
-            addTermFilter(filters, SessionMemory.USER_ID_FIELD, request.userId());
-            addTermFilter(filters, SessionMemory.AGENT_ID_FIELD, request.agentId());
-            addTermFilter(filters, SessionMemory.SPACE_FIELD, request.space());
-            addTermFilter(filters, SessionMemory.AI_INDEX_ID_FIELD, request.aiIndexId());
+            List<QueryBuilder> filters = filters(
+                request.sessionId(),
+                request.userId(),
+                request.agentId(),
+                request.space(),
+                request.aiIndexId()
+            );
 
             DisMaxQueryBuilder query = QueryBuilders.disMaxQuery();
             for (String field : List.of(CONTENT_SEMANTIC_FIELD, SessionMemory.MEDIA_FIELD.getPreferredName())) {
@@ -147,6 +143,16 @@ public class SessionMemoryIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private static List<QueryBuilder> filters(String sessionId, String userId, String agentId, String space, String aiIndexId) {
+        List<QueryBuilder> filters = new ArrayList<>();
+        addTermFilter(filters, SessionMemory.SESSION_ID_FIELD, sessionId);
+        addTermFilter(filters, SessionMemory.USER_ID_FIELD, userId);
+        addTermFilter(filters, SessionMemory.AGENT_ID_FIELD, agentId);
+        addTermFilter(filters, SessionMemory.SPACE_FIELD, space);
+        addTermFilter(filters, SessionMemory.AI_INDEX_ID_FIELD, aiIndexId);
+        return filters;
     }
 
     private static void addTermFilter(List<QueryBuilder> filters, ParseField field, String value) {

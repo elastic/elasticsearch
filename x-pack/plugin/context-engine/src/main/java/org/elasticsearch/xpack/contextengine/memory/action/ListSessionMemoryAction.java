@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.UntypedActionRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -25,25 +24,42 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetSessionMemoryAction {
+public class ListSessionMemoryAction {
 
-    public static final String NAME = "cluster:admin/xpack/context_engine/session_memory/get";
+    public static final String NAME = "cluster:admin/xpack/context_engine/session_memory/list";
     public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
     public static final int DEFAULT_SIZE = 100;
 
-    private GetSessionMemoryAction() {/* no instances */}
+    private ListSessionMemoryAction() {/* no instances */}
 
+    /**
+     * Lists memories newest first, narrowed by whichever of the filters are given, without any inference.
+     */
     public static class Request extends UntypedActionRequest {
 
+        @Nullable
         private final String sessionId;
+        @Nullable
+        private final String userId;
+        @Nullable
+        private final String agentId;
         @Nullable
         private final String space;
         @Nullable
         private final String aiIndexId;
         private final int size;
 
-        public Request(String sessionId, @Nullable String space, @Nullable String aiIndexId, int size) {
+        public Request(
+            @Nullable String sessionId,
+            @Nullable String userId,
+            @Nullable String agentId,
+            @Nullable String space,
+            @Nullable String aiIndexId,
+            int size
+        ) {
             this.sessionId = sessionId;
+            this.userId = userId;
+            this.agentId = agentId;
             this.space = space;
             this.aiIndexId = aiIndexId;
             this.size = size;
@@ -51,14 +67,27 @@ public class GetSessionMemoryAction {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.sessionId = in.readString();
+            this.sessionId = in.readOptionalString();
+            this.userId = in.readOptionalString();
+            this.agentId = in.readOptionalString();
             this.space = in.readOptionalString();
             this.aiIndexId = in.readOptionalString();
             this.size = in.readVInt();
         }
 
+        @Nullable
         public String sessionId() {
             return sessionId;
+        }
+
+        @Nullable
+        public String userId() {
+            return userId;
+        }
+
+        @Nullable
+        public String agentId() {
+            return agentId;
         }
 
         @Nullable
@@ -78,7 +107,9 @@ public class GetSessionMemoryAction {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(sessionId);
+            out.writeOptionalString(sessionId);
+            out.writeOptionalString(userId);
+            out.writeOptionalString(agentId);
             out.writeOptionalString(space);
             out.writeOptionalString(aiIndexId);
             out.writeVInt(size);
@@ -87,9 +118,6 @@ public class GetSessionMemoryAction {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (Strings.isNullOrEmpty(sessionId)) {
-                validationException = addValidationError("[session_id] cannot be null or empty", validationException);
-            }
             if (size <= 0) {
                 validationException = addValidationError("[size] must be greater than 0", validationException);
             }
@@ -103,13 +131,15 @@ public class GetSessionMemoryAction {
             Request request = (Request) o;
             return size == request.size
                 && Objects.equals(sessionId, request.sessionId)
+                && Objects.equals(userId, request.userId)
+                && Objects.equals(agentId, request.agentId)
                 && Objects.equals(space, request.space)
                 && Objects.equals(aiIndexId, request.aiIndexId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(sessionId, space, aiIndexId, size);
+            return Objects.hash(sessionId, userId, agentId, space, aiIndexId, size);
         }
     }
 

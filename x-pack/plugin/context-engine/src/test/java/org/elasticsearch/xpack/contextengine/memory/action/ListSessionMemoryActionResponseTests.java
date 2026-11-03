@@ -11,21 +11,21 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.contextengine.memory.SessionMemoryTestUtils;
 
-public class GetSessionMemoryActionResponseTests extends AbstractWireSerializingTestCase<GetSessionMemoryAction.Response> {
+public class ListSessionMemoryActionResponseTests extends AbstractWireSerializingTestCase<ListSessionMemoryAction.Response> {
 
     @Override
-    protected Writeable.Reader<GetSessionMemoryAction.Response> instanceReader() {
-        return GetSessionMemoryAction.Response::new;
+    protected Writeable.Reader<ListSessionMemoryAction.Response> instanceReader() {
+        return ListSessionMemoryAction.Response::new;
     }
 
     @Override
-    protected GetSessionMemoryAction.Response createTestInstance() {
-        return new GetSessionMemoryAction.Response(randomList(0, 5, SessionMemoryTestUtils::randomSessionMemory));
+    protected ListSessionMemoryAction.Response createTestInstance() {
+        return new ListSessionMemoryAction.Response(randomList(0, 5, SessionMemoryTestUtils::randomSessionMemory));
     }
 
     @Override
-    protected GetSessionMemoryAction.Response mutateInstance(GetSessionMemoryAction.Response instance) {
-        return new GetSessionMemoryAction.Response(
+    protected ListSessionMemoryAction.Response mutateInstance(ListSessionMemoryAction.Response instance) {
+        return new ListSessionMemoryAction.Response(
             randomValueOtherThan(instance.memories(), () -> randomList(0, 5, SessionMemoryTestUtils::randomSessionMemory))
         );
     }

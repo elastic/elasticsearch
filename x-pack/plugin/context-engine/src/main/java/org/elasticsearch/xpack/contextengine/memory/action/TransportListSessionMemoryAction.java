@@ -17,32 +17,30 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.contextengine.memory.SessionMemoryIndexService;
 
-public class TransportGetSessionMemoryAction extends HandledTransportAction<
-    GetSessionMemoryAction.Request,
-    GetSessionMemoryAction.Response> {
+public class TransportListSessionMemoryAction extends HandledTransportAction<
+    ListSessionMemoryAction.Request,
+    ListSessionMemoryAction.Response> {
 
     private final SessionMemoryIndexService sessionMemoryIndexService;
 
     @Inject
-    public TransportGetSessionMemoryAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportListSessionMemoryAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(
-            GetSessionMemoryAction.NAME,
+            ListSessionMemoryAction.NAME,
             transportService,
             actionFilters,
-            GetSessionMemoryAction.Request::new,
+            ListSessionMemoryAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.sessionMemoryIndexService = new SessionMemoryIndexService(client);
     }
 
     @Override
-    protected void doExecute(Task task, GetSessionMemoryAction.Request request, ActionListener<GetSessionMemoryAction.Response> listener) {
-        sessionMemoryIndexService.getBySession(
-            request.sessionId(),
-            request.space(),
-            request.aiIndexId(),
-            request.size(),
-            listener.map(GetSessionMemoryAction.Response::new)
-        );
+    protected void doExecute(
+        Task task,
+        ListSessionMemoryAction.Request request,
+        ActionListener<ListSessionMemoryAction.Response> listener
+    ) {
+        sessionMemoryIndexService.list(request, listener.map(ListSessionMemoryAction.Response::new));
     }
 }

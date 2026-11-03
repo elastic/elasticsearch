@@ -27,7 +27,7 @@ teardown:
         ignore: 404
 
 ---
-"Remember stores text and image memories and get returns them newest first":
+"Remember stores text and image memories and list returns them newest first":
   - do:
       context_engine.remember:
         body:
@@ -91,7 +91,7 @@ teardown:
   - match: { media.0.format: "url" }
 
   - do:
-      context_engine.get_session_memory:
+      context_engine.list_session_memory:
         session_id: "session-1"
 
   - match: { count: 4 }
@@ -106,7 +106,7 @@ teardown:
   - match: { results.3.attributes.source: "test" }
 
   - do:
-      context_engine.get_session_memory:
+      context_engine.list_session_memory:
         session_id: "session-1"
         ai_index_id: "ai-index-1"
 
@@ -198,6 +198,55 @@ teardown:
           session_id: "no-such-session"
 
   - match: { count: 0 }
+
+---
+"List honors every filter and returns newest first":
+  - do:
+      context_engine.remember:
+        body:
+          id: "list-older"
+          session_id: "session-3"
+          user_id: "user-1"
+          agent_id: "agent-1"
+          space: "default"
+          ai_index_id: ["ai-index-1"]
+          content: "The user prefers dark mode."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "list-newer"
+          session_id: "session-3"
+          user_id: "user-2"
+          agent_id: "agent-1"
+          space: "default"
+          content: "The user is in Boston."
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-3"
+
+  - match: { count: 2 }
+  - match: { results.0.id: "list-newer" }
+  - match: { results.1.id: "list-older" }
+
+  - do:
+      context_engine.list_session_memory:
+        user_id: "user-1"
+        agent_id: "agent-1"
+        space: "default"
+        ai_index_id: "ai-index-1"
+
+  - match: { count: 1 }
+  - match: { results.0.id: "list-older" }
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-3"
+        size: 1
+
+  - match: { count: 1 }
+  - match: { results.0.id: "list-newer" }
 
 ---
 "Search rejects an empty query":

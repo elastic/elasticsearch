@@ -178,7 +178,7 @@ public class Constants {
         "cluster:admin/xpack/context_engine/ai_index/put",
         "cluster:admin/xpack/context_engine/session_events/get",
         "cluster:admin/xpack/context_engine/session_events/save",
-        "cluster:admin/xpack/context_engine/session_memory/get",
+        "cluster:admin/xpack/context_engine/session_memory/list",
         "cluster:admin/xpack/context_engine/session_memory/remember",
         "cluster:admin/xpack/context_engine/session_memory/search",
         "cluster:admin/xpack/deprecation/info",

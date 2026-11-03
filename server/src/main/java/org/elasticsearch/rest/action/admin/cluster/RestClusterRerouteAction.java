@@ -58,7 +58,8 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         REST_TIMEOUT_PARAM,
         "dry_run",
         "explain",
-        "retry_failed"
+        "retry_failed",
+        "metric"
     );
     private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, RESPONSE_PARAMS));
 

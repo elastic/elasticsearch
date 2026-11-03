@@ -39,7 +39,11 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     public static final String SUPPORTS_DEFAULT_REPO_SETTING = "repositories.default_repository_setting";
     private static final Set<String> CAPABILITIES = Set.of(SUPPORTS_DEFAULT_REPO_SETTING);
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_MASTER_TIMEOUT_PARAM, REST_TIMEOUT_PARAM);
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        REST_MASTER_TIMEOUT_PARAM,
+        REST_TIMEOUT_PARAM,
+        Settings.FLAT_SETTINGS_PARAM
+    );
     private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Settings.FORMAT_PARAMS));
 
     @Override

@@ -4525,11 +4525,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         private Block readBooleanColumn(ColumnReader cr, int maxDef, int rows) {
-            boolean[] values = ValueArrays.booleans(rows, maxDef > 0);
-            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
+            boolean nullable = maxDef > 0;
+            boolean[] values = ValueArrays.booleans(rows, nullable);
+            BitSet isNull = nullable ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
-                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                if (nullable && cr.getCurrentDefinitionLevel() < maxDef) {
                     isNull.set(i);
                     noNulls = false;
                 } else {
@@ -4544,11 +4545,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         private Block readIntColumn(ColumnReader cr, int maxDef, int rows) {
-            int[] values = ValueArrays.ints(rows, maxDef > 0);
-            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
+            boolean nullable = maxDef > 0;
+            int[] values = ValueArrays.ints(rows, nullable);
+            BitSet isNull = nullable ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
-                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                if (nullable && cr.getCurrentDefinitionLevel() < maxDef) {
                     isNull.set(i);
                     noNulls = false;
                 } else {
@@ -4566,11 +4568,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
          * Parquet INT32 columns do not support {@link ColumnReader#getLong()}; widen safely to long for planner LONG.
          */
         private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows, boolean signed) {
-            long[] values = ValueArrays.longs(rows, maxDef > 0);
-            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
+            boolean nullable = maxDef > 0;
+            long[] values = ValueArrays.longs(rows, nullable);
+            BitSet isNull = nullable ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
-                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                if (nullable && cr.getCurrentDefinitionLevel() < maxDef) {
                     isNull.set(i);
                     noNulls = false;
                 } else {
@@ -4591,11 +4594,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
          *                       always-decoding output edge produces the true unsigned value.
          */
         private Block readLongColumn(ColumnReader cr, int maxDef, int rows, boolean encodeUnsigned) {
-            long[] values = ValueArrays.longs(rows, maxDef > 0);
-            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
+            boolean nullable = maxDef > 0;
+            long[] values = ValueArrays.longs(rows, nullable);
+            BitSet isNull = nullable ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
-                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                if (nullable && cr.getCurrentDefinitionLevel() < maxDef) {
                     isNull.set(i);
                     noNulls = false;
                 } else {
@@ -4615,12 +4619,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (logical instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
                 return readFloat16Column(cr, info.maxDefLevel(), rows);
             }
-            double[] values = ValueArrays.doubles(rows, info.maxDefLevel() > 0);
-            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
+            boolean nullable = info.maxDefLevel() > 0;
+            double[] values = ValueArrays.doubles(rows, nullable);
+            BitSet isNull = nullable ? new BitSet(rows) : null;
             boolean noNulls = true;
             boolean isFloat = info.parquetType() == PrimitiveType.PrimitiveTypeName.FLOAT;
             for (int i = 0; i < rows; i++) {
-                if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
+                if (nullable && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                     isNull.set(i);
                     noNulls = false;
                 } else {
@@ -4632,11 +4637,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         private Block readDecimalAsDoubleColumn(ColumnReader cr, ColumnInfo info, int scale, int rows) {
-            double[] values = ValueArrays.doubles(rows, info.maxDefLevel() > 0);
-            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
+            boolean nullable = info.maxDefLevel() > 0;
+            double[] values = ValueArrays.doubles(rows, nullable);
+            BitSet isNull = nullable ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
-                if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
+                if (nullable && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                     isNull.set(i);
                     noNulls = false;
                 } else {
@@ -4654,11 +4660,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         private Block readFloat16Column(ColumnReader cr, int maxDef, int rows) {
-            double[] values = ValueArrays.doubles(rows, maxDef > 0);
-            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
+            boolean nullable = maxDef > 0;
+            double[] values = ValueArrays.doubles(rows, nullable);
+            BitSet isNull = nullable ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
-                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                if (nullable && cr.getCurrentDefinitionLevel() < maxDef) {
                     isNull.set(i);
                     noNulls = false;
                 } else {
@@ -4709,11 +4716,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // the cell + warns — the same per-cell outcome as castBlock.
             boolean isStringCoercion = decode == ParquetColumnDecoding.DatetimeDecode.STRING_PARSE;
             boolean skipRow = failedPositionSink != null;
-            long[] values = ValueArrays.longs(rows, info.maxDefLevel() > 0 || isStringCoercion);
-            BitSet isNull = info.maxDefLevel() > 0 || isStringCoercion ? new BitSet(rows) : null;
+            // The only arm where these two differ: a failed coercion nulls a position of a column whose
+            // path admits no nulls, so the array must be zeroed even though the column is not nullable.
+            boolean nullable = info.maxDefLevel() > 0;
+            boolean mayLeavePositionUnassigned = nullable || isStringCoercion;
+            long[] values = ValueArrays.longs(rows, mayLeavePositionUnassigned);
+            BitSet isNull = mayLeavePositionUnassigned ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
-                if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
+                if (nullable && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                     isNull.set(i);
                     noNulls = false;
                 } else if (isStringCoercion) {
@@ -4751,12 +4762,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         private Block readDateNanosColumn(ColumnReader cr, ColumnInfo info, int rows) {
             LogicalTypeAnnotation logical = info.logicalType();
             boolean micros = ParquetColumnDecoding.isMicrosTemporal(logical);
-            long[] values = ValueArrays.longs(rows, info.maxDefLevel() > 0);
-            BitSet isNull = info.maxDefLevel() > 0 ? new BitSet(rows) : null;
+            boolean nullable = info.maxDefLevel() > 0;
+            long[] values = ValueArrays.longs(rows, nullable);
+            BitSet isNull = nullable ? new BitSet(rows) : null;
             boolean noNulls = true;
             boolean anyOverflow = false;
             for (int i = 0; i < rows; i++) {
-                if (info.maxDefLevel() > 0 && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
+                if (nullable && cr.getCurrentDefinitionLevel() < info.maxDefLevel()) {
                     isNull.set(i);
                     noNulls = false;
                 } else {
@@ -4785,11 +4797,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         }
 
         private Block readInt96TimestampColumn(ColumnReader cr, int maxDef, int rows) {
-            long[] values = ValueArrays.longs(rows, maxDef > 0);
-            BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
+            boolean nullable = maxDef > 0;
+            long[] values = ValueArrays.longs(rows, nullable);
+            BitSet isNull = nullable ? new BitSet(rows) : null;
             boolean noNulls = true;
             for (int i = 0; i < rows; i++) {
-                if (maxDef > 0 && cr.getCurrentDefinitionLevel() < maxDef) {
+                if (nullable && cr.getCurrentDefinitionLevel() < maxDef) {
                     isNull.set(i);
                     noNulls = false;
                 } else {

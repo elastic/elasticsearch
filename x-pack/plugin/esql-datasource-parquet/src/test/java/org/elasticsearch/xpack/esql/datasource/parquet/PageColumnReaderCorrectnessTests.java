@@ -13,6 +13,7 @@ import org.apache.parquet.column.ParquetProperties;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
+import org.apache.parquet.example.data.simple.NanoTime;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.ParquetWriter;
@@ -22,6 +23,7 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.io.OutputFile;
 import org.apache.parquet.io.PositionOutputStream;
+import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
@@ -67,9 +69,11 @@ import java.util.function.BiConsumer;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FIXED_LEN_BYTE_ARRAY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
+import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT96;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -829,8 +833,9 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         .optional(INT32)
         .as(LogicalTypeAnnotation.intType(32, false))
         .named("opt_uint")
-        // One cell per decode arm, because each writes its kept values differently and so leaves the slot it
-        // skips differently. The temporal and decimal arms also scale or rebase every value they keep.
+        // At least one cell for every decode arm, because each writes its kept values differently and so leaves
+        // the position it skips differently. Not a bijection: the long and double arms each serve two cells,
+        // since an unsigned long and a float reach them by a different route.
         .optional(FLOAT)
         .named("opt_float")
         .optional(INT64)
@@ -845,6 +850,12 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         .optional(BINARY)
         .as(LogicalTypeAnnotation.stringType())
         .named("opt_str")
+        .optional(FIXED_LEN_BYTE_ARRAY)
+        .length(2)
+        .as(LogicalTypeAnnotation.float16Type())
+        .named("opt_f16")
+        .optional(INT96)
+        .named("opt_i96")
         .named("nullable_types_test");
 
     private static final int DETERMINISM_ROWS = 1024;
@@ -879,6 +890,8 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                     g.append("opt_datenanos", 1_700_000_000_000_000L + r);
                     // Few enough distinct entries that the keyword arm takes its dictionary/ordinals path.
                     g.append("opt_str", "v" + (r % 16));
+                    g.append("opt_f16", Binary.fromConstantByteArray(toFloat16Bytes(r * 0.25f)));
+                    g.append("opt_i96", new NanoTime(2_451_545, 43_200_000_000_000L + r));
                 }
             }
         );
@@ -893,6 +906,8 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertColumnSerializesDeterministically(data, "opt_datetime", DataType.DATETIME);
         assertColumnSerializesDeterministically(data, "opt_datenanos", DataType.DATE_NANOS);
         assertColumnSerializesDeterministically(data, "opt_str", DataType.KEYWORD);
+        assertColumnSerializesDeterministically(data, "opt_f16", DataType.DOUBLE);
+        assertColumnSerializesDeterministically(data, "opt_i96", DataType.DATETIME);
     }
 
     private void assertColumnSerializesDeterministically(byte[] data, String column, DataType dataType) throws IOException {
@@ -913,6 +928,12 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /** Little-endian IEEE half, the layout a Parquet FLOAT16 column stores. */
+    private static byte[] toFloat16Bytes(float value) {
+        short half = Float.floatToFloat16(value);
+        return new byte[] { (byte) (half & 0xFF), (byte) ((half >> 8) & 0xFF) };
     }
 
     /** Serialized bytes, copied out before close returns the stream's pages to the recycler. */

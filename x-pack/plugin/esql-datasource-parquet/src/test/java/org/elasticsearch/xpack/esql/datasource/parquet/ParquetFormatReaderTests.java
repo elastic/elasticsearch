@@ -4285,6 +4285,11 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .named("f16")
             .optional(PrimitiveType.PrimitiveTypeName.INT96)
             .named("i96")
+            // Nullable, unlike the required column the overflow test uses: there the condition is already
+            // false, so only this cell reverts readDateNanosColumn's allocation.
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timestampType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("dn")
             .named("test_schema");
 
         int rows = 512;
@@ -4301,13 +4306,14 @@ public class ParquetFormatReaderTests extends ESTestCase {
                     g.add("dec", (long) r * 101);
                     g.add("f16", Binary.fromConstantByteArray(toFloat16Bytes(r * 0.5f)));
                     g.add("i96", new NanoTime(2_451_545, 43_200_000_000_000L + r));
+                    g.add("dn", 1_700_000_000_000_000L + r);
                 }
                 groups.add(g);
             }
             return groups;
         });
 
-        byte[][] expected = new byte[8][];
+        byte[][] expected = new byte[9][];
         for (int read = 0; read < 50; read++) {
             ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withBaselinePath();
             StorageObject storageObject = createStorageObject(parquetData);
@@ -4320,7 +4326,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
                 assertTrue(iterator.hasNext());
                 Page page = iterator.next();
                 try {
-                    for (int c = 0; c < 8; c++) {
+                    for (int c = 0; c < 9; c++) {
                         Block block = page.getBlock(c);
                         for (int pos = 0; pos < block.getPositionCount(); pos++) {
                             if (pos % 5 != 0) {

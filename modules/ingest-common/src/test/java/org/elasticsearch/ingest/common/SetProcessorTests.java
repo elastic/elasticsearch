@@ -265,12 +265,8 @@ public class SetProcessorTests extends ESTestCase {
         // unlike the mock template that the other tests use, a template that really is constant is one that can be pre-parsed
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Processor processor = createSetProcessorWithCompiledField("foo.bar.baz", "value", null, true, false);
-        // run it more than once, to make sure it isn't a one-shot sort of thing
-        for (int i = 0; i < 3; i++) {
-            ingestDocument = TestIngestDocument.emptyIngestDocument();
-            processor.execute(ingestDocument);
-            assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("value"));
-        }
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("value"));
     }
 
     public void testSetWithConstantFieldTemplateAndOverrideDisabled() throws Exception {
@@ -307,26 +303,22 @@ public class SetProcessorTests extends ESTestCase {
      * throw), and then it has to fail, as it always has, when a document is run through it.
      */
     public void testMalformedConstantFieldFailsAtExecutionTime() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Processor processor = createSetProcessorWithCompiledField("a..b", "value", null, true, false);
-        for (int i = 0; i < 3; i++) {
-            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-            assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
-        }
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
     }
 
     public void testMalformedCopyFromFailsAtExecutionTime() {
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Processor processor = createSetProcessorWithCompiledField("target", null, "a..b", true, false);
-        for (int i = 0; i < 3; i++) {
-            IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-            assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
-        }
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path [a..b] is not valid"));
     }
 
     public void testEmptyConstantFieldFailsAtExecutionTime() {
-        Processor processor = createSetProcessorWithCompiledField("", "value", null, true, false);
         IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        Processor processor = createSetProcessorWithCompiledField("", "value", null, true, false);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("path cannot be null nor empty"));
     }

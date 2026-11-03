@@ -26,6 +26,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -292,6 +293,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
         );
         assertThat(result, instanceOf(ConfigurationUtils.ConstantTemplateScriptFactory.class));
         assertThat(result.newInstance(null).execute(), equalTo(propertyValue));
+        assertThat(result, hasToString(propertyValue));
         verify(scriptService, times(0)).compile(any(), any());
     }
 

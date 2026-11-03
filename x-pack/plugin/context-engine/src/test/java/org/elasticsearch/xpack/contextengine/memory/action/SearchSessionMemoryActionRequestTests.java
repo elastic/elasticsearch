@@ -62,7 +62,10 @@ public class SearchSessionMemoryActionRequestTests extends AbstractWireSerializi
         ActionRequestValidationException e = new SearchSessionMemoryAction.Request("", null, null, null, null, null, 0).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[query] cannot be empty"));
-        assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
+        assertThat(e.getMessage(), containsString("[size] must be between 1 and 100"));
+
+        e = new SearchSessionMemoryAction.Request("dark mode", null, null, null, null, null, 101).validate();
+        assertThat(e.getMessage(), containsString("[size] must be between 1 and 100"));
 
         e = new SearchSessionMemoryAction.Request(Map.of("type", "image"), null, null, null, null, null, 10).validate();
         assertThat(e, notNullValue());
@@ -71,5 +74,16 @@ public class SearchSessionMemoryActionRequestTests extends AbstractWireSerializi
         e = new SearchSessionMemoryAction.Request(42, null, null, null, null, null, 10).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[query] must be a string or an object"));
+
+        e = new SearchSessionMemoryAction.Request(Map.of("type", "gif", "value", "abc", "format", "hex"), null, null, null, null, null, 10)
+            .validate();
+        assertThat(e, notNullValue());
+        assertThat(e.getMessage(), containsString("[query] Unrecognized type [gif]"));
+        assertThat(e.getMessage(), containsString("[query] Unrecognized format [hex]"));
+
+        e = new SearchSessionMemoryAction.Request(Map.of("type", "image", "value", "abc", "format", 1), null, null, null, null, null, 10)
+            .validate();
+        assertThat(e, notNullValue());
+        assertThat(e.getMessage(), containsString("[query] [format] must be a string"));
     }
 }

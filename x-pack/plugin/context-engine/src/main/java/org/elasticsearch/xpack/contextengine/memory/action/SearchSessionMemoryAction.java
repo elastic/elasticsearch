@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -37,6 +39,8 @@ public class SearchSessionMemoryAction {
     public static final String NAME = "cluster:admin/xpack/context_engine/session_memory/search";
     public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
     public static final int DEFAULT_SIZE = 10;
+    /** Every hit is reranked, so the cap bounds the rerank pool as well as the kNN candidates. */
+    public static final int MAX_SIZE = 100;
 
     private SearchSessionMemoryAction() {/* no instances */}
 
@@ -210,18 +214,43 @@ public class SearchSessionMemoryAction {
                         "[query] objects must have a non-empty [type] and [value]",
                         validationException
                     );
+                } else {
+                    validationException = validateTypeAndFormat("[query]", input, validationException);
                 }
             } else {
                 validationException = addValidationError("[query] must be a string or an object", validationException);
             }
-            if (size <= 0) {
-                validationException = addValidationError("[size] must be greater than 0", validationException);
+            if (size <= 0 || size > MAX_SIZE) {
+                validationException = addValidationError("[size] must be between 1 and " + MAX_SIZE, validationException);
             }
             return validationException;
         }
 
         private static boolean isNonEmptyString(Object value) {
             return value instanceof String string && string.isEmpty() == false;
+        }
+
+        static ActionRequestValidationException validateTypeAndFormat(
+            String field,
+            Map<?, ?> input,
+            ActionRequestValidationException validationException
+        ) {
+            try {
+                DataType.fromString((String) input.get("type"));
+            } catch (IllegalArgumentException e) {
+                validationException = addValidationError(field + " " + e.getMessage(), validationException);
+            }
+            Object format = input.get("format");
+            if (format instanceof String string) {
+                try {
+                    DataFormat.fromString(string);
+                } catch (IllegalArgumentException e) {
+                    validationException = addValidationError(field + " " + e.getMessage(), validationException);
+                }
+            } else if (format != null) {
+                validationException = addValidationError(field + " [format] must be a string", validationException);
+            }
+            return validationException;
         }
 
         @Override

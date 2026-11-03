@@ -32,7 +32,7 @@ public class SessionMemoryIndexServiceTests extends ESTestCase {
     private static final String IMAGE = "data:image/png;base64,iVBORw0KGgo=";
     private static final String PDF = "data:application/pdf;base64,JVBERi0=";
 
-    public void testInferenceStringFromQuery() {
+    public void testInferenceString() {
         assertThat(SessionMemoryIndexService.inferenceString("dark mode"), equalTo(InferenceString.ofText("dark mode")));
         assertThat(
             SessionMemoryIndexService.inferenceString(Map.of("type", "image", "value", IMAGE)),
@@ -44,7 +44,7 @@ public class SessionMemoryIndexServiceTests extends ESTestCase {
         );
     }
 
-    public void testRerankInputsOneDocumentPerContentAndImageSkippingPdf() {
+    public void testRerankInputs() {
         RerankInputs inputs = RerankInputs.of(
             List.of(
                 memory("text", "The user prefers dark mode.", List.of()),
@@ -66,7 +66,7 @@ public class SessionMemoryIndexServiceTests extends ESTestCase {
         assertThat(inputs.owners(), contains(0, 1, 1, 2));
     }
 
-    public void testRankUsesBestDocumentPerMemoryAndTruncates() {
+    public void testRank() {
         RerankInputs inputs = RerankInputs.of(
             List.of(
                 memory("text", "The user prefers dark mode.", List.of()),
@@ -88,7 +88,7 @@ public class SessionMemoryIndexServiceTests extends ESTestCase {
         assertThat(inputs.rank(rankedDocs, 2).stream().map(hit -> hit.memory().id()).toList(), contains("both", "media"));
     }
 
-    public void testRankPutsUnscoredMemoriesLastInFirstStageOrder() {
+    public void testRankUnscoredLast() {
         RerankInputs inputs = RerankInputs.of(
             List.of(
                 memory("pdf-first", null, List.of(Map.of("type", "pdf", "value", PDF))),
@@ -106,7 +106,7 @@ public class SessionMemoryIndexServiceTests extends ESTestCase {
         assertThat(inputs.rank(rankedDocs, 3).stream().map(hit -> hit.memory().id()).toList(), contains("other", "text", "pdf-first"));
     }
 
-    public void testRetrieverSourceFusesOneKnnQueryPerFieldWithFilters() throws IOException {
+    public void testRetrieverSource() throws IOException {
         String json = SessionMemoryIndexService.retrieverSource(
             "dark mode",
             "test-embedding",

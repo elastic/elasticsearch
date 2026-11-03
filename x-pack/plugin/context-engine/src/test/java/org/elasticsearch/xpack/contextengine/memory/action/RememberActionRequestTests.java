@@ -88,6 +88,26 @@ public class RememberActionRequestTests extends AbstractWireSerializingTestCase<
         assertThat(e.getMessage(), containsString("[media] items must have a non-empty [value]"));
     }
 
+    public void testValidateMediaTypeAndFormat() {
+        SessionMemory memory = new SessionMemory(
+            null,
+            null,
+            null,
+            null,
+            "s",
+            "u",
+            "a",
+            null,
+            null,
+            List.of(Map.of("type", "gif", "value", "abc", "format", "hex")),
+            null
+        );
+        ActionRequestValidationException e = new RememberAction.Request(memory).validate();
+        assertThat(e, notNullValue());
+        assertThat(e.getMessage(), containsString("[media] Unrecognized type [gif]"));
+        assertThat(e.getMessage(), containsString("[media] Unrecognized format [hex]"));
+    }
+
     public void testValidateRejectsTimestamp() {
         SessionMemory memory = SessionMemoryTestUtils.randomSessionMemory()
             .withIdAndTimestamp(null, SessionMemoryTestUtils.randomTimestamp());

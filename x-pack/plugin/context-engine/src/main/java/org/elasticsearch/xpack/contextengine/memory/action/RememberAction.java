@@ -82,6 +82,8 @@ public class RememberAction {
             for (Map<String, Object> item : memory.media()) {
                 if (isNonEmptyString(item.get("type")) == false) {
                     validationException = addValidationError("[media] items must have a non-empty [type]", validationException);
+                } else {
+                    validationException = SearchSessionMemoryAction.Request.validateTypeAndFormat("[media]", item, validationException);
                 }
                 if (isNonEmptyString(item.get("value")) == false) {
                     validationException = addValidationError("[media] items must have a non-empty [value]", validationException);

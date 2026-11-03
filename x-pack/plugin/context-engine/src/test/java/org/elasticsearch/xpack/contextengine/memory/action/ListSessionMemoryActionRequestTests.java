@@ -52,6 +52,9 @@ public class ListSessionMemoryActionRequestTests extends AbstractWireSerializing
 
         ActionRequestValidationException e = new ListSessionMemoryAction.Request(null, null, null, null, null, 0).validate();
         assertThat(e, notNullValue());
-        assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
+        assertThat(e.getMessage(), containsString("[size] must be between 1 and 1000"));
+
+        e = new ListSessionMemoryAction.Request(null, null, null, null, null, 1001).validate();
+        assertThat(e.getMessage(), containsString("[size] must be between 1 and 1000"));
     }
 }

@@ -177,9 +177,11 @@ teardown:
           query: "dark mode"
           session_id: "session-2"
 
+  # The test reranker scores a document by 1 / its length, so the short text beats the image data URI.
   - match: { count: 2 }
   - is_true: results.0._score
-  - is_true: results.0.memory.id
+  - match: { results.0.memory.id: "search-text" }
+  - match: { results.1.memory.id: "search-image" }
 
   - do:
       context_engine.search_session_memory:
@@ -190,6 +192,8 @@ teardown:
           session_id: "session-2"
 
   - match: { count: 2 }
+  - match: { results.0.memory.id: "search-text" }
+  - match: { results.1.memory.id: "search-image" }
 
   - do:
       context_engine.search_session_memory:

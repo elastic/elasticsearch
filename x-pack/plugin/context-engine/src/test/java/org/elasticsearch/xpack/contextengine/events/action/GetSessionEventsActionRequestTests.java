@@ -48,6 +48,6 @@ public class GetSessionEventsActionRequestTests extends AbstractWireSerializingT
         ActionRequestValidationException e = new GetSessionEventsAction.Request("", null, null, 0).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[session_id] cannot be null or empty"));
-        assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
+        assertThat(e.getMessage(), containsString("[size] must be between 1 and 1000"));
     }
 }

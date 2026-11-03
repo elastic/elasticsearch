@@ -82,6 +82,7 @@ public class SessionMemoryIndexService {
             String id = Strings.isNullOrEmpty(memory.id()) ? UUIDs.randomBase64UUID() : memory.id();
             SessionMemory stored = memory.withIdAndTimestamp(id, Instant.now().truncatedTo(ChronoUnit.MILLIS));
             clientWithOrigin.prepareIndex(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME)
+                .setId(id)
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource(stored.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
@@ -100,7 +101,8 @@ public class SessionMemoryIndexService {
             filters(request.sessionId(), request.userId(), request.agentId(), request.space(), request.aiIndexId()).forEach(query::filter);
             SearchSourceBuilder source = new SearchSourceBuilder().query(query)
                 .size(request.size())
-                .sort(SessionMemory.TIMESTAMP_FIELD.getPreferredName(), SortOrder.DESC);
+                .sort(SessionMemory.TIMESTAMP_FIELD.getPreferredName(), SortOrder.DESC)
+                .sort(SessionMemory.ID_FIELD.getPreferredName(), SortOrder.ASC);
             SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source);
             clientWithOrigin.search(searchRequest, ActionListener.wrap(searchResponse -> {
                 List<SessionMemory> memories = new ArrayList<>();

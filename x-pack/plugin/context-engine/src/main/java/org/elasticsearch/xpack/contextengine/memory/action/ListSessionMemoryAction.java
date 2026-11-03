@@ -29,6 +29,7 @@ public class ListSessionMemoryAction {
     public static final String NAME = "cluster:admin/xpack/context_engine/session_memory/list";
     public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
     public static final int DEFAULT_SIZE = 100;
+    public static final int MAX_SIZE = 1000;
 
     private ListSessionMemoryAction() {/* no instances */}
 
@@ -118,8 +119,8 @@ public class ListSessionMemoryAction {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (size <= 0) {
-                validationException = addValidationError("[size] must be greater than 0", validationException);
+            if (size <= 0 || size > MAX_SIZE) {
+                validationException = addValidationError("[size] must be between 1 and " + MAX_SIZE, validationException);
             }
             return validationException;
         }

@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.esql.telemetry;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.MetricAttributes;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -21,7 +24,9 @@ import java.util.Locale;
  */
 public final class QueryCallerClassifier {
 
-    private static final String KIBANA_ORIGIN = "kibana";
+    private static final List<QueryMetric> PRODUCT_CLIENTS = Arrays.stream(QueryMetric.values())
+        .filter(client -> client != QueryMetric.OTHER && client != QueryMetric.REST)
+        .toList();
 
     private QueryCallerClassifier() {}
 
@@ -35,16 +40,22 @@ public final class QueryCallerClassifier {
     }
 
     /**
-     * Folds the {@code X-elastic-product-origin} header into a client: absent or blank is {@link QueryMetric#REST}; {@code kibana}
-     * and any {@code kibana-*} origin, compared case-insensitively, is {@link QueryMetric#KIBANA}; any other value is
-     * {@link QueryMetric#OTHER}.
+     * Folds the {@code X-elastic-product-origin} header into a client: absent or blank is {@link QueryMetric#REST}; a product in
+     * {@link MetricAttributes#KNOWN_PRODUCT_ORIGINS}, or that product followed by {@code -} and anything (for example
+     * {@code kibana-fleet} or {@code logstash-output-elasticsearch}), compared case-insensitively, is that product's client; any
+     * other value is {@link QueryMetric#OTHER}.
      */
     public static QueryMetric clientFromOrigin(@Nullable String origin) {
         if (origin == null || origin.isBlank()) {
             return QueryMetric.REST;
         }
         String normalized = origin.strip().toLowerCase(Locale.ROOT);
-        boolean kibana = normalized.equals(KIBANA_ORIGIN) || normalized.startsWith(KIBANA_ORIGIN + "-");
-        return kibana ? QueryMetric.KIBANA : QueryMetric.OTHER;
+        for (QueryMetric client : PRODUCT_CLIENTS) {
+            String product = client.toString();
+            if (normalized.equals(product) || normalized.startsWith(product + "-")) {
+                return client;
+            }
+        }
+        return QueryMetric.OTHER;
     }
 }

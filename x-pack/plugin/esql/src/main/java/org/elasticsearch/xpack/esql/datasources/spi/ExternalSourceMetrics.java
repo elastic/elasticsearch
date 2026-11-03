@@ -1029,13 +1029,14 @@ public final class ExternalSourceMetrics {
 
     /**
      * The {@link #CLIENT_NAMES} label of a general ES|QL query client, as {@link QueryCallerClassifier} derives it from the
-     * {@code X-elastic-product-origin} header. The split is the same; only a request without the header is named
-     * {@link #CLIENT_NONE} here and {@code rest} in the general counters.
+     * {@code X-elastic-product-origin} header. These counters keep the coarser split: Kibana is {@link #CLIENT_KIBANA}, every other
+     * origin, including the other known Elastic products, is {@link #CLIENT_OTHER}, and a request without the header is
+     * {@link #CLIENT_NONE}.
      */
     public static String client(QueryMetric client) {
         return switch (client) {
             case KIBANA -> CLIENT_KIBANA;
-            case OTHER -> CLIENT_OTHER;
+            case FLEET, LOGSTASH, OBSERVABILITY, CONNECTORS, ELASTIC_SYNTHETICS, OTHER -> CLIENT_OTHER;
             case REST -> CLIENT_NONE;
         };
     }

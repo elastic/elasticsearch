@@ -1348,6 +1348,11 @@ public final class IngestDocument {
                 }
             }
             String[] pathParts = newPath.split("\\.");
+            if (pathParts.length == 0) {
+                // String#split drops trailing empty strings, so a path made up of nothing but separators (e.g. "." or "_source..")
+                // yields no elements at all, which is just as invalid as an empty element in the beginning or middle of a path
+                throw new IllegalArgumentException("path [" + path + "] is not valid");
+            }
             this.pathElements = processPathParts(path, pathParts, accessPattern);
         }
 

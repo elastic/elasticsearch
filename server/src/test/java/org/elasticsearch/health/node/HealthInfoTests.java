@@ -11,8 +11,11 @@ package org.elasticsearch.health.node;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo.RecoveryKey;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -43,7 +46,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             repositoriesInfoByNode,
             randomBoolean() ? FileSettingsHealthInfo.INDETERMINATE : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE),
             randomBoolean() ? randomDlmFrozenTransitionsHealthInfo() : null,
-            randomBoolean() ? randomDataRecoveryHealthInfo() : null
+            randomBoolean() ? randomDataRecoveryHealthInfo() : null,
+            randomLocalRecoveryRetriesHealthInfoByNode()
         );
     }
 
@@ -59,7 +63,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         var fsHealth = originalHealthInfo.fileSettingsHealthInfo();
         var dlmFrozenTransitionsHealth = originalHealthInfo.dlmFrozenTransitionsHealthInfo();
         var dataRecoveryHealth = originalHealthInfo.dataRecoveryHealthInfo();
-        switch (randomInt(5)) {
+        var localRecoveryRetriesHealth = originalHealthInfo.localRecoveryRetriesHealthInfoByNode();
+        switch (randomInt(6)) {
             case 0 -> diskHealth = mutateMap(
                 originalHealthInfo.diskInfoByNode(),
                 () -> randomAlphaOfLength(10),
@@ -77,9 +82,22 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 HealthInfoTests::randomDlmFrozenTransitionsHealthInfo
             );
             case 5 -> dataRecoveryHealth = randomValueOtherThan(dataRecoveryHealth, HealthInfoTests::randomDataRecoveryHealthInfo);
+            case 6 -> localRecoveryRetriesHealth = mutateMap(
+                localRecoveryRetriesHealth,
+                () -> randomAlphaOfLength(10),
+                HealthInfoTests::randomLocalRecoveryRetriesHealthInfo
+            );
             default -> throw new IllegalStateException("unexpected random value");
         }
-        return new HealthInfo(diskHealth, dslHealth, repoHealth, fsHealth, dlmFrozenTransitionsHealth, dataRecoveryHealth);
+        return new HealthInfo(
+            diskHealth,
+            dslHealth,
+            repoHealth,
+            fsHealth,
+            dlmFrozenTransitionsHealth,
+            dataRecoveryHealth,
+            localRecoveryRetriesHealth
+        );
     }
 
     public void testOlderTransportVersionOmitsDataRecoveryHealthInfo() throws IOException {
@@ -90,7 +108,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             Map.of(),
             FileSettingsHealthInfo.INDETERMINATE,
             dlmFrozen,
-            randomDataRecoveryHealthInfo()
+            randomDataRecoveryHealthInfo(),
+            Map.of()
         );
         // Use a version that supports the DLM frozen field but not data_recovery_health_info, verifying only the data recovery field is
         // dropped and the earlier field is still round-tripped.
@@ -111,6 +130,28 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         HealthInfo copy = copyInstance(original, oldVersion);
         assertThat(copy.dlmFrozenTransitionsHealthInfo(), nullValue());
         assertThat(copy.fileSettingsHealthInfo(), equalTo(distinctFileSettingsInfo));
+    }
+
+    public void testOlderTransportVersionOmitsLocalRecoveryRetriesHealthInfo() throws IOException {
+        HealthInfo original = new HealthInfo(
+            Map.of(),
+            null,
+            Map.of(),
+            mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE),
+            randomDlmFrozenTransitionsHealthInfo(),
+            randomDataRecoveryHealthInfo(),
+            randomValueOtherThan(Map.of(), HealthInfoTests::randomLocalRecoveryRetriesHealthInfoByNode)
+        );
+        // Use a version that supports data_recovery_health_info but not local_recovery_retries_health_info,
+        // verifying only the local recovery retries field is dropped (and comes back as an empty map, not null).
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("local_recovery_retries_health_info")
+        );
+        HealthInfo copy = copyInstance(original, oldVersion);
+        assertThat(copy.localRecoveryRetriesHealthInfoByNode(), equalTo(Map.of()));
+        assertThat(copy.dataRecoveryHealthInfo(), equalTo(original.dataRecoveryHealthInfo()));
+        assertThat(copy.dlmFrozenTransitionsHealthInfo(), equalTo(original.dlmFrozenTransitionsHealthInfo()));
+        assertThat(copy.fileSettingsHealthInfo(), equalTo(original.fileSettingsHealthInfo()));
     }
 
     /**
@@ -212,6 +253,18 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
             randomIntBetween(0, recoveryPointCount),
             randomIntBetween(0, 50)
         );
+    }
+
+    public static Map<String, LocalRecoveryRetriesHealthInfo> randomLocalRecoveryRetriesHealthInfoByNode() {
+        return randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomLocalRecoveryRetriesHealthInfo()));
+    }
+
+    public static LocalRecoveryRetriesHealthInfo randomLocalRecoveryRetriesHealthInfo() {
+        return new LocalRecoveryRetriesHealthInfo(randomMap(0, 5, () -> tuple(randomRecoveryKey(), randomIntBetween(1, 10))));
+    }
+
+    public static RecoveryKey randomRecoveryKey() {
+        return new RecoveryKey(new ShardId(randomAlphaOfLength(8), randomUUID(), randomIntBetween(0, 5)), randomUUID());
     }
 
     public static DlmFrozenTransitionsHealthInfo randomDlmFrozenTransitionsHealthInfo() {

@@ -1,5 +1,6 @@
 toc:
   - file: index.md
+  - file: query-task-management.md
   - file: querydsl.md
     children:
       - file: query-dsl/full-text-filter-tutorial.md
@@ -433,6 +434,7 @@ toc:
           - file: esql/esql-data-federation-quickstart.md
           - file: esql/esql-data-federation-sources.md
             children:
+              - file: esql/esql-data-federation-manage-data-sources.md
               - file: esql/esql-data-federation-s3.md
                 children:
                   - file: esql/esql-data-federation-static-credentials.md
@@ -475,7 +477,6 @@ toc:
       - file: esql/esql-troubleshooting.md
         children:
           - file: esql/esql-query-log.md
-          - file: esql/esql-task-management.md
       - file: esql/limitations.md
   - file: promql.md
     children:

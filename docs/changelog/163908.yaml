@@ -1,0 +1,15 @@
+area: Aggregations
+deprecation:
+  area: Aggregations
+  details: |-
+    The `time_series` aggregation is deprecated and will be removed in a future
+    version. The aggregations that only work inside it, `rate` on counter fields
+    and `geo_line` inside a `time_series` aggregation, are deprecated with it.
+  impact: |-
+    Search requests that use the `time_series` aggregation return a deprecation
+    warning. Use the ES|QL `TS` command to query time series data instead.
+  title: Deprecate the time_series aggregation
+issues: []
+pr: 163908
+summary: Deprecate the time_series aggregation
+type: deprecation

@@ -71,7 +71,7 @@ public class AllocationPreCheckTests extends AllocationTestCase {
     }
 
     public void testForEachOverDefIterableChargesIterator() {
-        // Charged as an inline constant, since DefBootstrap.ITERATOR has no annotation to read.
+        // The bootstrap charges the iterator() estimator of the runtime class: a plain iterator for a list.
         long list = allocatedBytes("def l = new ArrayList(); return \"x\";");
         long listAndLoop = allocatedBytes("long n = 0; def l = new ArrayList(); for (def e : l) { n++; } return \"x\";");
 
@@ -99,6 +99,15 @@ public class AllocationPreCheckTests extends AllocationTestCase {
         long listAndIterator = allocatedBytes("List l = new ArrayList(); Iterator i = l.iterator(); return \"x\";");
 
         assertEquals(AllocationEstimators.iteratorBytes(List.of()), listAndIterator - list);
+    }
+
+    public void testStreamCallChargedLikeAnIterator() {
+        long list = allocatedBytes("List l = new ArrayList(); return \"x\";");
+        long listAndStream = allocatedBytes("List l = new ArrayList(); l.stream(); return \"x\";");
+        long defListAndStream = allocatedBytes("def l = new ArrayList(); l.stream(); return \"x\";");
+
+        assertEquals(AllocSizes.ITERATOR_BYTES, listAndStream - list);
+        assertEquals(AllocSizes.ITERATOR_BYTES, defListAndStream - list);
     }
 
     public void testStringLiteralNotCharged() {

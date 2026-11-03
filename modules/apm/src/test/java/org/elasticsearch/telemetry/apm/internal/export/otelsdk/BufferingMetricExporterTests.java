@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.MeterProvider;
+import io.opentelemetry.contrib.disk.buffering.storage.SignalStorage;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.metrics.data.MetricData;
@@ -27,11 +28,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_COUNTER;
@@ -204,6 +210,52 @@ public class BufferingMetricExporterTests extends ESTestCase {
         });
     }
 
+    public void testShutdownDuringDrainBetweenHasNextAndNext() throws Exception {
+        // Shutdown closes the storage while a drain is in progress. When that happens between hasNext() and next(), the real
+        // disk-buffering iterator reports hasNext() == true and then returns null from next(). The storage is wrapped to pause the
+        // drain at exactly that point.
+        AtomicBoolean exportedNullBatch = new AtomicBoolean();
+        var recordingDelegate = new FakeMetricExporter() {
+            @Override
+            public CompletableResultCode export(Collection<MetricData> metrics) {
+                if (metrics == null) {
+                    exportedNullBatch.set(true);
+                    return CompletableResultCode.ofSuccess();
+                }
+                return super.export(metrics);
+            }
+        };
+        var pausingStorage = new AtomicReference<PausingStorage>();
+        Settings settings = Settings.builder()
+            .put("telemetry.metrics.buffer.disk_size", "10mb")
+            .put("telemetry.metrics.buffer.ttl", "5m")
+            .build();
+        exporter = new BufferingMetricExporter(recordingDelegate, settings, bufferDir, () -> meterProvider, 100, realStorage -> {
+            pausingStorage.set(new PausingStorage(realStorage));
+            return pausingStorage.get();
+        });
+
+        // buffer a batch on disk, and let it become readable
+        recordingDelegate.setShouldFail(true);
+        assertTrue(exporter.export(List.of(metric("buffered"))).join(1, TimeUnit.SECONDS).isSuccess());
+        assertBusy(() -> {
+            assertThat(gauge("files"), not(empty()));
+            assertThat(gauge("files").getLast().getLong(), greaterThanOrEqualTo(1L));
+        });
+        safeSleep(200); // let the write window (100ms) expire so the reader can promote the file
+        recordingDelegate.setShouldFail(false);
+
+        // start a drain, and shut the exporter down once the drain has seen that there is a batch to replay
+        CompletableResultCode flushed = exporter.flush();
+        assertTrue("the drain must reach the storage iterator", pausingStorage.get().hasNextReturned.await(10, TimeUnit.SECONDS));
+        exporter.shutdown();
+        exporter = null; // don't shut it down again in @After
+        pausingStorage.get().storageClosed.countDown();
+        flushed.join(10, TimeUnit.SECONDS);
+
+        assertFalse("a null batch must not be exported", exportedNullBatch.get());
+    }
+
     private List<Measurement> counter(String suffix) {
         return meterProvider.meter().getRecorder().getMeasurements(LONG_COUNTER, "es.apm.metrics.disk_buffer." + suffix);
     }
@@ -223,6 +275,62 @@ public class BufferingMetricExporterTests extends ESTestCase {
             }
         }
         return n;
+    }
+
+    /**
+     * Wraps a real storage so a test can close it between {@code hasNext()} and {@code next()} of the iterator used to drain it.
+     */
+    private static class PausingStorage implements SignalStorage.Metric {
+        private final SignalStorage.Metric storage;
+        final CountDownLatch hasNextReturned = new CountDownLatch(1);
+        final CountDownLatch storageClosed = new CountDownLatch(1);
+
+        PausingStorage(SignalStorage.Metric storage) {
+            this.storage = storage;
+        }
+
+        @Override
+        public CompletableResultCode write(Collection<MetricData> items) {
+            return storage.write(items);
+        }
+
+        @Override
+        public CompletableResultCode clear() {
+            return storage.clear();
+        }
+
+        @Override
+        public void close() throws IOException {
+            storage.close();
+        }
+
+        @Override
+        public Iterator<Collection<MetricData>> iterator() {
+            Iterator<Collection<MetricData>> iterator = storage.iterator();
+            return new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    boolean hasNext = iterator.hasNext();
+                    hasNextReturned.countDown();
+                    return hasNext;
+                }
+
+                @Override
+                public Collection<MetricData> next() {
+                    try {
+                        assertTrue("the storage must be closed", storageClosed.await(10, TimeUnit.SECONDS));
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                    return iterator.next();
+                }
+
+                @Override
+                public void remove() {
+                    iterator.remove();
+                }
+            };
+        }
     }
 
     private static MetricData metric(String name) {

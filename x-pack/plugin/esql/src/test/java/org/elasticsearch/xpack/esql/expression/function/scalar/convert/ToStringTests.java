@@ -185,8 +185,8 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             suppliers.add(
                 caseForTimeSeries(
                     "escaped and unicode labels",
-                    Map.of("unicode", "λ😀", "escaped", "quote\" slash\\ newline\n"),
-                    "{\"escaped\":\"quote\\\" slash\\\\ newline\\n\",\"unicode\":\"λ😀\"}"
+                    Map.of("unicode", "\u03bb\ud83d\ude00", "escaped", "quote\" slash\\ newline\n"),
+                    "{\"escaped\":\"quote\\\" slash\\\\ newline\\n\",\"unicode\":\"\u03bb\ud83d\ude00\"}"
                 )
             );
         }

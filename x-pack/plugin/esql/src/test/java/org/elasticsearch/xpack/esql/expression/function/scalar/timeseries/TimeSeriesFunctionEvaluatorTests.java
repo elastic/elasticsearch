@@ -168,7 +168,7 @@ public class TimeSeriesFunctionEvaluatorTests extends ESTestCase {
     /** Escaping and non-ASCII data must survive SET/GET without changing label identity. */
     public void testEscapedValues() {
         String name = "label\"\\\n";
-        String value = "value\"\\\nλ😀";
+        String value = "value\"\\\n\u03bb\ud83d\ude00";
         var set = new TimeSeriesSet(Source.EMPTY, METADATA, label(name), label(value));
         String encoded = evaluate(set, (Object) null);
         assertEquals(encoded, evaluate(new ToString(Source.EMPTY, METADATA, TEST_CFG), new BytesRef(encoded)));

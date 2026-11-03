@@ -45,6 +45,7 @@ import static org.elasticsearch.ingest.iplocation.GeoIpProcessor.IP_LOCATION_TYP
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
@@ -117,8 +118,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, processorTag, null, config, projectId);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("geoip"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-City"));
         assertFalse(processor.isIgnoreMissing());
     }
@@ -133,8 +134,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, processorTag, null, config, projectId);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("geoip"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-City"));
         assertTrue(processor.isIgnoreMissing());
     }
@@ -145,8 +146,8 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("target_field", "_field");
         GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, null, null, config, projectId);
-        assertThat(processor.getField(), equalTo("_field"));
-        assertThat(processor.getTargetField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
+        assertThat(processor.getTargetField(), hasToString("_field"));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -156,7 +157,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
         GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, null, null, config, projectId);
-        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-Country"));
     }
 
@@ -172,7 +173,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("field", "_field");
         config.put("properties", selectedProperties);
         GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, null, null, config, projectId);
-        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getField(), hasToString("_field"));
         assertThat(processor.getProperties().keySet(), equalTo(Set.copyOf(selectedProperties)));
         assertFalse(processor.isIgnoreMissing());
     }

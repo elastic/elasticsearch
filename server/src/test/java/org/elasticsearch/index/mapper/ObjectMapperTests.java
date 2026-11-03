@@ -738,9 +738,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlatten() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
             new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()))
-        ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings())).build(rootContext);
+        ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings()));
+        parentBuilder.normalize(rootContext);
+        ObjectMapper objectMapper = parentBuilder.build(rootContext);
         List<String> fields = objectMapper.mappers.values().stream().map(Mapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
@@ -751,7 +753,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             new ObjectMapper.Builder("child").dynamic(Dynamic.FALSE)
         );
 
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.normalize(rootContext));
         assertEquals(
             "Object mapper [parent.child] was found in a context where subobjects is set to false. "
                 + "Auto-flattening [parent.child] failed because the value of [dynamic] (FALSE) is not compatible with "
@@ -766,7 +768,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             new ObjectMapper.Builder("child").enabled(false)
         );
 
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.normalize(rootContext));
         assertEquals(
             "Object mapper [parent.child] was found in a context where subobjects is set to false. "
                 + "Auto-flattening [parent.child] failed because the value of [enabled] is [false];"
@@ -781,7 +783,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             new ObjectMapper.Builder("child", Explicit.of(ObjectMapper.Subobjects.ENABLED))
         );
 
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.normalize(rootContext));
         assertEquals(
             "Object mapper [parent.child] was found in a context where subobjects is set to false. "
                 + "Auto-flattening [parent.child] failed because the value of [subobjects] is [true]",
@@ -1452,7 +1454,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
             new ObjectMapper.Builder("child").dynamic(ObjectMapper.Dynamic.FALSE)
         );
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.normalize(rootContext));
         assertThat(
             exception.getMessage(),
             containsString("the value of [dynamic] (FALSE) is not compatible with the value from its parent context")
@@ -1490,7 +1492,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
             new ObjectMapper.Builder("child").enabled(false)
         );
-        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.normalize(rootContext));
         assertThat(exception.getMessage(), containsString("the value of [enabled] is [false]"));
     }
 

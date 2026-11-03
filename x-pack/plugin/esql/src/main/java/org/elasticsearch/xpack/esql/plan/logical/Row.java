@@ -83,7 +83,7 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
     @Override
     public void postAnalysisVerification(Failures failures) {
         fields.forEach(a -> {
-            if (DataType.isRepresentable(a.dataType()) == false) {
+            if (DataType.isRepresentableInExpression(a.dataType()) == false) {
                 failures.add(fail(a.child(), "cannot use [{}] directly in a row assignment", a.child().sourceText()));
             }
         });

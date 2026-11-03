@@ -1808,11 +1808,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * {@snippet lang="text":
-     * Limit[1000[INTEGER],true]
-     * \_MvExpand[x{r}#4,x{r}#19]
-     *   \_Project[[first_name{f}#9 AS x]]
-     *     \_Limit[1000[INTEGER],false]
-     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     * Project[[x{r}#20 AS x#5]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_MvExpand[first_name{f}#10,x{r}#20]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      * }
      */
     public void testCopyDefaultLimitPastMvExpand() {
@@ -1822,11 +1822,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | keep x
             | mv_expand x
             """);
-
-        var limit = asLimit(plan, 1000, true);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var keep = as(mvExpand.child(), Project.class);
-        var limitPastMvExpand = asLimit(keep.child(), 1000, false);
+        var limitPastMvExpand = asLimit(mvExpand.child(), 1000, false);
         as(limitPastMvExpand.child(), EsRelation.class);
     }
 
@@ -1859,11 +1858,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expected
      * {@snippet lang="text":
-     * Limit[10[INTEGER],true]
-     * \_MvExpand[first_name{f}#7,first_name{r}#17]
-     *   \_Project[[first_name{f}#7, last_name{f}#10]]
-     *     \_Limit[1[INTEGER],false]
-     *       \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * Project[[first_name{r}#18, last_name{f}#11]]
+     * \_Limit[10[INTEGER],true,false]
+     *   \_MvExpand[first_name{f}#8,first_name{r}#18]
+     *     \_Limit[1[INTEGER],false,false]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
      * }
      */
     public void testDontPushDownLimitPastMvExpand() {
@@ -1874,11 +1873,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | mv_expand first_name
             | limit 10
             """);
-
-        var limit = asLimit(plan, 10, true);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 10, true);
         var mvExpand = as(limit.child(), MvExpand.class);
-        var project = as(mvExpand.child(), Project.class);
-        var limit2 = asLimit(project.child(), 1, false);
+        var limit2 = asLimit(mvExpand.child(), 1, false);
         as(limit2.child(), EsRelation.class);
     }
 
@@ -2337,16 +2335,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * Expected
      *
      * {@snippet lang="text":
-     * Limit[10000[INTEGER],true]
-     * \_MvExpand[c{r}#7,c{r}#16]
-     *   \_Project[[c{r}#7, a{r}#3]]
-     *     \_TopN[[Order[a{r}#3,ASC,FIRST]],7300[INTEGER]]
-     *       \_Limit[7300[INTEGER],true]
-     *         \_MvExpand[b{r}#5,b{r}#15]
-     *           \_Limit[7300[INTEGER],false]
-     *             \_LocalRelation[[a{r}#3, b{r}#5, c{r}#7],[ConstantNullBlock[positions=1],
-     *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
-     *               IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]]
+     * Project[[c{r}#17, a{r}#4]]
+     * \_Limit[10000[INTEGER],true,false]
+     *   \_MvExpand[c{r}#8,c{r}#17]
+     *     \_Limit[7300[INTEGER],true,false]
+     *       \_MvExpand[b{r}#6,b{r}#16]
+     *         \_Limit[7300[INTEGER],false,false]
+     *           \_LocalRelation[[a{r}#4, b{r}#6, c{r}#8],Page{blocks=[ConstantNullBlock[positions=1],
+     *             IntVectorBlock[vector=ConstantIntVector[positions=1, value=123]],
+     *             IntVectorBlock[vector=ConstantIntVector[positions=1, value=234]]]}]
      * }
      */
     public void testLimitThenSortBeforeMvExpand() {
@@ -2358,12 +2355,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | sort a NULLS FIRST
             | mv_expand c""");
 
-        var limit10kBefore = asLimit(plan, 10000, true);
+        var project = as(plan, Project.class);
+        var limit10kBefore = asLimit(project.child(), 10000, true);
         var mvExpand = as(limit10kBefore.child(), MvExpand.class);
-        var project = as(mvExpand.child(), Project.class);
         // a=null is a constant sort, so it is dropped and no TopN forms.
-        var limit7300 = asLimit(project.child(), 7300, true);
-        mvExpand = as(limit7300.child(), MvExpand.class);
+        var limit7300Before = asLimit(mvExpand.child(), 7300, true);
+        mvExpand = as(limit7300Before.child(), MvExpand.class);
         var limit = asLimit(mvExpand.child(), 7300, false);
         as(limit.child(), LocalRelation.class);
     }
@@ -9073,14 +9070,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     /**
      * Expects
      * {@snippet lang="text":
-     * TopN[[Order[emp_no{f}#253,ASC,LAST]],1000[INTEGER],false]
-     * \_MvExpand[languages{f}#256,languages{r}#266]
-     *   \_Project[[language_name{f}#265, foo{r}#235 AS bar#248, languages{f}#256, emp_no{f}#253]]
-     *     \_Join[LEFT,[languages{f}#256],[language_code{f}#264],null]
-     *       |_Eval[[TOSTRING(languages{f}#256) AS foo#235]]
-     *       | \_Filter[emp_no{f}#253 > 1[INTEGER]]
-     *       |   \_EsRelation[test][_meta_field{f}#259, emp_no{f}#253, first_name{f}#25..]
-     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#264, language_name{f}#265]
+     * Project[[language_name{f}#36, foo{r}#6 AS bar#19, languages{r}#37, emp_no{f}#24]]
+     * \_TopN[[Order[emp_no{f}#24,ASC,LAST]],1000[INTEGER],false]
+     *   \_MvExpand[languages{f}#27,languages{r}#37]
+     *     \_Join[LEFT,[languages{f}#27],[language_code{f}#35],null]
+     *       |_Eval[[TOSTRING(languages{f}#27) AS foo#6]]
+     *       | \_Filter[emp_no{f}#24 > 1[INTEGER]]
+     *       |   \_EsRelation[test][_meta_field{f}#30, emp_no{f}#24, first_name{f}#25, ..]
+     *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#35, language_name{f}#36]
      * }
      */
     public void testRedundantSortOnMvExpandJoinKeepDropRename() {
@@ -9097,10 +9094,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | SORT emp_no
             """);
 
-        var topN = as(plan, TopN.class);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
         var mvExpand = as(topN.child(), MvExpand.class);
-        var project = as(mvExpand.child(), Project.class);
-        var join = as(project.child(), Join.class);
+        var join = as(mvExpand.child(), Join.class);
         var eval = as(join.left(), Eval.class);
         var filter = as(eval.child(), Filter.class);
         as(filter.child(), EsRelation.class);
@@ -10688,10 +10685,9 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * {@snippet lang="text":
      * Project[[id{r}#15, $$languages$converted_to$keyword{f$}#16 AS languages#9]]
      * \_Limit[1000[INTEGER],true,false]
-     *   \_MvExpand[id{f}#14,id{r}#15]
-     *     \_Project[[id{f}#14, $$languages$converted_to$keyword{f$}#16]]
-     *       \_Limit[1000[INTEGER],false,false]
-     *         \_EsRelation[union_types_index*][!first_name, id{f}#14, !languages, !last_name, !sal..]
+     *   \_MvExpand[id{f}#12,id{r}#15]
+     *     \_Limit[1000[INTEGER],false,false]
+     *       \_EsRelation[union_types_index*][!first_name, id{f}#12, !languages, !last_name, !sal..]
      * }
      */
     public void testUnionTypesResolvePastProjections() {
@@ -10716,12 +10712,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Limit limit1 = asLimit(topProject.child(), 1000, true);
         MvExpand mvExpand = as(limit1.child(), MvExpand.class);
 
-        Project innerProject = as(mvExpand.child(), Project.class);
-        var innerOutput = innerProject.output();
-        assertThat(innerOutput, hasSize(2));
-        assertThat(Expressions.names(innerOutput), containsInAnyOrder("id", "$$languages$converted_to$keyword"));
-
-        Limit limit2 = asLimit(innerProject.child(), 1000, false);
+        Limit limit2 = asLimit(mvExpand.child(), 1000, false);
         EsRelation relation = as(limit2.child(), EsRelation.class);
         assertEquals("union_types_index*", relation.indexPattern());
 

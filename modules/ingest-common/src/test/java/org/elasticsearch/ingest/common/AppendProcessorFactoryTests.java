@@ -22,6 +22,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class AppendProcessorFactoryTests extends ESTestCase {
 
@@ -45,7 +46,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         AppendProcessor appendProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(appendProcessor.getTag(), equalTo(processorTag));
-        assertThat(appendProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(appendProcessor.getField(), hasToString("field1"));
         assertThat(appendProcessor.getValue().copyAndResolve(Map.of()), equalTo(value));
     }
 
@@ -131,8 +132,8 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         AppendProcessor appendProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(appendProcessor.getTag(), equalTo(processorTag));
-        assertThat(appendProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
-        assertThat(appendProcessor.getCopyFrom(), equalTo("field2"));
+        assertThat(appendProcessor.getField(), hasToString("field1"));
+        assertThat(appendProcessor.getCopyFrom(), hasToString("field2"));
     }
 
     public void testCreateWithCopyFromAndValue() throws Exception {

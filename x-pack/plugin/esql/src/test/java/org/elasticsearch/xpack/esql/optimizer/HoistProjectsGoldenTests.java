@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+
 import java.util.EnumSet;
 
 public class HoistProjectsGoldenTests extends GoldenTestCase {
@@ -213,6 +215,36 @@ public class HoistProjectsGoldenTests extends GoldenTestCase {
             | STATS a = COUNT(*), b = COUNT(*)
             | MV_EXPAND a
             | MV_EXPAND b
+            """, LOGICAL);
+    }
+
+    /**
+     * The cast of the subquery union's {@code salary} is pushed into each union branch, which then outputs it as an extra
+     * {@code $$salary$converted_to$keyword} column. The MV_EXPAND expands that column below the Project, where the union still
+     * also outputs the original {@code salary}, so the expanded attribute gets a temporary name.
+     */
+    public void testMvExpandOfAUnionTypedColumnFromASubquery() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runGoldenTest("""
+            FROM employees, (FROM employees | KEEP salary)
+            | EVAL salary = salary::keyword
+            | KEEP salary
+            | MV_EXPAND salary
+            """, LOGICAL);
+    }
+
+    /**
+     * Like {@link #testMvExpandOfAUnionTypedColumnFromASubquery}, but {@code tmp} still needs the unexpanded union-typed
+     * column, so it reads a copy of it; the expanded attribute still gets a temporary name.
+     */
+    public void testMvExpandOfAUnionTypedColumnFromASubqueryStillNeededUnexpanded() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        runGoldenTest("""
+            FROM employees, (FROM employees | KEEP salary)
+            | EVAL salary = salary::keyword
+            | EVAL tmp = salary
+            | KEEP salary, tmp
+            | MV_EXPAND salary
             """, LOGICAL);
     }
 

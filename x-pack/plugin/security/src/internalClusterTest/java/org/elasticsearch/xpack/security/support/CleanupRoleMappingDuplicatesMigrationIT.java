@@ -395,7 +395,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
     }
 
     private boolean isSecurityMigrationTaskPresent(ClusterState state) {
-        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(state.metadata().getProject());
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state);
         return tasks != null && tasks.getTask(SecurityMigrationTaskParams.TASK_NAME) != null;
     }
 

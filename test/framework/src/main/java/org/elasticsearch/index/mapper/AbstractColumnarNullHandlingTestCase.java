@@ -63,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
@@ -522,11 +523,12 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     /**
-     * Indexes a valued batch and a batch in which no document holds a value, in the given order, in every index mode that is not a
-     * vector one and, for a strictly columnar mode, with and without the ColumNAR codec, through whichever path the index maps the
-     * field on. Every index is tried before failing, so a failure names them all.
+     * Indexes a valued batch and the batch {@code valuelessBatchOf} builds, in which no document holds a value, in the given order, in
+     * every index mode that is not a vector one and, for a strictly columnar mode, with and without the ColumNAR codec, through
+     * whichever path the index maps the field on. Every index is tried before failing, so a failure names them all.
      */
-    private void indexValuelessBatchInEveryIndexMode(boolean valuedFirst) throws IOException {
+    private void indexValuelessBatchInEveryIndexMode(boolean valuedFirst, Function<MapperService, List<String>> valuelessBatchOf)
+        throws IOException {
         final List<IndexMode> batchMapped = new ArrayList<>();
         final List<String> rejected = new ArrayList<>();
         for (IndexMode indexMode : List.of(
@@ -548,7 +550,7 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
                     batchMapped.add(indexMode);
                 }
                 final List<String> valued = valuedBatch(mapperService);
-                final List<String> valueless = valuelessBatch(mapperService);
+                final List<String> valueless = valuelessBatchOf.apply(mapperService);
                 try {
                     indexBatches(
                         mapperService,
@@ -764,12 +766,20 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         addBatchAlongsideValue("{}");
     }
 
+    public void testBatchOfOneAllNullArrayIndexesAfterValuedBatch() throws IOException {
+        indexValuelessBatchInEveryIndexMode(true, mapperService -> List.of(allNullArrayDoc(mapperService)));
+    }
+
+    public void testBatchOfOneAllNullArrayIndexesBeforeValuedBatch() throws IOException {
+        indexValuelessBatchInEveryIndexMode(false, mapperService -> List.of(allNullArrayDoc(mapperService)));
+    }
+
     public void testBatchOfOnlyValuelessDocsIndexesAfterValuedBatch() throws IOException {
-        indexValuelessBatchInEveryIndexMode(true);
+        indexValuelessBatchInEveryIndexMode(true, AbstractColumnarNullHandlingTestCase::valuelessBatch);
     }
 
     public void testBatchOfOnlyValuelessDocsIndexesBeforeValuedBatch() throws IOException {
-        indexValuelessBatchInEveryIndexMode(false);
+        indexValuelessBatchInEveryIndexMode(false, AbstractColumnarNullHandlingTestCase::valuelessBatch);
     }
 
     /** A bare null reaches no column at all, so the document does not carry the field. */

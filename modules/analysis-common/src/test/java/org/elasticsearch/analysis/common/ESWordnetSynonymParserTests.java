@@ -15,7 +15,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.synonym.SynonymFilter;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -46,7 +46,7 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
         SynonymMap synonymMap = parser.build();
         Tokenizer tokenizer = new StandardTokenizer();
         tokenizer.setReader(new StringReader("approach quietly then advance & destroy"));
-        TokenStream ts = new SynonymFilter(tokenizer, synonymMap, false);
+        TokenStream ts = new SynonymGraphFilter(tokenizer, synonymMap, false);
         assertTokenStreamContents(ts, new String[] { "come", "quietly", "then", "come", "destroy" });
     }
 
@@ -63,7 +63,7 @@ public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {
         SynonymMap synonymMap = parser.build();
         Tokenizer tokenizer = new StandardTokenizer();
         tokenizer.setReader(new StringReader("first word is foo, then bar and lastly baz"));
-        TokenStream ts = new SynonymFilter(new StopFilter(tokenizer, stopSet), synonymMap, false);
+        TokenStream ts = new SynonymGraphFilter(new StopFilter(tokenizer, stopSet), synonymMap, false);
         assertTokenStreamContents(ts, new String[] { "first", "word", "is", "foo", "then", "and", "lastly", "foo" });
     }
 

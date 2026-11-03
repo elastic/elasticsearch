@@ -17,7 +17,7 @@ import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizerFactory;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
-import org.apache.lucene.analysis.synonym.SynonymFilterFactory;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilterFactory;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -540,7 +540,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }
 
-    public static class NYCFilterFactory extends SynonymFilterFactory {
+    public static class NYCFilterFactory extends SynonymGraphFilterFactory {
         public NYCFilterFactory(Map<String, String> args) {
             super(args);
         }

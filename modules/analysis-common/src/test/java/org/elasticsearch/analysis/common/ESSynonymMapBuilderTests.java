@@ -12,7 +12,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.apache.lucene.analysis.synonym.SynonymFilter;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
@@ -66,7 +66,7 @@ public class ESSynonymMapBuilderTests extends ESTokenStreamTestCase {
     private List<TokenInfo> collectTokens(SynonymMap map, String inputText) throws IOException {
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader(inputText));
-        try (TokenStream ts = new SynonymFilter(tokenizer, map, false)) {
+        try (TokenStream ts = new SynonymGraphFilter(tokenizer, map, false)) {
             CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             PositionIncrementAttribute posIncAtt = ts.addAttribute(PositionIncrementAttribute.class);
             List<TokenInfo> tokens = new ArrayList<>();

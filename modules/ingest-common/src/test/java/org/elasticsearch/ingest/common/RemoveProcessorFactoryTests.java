@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class RemoveProcessorFactoryTests extends ESTestCase {
 
@@ -36,7 +37,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
-        assertThat(removeProcessor.getFieldsToRemove().get(0).newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(removeProcessor.getFieldsToRemove().get(0), hasToString("field1"));
     }
 
     public void testCreateKeepField() throws Exception {
@@ -45,8 +46,8 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
-        assertThat(removeProcessor.getFieldsToKeep().get(0).newInstance(Map.of()).execute(), equalTo("field1"));
-        assertThat(removeProcessor.getFieldsToKeep().get(1).newInstance(Map.of()).execute(), equalTo("field2"));
+        assertThat(removeProcessor.getFieldsToKeep().get(0), hasToString("field1"));
+        assertThat(removeProcessor.getFieldsToKeep().get(1), hasToString("field2"));
     }
 
     public void testCreateMultipleFields() throws Exception {
@@ -55,10 +56,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
-        assertThat(
-            removeProcessor.getFieldsToRemove().stream().map(template -> template.newInstance(Map.of()).execute()).toList(),
-            equalTo(List.of("field1", "field2"))
-        );
+        assertThat(removeProcessor.getFieldsToRemove().stream().map(Object::toString).toList(), equalTo(List.of("field1", "field2")));
     }
 
     public void testCreateMissingField() throws Exception {

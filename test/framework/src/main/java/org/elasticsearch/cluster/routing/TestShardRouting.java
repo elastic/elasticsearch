@@ -59,7 +59,7 @@ public class TestShardRouting {
         private boolean primary;
         private ShardRoutingState state;
         private RecoverySource recoverySource;
-        private ShardRouting.RecoveryPriority recoveryPriority;
+        private RecoveryPriority recoveryPriority;
         private UnassignedInfo unassignedInfo;
         private RelocationFailureInfo relocationFailureInfo;
         private AllocationId allocationId;
@@ -83,7 +83,7 @@ public class TestShardRouting {
             return this;
         }
 
-        public Builder withRecoveryPriority(ShardRouting.RecoveryPriority recoveryPriority) {
+        public Builder withRecoveryPriority(RecoveryPriority recoveryPriority) {
             this.recoveryPriority = recoveryPriority;
             return this;
         }
@@ -255,7 +255,7 @@ public class TestShardRouting {
         };
     }
 
-    public static ShardRouting.RecoveryPriority buildRecoveryPriority(ShardRoutingState state, boolean hasRelocationNodeId) {
+    public static RecoveryPriority buildRecoveryPriority(ShardRoutingState state, boolean hasRelocationNodeId) {
         return switch (state) {
             case INITIALIZING -> hasRelocationNodeId ? buildRecoveryPriorityForRelocation() : buildRecoveryPriorityForUnassigned();
             case UNASSIGNED -> buildRecoveryPriorityForUnassigned();
@@ -264,21 +264,21 @@ public class TestShardRouting {
         };
     }
 
-    private static ShardRouting.RecoveryPriority buildRecoveryPriorityForUnassigned() {
+    private static RecoveryPriority buildRecoveryPriorityForUnassigned() {
         return randomFrom(
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
-            ShardRouting.RecoveryPriority.UNASSIGNED_UNEXPECTED,
-            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED,
-            ShardRouting.RecoveryPriority.UNASSIGNED_RESTORING,
-            ShardRouting.RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY,
+            RecoveryPriority.UNASSIGNED_UNEXPECTED,
+            RecoveryPriority.UNASSIGNED_EXPECTED,
+            RecoveryPriority.UNASSIGNED_RESTORING,
+            RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
         );
     }
 
-    private static ShardRouting.RecoveryPriority buildRecoveryPriorityForRelocation() {
+    private static RecoveryPriority buildRecoveryPriorityForRelocation() {
         return randomFrom(
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
-            ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED,
-            ShardRouting.RecoveryPriority.RELOCATE_REBALANCING
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NO,
+            RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED,
+            RecoveryPriority.RELOCATE_REBALANCING
         );
     }
 

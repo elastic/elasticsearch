@@ -22,6 +22,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class SetProcessorFactoryTests extends ESTestCase {
 
@@ -39,7 +40,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(setProcessor.getField(), hasToString("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
         assertThat(setProcessor.isOverrideEnabled(), equalTo(true));
         assertThat(setProcessor.isIgnoreEmptyValue(), equalTo(false));
@@ -54,7 +55,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(setProcessor.getField(), hasToString("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
         assertThat(setProcessor.isOverrideEnabled(), equalTo(overrideEnabled));
     }
@@ -68,7 +69,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(setProcessor.getField(), hasToString("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
         assertThat(setProcessor.isIgnoreEmptyValue(), equalTo(ignoreEmptyValueEnabled));
     }
@@ -128,8 +129,8 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
-        assertThat(setProcessor.getCopyFrom(), equalTo("field2"));
+        assertThat(setProcessor.getField(), hasToString("field1"));
+        assertThat(setProcessor.getCopyFrom(), hasToString("field2"));
     }
 
     public void testCreateWithCopyFromAndValue() throws Exception {
@@ -181,7 +182,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
-        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo(""));
+        assertThat(setProcessor.getField(), hasToString(""));
         assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
     }
 }

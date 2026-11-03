@@ -1,6 +1,6 @@
 area: Data streams
 issues:
  - 164472
-pr: 0
+pr: 164513
 summary: Reject failure store rollover of replicated data streams with a 400 and allow lazy failure store creation after promotion
 type: bug

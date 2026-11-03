@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -60,7 +61,7 @@ import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
 /// by the [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_CONCURRENT_INCOMING_RECOVERIES_SETTING] dynamic setting.
 /// [DataNodeRecoveryThrottlingSettings#INDICES_RECOVERY_MAX_NON_CRITICAL_INCOMING_RECOVERIES_PROPORTION_SETTING] then
 /// controls the max proportion of those concurrent recovery slots that may be used for non-critical recoveries (see
-/// [ShardRouting.RecoveryPriority#isCritical()]). Slots above this limit are kept free for critical recoveries.
+/// [RecoveryPriority#isCritical()]). Slots above this limit are kept free for critical recoveries.
 ///
 /// Dispatch is also subject to the node's recovery gates: while they block, no queued recovery is dispatched, and [#doFillSlots]
 /// registers a listener with the [RecoveryGateMonitor] so dispatch resumes as soon as they allow recoveries again.
@@ -580,10 +581,10 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return routingAllocation.getId();
         }
 
-        /// Returns whether this is a critical recovery, see [ShardRouting.RecoveryPriority#isCritical()].
+        /// Returns whether this is a critical recovery, see [RecoveryPriority#isCritical()].
         boolean isCritical() {
             RecoveryState state = recoveryState();
-            assert state.getRecoveryPriority() != ShardRouting.RecoveryPriority.UNKNOWN
+            assert state.getRecoveryPriority() != RecoveryPriority.UNKNOWN
                 : "should never see RecoveryState with UNKNOWN priority in cluster state: " + state;
             return state.getRecoveryPriority().isCritical();
         }

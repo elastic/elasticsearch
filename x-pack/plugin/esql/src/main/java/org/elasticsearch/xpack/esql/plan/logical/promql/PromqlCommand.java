@@ -816,20 +816,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                         );
                     }
                     if (binaryOperator instanceof VectorBinaryComparison comp) {
-                        // Filter-mode comparisons finish inside translateOverSharedFrame (literal RHS) or translateAsLeftJoin
-                        // (vector RHS). A non-literal scalar RHS (e.g. `v > scalar(w)`) is still unsupported for
-                        // unmatched comparisons; two instant vectors join like arithmetic.
-                        if (comp.match() == VectorMatch.NONE
-                            && comp.right() instanceof LiteralSelector == false
-                            && PromqlPlan.returnsScalar(comp.right())) {
-                            failures.add(
-                                fail(
-                                    lp,
-                                    "comparison operators with non-literal right-hand side are not supported at this time [{}]",
-                                    lp.sourceText()
-                                )
-                            );
-                        }
+                        // Filter-mode comparisons finish inside translateOverSharedFrame (literal operand), as a step
+                        // broadcast (a scalar computed from the source, on either side), or in translateAsLeftJoin (two
+                        // vectors), like arithmetic.
                         if (comp.boolMode() == false && PromqlPlan.returnsScalar(comp.left()) && PromqlPlan.returnsScalar(comp.right())) {
                             failures.add(fail(comp, "Comparisons [{}] between scalars must use the BOOL modifier", comp.op()));
                         }

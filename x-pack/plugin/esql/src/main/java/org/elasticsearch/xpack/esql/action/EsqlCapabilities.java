@@ -4700,6 +4700,12 @@ public class EsqlCapabilities {
          */
         USAGE_LEADING_COMMANDS,
 
+        /**
+         * Does the usage information for ESQL count queries without an Elastic product origin by the tool that sent them
+         * ({@code direct_clients.<client>}), classified from the {@code x-elastic-client-meta} and {@code User-Agent} headers?
+         */
+        USAGE_DIRECT_CLIENTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

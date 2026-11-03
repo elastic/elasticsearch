@@ -53,12 +53,14 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.telemetry.DirectClient;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.elasticsearch.xpack.esql.telemetry.QueryCaller;
 import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
 import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
+import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
@@ -318,6 +320,10 @@ public class PlanExecutor {
         if (request.analyzeOnly() == false) {
             metrics.total(caller.client());
             metrics.total(request.entryPoint());
+            DirectClient directClient = directClientOf(caller, request);
+            if (directClient != null) {
+                metrics.total(directClient);
+            }
             var begin = System.nanoTime();
             AtomicBoolean finishCounted = new AtomicBoolean();
             executeListener = wrap(
@@ -390,7 +396,7 @@ public class PlanExecutor {
         long begin,
         String client
     ) {
-        countFinishedQuery(finishCounted, caller, request.entryPoint(), planTelemetry, true);
+        countFinishedQuery(finishCounted, caller, request.entryPoint(), directClientOf(caller, request), planTelemetry, true);
         planTelemetryManager.publish(planTelemetry, true);
         boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
@@ -427,7 +433,11 @@ public class PlanExecutor {
     ) {
         metrics.failed(caller.client());
         metrics.failed(request.entryPoint());
-        countFinishedQuery(finishCounted, caller, request.entryPoint(), planTelemetry, false);
+        DirectClient directClient = directClientOf(caller, request);
+        if (directClient != null) {
+            metrics.failed(directClient);
+        }
+        countFinishedQuery(finishCounted, caller, request.entryPoint(), directClient, planTelemetry, false);
         metrics.failed(planTelemetry.leadingCommand());
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
@@ -457,13 +467,23 @@ public class PlanExecutor {
         AtomicBoolean finishCounted,
         QueryCaller caller,
         QueryEntryPoint entryPoint,
+        @Nullable DirectClient directClient,
         PlanTelemetry planTelemetry,
         boolean success
     ) {
         if (finishCounted.compareAndSet(false, true)) {
             metrics.total(planTelemetry.leadingCommand());
-            planTelemetryManager.publishQuery(caller, entryPoint, planTelemetry.leadingCommand(), success);
+            planTelemetryManager.publishQuery(caller, entryPoint, directClient, planTelemetry.leadingCommand(), success);
         }
+    }
+
+    /**
+     * The tool to count {@code request} under, or {@code null} for a query with an Elastic product origin: those are already
+     * split by product in {@link QueryMetric}, so direct clients only split the {@link QueryMetric#REST} queries.
+     */
+    @Nullable
+    private static DirectClient directClientOf(QueryCaller caller, EsqlQueryRequest request) {
+        return caller.client() == QueryMetric.REST ? request.directClient() : null;
     }
 
     /**

@@ -1001,3 +1001,62 @@ took:
   - do: { xpack.usage: { } }
   - gt: { esql.leading_commands.unknown.total: $unknown_total }
   - gt: { esql.leading_commands.unknown.failed: $unknown_failed }
+
+---
+"Queries by direct client":
+  - requires:
+      test_runner_features: [ capabilities, headers ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_direct_clients ]
+      reason: "Queries without a product origin are counted by the tool that sent them"
+
+  - do: { xpack.usage: { } }
+  - length: { esql.direct_clients: 12 }
+  - set: { esql.direct_clients.curl.total: curl_total }
+  - set: { esql.direct_clients.grafana.total: grafana_total }
+  - set: { esql.direct_clients.javascript.total: javascript_total }
+  - set: { esql.direct_clients.elastic_product.total: elastic_product_total }
+
+  - do:
+      headers:
+        User-Agent: "curl/8.7.1"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.direct_clients.curl.total: $curl_total }
+  - match: { esql.direct_clients.grafana.total: $grafana_total }
+  - match: { esql.direct_clients.elastic_product.total: $elastic_product_total }
+  - set: { esql.direct_clients.curl.total: curl_total }
+
+  - do:
+      headers:
+        User-Agent: "Grafana/12.3.0 (linux; amd64) elasticsearch/12.9.4"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.direct_clients.curl.total: $curl_total }
+  - gt: { esql.direct_clients.grafana.total: $grafana_total }
+  - match: { esql.direct_clients.elastic_product.total: $elastic_product_total }
+  - set: { esql.direct_clients.grafana.total: grafana_total }
+
+  - do:
+      headers:
+        X-elastic-product-origin: kibana
+        User-Agent: "Kibana/9.5.1"
+        x-elastic-client-meta: "es=9.5.1,js=22.11.0,t=9.1.1,hc=22.11.0"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.direct_clients.curl.total: $curl_total }
+  - match: { esql.direct_clients.grafana.total: $grafana_total }
+  - match: { esql.direct_clients.javascript.total: $javascript_total }
+  - match: { esql.direct_clients.elastic_product.total: $elastic_product_total }

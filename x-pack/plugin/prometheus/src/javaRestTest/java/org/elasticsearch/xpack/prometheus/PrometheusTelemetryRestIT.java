@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
 
     private static final String METRIC = "telemetry_test_metric";
+    private static final String GRAFANA_USER_AGENT = "Grafana/13.3.0 (linux; amd64) prometheus/13.2.6";
 
     private static final List<String> ENTRY_POINTS = List.of(
         "prometheus_query",
@@ -88,6 +89,7 @@ public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
     }
 
     private void assertCounted(Request request, String expectedEntryPoint, String expectedLeadingCommand) throws IOException {
+        request.setOptions(request.getOptions().toBuilder().addHeader("User-Agent", GRAFANA_USER_AGENT));
         ObjectPath before = esqlUsage();
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -101,6 +103,7 @@ public class PrometheusTelemetryRestIT extends AbstractPrometheusRestIT {
         assertThat(delta(before, after, "esql.entry_points.internal.total"), equalTo(0));
         assertThat(delta(before, after, "esql.leading_commands." + expectedLeadingCommand + ".total"), equalTo(1));
         assertThat(delta(before, after, "esql.queries.rest.total"), equalTo(1));
+        assertThat(delta(before, after, "esql.direct_clients.grafana.total"), equalTo(1));
         if (expectedLeadingCommand.equals("promql") == false) {
             assertThat(delta(before, after, "esql.leading_commands.promql.total"), equalTo(0));
         }

@@ -24,12 +24,12 @@ public class PlanTelemetryManagerTests extends ESTestCase {
     public void testPublishQueryRecordsOneQueryWithClosedSetAttributes() {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
-        QueryMetric client = randomFrom(QueryMetric.values());
+        QueryMetric client = randomValueOtherThan(QueryMetric.REST, () -> randomFrom(QueryMetric.values()));
         QueryEntryPoint entryPoint = randomFrom(QueryEntryPoint.values());
         LeadingCommand leadingCommand = randomFrom(LeadingCommand.values());
         boolean success = randomBoolean();
 
-        manager.publishQuery(new QueryCaller(client), entryPoint, leadingCommand, success);
+        manager.publishQuery(new QueryCaller(client), entryPoint, null, leadingCommand, success);
 
         List<Measurement> measurements = queryMeasurements(registry);
         assertThat(measurements, hasSize(1));
@@ -51,12 +51,40 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         );
     }
 
+    public void testPublishQueryAddsTheDirectClient() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        PlanTelemetryManager manager = new PlanTelemetryManager(registry);
+        DirectClient directClient = randomFrom(DirectClient.values());
+
+        manager.publishQuery(new QueryCaller(QueryMetric.REST), QueryEntryPoint.QUERY, directClient, LeadingCommand.FROM, true);
+
+        List<Measurement> measurements = queryMeasurements(registry);
+        assertThat(measurements, hasSize(1));
+        assertThat(
+            measurements.getFirst().attributes(),
+            equalTo(
+                Map.of(
+                    PlanTelemetryManager.CLIENT,
+                    "rest",
+                    PlanTelemetryManager.ENTRY_POINT,
+                    "query",
+                    PlanTelemetryManager.DIRECT_CLIENT,
+                    directClient.toString(),
+                    PlanTelemetryManager.LEADING_COMMAND,
+                    "from",
+                    PlanTelemetryManager.QUERY_SUCCESS,
+                    true
+                )
+            )
+        );
+    }
+
     public void testPublishQueryCountsEachQuery() {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
         int queries = between(2, 10);
         for (int i = 0; i < queries; i++) {
-            manager.publishQuery(new QueryCaller(QueryMetric.KIBANA), QueryEntryPoint.QUERY, LeadingCommand.FROM, true);
+            manager.publishQuery(new QueryCaller(QueryMetric.KIBANA), QueryEntryPoint.QUERY, null, LeadingCommand.FROM, true);
         }
         assertThat(Measurement.combine(queryMeasurements(registry)).getFirst().getLong(), equalTo((long) queries));
     }
@@ -70,6 +98,7 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         for (String attribute : List.of(
             PlanTelemetryManager.CLIENT,
             PlanTelemetryManager.ENTRY_POINT,
+            PlanTelemetryManager.DIRECT_CLIENT,
             PlanTelemetryManager.LEADING_COMMAND,
             PlanTelemetryManager.QUERY_SUCCESS
         )) {

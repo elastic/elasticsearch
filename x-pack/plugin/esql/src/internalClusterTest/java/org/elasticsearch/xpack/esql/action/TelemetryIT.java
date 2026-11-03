@@ -428,16 +428,22 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             default -> throw new AssertionError("unexpected origin [" + origin + "]");
         };
         String expectedLeadingCommand = expectedLeadingCommand(query);
-        Map<String, Object> expectedQueryAttributes = Map.of(
-            PlanTelemetryManager.CLIENT,
-            expectedClient,
-            PlanTelemetryManager.ENTRY_POINT,
-            "internal",
-            PlanTelemetryManager.LEADING_COMMAND,
-            expectedLeadingCommand,
-            PlanTelemetryManager.QUERY_SUCCESS,
-            success
+        boolean countsDirectClient = expectedClient.equals("rest");
+        Map<String, Object> expectedQueryAttributes = new HashMap<>(
+            Map.of(
+                PlanTelemetryManager.CLIENT,
+                expectedClient,
+                PlanTelemetryManager.ENTRY_POINT,
+                "internal",
+                PlanTelemetryManager.LEADING_COMMAND,
+                expectedLeadingCommand,
+                PlanTelemetryManager.QUERY_SUCCESS,
+                success
+            )
         );
+        if (countsDirectClient) {
+            expectedQueryAttributes.put(PlanTelemetryManager.DIRECT_CLIENT, "other");
+        }
         Counters statsBefore = esqlStats();
 
         int successIterations = randomInt(10);
@@ -511,6 +517,8 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         assertCounterDelta(statsBefore, statsAfter, "entry_points.internal.failed", expectedFailed);
         assertCounterDelta(statsBefore, statsAfter, "leading_commands." + expectedLeadingCommand + ".total", successIterations);
         assertCounterDelta(statsBefore, statsAfter, "leading_commands." + expectedLeadingCommand + ".failed", expectedFailed);
+        assertCounterDelta(statsBefore, statsAfter, "direct_clients.other.total", countsDirectClient ? successIterations : 0);
+        assertCounterDelta(statsBefore, statsAfter, "direct_clients.other.failed", countsDirectClient ? expectedFailed : 0);
     }
 
     /**

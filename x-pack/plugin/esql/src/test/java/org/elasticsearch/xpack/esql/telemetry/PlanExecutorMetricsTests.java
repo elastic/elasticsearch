@@ -116,9 +116,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -749,6 +751,71 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
+    public void testQueryWithoutProductOriginCountsDirectClient() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            DirectClient directClient = randomFrom(DirectClient.values());
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY).directClient(directClient),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("direct_clients." + directClient + ".total"), equalTo(1L));
+            assertThat(stats.get("direct_clients." + directClient + ".failed"), equalTo(0L));
+            assertThat(directClientTotal(stats), equalTo(stats.get("queries.rest.total")));
+        }
+    }
+
+    public void testFailedQueryWithoutProductOriginCountsDirectClient() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | STATS m = MAX(xyz)").entryPoint(QueryEntryPoint.QUERY).directClient(DirectClient.PYTHON),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(VerificationException.class)))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("direct_clients.python.total"), equalTo(1L));
+            assertThat(stats.get("direct_clients.python.failed"), equalTo(1L));
+        }
+    }
+
+    public void testQueryWithProductOriginIsNotCountedUnderDirectClients() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(
+                mockIndexResolver(),
+                dataSourceModule,
+                CrossProjectModeDecider.NOOP,
+                meterRegistry
+            );
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(randomFrom("kibana", "logstash-output-elasticsearch", "my-app"))),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY).directClient(randomFrom(DirectClient.values())),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("queries._all.total"), equalTo(1L));
+            assertThat(directClientTotal(stats), equalTo(0L));
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.getFirst().attributes(), not(hasKey(PlanTelemetryManager.DIRECT_CLIENT)));
+        }
+    }
+
     public void testParseErrorCountsAsUnknownLeadingCommand() throws Exception {
         try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
@@ -789,7 +856,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             executeEsql(
                 planExecutor,
                 createTransportActionServices(threadContextWithOrigin(null)),
-                queryRequest("FROM test | WHERE").entryPoint(QueryEntryPoint.QUERY_ASYNC),
+                queryRequest("FROM test | WHERE").entryPoint(QueryEntryPoint.QUERY_ASYNC).directClient(DirectClient.CURL),
                 createEsqlExecutionInfo(true),
                 (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
                 ActionListener.wrap(r -> fail("this shouldn't happen"), e -> {})
@@ -815,6 +882,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                         "rest",
                         PlanTelemetryManager.ENTRY_POINT,
                         "query_async",
+                        PlanTelemetryManager.DIRECT_CLIENT,
+                        "curl",
                         PlanTelemetryManager.LEADING_COMMAND,
                         "unknown",
                         PlanTelemetryManager.QUERY_SUCCESS,
@@ -829,6 +898,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertThat(stats.get("entry_points.query_async.failed"), equalTo(1L));
             assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
             assertThat(stats.get("leading_commands.unknown.failed"), equalTo(1L));
+            assertThat(stats.get("direct_clients.curl.failed"), equalTo(1L));
+            assertThat(directClientTotal(stats), equalTo(1L));
         }
     }
 
@@ -866,6 +937,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertThat(stats.get("entry_points.query.failed"), equalTo(1L));
             assertThat(stats.get("queries.rest.total"), equalTo(1L));
             assertThat(stats.get("queries.rest.failed"), equalTo(1L));
+            assertThat(stats.get("direct_clients.other.total"), equalTo(1L));
+            assertThat(stats.get("direct_clients.other.failed"), equalTo(1L));
             assertThat(
                 meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
                 hasSize(1)
@@ -883,12 +956,12 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 meterRegistry
             );
             var request = PreparedEsqlQueryRequest.analyzeOnly(TEST_PARSER.createStatement("FROM test | KEEP foo"), "analyze only");
-            request.entryPoint(QueryEntryPoint.QUERY);
+            request.entryPoint(QueryEntryPoint.QUERY).directClient(DirectClient.CURL);
             request.allowPartialResults(false);
             var executionInfo = createEsqlExecutionInfo(true);
             executeEsql(
                 planExecutor,
-                createTransportActionServices(threadContextWithOrigin("kibana")),
+                createTransportActionServices(threadContextWithOrigin(null)),
                 request,
                 executionInfo,
                 planRunnerFor(executionInfo),
@@ -898,11 +971,20 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             assertThat(stats.get("queries._all.total"), equalTo(0L));
             assertThat(stats.get("entry_points.query.total"), equalTo(0L));
             assertThat(stats.get("leading_commands.from.total"), equalTo(0L));
+            assertThat(directClientTotal(stats), equalTo(0L));
             assertThat(
                 meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
                 is(empty())
             );
         }
+    }
+
+    private static long directClientTotal(Counters stats) {
+        long total = 0;
+        for (DirectClient directClient : DirectClient.values()) {
+            total += stats.get("direct_clients." + directClient + ".total");
+        }
+        return total;
     }
 
     private static EsqlQueryRequest queryRequest(String query) {

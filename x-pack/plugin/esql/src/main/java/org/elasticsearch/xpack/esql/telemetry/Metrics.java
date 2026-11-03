@@ -47,6 +47,7 @@ public class Metrics {
     protected static final String QUERIES_PREFIX = "queries.";
     protected static final String ENTRY_POINTS_PREFIX = "entry_points.";
     protected static final String LEADING_COMMANDS_PREFIX = "leading_commands.";
+    protected static final String DIRECT_CLIENTS_PREFIX = "direct_clients.";
     protected static final String FEATURES_PREFIX = "features.";
     protected static final String SETTINGS_PREFIX = "settings.";
     protected static final String RESOLVED_SETTINGS_PREFIX = "resolved_settings.";
@@ -59,6 +60,7 @@ public class Metrics {
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     private final Map<QueryEntryPoint, Map<OperationType, CounterMetric>> opsByEntryPointMetrics;
     private final Map<LeadingCommand, Map<OperationType, CounterMetric>> opsByLeadingCommandMetrics;
+    private final Map<DirectClient, Map<OperationType, CounterMetric>> opsByDirectClientMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
     // map that holds one counter per esql query setting (unmapped_fields, time_zone, etc.)
@@ -99,6 +101,7 @@ public class Metrics {
         opsByTypeMetrics = initOpsMetrics(QueryMetric.values());
         opsByEntryPointMetrics = initOpsMetrics(QueryEntryPoint.values());
         opsByLeadingCommandMetrics = initOpsMetrics(LeadingCommand.values());
+        opsByDirectClientMetrics = initOpsMetrics(DirectClient.values());
 
         Map<FeatureMetric, CounterMetric> fMap = Maps.newLinkedHashMapWithExpectedSize(FeatureMetric.values().length);
         for (FeatureMetric featureMetric : FeatureMetric.values()) {
@@ -204,6 +207,17 @@ public class Metrics {
         opsByLeadingCommandMetrics.get(leadingCommand).get(OperationType.FAILED).inc();
     }
 
+    /**
+     * Increments the "total" counter of the tool that sent a query without an Elastic product origin. Called once per query.
+     */
+    public void total(DirectClient directClient) {
+        opsByDirectClientMetrics.get(directClient).get(OperationType.TOTAL).inc();
+    }
+
+    public void failed(DirectClient directClient) {
+        opsByDirectClientMetrics.get(directClient).get(OperationType.FAILED).inc();
+    }
+
     private void inc(QueryMetric metric, OperationType op) {
         this.opsByTypeMetrics.get(metric).get(op).inc();
     }
@@ -280,6 +294,7 @@ public class Metrics {
 
         opsCounters(counters, ENTRY_POINTS_PREFIX, opsByEntryPointMetrics);
         opsCounters(counters, LEADING_COMMANDS_PREFIX, opsByLeadingCommandMetrics);
+        opsCounters(counters, DIRECT_CLIENTS_PREFIX, opsByDirectClientMetrics);
 
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {

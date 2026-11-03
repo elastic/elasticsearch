@@ -80,6 +80,30 @@ public class MetricsTests extends ESTestCase {
         }
     }
 
+    public void testEveryDirectClientIsEmittedAtZero() {
+        Counters stats = newMetrics().stats();
+        assertThat(nested(stats, "direct_clients"), aMapWithSize(DirectClient.values().length));
+        for (DirectClient directClient : DirectClient.values()) {
+            assertThat(stats.get("direct_clients." + directClient + ".total"), equalTo(0L));
+            assertThat(stats.get("direct_clients." + directClient + ".failed"), equalTo(0L));
+        }
+    }
+
+    public void testDirectClientIncrementsOnlyItsOwnCounter() {
+        Metrics metrics = newMetrics();
+        DirectClient directClient = randomFrom(DirectClient.values());
+        metrics.total(directClient);
+        metrics.total(directClient);
+        metrics.failed(directClient);
+        Counters stats = metrics.stats();
+        for (DirectClient other : DirectClient.values()) {
+            long expectedTotal = other == directClient ? 2L : 0L;
+            long expectedFailed = other == directClient ? 1L : 0L;
+            assertThat(stats.get("direct_clients." + other + ".total"), equalTo(expectedTotal));
+            assertThat(stats.get("direct_clients." + other + ".failed"), equalTo(expectedFailed));
+        }
+    }
+
     public void testLeadingCommandIncrementsOnlyItsOwnCounter() {
         Metrics metrics = newMetrics();
         LeadingCommand command = randomFrom(LeadingCommand.values());

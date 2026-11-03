@@ -428,6 +428,9 @@ static inline void dot_d2q4_step_sv(
 // 2^(query bit + doc bit) as a weight; the eight plane pairs are spread over four accumulators to keep
 // the UDOT chains short, and summed before a single reduction. Accumulators are separate variables, as
 // SVE types cannot be array elements.
+// A longer SVE vector length does not mean more throughput: Neoverse V1 runs its 256-bit SVE vectors on
+// the same 128-bit pipes as NEON. It halves the number of steps per vector, though, which shortens the
+// latency-bound UDOT chains of the single and pair kernels; the batch kernel is bound by throughput.
 static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
     const int32_t bit_length = length / 2;
     const int8_t* a_hi = a + bit_length;
@@ -603,11 +606,8 @@ __attribute__((noinline)) static void dotd2q4_inner_bulk4(
             const svuint8_t hi3 = svld1_u8(pg, (const uint8_t*)(a3 + bit_length + r));
 
             dot_d2q4_step_sv(lo_acc0, hi_acc0, lo0, hi0, q0, q1, q2, q3, w0, w1, w2, w3, w4);
-
             dot_d2q4_step_sv(lo_acc1, hi_acc1, lo1, hi1, q0, q1, q2, q3, w0, w1, w2, w3, w4);
-
             dot_d2q4_step_sv(lo_acc2, hi_acc2, lo2, hi2, q0, q1, q2, q3, w0, w1, w2, w3, w4);
-
             dot_d2q4_step_sv(lo_acc3, hi_acc3, lo3, hi3, q0, q1, q2, q3, w0, w1, w2, w3, w4);
         };
         const int32_t full = bit_length - bit_length % (int32_t)svcntb();

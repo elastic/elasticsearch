@@ -288,7 +288,8 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                     if (merge.children().isEmpty() == false) {
                         Set<String> nullsFromMerge = null;
                         for (LogicalPlan child : merge.children()) {
-                            Set<String> nullsInBranch = child.output().stream()
+                            Set<String> nullsInBranch = child.output()
+                                .stream()
                                 .filter(attr -> onlyNull.contains(attr.id()))
                                 .map(Attribute::name)
                                 .collect(Collectors.toSet());

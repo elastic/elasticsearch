@@ -42,6 +42,7 @@ import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
@@ -116,6 +117,12 @@ public class CacheFileReader {
     private VectorFillPolicy vectorFillPolicy;
     /** Whether this reader reads a vector file to which {@link #vectorFillPolicy} applies. */
     private boolean vectorFile;
+    /**
+     * Prototype ("cheap shards", phase 4): while it returns {@code true}, a read whose bytes are all in the cache but that the fast path
+     * cannot serve (the region is not filled from its start, e.g. open-time bytes written from a commit pointer) is served from the cache
+     * without filling the surrounding fill range from the object store. Carried on to copies.
+     */
+    private BooleanSupplier readPresentWithoutFill = () -> false;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
@@ -227,6 +234,7 @@ public class CacheFileReader {
         copy.storeMetrics = storeMetrics.singleThreaded();
         copy.vectorFillPolicy = vectorFillPolicy;
         copy.vectorFile = vectorFile;
+        copy.readPresentWithoutFill = readPresentWithoutFill;
         return copy;
     }
 
@@ -268,6 +276,7 @@ public class CacheFileReader {
         copy.storeMetrics = storeMetrics.singleThreaded();
         // the sub-file decides for itself whether it is a vector file, see applyVectorFillPolicy
         copy.vectorFillPolicy = vectorFillPolicy;
+        copy.readPresentWithoutFill = readPresentWithoutFill;
         return copy;
     }
 
@@ -275,6 +284,11 @@ public class CacheFileReader {
      * Installs the fill policy for vector files of a cold shard on this (new, not yet shared) reader. Must be called right after
      * creating the reader of a top-level file, with the policy of the directory.
      */
+    public CacheFileReader withReadPresentWithoutFill(BooleanSupplier readPresentWithoutFill) {
+        this.readPresentWithoutFill = Objects.requireNonNull(readPresentWithoutFill);
+        return this;
+    }
+
     public CacheFileReader withVectorFillPolicy(@Nullable VectorFillPolicy policy, String fileName) {
         this.vectorFillPolicy = policy;
         return applyVectorFillPolicy(fileName);
@@ -604,11 +618,13 @@ public class CacheFileReader {
             assert length <= remainingFileLength : length + " > " + remainingFileLength;
             assert remainingFileLength >= endOfInput - position
                 : "cache file length smaller than file length " + cacheFile.getLength() + " < " + endOfInput;
-            final ByteRange rangeToWrite = getRangeToWrite(position, length, remainingFileLength);
+            final ByteRange rangeToRead = ByteRange.of(position, position + length);
+            final ByteRange rangeToWrite = readPresentWithoutFill.getAsBoolean() && cacheFile.isRangeAvailable(rangeToRead)
+                ? rangeToRead // all there: nothing to fill (phase 4, see readPresentWithoutFill)
+                : getRangeToWrite(position, length, remainingFileLength);
 
             assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
                 : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;
-            final ByteRange rangeToRead = ByteRange.of(position, position + length);
 
             int bytesRead = 0;
             try {

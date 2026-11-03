@@ -23,8 +23,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.zip.CRC32;
 
 /**
@@ -42,18 +45,25 @@ import java.util.zip.CRC32;
  * serialization reuses the transport serialization of these classes, prefixed with the transport version used, and is protected by a CRC32.
  * <p>
  * The pointer is written after the BCC it names is uploaded, so it never names a blob that was not uploaded.
+ * <p>
+ * Phase 4 (default off, see {@link CommitPointerOpenBytes}): the pointer can also carry the bytes that opening a reader on the commit
+ * reads ({@link #openRanges}), so that the search shard opens its reader without object store reads. A pointer with open ranges is
+ * written with format version 2; without, the format is unchanged (version 1).
  */
 public record CommitPointer(
     long writerPrimaryTerm,
     String writerNodeId,
     PrimaryTermAndGeneration batchedCompoundCommitTermAndGeneration,
     StatelessCompoundCommit compoundCommit,
-    Map<String, BlobFileRanges> replicatedFileRanges
+    Map<String, BlobFileRanges> replicatedFileRanges,
+    List<CommitPointerOpenBytes.OpenRange> openRanges
 ) {
 
     public static final String BLOB_NAME_PREFIX = "cheap_shard_commit_pointer.";
     private static final int MAGIC = 0x43505452; // "CPTR"
     private static final int FORMAT_VERSION = 1;
+    /** Format version of a pointer that carries open ranges (phase 4). */
+    private static final int FORMAT_VERSION_OPEN_RANGES = 2;
     private static final int MAX_POINTER_SIZE_IN_BYTES = 64 * 1024 * 1024;
 
     public CommitPointer {
@@ -61,6 +71,53 @@ public record CommitPointer(
         Objects.requireNonNull(batchedCompoundCommitTermAndGeneration);
         Objects.requireNonNull(compoundCommit);
         Objects.requireNonNull(replicatedFileRanges);
+        Objects.requireNonNull(openRanges);
+    }
+
+    public CommitPointer(
+        long writerPrimaryTerm,
+        String writerNodeId,
+        PrimaryTermAndGeneration batchedCompoundCommitTermAndGeneration,
+        StatelessCompoundCommit compoundCommit,
+        Map<String, BlobFileRanges> replicatedFileRanges
+    ) {
+        this(writerPrimaryTerm, writerNodeId, batchedCompoundCommitTermAndGeneration, compoundCommit, replicatedFileRanges, List.of());
+    }
+
+    /**
+     * The same pointer with the given open-time bytes (see {@link CommitPointerOpenBytes}).
+     */
+    public CommitPointer withOpenRanges(List<CommitPointerOpenBytes.OpenRange> ranges) {
+        return new CommitPointer(
+            writerPrimaryTerm,
+            writerNodeId,
+            batchedCompoundCommitTermAndGeneration,
+            compoundCommit,
+            replicatedFileRanges,
+            List.copyOf(ranges)
+        );
+    }
+
+    /**
+     * The file ranges of the commit as a search shard installs them from this pointer: the replicated ranges where the pointer has them,
+     * the plain blob locations otherwise.
+     */
+    public Map<String, BlobFileRanges> installedFileRanges() {
+        final Map<String, BlobFileRanges> result = new HashMap<>();
+        for (var entry : compoundCommit.commitFiles().entrySet()) {
+            final var replicated = replicatedFileRanges.get(entry.getKey());
+            result.put(entry.getKey(), replicated != null ? replicated : new BlobFileRanges(entry.getValue()));
+        }
+        return result;
+    }
+
+    /** Total size of the open-time bytes carried by this pointer. */
+    public long openRangesSizeInBytes() {
+        long total = 0L;
+        for (var range : openRanges) {
+            total += range.bytes().length();
+        }
+        return total;
     }
 
     public static String blobName(long primaryTerm) {
@@ -108,7 +165,7 @@ public record CommitPointer(
         try (BytesStreamOutput payload = new BytesStreamOutput()) {
             final TransportVersion version = TransportVersion.current();
             payload.writeInt(MAGIC);
-            payload.writeVInt(FORMAT_VERSION);
+            payload.writeVInt(openRanges.isEmpty() ? FORMAT_VERSION : FORMAT_VERSION_OPEN_RANGES);
             TransportVersion.writeVersion(version, payload);
             payload.setTransportVersion(version);
             payload.writeVLong(writerPrimaryTerm);
@@ -116,6 +173,9 @@ public record CommitPointer(
             batchedCompoundCommitTermAndGeneration.writeTo(payload);
             compoundCommit.writeTo(payload);
             payload.writeMap(replicatedFileRanges, (o, v) -> v.writeTo(o));
+            if (openRanges.isEmpty() == false) {
+                payload.writeCollection(openRanges);
+            }
             final BytesReference bytes = payload.bytes();
             final CRC32 crc = new CRC32();
             final byte[] array = BytesReference.toBytes(bytes);
@@ -145,7 +205,7 @@ public record CommitPointer(
                 throw new IOException("not a commit pointer");
             }
             final int format = in.readVInt();
-            if (format != FORMAT_VERSION) {
+            if (format != FORMAT_VERSION && format != FORMAT_VERSION_OPEN_RANGES) {
                 throw new IOException("unsupported commit pointer format [" + format + "]");
             }
             final TransportVersion version = TransportVersion.readVersion(in);
@@ -158,10 +218,13 @@ public record CommitPointer(
             final PrimaryTermAndGeneration bcc = new PrimaryTermAndGeneration(in);
             final StatelessCompoundCommit commit = StatelessCompoundCommit.readFromTransport(in);
             final Map<String, BlobFileRanges> ranges = in.readImmutableMap(BlobFileRanges::new);
+            final List<CommitPointerOpenBytes.OpenRange> openRanges = format == FORMAT_VERSION_OPEN_RANGES
+                ? in.readCollectionAsImmutableList(CommitPointerOpenBytes.OpenRange::new)
+                : List.of();
             if (in.available() > 0) {
                 throw new IOException("unexpected trailing bytes in commit pointer");
             }
-            return new CommitPointer(writerTerm, nodeId, bcc, commit, ranges);
+            return new CommitPointer(writerTerm, nodeId, bcc, commit, ranges, openRanges);
         }
     }
 
@@ -289,6 +352,17 @@ public record CommitPointer(
         for (var entry : replicatedFileRanges.entrySet()) {
             if (entry.getValue().blobLocation().equals(compoundCommit.commitFiles().get(entry.getKey())) == false) {
                 return "file ranges of [" + entry.getKey() + "] do not match the commit";
+            }
+        }
+        if (openRanges.isEmpty() == false) {
+            final Set<BlobFile> blobFiles = new HashSet<>();
+            for (var location : compoundCommit.commitFiles().values()) {
+                blobFiles.add(location.blobFile());
+            }
+            for (var range : openRanges) {
+                if (blobFiles.contains(range.blobFile()) == false) {
+                    return "open range of blob [" + range.blobFile() + "] not referenced by the commit";
+                }
             }
         }
         return null;

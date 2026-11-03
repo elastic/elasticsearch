@@ -28,12 +28,14 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledAsyncTaskRunner;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
@@ -880,6 +882,22 @@ public class SharedBlobCacheWarmingService {
         long wholeBlobThreshold,
         ActionListener<Void> listener
     ) {
+        warmCacheForFastSearchActivation(indexShard, commit, directory, wholeBlobThreshold, false, listener);
+    }
+
+    /**
+     * As {@link #warmCacheForFastSearchActivation(IndexShard, StatelessCompoundCommit, BlobStoreCacheDirectory, long, ActionListener)};
+     * with {@code openBytesSeeded} (phase 4: the open-time bytes of the commit were written in the cache from its commit pointer, see
+     * {@link #seedCacheFromCommitPointer}) only whole small blobs are fetched, not the headers/footers/metadata of the other blobs.
+     */
+    public void warmCacheForFastSearchActivation(
+        IndexShard indexShard,
+        StatelessCompoundCommit commit,
+        BlobStoreCacheDirectory directory,
+        long wholeBlobThreshold,
+        boolean openBytesSeeded,
+        ActionListener<Void> listener
+    ) {
         final Map<BlobFile, Long> referencedEndPerBlob = new HashMap<>();
         for (var location : commit.commitFiles().values()) {
             referencedEndPerBlob.merge(location.blobFile(), location.offset() + location.fileLength(), Math::max);
@@ -895,7 +913,7 @@ public class SharedBlobCacheWarmingService {
             }
         }
         for (var entry : commit.commitFiles().entrySet()) {
-            if (referencedEndPerBlob.get(entry.getValue().blobFile()) > wholeBlobThreshold) {
+            if (openBytesSeeded == false && referencedEndPerBlob.get(entry.getValue().blobFile()) > wholeBlobThreshold) {
                 filesToWarm.put(entry.getKey(), entry.getValue());
             }
         }
@@ -937,6 +955,61 @@ public class SharedBlobCacheWarmingService {
             }
         } finally {
             store.decRef();
+        }
+    }
+
+    /**
+     * Prototype ("cheap shards", phase 4): writes the open-time bytes carried by a commit pointer (see
+     * {@link org.elasticsearch.xpack.stateless.commits.CommitPointerOpenBytes}) in the shared cache, at their blob positions, without any
+     * object store read, so that the reader of the pointed commit opens from the cache. The ranges are page aligned, as cache writes must
+     * be. Ranges already present in the cache are left as they are; ranges for which the cache has no room are skipped (the reader then
+     * reads them from the object store on a cache miss). Completes once every range is written or skipped.
+     */
+    public void seedCacheFromCommitPointer(
+        ShardId shardId,
+        List<org.elasticsearch.xpack.stateless.commits.CommitPointerOpenBytes.OpenRange> ranges,
+        ActionListener<Void> listener
+    ) {
+        final int regionSize = cacheService.getRegionSize();
+        try (var listeners = new RefCountingListener(listener)) {
+            for (var range : ranges) {
+                final var cacheKey = new FileCacheKey(shardId, range.blobFile().primaryTerm(), range.blobFile().blobName());
+                final long start = range.position();
+                final long end = range.end();
+                for (int region = cacheService.getRegion(start); region <= cacheService.getEndingRegion(end); region++) {
+                    final long regionRangeStart = Math.max(start, (long) region * regionSize);
+                    final long regionRangeEnd = Math.min(end, (region + 1L) * regionSize);
+                    if (regionRangeEnd <= regionRangeStart) {
+                        continue;
+                    }
+                    final BytesReference bytes = range.bytes()
+                        .slice(Math.toIntExact(regionRangeStart - start), Math.toIntExact(regionRangeEnd - regionRangeStart));
+                    cacheService.maybeFetchRange(
+                        cacheKey,
+                        region,
+                        ByteRange.of(regionRangeStart, regionRangeEnd),
+                        // as in the warming tasks: not used since StatelessSharedBlobCacheService fully utilizes each region
+                        (region + 1L) * regionSize,
+                        // relativePos is relative to the start of the range to fetch
+                        (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> ActionListener
+                            .completeWith(completionListener, () -> {
+                                SharedBytes.copyToCacheFileAligned(
+                                    channel,
+                                    bytes.slice(relativePos, len).streamInput(),
+                                    channelPos,
+                                    relativePos,
+                                    len,
+                                    progressUpdater,
+                                    ByteBuffer.allocate(MAX_BYTES_PER_WRITE)
+                                );
+                                return null;
+                            }),
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        SharedBlobCacheService.UNKNOWN_TIMESTAMP,
+                        listeners.acquire(ignored -> {})
+                    );
+                }
+            }
         }
     }
 

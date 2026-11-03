@@ -1463,6 +1463,8 @@ public class StatelessPlugin extends Plugin
             FastSearchActivationSettings.FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_DISCOVERY_SETTING,
             FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING,
+            FastSearchActivationSettings.COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING,
             CheapShardParkedAllocationDecider.PARKED_SETTING,
             CheapShardUnparkOnWriteFilter.ENABLED_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING,

@@ -463,8 +463,16 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             context,
             cacheService.hasSearchRole(),
             cacheService.isObjectStorePrefetchEnabled()
-        ).withVectorFillPolicy(vectorFillPolicy(), name);
+        ).withVectorFillPolicy(vectorFillPolicy(), name).withReadPresentWithoutFill(this::readPresentWithoutFill);
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
+    }
+
+    /**
+     * @return whether reads whose bytes are all cached are served without filling their fill range (prototype, phase 4, see
+     * {@code CacheFileReader#withReadPresentWithoutFill})
+     */
+    protected boolean readPresentWithoutFill() {
+        return false;
     }
 
     /**

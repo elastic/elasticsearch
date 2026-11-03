@@ -318,21 +318,56 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                 searchDirectory.setMissingBlobListener(null);
                 fallback.onResponse(null);
             }));
-            warmingService.warmCacheForFastSearchActivation(
-                indexShard,
-                compoundCommit,
-                searchDirectory,
-                wholeBlobThreshold,
-                ActionListener.wrap(ignored -> afterWarming.run(), e -> {
-                    // e.g. a blob of the pointed commit is gone (deleted after a newer commit): discover the latest commit instead
+            final ActionListener<Void> warmingListener = ActionListener.wrap(ignored -> afterWarming.run(), e -> {
+                // e.g. a blob of the pointed commit is gone (deleted after a newer commit): discover the latest commit instead
+                logger.info(() -> format("%s fast activation from commit pointer failed, discovering the commit", indexShard.shardId()), e);
+                searchDirectory.setMissingBlobListener(null);
+                fallback.onResponse(null);
+            });
+            // Phase 4: if the pointer carries the bytes that opening the reader reads, write them in the cache (no object store read) and
+            // only warm whole small blobs; if writing them fails, warm the headers/footers/metadata from the object store as before.
+            if (commitPointer.openRanges().isEmpty() == false
+                && clusterService.getClusterSettings().get(FastSearchActivationSettings.FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING)) {
+                logger.debug(
+                    "{} fast activation: seeding {} open-time ranges ({} bytes) from the commit pointer",
+                    indexShard.shardId(),
+                    commitPointer.openRanges().size(),
+                    commitPointer.openRangesSizeInBytes()
+                );
+                warmingService.seedCacheFromCommitPointer(indexShard.shardId(), commitPointer.openRanges(), ActionListener.wrap(ignored -> {
+                    logger.debug("{} fast activation: seeded open-time ranges from the commit pointer", indexShard.shardId());
+                    searchDirectory.setReadPresentWithoutFill();
+                    warmingService.warmCacheForFastSearchActivation(
+                        indexShard,
+                        compoundCommit,
+                        searchDirectory,
+                        wholeBlobThreshold,
+                        true,
+                        warmingListener
+                    );
+                }, e -> {
                     logger.info(
-                        () -> format("%s fast activation from commit pointer failed, discovering the commit", indexShard.shardId()),
+                        () -> format("%s fast activation: seeding open-time bytes failed, warming headers", indexShard.shardId()),
                         e
                     );
-                    searchDirectory.setMissingBlobListener(null);
-                    fallback.onResponse(null);
-                })
-            );
+                    warmingService.warmCacheForFastSearchActivation(
+                        indexShard,
+                        compoundCommit,
+                        searchDirectory,
+                        wholeBlobThreshold,
+                        false,
+                        warmingListener
+                    );
+                }));
+            } else {
+                warmingService.warmCacheForFastSearchActivation(
+                    indexShard,
+                    compoundCommit,
+                    searchDirectory,
+                    wholeBlobThreshold,
+                    warmingListener
+                );
+            }
         });
     }
 

@@ -187,14 +187,23 @@ public class CommitPointerPublisher implements IndexEventListener {
                     continue;
                 }
                 try {
-                    pointer.write(shardContainer);
+                    final CommitPointer toWrite = withOpenBytes(pointer);
+                    final var bytes = toWrite.toBytes();
+                    shardContainer.writeBlobAtomic(
+                        org.elasticsearch.common.blobstore.OperationPurpose.INDICES,
+                        CommitPointer.blobName(toWrite.writerPrimaryTerm()),
+                        bytes,
+                        false
+                    );
                     lastWrittenBccGeneration = generation;
                     logger.debug(
-                        "{} published commit pointer for term [{}]: {} in BCC {}",
+                        "{} published commit pointer for term [{}]: {} in BCC {}, size [{}], open bytes [{}]",
                         indexShard.shardId(),
-                        pointer.writerPrimaryTerm(),
-                        pointer.compoundCommit().toShortDescription(),
-                        pointer.batchedCompoundCommitTermAndGeneration()
+                        toWrite.writerPrimaryTerm(),
+                        toWrite.compoundCommit().toShortDescription(),
+                        toWrite.batchedCompoundCommitTermAndGeneration(),
+                        bytes.length(),
+                        toWrite.openRangesSizeInBytes()
                     );
                 } catch (Exception e) {
                     logger.warn(() -> format("%s failed to publish commit pointer of BCC %s", indexShard.shardId(), generation), e);
@@ -205,6 +214,65 @@ public class CommitPointerPublisher implements IndexEventListener {
         synchronized void close() {
             closed = true;
             pending = null;
+        }
+
+        // phase 4: aligned ranges and parsed .cfe files read for the previous pointer, reused for the next (only accessed by drain)
+        private final Map<CommitPointerOpenBytes.RangeKey, org.elasticsearch.common.bytes.BytesReference> openBytesCache = new HashMap<>();
+        private final Map<String, Map<String, org.elasticsearch.xpack.stateless.cache.Lucene90CompoundEntriesReader.FileEntry>> cfeCache =
+            new HashMap<>();
+
+        /**
+         * Adds the open-time bytes of the commit to the pointer if {@link FastSearchActivationSettings#COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING}
+         * is set and they fit, otherwise returns the pointer unchanged (today's content). The bytes are read from the object store (the
+         * named BCCs are uploaded), one GET per group of close ranges, only for ranges not already read for the previous pointer.
+         */
+        private CommitPointer withOpenBytes(CommitPointer pointer) {
+            final long maxBytes = clusterService.getClusterSettings()
+                .get(FastSearchActivationSettings.COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING)
+                .getBytes();
+            if (maxBytes <= 0L) {
+                return pointer;
+            }
+            final ShardId shardId = indexShard.shardId();
+            try {
+                final CommitPointerOpenBytes.Stats[] stats = new CommitPointerOpenBytes.Stats[1];
+                final var ranges = CommitPointerOpenBytes.collect(
+                    pointer.compoundCommit(),
+                    pointer.installedFileRanges(),
+                    (blobFile, position, length) -> {
+                        try (
+                            var in = objectStoreService.getProjectBlobContainer(shardId, blobFile.primaryTerm())
+                                .readBlob(
+                                    org.elasticsearch.common.blobstore.OperationPurpose.INDICES,
+                                    blobFile.blobName(),
+                                    position,
+                                    length
+                                )
+                        ) {
+                            return org.elasticsearch.common.io.Streams.readFully(in);
+                        }
+                    },
+                    maxBytes,
+                    openBytesCache,
+                    cfeCache,
+                    stats
+                );
+                logger.debug(
+                    "{} commit pointer open bytes of {}: {} ({} bytes in {} ranges, {} object store reads of {} bytes)",
+                    shardId,
+                    pointer.compoundCommit().toShortDescription(),
+                    ranges == null ? "over the bound of [" + maxBytes + "] bytes, not carried" : "carried",
+                    stats[0].bytes(),
+                    stats[0].ranges(),
+                    stats[0].reads(),
+                    stats[0].bytesRead()
+                );
+                return ranges == null ? pointer : pointer.withOpenRanges(ranges);
+            } catch (Exception e) {
+                logger.debug(() -> format("%s failed to collect the open-time bytes of the commit pointer", shardId), e);
+                openBytesCache.clear();
+                return pointer;
+            }
         }
     }
 }

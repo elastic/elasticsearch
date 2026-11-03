@@ -26,6 +26,7 @@ import static org.elasticsearch.xpack.stateless.TestUtils.getCommitWithInternalF
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -75,6 +76,43 @@ public class CommitPointerTests extends ESTestCase {
         assertThat(reread.compoundCommit(), equalTo(pointer.compoundCommit()));
         assertThat(reread.replicatedFileRanges().keySet(), equalTo(pointer.replicatedFileRanges().keySet()));
         assertThat(read.validate(shardId, term), nullValue());
+    }
+
+    /**
+     * Phase 4: a pointer with open-time bytes round trips (format version 2), a pointer without them keeps format version 1, and open
+     * ranges of a blob the commit does not reference are rejected.
+     */
+    public void testRoundTripWithOpenRanges() throws IOException {
+        final ShardId shardId = randomShardId();
+        final long term = randomLongBetween(1, 10);
+        final CommitPointer plain = randomPointer(shardId, term);
+        final BlobFile blobFile = plain.compoundCommit().commitFiles().values().iterator().next().blobFile();
+        final List<CommitPointerOpenBytes.OpenRange> ranges = new java.util.ArrayList<>();
+        for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            ranges.add(new CommitPointerOpenBytes.OpenRange(blobFile, 4096L * i * 2, new BytesArray(randomByteArrayOfLength(4096))));
+        }
+        final CommitPointer pointer = plain.withOpenRanges(ranges);
+        assertThat(pointer.validate(shardId, term), nullValue());
+        assertThat(pointer.openRangesSizeInBytes(), equalTo(4096L * ranges.size()));
+
+        final CommitPointer read = CommitPointer.fromBytes(pointer.toBytes());
+        assertThat(read.compoundCommit(), equalTo(pointer.compoundCommit()));
+        assertThat(read.openRanges().size(), equalTo(ranges.size()));
+        for (int i = 0; i < ranges.size(); i++) {
+            assertThat(read.openRanges().get(i).blobFile(), equalTo(blobFile));
+            assertThat(read.openRanges().get(i).position(), equalTo(ranges.get(i).position()));
+            assertThat(read.openRanges().get(i).bytes(), equalTo(ranges.get(i).bytes()));
+        }
+        assertThat(read.validate(shardId, term), nullValue());
+        // without open ranges the serialization is the one of format version 1 (only the trailing open ranges differ)
+        assertThat(CommitPointer.fromBytes(plain.toBytes()).openRanges().isEmpty(), equalTo(true));
+        assertThat(plain.toBytes().length(), lessThan(pointer.toBytes().length()));
+
+        final var foreign = new BlobFile(BatchedCompoundCommit.PREFIX + 99999, new PrimaryTermAndGeneration(term, 99999));
+        final CommitPointer invalid = plain.withOpenRanges(
+            List.of(new CommitPointerOpenBytes.OpenRange(foreign, 0, new BytesArray(new byte[16])))
+        );
+        assertThat(invalid.validate(shardId, term), containsString("not referenced by the commit"));
     }
 
     public void testCorruptionIsDetected() throws IOException {

@@ -132,6 +132,12 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * fill, so that {@link #clearActivationFillOverrides()} also applies to inputs opened during the activation.
      */
     private volatile boolean dynamicFillSize = false;
+    /**
+     * Prototype ("cheap shards", phase 4): set when the open-time bytes of the commit were written in the cache from its commit pointer,
+     * until {@link #clearActivationFillOverrides()}: reads of bytes already in the cache do not fill their surrounding range (see
+     * {@code CacheFileReader#withReadPresentWithoutFill}), so that opening the reader on sparse cached pages reads nothing from the store.
+     */
+    private volatile boolean readPresentWithoutFill = false;
 
     /**
      * Prototype ("cheap shards", phase 3 gap 3): notified when a query-time read finds a blob of the commit missing in the object store
@@ -533,6 +539,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      * again and inputs opened afterwards use the default vector fill. Inputs opened during the activation keep their vector policy.
      */
     public void clearActivationFillOverrides() {
+        this.readPresentWithoutFill = false;
         this.objectStoreRangeSizeOverride = -1L;
         this.warmingRangeSizeOverride = -1L;
         this.vectorFillPolicy = null;
@@ -552,6 +559,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             Math.min(policy.rangeSize(), cacheService.getRangeSize()),
             policy.wholeFileOnMissMaxBytes()
         );
+    }
+
+    /** See {@link #readPresentWithoutFill}; ends with {@link #clearActivationFillOverrides()}. */
+    public void setReadPresentWithoutFill() {
+        this.readPresentWithoutFill = true;
+    }
+
+    @Override
+    protected boolean readPresentWithoutFill() {
+        return readPresentWithoutFill;
     }
 
     @Override

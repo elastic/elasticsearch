@@ -130,6 +130,33 @@ public final class FastSearchActivationSettings {
     );
 
     /**
+     * Phase 4 (prototype): the largest amount of open-time bytes (see {@link org.elasticsearch.xpack.stateless.commits.CommitPointerOpenBytes})
+     * that an indexing shard puts in its {@link org.elasticsearch.xpack.stateless.commits.CommitPointer}, {@code 0} (default) for none.
+     * Above the bound the pointer carries no open-time bytes and activation warms headers from the object store as before. Read on the
+     * index nodes, at each pointer write; the bytes are read from the object store on the index node (only those of new blobs).
+     */
+    public static final Setting<ByteSizeValue> COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING = Setting.byteSizeSetting(
+        "stateless.cheap_shard.commit_pointer.open_bytes_max_size",
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofMb(32),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Phase 4 (prototype): whether a search shard activated from a commit pointer that carries open-time bytes writes them in the shared
+     * cache and skips the header/footer/metadata warming. Only has an effect if the index nodes write such pointers
+     * ({@link #COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING}, off by default); exists to compare both on the same pointer.
+     */
+    public static final Setting<Boolean> FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING = Setting.boolSetting(
+        "stateless.cheap_shard.fast_activation.use_pointer_open_bytes",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Fill size of the activation-time header/footer/metadata warming (independent of the query fill {@link #FAST_ACTIVATION_RANGE_SIZE_SETTING}),
      * so that reading 1 KiB headers does not pull a whole query fill. Whole small blobs are still fetched with one GET each.
      */

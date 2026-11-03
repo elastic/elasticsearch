@@ -86,4 +86,20 @@ public class StringPatternTests extends ESTestCase {
         assertTrue(exactMatch("abc"));
         assertTrue(exactMatch("12345"));
     }
+
+    public void testTooComplexPattern() {
+        for (AbstractStringPattern pattern : new AbstractStringPattern[] {
+            rlike("(a|b)*a(a|b){13}"),
+            like("%a_____________", '\\'),
+            new WildcardPattern("*a?????????????") }) {
+            assertTooComplex(pattern::createAutomaton);
+            assertTooComplex(pattern::matchesAll);
+            assertTooComplex(pattern::exactMatch);
+        }
+    }
+
+    private void assertTooComplex(ThrowingRunnable runnable) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, runnable);
+        assertEquals("Pattern was too complex to determinize", e.getMessage());
+    }
 }

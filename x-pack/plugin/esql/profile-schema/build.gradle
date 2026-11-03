@@ -24,13 +24,10 @@ dependencies {
     transitive = false
   }
 
-  testImplementation project(':test:framework')
-  testImplementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  testImplementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
+  testImplementation project(':test:x-content')
 }
 
-def schemaPath = 'esql-profile.schema.json'
+def schemaPath = 'esql_profile.schema.json'
 def generatedSchema = layout.buildDirectory.file("generated-resources/esql-profile/${schemaPath}")
 def checkedInSchema = rootProject.layout.projectDirectory.file(
   "docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/profile/${schemaPath}"
@@ -41,8 +38,6 @@ tasks.named('test').configure {
   // The ORC plugin contains a minimal same-FQN StringUtils stub for its isolated production
   // classloader. NetworkNT needs the complete library, so put it first on this flat test classpath.
   classpath = realCommonsLang + (classpath - realCommonsLang)
-  inputs.file(checkedInSchema)
-  systemProperty 'esql.profile.schema.path', checkedInSchema.asFile
 }
 
 def generateProfileSchema = tasks.register('generateProfileSchema', JavaExec) {
@@ -68,6 +63,7 @@ def checkProfileSchema = tasks.register('checkProfileSchema') {
   group = 'Verification'
   description = 'Checks that the ES|QL profile response JSON Schema is up to date.'
   dependsOn generateProfileSchema
+  mustRunAfter updateProfileSchema
   inputs.file(generatedSchema)
   inputs.file(checkedInSchema)
   doLast {

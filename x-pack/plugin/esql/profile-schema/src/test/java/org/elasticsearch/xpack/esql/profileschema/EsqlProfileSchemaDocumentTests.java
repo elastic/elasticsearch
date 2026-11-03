@@ -7,16 +7,11 @@
 
 package org.elasticsearch.xpack.esql.profileschema;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
+import org.elasticsearch.test.xcontent.JsonSchemaTestValidator;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -31,9 +26,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlProfileSchemaRegistry;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -43,13 +35,10 @@ import static org.junit.Assert.assertTrue;
 
 public class EsqlProfileSchemaDocumentTests {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
     @Test
-    public void testGeneratedDocumentIsDeterministicAndComplete() throws IOException {
+    public void testGeneratedDocumentIsDeterministicAndComplete() {
         Map<String, Object> first = EsqlProfileSchemaDocument.create();
         assertEquals(first, EsqlProfileSchemaDocument.create());
-        assertEquals(OBJECT_MAPPER.valueToTree(first), checkedInSchema());
 
         Map<?, ?> definitions = (Map<?, ?>) first.get("definitions");
         assertNotNull(definitions.get("EsqlProfile"));
@@ -70,8 +59,7 @@ public class EsqlProfileSchemaDocumentTests {
 
     @Test
     public void testRepresentativeProfileValidates() throws IOException {
-        JsonNode schemaNode = checkedInSchema();
-        JsonSchema schema = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7).getSchema(schemaNode);
+        JsonSchemaTestValidator validator = JsonSchemaTestValidator.draft7(EsqlProfileSchemaDocument.create());
 
         DriverProfile driver = new DriverProfile("data", "cluster", "node", 1, 2, 1_000_000, 100, 200, 1, List.of(), DriverSleeps.empty());
         var value = new EsqlQueryResponse.ProfileValue(
@@ -79,22 +67,15 @@ public class EsqlProfileSchemaDocumentTests {
             new EsqlQueryProfile()
         );
 
-        assertValid(schema, value, false);
-        assertValid(schema, value, true);
+        assertValid(validator, value, false);
+        assertValid(validator, value, true);
     }
 
-    private static void assertValid(JsonSchema schema, EsqlQueryResponse.ProfileValue value, boolean humanReadable) throws IOException {
+    private static void assertValid(JsonSchemaTestValidator validator, EsqlQueryResponse.ProfileValue value, boolean humanReadable)
+        throws IOException {
         try (XContentBuilder builder = XContentFactory.jsonBuilder().humanReadable(humanReadable)) {
             EsqlQueryResponse.PROFILE_SCHEMA.write(builder, value, ToXContent.EMPTY_PARAMS);
-            JsonNode profile = OBJECT_MAPPER.readTree(Strings.toString(builder));
-            assertEquals(List.of(), List.copyOf(schema.validate(profile)));
-        }
-    }
-
-    private static JsonNode checkedInSchema() throws IOException {
-        Path schema = Path.of(System.getProperty("esql.profile.schema.path"));
-        try (InputStream stream = Files.newInputStream(schema)) {
-            return OBJECT_MAPPER.readTree(stream);
+            assertEquals(List.of(), validator.validate(BytesReference.bytes(builder)));
         }
     }
 

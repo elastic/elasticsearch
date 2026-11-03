@@ -441,7 +441,7 @@ Inside `TS ... | STATS ...`, a bare field is implicitly wrapped in `last_over_ti
 ### Profile response schema
 
 The generated draft-7 schema for the ES|QL profile response is published for Kibana in
-[`kibana/generated/x-pack-esql/definition/profile/esql-profile.schema.json`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/profile/esql-profile.schema.json).
+[`kibana/generated/x-pack-esql/definition/profile/esql_profile.schema.json`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/profile/esql_profile.schema.json).
 To regenerate it after changing a profile descriptor, run:
 
 ```

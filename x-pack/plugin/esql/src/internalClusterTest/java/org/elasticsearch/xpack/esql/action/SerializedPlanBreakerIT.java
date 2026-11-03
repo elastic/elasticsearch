@@ -8,8 +8,12 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -17,18 +21,26 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -36,13 +48,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * The coordinator charges its request breaker for the sub-plan result it serializes into each request to a remote data node.
- * A dedicated coordinator sends every request remotely, and the breaker is filled after the first reservation so only the
- * second one trips.
+ * The coordinator charges its request breaker for the sub-plan result it serializes into each request to a remote data node,
+ * until that request completes. A dedicated coordinator sends every request remotely, and the trip tests fill the breaker
+ * after the first reservation so only the second one trips.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
 public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
@@ -106,6 +119,47 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
         assertThat(cause.getMessage(), containsString("data for [" + label + "]"));
     }
 
+    /**
+     * Holds the {@code n}th {@code action} request any of {@code transportServices} receives until {@code resume} opens, then
+     * hands it to {@code then}. A held request has been received in full, so the coordinator has reserved for it and written
+     * it, and holds that reservation until the request completes.
+     */
+    static Releasable holdNthRequest(
+        List<MockTransportService> transportServices,
+        String action,
+        int n,
+        CountDownLatch received,
+        CountDownLatch resume,
+        StubbableTransport.RequestHandlingBehavior<TransportRequest> then
+    ) {
+        AtomicInteger arrivals = new AtomicInteger();
+        for (MockTransportService transportService : transportServices) {
+            transportService.addRequestHandlingBehavior(action, (handler, request, channel, task) -> {
+                if (arrivals.incrementAndGet() == n) {
+                    received.countDown();
+                    safeAwait(resume);
+                    then.messageReceived(handler, request, channel, task);
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
+        }
+        return () -> transportServices.forEach(MockTransportService::clearAllRules);
+    }
+
+    static void cancelQuery(Client client) {
+        List<TaskInfo> tasks = client.admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks();
+        assertThat(tasks, hasSize(1));
+        client.execute(
+            TransportCancelTasksAction.TYPE,
+            new CancelTasksRequest().setTargetTaskId(tasks.getFirst().taskId()).setReason("test cancel")
+        ).actionGet();
+    }
+
+    static void assertReleased(CircuitBreaker breaker, long before) throws Exception {
+        assertBusy(() -> assertThat(breaker.getUsed(), equalTo(before)));
+    }
+
     public void testTripFailsQueryWithoutPartialResults() {
         String coordinator = setupCoordinatorAndIndex();
         try (Releasable filled = fillCoordinatorBreaker(coordinator)) {
@@ -123,6 +177,69 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
             EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
             assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
             assertThat(local.getFailures().toString(), containsString("data for [serialize data node request]"));
+        }
+    }
+
+    public void testCancellationReleasesReservations() throws Exception {
+        String coordinator = setupCoordinatorAndIndex();
+        CircuitBreaker breaker = coordinatorBreaker(coordinator);
+        long before = breaker.getUsed();
+        CountDownLatch received = new CountDownLatch(2);
+        CountDownLatch resume = new CountDownLatch(1);
+        try (Releasable held = holdMainPlanRequests(received, resume, (h, r, channel, task) -> h.messageReceived(r, channel, task))) {
+            ActionFuture<EsqlQueryResponse> future = start(coordinator, false);
+            try {
+                safeAwait(received);
+                cancelQuery(client(coordinator));
+            } finally {
+                resume.countDown();
+            }
+            Exception e = expectThrows(Exception.class, () -> future.actionGet(DEFAULT_REQUEST_TIMEOUT).close());
+            assertThat(e.toString(), ExceptionsHelper.unwrap(e, TaskCancelledException.class), notNullValue());
+        }
+        assertReleased(breaker, before);
+        assertCountsAllDocs(coordinator);
+    }
+
+    public void testDataNodeFailureReleasesReservations() throws Exception {
+        String coordinator = setupCoordinatorAndIndex();
+        CircuitBreaker breaker = coordinatorBreaker(coordinator);
+        long before = breaker.getUsed();
+        CountDownLatch received = new CountDownLatch(2);
+        CountDownLatch resume = new CountDownLatch(1);
+        try (
+            Releasable held = holdMainPlanRequests(
+                received,
+                resume,
+                (h, r, channel, task) -> channel.sendResponse(new RuntimeException("simulated data node failure"))
+            )
+        ) {
+            ActionFuture<EsqlQueryResponse> future = start(coordinator, false);
+            safeAwait(received);
+            resume.countDown();
+            Exception e = expectThrows(Exception.class, () -> future.actionGet(DEFAULT_REQUEST_TIMEOUT).close());
+            assertThat(e.getMessage(), containsString("simulated data node failure"));
+        }
+        assertReleased(breaker, before);
+        assertCountsAllDocs(coordinator);
+    }
+
+    private Releasable holdMainPlanRequests(
+        CountDownLatch received,
+        CountDownLatch resume,
+        StubbableTransport.RequestHandlingBehavior<TransportRequest> then
+    ) {
+        List<Releasable> held = new ArrayList<>();
+        for (String dataNode : internalCluster().nodesInclude("idx")) {
+            MockTransportService transportService = MockTransportService.getInstance(dataNode);
+            held.add(holdNthRequest(List.of(transportService), ComputeService.DATA_ACTION_NAME, 2, received, resume, then));
+        }
+        return Releasables.wrap(held);
+    }
+
+    private void assertCountsAllDocs(String coordinator) {
+        try (EsqlQueryResponse resp = run(coordinator, false)) {
+            assertThat(((Number) EsqlTestUtils.getValuesList(resp).get(0).get(0)).longValue(), equalTo((long) NUM_DOCS));
         }
     }
 
@@ -145,13 +262,21 @@ public class SerializedPlanBreakerIT extends AbstractEsqlIntegTestCase {
     private Releasable fillCoordinatorBreaker(String coordinator) {
         return fillBreakerOnOpenExchange(
             (MockTransportService) internalCluster().getInstance(TransportService.class, coordinator),
-            internalCluster().getInstance(CircuitBreakerService.class, coordinator).getBreaker(CircuitBreaker.REQUEST),
+            coordinatorBreaker(coordinator),
             3
         );
     }
 
-    private EsqlQueryResponse run(String coordinator, boolean allowPartialResults) {
+    private CircuitBreaker coordinatorBreaker(String coordinator) {
+        return internalCluster().getInstance(CircuitBreakerService.class, coordinator).getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    private ActionFuture<EsqlQueryResponse> start(String coordinator, boolean allowPartialResults) {
         var request = syncEsqlQueryRequest("FROM idx" + QUERY_TAIL).allowPartialResults(allowPartialResults);
-        return client(coordinator).execute(EsqlQueryAction.INSTANCE, request).actionGet(DEFAULT_REQUEST_TIMEOUT);
+        return client(coordinator).execute(EsqlQueryAction.INSTANCE, request);
+    }
+
+    private EsqlQueryResponse run(String coordinator, boolean allowPartialResults) {
+        return start(coordinator, allowPartialResults).actionGet(DEFAULT_REQUEST_TIMEOUT);
     }
 }

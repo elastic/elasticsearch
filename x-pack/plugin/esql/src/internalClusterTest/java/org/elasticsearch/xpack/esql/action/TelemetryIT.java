@@ -444,6 +444,11 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         if (countsDirectClient) {
             expectedQueryAttributes.put(PlanTelemetryManager.DIRECT_CLIENT, "other");
         }
+        boolean countsKibanaFeature = expectedClient.equals("kibana");
+        if (countsKibanaFeature) {
+            expectedQueryAttributes.put(PlanTelemetryManager.KIBANA_FEATURE, "discover");
+            expectedQueryAttributes.put(PlanTelemetryManager.KIBANA_INTERACTION, "person");
+        }
         Counters statsBefore = esqlStats();
 
         int successIterations = randomInt(10);
@@ -459,6 +464,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                     if (origin.isEmpty() == false) {
                         threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, origin);
                     }
+                    threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "telemetry-it;kibana:application:discover:new");
                     client.execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
                         try {
                             final List<Measurement> queryMeasurements = measurements(plugin, PlanTelemetryManager.QUERY_METRICS);
@@ -519,6 +525,10 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
         assertCounterDelta(statsBefore, statsAfter, "leading_commands." + expectedLeadingCommand + ".failed", expectedFailed);
         assertCounterDelta(statsBefore, statsAfter, "direct_clients.other.total", countsDirectClient ? successIterations : 0);
         assertCounterDelta(statsBefore, statsAfter, "direct_clients.other.failed", countsDirectClient ? expectedFailed : 0);
+        assertCounterDelta(statsBefore, statsAfter, "kibana_features.discover.total", countsKibanaFeature ? successIterations : 0);
+        assertCounterDelta(statsBefore, statsAfter, "kibana_features.discover.failed", countsKibanaFeature ? expectedFailed : 0);
+        assertCounterDelta(statsBefore, statsAfter, "kibana_interactions.person.total", countsKibanaFeature ? successIterations : 0);
+        assertCounterDelta(statsBefore, statsAfter, "kibana_interactions.person.failed", countsKibanaFeature ? expectedFailed : 0);
     }
 
     /**

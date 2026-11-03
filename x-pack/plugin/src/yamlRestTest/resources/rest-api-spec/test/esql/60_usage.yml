@@ -1060,3 +1060,73 @@ took:
   - match: { esql.direct_clients.grafana.total: $grafana_total }
   - match: { esql.direct_clients.javascript.total: $javascript_total }
   - match: { esql.direct_clients.elastic_product.total: $elastic_product_total }
+
+---
+"Queries by Kibana feature":
+  - requires:
+      test_runner_features: [ capabilities, headers ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_kibana_features ]
+      reason: "Kibana queries are counted by the feature named in Kibana's execution context"
+
+  - do: { xpack.usage: { } }
+  - length: { esql.kibana_features: 14 }
+  - length: { esql.kibana_interactions: 3 }
+  - set: { esql.kibana_features.discover.total: discover_total }
+  - set: { esql.kibana_features.alerting_v2.total: alerting_v2_total }
+  - set: { esql.kibana_features.other_kibana.total: other_kibana_total }
+  - set: { esql.kibana_interactions.person.total: person_total }
+  - set: { esql.kibana_interactions.background.total: background_total }
+  - set: { esql.kibana_interactions.unknown.total: unknown_total }
+
+  - do:
+      headers:
+        X-elastic-product-origin: kibana
+        X-Opaque-Id: "yaml;kibana:application:discover:new"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.kibana_features.discover.total: $discover_total }
+  - match: { esql.kibana_features.alerting_v2.total: $alerting_v2_total }
+  - match: { esql.kibana_features.other_kibana.total: $other_kibana_total }
+  - gt: { esql.kibana_interactions.person.total: $person_total }
+  - match: { esql.kibana_interactions.background.total: $background_total }
+  - match: { esql.kibana_interactions.unknown.total: $unknown_total }
+  - set: { esql.kibana_features.discover.total: discover_total }
+  - set: { esql.kibana_interactions.person.total: person_total }
+
+  - do:
+      headers:
+        X-elastic-product-origin: kibana
+        X-Opaque-Id: "yaml;kibana:task%20manager:run%20alerting_v2%3Adispatcher:alerting_v2%3Adispatcher%3A1.0.0"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.kibana_features.discover.total: $discover_total }
+  - gt: { esql.kibana_features.alerting_v2.total: $alerting_v2_total }
+  - match: { esql.kibana_interactions.person.total: $person_total }
+  - gt: { esql.kibana_interactions.background.total: $background_total }
+  - set: { esql.kibana_features.alerting_v2.total: alerting_v2_total }
+  - set: { esql.kibana_interactions.background.total: background_total }
+
+  - do:
+      headers:
+        X-Opaque-Id: "yaml;kibana:application:discover:new"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.kibana_features.discover.total: $discover_total }
+  - match: { esql.kibana_features.alerting_v2.total: $alerting_v2_total }
+  - match: { esql.kibana_features.other_kibana.total: $other_kibana_total }
+  - match: { esql.kibana_interactions.person.total: $person_total }
+  - match: { esql.kibana_interactions.background.total: $background_total }
+  - match: { esql.kibana_interactions.unknown.total: $unknown_total }

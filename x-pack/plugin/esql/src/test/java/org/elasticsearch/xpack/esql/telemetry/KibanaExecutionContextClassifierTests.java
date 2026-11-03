@@ -22,15 +22,12 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * The contexts below are the wire form Kibana sends in {@code X-Opaque-Id}: {@code <requestId>;kibana:<node>[;<child node>...]},
  * each node {@code type:name:id} with every part URI-encoded (Kibana's {@code execution_context_container.ts}).
  */
 public class KibanaExecutionContextClassifierTests extends ESTestCase {
-
-    private static final List<String> KIBANA_ORIGINS = List.of("kibana", "Kibana", "KIBANA", " kibana ", "kibana-reporting");
 
     public void testDiscover() {
         assertKibana("application:discover:new", Feature.DISCOVER);
@@ -181,7 +178,7 @@ public class KibanaExecutionContextClassifierTests extends ESTestCase {
     }
 
     public void testContextWithoutRequestId() {
-        assertThat(classify(randomKibanaOrigin(), "kibana:application:discover:abc"), is(Feature.DISCOVER));
+        assertThat(classify("kibana:application:discover:abc"), is(Feature.DISCOVER));
     }
 
     public void testAlertRootWithoutTaskManager() {
@@ -195,7 +192,7 @@ public class KibanaExecutionContextClassifierTests extends ESTestCase {
 
     public void testRequestIdContainingContextMarkerIsIgnored() {
         String opaqueId = "spoof;kibana:application:discover:x;kibana:task%20manager:run%20report%3Aexecute:task-1";
-        assertThat(classify(randomKibanaOrigin(), opaqueId), is(Feature.REPORTING));
+        assertThat(classify(opaqueId), is(Feature.REPORTING));
     }
 
     public void testUnknownApplication() {
@@ -211,28 +208,16 @@ public class KibanaExecutionContextClassifierTests extends ESTestCase {
     }
 
     public void testKibanaWithoutExecutionContext() {
-        assertThat(classify(randomKibanaOrigin(), UUIDs.randomBase64UUID(random())), is(Feature.OTHER_KIBANA));
-        assertThat(classify(randomKibanaOrigin(), "unknownId"), is(Feature.OTHER_KIBANA));
+        assertThat(classify(UUIDs.randomBase64UUID(random())), is(Feature.OTHER_KIBANA));
+        assertThat(classify("unknownId"), is(Feature.OTHER_KIBANA));
     }
 
     public void testKibanaWithNullOpaqueId() {
-        assertThat(classify(randomKibanaOrigin(), null), is(Feature.OTHER_KIBANA));
+        assertThat(classify(null), is(Feature.OTHER_KIBANA));
     }
 
     public void testKibanaWithEmptyOpaqueId() {
-        assertThat(classify(randomKibanaOrigin(), ""), is(Feature.OTHER_KIBANA));
-    }
-
-    public void testKibanaOrigins() {
-        for (String origin : KIBANA_ORIGINS) {
-            assertThat(origin, classify(origin, header("application:discover:abc")), is(Feature.DISCOVER));
-        }
-    }
-
-    public void testNonKibanaOriginIsNotClassified() {
-        for (String origin : Arrays.asList(null, "", "  ", "logstash", "kibanana", "beats", "fleet")) {
-            assertThat(origin, classify(origin, header("application:discover:abc")), nullValue());
-        }
+        assertThat(classify(""), is(Feature.OTHER_KIBANA));
     }
 
     public void testTruncatedEscapeAtEnd() {
@@ -285,21 +270,21 @@ public class KibanaExecutionContextClassifierTests extends ESTestCase {
             ";kibana:\uD800",
             "kibana:;kibana:;kibana:"
         )) {
-            assertThat(opaqueId, classify(randomKibanaOrigin(), opaqueId), is(Feature.OTHER_KIBANA));
+            assertThat(opaqueId, classify(opaqueId), is(Feature.OTHER_KIBANA));
         }
     }
 
     public void testVeryLongInput() {
         String junk = randomAlphaOfLength(1 << 20);
-        assertThat(classify(randomKibanaOrigin(), junk), is(Feature.OTHER_KIBANA));
-        assertThat(classify(randomKibanaOrigin(), header("application:discover:abc;" + junk)), is(Feature.DISCOVER));
-        assertThat(classify(randomKibanaOrigin(), header("application:discover:" + junk)), is(Feature.DISCOVER));
-        assertThat(classify(randomKibanaOrigin(), header("task%20manager:run%20" + junk)), is(Feature.OTHER_TASK_MANAGER));
-        assertThat(classify(randomKibanaOrigin(), ";kibana:".repeat(1 << 16)), is(Feature.OTHER_KIBANA));
-        assertThat(classify(randomKibanaOrigin(), "%".repeat(1 << 20)), is(Feature.OTHER_KIBANA));
+        assertThat(classify(junk), is(Feature.OTHER_KIBANA));
+        assertThat(classify(header("application:discover:abc;" + junk)), is(Feature.DISCOVER));
+        assertThat(classify(header("application:discover:" + junk)), is(Feature.DISCOVER));
+        assertThat(classify(header("task%20manager:run%20" + junk)), is(Feature.OTHER_TASK_MANAGER));
+        assertThat(classify(";kibana:".repeat(1 << 16)), is(Feature.OTHER_KIBANA));
+        assertThat(classify("%".repeat(1 << 20)), is(Feature.OTHER_KIBANA));
     }
 
-    public void testFuzzNeverThrows() {
+    public void testFuzzNeverThrowsOrReturnsNull() {
         String alphabet = ";:%kibanaplicto rugdshvx_.-0123456789ABCDEFabcdef";
         for (int i = 0; i < 1000; i++) {
             String opaqueId = switch (between(0, 2)) {
@@ -308,14 +293,13 @@ public class KibanaExecutionContextClassifierTests extends ESTestCase {
                 case 2 -> header(randomString(alphabet, between(0, 200)));
                 default -> throw new AssertionError();
             };
-            assertThat(opaqueId, classify(randomKibanaOrigin(), opaqueId), notNullValue());
-            assertThat(opaqueId, classify("logstash", opaqueId), nullValue());
+            assertThat(opaqueId, classify(opaqueId), notNullValue());
         }
     }
 
     public void testFeatureLabels() {
         assertThat(
-            Arrays.stream(Feature.values()).map(Feature::label).toList(),
+            Arrays.stream(Feature.values()).map(Feature::toString).toList(),
             contains(
                 "discover",
                 "dashboards",
@@ -336,7 +320,7 @@ public class KibanaExecutionContextClassifierTests extends ESTestCase {
     }
 
     public void testInteractionLabels() {
-        assertThat(Arrays.stream(Interaction.values()).map(Interaction::label).toList(), contains("person", "background", "unknown"));
+        assertThat(Arrays.stream(Interaction.values()).map(Interaction::toString).toList(), contains("person", "background", "unknown"));
     }
 
     public void testFeatureInteraction() {
@@ -362,7 +346,7 @@ public class KibanaExecutionContextClassifierTests extends ESTestCase {
 
     private static void assertKibana(String context, Feature expected) {
         String opaqueId = header(context);
-        assertThat(opaqueId, classify(randomKibanaOrigin(), opaqueId), is(expected));
+        assertThat(opaqueId, classify(opaqueId), is(expected));
     }
 
     private static String header(String context) {
@@ -372,10 +356,6 @@ public class KibanaExecutionContextClassifierTests extends ESTestCase {
 
     private static String ruleContext(String ruleType) {
         return "task%20manager:run%20alerting%3A" + ruleType + ":task-1;alert:execute%20" + ruleType + ":rule-1";
-    }
-
-    private static String randomKibanaOrigin() {
-        return randomFrom(KIBANA_ORIGINS);
     }
 
     private static String randomString(String alphabet, int length) {

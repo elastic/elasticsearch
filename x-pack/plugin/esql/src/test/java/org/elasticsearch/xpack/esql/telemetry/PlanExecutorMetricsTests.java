@@ -93,6 +93,8 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Feature;
+import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Interaction;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.mockito.stubbing.Answer;
@@ -116,6 +118,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -132,6 +135,10 @@ import static org.mockito.Mockito.mock;
 public class PlanExecutorMetricsTests extends ESTestCase {
 
     private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
+
+    private static final String DISCOVER_OPAQUE_ID = "6b6a3bb3;kibana:application:discover:new";
+    private static final String ALERTING_V2_OPAQUE_ID =
+        "unknownId;kibana:task%20manager:run%20alerting_v2%3Adispatcher:alerting_v2%3Adispatcher%3A1.0.0";
 
     private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices(
         new UsageService(),
@@ -816,6 +823,111 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
+    public void testKibanaQueryCountsItsFeatureAndInteraction() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(
+                mockIndexResolver(),
+                dataSourceModule,
+                CrossProjectModeDecider.NOOP,
+                meterRegistry
+            );
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin("kibana", DISCOVER_OPAQUE_ID)),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY_ASYNC),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertKibanaCounted(stats, Feature.DISCOVER, 1, 0);
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.getFirst().attributes(), hasEntry(PlanTelemetryManager.KIBANA_FEATURE, "discover"));
+            assertThat(measurements.getFirst().attributes(), hasEntry(PlanTelemetryManager.KIBANA_INTERACTION, "person"));
+        }
+    }
+
+    public void testFailedKibanaQueryCountsItsFeatureAsFailed() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin("kibana", ALERTING_V2_OPAQUE_ID)),
+                queryRequest("FROM test | STATS m = MAX(xyz)").entryPoint(QueryEntryPoint.QUERY),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(VerificationException.class)))
+            );
+            assertKibanaCounted(planExecutor.metrics().stats(), Feature.ALERTING_V2, 1, 1);
+        }
+    }
+
+    public void testNonKibanaQueryIsNotCountedUnderKibanaFeatures() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(
+                mockIndexResolver(),
+                dataSourceModule,
+                CrossProjectModeDecider.NOOP,
+                meterRegistry
+            );
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(
+                    threadContextWithOrigin(randomFrom(Arrays.asList(null, "fleet", "my-app")), DISCOVER_OPAQUE_ID)
+                ),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("queries._all.total"), equalTo(1L));
+            assertThat(kibanaFeatureTotal(stats), equalTo(0L));
+            for (Interaction interaction : Interaction.values()) {
+                assertThat(stats.get("kibana_interactions." + interaction + ".total"), equalTo(0L));
+            }
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.getFirst().attributes(), not(hasKey(PlanTelemetryManager.KIBANA_FEATURE)));
+            assertThat(measurements.getFirst().attributes(), not(hasKey(PlanTelemetryManager.KIBANA_INTERACTION)));
+        }
+    }
+
+    public void testKibanaFeaturesSumToKibanaQueries() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            int queries = between(2, 6);
+            for (int i = 0; i < queries; i++) {
+                var executionInfo = createEsqlExecutionInfo(true);
+                executeEsql(
+                    planExecutor,
+                    createTransportActionServices(
+                        threadContextWithOrigin("kibana", randomFrom(DISCOVER_OPAQUE_ID, ALERTING_V2_OPAQUE_ID, null))
+                    ),
+                    queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
+                    executionInfo,
+                    planRunnerFor(executionInfo),
+                    ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+                );
+            }
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("queries.kibana.total"), equalTo((long) queries));
+            assertThat(kibanaFeatureTotal(stats), equalTo((long) queries));
+            long interactionTotal = 0;
+            for (Interaction interaction : Interaction.values()) {
+                interactionTotal += stats.get("kibana_interactions." + interaction + ".total");
+            }
+            assertThat(interactionTotal, equalTo((long) queries));
+        }
+    }
+
     public void testParseErrorCountsAsUnknownLeadingCommand() throws Exception {
         try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
             PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
@@ -872,6 +984,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                         "kibana",
                         PlanTelemetryManager.ENTRY_POINT,
                         "query",
+                        PlanTelemetryManager.KIBANA_FEATURE,
+                        "other_kibana",
+                        PlanTelemetryManager.KIBANA_INTERACTION,
+                        "unknown",
                         PlanTelemetryManager.LEADING_COMMAND,
                         "from",
                         PlanTelemetryManager.QUERY_SUCCESS,
@@ -979,6 +1095,26 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
+    private static void assertKibanaCounted(Counters stats, Feature expected, long total, long failed) {
+        for (Feature feature : Feature.values()) {
+            assertThat(stats.get("kibana_features." + feature + ".total"), equalTo(feature == expected ? total : 0L));
+            assertThat(stats.get("kibana_features." + feature + ".failed"), equalTo(feature == expected ? failed : 0L));
+        }
+        for (Interaction interaction : Interaction.values()) {
+            boolean own = interaction == expected.interaction();
+            assertThat(stats.get("kibana_interactions." + interaction + ".total"), equalTo(own ? total : 0L));
+            assertThat(stats.get("kibana_interactions." + interaction + ".failed"), equalTo(own ? failed : 0L));
+        }
+    }
+
+    private static long kibanaFeatureTotal(Counters stats) {
+        long total = 0;
+        for (Feature feature : Feature.values()) {
+            total += stats.get("kibana_features." + feature + ".total");
+        }
+        return total;
+    }
+
     private static long directClientTotal(Counters stats) {
         long total = 0;
         for (DirectClient directClient : DirectClient.values()) {
@@ -995,9 +1131,16 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     private static ThreadContext threadContextWithOrigin(@Nullable String origin) {
+        return threadContextWithOrigin(origin, null);
+    }
+
+    private static ThreadContext threadContextWithOrigin(@Nullable String origin, @Nullable String opaqueId) {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         if (origin != null) {
             threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, origin);
+        }
+        if (opaqueId != null) {
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
         }
         return threadContext;
     }

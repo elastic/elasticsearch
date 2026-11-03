@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.core.Nullable;
+
 /**
  * Who sent an ES|QL query, as far as the request tells. Every component is a closed, low-cardinality label: raw header values
- * never reach a counter or an APM attribute. Built by {@link QueryCallerClassifier}; more components (for example the Kibana
- * feature, or the direct client) belong here so every telemetry feed reads them from one place.
+ * never reach a counter or an APM attribute. Built by {@link QueryCallerClassifier}; more components (for example the direct
+ * client) belong here so every telemetry feed reads them from one place.
+ *
+ * @param kibanaFeature the Kibana feature that sent the query, set only when {@code client} is {@link QueryMetric#KIBANA}
  */
-public record QueryCaller(QueryMetric client) {}
+public record QueryCaller(QueryMetric client, @Nullable KibanaExecutionContextClassifier.Feature kibanaFeature) {}

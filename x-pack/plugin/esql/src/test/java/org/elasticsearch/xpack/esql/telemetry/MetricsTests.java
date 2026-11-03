@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
+import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Feature;
+import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Interaction;
 
 import java.util.Map;
 
@@ -116,6 +118,42 @@ public class MetricsTests extends ESTestCase {
             long expectedFailed = other == command ? 1L : 0L;
             assertThat(stats.get("leading_commands." + other + ".total"), equalTo(expectedTotal));
             assertThat(stats.get("leading_commands." + other + ".failed"), equalTo(expectedFailed));
+        }
+    }
+
+    public void testEveryKibanaFeatureIsEmittedAtZero() {
+        Counters stats = newMetrics().stats();
+        assertThat(nested(stats, "kibana_features"), aMapWithSize(Feature.values().length));
+        for (Feature feature : Feature.values()) {
+            assertThat(stats.get("kibana_features." + feature + ".total"), equalTo(0L));
+            assertThat(stats.get("kibana_features." + feature + ".failed"), equalTo(0L));
+        }
+    }
+
+    public void testEveryKibanaInteractionIsEmittedAtZero() {
+        Counters stats = newMetrics().stats();
+        assertThat(nested(stats, "kibana_interactions"), aMapWithSize(Interaction.values().length));
+        for (Interaction interaction : Interaction.values()) {
+            assertThat(stats.get("kibana_interactions." + interaction + ".total"), equalTo(0L));
+            assertThat(stats.get("kibana_interactions." + interaction + ".failed"), equalTo(0L));
+        }
+    }
+
+    public void testKibanaFeatureIncrementsOnlyItsFeatureAndInteraction() {
+        Metrics metrics = newMetrics();
+        Feature feature = randomFrom(Feature.values());
+        metrics.total(feature);
+        metrics.total(feature);
+        metrics.failed(feature);
+        Counters stats = metrics.stats();
+        for (Feature other : Feature.values()) {
+            assertThat(stats.get("kibana_features." + other + ".total"), equalTo(other == feature ? 2L : 0L));
+            assertThat(stats.get("kibana_features." + other + ".failed"), equalTo(other == feature ? 1L : 0L));
+        }
+        for (Interaction interaction : Interaction.values()) {
+            boolean own = interaction == feature.interaction();
+            assertThat(stats.get("kibana_interactions." + interaction + ".total"), equalTo(own ? 2L : 0L));
+            assertThat(stats.get("kibana_interactions." + interaction + ".failed"), equalTo(own ? 1L : 0L));
         }
     }
 

@@ -149,6 +149,47 @@ public class RestEsqlIT extends RestEsqlTestCase {
         );
     }
 
+    public void testKibanaQueryIsCountedUnderItsFeature() throws IOException {
+        String discoverContext = "rest-it;kibana:application:discover:new";
+        Map<String, String> discover = Map.of("X-elastic-product-origin", "kibana", "X-Opaque-Id", discoverContext);
+        Map<String, String> dispatcher = Map.of(
+            "X-elastic-product-origin",
+            "kibana",
+            "X-Opaque-Id",
+            "rest-it;kibana:task%20manager:run%20alerting_v2%3Adispatcher:alerting_v2%3Adispatcher%3A1.0.0"
+        );
+        Map<String, Object> featuresBefore = esqlUsageSection("kibana_features");
+        Map<String, Object> interactionsBefore = esqlUsageSection("kibana_interactions");
+        runEsqlWithHeaders("ROW a = 1 | LIMIT 1", discover);
+        expectThrows(ResponseException.class, () -> runEsqlWithHeaders("ROW a = 1 | EVAL b = missing_field", dispatcher));
+        runEsqlWithHeaders("ROW a = 1 | LIMIT 1", Map.of("X-Opaque-Id", discoverContext));
+        Map<String, Object> featuresAfter = esqlUsageSection("kibana_features");
+        Map<String, Object> interactionsAfter = esqlUsageSection("kibana_interactions");
+
+        assertThat(usageDelta(featuresBefore, featuresAfter, "discover", "total"), equalTo(1));
+        assertThat(usageDelta(featuresBefore, featuresAfter, "discover", "failed"), equalTo(0));
+        assertThat(usageDelta(featuresBefore, featuresAfter, "alerting_v2", "total"), equalTo(1));
+        assertThat(usageDelta(featuresBefore, featuresAfter, "alerting_v2", "failed"), equalTo(1));
+        assertThat(usageDelta(featuresBefore, featuresAfter, "other_kibana", "total"), equalTo(0));
+        assertThat(usageDelta(interactionsBefore, interactionsAfter, "person", "total"), equalTo(1));
+        assertThat(usageDelta(interactionsBefore, interactionsAfter, "background", "total"), equalTo(1));
+        assertThat(usageDelta(interactionsBefore, interactionsAfter, "background", "failed"), equalTo(1));
+        assertThat(usageDelta(interactionsBefore, interactionsAfter, "unknown", "total"), equalTo(0));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> esqlUsageSection(String section) throws IOException {
+        Map<String, Object> usage = entityAsMap(client().performRequest(new Request("GET", "/_xpack/usage")));
+        return (Map<String, Object>) ((Map<String, Object>) usage.get("esql")).get(section);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int usageDelta(Map<String, Object> before, Map<String, Object> after, String key, String counter) {
+        int afterCount = ((Number) ((Map<String, Object>) after.get(key)).get(counter)).intValue();
+        int beforeCount = ((Number) ((Map<String, Object>) before.get(key)).get(counter)).intValue();
+        return afterCount - beforeCount;
+    }
+
     private void runEsqlWithHeaders(String query, Map<String, String> headers) throws IOException {
         Request request = new Request("POST", mode == Mode.SYNC ? "/_query" : "/_query/async");
         String waitForCompletion = mode == Mode.SYNC ? "" : ", \"wait_for_completion_timeout\": \"30s\"";

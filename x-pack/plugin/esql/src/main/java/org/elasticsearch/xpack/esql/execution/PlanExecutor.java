@@ -324,6 +324,9 @@ public class PlanExecutor {
             if (directClient != null) {
                 metrics.total(directClient);
             }
+            if (caller.kibanaFeature() != null) {
+                metrics.total(caller.kibanaFeature());
+            }
             var begin = System.nanoTime();
             AtomicBoolean finishCounted = new AtomicBoolean();
             executeListener = wrap(
@@ -436,6 +439,9 @@ public class PlanExecutor {
         DirectClient directClient = directClientOf(caller, request);
         if (directClient != null) {
             metrics.failed(directClient);
+        }
+        if (caller.kibanaFeature() != null) {
+            metrics.failed(caller.kibanaFeature());
         }
         countFinishedQuery(finishCounted, caller, request.entryPoint(), directClient, planTelemetry, false);
         metrics.failed(planTelemetry.leadingCommand());

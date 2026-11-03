@@ -36,7 +36,12 @@ public final class QueryCallerClassifier {
      */
     public static QueryCaller classify(@Nullable ThreadContext threadContext) {
         String origin = threadContext == null ? null : threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
-        return new QueryCaller(clientFromOrigin(origin));
+        QueryMetric client = clientFromOrigin(origin);
+        if (client != QueryMetric.KIBANA) {
+            return new QueryCaller(client, null);
+        }
+        String opaqueId = threadContext == null ? null : threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+        return new QueryCaller(client, KibanaExecutionContextClassifier.classify(opaqueId));
     }
 
     /**

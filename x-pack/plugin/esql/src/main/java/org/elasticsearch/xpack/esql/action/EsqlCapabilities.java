@@ -4706,6 +4706,13 @@ public class EsqlCapabilities {
          */
         USAGE_DIRECT_CLIENTS,
 
+        /**
+         * Does the usage information for ESQL count queries from Kibana by the Kibana feature that sent them
+         * ({@code kibana_features.<feature>}) and by whether a person chose to run them ({@code kibana_interactions.<interaction>}),
+         * classified from the execution context Kibana puts in {@code X-Opaque-Id}?
+         */
+        USAGE_KIBANA_FEATURES,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

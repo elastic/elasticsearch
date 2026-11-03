@@ -103,7 +103,8 @@ public class PlanTelemetryManager {
 
     /**
      * Queries, counted once each when they finish, with the {@link #CLIENT}, {@link #ENTRY_POINT}, {@link #LEADING_COMMAND} and
-     * {@link #QUERY_SUCCESS} attributes, and the {@link #DIRECT_CLIENT} attribute for queries without an Elastic product origin.
+     * {@link #QUERY_SUCCESS} attributes, the {@link #DIRECT_CLIENT} attribute for queries without an Elastic product origin, and
+     * the {@link #KIBANA_FEATURE} and {@link #KIBANA_INTERACTION} attributes for queries from Kibana.
      */
     public static final String QUERY_METRICS = "es.esql.queries.total";
 
@@ -133,6 +134,18 @@ public class PlanTelemetryManager {
      * {@code es_*} attribute naming rule, so new counters cannot use it.
      */
     public static final String QUERY_SUCCESS = "es_esql_success";
+
+    /**
+     * Attribute of the query counter: the Kibana feature that sent a query from Kibana, one of
+     * {@link KibanaExecutionContextClassifier.Feature}. Queries from anywhere else don't carry it.
+     */
+    public static final String KIBANA_FEATURE = "es_esql_kibana_feature";
+
+    /**
+     * Attribute of the query counter: whether a person chose to run a query from Kibana, one of
+     * {@link KibanaExecutionContextClassifier.Interaction}. Set together with {@link #KIBANA_FEATURE}.
+     */
+    public static final String KIBANA_INTERACTION = "es_esql_kibana_interaction";
 
     public static final String FEATURE_NAME = "feature_name";
 
@@ -227,6 +240,10 @@ public class PlanTelemetryManager {
         attributes.put(QUERY_SUCCESS, success);
         if (directClient != null) {
             attributes.put(DIRECT_CLIENT, directClient.toString());
+        }
+        if (caller.kibanaFeature() != null) {
+            attributes.put(KIBANA_FEATURE, caller.kibanaFeature().toString());
+            attributes.put(KIBANA_INTERACTION, caller.kibanaFeature().interaction().toString());
         }
         queriesCounter.incrementBy(1, attributes);
     }

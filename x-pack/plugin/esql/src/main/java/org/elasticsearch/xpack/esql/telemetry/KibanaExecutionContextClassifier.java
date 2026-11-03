@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.telemetry;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 
 import java.util.List;
 import java.util.Locale;
@@ -43,7 +42,8 @@ public final class KibanaExecutionContextClassifier {
 
         private final String label = name().toLowerCase(Locale.ROOT);
 
-        public String label() {
+        @Override
+        public String toString() {
             return label;
         }
     }
@@ -80,7 +80,8 @@ public final class KibanaExecutionContextClassifier {
             return interaction;
         }
 
-        public String label() {
+        @Override
+        public String toString() {
             return label;
         }
     }
@@ -135,15 +136,10 @@ public final class KibanaExecutionContextClassifier {
     private KibanaExecutionContextClassifier() {}
 
     /**
-     * Classifies a request from its {@code X-elastic-product-origin} and {@code X-Opaque-Id} headers. Returns {@code null} when
-     * the origin is not Kibana, as decided by {@link ExternalSourceMetrics#clientFromOrigin}, and {@link Feature#OTHER_KIBANA}
-     * for Kibana requests without a recognised execution context.
+     * Classifies the {@code X-Opaque-Id} header of a request that {@link QueryCallerClassifier} found to come from Kibana.
+     * Returns {@link Feature#OTHER_KIBANA} when the header is absent or carries no recognised execution context.
      */
-    @Nullable
-    public static Feature classify(@Nullable String productOrigin, @Nullable String opaqueId) {
-        if (ExternalSourceMetrics.CLIENT_KIBANA.equals(ExternalSourceMetrics.clientFromOrigin(productOrigin)) == false) {
-            return null;
-        }
+    public static Feature classify(@Nullable String opaqueId) {
         if (opaqueId == null) {
             return Feature.OTHER_KIBANA;
         }

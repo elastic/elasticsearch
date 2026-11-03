@@ -11,6 +11,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Feature;
 
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,7 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         LeadingCommand leadingCommand = randomFrom(LeadingCommand.values());
         boolean success = randomBoolean();
 
-        manager.publishQuery(new QueryCaller(client), entryPoint, null, leadingCommand, success);
+        manager.publishQuery(new QueryCaller(client, null), entryPoint, null, leadingCommand, success);
 
         List<Measurement> measurements = queryMeasurements(registry);
         assertThat(measurements, hasSize(1));
@@ -56,7 +57,7 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
         DirectClient directClient = randomFrom(DirectClient.values());
 
-        manager.publishQuery(new QueryCaller(QueryMetric.REST), QueryEntryPoint.QUERY, directClient, LeadingCommand.FROM, true);
+        manager.publishQuery(new QueryCaller(QueryMetric.REST, null), QueryEntryPoint.QUERY, directClient, LeadingCommand.FROM, true);
 
         List<Measurement> measurements = queryMeasurements(registry);
         assertThat(measurements, hasSize(1));
@@ -79,12 +80,43 @@ public class PlanTelemetryManagerTests extends ESTestCase {
         );
     }
 
+    public void testPublishQueryAddsTheKibanaFeatureAndInteraction() {
+        RecordingMeterRegistry registry = new RecordingMeterRegistry();
+        PlanTelemetryManager manager = new PlanTelemetryManager(registry);
+        Feature feature = randomFrom(Feature.values());
+
+        manager.publishQuery(new QueryCaller(QueryMetric.KIBANA, feature), QueryEntryPoint.QUERY_ASYNC, null, LeadingCommand.FROM, false);
+
+        List<Measurement> measurements = queryMeasurements(registry);
+        assertThat(measurements, hasSize(1));
+        assertThat(
+            measurements.getFirst().attributes(),
+            equalTo(
+                Map.of(
+                    PlanTelemetryManager.CLIENT,
+                    "kibana",
+                    PlanTelemetryManager.ENTRY_POINT,
+                    "query_async",
+                    PlanTelemetryManager.KIBANA_FEATURE,
+                    feature.toString(),
+                    PlanTelemetryManager.KIBANA_INTERACTION,
+                    feature.interaction().toString(),
+                    PlanTelemetryManager.LEADING_COMMAND,
+                    "from",
+                    PlanTelemetryManager.QUERY_SUCCESS,
+                    false
+                )
+            )
+        );
+    }
+
     public void testPublishQueryCountsEachQuery() {
         RecordingMeterRegistry registry = new RecordingMeterRegistry();
         PlanTelemetryManager manager = new PlanTelemetryManager(registry);
         int queries = between(2, 10);
+        QueryCaller caller = new QueryCaller(QueryMetric.KIBANA, randomFrom(Feature.values()));
         for (int i = 0; i < queries; i++) {
-            manager.publishQuery(new QueryCaller(QueryMetric.KIBANA), QueryEntryPoint.QUERY, null, LeadingCommand.FROM, true);
+            manager.publishQuery(caller, QueryEntryPoint.QUERY, null, LeadingCommand.FROM, true);
         }
         assertThat(Measurement.combine(queryMeasurements(registry)).getFirst().getLong(), equalTo((long) queries));
     }
@@ -99,6 +131,8 @@ public class PlanTelemetryManagerTests extends ESTestCase {
             PlanTelemetryManager.CLIENT,
             PlanTelemetryManager.ENTRY_POINT,
             PlanTelemetryManager.DIRECT_CLIENT,
+            PlanTelemetryManager.KIBANA_FEATURE,
+            PlanTelemetryManager.KIBANA_INTERACTION,
             PlanTelemetryManager.LEADING_COMMAND,
             PlanTelemetryManager.QUERY_SUCCESS
         )) {

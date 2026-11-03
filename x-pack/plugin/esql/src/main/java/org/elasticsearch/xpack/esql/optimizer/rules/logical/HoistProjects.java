@@ -91,8 +91,8 @@ public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPla
      * later, field extractions can also happen later, making joins cheaper to execute on data nodes.
      * E.g. {@code ... | RENAME field AS otherfield | LOOKUP JOIN lu_idx ON key}
      * becomes {@code ... | LOOKUP JOIN lu_idx ON key | RENAME field AS otherfield }.
-     * When a {@code LOOKUP JOIN}'s lookup fields shadow the previous fields, we need to leave an {@link Eval} in place of the {@link Project}
-     * to assign a temporary name. Assume that {@code field} is a lookup-added field, then
+     * When a {@code LOOKUP JOIN}'s lookup fields shadow the previous fields, we need to leave an {@link Eval} in place of the
+     * {@link Project} to assign a temporary name. Assume that {@code field} is a lookup-added field, then
      * {@code ... | RENAME field AS otherfield | LOOKUP JOIN lu_idx ON key}
      * becomes something like
      * {@code ... | EVAL $$field = field | LOOKUP JOIN lu_idx ON key | RENAME $$field AS otherfield}.

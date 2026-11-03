@@ -29,6 +29,20 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.contextengine.aiindex.AiIndexRegistryService;
+import org.elasticsearch.xpack.contextengine.aiindex.AiIndexTemplateRegistry;
+import org.elasticsearch.xpack.contextengine.aiindex.action.DeleteAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.GetAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.ListAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.PutAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.RestDeleteAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.RestGetAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.RestListAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.RestPutAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.TransportDeleteAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.TransportGetAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.TransportListAiIndexAction;
+import org.elasticsearch.xpack.contextengine.aiindex.action.TransportPutAiIndexAction;
 import org.elasticsearch.xpack.contextengine.events.action.GetSessionEventsAction;
 import org.elasticsearch.xpack.contextengine.events.action.RestGetSessionEventsAction;
 import org.elasticsearch.xpack.contextengine.events.action.RestSaveEventAction;
@@ -82,15 +96,31 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
         Setting.Property.NodeScope
     );
 
+    private final Settings settings;
     private final String sessionMemoryInferenceId;
 
     public ContextEnginePlugin(Settings settings) {
+        this.settings = settings;
         this.sessionMemoryInferenceId = SESSION_MEMORY_INFERENCE_ID.get(settings);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(SESSION_MEMORY_INFERENCE_ID);
+        return List.of(SESSION_MEMORY_INFERENCE_ID, AiIndexTemplateRegistry.AI_INDEX_REGISTRY_ENABLED);
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        AiIndexTemplateRegistry aiIndexTemplateRegistry = new AiIndexTemplateRegistry(
+            settings,
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry(),
+            services.featureService()
+        );
+        aiIndexTemplateRegistry.initialize();
+        return List.of(aiIndexTemplateRegistry);
     }
 
     @Override
@@ -100,7 +130,11 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
             new ActionHandler(GetSessionMemoryAction.INSTANCE, TransportGetSessionMemoryAction.class),
             new ActionHandler(SearchSessionMemoryAction.INSTANCE, TransportSearchSessionMemoryAction.class),
             new ActionHandler(SaveEventAction.INSTANCE, TransportSaveEventAction.class),
-            new ActionHandler(GetSessionEventsAction.INSTANCE, TransportGetSessionEventsAction.class)
+            new ActionHandler(GetSessionEventsAction.INSTANCE, TransportGetSessionEventsAction.class),
+            new ActionHandler(PutAiIndexAction.INSTANCE, TransportPutAiIndexAction.class),
+            new ActionHandler(GetAiIndexAction.INSTANCE, TransportGetAiIndexAction.class),
+            new ActionHandler(ListAiIndexAction.INSTANCE, TransportListAiIndexAction.class),
+            new ActionHandler(DeleteAiIndexAction.INSTANCE, TransportDeleteAiIndexAction.class)
         );
     }
 
@@ -115,13 +149,17 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
             new RestGetSessionMemoryAction(),
             new RestSearchSessionMemoryAction(),
             new RestSaveEventAction(),
-            new RestGetSessionEventsAction()
+            new RestGetSessionEventsAction(),
+            new RestPutAiIndexAction(),
+            new RestGetAiIndexAction(),
+            new RestListAiIndexAction(),
+            new RestDeleteAiIndexAction()
         );
     }
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of();
+        return List.of(AiIndexRegistryService.getSystemIndexDescriptor());
     }
 
     @Override
@@ -217,6 +255,6 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
 
     @Override
     public String getFeatureDescription() {
-        return "Manages Context Engine system data streams";
+        return "Manages Context Engine system indices and data streams";
     }
 }

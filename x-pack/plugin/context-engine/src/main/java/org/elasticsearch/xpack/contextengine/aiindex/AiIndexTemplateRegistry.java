@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stack;
+package org.elasticsearch.xpack.contextengine.aiindex;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -73,7 +73,7 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
      * Setting for tests to disable the registry.
      */
     public static final Setting<Boolean> AI_INDEX_REGISTRY_ENABLED = Setting.boolSetting(
-        "xpack.stack.ai-index.registry.enabled",
+        "xpack.context_engine.ai_index.registry.enabled",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -163,7 +163,7 @@ public class AiIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected String getOrigin() {
-        return ClientHelper.STACK_ORIGIN;
+        return ClientHelper.CONTEXT_ENGINE_ORIGIN;
     }
 
     @Override

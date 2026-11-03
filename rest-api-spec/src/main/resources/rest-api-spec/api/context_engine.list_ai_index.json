@@ -1,0 +1,40 @@
+{
+  "context_engine.list_ai_index": {
+    "documentation": {
+      "url": null,
+      "description": "Lists Context Engine AI index registry records"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_context_engine/ai_index",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "space": {
+        "type": "string",
+        "description": "Only return AI indices in this Kibana space; all spaces when omitted"
+      },
+      "dest": {
+        "type": "string",
+        "description": "Only return AI indices whose backing store has this name"
+      },
+      "size": {
+        "type": "int",
+        "default": 100,
+        "description": "The maximum number of records to return"
+      }
+    }
+  }
+}

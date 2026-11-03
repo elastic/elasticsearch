@@ -13,6 +13,8 @@ module org.elasticsearch.xpack.contextengine {
     requires org.elasticsearch.xcore;
 
     exports org.elasticsearch.xpack.contextengine;
+    exports org.elasticsearch.xpack.contextengine.aiindex;
+    exports org.elasticsearch.xpack.contextengine.aiindex.action;
     exports org.elasticsearch.xpack.contextengine.events;
     exports org.elasticsearch.xpack.contextengine.events.action;
     exports org.elasticsearch.xpack.contextengine.memory;

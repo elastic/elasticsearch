@@ -1,0 +1,38 @@
+{
+  "context_engine.get_ai_index": {
+    "documentation": {
+      "url": null,
+      "description": "Returns a Context Engine AI index registry record"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_context_engine/ai_index/{id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The AI index id"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "space": {
+        "type": "string",
+        "required": true,
+        "description": "The Kibana space the AI index belongs to"
+      }
+    }
+  }
+}

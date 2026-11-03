@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -121,6 +122,8 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.useragent.api.UserAgentParser;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -255,6 +258,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -3029,6 +3033,31 @@ public class LocalExecutionPlanner {
             return ids;
         }
 
+        /**
+         * Writes the operator factories of this driver, in pipeline order, each with the id of the physical plan node it was built
+         * from. These are the same ids PROFILE reports as {@code plan_node_id}, and that the plan JSON uses as node {@code id}.
+         */
+        void operatorsToXContent(XContentBuilder builder) throws IOException {
+            builder.startArray("operators");
+            operatorToXContent(builder, "source", sourceOperatorFactory, sourcePlanNodeId);
+            for (int i = 0; i < intermediateOperatorFactories.size(); i++) {
+                operatorToXContent(builder, "operator", intermediateOperatorFactories.get(i), intermediatePlanNodeIds.get(i));
+            }
+            operatorToXContent(builder, "sink", sinkOperatorFactory, sinkPlanNodeId);
+            builder.endArray();
+        }
+
+        private static void operatorToXContent(XContentBuilder builder, String role, Describable factory, String planNodeId)
+            throws IOException {
+            builder.startObject();
+            builder.field("role", role);
+            builder.field("factory", factory == null ? null : factory.describe());
+            if (planNodeId != null) {
+                builder.field("plan_node_id", planNodeId);
+            }
+            builder.endObject();
+        }
+
         public SourceOperator source(DriverContext driverContext) {
             return sourceOperatorFactory.get(driverContext);
         }
@@ -3206,6 +3235,15 @@ public class LocalExecutionPlanner {
     }
 
     record DriverFactory(DriverSupplier driverSupplier, DriverParallelism driverParallelism) implements Describable {
+        void toXContent(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.field("description", driverSupplier.description());
+            builder.field("instances", driverParallelism.instanceCount());
+            builder.field("parallelism", driverParallelism.type().name().toLowerCase(Locale.ROOT));
+            driverSupplier.physicalOperation().operatorsToXContent(builder);
+            builder.endObject();
+        }
+
         @Override
         public String describe() {
             return "DriverFactory(instances = "
@@ -3249,6 +3287,25 @@ public class LocalExecutionPlanner {
         @Override
         public String describe() {
             return driverFactories.stream().map(DriverFactory::describe).collect(joining("\n"));
+        }
+
+        /**
+         * The same drivers as {@link #describe()}, as pretty JSON for the {@code plan.json} logger. Each operator carries the
+         * {@code plan_node_id} of the physical plan node it came from, so a visualizer can tie the drivers back to the plan.
+         */
+        public String toPrettyJsonString() {
+            try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
+                builder.startObject();
+                builder.startArray("drivers");
+                for (DriverFactory driverFactory : driverFactories) {
+                    driverFactory.toXContent(builder);
+                }
+                builder.endArray();
+                builder.endObject();
+                return Strings.toString(builder);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 }

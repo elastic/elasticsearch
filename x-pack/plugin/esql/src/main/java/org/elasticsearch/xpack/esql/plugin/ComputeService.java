@@ -101,6 +101,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -2101,6 +2102,8 @@ public class ComputeService {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
+            // The plan the drivers below are built from, so their plan_node_ids all resolve to nodes in it.
+            PlanJsonLog.debug("compute_plan:" + context.description(), localPlan);
 
             // For EXPLAIN mode, replace data sources with empty sources to make execution cheap.
             // The original localPlan is immutable and preserved for profiling.
@@ -2127,6 +2130,7 @@ public class ComputeService {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
+            PlanJsonLog.debug("drivers:" + context.description(), localExecutionPlan::toPrettyJsonString);
             String driverSessionId = new TaskId(clusterService.localNode().getId(), task.getId()).toString();
             var drivers = localExecutionPlan.createDrivers(driverSessionId);
             // Note that the drivers themselves do not hold a reference to the search contexts, but rather, these are held (and therefore

@@ -12,6 +12,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.function.Supplier;
+
 /**
  * JSON plan dumps on {@code org.elasticsearch.xpack.esql.plan.json}.
  * ASCII {@code DEBUG} lines stay on the session, parser, and optimizer loggers.
@@ -35,6 +37,21 @@ public final class PlanJsonLog {
         }
         try {
             logger.debug("JSON plan [{}]:\n{}", stage, plan.toPrettyJsonString());
+        } catch (Exception e) {
+            logger.debug("JSON plan [{}] failed to render", stage, e);
+        }
+    }
+
+    /**
+     * Logs a JSON document that is not a {@link QueryPlan}, rendered only when this logger is {@code DEBUG} or finer.
+     * Failures to render are logged and swallowed so execution itself is unaffected.
+     */
+    public static void debug(String stage, Supplier<String> json) {
+        if (logger.isDebugEnabled() == false) {
+            return;
+        }
+        try {
+            logger.debug("JSON plan [{}]:\n{}", stage, json.get());
         } catch (Exception e) {
             logger.debug("JSON plan [{}] failed to render", stage, e);
         }

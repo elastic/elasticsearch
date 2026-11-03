@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
@@ -67,9 +68,27 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         Setting.Property.NodeScope
     );
 
+    /**
+     * The hosts the nodes may open Flight connections to (see {@link FlightHostPolicy}). The default is this machine only: a dataset
+     * names its host, so a wider default would let whoever can create a dataset reach every host a data node can.
+     */
+    public static final Setting<List<String>> FLIGHT_ALLOWED_HOSTS = Setting.listSetting(
+        "esql.datasource.flight.allowed_hosts",
+        FlightHostPolicy.DEFAULT_ALLOWED,
+        entry -> {
+            new FlightHostPolicy(List.of(entry)); // an entry that cannot be read is refused when the node starts
+            return entry;
+        },
+        Setting.Property.NodeScope
+    );
+
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FLIGHT_CALL_TIMEOUT, FLIGHT_DECLARATION_TTL);
+        return List.of(FLIGHT_CALL_TIMEOUT, FLIGHT_DECLARATION_TTL, FLIGHT_ALLOWED_HOSTS);
+    }
+
+    private static FlightHostPolicy policy(Settings settings) {
+        return new FlightHostPolicy(FLIGHT_ALLOWED_HOSTS.get(settings));
     }
 
     private static boolean enabled() {
@@ -81,7 +100,7 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Set.of();
         }
-        return Set.of("flight", "grpc");
+        return Set.of("flight", "grpc", "flight+tls", "grpc+tls");
     }
 
     @Override
@@ -89,8 +108,24 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        StorageProviderFactory factory = StorageProviderFactory.noConfigKeys(FlightStorageProvider::new);
-        return Map.of("flight", factory, "grpc", factory);
+        FlightHostPolicy policy = policy(settings);
+        // the TLS settings of the data source reach the provider as config keys, so that its existence check trusts the same
+        // authority as the connector
+        StorageProviderFactory factory = StorageProviderFactory.of(
+            () -> new FlightStorageProvider(null, null, null, policy),
+            config -> Configured.fromKnownSubset(
+                new FlightClients.Transport(
+                    true,
+                    FlightClients.setting(config, FlightClients.CA_CERTIFICATE),
+                    FlightClients.setting(config, FlightClients.SERVER_NAME),
+                    FlightClients.setting(config, FlightClients.TOKEN)
+                ),
+                config,
+                FlightClients.TLS_SETTINGS
+            ),
+            tls -> new FlightStorageProvider(tls.caCertificate(), tls.serverName(), tls.token(), policy)
+        );
+        return Map.of("flight", factory, "grpc", factory, "flight+tls", factory, "grpc+tls", factory);
     }
 
     @Override
@@ -98,7 +133,7 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Set.of();
         }
-        return Set.of("flight", "grpc");
+        return Set.of("flight", "grpc", "flight+tls", "grpc+tls");
     }
 
     @Override
@@ -106,7 +141,19 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        return Map.of("flight", new FlightConnectorFactory(FLIGHT_CALL_TIMEOUT.get(settings), FLIGHT_DECLARATION_TTL.get(settings)));
+        return Map.of(
+            "flight",
+            new FlightConnectorFactory(
+                FLIGHT_CALL_TIMEOUT.get(settings),
+                new SatelliteDeclarationCache(FLIGHT_DECLARATION_TTL.get(settings)),
+                policy(settings)
+            )
+        );
+    }
+
+    @Override
+    public Set<String> datasourceSecretSettingNames() {
+        return FlightClients.SECRET_SETTINGS;
     }
 
     @Override
@@ -114,7 +161,7 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        DataSourceValidator flight = new FlightDataSourceValidator();
+        DataSourceValidator flight = new FlightDataSourceValidator(policy(settings));
         return Map.of(flight.type(), flight);
     }
 

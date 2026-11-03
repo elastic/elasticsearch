@@ -89,10 +89,64 @@ public final class BlockingSatelliteServer implements Closeable {
     private final FlightServer server;
     private final Location location;
 
+    private final boolean tls;
+
+    /** When set, a call without {@code authorization: Bearer <this>} is answered UNAUTHENTICATED. */
+    public volatile String requiredToken;
+    public final AtomicInteger unauthenticatedCalls = new AtomicInteger();
+
     public BlockingSatelliteServer() throws IOException {
-        this.location = Location.forGrpcInsecure("127.0.0.1", 0);
-        this.server = FlightServer.builder(allocator, location, new Producer()).build();
+        this(false);
+    }
+
+    /** With {@code tls} the server uses the test certificate under {@code tls/}, issued by the test CA {@link #caCertificate()}. */
+    public BlockingSatelliteServer(boolean tls) throws IOException {
+        this.tls = tls;
+        this.location = tls ? Location.forGrpcTls("127.0.0.1", 0) : Location.forGrpcInsecure("127.0.0.1", 0);
+        FlightServer.Builder builder = FlightServer.builder(allocator, location, new Producer());
+        if (tls) {
+            builder.useTls(resource("server.crt"), resource("server.key"));
+        }
+        builder.middleware(AUTH_KEY, (info, headers, context) -> {
+            String required = requiredToken;
+            if (required != null && ("Bearer " + required).equals(headers.get("authorization")) == false) {
+                unauthenticatedCalls.incrementAndGet();
+                throw org.apache.arrow.flight.CallStatus.UNAUTHENTICATED.withDescription("no valid token").toRuntimeException();
+            }
+            return new org.apache.arrow.flight.FlightServerMiddleware() {
+                @Override
+                public void onBeforeSendingHeaders(org.apache.arrow.flight.CallHeaders outgoingHeaders) {}
+
+                @Override
+                public void onCallCompleted(org.apache.arrow.flight.CallStatus status) {}
+
+                @Override
+                public void onCallErrored(Throwable err) {}
+            };
+        });
+        this.server = builder.build();
         this.server.start();
+    }
+
+    private static final org.apache.arrow.flight.FlightServerMiddleware.Key<org.apache.arrow.flight.FlightServerMiddleware> AUTH_KEY =
+        org.apache.arrow.flight.FlightServerMiddleware.Key.of("bearer-test");
+
+    private static java.io.InputStream resource(String name) {
+        return BlockingSatelliteServer.class.getResourceAsStream("tls/" + name);
+    }
+
+    /** The PEM text of a CA that issued no certificate of the test servers. */
+    public static String otherCaCertificate() throws IOException {
+        try (java.io.InputStream in = resource("other-ca.crt")) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    /** The PEM text of the CA that issued the certificate of a TLS server. */
+    public static String caCertificate() throws IOException {
+        try (java.io.InputStream in = resource("ca.crt")) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     public int port() {
@@ -110,8 +164,10 @@ public final class BlockingSatelliteServer implements Closeable {
 
         @Override
         public FlightInfo getFlightInfo(CallContext context, FlightDescriptor descriptor) {
-            Location self = Location.forGrpcInsecure("127.0.0.1", server.getPort()); // spelled like the dataset resource: hosts are
-                                                                                     // compared literally
+            Location self = tls
+                ? Location.forGrpcTls("127.0.0.1", server.getPort())
+                : Location.forGrpcInsecure("127.0.0.1", server.getPort()); // spelled like the dataset resource: hosts are
+            // compared literally
             if (descriptor.isCommand() == false) {
                 return new FlightInfo(
                     SCHEMA,

@@ -12,7 +12,6 @@ import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightEndpoint;
 import org.apache.arrow.flight.FlightInfo;
-import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.core.TimeValue;
@@ -36,13 +35,19 @@ import java.util.concurrent.TimeUnit;
 class FlightSplitProvider implements SplitProvider {
 
     private final TimeValue callTimeout;
+    private final FlightHostPolicy hosts;
 
     FlightSplitProvider() {
         this(GrpcDataSourcePlugin.DEFAULT_CALL_TIMEOUT);
     }
 
     FlightSplitProvider(TimeValue callTimeout) {
+        this(callTimeout, FlightHostPolicy.DEFAULT);
+    }
+
+    FlightSplitProvider(TimeValue callTimeout, FlightHostPolicy hosts) {
         this.callTimeout = callTimeout;
+        this.hosts = hosts;
     }
 
     @Override
@@ -55,9 +60,12 @@ class FlightSplitProvider implements SplitProvider {
 
         URI uri = URI.create(endpoint);
         int port = uri.getPort() > 0 ? uri.getPort() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
-        Location location = Location.forGrpcInsecure(uri.getHost(), port);
+        FlightClients.Transport transport = FlightClients.transport(endpoint, context.config());
 
-        try (BufferAllocator allocator = new RootAllocator(); FlightClient client = FlightClient.builder(allocator, location).build()) {
+        try (
+            BufferAllocator allocator = new RootAllocator();
+            FlightClient client = FlightClients.build(allocator, uri.getHost(), port, transport, hosts)
+        ) {
             FlightInfo info = client.getInfo(
                 FlightDescriptor.path(target),
                 CallOptions.timeout(callTimeout.millis(), TimeUnit.MILLISECONDS)
@@ -81,6 +89,10 @@ class FlightSplitProvider implements SplitProvider {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted during Flight split discovery for [" + target + "]", e);
         } catch (Exception e) {
+            IllegalArgumentException rejected = FlightClients.authenticationFailure(e);
+            if (rejected != null) {
+                throw rejected;
+            }
             throw new IllegalStateException("Failed Flight split discovery for [" + target + "]", e);
         }
     }

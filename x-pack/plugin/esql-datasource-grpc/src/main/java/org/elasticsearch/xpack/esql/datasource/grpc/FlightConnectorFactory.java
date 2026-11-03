@@ -13,7 +13,6 @@ import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStatusCode;
-import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Result;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
@@ -49,12 +48,15 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Factory for Arrow Flight connectors.
- * Handles {@code flight://} and {@code grpc://} URIs.
+ * Handles {@code flight://} and {@code grpc://} URIs, and their TLS forms {@code flight+tls://} and {@code grpc+tls://}.
  */
 class FlightConnectorFactory implements ConnectorFactory {
 
     /** The deadline of the calls that only plan a read (schema, capabilities, discovery, a fragment's flight info). */
     private final TimeValue callTimeout;
+
+    /** The hosts a connection may be opened to. */
+    private final FlightHostPolicy hosts;
 
     /** What the satellites declared, kept for a short time so that a query does not repeat the capability round trip. */
     private final SatelliteDeclarationCache declarations;
@@ -69,8 +71,13 @@ class FlightConnectorFactory implements ConnectorFactory {
     }
 
     FlightConnectorFactory(TimeValue callTimeout, SatelliteDeclarationCache declarations) {
+        this(callTimeout, declarations, FlightHostPolicy.DEFAULT);
+    }
+
+    FlightConnectorFactory(TimeValue callTimeout, SatelliteDeclarationCache declarations, FlightHostPolicy hosts) {
         this.callTimeout = callTimeout;
         this.declarations = declarations;
+        this.hosts = hosts;
     }
 
     @Override
@@ -80,7 +87,10 @@ class FlightConnectorFactory implements ConnectorFactory {
 
     @Override
     public boolean canHandle(String location) {
-        return location.startsWith("flight://") || location.startsWith("grpc://");
+        return location.startsWith("flight://")
+            || location.startsWith("grpc://")
+            || location.startsWith("flight+tls://")
+            || location.startsWith("grpc+tls://");
     }
 
     @Override
@@ -151,11 +161,11 @@ class FlightConnectorFactory implements ConnectorFactory {
         String target = extractTarget(uri);
         int port = uri.getPort() > 0 ? uri.getPort() : DEFAULT_FLIGHT_PORT;
         String endpoint = uri.getScheme() + "://" + uri.getHost() + ":" + port;
-        Location flightLocation = Location.forGrpcInsecure(uri.getHost(), port);
+        FlightClients.Transport transport = FlightClients.transport(endpoint, config);
 
         try (
             BufferAllocator allocator = new RootAllocator();
-            FlightClient client = FlightClient.builder(allocator, flightLocation).build()
+            FlightClient client = FlightClients.build(allocator, uri.getHost(), port, transport, hosts)
         ) {
             Schema arrowSchema = client.getSchema(
                 FlightDescriptor.path(target),
@@ -169,7 +179,7 @@ class FlightConnectorFactory implements ConnectorFactory {
                 arrowSchema.getCustomMetadata().get(SatelliteDeclarationCache.SCHEMA_METADATA_KEY)
             );
             Map<String, Object> declaration = declarations.resolve(
-                endpoint,
+                endpoint + transport.credentialScope(),
                 target,
                 declarationId,
                 () -> fetchDeclaration(client, target, callTimeout)
@@ -183,6 +193,10 @@ class FlightConnectorFactory implements ConnectorFactory {
         } catch (IllegalArgumentException e) {
             throw e; // a dataset that cannot be served: the message says why, and it is the user's to fix
         } catch (Exception e) {
+            IllegalArgumentException rejected = FlightClients.authenticationFailure(e);
+            if (rejected != null) {
+                throw rejected;
+            }
             throw new IllegalStateException("Failed to resolve Flight schema for [" + target + "]", e);
         }
     }
@@ -411,12 +425,12 @@ class FlightConnectorFactory implements ConnectorFactory {
         if (endpoint == null) {
             throw new IllegalArgumentException("Flight connector requires 'endpoint' in config");
         }
-        return new FlightConnector(endpoint, callTimeout, declarations);
+        return new FlightConnector(endpoint, FlightClients.transport(endpoint, config), callTimeout, declarations, hosts);
     }
 
     @Override
     public SplitProvider splitProvider() {
-        return new FlightSplitProvider(callTimeout);
+        return new FlightSplitProvider(callTimeout, hosts);
     }
 
     private static String extractTarget(URI uri) {

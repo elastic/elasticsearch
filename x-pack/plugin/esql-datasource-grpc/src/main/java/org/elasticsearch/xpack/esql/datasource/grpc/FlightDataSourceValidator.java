@@ -15,17 +15,30 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Registers {@code flight} data sources and datasets, so that a satellite (or any Flight server) can be queried as
- * {@code FROM <dataset>}. A data source carries no settings in v0 (no credentials, no TLS). A dataset's resource is
- * {@code flight://host:port/table}; the validator derives the {@code endpoint} and {@code target} the connector needs. The dataset's
+ * {@code FROM <dataset>}. A data source's only settings are for TLS and authentication: {@code ca_certificate} (PEM text),
+ * {@code server_name} and {@code token} (a bearer token, the only secret). They apply to datasets whose resource uses the
+ * {@code flight+tls} or {@code grpc+tls} scheme. A dataset's resource is {@code flight://host:port/table}; the validator
+ * derives the {@code endpoint} and {@code target} the connector needs. The dataset's
  * settings are source options for the satellite: scalars only, and checked against the satellite's declaration when a query is
  * resolved. Options only change values, never the schema or the partitions (protocol section 11).
  */
 class FlightDataSourceValidator implements DataSourceValidator {
 
-    private static final Set<String> SCHEMES = Set.of("flight", "grpc");
+    private final FlightHostPolicy hosts;
+
+    FlightDataSourceValidator() {
+        this(FlightHostPolicy.DEFAULT);
+    }
+
+    FlightDataSourceValidator(FlightHostPolicy hosts) {
+        this.hosts = hosts;
+    }
+
+    private static final Set<String> SCHEMES = Set.of("flight", "grpc", "flight+tls", "grpc+tls");
 
     @Override
     public String type() {
@@ -34,10 +47,38 @@ class FlightDataSourceValidator implements DataSourceValidator {
 
     @Override
     public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
-        if (datasourceSettings != null && datasourceSettings.isEmpty() == false) {
-            throw error("a flight data source takes no settings, got " + datasourceSettings.keySet());
+        Map<String, DataSourceSetting> validated = new HashMap<>();
+        if (datasourceSettings != null) {
+            for (Map.Entry<String, Object> setting : datasourceSettings.entrySet()) {
+                if (FlightClients.TLS_SETTINGS.contains(setting.getKey()) == false) {
+                    throw error(
+                        "a flight data source takes the settings "
+                            + new TreeSet<>(FlightClients.TLS_SETTINGS)
+                            + ", got ["
+                            + setting.getKey()
+                            + "]"
+                    );
+                }
+                if (setting.getValue() instanceof String == false || ((String) setting.getValue()).isBlank()) {
+                    throw error("[" + setting.getKey() + "] must be a non-empty string");
+                }
+                if (FlightClients.CA_CERTIFICATE.equals(setting.getKey())) {
+                    try {
+                        FlightClients.checkCertificates((String) setting.getValue());
+                    } catch (IllegalArgumentException e) {
+                        throw error(e.getMessage());
+                    }
+                }
+                if (FlightClients.TOKEN.equals(setting.getKey()) && ((String) setting.getValue()).matches("[!-~]+") == false) {
+                    throw error("[token] must be printable ASCII characters without spaces");
+                }
+                validated.put(
+                    setting.getKey(),
+                    new DataSourceSetting(setting.getValue(), FlightClients.SECRET_SETTINGS.contains(setting.getKey()))
+                );
+            }
         }
-        return Map.of();
+        return validated;
     }
 
     @Override
@@ -54,6 +95,20 @@ class FlightDataSourceValidator implements DataSourceValidator {
         }
         if (uri.getScheme() == null || SCHEMES.contains(uri.getScheme()) == false || uri.getHost() == null) {
             throw error("a flight resource must look like flight://host:port/table, got [" + resource + "]");
+        }
+        if (FlightClients.isTls(uri.getScheme()) == false && datasourceSettings != null) {
+            for (String name : FlightClients.TLS_SETTINGS) {
+                if (datasourceSettings.containsKey(name)) {
+                    throw error(
+                        "the data source sets [" + name + "], which needs a flight+tls or grpc+tls resource, got [" + resource + "]"
+                    );
+                }
+            }
+        }
+        try {
+            hosts.check(uri.getHost());
+        } catch (IllegalArgumentException e) {
+            throw error(e.getMessage());
         }
         String path = uri.getPath();
         if (path == null || path.length() < 2 || path.indexOf('/', 1) >= 0) {

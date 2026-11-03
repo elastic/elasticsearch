@@ -15,7 +15,6 @@ import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStatusCode;
 import org.apache.arrow.flight.FlightStream;
-import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Ticket;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -51,6 +50,8 @@ import java.util.concurrent.TimeUnit;
 class FlightConnector implements Connector {
 
     private final URI endpointURI;
+    private final FlightClients.Transport transport;
+    private final FlightHostPolicy hosts;
     private final CallOption callTimeout;
     private final SatelliteDeclarationCache declarations;
     private volatile boolean closed = false;
@@ -64,7 +65,23 @@ class FlightConnector implements Connector {
     }
 
     FlightConnector(String endpoint, TimeValue callTimeout, SatelliteDeclarationCache declarations) {
+        this(endpoint, FlightClients.transport(endpoint, null), callTimeout, declarations);
+    }
+
+    FlightConnector(String endpoint, FlightClients.Transport transport, TimeValue callTimeout, SatelliteDeclarationCache declarations) {
+        this(endpoint, transport, callTimeout, declarations, FlightHostPolicy.DEFAULT);
+    }
+
+    FlightConnector(
+        String endpoint,
+        FlightClients.Transport transport,
+        TimeValue callTimeout,
+        SatelliteDeclarationCache declarations,
+        FlightHostPolicy hosts
+    ) {
+        this.hosts = hosts;
         this.endpointURI = URI.create(endpoint);
+        this.transport = transport;
         this.callTimeout = CallOptions.timeout(callTimeout.millis(), TimeUnit.MILLISECONDS);
         this.declarations = declarations;
     }
@@ -147,6 +164,10 @@ class FlightConnector implements Connector {
     }
 
     private static IllegalArgumentException rejection(Throwable t) {
+        IllegalArgumentException authentication = FlightClients.authenticationFailure(t);
+        if (authentication != null) {
+            return authentication;
+        }
         if (t instanceof FlightRuntimeException e) {
             FlightStatusCode code = e.status().code();
             if (code == FlightStatusCode.INVALID_ARGUMENT || code == FlightStatusCode.NOT_FOUND) {
@@ -174,7 +195,8 @@ class FlightConnector implements Connector {
         if (host == null || host.isBlank()) {
             throw new IllegalArgumentException("Invalid Flight endpoint location: missing host");
         }
-        return FlightClient.builder(request.blockFactory().arrowAllocator(), Location.forGrpcInsecure(host, getPort(uri))).build();
+        // the transport is the endpoint's: a location a satellite names can change the host, never the security of the connection
+        return FlightClients.build(request.blockFactory().arrowAllocator(), host, getPort(uri), transport, hosts);
     }
 
     private static void closeQuietly(AutoCloseable closeable) {
@@ -258,7 +280,7 @@ class FlightConnector implements Connector {
                 if (rejected != null) {
                     if (request.fragment() != null) {
                         // the fragment was built from a declaration this node may have kept: read it again for the next query
-                        declarations.invalidate(endpointURI.toString(), request.target());
+                        declarations.invalidate(endpointURI.toString() + transport.credentialScope(), request.target());
                     }
                     throw rejected;
                 }

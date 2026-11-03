@@ -33,7 +33,14 @@ public record SatelliteFragment(Map<String, Object> request) {
      * Config keys of a satellite dataset that are not source options: what the validator derives from the resource and what the
      * dataset layer adds. Keys that start with an underscore are framework keys and are never options either.
      */
-    public static final Set<String> NON_OPTION_KEYS = Set.of("endpoint", "target", "schema_resolution");
+    public static final Set<String> NON_OPTION_KEYS = Set.of(
+        "endpoint",
+        "target",
+        "schema_resolution",
+        "ca_certificate",
+        "server_name",
+        "token"
+    );
 
     /**
      * Whether the fragment filters rows before they leave the satellite. How many splits it takes to fill a LIMIT is then unknown,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
@@ -31,6 +32,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
@@ -782,31 +785,39 @@ public final class DataSourceModule implements Closeable {
             }
         }
 
+        /**
+         * The data source's settings sit under {@code _datasource} in a dataset's config, with its secrets still encrypted: a
+         * connector is handed them flat and in the clear, as the storage providers are, so that it can use a credential.
+         */
+        private Map<String, Object> connectorConfig(Map<String, Object> config) {
+            return credentials.decryptInPlace(ExternalSourceResolver.storageConfig(config));
+        }
+
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            return resolveDelegate().resolveMetadata(location, credentials.decryptInPlace(config));
+            return resolveDelegate().resolveMetadata(location, connectorConfig(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
-            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config));
+            resolveDelegate().validateConfig(location, connectorConfig(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config, Consumer<String> warningSink) {
             // Forward the sink rather than inheriting the interface default, which would drop it and
             // fall back to the two-argument form -- losing the resolver's buffered warning routing.
-            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config), warningSink);
+            resolveDelegate().validateConfig(location, connectorConfig(config), warningSink);
         }
 
         @Override
         public Connector open(Map<String, Object> config) {
-            return resolveDelegate().open(credentials.decryptInPlace(config));
+            return resolveDelegate().open(connectorConfig(config));
         }
 
         @Override
         public void testConnection(Map<String, Object> config) throws IOException {
-            resolveDelegate().testConnection(credentials.decryptInPlace(config));
+            resolveDelegate().testConnection(connectorConfig(config));
         }
 
         @Override
@@ -818,7 +829,22 @@ public final class DataSourceModule implements Closeable {
         public SplitProvider splitProvider() {
             // without this the lazy wrapper hides the connector's SplitProvider and a multi-endpoint Flight source silently reads
             // only endpoint 0
-            return resolveDelegate().splitProvider();
+            SplitProvider delegateProvider = resolveDelegate().splitProvider();
+            return new SplitProvider() {
+                @Override
+                public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
+                    return delegateProvider.discoverSplits(context.withConfig(connectorConfig(context.config())));
+                }
+
+                @Override
+                public void discoverSplitsAsync(
+                    SplitDiscoveryContext context,
+                    Executor executor,
+                    ActionListener<SplitDiscoveryResult> listener
+                ) {
+                    delegateProvider.discoverSplitsAsync(context.withConfig(connectorConfig(context.config())), executor, listener);
+                }
+            };
         }
 
         private ConnectorFactory resolveDelegate() {

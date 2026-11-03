@@ -94,25 +94,31 @@ public class FlightSourceOptionsTests extends ESTestCase {
     }
 
     public void testValidatorAppliesTheDefaultPort() {
-        Map<String, Object> dataset = new FlightDataSourceValidator().validateDataset(Map.of(), "grpc://h/t", Map.of());
-        assertThat(dataset.get("endpoint"), equalTo("grpc://h:47470"));
+        Map<String, Object> dataset = new FlightDataSourceValidator().validateDataset(Map.of(), "grpc://localhost/t", Map.of());
+        assertThat(dataset.get("endpoint"), equalTo("grpc://localhost:47470"));
     }
 
     public void testValidatorRefusesSettingsOfOursAndStructuredOnes() {
         FlightDataSourceValidator validator = new FlightDataSourceValidator();
         for (String reserved : List.of("endpoint", "target", "schema_resolution", "_x")) {
-            expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "flight://h:1/t", Map.of(reserved, "x")));
+            expectThrows(
+                ValidationException.class,
+                () -> validator.validateDataset(Map.of(), "flight://localhost:1/t", Map.of(reserved, "x"))
+            );
         }
-        expectThrows(ValidationException.class, () -> validator.validateDataset(Map.of(), "flight://h:1/t", Map.of("o", List.of(1))));
+        expectThrows(
+            ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "flight://localhost:1/t", Map.of("o", List.of(1)))
+        );
     }
 
     public void testValidatorRefusesBadResources() {
         FlightDataSourceValidator validator = new FlightDataSourceValidator();
         for (String resource : List.of(
             "s3://bucket/key",
-            "flight://h:1",
-            "flight://h:1/",
-            "flight://h:1/a/b",
+            "flight://localhost:1",
+            "flight://localhost:1/",
+            "flight://localhost:1/a/b",
             "flight:///t",
             "not a uri"
         )) {
@@ -120,9 +126,9 @@ public class FlightSourceOptionsTests extends ESTestCase {
         }
     }
 
-    public void testAFlightDataSourceTakesNoSettings() {
+    public void testAFlightDataSourceTakesOnlyTheTlsAndTokenSettings() {
         FlightDataSourceValidator validator = new FlightDataSourceValidator();
         assertTrue(validator.validateDatasource(Map.of()).isEmpty());
-        expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("token", "x")));
+        expectThrows(ValidationException.class, () -> validator.validateDatasource(Map.of("region", "x")));
     }
 }

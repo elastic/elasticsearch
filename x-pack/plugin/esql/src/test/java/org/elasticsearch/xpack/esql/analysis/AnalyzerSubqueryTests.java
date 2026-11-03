@@ -2233,7 +2233,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             "FROM (FROM test METADATA _score), (FROM test | EVAL s = null::double | RENAME s AS _score)",
             "FROM (FROM test | EVAL s = null::double | RENAME s AS _score), (FROM test METADATA _score)",
             "FROM (FROM test METADATA _score), (FROM test | EVAL s = null::double | EVAL _score = s)",
-            "FROM (FROM test | EVAL s = null::double | EVAL _score = s), (FROM test METADATA _score)"
+            "FROM (FROM test | EVAL s = null::double | EVAL _score = s), (FROM test METADATA _score)",
+            "FROM (FROM test | EVAL a = null::double, b = 1.0 | EVAL _score = a + b), (FROM test METADATA _score)"
         )) {
             Attribute score = mergedScore(from);
             assertThat(from, score, instanceOf(MetadataAttribute.class));
@@ -2249,7 +2250,8 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         for (String from : List.of(
             "FROM (FROM test METADATA _score | EVAL _score = 1.0), (FROM test METADATA _score)",
             "FROM (FROM test METADATA _score), (FROM test | EVAL _score = 1.0)",
-            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = salary::double)"
+            "FROM (FROM test METADATA _score), (FROM test | EVAL _score = salary::double)",
+            "FROM (FROM test METADATA _score | EVAL _score = ROUND(_score, 2)), (FROM test METADATA _score)"
         )) {
             Attribute score = mergedScore(from);
             assertThat(from, score, instanceOf(ReferenceAttribute.class));

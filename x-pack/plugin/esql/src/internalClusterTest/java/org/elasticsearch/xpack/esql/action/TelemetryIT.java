@@ -419,11 +419,12 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             expectedResolvedSettings.putAll(expectedNonDefaultResolvedSettings);
         }
 
-        String origin = randomFrom("", "kibana", "fleet");
+        String origin = randomFrom("", "kibana", "logstash-output-elasticsearch", "my-app");
         String expectedClient = switch (origin) {
             case "" -> "rest";
             case "kibana" -> "kibana";
-            case "fleet" -> "other";
+            case "logstash-output-elasticsearch" -> "logstash";
+            case "my-app" -> "other";
             default -> throw new AssertionError("unexpected origin [" + origin + "]");
         };
         Map<String, Object> expectedQueryAttributes = Map.of(

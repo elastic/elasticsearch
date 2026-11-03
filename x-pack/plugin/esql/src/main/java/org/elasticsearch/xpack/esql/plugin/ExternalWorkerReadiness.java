@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.AwaitClusterStateVersionAppliedRequest;
 import org.elasticsearch.action.admin.cluster.state.TransportAwaitClusterStateVersionAppliedAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -39,75 +40,52 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 /**
- * Keeps a node that has just joined the cluster out of this coordinator's pool of external workers until that node has
+ * Keeps a node that has just joined the cluster out of this coordinator's pool of external workers until the node has
  * applied the cluster state that added it.
  *
  * <p>A node accepts transport requests before it has applied any cluster state, and a coordinator sees it as an external
- * worker as soon as the coordinator itself applies the join. Until the node's own first apply completes it has no
- * datasets, no encryption key and default settings, so every external split sent to it in that window fails or waits
- * (elastic/esql-planning#2319). Shard requests have no such window: a shard is routable only once its node reported it
- * started. External splits are routed by role, so the readiness is established here instead: each added node is asked,
- * through {@link TransportAwaitClusterStateVersionAppliedAction}, to confirm it has applied the version that added it,
- * and is held back until it answers. The answer comes from the node's applier thread, so a node still in its first
- * apply answers only once that apply is done. A node older than the action ({@link #AWAIT_ACTION_SINCE}) is neither
- * asked nor held back.
+ * worker as soon as it applies the join; until the node's own first apply completes, every external split sent to it
+ * fails or waits (elastic/esql-planning#2319). A shard has no such window, being routable only once its node reported it
+ * started, but external splits are routed by role. So each added worker is asked, through
+ * {@link TransportAwaitClusterStateVersionAppliedAction}, to confirm it has applied the version that added it, and is
+ * held back until it answers. The hold is installed by the applier, before the state that adds the node is visible, so a
+ * query cannot see the node without seeing it held back; the node is forgotten by the listener, once the state without
+ * it is visible. A node older than the action ({@link #AWAIT_ACTION_SINCE}) is neither asked nor held back.
  *
- * <p>The hold is installed by a {@link ClusterStateApplier}, which runs before the state that adds the node becomes the
- * one {@link ClusterService#state()} hands out, so a query cannot find the node in that state and not yet held back. A
- * node that leaves is forgotten by a {@link ClusterStateListener}, which runs once the state without it is visible, so a
- * wait woken by the departure cannot find the node in the state and no longer held back either.
- *
- * <p>This covers the join. A node that is behind a later state, a dataset change the coordinator planned from, say, is
- * not held back; the worker-side wait in {@code DataNodeComputeHandler} covers that, bounded by
- * {@code esql.external.worker_ready_timeout}. When every worker there is has just joined, which can only be on a
- * coordinator that is not itself a worker (the local node is never held back), the query waits here for one of them
- * ({@link #awaitEligibleWorker}), bounded by the same setting, rather than scan on a coordinator that may be thin or
- * an index node. The await has no timeout of its own: a node that never applies the state
- * stays out of the pool, which is the point, and leaves it when it leaves the cluster, which the master's lag detector
- * sees to for a node that stays behind for good. A hold that lasts longer than {@link #HOLD_REPORT_AFTER} is reported
- * once at INFO, by each coordinator holding the node back: a fact worth having in the log next to a slow first apply,
- * not a problem of its own, which the lag detector reports.
- *
- * <p>The first state this node applies adds every other node, so each is asked once at startup; they answer at once.
+ * <p>When every worker there is has just joined, which is only possible on a coordinator that is not itself a worker, the
+ * query waits here for one of them ({@link #awaitEligibleWorker}), bounded by {@code esql.external.worker_ready_timeout}.
+ * A node that is behind a later state, a dataset change, say, is not held back; the worker-side wait in
+ * {@code DataNodeComputeHandler} covers that.
  */
 public final class ExternalWorkerReadiness implements ClusterStateApplier, ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ExternalWorkerReadiness.class);
 
-    /** The pause before a failed await is sent again, while the node is still in the cluster state; doubles per failure. */
+    /** The pause before a failed await is sent again; doubles per failure, up to {@link #MAX_RETRY_DELAY}. */
     static final TimeValue RETRY_DELAY = TimeValue.timeValueSeconds(1);
-    /** The longest pause between two awaits of the same node. */
     static final TimeValue MAX_RETRY_DELAY = TimeValue.timeValueSeconds(10);
-    /** How long a node may be held back before the fact is reported, once. */
+    /** How long a node may be held back before the fact is reported, once, at INFO. */
     static final TimeValue HOLD_REPORT_AFTER = TimeValue.timeValueSeconds(30);
     /**
-     * The first version with {@link TransportAwaitClusterStateVersionAppliedAction}. An older node has no handler for it and
-     * is not asked: a request for an action a node does not have trips an assertion on that node, fatal to it when its
-     * assertions are enabled, as a test cluster's are. Such a node is not held back either: it never was before, and what
-     * protects a query sent to it while it catches up is its own wait, if it has one.
+     * The first version with {@link TransportAwaitClusterStateVersionAppliedAction}. An older node has no handler for it,
+     * which trips an assertion on a node that has them enabled, so it is not asked; nor is it held back, as it never was
+     * before the action existed.
      */
     static final Version AWAIT_ACTION_SINCE = Version.V_9_4_0;
 
     private final ClusterService clusterService;
     private final Client client;
     private final ThreadPool threadPool;
-    /**
-     * The nodes still to answer, by ephemeral id: a node restarted under the same node id is a new node with its own first
-     * apply. The value is the entry to compare against on completion, so an answer to an await of a superseded entry is a
-     * no-op.
-     */
+    /** The nodes still to answer, by ephemeral id, so that a node restarted under the same node id is a new node. */
     private final Map<String, Pending> pending = new ConcurrentHashMap<>();
     /**
-     * The waits of {@link #awaitEligibleWorker} not yet decided, woken on every change to {@link #pending}: a release, a
-     * removal, an addition. Invariant: {@link #pending} is mutated before the waiters are woken, and a waiter registers
-     * before it first evaluates, so a change is never missed: either the wake-up finds the waiter registered, or the
-     * waiter's own evaluation sees the change. A waiter registers before anything that can decide it, and only the decision
-     * removes it, so nothing of a query outlives its wait.
+     * The waits of {@link #awaitEligibleWorker} not yet decided, woken on every change to what {@link #readyNodes} can
+     * return: a release, and the visible state gaining or losing a node. The change is made before the waiters are woken
+     * and a waiter registers before it first evaluates, so none is missed.
      */
     private final Set<Waiter> waiters = ConcurrentHashMap.newKeySet();
     /** {@link ExternalSourceSettings#WORKER_READY_TIMEOUT}, tracked live; bounds {@link #awaitEligibleWorker}. */
@@ -124,8 +102,7 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
         this.clusterService = clusterService;
         this.client = client;
         this.threadPool = threadPool;
-        // Seeded from the node settings when federation is unregistered (the key is unknown to ClusterSettings then) and
-        // watched otherwise, as DataNodeComputeHandler does for its wait.
+        // Seeded from the node settings when federation is unregistered (the key is unknown to ClusterSettings then).
         clusterService.getClusterSettings()
             .initializeAndWatchIfRegistered(ExternalSourceSettings.WORKER_READY_TIMEOUT, workerReadyTimeout::set);
         if (enabled) {
@@ -136,17 +113,12 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
 
     /**
      * Completes {@code listener} once {@code satisfied} holds: at once if it does already, else on a later change to the
-     * set of nodes held back, re-checked each time, and once more when the bound runs out, so a release that lands just
-     * before the timer does not fail the query. Fails with the retryable {@link ExternalException.Condition#WORKER_NOT_READY}
-     * after {@link ExternalSourceSettings#WORKER_READY_TIMEOUT} ({@code 0} fails at once, as on a worker), or at once
-     * with the cancellation when {@code task} is cancelled. Exactly one outcome reaches {@code listener}; a throw out of
-     * {@code satisfied} is that outcome.
-     *
-     * <p>{@code satisfied} is re-evaluated on the generic pool, never on the applier thread that may have woken the wait,
-     * and must not run the query. {@code listener} is called with the caller's thread context restored, not the context of
-     * the thread that woke it: a node answers under the system context its await was sent with, and a query that went on
-     * in it would run as the system user. One DEBUG line when the wait starts and one when it ends, both naming
-     * {@code what} the query is waiting to do.
+     * ready nodes, and once more when the bound runs out, so a release that lands just before the timer does not fail the
+     * query. Fails with the retryable {@link ExternalException.Condition#WORKER_NOT_READY} after
+     * {@link ExternalSourceSettings#WORKER_READY_TIMEOUT} ({@code 0} fails at once), or with the cancellation when
+     * {@code task} is cancelled; a throw out of {@code satisfied} is the outcome too. {@code satisfied} is re-evaluated on
+     * the generic pool, never on the applier thread, and {@code listener} is called in the caller's thread context, not in
+     * the system context a node's answer arrives under.
      */
     void awaitEligibleWorker(BooleanSupplier satisfied, CancellableTask task, String what, ActionListener<Void> listener) {
         final ActionListener<Void> inCallerContext = ContextPreservingActionListener.wrapPreservingContext(
@@ -170,90 +142,87 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
             return;
         }
         logger.debug("waiting up to [{}] for an external worker to apply its cluster state before {}", timeout, what);
-        new Waiter(satisfied, task, what, inCallerContext, timeout).start();
+        new Waiter(satisfied, task, what, inCallerContext, timeout);
     }
 
     private static ExternalUnavailableException timedOut(TimeValue timeout) {
         return DataNodeComputeHandler.workerNotReady("waited [" + timeout + "] on the coordinator");
     }
 
-    /**
-     * One wait of {@link #awaitEligibleWorker}: registered in {@link #waiters}, with its timer and cancellation, ended by
-     * the first outcome.
-     */
+    /** One wait of {@link #awaitEligibleWorker}: registered in {@link #waiters} until its first outcome. */
     private final class Waiter {
         private final BooleanSupplier satisfied;
-        private final CancellableTask task;
         private final String what;
-        private final ActionListener<Void> listener;
         private final TimeValue timeout;
         private final long startNanos = System.nanoTime();
-        private final AtomicBoolean done = new AtomicBoolean();
+        private final SubscribableListener<Void> outcome = new SubscribableListener<>();
         private volatile Scheduler.Cancellable timer;
 
         Waiter(BooleanSupplier satisfied, CancellableTask task, String what, ActionListener<Void> listener, TimeValue timeout) {
             this.satisfied = satisfied;
-            this.task = task;
             this.what = what;
-            this.listener = listener;
             this.timeout = timeout;
-        }
-
-        void start() {
-            // Registered before anything that can decide the wait, since a decision removes the registration and nothing
-            // else does: the timer, which can fire before the schedule returns on a budget of a millisecond, or the
-            // cancellation, which fires inline when the task is cancelled already.
+            // Registered first: the outcome unregisters, and the timer or the cancellation can fire inline below.
             waiters.add(this);
+            outcome.addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    ended(null);
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    ended(e);
+                    listener.onFailure(e);
+                }
+            });
             try {
                 timer = threadPool.schedule(() -> {
-                    if (check() == false) {
-                        complete(timedOut(timeout));
+                    if (tryComplete() == false) {
+                        outcome.onFailure(timedOut(timeout));
                     }
                 }, timeout, threadPool.generic());
             } catch (EsRejectedExecutionException e) {
-                complete(e);
+                outcome.onFailure(e);
                 return;
             }
-            task.addListener(() -> complete(new TaskCancelledException(task.getReasonCancelled())));
-            // The first evaluation, after the registration, so that it sees what a wake-up in between would have told it.
-            check();
+            task.addListener(() -> outcome.onFailure(new TaskCancelledException(task.getReasonCancelled())));
+            tryComplete();
         }
 
-        /** Woken by a change to the set; the evaluation goes to the generic pool, off the thread that changed it. */
+        /** Woken by a change to the ready nodes; the evaluation goes to the generic pool, off the thread that changed them. */
         void wake() {
-            if (done.get()) {
+            if (outcome.isDone()) {
                 return;
             }
             try {
-                threadPool.generic().execute(this::check);
+                threadPool.generic().execute(this::tryComplete);
             } catch (EsRejectedExecutionException e) {
-                complete(e);
+                outcome.onFailure(e);
             }
         }
 
-        /** Evaluates the condition, completing the wait if it holds or if it throws; whether it completed. */
-        private boolean check() {
-            if (done.get()) {
+        /** Completes the wait if the condition holds or throws; whether it is complete. */
+        private boolean tryComplete() {
+            if (outcome.isDone()) {
                 return true;
             }
             final boolean ok;
             try {
                 ok = satisfied.getAsBoolean();
             } catch (Exception e) {
-                complete(e);
+                outcome.onFailure(e);
                 return true;
             }
             if (ok) {
-                complete(null);
+                outcome.onResponse(null);
                 return true;
             }
             return false;
         }
 
-        private void complete(@Nullable Exception failure) {
-            if (done.compareAndSet(false, true) == false) {
-                return;
-            }
+        private void ended(@Nullable Exception failure) {
             waiters.remove(this);
             final Scheduler.Cancellable scheduled = timer;
             if (scheduled != null) {
@@ -267,15 +236,9 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
                     failure == null ? "a worker is available" : failure.getMessage()
                 )
             );
-            if (failure == null) {
-                listener.onResponse(null);
-            } else {
-                listener.onFailure(failure);
-            }
         }
     }
 
-    /** Wakes the waiters: {@link #pending} has changed. */
     private void notifyChanged() {
         for (Waiter waiter : waiters) {
             waiter.wake();
@@ -283,10 +246,9 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
     }
 
     /**
-     * {@code nodes} without those still to confirm they applied the state that added them. The input itself when none is
-     * pending, which is the steady state; a copy otherwise. The copy is for choosing workers from: when the held-back
-     * node is the elected master, the copy names no master, since {@link DiscoveryNodes} does not allow a master id
-     * without the node.
+     * {@code nodes} without those still to confirm they applied the state that added them: the input itself when none is
+     * pending, a copy otherwise. The copy names no master when the held-back node is the elected master, since
+     * {@link DiscoveryNodes} does not allow a master id without the node.
      */
     public DiscoveryNodes readyNodes(DiscoveryNodes nodes) {
         if (pending.isEmpty()) {
@@ -318,7 +280,10 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
         return waiters.size();
     }
 
-    /** Holds every added worker back, before the state that adds it is visible; see the class comment for the order. */
+    /**
+     * Holds every added worker back, before the state that adds it is visible. The waits are not woken here: a wait
+     * evaluates against the visible state, so it is woken by {@link #clusterChanged}, once the state is.
+     */
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         final DiscoveryNodes.Delta delta = event.nodesDelta();
@@ -342,26 +307,26 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
             }
             final Pending entry = new Pending(added, version);
             pending.put(added.getEphemeralId(), entry);
-            notifyChanged();
             logger.debug("holding external worker [{}] back until it has applied cluster state version [{}]", added.getName(), version);
-            // Off the applier thread: the request goes through the action filters and is serialised, none of which the
-            // applier should carry, least of all once per node when this node applies its first state.
+            // Off the applier thread: the request goes through the action filters and is serialised.
             run(entry, TimeValue.ZERO, () -> await(entry, 0));
             run(entry, HOLD_REPORT_AFTER, () -> reportStillHeld(entry));
         }
     }
 
-    /** Forgets every removed worker, once the state without it is visible; see the class comment for the order. */
+    /**
+     * Forgets every removed worker, and wakes the waits on any change to the nodes, once the state is visible: a wait woken
+     * here sees the node that joined, held back or not, and does not see the node that left.
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        boolean removedAny = false;
-        for (DiscoveryNode removed : event.nodesDelta().removedNodes()) {
+        final DiscoveryNodes.Delta delta = event.nodesDelta();
+        for (DiscoveryNode removed : delta.removedNodes()) {
             if (pending.remove(removed.getEphemeralId()) != null) {
                 logger.debug("external worker [{}] left the cluster before confirming its cluster state", removed.getName());
-                removedAny = true;
             }
         }
-        if (removedAny) {
+        if (delta.added() || delta.removed()) {
             notifyChanged();
         }
     }
@@ -385,8 +350,7 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
                 threadPool.schedule(ifCurrent, delay, threadPool.generic());
             }
         } catch (EsRejectedExecutionException e) {
-            // Only on shutdown: the generic pool queues without bound, and so does the scheduler. Nothing to ask on
-            // behalf of any more; the entry stays, and so does the node's exclusion, which no longer matters.
+            // Only on shutdown: the entry stays, and so does the node's exclusion, which no longer matters.
             logger.debug(() -> Strings.format("not asking external worker [%s]", entry.node().getName()), e);
         }
     }
@@ -429,8 +393,7 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
             return;
         }
         if (ExceptionsHelper.unwrap(failure, ActionNotFoundTransportException.class) != null) {
-            // Not expected, since a node older than the action is not asked (AWAIT_ACTION_SINCE); should that bound be off,
-            // the node is released rather than asked again for good.
+            // Not expected, given AWAIT_ACTION_SINCE; released rather than asked again for good.
             release(entry, "it cannot be asked for its cluster state version");
             return;
         }

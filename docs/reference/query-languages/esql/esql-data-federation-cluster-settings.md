@@ -99,18 +99,6 @@ $$$esql-external-admission-rescue-enabled$$$
     - **Default:** `true`
     - **Valid values:** `true`, `false`
 
-## Cluster state catch-up
-
-A node that has just joined the cluster is normally not given external reads until it has applied the cluster state that added it. When every node that could take a query's external reads has just joined, the query waits for one of them to catch up. A node that is behind a later dataset change can still receive external reads planned from a state it has not applied yet; it then waits for that state. This setting bounds each of those waits.
-
-$$$esql-external-worker-ready-timeout$$$
-
-`esql.external.worker_ready_timeout` {applies_to}`stack: preview 9.7+`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) How long a node waits for the cluster state before failing the query with a retryable `503` error whose `external_condition` is `worker_not_ready`: a node catching up with a dataset change, or a coordinator waiting for a node that has just joined. If you see these errors after changing a dataset or while nodes join, increase this value or retry the query.
-
-    - **Default:** `10s`
-    - **Valid values:** A [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units) of `0` or more. `0` disables waiting, so the query fails immediately, including a query whose only possible workers have just joined.
-
 ## Glob and file-discovery limits
 
 These settings limit how many files and objects glob patterns can discover. Not all caps behave the same way when exceeded. Some abort the query, while others fall back to a slower discovery path.

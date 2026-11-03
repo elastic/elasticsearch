@@ -10,7 +10,11 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -44,6 +48,7 @@ import org.elasticsearch.xpack.esql.session.Versioned;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -138,6 +143,52 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
 
         DataNodeRequest current = copyInstance(request, TransportVersion.current());
         assertThat(current.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
+    }
+
+    /**
+     * The format of the readiness version, which the reader only skips, so that a round trip cannot tell what was written:
+     * the decline flag, {@code false}, right ahead of the version, which both formats end with. And a {@code true} from an
+     * older coordinator is ignored.
+     */
+    public void testTheDeclineFlagIsWrittenFalseAndIgnoredAtTheReadinessVersion() throws IOException {
+        DataNodeRequest request = createTestInstance();
+        TransportVersion withFlag = TransportVersionUtils.getPreviousVersion(DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
+        byte[] flagged = serialize(request, withFlag);
+        byte[] current = serialize(request, DataNodeRequest.ESQL_EXTERNAL_WORKER_GATING);
+        byte[] version = vlong(request.requiredClusterStateVersion());
+
+        assertThat(flagged.length, equalTo(current.length + 1));
+        int flagAt = flagged.length - 1 - version.length;
+        assertThat("written false", flagged[flagAt], equalTo((byte) 0));
+        assertArrayEquals(Arrays.copyOfRange(flagged, 0, flagAt), Arrays.copyOfRange(current, 0, flagAt));
+        assertArrayEquals(Arrays.copyOfRange(flagged, flagAt + 1, flagged.length), version);
+        assertArrayEquals(Arrays.copyOfRange(current, flagAt, current.length), version);
+
+        flagged[flagAt] = 1;
+        DataNodeRequest askedToDecline = deserialize(flagged, withFlag);
+        assertThat(askedToDecline.requiredClusterStateVersion(), equalTo(request.requiredClusterStateVersion()));
+    }
+
+    private static byte[] serialize(DataNodeRequest request, TransportVersion version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            request.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
+        }
+    }
+
+    private DataNodeRequest deserialize(byte[] bytes, TransportVersion version) throws IOException {
+        try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), getNamedWriteableRegistry())) {
+            in.setTransportVersion(version);
+            return instanceReader().read(in);
+        }
+    }
+
+    private static byte[] vlong(long value) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVLong(value);
+            return BytesReference.toBytes(out.bytes());
+        }
     }
 
     public void testLoadAllUnmappedFieldsAttributeRoundTripsInPhysicalPlan() throws IOException {

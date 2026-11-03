@@ -482,9 +482,7 @@ public class ComputeService {
     }
 
     /**
-     * The nodes external splits may be distributed over: the cluster state's, less those that have just joined and not yet
-     * confirmed they applied the state that added them ({@link ExternalWorkerReadiness}). Not what the coalescing floor
-     * counts, which is every eligible worker, held back or not ({@link #externalCoalesceFloor(int, DiscoveryNodes)}).
+     * Nodes that can receive external splits now, excluding nodes that are still joining.
      */
     private DiscoveryNodes externalWorkers() {
         return externalWorkerReadiness.readyNodes(clusterService.state().nodes());
@@ -502,18 +500,13 @@ public class ComputeService {
      * split count. The value is held at or above one (a degenerate {@code task_concurrency} of zero or below still
      * leaves the scan coalescible) and at or below {@link Integer#MAX_VALUE} on an implausibly wide cluster.
      *
-     * <p>Deliberately counts the whole eligible cluster even for a scan that ends up staying local: coalescing
-     * runs before the distribution decision, and the group count is itself an input to that decision
-     * ({@code AdaptiveStrategy} weighs splits against nodes). When eligible remote workers exist, a local scan
-     * therefore gets more groups than its one node can occupy. That overshoot is harmless — the groups become slices
-     * in a shared queue and the driver count is still capped at {@code min(groupCount, task_concurrency)} — whereas
-     * undershooting would leave a distributable scan unable to fill the cluster.
-     *
-     * <p>For the same reason the count includes the workers held back for having just joined ({@link ExternalWorkerReadiness}),
-     * which the distribution leaves out: the splits are coalesced before a query waits for such a worker
-     * ({@link #mustWaitForExternalWorker}) and must still fill the workers once they are released. Counting the ready ones
-     * alone would, while every worker is joining, collapse the floor to one node's worth, and with it the split count the
-     * adaptive strategy weighs against the nodes: the query would then not wait but scan on the coordinator.
+     * <p>Deliberately counts the whole eligible cluster, joining nodes included ({@link ExternalWorkerReadiness}), even
+     * for a scan that ends up staying local: coalescing runs before the distribution decision, and the group count is
+     * itself an input to that decision ({@code AdaptiveStrategy} weighs splits against nodes). When eligible remote
+     * workers exist, a local scan therefore gets more groups than its one node can occupy. That overshoot is harmless —
+     * the groups become slices in a shared queue and the driver count is still capped at
+     * {@code min(groupCount, task_concurrency)} — whereas undershooting would leave a distributable scan unable to fill
+     * the cluster, including one that waited for a joining worker to be released.
      */
     static int externalCoalesceFloor(int taskConcurrency, DiscoveryNodes availableNodes) {
         int eligibleNodeCount = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(availableNodes).size();
@@ -540,39 +533,16 @@ public class ComputeService {
     }
 
     /**
-     * Whether a query must wait for an external worker before its splits are distributed: no external worker is available
-     * ({@link #externalWorkerAvailable}) though there are eligible ones, every one held back for having just joined
-     * ({@link ExternalWorkerReadiness}), and the strategy would have distributed the splits over them. Never true on a
-     * coordinator that is itself an eligible worker, which is never held back: the strategies then self-assign as always.
-     * The strategy is run once on the unfiltered nodes to find out; it is pure, and this is the rare case. That also
-     * answers "no splits", the {@code coordinator_only} pragma and a split count the adaptive strategy keeps local anyway,
-     * none of which wait. Decided once; the wait itself re-checks only {@link #externalWorkerAvailable}, which is what a
-     * change to the cluster can alter cheaply.
+     * Whether every eligible external worker has just joined and is still held back ({@link ExternalWorkerReadiness}), so
+     * there is nobody to distribute external splits over for now. False with a ready worker, and with no eligible worker
+     * at all, in which case the scan stays on the coordinator as it always has. Never true on a coordinator that is itself
+     * an eligible worker, which is never held back.
      *
      * @param ready the nodes less those held back, computed from {@code nodes}
      */
-    static boolean mustWaitForExternalWorker(
-        CollectedSplits collected,
-        QueryPragmas pragmas,
-        SiblingPlacement placement,
-        DiscoveryNodes nodes,
-        UnaryOperator<DiscoveryNodes> ready
-    ) {
-        if (collected.splits().isEmpty() || externalWorkerAvailable(nodes, ready)) {
-            return false;
-        }
-        ExternalDistributionStrategy strategy = resolveExternalDistributionStrategy(pragmas);
-        return strategy.planDistribution(new ExternalDistributionContext(collected.plan(), collected.splits(), nodes, pragmas, placement))
-            .distributed();
-    }
-
-    /**
-     * Whether external splits can be distributed now: an eligible worker that is not held back, or no eligible worker at
-     * all, in which case the scan stays on the coordinator as it always has. The condition a wait for a worker re-checks.
-     */
-    static boolean externalWorkerAvailable(DiscoveryNodes nodes, UnaryOperator<DiscoveryNodes> ready) {
-        return NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(ready.apply(nodes)).isEmpty() == false
-            || NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes).isEmpty();
+    static boolean allExternalWorkersJoining(DiscoveryNodes nodes, UnaryOperator<DiscoveryNodes> ready) {
+        return NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(ready.apply(nodes)).isEmpty()
+            && NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes).isEmpty() == false;
     }
 
     /**
@@ -1317,18 +1287,14 @@ public class ComputeService {
                 ),
                 releasing
             );
-            if (mustWaitForExternalWorker(
-                collected,
-                configuration.pragmas(),
-                placement,
-                clusterService.state().nodes(),
-                externalWorkerReadiness::readyNodes
-            ) == false) {
+            final UnaryOperator<DiscoveryNodes> ready = externalWorkerReadiness::readyNodes;
+            if (collected.splits().isEmpty() || allExternalWorkersJoining(clusterService.state().nodes(), ready) == false) {
                 runAfterDiscovery.accept(0L);
                 return;
             }
+            // Every worker has just joined: wait for one rather than scan on a coordinator that may be thin.
             externalWorkerReadiness.awaitEligibleWorker(
-                () -> externalWorkerAvailable(clusterService.state().nodes(), externalWorkerReadiness::readyNodes),
+                () -> allExternalWorkersJoining(clusterService.state().nodes(), ready) == false,
                 rootTask,
                 "distributing [" + collected.splits().size() + "] external splits, session [" + sessionId + "]",
                 ActionListener.wrap(ignored -> runAfterDiscovery.accept(System.nanoTime() - discoveryEnd), releasing::onFailure)

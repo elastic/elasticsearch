@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -214,44 +213,21 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
     }
 
     /**
-     * The coordinator waits for a worker only when the strategy would have distributed the splits over eligible workers and
-     * every one of them is held back; not without splits, not under {@code coordinator_only}, not with a ready worker, not
-     * without any worker, and never when the coordinator is itself an eligible worker, which is never held back.
+     * The coordinator waits for a worker only when there are eligible workers and every one of them is held back: not with a
+     * ready worker, not without any worker, and never when the coordinator is itself an eligible worker, which is never held
+     * back.
      */
-    public void testWaitsOnlyWhenEveryEligibleWorkerIsHeldBackAndTheStrategyWouldDistribute() {
+    public void testAllExternalWorkersJoining() {
         DiscoveryNodes workers = createNodes(3);
         DiscoveryNodes none = DiscoveryNodes.builder().build();
-        var collected = new ComputeService.CollectedSplits(createDummyPlan(), createSplits(6));
-        var noSplits = new ComputeService.CollectedSplits(createDummyPlan(), List.of());
-        QueryPragmas roundRobin = pragmas("round_robin");
-        QueryPragmas coordinatorOnly = pragmas("coordinator_only");
         UnaryOperator<DiscoveryNodes> allHeldBack = nodes -> none;
         UnaryOperator<DiscoveryNodes> oneReady = nodes -> createNodes(1);
         UnaryOperator<DiscoveryNodes> noneHeldBack = UnaryOperator.identity();
 
-        assertTrue(ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, workers, allHeldBack));
-        assertTrue(ComputeService.mustWaitForExternalWorker(collected, QueryPragmas.EMPTY, SiblingPlacement.SINGLE, workers, allHeldBack));
-
-        assertFalse(
-            "a ready worker",
-            ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, workers, oneReady)
-        );
-        assertFalse(
-            "nobody held back",
-            ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, workers, noneHeldBack)
-        );
-        assertFalse(
-            "no worker at all",
-            ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, none, allHeldBack)
-        );
-        assertFalse(
-            "no splits",
-            ComputeService.mustWaitForExternalWorker(noSplits, roundRobin, SiblingPlacement.SINGLE, workers, allHeldBack)
-        );
-        assertFalse(
-            "coordinator_only",
-            ComputeService.mustWaitForExternalWorker(collected, coordinatorOnly, SiblingPlacement.SINGLE, workers, allHeldBack)
-        );
+        assertTrue(ComputeService.allExternalWorkersJoining(workers, allHeldBack));
+        assertFalse("a ready worker", ComputeService.allExternalWorkersJoining(workers, oneReady));
+        assertFalse("nobody held back", ComputeService.allExternalWorkersJoining(workers, noneHeldBack));
+        assertFalse("no worker at all: the local fallback", ComputeService.allExternalWorkersJoining(none, allHeldBack));
         // The coordinator is itself a worker: never held back, so always among the ready ones.
         DiscoveryNodes workersAndLocal = DiscoveryNodes.builder(workers)
             .add(DiscoveryNodeUtils.builder("local").roles(Set.of(DATA_HOT_NODE_ROLE)).build())
@@ -261,25 +237,7 @@ public class DataNodeComputeHandlerExternalErrorTests extends ESTestCase {
             .add(nodes.getLocalNode())
             .localNodeId("local")
             .build();
-        assertFalse(
-            "a data-node coordinator",
-            ComputeService.mustWaitForExternalWorker(collected, roundRobin, SiblingPlacement.SINGLE, workersAndLocal, allButLocalHeldBack)
-        );
-        // The adaptive strategy keeps a single split local whatever the workers: nothing to wait for.
-        var oneSplit = new ComputeService.CollectedSplits(createDummyPlan(), createSplits(1));
-        assertFalse(
-            "adaptive keeps it local",
-            ComputeService.mustWaitForExternalWorker(oneSplit, QueryPragmas.EMPTY, SiblingPlacement.SINGLE, workers, allHeldBack)
-        );
-
-        assertTrue(ComputeService.externalWorkerAvailable(workers, oneReady));
-        assertTrue(ComputeService.externalWorkerAvailable(workers, noneHeldBack));
-        assertTrue("no worker at all: the local fallback", ComputeService.externalWorkerAvailable(none, allHeldBack));
-        assertFalse(ComputeService.externalWorkerAvailable(workers, allHeldBack));
-    }
-
-    private static QueryPragmas pragmas(String distribution) {
-        return new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), distribution).build());
+        assertFalse("a data-node coordinator", ComputeService.allExternalWorkersJoining(workersAndLocal, allButLocalHeldBack));
     }
 
     // -- helpers --

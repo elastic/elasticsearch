@@ -342,10 +342,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 );
             }
 
-            // The version the splits were planned under, or at least as new: the state only moves forward on this node, and a
-            // worker that has applied a lower version and cannot bind a dataset of the plan is behind rather than missing it,
-            // and waits for the state (see DataNodeRequest). A worker that has not applied any state yet is not in the plan:
-            // ExternalWorkerReadiness keeps a node out of the pool until it confirms the state that added it.
+            // The version the splits were planned under: a worker that has applied a lower version and cannot bind a dataset
+            // of the plan is behind rather than missing it, and waits for the state (see DataNodeRequest).
             final long requiredClusterStateVersion = clusterService.state().version();
             for (ExternalDispatchResolution.ResolvedExternalNode target : resolution.resolved()) {
                 DiscoveryNode node = target.node();
@@ -1006,14 +1004,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * as is any external node under a cross-cluster-access authentication. A plan without an external node, the
      * common case, pays nothing: no round-trip, no thread hop.
      * <p>
-     * An external-only request (splits, no shards) is also checked for this node's readiness to serve it. Shards are
-     * routed through the routing table, which lists a shard on a node only after that node applied the state and reported
-     * it started; external splits are routed by node role. A coordinator holds a node that has just joined back until it
-     * confirms the state that added it ({@link ExternalWorkerReadiness}), but a node can still be behind a later state the
-     * coordinator planned from, a dataset change, say, and an old coordinator holds nothing back. Three sites decide "not
-     * ready", with one outcome ({@link #notReady}): the entry check on {@link ClusterState#clusterRecovered} below, the
-     * authorizer refusing a dataset while this node's state is older than the coordinator's, and the rebind refusing one
-     * for the same reason ({@link #planAndRunExternal}).
+     * An external-only request (splits, no shards) is also checked for this node's readiness to serve it: unlike a shard,
+     * routed only once its node reported it started, external splits are routed by role, and this node may not have
+     * applied the state the coordinator planned from yet. Three sites decide "not ready", with one outcome
+     * ({@link #notReady}): the entry check on {@link ClusterState#clusterRecovered} below, the authorizer refusing a
+     * dataset while this node's state is older than the coordinator's, and the rebind refusing one for the same reason
+     * ({@link #planAndRunExternal}).
      */
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
@@ -1213,10 +1209,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     /**
      * This node cannot serve the request's external splits yet: it has not applied the cluster state they were planned
      * from, so the datasets, credentials or settings the plan relies on are not here. It waits for the state, bounded
-     * ({@link #waitUntilReady}), the way a primary parks a write on the cluster state. A coordinator does not send
-     * splits to a node that has not confirmed the state that added it ({@link ExternalWorkerReadiness}), so this is
-     * reached for a later state the node is behind on, a dataset change the coordinator planned from, say, for a
-     * coordinator too old to hold a joining node back, or for a node too old to be asked.
+     * ({@link #waitUntilReady}), the way a primary parks a write on the cluster state.
      *
      * @param observed the state the decision was made on; the wait observes from it, so a state applied in between is
      *                 not missed

@@ -398,6 +398,76 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
         assertThat("the first is still held back", readiness.pendingEphemeralIds(), contains("e1"));
     }
 
+    /**
+     * The second worker answers while the state that adds it is still being applied, from an applier registered after the
+     * readiness: the release wakes the wait against the old state, which has no second worker. The wait must still be
+     * woken once the state is visible, rather than sit out the whole budget.
+     */
+    public void testWaitSeesAWorkerReleasedBeforeTheStateThatAddsItIsVisible() throws Exception {
+        setWorkerReadyTimeout(TimeValue.timeValueMinutes(1));
+        DiscoveryNode first = dataNode("first", "e1");
+        apply(state(10, first));
+        awaitAwaits(1);
+        PlainActionFuture<Void> waited = new PlainActionFuture<>();
+        readiness.awaitEligibleWorker(this::aWorkerIsReadyOrNoneExists, task(), WHAT, waited);
+        assertFalse(waited.isDone());
+        DiscoveryNode second = dataNode("second", "e2");
+        // Recorded rather than asserted in the applier: an error thrown there would hang the apply, not fail the test.
+        AtomicReference<Set<String>> pendingAfterTheAnswer = new AtomicReference<>();
+        AtomicReference<Exception> failedToAnswer = new AtomicReference<>();
+        clusterService.addStateApplier(event -> {
+            if (event.nodesDelta().addedNodes().contains(second)) {
+                try {
+                    awaitAwaits(2);
+                    awaits.get(1).listener().onResponse(applied());
+                    pendingAfterTheAnswer.set(readiness.pendingEphemeralIds());
+                } catch (Exception e) {
+                    failedToAnswer.set(e);
+                }
+            }
+        });
+
+        apply(state(11, first, second));
+
+        assertNull("the second worker's await was not answered during the apply", failedToAnswer.get());
+        assertThat("released during the apply", pendingAfterTheAnswer.get(), contains("e1"));
+        assertNull("woken once the state is visible", waited.actionGet(TimeValue.timeValueSeconds(10)));
+    }
+
+    /** A worker too old to be asked is not held back, so its join alone makes a worker available: the wait must see it. */
+    public void testWaitSeesAnUnaskedWorkerThatJoinsDuringIt() throws Exception {
+        setWorkerReadyTimeout(TimeValue.timeValueMinutes(1));
+        DiscoveryNode first = dataNode("first", "e1");
+        apply(state(10, first));
+        awaitAwaits(1);
+        PlainActionFuture<Void> waited = new PlainActionFuture<>();
+        readiness.awaitEligibleWorker(this::aWorkerIsReadyOrNoneExists, task(), WHAT, waited);
+        assertFalse(waited.isDone());
+
+        apply(state(11, first, dataNode("old", "e2", VersionUtils.getPreviousVersion(ExternalWorkerReadiness.AWAIT_ACTION_SINCE))));
+
+        assertNull("woken by the join", waited.actionGet(TimeValue.timeValueSeconds(10)));
+        assertThat("not asked", awaits, hasSize(1));
+    }
+
+    /** The path of every cluster without federation: nothing is held back, nobody is asked, the nodes are handed back as is. */
+    public void testDisabledReadinessHoldsNothingBack() throws Exception {
+        ClusterService other = ClusterServiceUtils.createClusterService(threadPool, local, clusterSettings);
+        try {
+            var disabled = new ExternalWorkerReadiness(other, null, threadPool, false);
+            DiscoveryNode worker = dataNode("worker", "e1");
+            ClusterServiceUtils.setState(other, state(10, worker));
+            DiscoveryNodes nodes = other.state().nodes();
+
+            assertNotNull(nodes.get(worker.getId()));
+            assertThat(disabled.pendingEphemeralIds(), empty());
+            assertThat(disabled.readyNodes(nodes), sameInstance(nodes));
+            assertThat("the enabled readiness is on another cluster service", awaits, empty());
+        } finally {
+            other.close();
+        }
+    }
+
     public void testWaitTimesOutWithTheRetryableCondition() throws Exception {
         setWorkerReadyTimeout(TimeValue.timeValueMillis(100));
         PlainActionFuture<Void> waited = new PlainActionFuture<>();

@@ -157,8 +157,6 @@ public final class QueryFailureTelemetry {
             case MALFORMED_DATA -> DataSourceUsageAccumulator.ERROR_TYPE_FORMAT;
             case LOCAL_CAPACITY, SCHEMA_TOO_WIDE -> DataSourceUsageAccumulator.ERROR_TYPE_RESOURCE_LIMIT;
             case METADATA_UNAVAILABLE, LISTING_FAILED -> DataSourceUsageAccumulator.ERROR_TYPE_DISCOVERY;
-            // A worker, or the coordinator on behalf of every worker, gave up waiting for the cluster state: the nodes' own
-            // lag, not the store's fault, so it is not counted against any storage category.
             case CLIENT_BUG, WORKER_NOT_READY -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
         };
     }

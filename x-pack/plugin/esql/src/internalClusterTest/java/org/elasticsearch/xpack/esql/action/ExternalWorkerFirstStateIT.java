@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -26,9 +25,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceConnectionAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestDataSourceNodeAction;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.ExternalWorkerReadiness;
@@ -37,10 +39,12 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -145,11 +149,13 @@ public class ExternalWorkerFirstStateIT extends AbstractExternalDataSourceIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        // The async plugin wires up the async DELETE action the STOP test cleans up with.
-        return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(), ParkFirstApplyPlugin.class),
-            EsqlAsyncActionIT.LocalStateEsqlAsync.class
-        );
+        // The async plugin wires up the async DELETE action the STOP test cleans up with; the mock transport sees what the
+        // connection test sends.
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(ParkFirstApplyPlugin.class);
+        plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class);
+        plugins.add(MockTransportService.TestPlugin.class);
+        return plugins;
     }
 
     /**
@@ -198,6 +204,10 @@ public class ExternalWorkerFirstStateIT extends AbstractExternalDataSourceIT {
                 mockLog.assertAllExpectationsMatched();
             }
             assertFalse("the window must still be open after the query", parkedClusterService.state().clusterRecovered());
+            // The connection test leaves the joining node out as well: it has no credentials to probe with yet.
+            Set<String> probed = nodesProbedFrom(coordinator);
+            assertThat(probed, not(hasItem(parked)));
+            assertThat(probed, hasItem(ready.get(1)));
 
             try (var mockLog = MockLog.capture(READINESS_LOGGER)) {
                 mockLog.addExpectation(released(parked));
@@ -210,6 +220,7 @@ public class ExternalWorkerFirstStateIT extends AbstractExternalDataSourceIT {
                 assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));
                 assertThat("released, the worker takes its share", externalScanNodeNames(response), hasItem(parked));
             }
+            assertThat("released, the worker is probed", nodesProbedFrom(coordinator), hasItem(parked));
         } finally {
             ParkFirstApplyPlugin.releaseApplier();
         }
@@ -352,6 +363,30 @@ public class ExternalWorkerFirstStateIT extends AbstractExternalDataSourceIT {
             ParkFirstApplyPlugin.releaseApplier();
         }
         ensureStableCluster(3);
+    }
+
+    /**
+     * Runs the data source connection test on {@code coordinator} and returns the names of the other nodes it probed. The
+     * coordinator probes itself over its local connection, which the mock transport does not see.
+     */
+    private static Set<String> nodesProbedFrom(String coordinator) {
+        Set<String> probed = ConcurrentHashMap.newKeySet();
+        var transport = MockTransportService.getInstance(coordinator);
+        transport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (TestDataSourceNodeAction.TYPE.name().equals(action)) {
+                probed.add(connection.getNode().getName());
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        try {
+            client(coordinator).execute(
+                TestDataSourceConnectionAction.INSTANCE,
+                new TestDataSourceConnectionAction.Request("test", Map.of())
+            ).actionGet(TIMEOUT);
+        } finally {
+            transport.clearAllRules();
+        }
+        return probed;
     }
 
     private static Settings withWaitBudget(TimeValue budget) {

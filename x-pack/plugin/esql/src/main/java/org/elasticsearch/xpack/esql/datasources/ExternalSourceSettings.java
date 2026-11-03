@@ -318,13 +318,10 @@ public final class ExternalSourceSettings {
     );
 
     /**
-     * How long a node waits for cluster state before failing the query with a retryable 503. Two waits, bounded each,
-     * not in sum. On a worker: the state it lacks for the splits it received, a dataset change the coordinator planned
-     * from that it has not applied yet, or a coordinator too old to hold a joining node back. On a coordinator that is
-     * not itself a worker: for one of the workers to apply the state that added it, when every worker there is has just
-     * joined ({@code ExternalWorkerReadiness}); a coordinator does not hand splits to such a node. A state is applied
-     * within a couple of seconds on a healthy node; the default leaves room for a slow one without parking a query for
-     * the length of a master timeout. {@code 0} fails at once on both.
+     * How long a node waits for the cluster state before failing the query with a retryable 503: a worker behind the
+     * state the coordinator planned from, or a coordinator waiting for a joining worker ({@code ExternalWorkerReadiness});
+     * each wait bounded on its own. Not documented: a healthy node applies a state in well under a second, so this is an
+     * escape hatch, not a knob to tune. {@code 0} fails at once.
      */
     public static final Setting<TimeValue> WORKER_READY_TIMEOUT = Setting.timeSetting(
         "esql.external.worker_ready_timeout",

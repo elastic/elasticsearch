@@ -116,17 +116,11 @@ public abstract class ExternalException extends QlException {
                     : "Unexpected internal failure reading external source: " + detailCode;
             }
         },
-        /**
-         * An external worker has not yet applied the cluster state the query needs: the worker that received the splits is
-         * behind the state the coordinator planned from (a dataset change, say) and cannot bind the plan's datasets or
-         * credentials, or every worker the coordinator could choose has just joined and not applied the state that added it.
-         * Not tied to any object; the store is not involved. Either side waits for the state, and this is what the query
-         * fails with when that wait runs out.
-         */
+        /** A node has not yet applied the cluster state the query needs, so it cannot serve the external reads; retryable. */
         WORKER_NOT_READY {
             @Override
             public String render(String objectName, String detailCode, String remedy) {
-                String base = "An external worker has not yet applied the cluster state this query needs";
+                String base = "Node not ready to serve external data";
                 return detailCode.isEmpty() ? base : base + " (" + detailCode + ")";
             }
         };

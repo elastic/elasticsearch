@@ -51,7 +51,9 @@ public class RestCountAction extends BaseRestHandler {
             new Route(GET, "/_count"),
             new Route(POST, "/_count"),
             new Route(GET, "/{index}/_count"),
-            new Route(POST, "/{index}/_count")
+            new Route(POST, "/{index}/_count"),
+            new Route(GET, "/{index}/{_slice}/_count"),
+            new Route(POST, "/{index}/{_slice}/_count")
         );
     }
 
@@ -129,10 +131,7 @@ public class RestCountAction extends BaseRestHandler {
      */
     static void applyRoutingOrSliceForCountRequest(RestRequest request, SearchRequest searchRequest) {
         final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
-        searchRequest.routing(parsedRouting.routing());
-        searchRequest.searchSlice(
-            parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
-        );
+        searchRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
     }
 
 }

@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.mistral.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -20,21 +19,21 @@ import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbe
 import org.elasticsearch.xpack.inference.services.mistral.request.embeddings.MistralEmbeddingsRequest;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class MistralEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_Works() throws IOException {
+    public void testCreateRequest_Works() throws IOException, URISyntaxException {
         var request = createRequest("mistral-embed", "apikey", "abcd");
         var httpRequest = RequestTests.getHttpRequestSync(request);
         var httpPost = validateRequestUrlAndContentType(httpRequest, MistralConstants.API_EMBEDDINGS_PATH);
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer apikey"));
 
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("input"), is(List.of("abcd")));
         assertThat(requestMap.get("model"), is("mistral-embed"));
@@ -46,10 +45,9 @@ public class MistralEmbeddingsRequestTests extends ESTestCase {
         var truncatedRequest = request.truncate();
 
         var httpRequest = RequestTests.getHttpRequestSync(truncatedRequest);
-        assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
 
-        var httpPost = (HttpPost) httpRequest.httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var httpPost = httpRequest.httpRequest();
+        var requestMap = entityAsMap(httpPost.getBodyText());
         assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("input"), is(List.of("ab")));
         assertThat(requestMap.get("model"), is("mistral-embed"));
@@ -64,11 +62,10 @@ public class MistralEmbeddingsRequestTests extends ESTestCase {
         assertTrue(truncatedRequest.getTruncationInfo()[0]);
     }
 
-    private HttpPost validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) throws IOException {
-        assertThat(request.httpRequestBase(), instanceOf(HttpPost.class));
-        var httpPost = (HttpPost) request.httpRequestBase();
-        assertThat(httpPost.getURI().toString(), is(expectedUrl));
-        assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
+    private SimpleHttpRequest validateRequestUrlAndContentType(HttpRequest request, String expectedUrl) throws URISyntaxException {
+        var httpPost = request.httpRequest();
+        assertThat(httpPost.getUri().toString(), is(expectedUrl));
+        assertThat(httpPost.getBody().getContentType().toString(), is("application/json; charset=UTF-8"));
         return httpPost;
     }
 

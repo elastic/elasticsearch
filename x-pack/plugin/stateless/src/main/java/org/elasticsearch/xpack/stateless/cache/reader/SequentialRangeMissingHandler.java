@@ -23,6 +23,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -212,7 +213,22 @@ public class SequentialRangeMissingHandler implements SharedBlobCacheService.Ran
         ActionListener<InputStream> listener
     ) throws IOException {
         if (streamFactory == null) {
-            inputStreamFromCacheBlobReader(rangeToWrite.start() + relativePos, len, listener);
+            inputStreamFromCacheBlobReader(rangeToWrite.start() + relativePos, len, listener.delegateFailureAndWrap((delegate, in) -> {
+                final var tracked = new FilterInputStream(in) {
+                    private volatile boolean closed;
+
+                    @Override
+                    public void close() throws IOException {
+                        try {
+                            super.close();
+                        } finally {
+                            closed = true;
+                        }
+                    }
+                };
+                ActionListener.runAfter(delegate, () -> { assert tracked.closed : "input stream must be closed before listener returns"; })
+                    .onResponse(tracked);
+            }));
         } else {
             streamFactory.create(relativePos, listener.map(is -> limitStream(is, len)));
         }

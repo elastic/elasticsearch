@@ -6,11 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction.Request;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 
 public class StopDatafeedActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
@@ -48,5 +52,15 @@ public class StopDatafeedActionRequestTests extends AbstractXContentSerializingT
     @Override
     protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(null, parser);
+    }
+
+    public void testValidate_rejectsBlankDatafeedId() {
+        for (String blank : new String[] { "", "   " }) {
+            Request request = new Request(blank);
+            ActionRequestValidationException e = request.validate();
+            assertNotNull("expected validation error for datafeed_id=[" + blank + "]", e);
+            assertThat(e.validationErrors(), hasSize(1));
+            assertThat(e.validationErrors().get(0), containsString("datafeed_id"));
+        }
     }
 }

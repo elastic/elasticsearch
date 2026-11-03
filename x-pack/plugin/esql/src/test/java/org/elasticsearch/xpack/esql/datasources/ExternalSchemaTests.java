@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -102,6 +103,24 @@ public class ExternalSchemaTests extends ESTestCase {
             )
         );
         assertTrue("all metadata, nothing survives", filtered.isEmpty());
+    }
+
+    /**
+     * Bound external metadata is a {@link ExternalMetadataAttribute}, not a {@link MetadataAttribute}.
+     * The data-only view must drop it the same way, or split discovery counts the name as a
+     * projected physical column.
+     */
+    public void testDataAttributesOfStripsExternalMetadata() {
+        Attribute id = attr("id");
+        Attribute filePath = new ExternalMetadataAttribute(Source.EMPTY, FileMetadataColumns.PATH, DataType.KEYWORD);
+        Attribute index = new ExternalMetadataAttribute(Source.EMPTY, "_index", DataType.KEYWORD);
+
+        ExternalSchema filtered = ExternalSchema.dataAttributesOf(List.of(id, filePath, index));
+
+        assertEquals(1, filtered.size());
+        assertEquals("id", filtered.get(0).name());
+        assertFalse(filtered.names().contains(FileMetadataColumns.PATH));
+        assertFalse(filtered.names().contains("_index"));
     }
 
     public void testDataAttributesOfExcludesPartitionColumns() {

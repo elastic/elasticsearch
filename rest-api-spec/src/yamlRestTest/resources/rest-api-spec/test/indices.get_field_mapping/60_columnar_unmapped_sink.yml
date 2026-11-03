@@ -1,0 +1,28 @@
+---
+"the sink is returned like other metadata fields":
+  # Lives here rather than in mapping/80_columnar_unmapped_fields.yml because the get field mapping API is not available in serverless.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+      reason: "columnar index modes and the flattened _unmapped sink are required"
+
+  - do:
+      indices.create:
+        index: test_mapped
+        body:
+          settings:
+            index.mode: columnar
+            index.mapping.flattened_unmapped_fields.enabled: true
+          mappings:
+            properties:
+              mapped:
+                type: long
+
+  - do:
+      indices.get_field_mapping:
+        index: test_mapped
+        fields: _unmapped
+  - match: { test_mapped.mappings._unmapped.full_name: _unmapped }

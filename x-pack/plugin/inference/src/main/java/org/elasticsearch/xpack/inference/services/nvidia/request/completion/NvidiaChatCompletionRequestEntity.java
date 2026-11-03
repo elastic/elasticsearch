@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.nvidia.request.completion;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -33,7 +33,7 @@ public class NvidiaChatCompletionRequestEntity implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokensAndSkipStreamOptionsField(modelId, params));
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequestBody.withMaxTokensAndSkipStreamOptionsField(modelId, params));
         builder.endObject();
         return builder;
     }

@@ -200,7 +200,7 @@ public class MetadataCreateIndexServiceIT extends ESIntegTestCase {
                     () -> masterClusterService.getMasterService()
                         .pendingTasks()
                         .stream()
-                        .filter(pct -> pct.getSource().toString().startsWith("create-index"))
+                        .filter(pct -> pct.getSource().startsWith("create-index"))
                         .count() == totalRequestCount
                 )
             );

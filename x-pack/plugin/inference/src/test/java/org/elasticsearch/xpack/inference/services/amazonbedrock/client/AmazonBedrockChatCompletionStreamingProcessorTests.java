@@ -18,18 +18,26 @@ import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.MessageStopEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ReasoningContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.TokenUsage;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolUseBlockStart;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage.PromptTokensDetails;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionUsageResponse.PromptTokensDetails;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 
@@ -41,6 +49,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -98,6 +107,86 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         verifyNoMoreInteractions(upstream);
     }
 
+    /**
+     * Reasoning content deltas (e.g. from Claude Sonnet 5) are skipped instead of failing the stream, and the processor asks the
+     * upstream for the next item since nothing was sent downstream.
+     */
+    public void testReasoningContentDeltaIsSkipped() {
+        ExecutorService executorService = mock();
+        ThreadPool threadPool = mock();
+        when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
+        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");
+        doAnswer(ans -> {
+            Runnable command = ans.getArgument(0);
+            command.run();
+            return null;
+        }).when(executorService).execute(any());
+
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        processor.subscribe(downstream);
+
+        ConverseStreamOutput reasoningDelta = mock();
+        when(reasoningDelta.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            ContentBlockDelta delta = ContentBlockDelta.builder()
+                .reasoningContent(ReasoningContentBlockDelta.builder().text("thinking").build())
+                .build();
+            visitor.visitContentBlockDelta(ContentBlockDeltaEvent.builder().delta(delta).contentBlockIndex(0).build());
+            return null;
+        }).when(reasoningDelta).accept(any());
+
+        processor.onNext(reasoningDelta);
+
+        verify(downstream, never()).onNext(any());
+        verify(downstream, never()).onError(any());
+        verify(upstream, times(1)).request(1);
+        verify(upstream, never()).cancel();
+    }
+
+    /**
+     * Skipping a reasoning delta produces nothing downstream, so the downstream's request is still outstanding and a following failure
+     * must reach it instead of being parked forever.
+     */
+    public void testErrorAfterSkippedReasoningDeltaIsDelivered() {
+        ExecutorService executorService = mock();
+        ThreadPool threadPool = mock();
+        when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
+        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");
+        doAnswer(ans -> {
+            Runnable command = ans.getArgument(0);
+            command.run();
+            return null;
+        }).when(executorService).execute(any());
+
+        Flow.Subscription upstream = mock();
+        processor.onSubscribe(upstream);
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        ConverseStreamOutput reasoningDelta = mock();
+        when(reasoningDelta.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA);
+        doAnswer(ans -> {
+            ConverseStreamResponseHandler.Visitor visitor = ans.getArgument(0);
+            ContentBlockDelta delta = ContentBlockDelta.builder()
+                .reasoningContent(ReasoningContentBlockDelta.builder().text("thinking").build())
+                .build();
+            visitor.visitContentBlockDelta(ContentBlockDeltaEvent.builder().delta(delta).contentBlockIndex(0).build());
+            return null;
+        }).when(reasoningDelta).accept(any());
+        processor.onNext(reasoningDelta);
+        verify(downstream, never()).onNext(any());
+
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onError(expectedError);
+        verify(downstream, times(1)).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+    }
+
     public void testMultiplePublishesCallsOnError() {
         processor.subscribe(mock());
 
@@ -149,7 +238,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         assertThat(argument.getAllValues().size(), is(3));
         assertThat(argument.getAllValues().get(0).chunks().size(), is(1));
         assertThat(
-            argument.getAllValues().get(0).chunks().getFirst().choices().getFirst().delta().role(),
+            argument.getAllValues().get(0).chunks().getFirst().choices().getFirst().message().role(),
             equalTo(expectedMessageStartRole)
         );
 
@@ -173,6 +262,54 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         assertThat(argument.getAllValues().get(0).chunks().size(), is(1));
         assertThat(argument.getAllValues().get(1).chunks().size(), is(1));
         assertThat(argument.getAllValues().get(2).chunks().size(), is(1));
+    }
+
+    /**
+     * When processing an event fails, the processor converts the error into the unified chat completion format. The base class
+     * must forward that exception unchanged so the status, type and code reach the client rather than a generic 500.
+     * Errors are not subject to backpressure, so the error is delivered immediately rather than parked until the downstream requests
+     * again.
+     */
+    public void testProcessingFailureForwardsUnifiedChatCompletionExceptionDownstream() {
+        var upstream = mock(Flow.Subscription.class);
+        processor.onSubscribe(upstream);
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        var processingError = new ElasticsearchStatusException("bad input", RestStatus.BAD_REQUEST);
+        ConverseStreamOutput failingOutput = mock();
+        when(failingOutput.sdkEventType()).thenReturn(ConverseStreamOutput.EventType.MESSAGE_START);
+        doAnswer(ans -> { throw processingError; }).when(failingOutput).accept(any());
+
+        processor.onNext(failingOutput);
+        verify(upstream, times(1)).cancel();
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(UnifiedChatCompletionException.class));
+            assertThat(((UnifiedChatCompletionException) e).status(), is(RestStatus.BAD_REQUEST));
+        }));
+    }
+
+    /**
+     * Errors reported by the AWS SDK itself (outside of event processing) arrive at onError directly and must carry the Bedrock status.
+     */
+    public void testOnErrorFromSdkPropagatesBedrockStatus() {
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        var bedrockError = BedrockRuntimeException.builder().message("throttled").statusCode(429).build();
+        processor.onError(new CompletionException(bedrockError));
+
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(ElasticsearchStatusException.class));
+            assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.TOO_MANY_REQUESTS));
+            assertThat(e.getCause(), is(bedrockError));
+        }));
     }
 
     private ConverseStreamOutput messageStartOutput(String role) {
@@ -278,7 +415,7 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         assertThat(usage.promptTokensDetails(), equalTo(new PromptTokensDetails(3, 5)));
     }
 
-    private StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage usageFromMetadataEvent(TokenUsage tokenUsage) {
+    private ChatCompletionUsageResponse usageFromMetadataEvent(TokenUsage tokenUsage) {
         var upstream = mock(Flow.Subscription.class);
         processor.onSubscribe(upstream);
         Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
@@ -291,6 +428,157 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
         );
         verify(downstream).onNext(argument.capture());
         return argument.getValue().chunks().getFirst().usage();
+    }
+
+    /**
+     * The request can fail (e.g. a Bedrock ValidationException) before the upstream ever subscribes. The error must still reach the
+     * downstream when it requests data, otherwise the stream hangs.
+     */
+    public void testOnErrorBeforeUpstreamSubscribesIsDeliveredOnRequest() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onError(expectedError);
+
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+
+        sub.getValue().request(1);
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(ElasticsearchException.class));
+            assertThat(e.getCause(), is(expectedError));
+        }));
+    }
+
+    /**
+     * Once pending demand has been forwarded to the upstream, an error must still be delivered to the downstream.
+     */
+    public void testOnErrorAfterDemandForwardedUpstreamIsDelivered() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        processor.onSubscribe(mock(Flow.Subscription.class));
+        processor.onError(expectedError);
+
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(ElasticsearchException.class));
+            assertThat(e.getCause(), is(expectedError));
+        }));
+    }
+
+    /**
+     * A stored error is replayed right after {@link Flow.Subscriber#onSubscribe} returns when the subscriber requested data from within
+     * onSubscribe (as the REST streaming subscriber does), and never before it.
+     */
+    public void testStoredErrorIsReplayedAfterOnSubscribeWhenRequestedInOnSubscribe() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onError(expectedError);
+
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        doAnswer(ans -> {
+            Flow.Subscription subscription = ans.getArgument(0);
+            subscription.request(1);
+            return null;
+        }).when(downstream).onSubscribe(any());
+        processor.subscribe(downstream);
+
+        var inOrder = inOrder(downstream);
+        inOrder.verify(downstream).onSubscribe(any());
+        inOrder.verify(downstream).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+    }
+
+    /**
+     * Downstream subscribers only expect signals in response to a request, so an error that arrives while nothing has been requested
+     * is parked and delivered by the next request.
+     */
+    public void testStoredErrorIsParkedUntilDownstreamRequests() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onError(expectedError);
+
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        verify(downstream, never()).onError(any());
+
+        sub.getValue().request(1);
+        verify(downstream, times(1)).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+    }
+
+    /**
+     * Once the downstream's request has been answered with an item it has no outstanding request, so an error is parked until the next
+     * one instead of being signalled while, for example, the previous item is still being written out.
+     */
+    public void testErrorAfterRequestWasAnsweredIsParkedUntilNextRequest() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        processor.onSubscribe(mock(Flow.Subscription.class));
+
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+
+        sub.getValue().request(1);
+        processor.emitNext(new StreamingUnifiedChatCompletionResults.Results(new ArrayDeque<>()));
+        verify(downstream, times(1)).onNext(any());
+
+        processor.onError(expectedError);
+        verify(downstream, never()).onError(any());
+
+        sub.getValue().request(1);
+        verify(downstream, times(1)).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+    }
+
+    /**
+     * An error whose delivery is already queued on the utility thread must not be turned into a completion by a request that arrives
+     * before the queued delivery runs.
+     */
+    public void testRequestWhileErrorDeliveryIsQueuedDoesNotComplete() {
+        var expectedError = BedrockRuntimeException.builder().message("ahhhhhh").build();
+        var queued = new ArrayList<Runnable>();
+        ExecutorService executorService = mock();
+        doAnswer(ans -> {
+            queued.add(ans.getArgument(0));
+            return null;
+        }).when(executorService).execute(any());
+        ThreadPool threadPool = mock();
+        when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
+        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model");
+
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+        processor.onSubscribe(mock(Flow.Subscription.class));
+
+        processor.onError(expectedError);
+        assertThat(queued.size(), is(1));
+
+        sub.getValue().request(1);
+        verify(downstream, never()).onComplete();
+
+        queued.forEach(Runnable::run);
+        verify(downstream, times(1)).onError(assertArg(e -> assertThat(e.getCause(), is(expectedError))));
+        verify(downstream, never()).onComplete();
+    }
+
+    public void testOnErrorAfterCancelIsNotDelivered() {
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        var sub = ArgumentCaptor.forClass(Flow.Subscription.class);
+        processor.subscribe(downstream);
+        verify(downstream).onSubscribe(sub.capture());
+        sub.getValue().request(1);
+
+        sub.getValue().cancel();
+        processor.onError(BedrockRuntimeException.builder().message("ahhhhhh").build());
+
+        verify(downstream, never()).onError(any());
     }
 
     public void verifyCompleteBeforeRequest() {

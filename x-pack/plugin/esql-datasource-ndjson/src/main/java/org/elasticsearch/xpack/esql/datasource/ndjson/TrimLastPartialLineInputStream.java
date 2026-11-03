@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.Level;
@@ -126,7 +127,7 @@ final class TrimLastPartialLineInputStream extends InputStream {
         this.recordSplitter = recordSplitter;
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
-            "NDJSON read from [" + sourceLocation + "] discarded an oversized partial line (policy: " + errorPolicy.modeName() + ")",
+            "Line in [" + sourceLocation + "] exceeds [" + ByteSizeValue.ofBytes(recordSplitter.maxRecordBytes()) + "]; skipping it",
             warningSink
         );
     }
@@ -263,22 +264,14 @@ final class TrimLastPartialLineInputStream extends InputStream {
 
     /** Same level choice as {@link NdJsonPageDecoder#onNdjsonLineParseError}. */
     private void logDiscardedOversizedPartial(long discardedBytes, String kind) {
-        skipWarnings.add(
-            "Skipping NDJSON ["
-                + kind
-                + "] of approximately ["
-                + discardedBytes
-                + "] bytes while trimming split suffix; limit is ["
-                + recordSplitter.maxRecordBytes()
-                + "]"
-        );
+        skipWarnings.add("about [" + discardedBytes + "] bytes skipped");
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
             LoggerMessageFormat.format(
-                "Skipping NDJSON [{}] of approximately [{}] bytes while trimming split suffix; limit is [{}]",
-                kind,
+                "Skipping NDJSON line of about [{}] bytes over [{}] at a split boundary ({})",
                 discardedBytes,
-                recordSplitter.maxRecordBytes()
+                recordSplitter.maxRecordBytes(),
+                kind
             )
         );
     }

@@ -16,14 +16,46 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
 
+    static final String PATCH_BRANCH = "patch/serverless-fix"
+
+    /** Configures the build as a repository which has a branch tracking serverless production. */
+    static final String PATCH_BRANCH_PROPERTY = "-Porg.elasticsearch.transport.patchBranch=" + PATCH_BRANCH
+
     @Override
     GradleRunner gradleRunner(Object... arguments) {
+        return gradleRunnerWithEnv(Map.of(), arguments)
+    }
+
+    /** Run gradle with the CI branch env vars set to the given values, and stripped when not given. */
+    GradleRunner gradleRunnerWithEnv(Map<String, String> ciEnv, Object... arguments) {
         // Strip CI branch env vars so tests are not affected by the branch name the CI build is running on.
-        // Tests that explicitly exercise CI behavior set these via .withEnvironment() themselves.
+        // Tests that explicitly exercise CI behavior pass them in.
         Map<String, String> env = new HashMap<>(System.getenv())
         env.remove("BUILDKITE_BRANCH")
         env.remove("BUILDKITE_PULL_REQUEST_BASE_BRANCH")
+        env.putAll(ciEnv)
         return super.gradleRunner(arguments).withEnvironment(env)
+    }
+
+    /**
+     * Creates the serverless patch branch at the current state, advances main past it with a new
+     * transport version, and checks the patch branch back out. Generating on the patch branch must
+     * not hand out the id main has already taken.
+     */
+    void setupPatchBranch() {
+        execute("git checkout -b ${PATCH_BRANCH} main")
+        execute("git checkout main")
+        referableAndReferencedTransportVersion("newer_92", "8124000")
+        transportVersionUpperBound("9.2", "newer_92", "8124000")
+        commitAll("advance-main")
+        execute("git checkout ${PATCH_BRANCH}")
+    }
+
+    /** Commit the current working tree state, so that it becomes part of the git base. */
+    void commitAll(String message) {
+        execute("git add .")
+        // note the command is split on whitespace, so the message cannot contain spaces
+        execute("git commit -m ${message}")
     }
 
     def javaResource(String project, String path, String content) {

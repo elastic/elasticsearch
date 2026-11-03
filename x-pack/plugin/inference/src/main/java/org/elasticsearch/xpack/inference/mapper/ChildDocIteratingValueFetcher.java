@@ -17,6 +17,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
@@ -60,8 +61,10 @@ abstract class ChildDocIteratingValueFetcher implements ValueFetcher {
 
             setNextReaderHook(context);
 
-            var terms = context.reader().terms(getOffsetsFieldName(fieldType.name()));
-            offsetsLoader = terms != null ? OffsetSourceField.loader(terms) : null;
+            if (loadOffsets()) {
+                var terms = context.reader().terms(getOffsetsFieldName(fieldType.name()));
+                offsetsLoader = terms != null ? OffsetSourceField.loader(terms) : null;
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -72,9 +75,16 @@ abstract class ChildDocIteratingValueFetcher implements ValueFetcher {
      */
     protected void setNextReaderHook(LeafReaderContext context) throws IOException {}
 
+    /**
+     * Returns {@code true} if this fetcher should load offsets.
+     */
+    protected boolean loadOffsets() {
+        return true;
+    }
+
     @Override
     public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
-        if (fieldType.getModelSettings() == null || childScorer == null || offsetsLoader == null || doc == 0) {
+        if (fieldType.getModelSettings() == null || childScorer == null || (loadOffsets() && offsetsLoader == null) || doc == 0) {
             return List.of();
         }
 
@@ -94,24 +104,33 @@ abstract class ChildDocIteratingValueFetcher implements ValueFetcher {
         return StoredFieldsSpec.NO_REQUIREMENTS;
     }
 
-    protected void iterateChildDocs(int doc, DocIdSetIterator it, CheckedConsumer<OffsetSourceFieldMapper.OffsetSource, IOException> action)
-        throws IOException {
+    protected void iterateChildDocs(int doc, DocIdSetIterator it, CheckedRunnable<IOException> action) throws IOException {
         while (it.docID() < doc) {
             onAdvanceChildDoc(it.docID());
+            action.run();
+            if (it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
+                break;
+            }
+        }
+    }
 
-            var offset = offsetsLoader.advanceTo(it.docID(), fieldType.getChunksField().indexSettings().getIndexVersionCreated());
+    protected void iterateChildDocs(int doc, DocIdSetIterator it, CheckedConsumer<OffsetSourceFieldMapper.OffsetSource, IOException> action)
+        throws IOException {
+        iterateChildDocs(doc, it, () -> {
+            int childDocId = it.docID();
+
+            if (loadOffsets() == false) {
+                throw new IllegalStateException("Offsets not loaded");
+            }
+
+            var offset = offsetsLoader.advanceTo(childDocId, fieldType.getChunksField().indexSettings().getIndexVersionCreated());
             if (offset == null) {
                 throw new IllegalStateException(
                     "Cannot fetch values for field [" + fieldType.name() + "], missing offsets for doc [" + doc + "]"
                 );
             }
-
             action.accept(offset);
-
-            if (it.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
-                break;
-            }
-        }
+        });
     }
 
     /**

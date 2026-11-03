@@ -171,7 +171,8 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         ensureGreen();
         ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
-        for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
+        for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get("test")) {
+            RecoveryState recoveryState = recoveryInfo.recoveryState();
             assertNotEquals(
                 "relocated "
                     + recoveryState.getShardId()
@@ -190,7 +191,8 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
 
         recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
-        for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
+        for (var recoveryInfo : recoveryResponse.shardRecoveryInfos().get("test")) {
+            RecoveryState recoveryState = recoveryInfo.recoveryState();
             assertNotEquals(
                 "relocated "
                     + recoveryState.getShardId()

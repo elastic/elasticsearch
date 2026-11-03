@@ -943,6 +943,34 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
+        // Raw values inside an array need the separator between the elements that precede and follow them.
+        os = new ByteArrayOutputStream();
+        try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
+            generator.writeStartArray();
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
+            generator.writeNumber(1);
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
+            generator.writeEndArray();
+        }
+
+        try (XContentParser parser = xcontentType().xContent().createParser(XContentParserConfiguration.EMPTY, os.toByteArray())) {
+            assertEquals(Token.START_ARRAY, parser.nextToken());
+            for (int i = 0; i < 4; i++) {
+                if (i == 1) {
+                    assertEquals(Token.VALUE_NUMBER, parser.nextToken());
+                    assertEquals(1, parser.intValue());
+                    continue;
+                }
+                assertEquals(Token.START_OBJECT, parser.nextToken());
+                assertEquals(Token.FIELD_NAME, parser.nextToken());
+                assertEquals("foo", parser.currentName());
+                assertEquals(Token.VALUE_NULL, parser.nextToken());
+                assertEquals(Token.END_OBJECT, parser.nextToken());
+            }
+            assertEquals(Token.END_ARRAY, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
     }
 
     protected void doTestBigInteger(XContentGenerator generator, ByteArrayOutputStream os) throws Exception {

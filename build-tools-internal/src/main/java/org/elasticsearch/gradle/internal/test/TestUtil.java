@@ -12,14 +12,26 @@ package org.elasticsearch.gradle.internal.test;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 public class TestUtil {
 
-    public static String getTestLibraryPath(String nativeLibsDir) {
+    /**
+     * Returns the current platform directories for each of the given native library roots, separated by {@link File#pathSeparator}
+     *
+     * @param nativeLibsDirs one or more roots, separated by {@link File#pathSeparator}
+     */
+    public static String getTestLibraryPath(String nativeLibsDirs) {
         String arch = Architecture.current().toString().toLowerCase(Locale.ROOT);
         String platform = String.format(Locale.ROOT, "%s-%s", ElasticsearchDistribution.CURRENT_PLATFORM, arch);
 
-        return String.format(Locale.ROOT, "%s/%s", nativeLibsDir, platform);
+        return Arrays.stream(nativeLibsDirs.split(File.pathSeparator))
+            .filter(dir -> dir.isEmpty() == false)
+            .map(dir -> Path.of(dir, platform).toString())
+            .collect(Collectors.joining(File.pathSeparator));
     }
 }

@@ -170,7 +170,8 @@ public class WriteLoadConstraintMonitorIT extends ESIntegTestCase {
                                         queueLatencyThresholdMillis,
                                         utilizationThreshold
                                     )
-                                )
+                                ),
+                                Map.of()
                             )
                         );
                     })),

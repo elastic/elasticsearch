@@ -8,17 +8,23 @@
  */
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -26,6 +32,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -49,6 +56,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -57,6 +65,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -78,15 +88,20 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
+import org.elasticsearch.inference.VectorType;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchService.ResultsType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -100,9 +115,11 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -131,9 +148,15 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -151,6 +174,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -165,8 +189,10 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
@@ -180,8 +206,11 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
@@ -197,6 +226,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(
             FailOnRewriteQueryPlugin.class,
+            ParkedScrollQueryPlugin.class,
             CustomScriptPlugin.class,
             ReaderWrapperCountPlugin.class,
             InternalOrPrivateSettingsPlugin.class,
@@ -320,6 +350,155 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertAcked(indicesAdmin().prepareDelete("index"));
         awaitIndexShardCloseAsyncTasks();
         assertEquals(0, service.getActiveContexts());
+    }
+
+    /**
+     * {@link SearchService#freeReaderContext} and an index removal that does not free search contexts (such as
+     * {@code NO_LONGER_ASSIGNED} on relocation) must not cancel a stuck scroll fetch. The query phase frees
+     * single-session readers itself, and {@link SearchService#freeAllContextsForShard} is also used when a shard
+     * is reassigned.
+     */
+    public void testFreeReaderContextDoesNotCancelInFlightScroll() throws Exception {
+        ParkedScrollQueryBuilder.reset();
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse opened = client().prepareSearch("index")
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .setTimeout(TimeValue.timeValueMinutes(2))
+            .setQuery(new ParkedScrollQueryBuilder())
+            .get();
+        PlainActionFuture<SearchResponse> scrollFuture = new PlainActionFuture<>();
+        try {
+            ParkedScrollQueryBuilder.arm.set(true);
+            // The framework releases the response once the listener returns, so take our own reference to inspect it later.
+            client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute(ActionListener.wrap(r -> {
+                r.incRef();
+                scrollFuture.onResponse(r);
+            }, e -> {
+                logger.warn("scroll failed", e);
+                scrollFuture.onResponse(null);
+            }));
+            assertTrue("scroll fetch did not reach the open SearchContext", ParkedScrollQueryBuilder.parked.await(10, TimeUnit.SECONDS));
+
+            SearchService service = getInstanceFromNode(SearchService.class);
+            ShardSearchContextId contextId = new SearchScrollRequest(opened.getScrollId()).parseScrollId().getContext()[0]
+                .getSearchContextId();
+            assertTrue(service.freeReaderContext(contextId));
+            assertScrollFetchNotCancelled("freeReaderContext cancelled an in-flight scroll fetch");
+
+            IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+            service.beforeIndexRemoved(indicesService.indexServiceSafe(resolveIndex("index")), NO_LONGER_ASSIGNED);
+            assertScrollFetchNotCancelled("a non-freeing index removal cancelled an in-flight scroll fetch");
+        } finally {
+            ParkedScrollQueryBuilder.release.set(true);
+            opened.decRef();
+            try {
+                // Wait for the parked fetch to exit and close its SearchContext before reset() clears the flags. This must not
+                // throw: that would mask an exception from the try block above and skip reset().
+                if (waitUntil(scrollFuture::isDone, 10, TimeUnit.SECONDS)) {
+                    SearchResponse response = scrollFuture.actionGet();
+                    if (response != null) {
+                        response.decRef();
+                    }
+                } else {
+                    Thread parkedThread = ParkedScrollQueryBuilder.parkedThread;
+                    logger.warn(
+                        "parked scroll fetch did not exit within 10s; later tests may observe its leaked SearchContext. "
+                            + "cancelled=[{}], in-flight tasks={}, parked thread stack:\n{}",
+                        ParkedScrollQueryBuilder.cancelled.get(),
+                        getInstanceFromNode(TransportService.class).getTaskManager().getCancellableTasks().values(),
+                        parkedThread == null
+                            ? "n/a"
+                            : Arrays.stream(parkedThread.getStackTrace()).map(e -> "\tat " + e).collect(joining("\n"))
+                    );
+                }
+            } finally {
+                ParkedScrollQueryBuilder.reset();
+            }
+        }
+    }
+
+    /**
+     * The parked fetch only notices cancellation when it polls (every 10ms), so an immediate check could pass even though
+     * a cancellation is on its way. Give it several poll intervals to show up before concluding it was not cancelled.
+     */
+    private static void assertScrollFetchNotCancelled(String message) {
+        assertFalse(message, waitUntil(ParkedScrollQueryBuilder.cancelled::get, 100, TimeUnit.MILLISECONDS));
+    }
+
+    /**
+     * A scroll fetch holds its {@link SearchContext} until {@code executeFetchPhase} returns, and engine close waits
+     * on that searcher. Deleting the index must cancel the in-flight task from {@link SearchService#beforeIndexRemoved}
+     * so shard close can finish and the context is released.
+     */
+    public void testScrollFetchContextClosedWhenIndexRemoved() throws Exception {
+        ParkedScrollQueryBuilder.reset();
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse opened = client().prepareSearch("index")
+            .setSize(1)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .setTimeout(TimeValue.timeValueMinutes(2))
+            .setQuery(new ParkedScrollQueryBuilder())
+            .get();
+        PlainActionFuture<SearchResponse> scrollFuture = new PlainActionFuture<>();
+        try {
+            ParkedScrollQueryBuilder.arm.set(true);
+            client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute(scrollFuture);
+            assertTrue("scroll fetch did not reach the open SearchContext", ParkedScrollQueryBuilder.parked.await(10, TimeUnit.SECONDS));
+
+            SearchService service = getInstanceFromNode(SearchService.class);
+            assertEquals(1, service.getActiveContexts());
+            assertFalse("scroll fetch cancelled before index deletion", ParkedScrollQueryBuilder.cancelled.get());
+
+            assertAcked(indicesAdmin().prepareDelete("index"));
+            // Delete is acked before the shard close task runs. The parked fetch polls cancellation.
+            awaitIndexShardCloseAsyncTasks();
+            assertBusy(
+                () -> assertTrue(
+                    "in-flight scroll SearchContext was not cancelled by index removal",
+                    ParkedScrollQueryBuilder.cancelled.get()
+                )
+            );
+            assertEquals(0, service.getActiveContexts());
+
+            // The cancelled fetch must fail the scroll rather than complete it.
+            final var e = expectThrows(SearchPhaseExecutionException.class, () -> scrollFuture.actionGet(10, TimeUnit.SECONDS));
+            assertEquals(1, e.shardFailures().length);
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
+        } finally {
+            ParkedScrollQueryBuilder.release.set(true);
+            opened.decRef();
+            ParkedScrollQueryBuilder.reset();
+        }
+    }
+
+    /**
+     * A scroll phase that registers after {@link SearchService#beforeIndexRemoved} has swept the readers is not seen by the
+     * sweep, so it must be rejected on registration rather than left running against a reader that is being freed.
+     */
+    public void testScrollPhaseStartedAfterIndexRemovalSweepIsCancelled() {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse opened = client().prepareSearch("index").setSize(1).setScroll(TimeValue.timeValueMinutes(2)).get();
+        try {
+            SearchService service = getInstanceFromNode(SearchService.class);
+            IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+            service.beforeIndexRemoved(indicesService.indexServiceSafe(resolveIndex("index")), DELETED);
+
+            final var e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearchScroll(opened.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get()
+            );
+            assertNotNull(ExceptionsHelper.unwrap(e.shardFailures()[0].getCause(), TaskCancelledException.class));
+        } finally {
+            client().prepareClearScroll().addScrollId(opened.getScrollId()).get();
+            opened.decRef();
+        }
     }
 
     public void testCloseSearchContextOnRewriteException() {
@@ -1743,6 +1922,120 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
+    /**
+     * Query that runs normally until {@link ParkedScrollQueryBuilder#arm} is set, then parks inside weight creation
+     * until the search task is cancelled or {@link ParkedScrollQueryBuilder#release} is set. The parked state is how a
+     * scroll continuation holds its {@link SearchContext}.
+     */
+    public static class ParkedScrollQueryPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return singletonList(new QuerySpec<>("parked_scroll", ParkedScrollQueryBuilder::new, parseContext -> {
+                throw new UnsupportedOperationException("No query parser for this plugin");
+            }));
+        }
+    }
+
+    public static class ParkedScrollQueryBuilder extends LeafQueryBuilder<ParkedScrollQueryBuilder> {
+        static final AtomicBoolean arm = new AtomicBoolean();
+        static final AtomicBoolean release = new AtomicBoolean();
+        static final AtomicBoolean cancelled = new AtomicBoolean();
+        static volatile CountDownLatch parked = new CountDownLatch(1);
+        /** The thread parked in {@code createWeight}, kept so a test can report where a leaked fetch is stuck. */
+        static volatile Thread parkedThread;
+
+        static void reset() {
+            arm.set(false);
+            release.set(false);
+            cancelled.set(false);
+            parked = new CountDownLatch(1);
+            parkedThread = null;
+        }
+
+        public ParkedScrollQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public ParkedScrollQueryBuilder() {}
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) {
+            Query delegate = Queries.ALL_DOCS_INSTANCE;
+            return new Query() {
+                @Override
+                public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+                    if (arm.get()) {
+                        parkedThread = Thread.currentThread();
+                        parked.countDown();
+                        try {
+                            while (release.get() == false) {
+                                if (searcher instanceof ContextIndexSearcher contextSearcher) {
+                                    try {
+                                        contextSearcher.checkCancelled();
+                                    } catch (RuntimeException e) {
+                                        cancelled.set(true);
+                                        throw e;
+                                    }
+                                }
+                                Thread.sleep(10);
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException(e);
+                        }
+                    }
+                    return delegate.createWeight(searcher, scoreMode, boost);
+                }
+
+                @Override
+                public String toString(String field) {
+                    return delegate.toString(field);
+                }
+
+                @Override
+                public boolean equals(Object obj) {
+                    return false;
+                }
+
+                @Override
+                public int hashCode() {
+                    return 0;
+                }
+
+                @Override
+                public void visit(QueryVisitor visitor) {
+                    visitor.visitLeaf(this);
+                }
+            };
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
+
+        @Override
+        protected boolean doEquals(ParkedScrollQueryBuilder other) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "parked_scroll";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.zero();
+        }
+    }
+
     private static class ShardScrollRequestTest extends ShardSearchRequest {
         private final TimeValue scroll;
 
@@ -2341,6 +2634,153 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertTrue(searchService.freeReaderContext(future.actionGet()));
     }
 
+    public void testFindReaderContextRejectsMismatchedShard() {
+        createIndex("index-a");
+        createIndex("index-b");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        ShardId shardA = new ShardId(resolveIndex("index-a"), 0);
+        ShardId shardB = new ShardId(resolveIndex("index-b"), 0);
+        ShardSearchContextId readerA = openReaderContext(searchService, shardA);
+        ShardSearchContextId readerB = openReaderContext(searchService, shardB);
+        try {
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "rejected search context id that does not match the expected shard",
+                        SearchService.class.getCanonicalName(),
+                        Level.INFO,
+                        "Rejecting search context id "
+                            + readerB
+                            + " because it does not match expected shard "
+                            + shardA
+                            + "; reader context is on shard "
+                            + shardB
+                    )
+                );
+                IllegalArgumentException mismatch = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchService.createOrGetReaderContext(shardSearchRequest(shardA, readerB), null)
+                );
+                assertThat(mismatch.getMessage(), equalTo("search context id is not valid"));
+                mockLog.assertAllExpectationsMatched();
+            }
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+
+            ReaderContext matched = searchService.createOrGetReaderContext(shardSearchRequest(shardA, readerA), null);
+            assertThat(matched.id(), equalTo(readerA));
+            assertThat(matched.indexShard().shardId(), equalTo(shardA));
+
+            ShardSearchContextId missing = new ShardSearchContextId(readerA.getSessionId(), Long.MAX_VALUE);
+            expectThrows(
+                SearchContextMissingException.class,
+                () -> searchService.createOrGetReaderContext(shardSearchRequest(shardA, missing), null)
+            );
+            assertThat(searchService.getActiveContexts(), equalTo(2));
+        } finally {
+            assertTrue(searchService.freeReaderContext(readerA));
+            assertTrue(searchService.freeReaderContext(readerB));
+        }
+    }
+
+    /**
+     * A caller outside the search phases, like ES|QL, opens a single-session reader context from a plain shard request,
+     * finds it again by id and frees it itself.
+     */
+    public void testSingleSessionReaderContextIsRegisteredUntilFreed() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = plainShardRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.createOrGetReaderContext(request, null);
+        assertTrue(readerContext.singleSession());
+        assertThat(readerContext.keepAlive(), equalTo(searchService.getDefaultKeepAliveInMillis()));
+        assertThat(searchService.getActiveContexts(), equalTo(1));
+        assertThat(shard.searchStats().getOpenContexts(), equalTo(1L));
+        assertThat(searchService.findReaderContext(readerContext.id(), request, shard.shardId()), sameInstance(readerContext));
+
+        assertTrue(searchService.freeReaderContext(readerContext.id()));
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(shard.searchStats().getOpenContexts(), equalTo(0L));
+        expectThrows(
+            SearchContextMissingException.class,
+            () -> searchService.findReaderContext(readerContext.id(), request, shard.shardId())
+        );
+        assertFalse("a second free finds nothing", searchService.freeReaderContext(readerContext.id()));
+    }
+
+    public void testCreateSearchContextOnAFreedReaderContextFails() {
+        createIndex("index");
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = plainShardRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.createOrGetReaderContext(request, null);
+        assertTrue(searchService.freeReaderContext(readerContext.id()));
+        expectThrows(
+            SearchContextMissingException.class,
+            () -> searchService.createSearchContext(readerContext, request, SearchService.NO_TIMEOUT)
+        );
+    }
+
+    /**
+     * A search context pins its reader context: a free unregisters the reader context at once, but its reader closes only
+     * with the last search context on it.
+     */
+    public void testFreedReaderContextClosesWhenItsLastSearchContextCloses() throws IOException {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexShard shard = indexShard("index");
+        ShardSearchRequest request = plainShardRequest(shard.shardId());
+
+        ReaderContext readerContext = searchService.createOrGetReaderContext(request, null);
+        AtomicBoolean readerClosed = new AtomicBoolean();
+        readerContext.addOnClose(() -> readerClosed.set(true));
+        try (SearchContext searchContext = searchService.createSearchContext(readerContext, request, SearchService.NO_TIMEOUT)) {
+            assertTrue(searchService.freeReaderContext(readerContext.id()));
+            assertThat("a freed context is not found any more", searchService.getActiveContexts(), equalTo(0));
+            assertFalse("the open search context still reads from it", readerClosed.get());
+            assertThat(searchContext.searcher().count(Queries.ALL_DOCS_INSTANCE), equalTo(1));
+        }
+        assertTrue(readerClosed.get());
+    }
+
+    private IndexShard indexShard(String index) {
+        return getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getShard(0);
+    }
+
+    /** A shard request like the one ES|QL builds for each shard it reads: no reader id, no scroll, no keep-alive. */
+    private static ShardSearchRequest plainShardRequest(ShardId shardId) {
+        return new ShardSearchRequest(shardId, System.currentTimeMillis(), AliasFilter.EMPTY, null, SplitShardCountSummary.IRRELEVANT);
+    }
+
+    private static ShardSearchContextId openReaderContext(SearchService searchService, ShardId shardId) {
+        PlainActionFuture<ShardSearchContextId> future = new PlainActionFuture<>();
+        searchService.openReaderContext(shardId, TimeValue.timeValueMinutes(1), null, SplitShardCountSummary.IRRELEVANT, future);
+        return future.actionGet();
+    }
+
+    private static ShardSearchRequest shardSearchRequest(ShardId shardId, ShardSearchContextId readerId) {
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(true),
+            shardId,
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null,
+            readerId,
+            TimeValue.timeValueMinutes(1),
+            SplitShardCountSummary.IRRELEVANT,
+            true
+        );
+    }
+
     public void testCancelQueryPhaseEarly() throws Exception {
         createIndex("index");
         final MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
@@ -2551,6 +2991,56 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         future.get();
     }
 
+    public void testFetchChargeIsReleasedWhenTheSearchFailsAfterCharging() {
+        createIndex("index");
+        prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        MockSearchService service = (MockSearchService) getInstanceFromNode(SearchService.class);
+        CircuitBreaker breaker = getInstanceFromNode(CircuitBreakerService.class).getBreaker(CircuitBreaker.REQUEST);
+
+        // Single-session reader contexts are freed right after the fetch phase charged the breaker and before the result
+        // reaches anyone who would release it, which is the window the deallocate backstop covers.
+        AtomicBoolean armed = new AtomicBoolean(true);
+        service.setOnRemoveContext(readerContext -> {
+            if (armed.compareAndSet(true, false)) {
+                // freeReaderContext never binds its resource when this throws, so close the context here instead.
+                MockSearchService.removeActiveContext(readerContext);
+                readerContext.close();
+                throw new IllegalStateException("injected failure after the fetch charge");
+            }
+        });
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        // Script fields are charged with no size threshold, unlike source, which only counts past a 1mb buffer.
+        searchRequest.source(
+            new SearchSourceBuilder().scriptField(
+                "test_field",
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
+            )
+        );
+
+        long usedBeforeSearch = breaker.getUsed();
+        PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
+        service.executeQueryPhase(
+            new ShardSearchRequest(
+                OriginalIndices.NONE,
+                searchRequest,
+                new ShardId(resolveIndex("index"), 0),
+                0,
+                1,
+                AliasFilter.EMPTY,
+                1.0f,
+                -1,
+                null
+            ),
+            new SearchShardTask(123L, "", "", "", null, emptyMap()),
+            future
+        );
+        expectThrows(IllegalStateException.class, future::actionGet);
+
+        assertThat(breaker.getUsed(), equalTo(usedBeforeSearch));
+    }
+
     public void testWaitOnRefreshFailsWithRefreshesDisabled() {
         createIndex("index", Settings.builder().put("index.refresh_interval", "-1").build());
         final SearchService service = getInstanceFromNode(SearchService.class);
@@ -2596,9 +3086,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
         final IndexShard indexShard = indexService.getShard(0);
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-        // Increased timeout to avoid cancelling the search task prior to its completion,
-        // as we expect to raise an Exception. Timeout itself is tested on the following `testWaitOnRefreshTimeout` test.
-        searchRequest.setWaitForCheckpointsTimeout(TimeValue.timeValueMillis(randomIntBetween(200, 300)));
+        // The invalid checkpoint is rejected synchronously when the refresh listener is registered, before any wait timeout is
+        // scheduled, so the rejection wins even with a zero timeout. Timeout handling itself is tested on the following
+        // `testWaitOnRefreshTimeout` test.
+        searchRequest.setWaitForCheckpointsTimeout(TimeValue.timeValueMillis(0));
         searchRequest.setWaitForCheckpoints(Collections.singletonMap("index", new long[] { 1 }));
 
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
@@ -2664,6 +3155,133 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         SearchTimeoutException ex = expectThrows(SearchTimeoutException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("Wait for seq_no [0] refreshed timed out ["));
+    }
+
+    public void testWaitOnRefreshCompletesWhileTimeoutIsBeingScheduled() throws Exception {
+        createIndex("index", Settings.builder().put("index.refresh_interval", "60s").build());
+        prepareIndex("index").setSource("id", "1").get();
+        // only used to recognize the wait timeout among the other scheduled tasks, its value has no other meaning
+        final TimeValue waitTimeout = TimeValue.timeValueSeconds(31);
+        final PlainActionFuture<Long> future = new PlainActionFuture<>();
+        final AtomicReference<Scheduler.ScheduledCancellable> timeoutTask = new AtomicReference<>();
+
+        // the search threads must be named after the node, as checked by the search operation listener of this test
+        final String nodeName = Node.NODE_NAME_SETTING.get(node().settings());
+        try (TestThreadPool threadPool = new TestThreadPool(nodeName) {
+            @Override
+            public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                if (delay.equals(waitTimeout) == false) {
+                    return super.schedule(command, delay, executor);
+                }
+                // the refresh completes the registered listener, and with it the request, before the timeout task is handed back
+                indicesAdmin().prepareRefresh("index").get();
+                future.actionGet(TimeValue.timeValueSeconds(30));
+                timeoutTask.set(super.schedule(command, delay, executor));
+                return timeoutTask.get();
+            }
+        }) {
+            final SearchService service = newSearchService(threadPool);
+            try {
+                service.executeQueryPhase(
+                    waitForCheckpointRequest(waitTimeout),
+                    newSearchShardTask(),
+                    future.map(r -> r.queryResult().getTotalHits().value())
+                );
+                assertEquals(1L, (long) future.actionGet(TimeValue.timeValueSeconds(30)));
+                assertNotNull("the wait timeout must be scheduled", timeoutTask.get());
+                assertTrue(
+                    "the timeout task must be cancelled when the request completed before it was stored",
+                    timeoutTask.get().isCancelled()
+                );
+            } finally {
+                service.stop();
+                service.close();
+            }
+        }
+    }
+
+    public void testWaitOnRefreshFailsWhenSchedulingTimeoutFails() throws Exception {
+        createIndex("index", Settings.builder().put("index.refresh_interval", "60s").build());
+        prepareIndex("index").setSource("id", "1").get();
+        // only used to recognize the wait timeout among the other scheduled tasks, its value has no other meaning
+        final TimeValue waitTimeout = TimeValue.timeValueSeconds(31);
+        final AtomicInteger completions = new AtomicInteger();
+
+        try (TestThreadPool threadPool = new TestThreadPool(Node.NODE_NAME_SETTING.get(node().settings())) {
+            @Override
+            public Scheduler.ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
+                if (delay.equals(waitTimeout)) {
+                    throw new EsRejectedExecutionException("simulated rejection");
+                }
+                return super.schedule(command, delay, executor);
+            }
+        }) {
+            final SearchService service = newSearchService(threadPool);
+            try {
+                final PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
+                service.executeQueryPhase(
+                    waitForCheckpointRequest(waitTimeout),
+                    newSearchShardTask(),
+                    ActionListener.runBefore(future, completions::incrementAndGet)
+                );
+                expectThrows(EsRejectedExecutionException.class, future::actionGet);
+
+                // the refresh listener is still registered, and it must not complete the request a second time
+                indicesAdmin().prepareRefresh("index").get();
+                final ThreadPoolExecutor searchExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
+                assertBusy(() -> {
+                    assertThat(searchExecutor.getActiveCount(), equalTo(0));
+                    assertThat(searchExecutor.getQueue().size(), equalTo(0));
+                });
+                assertThat(completions.get(), equalTo(1));
+            } finally {
+                service.stop();
+                service.close();
+            }
+        }
+    }
+
+    private SearchService newSearchService(ThreadPool threadPool) {
+        final SearchService service = new SearchService(
+            getInstanceFromNode(ClusterService.class),
+            getInstanceFromNode(IndicesService.class),
+            threadPool,
+            getInstanceFromNode(ScriptService.class),
+            getInstanceFromNode(BigArrays.class),
+            new FetchPhase(Collections.emptyList()),
+            getInstanceFromNode(CircuitBreakerService.class),
+            getInstanceFromNode(ExecutorSelector.class),
+            Tracer.NOOP,
+            OnlinePrewarmingService.NOOP,
+            getInstanceFromNode(TransportService.class).getTaskManager()
+        );
+        service.start();
+        return service;
+    }
+
+    private static SearchShardTask newSearchShardTask() {
+        return new SearchShardTask(123L, "", "", "", null, emptyMap());
+    }
+
+    private ShardSearchRequest waitForCheckpointRequest(TimeValue timeout) {
+        final SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        searchRequest.setWaitForCheckpointsTimeout(timeout);
+        searchRequest.setWaitForCheckpoints(Collections.singletonMap("index", new long[] { 0 }));
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            new ShardId(resolveIndex("index"), 0),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null,
+            null,
+            null,
+            SplitShardCountSummary.UNSET,
+            true
+        );
     }
 
     public void testCreateAndPutRelocatedPitContext() {
@@ -2771,6 +3389,63 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         } catch (Exception exc) {
             Releasables.closeWhileHandlingException(readerContext1.get(), readerContext2.get());
             throw new RuntimeException(exc);
+        }
+    }
+
+    public void testCreateAndPutRelocatedPitContextRejectsDifferentShard() {
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        IndexService indexA = createIndex("index-a");
+        IndexService indexB = createIndex("index-b");
+        IndexShard shardA = indexA.getShard(0);
+        IndexShard shardB = indexB.getShard(0);
+        ShardSearchContextId id = new ShardSearchContextId("otherSessionId", randomNonNegativeLong(), null);
+
+        Engine.SearcherSupplier searcherA = shardA.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+        ReaderContext relocated = searchService.createAndPutRelocatedPitContext(
+            id,
+            indexA,
+            shardA,
+            searcherA,
+            TimeValue.timeValueMinutes(5).millis(),
+            null,
+            SplitShardCountSummary.IRRELEVANT
+        );
+        Engine.SearcherSupplier searcherB = shardB.acquireExternalSearcherSupplier(SplitShardCountSummary.IRRELEVANT);
+        try {
+            try (var mockLog = MockLog.capture(SearchService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "rejected relocated search context id that does not match the expected shard",
+                        SearchService.class.getCanonicalName(),
+                        Level.INFO,
+                        "Rejecting search context id "
+                            + id
+                            + " because it does not match expected shard "
+                            + shardB.shardId()
+                            + "; reader context is on shard "
+                            + shardA.shardId()
+                    )
+                );
+                IllegalArgumentException mismatch = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchService.createAndPutRelocatedPitContext(
+                        id,
+                        indexB,
+                        shardB,
+                        searcherB,
+                        TimeValue.timeValueMinutes(5).millis(),
+                        null,
+                        SplitShardCountSummary.IRRELEVANT
+                    )
+                );
+                assertThat(mismatch.getMessage(), equalTo("search context id is not valid"));
+                mockLog.assertAllExpectationsMatched();
+            }
+            assertEquals(1, searchService.getActiveContexts());
+            assertEquals(1, searchService.getRelocationMapSize());
+            assertThat(relocated.indexShard().shardId(), equalTo(shardA.shardId()));
+        } finally {
+            searchService.freeReaderContext(relocated.id());
         }
     }
 
@@ -3271,6 +3946,81 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(caughtException.get().getMessage(), containsString("pre-cancelled for test"));
     }
 
+    /**
+     * Tests that {@code SearchService#parseSource} correctly resolves embeddings fields into a
+     * {@link FetchFieldsContext}, silently skips unmapped fields, and rejects fields that cannot produce
+     * embeddings of the requested type.
+     */
+    public void testFetchEmbeddingsFields() throws IOException {
+        createEmbeddingsTestIndex("emb_test");
+
+        // No embeddings fields set — fetchFieldsContext should remain null.
+        assertThat(resolveFetchFields("emb_test", source -> {}), nullValue());
+
+        // dense_vector with no vector type → resolved to FieldAndFormat(dense, null).
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", null)), contains(new FieldAndFormat("dense", null)));
+
+        // dense_vector with explicit DENSE_VECTOR type → same result.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            contains(new FieldAndFormat("dense", null))
+        );
+
+        // sparse_vector with explicit SPARSE_VECTOR type → resolved.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("sparse", VectorType.SPARSE_VECTOR)),
+            contains(new FieldAndFormat("sparse", null))
+        );
+
+        // dense_vector field requested as SPARSE_VECTOR → type mismatch, rejected.
+        assertEmbeddingsFieldRejected(
+            "emb_test",
+            s -> s.fetchEmbeddingsField("dense", VectorType.SPARSE_VECTOR),
+            "Field [dense] of type [dense_vector] does not support [sparse_vector] embeddings"
+        );
+
+        // keyword field produces no embeddings → rejected.
+        assertEmbeddingsFieldRejected(
+            "emb_test",
+            s -> s.fetchEmbeddingsField("keyword", null),
+            "Field [keyword] of type [keyword] does not support embeddings"
+        );
+
+        // Unmapped field → skipped, no context.
+        assertThat(resolveFetchFields("emb_test", s -> s.fetchEmbeddingsField("unmapped", null)), nullValue());
+
+        // Mix: unmapped skipped, dense resolved → only dense in result.
+        assertThat(
+            resolveFetchFields(
+                "emb_test",
+                s -> s.fetchEmbeddingsField("unmapped", null).fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)
+            ),
+            contains(new FieldAndFormat("dense", null))
+        );
+    }
+
+    /**
+     * Tests that when both an explicit {@code fields} request and embeddings fields are present,
+     * {@code SearchService#parseSource} prepends the resolved embeddings fields before the user-supplied
+     * fields, and leaves the pre-existing context unchanged when all embeddings fields are skipped (e.g.
+     * because the field is unmapped).
+     */
+    public void testFetchEmbeddingsFieldsWithFetchFields() throws IOException {
+        createEmbeddingsTestIndex("emb_test");
+
+        // embeddings field resolved → placed before user fields in the merged list.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("dense", VectorType.DENSE_VECTOR)),
+            contains(new FieldAndFormat("dense", null), new FieldAndFormat("keyword", null))
+        );
+
+        // embeddings field skipped (unmapped) → pre-existing fetchFieldsContext is left intact.
+        assertThat(
+            resolveFetchFields("emb_test", s -> s.fetchField("keyword").fetchEmbeddingsField("unmapped", null)),
+            contains(new FieldAndFormat("keyword", null))
+        );
+    }
+
     private static ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {
         return new ReaderContext(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong()),
@@ -3281,6 +4031,72 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             false,
             0L
         );
+    }
+
+    private void createEmbeddingsTestIndex(String indexName) throws IOException {
+        XContentBuilder mapping = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("dense")
+            .field("type", "dense_vector")
+            .field("dims", 3)
+            .field("index", true)
+            .field("similarity", "cosine")
+            .endObject()
+            .startObject("sparse")
+            .field("type", "sparse_vector")
+            .endObject()
+            .startObject("keyword")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject();
+        createIndex(indexName, Settings.EMPTY);
+        client().admin().indices().preparePutMapping(indexName).setSource(mapping).get();
+    }
+
+    /**
+     * Creates a search context for {@code indexName} with a source configured by {@code sourceConsumer},
+     * and returns the fields that {@code SearchService#parseSource} placed in the
+     * {@link FetchFieldsContext}, or {@code null} when no fetch-fields context was set.
+     */
+    private List<FieldAndFormat> resolveFetchFields(String indexName, Consumer<SearchSourceBuilder> sourceConsumer) throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        final IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        searchRequest.source(source);
+        sourceConsumer.accept(source);
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+        try (
+            ReaderContext reader = createReaderContext(indexService, indexShard);
+            SearchContext context = service.createContext(reader, request, mock(SearchShardTask.class), ResultsType.NONE, randomBoolean())
+        ) {
+            FetchFieldsContext fetchFieldsContext = context.fetchFieldsContext();
+            return fetchFieldsContext == null ? null : fetchFieldsContext.fields();
+        }
+    }
+
+    /**
+     * Asserts that {@code SearchService#parseSource} rejects the embeddings fields configured by
+     * {@code sourceConsumer} with {@code expectedMessage}.
+     */
+    private void assertEmbeddingsFieldRejected(String indexName, Consumer<SearchSourceBuilder> sourceConsumer, String expectedMessage) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> resolveFetchFields(indexName, sourceConsumer));
+        assertThat(e.getMessage(), equalTo(expectedMessage));
     }
 
     private List<String> parseFeatureData(SearchHit hit, String fieldName) {

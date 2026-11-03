@@ -73,8 +73,9 @@ public final class QueryBuilderResolver {
             System.currentTimeMillis()
         );
 
-        // Set the cluster alias to the local cluster and CCS minimize round-trips to false since ES|QL does not perform a remote cluster
-        // coordinator node rewrite
+        // Set the cluster alias to the local cluster. CCS minimize round-trips is left unset rather than false: ES|QL does
+        // not perform a remote cluster coordinator node rewrite, and has no request option to do otherwise, so the setting
+        // does not apply here. Consumers treat unset the same as false, but can tell not to suggest changing it.
         return services.searchService()
             .getRewriteContext(
                 System::currentTimeMillis,
@@ -82,7 +83,7 @@ public final class QueryBuilderResolver {
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 resolvedIndices,
                 null,
-                false
+                null
             );
     }
 

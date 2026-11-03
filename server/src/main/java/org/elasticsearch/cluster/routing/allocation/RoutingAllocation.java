@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.Collections.emptySet;
 
@@ -46,13 +47,21 @@ import static java.util.Collections.emptySet;
  */
 public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocation, MutableRoutingAllocation {
 
+    private static final LabelledDecisionCache LABELLED_DECISION_CACHE = new LabelledDecisionCache();
+
     protected final AllocationDeciders deciders;
+
+    /// Fixed for the lifetime of this instance so that all decisions within a single allocation run are consistent.
+    protected final boolean preserveDecisionLabels;
 
     protected final ClusterState clusterState;
 
     protected ClusterInfo clusterInfo;
 
     protected final SnapshotShardSizeInfo shardSizeInfo;
+
+    // Lazily populated; MutableRoutingAllocation invalidates entries when shard state changes.
+    final Map<String, Double> nodeMaxShardWriteLoadProportionCache = new ConcurrentHashMap<>();
 
     private Map<ShardId, Set<String>> ignoredShardToNodes = null;
 
@@ -77,15 +86,18 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     /// @param clusterInfo information about node disk usage and shard disk usage
     /// @param shardSizeInfo information about snapshot shard sizes
     /// @param currentNanoTime the nano time to use for all delay allocation calculation (typically `System#nanoTime()`)
+    /// @param preserveDecisionLabels whether decisions returned by [#decision] retain their decider label when not in debug mode
     ///
     RoutingAllocation(
         AllocationDeciders deciders,
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
+        long currentNanoTime,
+        boolean preserveDecisionLabels
     ) {
         this.deciders = deciders;
+        this.preserveDecisionLabels = preserveDecisionLabels;
         this.clusterState = clusterState;
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
@@ -188,6 +200,50 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
 
     public ClusterInfo clusterInfo() {
         return clusterInfo;
+    }
+
+    /**
+     * Returns the proportion of total write load on the given node attributable to its most write-heavy started shard.
+     * The result is cached per node per allocation pass; {@link MutableRoutingAllocation} invalidates entries as shard
+     * state changes.
+     */
+    public double maxShardWriteLoadProportionForNode(RoutingNode node) {
+        final String nodeId = node.nodeId();
+        final Double cached = nodeMaxShardWriteLoadProportionCache.get(nodeId);
+        if (cached != null) {
+            assert cachedNodeMaxShardWriteLoadProportionIsConsistent(node, cached);
+            return cached;
+        }
+        final double value = computeNodeMaxShardWriteLoadProportion(node);
+        nodeMaxShardWriteLoadProportionCache.put(nodeId, value);
+        return value;
+    }
+
+    private double computeNodeMaxShardWriteLoadProportion(RoutingNode node) {
+        final var shardWriteLoads = clusterInfo.getShardWriteLoads();
+        double totalWriteLoad = 0.0;
+        double maxShardWriteLoad = 0.0;
+        for (ShardRouting shard : node.started()) {
+            double load = shardWriteLoads.getOrDefault(shard.shardId(), 0.0);
+            totalWriteLoad += load;
+            maxShardWriteLoad = Math.max(maxShardWriteLoad, load);
+        }
+        return totalWriteLoad > 0.0 ? maxShardWriteLoad / totalWriteLoad : 0.0;
+    }
+
+    private boolean cachedNodeMaxShardWriteLoadProportionIsConsistent(RoutingNode node, double cached) {
+        final double computed = computeNodeMaxShardWriteLoadProportion(node);
+        assert Math.abs(cached - computed) < 1e-9
+            : "cached value differs from computed for node " + node.nodeId() + ": cached=" + cached + " computed=" + computed;
+        return true;
+    }
+
+    protected void invalidateNodeMaxShardWriteLoadProportion() {
+        nodeMaxShardWriteLoadProportionCache.clear();
+    }
+
+    protected void invalidateNodeMaxShardWriteLoadProportion(String nodeId) {
+        nodeMaxShardWriteLoadProportionCache.remove(nodeId);
     }
 
     public SnapshotShardSizeInfo snapshotShardSizeInfo() {
@@ -305,6 +361,8 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
     public Decision decision(Decision decision, String deciderLabel, String reason, Object... params) {
         if (debugDecision()) {
             return Decision.single(decision.type(), deciderLabel, reason, params);
+        } else if (preserveDecisionLabels) {
+            return LABELLED_DECISION_CACHE.get(decision, deciderLabel);
         } else {
             return decision;
         }
@@ -361,7 +419,8 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
                 : clusterState,
             clusterInfo,
             shardSizeInfo,
-            currentNanoTime
+            currentNanoTime,
+            preserveDecisionLabels
         );
     }
 
@@ -374,7 +433,8 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
             shardSizeInfo,
             currentNanoTime,
             true,
-            RoutingChangesObserver.NOOP
+            RoutingChangesObserver.NOOP,
+            preserveDecisionLabels
         );
     }
 
@@ -391,7 +451,7 @@ public abstract sealed class RoutingAllocation permits ImmutableRoutingAllocatio
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        return new ImmutableRoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        return new ImmutableRoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
     }
 
     public enum DebugMode {

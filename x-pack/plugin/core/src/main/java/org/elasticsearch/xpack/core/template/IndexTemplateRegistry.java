@@ -127,7 +127,11 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         MapperFeatures.TSDB_METRIC_TEMPORALITY_SUPPORT,
         template -> template != null
             && template.settings() != null
-            && template.settings().hasValue(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey())
+            && template.settings().hasValue(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()),
+        MapperFeatures.TSDB_TSID_PREFIXED_DIMENSIONS,
+        template -> template != null
+            && template.settings() != null
+            && template.settings().hasValue(IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS.getKey())
     );
     private final Map<NodeFeature, Predicate<Template>> nodeFeatureFilters;
     // This flag short-circuits the node feature check, if all node features are supported.
@@ -314,10 +318,31 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     /**
      * Retrieves return a list of {@link IndexTemplateConfig} that represents
      * the composable templates that are supported by all nodes of the cluster.
+     * Every template returned by this method is guaranteed to have {@code managed: true} set,
+     * regardless of whether the underlying JSON/YAML resource declares it. This ensures that
+     * {@code IndexSettingProvider} implementations can reliably distinguish registry-owned templates.
+     *
      * @return The configurations for the templates that CAN be installed right now.
      */
     protected Map<String, ComposableIndexTemplate> getComposableTemplatesReadyToInstall(ClusterState clusterState) {
-        return filterBasedOnFeatures(clusterState, getComposableTemplateConfigs(), ComposableIndexTemplate::template);
+        Map<String, ComposableIndexTemplate> filtered = filterBasedOnFeatures(
+            clusterState,
+            getComposableTemplateConfigs(),
+            ComposableIndexTemplate::template
+        );
+        if (filtered.isEmpty()) {
+            return filtered;
+        }
+        return filtered.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> markRegistryInstalled(e.getValue())));
+    }
+
+    private static ComposableIndexTemplate markRegistryInstalled(ComposableIndexTemplate template) {
+        if (template.isRegistryInstalled()) {
+            return template;
+        }
+        return template.toBuilder().registryInstalled(true).build();
     }
 
     /**

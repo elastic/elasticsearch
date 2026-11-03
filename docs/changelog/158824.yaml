@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 158824
+summary: Render synthetic source into paged output
+type: enhancement

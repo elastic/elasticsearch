@@ -20,16 +20,43 @@ import org.elasticsearch.rest.RestStatus;
  */
 public final class ExternalClientException extends ExternalException {
 
-    public ExternalClientException(String message, Throwable cause) {
+    ExternalClientException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public ExternalClientException(Throwable cause, String message, Object... args) {
+    ExternalClientException(Throwable cause, String message, Object... args) {
         super(cause, message, args);
     }
 
-    public ExternalClientException(String message, Object... args) {
+    ExternalClientException(String message, Object... args) {
         super(message, args);
+    }
+
+    public ExternalClientException(Condition condition, StoragePath path, String detailCode, String remedy, Throwable cause) {
+        super(condition, path, detailCode, remedy, cause);
+    }
+
+    public ExternalClientException(Condition condition, StoragePath path, String detailCode, String remedy) {
+        super(condition, path, detailCode, remedy);
+    }
+
+    /**
+     * The refusal for a schema wider than {@code schema_max_fields}. A 400 rather than the breaker's 429: the limit is
+     * configured, so retrying the same request cannot succeed, and {@code detail} says which setting to raise.
+     */
+    public static ExternalClientException schemaTooWide(String detail) {
+        ExternalClientException e = new ExternalClientException(Condition.SCHEMA_TOO_WIDE, StoragePath.NONE, "", "");
+        e.setDetail(detail);
+        return e;
+    }
+
+    private ExternalClientException(ExternalClientException source) {
+        super(source);
+    }
+
+    @Override
+    protected ExternalClientException copyWithoutCause() {
+        return new ExternalClientException(this);
     }
 
     @Override

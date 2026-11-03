@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
@@ -31,6 +32,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.TooManyScrollContextsException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -67,8 +72,69 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
     }
 
+    /**
+     * An {@link UnavailableShardsException} is returned as a 503 when a shard is unavailable. ML treats it as recoverable and retries.
+     */
+    public void testUnavailableShardsException_isRecoverable() {
+        var e = new UnavailableShardsException(new ShardId("my-index", "uuid", 0), "primary shard is not active");
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, e.status());
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    /**
+     * {@link ShardRestoringException} has {@link RestStatus#FORBIDDEN} status, but unlike other 403s it is recoverable: restores are
+     * expected to be short, so ML retries within its existing retry budgets.
+     */
+    public void testShardRestoringException_isRecoverable() {
+        var e = new ShardRestoringException("my-index", randomUUID());
+        assertEquals(RestStatus.FORBIDDEN, e.status());
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    /**
+     * A search that disallows partial results and finds every missing shard being restored fails with a 403
+     * {@link SearchPhaseExecutionException} whose cause is the {@link ShardRestoringException}. ML retries it.
+     */
+    public void testSearchPhaseExecutionExceptionCausedByShardRestoring_isRecoverable() {
+        var e = new SearchPhaseExecutionException(
+            "query",
+            "Search rejected due to missing shards",
+            new ShardRestoringException("my-index", randomUUID()),
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+        assertEquals(RestStatus.FORBIDDEN, e.status());
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    /**
+     * A search where every shard failed because it is being restored fails with a 403 {@link SearchPhaseExecutionException} that
+     * carries the {@link ShardRestoringException} as shard failures. ML retries it.
+     */
+    public void testSearchPhaseExecutionExceptionWithShardRestoringFailures_isRecoverable() {
+        var e = new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            new ShardSearchFailure[] { new ShardSearchFailure(new ShardRestoringException("my-index", randomUUID())) }
+        );
+        assertEquals(RestStatus.FORBIDDEN, e.status());
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
     public void testIllegalIndexShardStateException_isRecoverable() {
         var e = new IllegalIndexShardStateException(new ShardId("my-index", "uuid", 0), IndexShardState.RECOVERING, "shard not ready");
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    public void testSearchContextMissingExceptionShouldBeRecoverable() {
+        var e = new SearchContextMissingException(new ShardSearchContextId("s", 1L));
+        assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testSearchPhaseExecutionExceptionWrappingSearchContextMissingShouldBeRecoverable() {
+        var scm = new SearchContextMissingException(new ShardSearchContextId("s", 1L));
+        var shardFailure = new ShardSearchFailure(scm);
+        var e = new SearchPhaseExecutionException("query", "scroll failed", new ShardSearchFailure[] { shardFailure });
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
     }
 
@@ -144,6 +210,63 @@ public class MlRecoverableErrorClassifierTests extends ESTestCase {
     public void testElasticsearchStatusException_tooManyRequests_isRecoverable() {
         var e = new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS);
         assertTrue(MlRecoverableErrorClassifier.isRecoverable(e));
+    }
+
+    // -------------------------------------------------------------------------
+    // Capacity constraint sub-classifier
+    // -------------------------------------------------------------------------
+
+    public void testTooManyRequestsStatusShouldBeCapacityConstrained() {
+        var e = new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testTransientCircuitBreakerShouldBeCapacityConstrained() {
+        var e = new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testPermanentCircuitBreakerShouldNotBeCapacityConstrained() {
+        var e = new CircuitBreakingException("permanent", CircuitBreaker.Durability.PERMANENT);
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testNonShutdownRejectionShouldBeCapacityConstrained() {
+        var e = new EsRejectedExecutionException("pool full", false);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testShutdownRejectionShouldNotBeCapacityConstrained() {
+        var e = new EsRejectedExecutionException("executor shutdown", true);
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testAvailabilityErrorShouldNotBeCapacityConstrained() {
+        var e = new SearchPhaseExecutionException("query", "partial results", ShardSearchFailure.EMPTY_ARRAY);
+        assertFalse(MlRecoverableErrorClassifier.isCapacityConstrained(e));
+    }
+
+    public void testWrappedTooManyRequestsShouldBeCapacityConstrained() {
+        var inner = new ElasticsearchStatusException("too many requests", RestStatus.TOO_MANY_REQUESTS);
+        var wrapped = new RemoteTransportException("remote", inner);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(wrapped));
+    }
+
+    public void testWrappedTransientCircuitBreakerShouldBeCapacityConstrained() {
+        var inner = new CircuitBreakingException("transient", CircuitBreaker.Durability.TRANSIENT);
+        var wrapped = new RemoteTransportException("remote", inner);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(wrapped));
+    }
+
+    public void testWrappedNonShutdownRejectionShouldBeCapacityConstrained() {
+        var inner = new EsRejectedExecutionException("pool full", false);
+        var wrapped = new RemoteTransportException("remote", inner);
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(wrapped));
+    }
+
+    public void testTooManyScrollContextsExceptionShouldBeCapacityConstrained() {
+        var e = new TooManyScrollContextsException(10, "search.max_open_scroll_context");
+        assertTrue(MlRecoverableErrorClassifier.isCapacityConstrained(e));
     }
 
     // -------------------------------------------------------------------------

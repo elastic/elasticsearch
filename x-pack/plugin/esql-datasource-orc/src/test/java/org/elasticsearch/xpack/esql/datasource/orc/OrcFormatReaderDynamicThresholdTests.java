@@ -34,6 +34,8 @@ import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIdentity;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.Before;
@@ -56,12 +58,13 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
 
+    private static final StorageIdentity NOOP_IDENTITY = new StorageIdentity() {};
+
     private BlockFactory blockFactory;
 
     @Before
     public void initBlockFactory() {
-        OrcStorageObjectAdapter.clearCacheForTests();
-        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
     }
 
     public void testStripeSkipLeavesOnlyNonDominatedStripe() throws Exception {
@@ -362,6 +365,19 @@ public class OrcFormatReaderDynamicThresholdTests extends ESTestCase {
 
     private static StorageObject storageObject(byte[] data) {
         return new StorageObject() {
+            @Override
+            public void attachMetrics(ExternalSourceMetrics metrics, String scheme) {}
+
+            @Override
+            public String version() {
+                return "v1";
+            }
+
+            @Override
+            public StorageIdentity storageIdentity() {
+                return NOOP_IDENTITY;
+            }
+
             @Override
             public InputStream newStream() {
                 return new ByteArrayInputStream(data);

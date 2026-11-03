@@ -102,6 +102,23 @@ public class TimeSeriesEligibleWriteWindowLocatorWithIlmTests extends ESTestCase
         assertThat(locator.getEffectiveIlmPolicy(dataStream, project), nullValue());
     }
 
+    /**
+     * A disabled data stream lifecycle does not manage the data stream, so ILM is the only effective feature
+     * regardless of the value of prefer_ilm. This must be consistent with {@link DataStream#lifecycleManagedBy}.
+     */
+    public void testGetEffectiveIlmPolicyWithDisabledDlm() {
+        String name = "metrics-test";
+        DataStreamLifecycle disabledLifecycle = DataStreamLifecycle.dataLifecycleBuilder().enabled(false).build();
+        DataStream dataStream = dataStream(name, disabledLifecycle);
+        for (boolean preferIlm : new boolean[] { true, false }) {
+            ProjectMetadata project = projectWithTemplate(
+                name + "*",
+                Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "my-policy").put(IndexSettings.PREFER_ILM, preferIlm).build()
+            );
+            assertThat(locator.getEffectiveIlmPolicy(dataStream, project), equalTo("my-policy"));
+        }
+    }
+
     public void testNoEligibleWriteWindowStart() {
         // project has no IndexLifecycleMetadata at all
         {

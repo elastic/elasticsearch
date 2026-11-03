@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 156629
+pr: 157687
+summary: Fix `copy_to` destination values leaking into synthetic `_source` under FLS
+type: bug

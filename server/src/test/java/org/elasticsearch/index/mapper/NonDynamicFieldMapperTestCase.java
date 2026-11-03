@@ -92,7 +92,7 @@ public abstract class NonDynamicFieldMapperTestCase extends ESSingleNodeTestCase
                 }
             }
             """, getMapping());
-        var req = client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON);
+        var req = client().admin().indices().preparePutMapping("test").setSource(mapping);
         Exception exc = expectThrows(Exception.class, () -> req.get());
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exc.getCause().getCause(), instanceOf(MapperParsingException.class));

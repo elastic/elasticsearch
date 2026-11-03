@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 157096
+summary: Add `analyzer` option to `to_text` function
+type: enhancement

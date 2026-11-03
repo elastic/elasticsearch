@@ -20,10 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,20 +30,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Operator for the ESQL {@code METRICS_INFO} command.
  * <p>
  * Operates in two modes, mirroring the two-phase INITIAL/FINAL pattern used by aggregations:
  * <ul>
- *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects deduplicated input
- *       (one row per {@code _tsid}) from an upstream {@link DistinctByOperator}, with blocks for
- *       {@code _timeseries_metadata} and {@code _index}. Groups metrics by (metricName, dataStreamName)
- *       so that different backing indices of the same data stream share one entry. Conflicting
- *       unit/metric_type/field_type values across backing indices become multi-valued. Dimension
- *       keys are assigned only to the metrics that actually appeared in each tsid's metadata.
+ *   <li><b>INITIAL</b> (data nodes) – created via {@link Factory}. Expects one row per set of fields that
+ *       occur together in a document, with blocks for the index name and the multivalued field names, as
+ *       emitted by {@code FieldPresenceOperator}. Fields that the {@link MetricFieldLookup} doesn't know as
+ *       metrics are dimensions. Groups metrics by (metricName, indexAbstractionName) so that different backing
+ *       indices of the same data stream share one entry. Conflicting unit/metric_type/field_type values across
+ *       backing indices become multi-valued. Dimension keys are assigned only to the metrics of the same row.
  *       Produces one row per distinct metric signature within the local shards.</li>
  *   <li><b>FINAL</b> (coordinator) – created via {@link FinalFactory}. Receives the 6-column
  *       output pages produced by INITIAL instances on each data node and merges rows that share
@@ -57,7 +52,7 @@ import java.util.regex.Pattern;
  * <h2>Output columns (both modes)</h2>
  * <ul>
  *   <li>{@code metric_name} – keyword (single-valued)</li>
- *   <li>{@code data_stream} – keyword (multi-valued); data stream names that have this metric
+ *   <li>{@code data_stream} – keyword (multi-valued); data stream or standalone index names that have this metric
  *       with the same signature (backing index names are resolved to their parent data stream)</li>
  *   <li>{@code unit} – keyword (multi-valued when backing indices differ; may be null)</li>
  *   <li>{@code metric_type} – keyword (multi-valued when definitions differ across data)</li>
@@ -69,32 +64,32 @@ public class MetricsInfoOperator implements Operator {
 
     public static final int NUM_BLOCKS = 6;
 
-    private record MetricInfoKey(String metricName, String dataStreamName) {}
+    private record MetricInfoKey(String metricName, String indexAbstractionName) {}
 
     /**
-     * Represents an intermediate state grouped by name and dataStream.
+     * Represents an intermediate state grouped by metric name and parent data-stream or concrete index name.
      */
     private static class MetricInfo {
         final String name;
-        final String dataStream;
+        final String indexAbstractionName;
         final Set<String> units = new HashSet<>();
         final Set<String> metricTypes = new HashSet<>();
         final Set<String> fieldTypes = new HashSet<>();
         final Set<String> dimensionFieldKeys = new HashSet<>();
 
-        MetricInfo(String name, String dataStream) {
+        MetricInfo(String name, String indexAbstractionName) {
             this.name = name;
-            this.dataStream = dataStream;
+            this.indexAbstractionName = indexAbstractionName;
         }
     }
 
     /**
-     * Represents a merged output row where multiple data streams with the same
+     * Represents a merged output row where indices and data streams with the same
      * signature are combined into one row.
      */
     private static class MetricInfoRow {
         final String metricName;
-        final Set<String> dataStreams = new HashSet<>();
+        final Set<String> indexAbstractionNames = new HashSet<>();
         final Set<String> units;
         final Set<String> fieldTypes;
         final Set<String> metricTypes;
@@ -109,7 +104,7 @@ public class MetricsInfoOperator implements Operator {
     }
 
     /**
-     * Signature for merging rows. Data streams with the same signature are merged
+     * Signature for merging rows. Indices and data streams with the same signature are merged
      * into one row with multi-valued data_stream.
      */
     private record MetricSignature(String metricName, Set<String> units, Set<String> fieldTypes, Set<String> metricTypes) {}
@@ -139,32 +134,32 @@ public class MetricsInfoOperator implements Operator {
     private static final int COL_DIMENSION_FIELDS = 5;
 
     /**
-     * Factory for INITIAL mode (data nodes): extracts metric metadata from shards.
+     * Factory for INITIAL mode (data nodes): builds metric metadata from the sets of fields found in the shards.
      *
-     * @param fieldLookup          on-demand lookup for metric field metadata
-     * @param metadataSourceChannel channel index for {@code _timeseries_metadata} block
-     * @param indexChannel         channel index for {@code _index} block
+     * @param fieldLookup        on-demand lookup for metric field metadata
+     * @param dataStreamsByIndex backing index names mapped to their parent data streams, including cluster qualifiers
+     * @param indexChannel       channel of the index name block, including the cluster qualifier
+     * @param fieldNamesChannel  channel of the multivalued block with the names of fields that occur together
      */
-    public record Factory(MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) implements OperatorFactory {
+    public record Factory(MetricFieldLookup fieldLookup, Map<String, String> dataStreamsByIndex, int indexChannel, int fieldNamesChannel)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             return new MetricsInfoOperator(
                 Mode.INITIAL,
                 driverContext.blockFactory(),
                 fieldLookup,
-                metadataSourceChannel,
+                dataStreamsByIndex,
                 indexChannel,
+                fieldNamesChannel,
                 null
             );
         }
 
         @Override
         public String describe() {
-            return "MetricsInfoOperator[mode=INITIAL, metadataSourceChannel="
-                + metadataSourceChannel
-                + ", indexChannel="
-                + indexChannel
-                + "]";
+            return "MetricsInfoOperator[mode=INITIAL, indexChannel=" + indexChannel + ", fieldNamesChannel=" + fieldNamesChannel + "]";
         }
     }
 
@@ -177,7 +172,7 @@ public class MetricsInfoOperator implements Operator {
     public record FinalFactory(int[] channels) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, -1, -1, channels);
+            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, Map.of(), -1, -1, channels);
         }
 
         @Override
@@ -202,10 +197,11 @@ public class MetricsInfoOperator implements Operator {
     private final CircuitBreaker breaker;
     private long trackedBytes;
 
-    /** INITIAL-mode fields (null in FINAL mode). */
+    /** Fields used only in INITIAL mode. */
     private final MetricFieldLookup fieldLookup;
-    private final int metadataSourceChannel;
+    private final Map<String, String> dataStreamsByIndex;
     private final int indexChannel;
+    private final int fieldNamesChannel;
     /** FINAL-mode field: input channel indices for the 6 output columns. Null in INITIAL mode. */
     private final int[] finalChannels;
 
@@ -220,16 +216,18 @@ public class MetricsInfoOperator implements Operator {
         Mode mode,
         BlockFactory blockFactory,
         MetricFieldLookup fieldLookup,
-        int metadataSourceChannel,
+        Map<String, String> dataStreamsByIndex,
         int indexChannel,
+        int fieldNamesChannel,
         int[] channels
     ) {
         this.mode = mode;
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();
         this.fieldLookup = fieldLookup;
-        this.metadataSourceChannel = metadataSourceChannel;
+        this.dataStreamsByIndex = dataStreamsByIndex;
         this.indexChannel = indexChannel;
+        this.fieldNamesChannel = fieldNamesChannel;
         this.finalChannels = channels;
     }
 
@@ -249,31 +247,20 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    /** INITIAL mode: extract metric metadata from _timeseries_metadata and _index blocks. */
+    /** INITIAL mode: classify each set of fields that occur together into metrics and dimensions. */
     private void addInputInitial(Page page) {
         try {
-            BytesRefBlock metadataSource = page.getBlock(metadataSourceChannel);
             BytesRefBlock indexBlock = page.getBlock(indexChannel);
+            BytesRefBlock fieldNamesBlock = page.getBlock(fieldNamesChannel);
 
-            BytesRef indexScratch = new BytesRef();
-            BytesRef sourceScratch = new BytesRef();
-
+            BytesRef scratch = new BytesRef();
             for (int p = 0; p < page.getPositionCount(); p++) {
-                if (metadataSource.isNull(p)) {
+                if (indexBlock.isNull(p) || fieldNamesBlock.isNull(p)) {
                     continue;
                 }
-                if (indexBlock.isNull(p)) {
-                    continue;
-                }
-
-                String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
-                String dataStreamName = resolveDataStreamName(indexName);
-                Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
-                if (metadata == null) {
-                    continue;
-                }
-
-                collectAndAggregateFields(metadata, null, indexName, dataStreamName, new HashSet<>(), new HashSet<>());
+                String indexName = indexBlock.getBytesRef(indexBlock.getFirstValueIndex(p), scratch).utf8ToString();
+                String indexAbstractionName = dataStreamsByIndex.getOrDefault(indexName, indexName);
+                recordFieldSet(indexName, indexAbstractionName, readMultiValue(fieldNamesBlock, p, scratch));
             }
         } finally {
             page.releaseBlocks();
@@ -296,18 +283,18 @@ public class MetricsInfoOperator implements Operator {
                     continue;
                 }
 
-                Set<String> dataStreams = readMultiValue(dsBlock, pos, scratch);
+                Set<String> indexAbstractionNames = readMultiValue(dsBlock, pos, scratch);
                 Set<String> units = readMultiValue(unitBlock, pos, scratch);
                 Set<String> fieldTypes = readMultiValue(ftBlock, pos, scratch);
                 Set<String> metricTypes = readMultiValue(mtBlock, pos, scratch);
                 Set<String> dimensionFields = readMultiValue(dfBlock, pos, scratch);
 
-                for (String ds : dataStreams) {
-                    MetricInfoKey key = new MetricInfoKey(metricName, ds);
+                for (String indexAbstractionName : indexAbstractionNames) {
+                    MetricInfoKey key = new MetricInfoKey(metricName, indexAbstractionName);
                     MetricInfo info = metricsByKey.get(key);
                     if (info == null) {
-                        trackNewEntry(metricName, ds);
-                        info = new MetricInfo(key.metricName(), key.dataStreamName());
+                        trackNewEntry(metricName, indexAbstractionName);
+                        info = new MetricInfo(key.metricName(), key.indexAbstractionName());
                         metricsByKey.put(key, info);
                     }
                     trackSetAddAll(info.units, units);
@@ -342,66 +329,42 @@ public class MetricsInfoOperator implements Operator {
     }
 
     /**
-     * Recursively walks the parsed {@code _timeseries_metadata} JSON, classifying each leaf as
-     * either a metric (via {@link #fieldLookup}) or a dimension key.
+     * Classifies the fields of one document as metrics (via {@link #fieldLookup}) or dimensions, and records the
+     * dimensions only on the metrics of the same document, not on every metric ever seen.
      *
-     * @param metadata       the (possibly nested) metadata map for one tsid
-     * @param prefix         dotted path prefix for the current nesting level ({@code null} at root)
-     * @param indexName      concrete backing-index name – used for the field lookup (mapping is per backing index)
-     * @param dataStreamName resolved data-stream name – used as the grouping key so that all
-     *                       backing indices of the same data stream share a single {@link MetricInfo}
-     * @param dimensionKeys  accumulates non-metric leaf keys found in this document
-     * @param touchedMetrics accumulates the {@link MetricInfo} entries that were created or updated
-     *                       by this document, so that dimension keys are only added to the metrics
-     *                       that actually appeared in the same tsid (not all metrics ever seen)
+     * @param indexName            concrete index name, used for the field lookup because mappings are per index
+     * @param indexAbstractionName parent data-stream name or concrete index name, used as the grouping key so that
+     *                             backing indices of the same data stream share a single {@link MetricInfo}
+     * @param fieldNames           names of the fields that occur together in a document
      */
-    @SuppressWarnings("unchecked")
-    private void collectAndAggregateFields(
-        Map<String, Object> metadata,
-        String prefix,
-        String indexName,
-        String dataStreamName,
-        Set<String> dimensionKeys,
-        Set<MetricInfo> touchedMetrics
-    ) {
-        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
-            String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
-            Object value = entry.getValue();
-
-            // Check the metric lookup first, before inspecting the value type.
-            // Some metric types (histogram, exponential_histogram, tdigest) produce
-            // nested JSON in synthetic source. Without this early check, the method
-            // would recurse into the nested structure and misclassify internal fields
-            // (e.g. "values", "counts", "centroids") as dimension keys.
-            MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
+    private void recordFieldSet(String indexName, String indexAbstractionName, Set<String> fieldNames) {
+        Set<String> dimensionKeys = new HashSet<>();
+        Set<MetricInfo> touchedMetrics = new HashSet<>();
+        for (String fieldName : fieldNames) {
+            MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, fieldName);
             if (fieldInfo != null) {
-                recordMetric(fieldInfo, dataStreamName, touchedMetrics);
-            } else if (value instanceof Map<?, ?> nested) {
-                collectAndAggregateFields((Map<String, Object>) nested, key, indexName, dataStreamName, dimensionKeys, touchedMetrics);
+                recordMetric(fieldInfo, indexAbstractionName, touchedMetrics);
             } else {
-                dimensionKeys.add(key);
+                dimensionKeys.add(fieldName);
             }
         }
-
-        if (prefix == null && dimensionKeys.isEmpty() == false) {
-            for (MetricInfo info : touchedMetrics) {
-                trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
-            }
+        for (MetricInfo info : touchedMetrics) {
+            trackSetAddAll(info.dimensionFieldKeys, dimensionKeys);
         }
     }
 
     /**
-     * Records a metric field into the per-key metric map, grouping by (metricName, dataStreamName)
+     * Records a metric field into the per-key metric map, grouping by (metricName, indexAbstractionName)
      * so that backing indices within the same data stream share one {@link MetricInfo} entry.
      * Conflicting unit/metric_type/field_type across backing indices of the same data stream
      * become multi-valued.
      */
-    private void recordMetric(MetricFieldInfo fieldInfo, String dataStreamName, Set<MetricInfo> touchedMetrics) {
-        MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), dataStreamName);
+    private void recordMetric(MetricFieldInfo fieldInfo, String indexAbstractionName, Set<MetricInfo> touchedMetrics) {
+        MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), indexAbstractionName);
         MetricInfo info = metricsByKey.get(infoKey);
         if (info == null) {
-            trackNewEntry(fieldInfo.name(), dataStreamName);
-            info = new MetricInfo(infoKey.metricName(), infoKey.dataStreamName());
+            trackNewEntry(fieldInfo.name(), indexAbstractionName);
+            info = new MetricInfo(infoKey.metricName(), infoKey.indexAbstractionName());
             metricsByKey.put(infoKey, info);
         }
         touchedMetrics.add(info);
@@ -409,42 +372,6 @@ public class MetricsInfoOperator implements Operator {
         trackSetAdd(info.units, fieldInfo.unit());
         trackSetAdd(info.fieldTypes, fieldInfo.fieldType());
         trackSetAdd(info.metricTypes, fieldInfo.metricType());
-    }
-
-    /**
-     * Matches the default backing-index / failure-store naming convention produced by
-     * {@code DataStream#getDefaultIndexName}: {@code .ds-{name}-{yyyy.MM.dd}-{000001}}
-     * (or the {@code .fs-} variant).
-     * <p>
-     * Index management can prepend dash-terminated prefixes to a backing index when it is
-     * mounted or rewritten in place, for example {@code partial-} and {@code restored-}
-     * (searchable snapshots), {@code shrink-{uuid}-}, and {@code downsample-{interval}-}.
-     * These prefixes can also be chained, e.g. {@code partial-restored-shrink-{uuid}-.ds-...}.
-     * The optional {@code (?:.*-)?} group ignores any such prefix while still requiring the
-     * {@code .ds-}/{@code .fs-} marker, so the captured data-stream name is unaffected.
-     * <p>
-     * Group 1 captures the data-stream name.
-     */
-    private static final Pattern BACKING_INDEX_PATTERN = Pattern.compile("^(?:.*-)?\\.(?:ds|fs)-(.+)-\\d{4}\\.\\d{2}\\.\\d{2}-\\d{6}$");
-
-    /**
-     * Resolves the data-stream name from a concrete backing-index name.
-     * <p>
-     * If the name matches the standard format produced by
-     * {@code DataStream#getDefaultIndexName} ({@code .ds-{name}-{yyyy.MM.dd}-{000001}}),
-     * including any dash-terminated prefixes added when a backing index is mounted or
-     * rewritten (e.g. {@code partial-}, {@code restored-}, {@code shrink-{uuid}-},
-     * {@code downsample-{interval}-}), the data-stream name is extracted. Otherwise the
-     * raw index name is returned unchanged.
-     * <p>
-     * Handles cluster-alias prefixed names (e.g. {@code remote:.ds-k8s-2024.01.15-000001})
-     * so that the output preserves the cluster qualifier (e.g. {@code remote:k8s}).
-     */
-    static String resolveDataStreamName(String indexName) {
-        var split = RemoteClusterAware.splitIndexName(indexName);
-        Matcher m = BACKING_INDEX_PATTERN.matcher(split.indexExpression());
-        String resolved = m.matches() ? m.group(1) : split.indexExpression();
-        return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), resolved);
     }
 
     private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {
@@ -457,7 +384,7 @@ public class MetricsInfoOperator implements Operator {
                 s -> new MetricInfoRow(s.metricName(), s.units(), s.fieldTypes(), s.metricTypes())
             );
 
-            row.dataStreams.add(info.dataStream);
+            row.indexAbstractionNames.add(info.indexAbstractionName);
             row.dimensionFieldKeys.addAll(info.dimensionFieldKeys);
         }
 
@@ -527,7 +454,7 @@ public class MetricsInfoOperator implements Operator {
 
             for (MetricInfoRow row : rows) {
                 nameBuilder.appendBytesRef(new BytesRef(row.metricName));
-                appendMultiValued(dsBuilder, row.dataStreams);
+                appendMultiValued(dsBuilder, row.indexAbstractionNames);
                 appendMultiValued(unitBuilder, row.units);
                 appendMultiValued(mtBuilder, row.metricTypes);
                 appendMultiValued(ftBuilder, row.fieldTypes);
@@ -552,29 +479,13 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position, BytesRef sourceScratch) {
-        if (metadataSource == null || metadataSource.isNull(position)) {
-            return null;
-        }
-        BytesRef bytes = metadataSource.getBytesRef(position, sourceScratch);
-        try (
-            var parser = XContentType.JSON.xContent()
-                .createParser(XContentParserConfiguration.EMPTY, bytes.bytes, bytes.offset, bytes.length)
-        ) {
-            parser.nextToken();
-            return parser.mapOrdered();
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to parse _timeseries_metadata at position [" + position + "]", e);
-        }
-    }
-
     private void trackBytes(long delta) {
         breaker.addEstimateBytesAndMaybeBreak(delta, "MetricsInfoOperator");
         trackedBytes += delta;
     }
 
-    private void trackNewEntry(String name, String dataStream) {
-        trackBytes(ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(name) + RamUsageEstimator.sizeOf(dataStream));
+    private void trackNewEntry(String name, String indexAbstractionName) {
+        trackBytes(ENTRY_SHALLOW_SIZE + RamUsageEstimator.sizeOf(name) + RamUsageEstimator.sizeOf(indexAbstractionName));
     }
 
     private void trackSetAddAll(Set<String> set, Set<String> values) {

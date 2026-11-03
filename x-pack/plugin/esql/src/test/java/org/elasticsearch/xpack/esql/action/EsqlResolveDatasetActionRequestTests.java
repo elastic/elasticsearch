@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class EsqlResolveDatasetActionRequestTests extends ESTestCase {
 
     private static EsqlResolveDatasetAction.Request request(String... indices) {
-        return new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, indices);
+        return new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, indices, randomBoolean());
     }
 
     public void testResolveDatasetsIsEnabled() {
@@ -42,11 +42,31 @@ public class EsqlResolveDatasetActionRequestTests extends ESTestCase {
     public void testRawPatternsSurviveIndicesNarrowing() {
         // rawPatterns() must keep the ORIGINAL FROM patterns even after the filter narrows indices() to the authorized
         // subset — the action body needs them to classify whether the relation also targets non-dataset abstractions.
-        var request = request("logs_*", "-logs_test");
+        // Constructed with the setting on, so indices() starts as the full list: with it off a wildcard-only FROM
+        // would narrow to nothing, which the constructor now asserts against because DatasetResolver never builds
+        // such a request -- an empty indices() would mean _all to the security resolver.
+        var request = new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "logs_*", "-logs_test" }, true);
         assertThat(request.rawPatterns(), arrayContaining("logs_*", "-logs_test"));
         request.indices("logs_a");
         assertThat(request.indices(), arrayContaining("logs_a"));
         assertThat("rawPatterns is unaffected by indices() narrowing", request.rawPatterns(), arrayContaining("logs_*", "-logs_test"));
+    }
+
+    public void testWildcardsAreWithheldFromTheSecurityFilterWhenWildcardsMatchDatasetsIsOff() {
+        // With the setting off a wildcard reaches no dataset, so it must not reach the security filter either: the
+        // filter expands it and ViewAndDatasetDlsFlsRequestInterceptor then rejects the whole request over a DLS/FLS
+        // dataset this request will never read. Only the exactly-named parts go out; rawPatterns keeps the full list.
+        var off = new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ok_ds", "logs_*" }, false);
+        assertThat(off.indices(), arrayContaining("ok_ds"));
+        assertThat(off.rawPatterns(), arrayContaining("ok_ds", "logs_*"));
+
+        // An exclusion contributes no exact name either.
+        var excluded = new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ok_ds", "-logs_a" }, false);
+        assertThat(excluded.indices(), arrayContaining("ok_ds"));
+
+        // With the setting on the wildcard is meant to reach datasets, so the full list goes to the filter.
+        var on = new EsqlResolveDatasetAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "ok_ds", "logs_*" }, true);
+        assertThat(on.indices(), arrayContaining("ok_ds", "logs_*"));
     }
 
     public void testUnavailableTargetsAreLenient() {

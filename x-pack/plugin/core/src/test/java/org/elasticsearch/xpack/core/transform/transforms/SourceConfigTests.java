@@ -295,11 +295,28 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
         assertThat(withRouting.getIndex(), equalTo(original.getIndex()));
         assertThat(withRouting.getQueryConfig(), equalTo(original.getQueryConfig()));
         assertThat(withRouting.getRuntimeMappings(), equalTo(original.getRuntimeMappings()));
-        assertThat(withRouting.indicesOptions(), equalTo(original.indicesOptions()));
+        assertThat(withRouting.indicesOptions(true), equalTo(original.indicesOptions(true)));
 
         SourceConfig cleared = withRouting.withProjectRouting(null);
         assertThat(cleared.getProjectRouting(), is(equalTo(null)));
         assertThat(cleared.getIndex(), equalTo(original.getIndex()));
+    }
+
+    public void testIndicesOptionsScopingDropsCrossProjectWhenNotAllowed() {
+        SourceConfig cpsSource = randomSourceConfig(true);
+        assertThat(cpsSource.indicesOptions(true).resolveCrossProjectIndexExpression(), is(true));
+
+        // Not allowed to fan out (no credential): cross-project resolution is dropped, and the result
+        // matches the plain local-only options the transform would otherwise use.
+        assertThat(cpsSource.indicesOptions(false).resolveCrossProjectIndexExpression(), is(false));
+        assertThat(cpsSource.indicesOptions(false), equalTo(IndicesOptions.LENIENT_EXPAND_OPEN));
+    }
+
+    public void testIndicesOptionsScopingIsNoopWhenSourceIsLocalOnly() {
+        SourceConfig localSource = randomSourceConfig(false);
+        assertThat(localSource.indicesOptions(true).resolveCrossProjectIndexExpression(), is(false));
+        // Nothing to drop, so scoping never changes a non-cross-project source regardless of credential.
+        assertThat(localSource.indicesOptions(false), equalTo(localSource.indicesOptions(true)));
     }
 
     /**
@@ -417,7 +434,7 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
             instance.getIndex(),
             instance.getQueryConfig(),
             instance.getRuntimeMappings(),
-            version.supports(SourceConfig.TRANSFORM_INDICES_OPTIONS) ? instance.indicesOptions() : IndicesOptions.LENIENT_EXPAND_OPEN,
+            version.supports(SourceConfig.TRANSFORM_INDICES_OPTIONS) ? instance.indicesOptions(true) : IndicesOptions.LENIENT_EXPAND_OPEN,
             version.supports(SourceConfig.TRANSFORM_PROJECT_ROUTING) ? instance.getProjectRouting() : null
         );
     }

@@ -12,6 +12,7 @@ package org.elasticsearch.simdvec.internal;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.function.IntFunction;
 
 /**
  * Reusable, lazily-grown scratch buffer for an array of native addresses
@@ -20,7 +21,7 @@ import java.lang.foreign.ValueLayout;
  *
  * <p>Not thread-safe; instances must not be shared across threads.
  */
-public final class AddressesScratch {
+public final class AddressesScratch implements IntFunction<MemorySegment> {
 
     private MemorySegment seg;
 
@@ -34,7 +35,8 @@ public final class AddressesScratch {
      * <p>
      * Segments are returned from an auto arena, so they are garbage-collected.
      */
-    public MemorySegment get(int count) {
+    @Override
+    public MemorySegment apply(int count) {
         long needed = (long) count * ValueLayout.ADDRESS.byteSize();
         if (seg == null || seg.byteSize() < needed) {
             // No need to call close() here, or to keep a reference to the Arena: Arena#ofAuto is

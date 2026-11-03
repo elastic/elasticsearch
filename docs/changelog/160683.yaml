@@ -1,0 +1,6 @@
+area: ES|QL
+issues: []
+pr: 160683
+summary: "[datasets] Delimiter, quote, and escape settings - remove \\n and \\r from\
+  \ error message since they're invalid values"
+type: bug

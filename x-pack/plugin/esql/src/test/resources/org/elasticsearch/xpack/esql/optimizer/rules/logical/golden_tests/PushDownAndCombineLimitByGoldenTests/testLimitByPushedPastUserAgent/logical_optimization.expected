@@ -1,0 +1,4 @@
+UserAgent[user_agent{f}#0,[name, version, os.name, os.version, os.full, device.name],[ua.name{r}#1, ua.version{r}#2, ua.os.name{r}#3, ua.os.version{r}#4, ua.os.full{r}#5, ua.device.name{r}#6],false,_default_]
+\_Limit[1000[INTEGER],false,false]
+  \_LimitBy[1[INTEGER],[domain{f}#7],false]
+    \_EsRelation[web_logs][domain{f}#7, public_ip{f}#8, timestamp{f}#9, uri{f}#10, user_agent{f}#0]

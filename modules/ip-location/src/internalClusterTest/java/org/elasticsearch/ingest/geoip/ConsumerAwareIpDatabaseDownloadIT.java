@@ -239,6 +239,7 @@ public class ConsumerAwareIpDatabaseDownloadIT extends AbstractGeoIpIT {
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
+            boolean registryInstalledTemplate,
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
@@ -249,6 +250,11 @@ public class ConsumerAwareIpDatabaseDownloadIT extends AbstractGeoIpIT {
             if (GeoIpDownloader.GEOIP_DOWNLOADER.equals(indexName)) {
                 additionalSettings.put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false);
             }
+        }
+
+        @Override
+        public Set<String> affectedSettings() {
+            return Set.of(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey());
         }
     }
 }

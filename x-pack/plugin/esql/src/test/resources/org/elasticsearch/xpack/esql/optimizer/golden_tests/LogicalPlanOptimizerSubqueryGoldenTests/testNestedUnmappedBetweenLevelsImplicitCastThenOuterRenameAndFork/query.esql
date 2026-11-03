@@ -1,0 +1,10 @@
+SET unmapped_fields="nullify";
+FROM sample_data, (
+  FROM sample_data, (FROM sample_data_ts_nanos)
+  | WHERE @timestamp IS NOT NULL OR missing_inner IS NOT NULL
+)
+| WHERE @timestamp IS NOT NULL OR missing_outer IS NOT NULL
+| RENAME @timestamp AS ts
+| FORK (WHERE ts IS NOT NULL) (WHERE ts IS NULL)
+| KEEP ts, _fork
+| SORT ts, _fork

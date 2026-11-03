@@ -1,0 +1,5 @@
+ExchangeSinkExec[[emp_no{f}#0, gender{f}#1, languages{f}#2, salary{f}#3],false]
+\_ProjectExec[[emp_no{f}#0, gender{f}#1, languages{f}#2, salary{f}#3]]
+  \_FieldExtractExec[[emp_no{f}#0, salary{f}#3]<[],[],[]>,_doc{f}#4]
+    \_LimitByExec[3[INTEGER],[languages{f}#2, gender{f}#1],74]
+      \_ExchangeSourceExec[[_doc{f}#4, languages{f}#2, gender{f}#1],false]

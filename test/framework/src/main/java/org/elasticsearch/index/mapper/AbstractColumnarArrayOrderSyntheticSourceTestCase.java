@@ -16,12 +16,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -40,9 +41,17 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
      */
     protected abstract String fieldTypeName();
 
+    /**
+     * A columnar index created just before {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG}, so it writes the document-order layout
+     * under test rather than the ColumNAR codec's payload.
+     */
     protected MapperService columnarMapperService() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
-        return createMapperService(settings, mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject()));
+        return createMapperService(
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG),
+            settings,
+            mapping(b -> b.startObject("field").field("type", fieldTypeName()).endObject())
+        );
     }
 
     protected DocumentMapper columnarMapper() throws IOException {
@@ -89,6 +98,17 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
         var mapper = columnarMapper();
         assertEquals("""
             {"field":[null]}""", syntheticSource(mapper, b -> b.startArray("field").nullValue().endArray()));
+    }
+
+    /**
+     * A scalar {@code null} (written via {@code b.nullField("field")}) is the field being absent, the same as
+     * {@link #testEmptyArray()}. In a strictly columnar index a null counts only where it is an element of the field's own array,
+     * which is the position synthetic source has to put it back into; a null standing on its own has no such position and writes
+     * no slot. See {@link MultiValuedBinaryDocValuesField#keepsNullSlot}.
+     */
+    public void testScalarNullIsAbsent() throws IOException {
+        var mapper = columnarMapper();
+        assertEquals("{}", syntheticSource(mapper, b -> b.nullField("field")));
     }
 
     public void testEmptyArray() throws IOException {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 160341
+summary: Re-apply S3 endpoint rule at read and connection-test time
+type: bug

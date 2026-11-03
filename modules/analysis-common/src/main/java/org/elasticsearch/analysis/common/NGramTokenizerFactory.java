@@ -34,6 +34,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     private final int minGram;
     private final int maxGram;
     private final CharMatcher matcher;
+    private final Object sharingKey;
 
     static final Map<String, CharMatcher> MATCHERS;
 
@@ -111,6 +112,8 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
             );
         }
         this.matcher = parseTokenChars(settings);
+        // custom_token_chars builds a lambda matcher with no value equality; don't share those configs.
+        this.sharingKey = settings.hasValue("custom_token_chars") ? this : new Key(minGram, maxGram, settings.getAsList("token_chars"));
     }
 
     @Override
@@ -127,4 +130,10 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(int minGram, int maxGram, List<String> tokenChars) {}
 }

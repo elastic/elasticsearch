@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 160848
+summary: Add auto-calibration information to `_segment`
+type: enhancement

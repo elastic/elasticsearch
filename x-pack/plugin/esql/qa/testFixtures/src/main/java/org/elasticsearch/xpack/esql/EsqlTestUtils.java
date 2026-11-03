@@ -15,9 +15,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -41,7 +41,6 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -80,6 +79,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.analytics.mapper.EncodedTDigest;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
@@ -140,6 +141,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
@@ -149,16 +151,19 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.hamcrest.collection.IsIterableContainingInOrder;
 import org.hamcrest.core.IsEqual;
 import org.junit.Assert;
+import org.junit.Assume;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -168,19 +173,15 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileVisitOption;
-import java.nio.file.FileVisitResult;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -188,8 +189,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.jar.JarInputStream;
 import java.util.regex.Pattern;
@@ -219,7 +222,6 @@ import static org.elasticsearch.test.ESTestCase.randomIp;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
-import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -248,6 +250,23 @@ public final class EsqlTestUtils {
     public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlTestUtils.class);
+
+    public static void assumeHighlightImplicitQueryAndFieldsEnabled() {
+        Assume.assumeTrue(
+            "requires HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS capability",
+            EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.isEnabled()
+        );
+    }
+
+    public static Highlight soleHighlight(LogicalPlan plan) {
+        List<Highlight> highlights = plan.collect(Highlight.class);
+        assertThat(highlights, hasSize(1));
+        return highlights.getFirst();
+    }
+
+    public static List<String> fieldNames(List<? extends NamedExpression> attrs) {
+        return attrs.stream().map(NamedExpression::name).toList();
+    }
 
     public static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);
@@ -450,6 +469,7 @@ public final class EsqlTestUtils {
      *     <li>isIndexed</li>
      *     <li>hasDocValues</li>
      *     <li>hasExactSubfield</li>
+     *     <li>hasValueQueries (off unless included)</li>
      * </ol>
      * The default will return true for all fields. The include/exclude methods can be used to configure the settings for specific fields.
      * If you call 'include' with no fields, it will switch to return false for all fields.
@@ -459,7 +479,8 @@ public final class EsqlTestUtils {
             EXISTS,
             INDEXED,
             DOC_VALUES,
-            EXACT_SUBFIELD
+            EXACT_SUBFIELD,
+            VALUE_QUERIES
         }
 
         private final Map<Config, Set<String>> includes = new HashMap<>();
@@ -507,6 +528,12 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
+        }
+
+        @Override
+        public boolean hasValueQueries(FieldName field) {
+            // Off unless a test asks for it: answering over values is what the columnar modes give, not a default.
+            return includes.getOrDefault(Config.VALUE_QUERIES, Set.of()).contains(field.string());
         }
 
         public TestConfigurableSearchStats withConstantValue(String field, String value) {
@@ -611,6 +638,39 @@ public final class EsqlTestUtils {
         return new TestOptimizer();
     }
 
+    /**
+     * Test helper for {@code DatasetRewriter#rewriteUnsecured} that applies empty query pragmas and {@link EsqlFlags#DEFAULTS}. Tests
+     * that need a non-default {@code max_branch_count_per_merge} (pragma or cluster setting) must call
+     * {@code DatasetRewriter#rewriteUnsecured} with explicit pragmas and flags.
+     */
+    public static LogicalPlan rewriteDatasetsUnsecured(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        boolean wildcardsMatchDatasets
+    ) {
+        return rewriteDatasetsUnsecured(parsed, projectMetadata, iner, wildcardsMatchDatasets, Map.of());
+    }
+
+    /** Like {@link #rewriteDatasetsUnsecured(LogicalPlan, ProjectMetadata, IndexNameExpressionResolver, boolean)}, with per-view SETs. */
+    public static LogicalPlan rewriteDatasetsUnsecured(
+        LogicalPlan parsed,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver iner,
+        boolean wildcardsMatchDatasets,
+        Map<String, ViewQuerySettings> viewSettings
+    ) {
+        return DatasetRewriter.rewriteUnsecured(
+            parsed,
+            projectMetadata,
+            iner,
+            wildcardsMatchDatasets,
+            viewSettings,
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
+        );
+    }
+
     // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
     public static MutableAnalyzerContext testAnalyzerContext(
         Configuration configuration,
@@ -694,12 +754,23 @@ public final class EsqlTestUtils {
         );
     }
 
+    /**
+     * Constructor for tests.
+     */
+    public static LogicalOptimizerContext logicalOptimizerContext(
+        Configuration configuration,
+        FoldContext foldCtx,
+        TransportVersion minimumVersion
+    ) {
+        return new LogicalOptimizerContext(configuration, foldCtx, minimumVersion, EsqlFlags.DEFAULTS);
+    }
+
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {
-        return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
+        return logicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext(TransportVersion minimumVersion) {
-        return new LogicalOptimizerContext(
+        return logicalOptimizerContext(
             EsqlTestUtils.TEST_CFG,
             FoldContext.small(),
             TransportVersionUtils.randomVersionSupporting(minimumVersion)
@@ -1015,9 +1086,7 @@ public final class EsqlTestUtils {
      * add to this, you must also add to {@code EsqlSpecTestCase#tables};
      */
     public static Map<String, Map<String, Column>> tables() {
-        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-            .breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST))
-            .build();
+        BlockFactory factory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(NoopCircuitBreaker.INSTANCE).build();
         Map<String, Map<String, Column>> tables = new TreeMap<>();
         try (
             IntBlock.Builder ints = factory.newIntBlockBuilder(10);
@@ -1156,7 +1225,7 @@ public final class EsqlTestUtils {
      * Resolves a single classpath resource by its exact name, stripping
      * any leading "/" (resource names looked up via the classloader must
      * not start with "/"). This is a fast alternative to
-     * {@link #classpathResources(String)} for callers who already know
+     * {@link #classpathResources(String...)} for callers who already know
      * the exact resource name and don't need pattern matching.
      */
     public static URL classpathResource(String name) {
@@ -1173,59 +1242,90 @@ public final class EsqlTestUtils {
      * Currently able to resolve resources inside the classpath either from:
      * folders in the file-system (typically IDEs) or
      * inside jars (gradle).
+     *
+     * <p>Matches are sorted by logical classpath path. If two classpath entries
+     * provide the same logical path, discovery fails and reports both origins: running the same
+     * spec twice from two roots is never intended, and the usual cause is stale build output (an
+     * IDE output directory alongside the Gradle one, or a resource directory shared by two source
+     * sets) rather than a genuine duplicate.
      */
     @SuppressForbidden(reason = "classpath discovery")
-    public static List<URL> classpathResources(String pattern) throws IOException {
-        while (pattern.startsWith("/")) {
-            pattern = pattern.substring(1);
-        }
+    public static List<URL> classpathResources(String... patterns) throws IOException {
+        assert patterns.length > 0 : "Must supply at least a single pattern";
+        String[] classpathEntries = System.getProperty("java.class.path").split(Pattern.quote(System.getProperty("path.separator")));
+        return classpathResources(List.of(patterns), Arrays.stream(classpathEntries).map(PathUtils::get).toList());
+    }
 
-        Tuple<String, String> split = pathAndName(pattern);
-
-        // the root folder searched inside the classpath - default is the root classpath
-        // default file match
-        final String root = split.v1();
-        final String filePattern = split.v2();
-
-        String[] resources = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
-
-        List<URL> matches = new ArrayList<>();
-
-        for (String resource : resources) {
-            Path path = PathUtils.get(resource);
-
-            // check whether we're dealing with a jar
-            // Java 7 java.nio.fileFileSystem can be used on top of ZIPs/JARs but consumes more memory
-            // hence the use of the JAR API
+    /**
+     * Resolves {@code patterns} against explicit classpath roots.
+     * Ensures resources are uniquely matched (not referenced by several patterns).
+     * Kept package-private so tests can exercise exploded directories and JARs without mutating the JVM's real classpath.
+     */
+    @SuppressForbidden(reason = "classpath discovery")
+    static List<URL> classpathResources(List<String> patterns, List<Path> classpathRoots) throws IOException {
+        long start = System.nanoTime();
+        final var preparedPatterns = (Collection<PathAndName>) patterns.stream()
+            .map(EsqlTestUtils::normalizeResourcePath)
+            .map(PathAndName::from)
+            .toList();
+        Map<String, URL> matches = new TreeMap<>();
+        for (Path path : classpathRoots) {
             if (path.toString().endsWith(".jar")) {
                 try (JarInputStream jar = jarInputStream(path.toUri().toURL())) {
-                    ZipEntry entry = null;
+                    ZipEntry entry;
                     while ((entry = jar.getNextEntry()) != null) {
-                        String name = entry.getName();
-                        Tuple<String, String> entrySplit = pathAndName(name);
-                        if (root.equals(entrySplit.v1()) && Regex.simpleMatch(filePattern, entrySplit.v2())) {
-                            matches.add(new URL("jar:" + path.toUri() + "!/" + name));
+                        if (entry.isDirectory() == false) {
+                            String normalizedResourcePath = normalizeResourcePath(entry.getName());
+                            var resource = PathAndName.from(normalizedResourcePath);
+                            for (var preparedPattern : preparedPatterns) {
+                                if (Objects.equals(preparedPattern.path(), resource.path())
+                                    && Regex.simpleMatch(preparedPattern.name(), resource.name())) {
+                                    var previous = matches.put(
+                                        normalizedResourcePath,
+                                        new URL("jar:" + path.toUri() + "!/" + normalizedResourcePath)
+                                    );
+                                    if (previous != null) {
+                                        throw new IllegalStateException("Duplicate classpath resource [" + normalizedResourcePath + "]");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (Files.isDirectory(path)) {
+                for (PathAndName preparedPattern : preparedPatterns) {
+                    Path requestedDirectory = preparedPattern.path().isEmpty() ? path : path.resolve(preparedPattern.path());
+                    if (Files.isDirectory(requestedDirectory)) {
+                        try (DirectoryStream<Path> children = Files.newDirectoryStream(requestedDirectory)) {
+                            for (Path child : children) {
+                                if (Files.isRegularFile(child)) {
+                                    String fileName = child.getFileName().toString();
+                                    if (Regex.simpleMatch(preparedPattern.name(), fileName)) {
+                                        String logicalPath = preparedPattern.path().isEmpty()
+                                            ? fileName
+                                            : preparedPattern.path() + "/" + fileName;
+                                        var previous = matches.put(logicalPath, child.toUri().toURL());
+                                        if (previous != null) {
+                                            throw new IllegalStateException("Duplicate classpath resource [" + logicalPath + "]");
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-            // normal file access
-            else if (Files.isDirectory(path)) {
-                Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                        // remove the path folder from the URL
-                        String name = Strings.replace(file.toUri().toString(), path.toUri().toString(), StringUtils.EMPTY);
-                        Tuple<String, String> entrySplit = pathAndName(name);
-                        if (root.equals(entrySplit.v1()) && Regex.simpleMatch(filePattern, entrySplit.v2())) {
-                            matches.add(file.toUri().toURL());
-                        }
-                        return FileVisitResult.CONTINUE;
-                    }
-                });
-            }
         }
-        return matches;
+        long end = System.nanoTime();
+        LOGGER.debug("Detected {} matching resources in {} ms", matches.size(), TimeUnit.SECONDS.toMillis(end - start));
+        return List.copyOf(matches.values());
+    }
+
+    private static String normalizeResourcePath(String resourcePath) {
+        while (resourcePath.startsWith("/")) {
+            resourcePath = resourcePath.substring(1);
+        }
+        return resourcePath.replace('\\', '/');
     }
 
     @SuppressForbidden(reason = "need to open jar")
@@ -1233,17 +1333,17 @@ public final class EsqlTestUtils {
         return new JarInputStream(inputStream(resource));
     }
 
-    public static Tuple<String, String> pathAndName(String string) {
-        String folder = StringUtils.EMPTY;
-        String file = string;
-        int lastIndexOf = string.lastIndexOf('/');
-        if (lastIndexOf > 0) {
-            folder = string.substring(0, lastIndexOf - 1);
-            if (lastIndexOf + 1 < string.length()) {
+    public record PathAndName(String path, String name) {
+        public static PathAndName from(String string) {
+            String folder = StringUtils.EMPTY;
+            String file = string;
+            int lastIndexOf = string.lastIndexOf('/');
+            if (lastIndexOf >= 0) {
+                folder = string.substring(0, lastIndexOf);
                 file = string.substring(lastIndexOf + 1);
             }
+            return new PathAndName(folder, file);
         }
-        return new Tuple<>(folder, file);
     }
 
     /**
@@ -1262,8 +1362,7 @@ public final class EsqlTestUtils {
             case BYTE -> randomByte();
             case SHORT -> randomShort();
             case INTEGER, COUNTER_INTEGER -> randomInt();
-            case LONG, COUNTER_LONG -> randomLong();
-            case UNSIGNED_LONG -> randomNonNegativeLong();
+            case LONG, COUNTER_LONG, UNSIGNED_LONG -> randomLong();
             case DATE_PERIOD -> Period.of(randomIntBetween(-1000, 1000), randomIntBetween(-13, 13), randomIntBetween(-32, 32));
             case DATETIME -> randomMillisUpToYear9999();
             case DATE_NANOS -> randomLongBetween(0, Long.MAX_VALUE);
@@ -1403,8 +1502,12 @@ public final class EsqlTestUtils {
     public static BytesRef randomHistogram() {
         List<Double> values = ESTestCase.randomList(randomIntBetween(0, 1000), ESTestCase::randomDouble);
         values.sort(Double::compareTo);
+        // Bound the individual counts so that their total can never overflow a long: the total value count is tracked as a long
+        // throughout (T-Digest size, exponential histogram value count), and values which are very close together are merged into
+        // a single bucket when converting to an exponential histogram, which sums their counts.
+        long maxCount = Long.MAX_VALUE / Math.max(1, values.size());
         // Note - we need the three parameter version of random list here to ensure it's always the same length as values
-        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, Long.MAX_VALUE));
+        List<Long> counts = ESTestCase.randomList(values.size(), values.size(), () -> ESTestCase.randomLongBetween(1, maxCount));
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         try {
             for (int i = 0; i < values.size(); i++) {
@@ -1829,6 +1932,75 @@ public final class EsqlTestUtils {
      * matches existing behavior.
      */
     public static String convertSubqueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
+        // Strip leading SET clauses (they set configuration, not index names, and pass through unchanged).
+        // After stripping, check whether the remainder starts with LET.
+        List<String> parts = splitIgnoringParentheses(testQuery, ";");
+        int firstNonSet = 0;
+        while (firstNonSet < parts.size() && startsWithCommandKeyword(parts.get(firstNonSet).strip(), SET_COMMAND_PATTERN)) {
+            firstNonSet++;
+        }
+        if (firstNonSet == 0) {
+            // No leading SET clauses — fast path (original behaviour).
+            if (startsWithCommandKeyword(testQuery.strip(), LET_COMMAND_PATTERN)) {
+                return convertLetQueryToRemoteIndices(testQuery, bothClusterIndices);
+            }
+            return convertSubqueryToRemoteIndices(testQuery, bothClusterIndices, Set.of());
+        }
+        // Reconstruct: SET clauses pass through unchanged; remainder is dispatched normally.
+        String setPrefix = String.join(";\n", parts.subList(0, firstNonSet)) + ";\n";
+        String remainder = String.join(";", parts.subList(firstNonSet, parts.size())).strip();
+        if (startsWithCommandKeyword(remainder, LET_COMMAND_PATTERN)) {
+            return setPrefix + convertLetQueryToRemoteIndices(remainder, bothClusterIndices);
+        }
+        return setPrefix + convertSubqueryToRemoteIndices(remainder, bothClusterIndices, Set.of());
+    }
+
+    /**
+     * Rewrites index names inside a LET-prefix query for cross-cluster testing.
+     * Real index names in LET binding bodies are converted to remote patterns ({@code *:index,index}).
+     * LET binding names used as FROM sources in subsequent bindings or the main query are left unchanged.
+     * Each {@code LET name = (subquery);} statement declares exactly one binding.
+     */
+    private static String convertLetQueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices) {
+        // Split at the top-level ';' to separate the LET statements from the main query.
+        List<String> parts = splitIgnoringParentheses(testQuery, ";");
+        int letCount = 0;
+        while (letCount < parts.size() && startsWithCommandKeyword(parts.get(letCount).strip(), LET_COMMAND_PATTERN)) {
+            letCount++;
+        }
+        String mainQuery = String.join(";", parts.subList(letCount, parts.size())).strip();
+
+        // First pass: collect all binding names so we can skip rewriting them as remote indices.
+        Set<String> letBindingNames = new HashSet<>();
+        List<String[]> parsedBindings = new ArrayList<>();
+        for (String letStatement : parts.subList(0, letCount)) {
+            // Strip the "LET" keyword; what remains is "name = (body)".
+            String binding = letStatement.strip().substring(3).strip();
+            int eqIdx = binding.indexOf('=');
+            String name = binding.substring(0, eqIdx).strip();
+            letBindingNames.add(name);
+            parsedBindings.add(new String[] { name, binding.substring(eqIdx + 1).strip() });
+        }
+
+        // Second pass: rewrite each binding body, leaving LET binding name references unchanged.
+        StringBuilder result = new StringBuilder();
+        for (String[] parsedBinding : parsedBindings) {
+            String bodyWithParens = parsedBinding[1];
+            String innerBody = bodyWithParens.startsWith("(") && bodyWithParens.endsWith(")")
+                ? bodyWithParens.substring(1, bodyWithParens.length() - 1)
+                : bodyWithParens;
+            String rewrittenBody = convertSubqueryToRemoteIndices(innerBody, bothClusterIndices, letBindingNames);
+            result.append("LET ").append(parsedBinding[0]).append(" = (").append(rewrittenBody).append(");\n");
+        }
+
+        // Rewrite the main query, treating LET binding names as non-indices.
+        if (mainQuery.isEmpty() == false) {
+            result.append(convertSubqueryToRemoteIndices(mainQuery, bothClusterIndices, letBindingNames));
+        }
+        return result.toString();
+    }
+
+    private static String convertSubqueryToRemoteIndices(String testQuery, Set<String> bothClusterIndices, Set<String> letBindingNames) {
         String query = testQuery;
         // find the main source command, ignoring pipes inside subqueries
         List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
@@ -1860,7 +2032,10 @@ public final class EsqlTestUtils {
         // may contain FROM subqueries that do need rewriting.
         if (startsWithCommandKeyword(mainFrom, ROW_COMMAND_PATTERN)) {
             for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-                mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
+                mainFromCommandAndTheRest.set(
+                    i,
+                    rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices, letBindingNames)
+                );
             }
             return String.join(" | ", mainFromCommandAndTheRest);
         }
@@ -1886,8 +2061,11 @@ public final class EsqlTestUtils {
             if (isSubquery(indexPatternOrSubquery)) {
                 // it's a subquery, we need to process it recursively
                 String subquery = indexPatternOrSubquery.strip().substring(1, indexPatternOrSubquery.length() - 1);
-                String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices);
+                String transformedSubquery = convertSubqueryToRemoteIndices(subquery, bothClusterIndices, letBindingNames);
                 transformed.add("(" + transformedSubquery + ")");
+            } else if (letBindingNames.contains(unquoteIndexName(indexPatternOrSubquery))) {
+                // This source is a LET binding name, not a real ES index — leave it unchanged.
+                transformed.add(indexPatternOrSubquery);
             } else {
                 // Indices that live on both clusters (enrich source / lookup indices) must become
                 // remote-only (*:index) to avoid double-counting; everything else uses *:index,index.
@@ -1901,7 +2079,10 @@ public final class EsqlTestUtils {
         // that follow the source command. Non-subquery parenthesised groups (value lists, function
         // arguments, boolean groupings) are left structurally unchanged.
         for (int i = 1; i < mainFromCommandAndTheRest.size(); i++) {
-            mainFromCommandAndTheRest.set(i, rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices));
+            mainFromCommandAndTheRest.set(
+                i,
+                rewriteSubqueriesInExpression(mainFromCommandAndTheRest.get(i), bothClusterIndices, letBindingNames)
+            );
         }
         // rebuild the whole query
         mainFromCommandAndTheRest.set(0, transformedFrom);
@@ -1924,8 +2105,9 @@ public final class EsqlTestUtils {
      * <p>Like {@link #splitIgnoringParentheses}, this method is not string-literal-aware.
      *
      * @param bothClusterIndices see {@link #convertSubqueryToRemoteIndices(String, Set)}.
+     * @param letBindingNames    LET binding names, which are not real indices and must not be rewritten.
      */
-    private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices) {
+    private static String rewriteSubqueriesInExpression(String segment, Set<String> bothClusterIndices, Set<String> letBindingNames) {
         StringBuilder result = new StringBuilder();
         int i = 0;
         while (i < segment.length()) {
@@ -1950,11 +2132,11 @@ public final class EsqlTestUtils {
                     || startsWithCommandKeyword(strippedContent, ROW_COMMAND_PATTERN)) {
                     // This group is a subquery body — rewrite it recursively.
                     // ROW bodies are returned unchanged by convertSubqueryToRemoteIndices.
-                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent, bothClusterIndices) + ")";
+                    rewrittenGroup = "(" + convertSubqueryToRemoteIndices(strippedContent, bothClusterIndices, letBindingNames) + ")";
                 } else {
                     // Not a direct subquery body (value list, function args, boolean grouping, …).
                     // Recurse into the raw content to catch any nested subquery inside it.
-                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content, bothClusterIndices) + ")";
+                    rewrittenGroup = "(" + rewriteSubqueriesInExpression(content, bothClusterIndices, letBindingNames) + ")";
                 }
                 result.append(rewrittenGroup);
                 i = j;
@@ -1969,6 +2151,8 @@ public final class EsqlTestUtils {
     private static final Pattern FROM_COMMAND_PATTERN = commandPattern("from");
     private static final Pattern TS_COMMAND_PATTERN = commandPattern("ts");
     private static final Pattern ROW_COMMAND_PATTERN = commandPattern("row");
+    private static final Pattern LET_COMMAND_PATTERN = commandPattern("let");
+    private static final Pattern SET_COMMAND_PATTERN = commandPattern("set");
 
     private static Pattern commandPattern(String keyword) {
         return Pattern.compile(Pattern.quote(keyword) + "\\p{javaWhitespace}", Pattern.CASE_INSENSITIVE);

@@ -67,10 +67,11 @@ public final class SpaceEvaluator implements ExpressionEvaluator {
   public BytesRefBlock eval(int positionCount, IntBlock numberBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        if (numberBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
         switch (numberBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
           case 1:
               break;
           default:

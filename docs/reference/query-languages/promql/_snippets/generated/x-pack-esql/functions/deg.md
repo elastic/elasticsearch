@@ -21,7 +21,3 @@
 ```
 deg(some_metric)
 ```
-
-**Differences from Prometheus**
-
-For `NaN` or infinite inputs, {{es}} returns `null` and emits a warning, instead of returning the value unchanged.

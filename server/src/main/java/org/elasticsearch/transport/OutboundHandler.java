@@ -17,6 +17,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -41,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -124,7 +128,8 @@ public final class OutboundHandler {
             compressionScheme,
             transportVersion,
             ResponseStatsConsumer.NONE,
-            () -> messageListener.onRequestSent(node, requestId, action, request, options)
+            size -> messageListener.onRequestSent(node, requestId, action, request, options, size),
+            null
         );
     }
 
@@ -132,6 +137,7 @@ public final class OutboundHandler {
      * Sends the response to the given channel. This method should be used to send {@link TransportResponse}
      * objects back to the caller.
      *
+     * @param circuitBreaker charged for the serialized message until the write completes; a trip is sent back as an error response
      * @see #sendErrorResponse for sending error responses
      */
     void sendResponse(
@@ -142,7 +148,8 @@ public final class OutboundHandler {
         final TransportResponse response,
         final Compression.Scheme compressionScheme,
         final boolean isHandshake,
-        final ResponseStatsConsumer responseStatsConsumer
+        final ResponseStatsConsumer responseStatsConsumer,
+        @Nullable final CircuitBreaker circuitBreaker
     ) {
         assert assertValidTransportVersion(transportVersion);
         assert response.hasReferences();
@@ -157,7 +164,8 @@ public final class OutboundHandler {
                 compressionScheme,
                 transportVersion,
                 responseStatsConsumer,
-                () -> messageListener.onResponseSent(requestId, action)
+                size -> messageListener.onResponseSent(requestId, action, size),
+                circuitBreaker
             );
         } catch (Exception ex) {
             if (isHandshake) {
@@ -201,7 +209,8 @@ public final class OutboundHandler {
                 null,
                 transportVersion,
                 responseStatsConsumer,
-                () -> messageListener.onResponseSent(requestId, action, error)
+                size -> messageListener.onResponseSent(requestId, action, error, size),
+                null
             );
         } catch (Exception sendException) {
             sendException.addSuppressed(error);
@@ -227,14 +236,17 @@ public final class OutboundHandler {
         Compression.Scheme possibleCompressionScheme,
         TransportVersion version,
         ResponseStatsConsumer responseStatsConsumer,
-        Releasable onAfter
+        IntConsumer onSentMessage,
+        @Nullable CircuitBreaker circuitBreaker
     ) throws IOException {
         assert action != null;
         final var compressionScheme = writeable instanceof BytesTransportMessage ? null : possibleCompressionScheme;
         final BytesReference message;
         boolean serializeSuccess = false;
-        final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
+        RecyclerBytesStreamOutput byteStreamOutput = null;
         try {
+            // The constructor charges the first page, so it can trip too.
+            byteStreamOutput = new RecyclerBytesStreamOutput(recycler, circuitBreaker);
             message = serialize(
                 messageDirection,
                 action,
@@ -249,14 +261,18 @@ public final class OutboundHandler {
             );
             serializeSuccess = true;
         } catch (Exception e) {
-            logger.warn(() -> "failed to serialize outbound message [" + writeable + "]", e);
+            if (e instanceof CircuitBreakingException == false) {
+                logger.warn(() -> "failed to serialize outbound message [" + writeable + "]", e);
+            }
             throw e;
         } finally {
             if (serializeSuccess == false) {
-                Releasables.close(byteStreamOutput, onAfter);
+                // the message size is not known, hence -1
+                Releasables.close(byteStreamOutput, () -> onSentMessage.accept(-1));
             }
         }
         responseStatsConsumer.addResponseStats(message.length());
+        final Releasable onAfter = () -> onSentMessage.accept(message.length());
         final var messageType = writeable.getClass();
         internalSend(
             channel,
@@ -348,8 +364,10 @@ public final class OutboundHandler {
             toClose1 = stream;
             toClose2 = null;
         } else if (compressionScheme == Compression.Scheme.LZ4) {
+            // Writing the LZ4 header can trip the breaker, so obtain the buffer only after it.
+            final var lz4Stream = Compression.Scheme.lz4OutputStream(Streams.noCloseStream(byteStreamOutput));
             final var buffer = recycler.obtain();
-            stream = new BufferedStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(byteStreamOutput)), buffer.v());
+            stream = new BufferedStreamOutput(lz4Stream, buffer.v());
             toClose1 = stream;
             toClose2 = buffer;
         } else {

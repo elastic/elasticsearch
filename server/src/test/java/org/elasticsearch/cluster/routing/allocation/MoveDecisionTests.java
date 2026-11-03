@@ -42,18 +42,18 @@ public class MoveDecisionTests extends ESTestCase {
         assertNotSame(stay1, stay2);
 
         // cached cannot move decision
-        stay1 = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, null);
-        stay2 = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, null);
+        stay1 = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, null, null);
+        stay2 = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, null, null);
         assertSame(stay1, stay2);
         // final decision is YES, so shouldn't use cached decision
         DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
-        stay1 = MoveDecision.move(Decision.NO, AllocationDecision.YES, node1, null);
-        stay2 = MoveDecision.move(Decision.NO, AllocationDecision.YES, node1, null);
+        stay1 = MoveDecision.move(Decision.NO, AllocationDecision.YES, node1, null, null);
+        stay2 = MoveDecision.move(Decision.NO, AllocationDecision.YES, node1, null, null);
         assertNotSame(stay1, stay2);
         assertEquals(stay1.getTargetNode(), stay2.getTargetNode());
         // final decision is NO, but in explain mode, so shouldn't use cached decision
-        stay1 = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, new ArrayList<>());
-        stay2 = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, new ArrayList<>());
+        stay1 = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, new ArrayList<>(), null);
+        stay2 = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, new ArrayList<>(), null);
         assertNotSame(stay1, stay2);
         assertSame(stay1.getAllocationDecision(), stay2.getAllocationDecision());
         assertNotNull(stay1.getExplanation());
@@ -83,7 +83,7 @@ public class MoveDecisionTests extends ESTestCase {
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
         nodeDecisions.add(new NodeAllocationResult(node1, nodeDecision, 2));
         nodeDecisions.add(new NodeAllocationResult(node2, nodeDecision, 1));
-        MoveDecision decision = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, nodeDecisions);
+        MoveDecision decision = MoveDecision.move(Decision.NO, AllocationDecision.NO, null, nodeDecisions, null);
         assertNotNull(decision.getAllocationDecision());
         assertNotNull(decision.getExplanation());
         assertNotNull(decision.getNodeDecisions());
@@ -91,7 +91,7 @@ public class MoveDecisionTests extends ESTestCase {
         // both nodes have the same decision type but node2 has a higher weight ranking, so node2 comes first
         assertEquals("node2", decision.getNodeDecisions().iterator().next().getNode().getId());
 
-        decision = MoveDecision.move(Decision.NO, AllocationDecision.YES, node2, null);
+        decision = MoveDecision.move(Decision.NO, AllocationDecision.YES, node2, null, null);
         assertEquals("node2", decision.getTargetNode().getId());
     }
 
@@ -128,7 +128,7 @@ public class MoveDecisionTests extends ESTestCase {
         Decision.Multi debugOnNoMulti = new Decision.Multi();
         debugOnNoMulti.add(Decision.single(Type.NO, "filter_decider", "filter says no"));
         debugOnNoMulti.add(Decision.single(Type.YES, "disk_decider", "enough disk space"));
-        String debugOnNoJson = toJsonObject(MoveDecision.move(debugOnNoMulti, AllocationDecision.NO, null, new ArrayList<>()));
+        String debugOnNoJson = toJsonObject(MoveDecision.move(debugOnNoMulti, AllocationDecision.NO, null, new ArrayList<>(), null));
         assertThat(debugOnNoJson, containsString("can_remain_on_current_node\":\"no\""));
         assertThat(debugOnNoJson, containsString("can_remain_decisions"));
         assertThat(debugOnNoJson, containsString("filter says no"));
@@ -138,14 +138,14 @@ public class MoveDecisionTests extends ESTestCase {
         // EXCLUDE_YES_DECISIONS → Multi with NO only (YES filtered out): can_remain_decisions present
         Decision.Multi excludeYesNoMulti = new Decision.Multi();
         excludeYesNoMulti.add(Decision.single(Type.NO, "filter_decider", "filter says no"));
-        String excludeYesNoJson = toJsonObject(MoveDecision.move(excludeYesNoMulti, AllocationDecision.NO, null, new ArrayList<>()));
+        String excludeYesNoJson = toJsonObject(MoveDecision.move(excludeYesNoMulti, AllocationDecision.NO, null, new ArrayList<>(), null));
         assertThat(excludeYesNoJson, containsString("can_remain_on_current_node\":\"no\""));
         assertThat(excludeYesNoJson, containsString("can_remain_decisions"));
         assertThat(excludeYesNoJson, containsString("filter says no"));
 
         // debug OFF → Single NO (specific decider): can_remain_decisions present with decider and explanation
         Decision.Single singleNo = new Decision.Single(Type.NO, "filter_decider", "filter says no");
-        String debugOffNoJson = toJsonObject(MoveDecision.move(singleNo, AllocationDecision.NO, null, new ArrayList<>()));
+        String debugOffNoJson = toJsonObject(MoveDecision.move(singleNo, AllocationDecision.NO, null, new ArrayList<>(), null));
         assertThat(debugOffNoJson, containsString("can_remain_on_current_node\":\"no\""));
         assertThat(debugOffNoJson, containsString("can_remain_decisions"));
         assertThat(debugOffNoJson, containsString("filter_decider"));
@@ -176,7 +176,8 @@ public class MoveDecisionTests extends ESTestCase {
             Decision.NO,
             AllocationDecision.fromDecisionType(finalDecision),
             assignedNode,
-            nodeDecisions
+            nodeDecisions,
+            null
         );
         BytesStreamOutput output = new BytesStreamOutput();
         moveDecision.writeTo(output);

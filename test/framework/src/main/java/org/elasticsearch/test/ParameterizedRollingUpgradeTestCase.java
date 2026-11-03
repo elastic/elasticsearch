@@ -12,28 +12,16 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.test.RollingUpgradePerformer.ClusterAndClients;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.IntStream;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Base class for rolling upgrade suites. Each suite is run once per upgrade phase, from a fully old cluster through to a
@@ -48,13 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
 
     protected static final int NODE_NUM = 3;
-
-    private static final String CURRENT_ES_VERSION = Build.current().version();
-    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
-    private static final Set<Integer> upgradedNodes = new HashSet<>();
-    private static TestFeatureService oldClusterTestFeatureService = null;
-    private static boolean upgradeFailed = false;
-    private static IndexVersion oldIndexVersion;
+    protected static final RollingUpgradePerformer rollingUpgrade = new RollingUpgradePerformer(NODE_NUM);
 
     private final int requestedUpgradedNodes;
 
@@ -67,74 +49,13 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return IntStream.rangeClosed(0, NODE_NUM).boxed().map(n -> new Object[] { n }).toList();
     }
 
-    protected void beforeUpgrade() {
-        if (getOldClusterVersion().endsWith("-SNAPSHOT")) {
-            assumeTrue("rename of pattern_text mapper", oldClusterHasFeature("mapper.pattern_text_rename"));
-        }
-    }
-
     @Before
-    public void upgradeNode() throws Exception {
-        // extract old cluster features
-        if (isOldCluster() && oldClusterTestFeatureService == null) {
-            oldClusterTestFeatureService = testFeatureService;
-        }
-
-        // extract old index version
-        if (oldIndexVersion == null && upgradedNodes.isEmpty()) {
-            IndexVersion indexVersion = null;   // these should all be the same version
-
-            Request request = new Request("GET", "_nodes");
-            request.addParameter("filter_path", "nodes.*.index_version,nodes.*.name");
-            Response response = client().performRequest(request);
-            ObjectPath objectPath = ObjectPath.createFromResponse(response);
-            Map<String, Object> nodeMap = objectPath.evaluate("nodes");
-            for (String id : nodeMap.keySet()) {
-                Number ix = objectPath.evaluate("nodes." + id + ".index_version");
-                final IndexVersion version;
-                if (ix != null) {
-                    version = IndexVersion.fromId(ix.intValue());
-                } else {
-                    // it doesn't have index version (pre 8.11) - just infer it from the release version
-                    version = parseLegacyVersion(getOldClusterVersion()).map(v -> IndexVersion.fromId(v.id))
-                        .orElse(IndexVersions.MINIMUM_COMPATIBLE);
-                }
-
-                if (indexVersion == null) {
-                    indexVersion = version;
-                } else {
-                    String name = objectPath.evaluate("nodes." + id + ".name");
-                    assertThat("Node " + name + " has a different index version to other nodes", version, equalTo(indexVersion));
-                }
-            }
-
-            assertThat("Index version could not be read", indexVersion, notNullValue());
-            oldIndexVersion = indexVersion;
-        }
-
-        // Skip remaining tests if upgrade failed
-        assumeFalse("Cluster upgrade failed", upgradeFailed);
-
-        beforeUpgrade();
-
-        // finally, upgrade node
-        if (upgradedNodes.size() < requestedUpgradedNodes) {
-            closeClients();
-            // we might be running a specific upgrade test by itself - check previous nodes too
-            for (int n = 0; n < requestedUpgradedNodes; n++) {
-                if (upgradedNodes.add(n)) {
-                    try {
-                        String newClusterVersion = System.getProperty("tests.new_cluster_version", CURRENT_ES_VERSION);
-                        logger.info("Upgrading node {} to version {}", n, newClusterVersion);
-                        getUpgradeCluster().upgradeNodeToVersion(n, Version.fromString(newClusterVersion));
-                    } catch (Exception e) {
-                        upgradeFailed = true;
-                        throw e;
-                    }
-                }
-            }
-            initClient();
-        }
+    public final void upgradeNode() throws Exception {
+        rollingUpgrade.upgradeNode(
+            requestedUpgradedNodes,
+            testFeatureService,
+            new ClusterAndClients(getUpgradeCluster(), client(), this::initClient, ESRestTestCase::closeClients)
+        );
     }
 
     protected abstract ElasticsearchCluster getUpgradeCluster();
@@ -146,24 +67,19 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @AfterClass
     public static void resetNodes() {
-        oldIndexVersion = null;
-        upgradedNodes.clear();
-        oldClusterTestFeatureService = null;
-        upgradeFailed = false;
+        rollingUpgrade.reset();
     }
 
     protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterTestFeatureService != null;
-        return oldClusterTestFeatureService.clusterHasFeature(featureId);
+        return rollingUpgrade.oldClusterHasFeature(featureId);
     }
 
     protected static boolean oldClusterHasFeature(NodeFeature feature) {
-        return oldClusterHasFeature(feature.id());
+        return rollingUpgrade.oldClusterHasFeature(feature);
     }
 
     protected static IndexVersion getOldClusterIndexVersion() {
-        assert oldIndexVersion != null;
-        return oldIndexVersion;
+        return rollingUpgrade.getOldClusterIndexVersion();
     }
 
     /**
@@ -171,30 +87,27 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
      * comparison. Use (test) cluster features and {@link ParameterizedRollingUpgradeTestCase#oldClusterHasFeature} instead.
      */
     protected static String getOldClusterVersion() {
-        return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
+        return RollingUpgradePerformer.getOldClusterVersion();
     }
 
-    public static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
-        if (isOldClusterDetachedVersion()) {
-            return System.getProperty("tests.bwc.refspec.main").equals(buildHash);
-        }
-        return getOldClusterVersion().equals(nodeVersion);
+    protected static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
+        return RollingUpgradePerformer.isOldClusterVersion(nodeVersion, buildHash);
     }
 
     protected static boolean isOldCluster() {
-        return upgradedNodes.isEmpty();
+        return rollingUpgrade.isOldCluster();
     }
 
     protected static boolean isFirstMixedCluster() {
-        return upgradedNodes.size() == 1;
+        return rollingUpgrade.isFirstMixedCluster();
     }
 
     protected static boolean isMixedCluster() {
-        return upgradedNodes.isEmpty() == false && upgradedNodes.size() < NODE_NUM;
+        return rollingUpgrade.isMixedCluster();
     }
 
     protected static boolean isUpgradedCluster() {
-        return upgradedNodes.size() == NODE_NUM;
+        return rollingUpgrade.isUpgradedCluster();
     }
 
     @Override

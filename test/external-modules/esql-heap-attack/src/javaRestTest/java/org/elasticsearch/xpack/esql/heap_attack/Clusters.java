@@ -21,11 +21,20 @@ public class Clusters {
         return buildClusterSpec().build();
     }
 
+    /**
+     * The addresses the suite's REST client sends requests to. Any node can coordinate here; serverless replaces this class
+     * and sends everything to the search node, which is where its proxy routes {@code _query}.
+     */
+    static String testRestCluster(ElasticsearchCluster cluster) {
+        return cluster.getHttpAddresses();
+    }
+
     static LocalClusterSpecBuilder<ElasticsearchCluster> buildClusterSpec() {
         var spec = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .nodes(2)
             .module("test-esql-heap-attack")
+            .module("test-pausable-field")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("esql.query.allow_partial_results", "false")

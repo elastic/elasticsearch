@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.action;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -20,11 +20,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -112,7 +111,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
             var action = createAction("resource", "deployment", "apiversion", user, apiKey, sender, "id");
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of(completionInput)), null, listener);
+            action.execute(new CompletionInput(List.of(completionInput)), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -120,12 +119,12 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
 
             var request = webServer.requests().get(0);
             assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
             assertThat(request.getHeader(AzureOpenAiUtils.API_KEY_HEADER), is(apiKey));
 
             assertThat(
                 result.asMap(),
-                is(Map.of(ChatCompletionResults.COMPLETION, List.of(Map.of(ChatCompletionResults.Result.RESULT, "response"))))
+                is(Map.of(CompletionResults.COMPLETION, List.of(Map.of(CompletionResults.Result.RESULT, "response"))))
             );
 
             var requestMap = entityAsMap(request.getBody());
@@ -143,7 +142,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+        action.execute(new CompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -163,7 +162,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+        action.execute(new CompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -177,7 +176,7 @@ public class AzureOpenAiCompletionActionTests extends ESTestCase {
         var action = createAction("resource", "deployment", "apiVersion", "user", "apikey", sender, "id");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
+        action.execute(new CompletionInput(List.of("abc")), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

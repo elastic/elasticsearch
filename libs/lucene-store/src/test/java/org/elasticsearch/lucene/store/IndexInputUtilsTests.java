@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -33,11 +35,15 @@ import static org.hamcrest.Matchers.not;
  * Tests that {@link IndexInputUtils#withSlice} correctly handles all
  * three input types: {@link MemorySegmentAccessInput} (mmap),
  * {@link DirectAccessInput} (byte-buffer), and plain {@link IndexInput}
- * (heap-copy fallback).
+ * (copying fallback).
  */
 public class IndexInputUtilsTests extends ESTestCase {
 
     private static final String FILE_NAME = "test.bin";
+
+    private static MemorySegment newScratch(int length) {
+        return Arena.ofAuto().allocate(length);
+    }
 
     // -- withSlice path tests -------------------------------------------------
 
@@ -76,17 +82,87 @@ public class IndexInputUtilsTests extends ESTestCase {
         }
     }
 
-    public void testPlainInputFallbackProducesNativeSegmentOnJava21() throws Exception {
+    public void testWithFloatSliceMemorySegmentAccessInput() throws Exception {
+        float[] data = randomFloatArrayOfLength(256);
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertThat(in, instanceOf(MemorySegmentAccessInput.class));
+                verifyWithFloatSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithFloatSliceDirectAccessInput() throws Exception {
+        float[] data = randomFloatArrayOfLength(256);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                byte[] rawData = new byte[data.length * Float.BYTES];
+                ByteBuffer.wrap(rawData).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().put(data);
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, rawData);
+                assertThat(in, instanceOf(DirectAccessInput.class));
+                verifyWithFloatSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithFloatSlicePlainIndexInput() throws Exception {
+        float[] data = randomFloatArrayOfLength(256);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
+                assertThat(in, not(instanceOf(DirectAccessInput.class)));
+                verifyWithFloatSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithVoidSliceMemorySegmentAccessInput() throws Exception {
+        byte[] data = randomByteArrayOfLength(256);
+        try (Directory dir = new MMapDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertThat(in, instanceOf(MemorySegmentAccessInput.class));
+                verifyWithVoidSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithVoidSliceDirectAccessInput() throws Exception {
+        byte[] data = randomByteArrayOfLength(256);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                IndexInput in = new DirectAccessIndexInput("dai", rawIn, data);
+                assertThat(in, instanceOf(DirectAccessInput.class));
+                verifyWithVoidSlice(in, data);
+            }
+        }
+    }
+
+    public void testWithVoidSlicePlainIndexInput() throws Exception {
         byte[] data = randomByteArrayOfLength(256);
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
                 assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
                 assertThat(in, not(instanceOf(DirectAccessInput.class)));
-                IndexInputUtils.withSlice(in, data.length, byte[]::new, segment -> {
-                    if (Runtime.version().feature() < 22) {
-                        assertTrue("segment should be native-backed on Java 21", segment.heapBase().isEmpty());
-                    }
+                verifyWithVoidSlice(in, data);
+            }
+        }
+    }
+
+    public void testPlainInputFallbackProducesNativeSegment() throws Exception {
+        byte[] data = randomByteArrayOfLength(256);
+        try (Directory dir = new NIOFSDirectory(createTempDir())) {
+            writeData(dir, data);
+            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                assertThat(in, not(instanceOf(MemorySegmentAccessInput.class)));
+                assertThat(in, not(instanceOf(DirectAccessInput.class)));
+                IndexInputUtils.withSlice(in, data.length, IndexInputUtilsTests::newScratch, segment -> {
+                    assertTrue("segment should be native-backed", segment.isNative());
                     byte[] buf = new byte[(int) segment.byteSize()];
                     MemorySegment.ofArray(buf).copyFrom(segment);
                     assertArrayEquals(data, buf);
@@ -187,7 +263,7 @@ public class IndexInputUtilsTests extends ESTestCase {
 
     private void verifyWithSlice(IndexInput in, byte[] expectedData) throws IOException {
         int firstChunk = 64;
-        byte[] result1 = IndexInputUtils.withSlice(in, firstChunk, byte[]::new, segment -> {
+        byte[] result1 = IndexInputUtils.withSlice(in, firstChunk, IndexInputUtilsTests::newScratch, segment -> {
             byte[] buf = new byte[(int) segment.byteSize()];
             MemorySegment.ofArray(buf).copyFrom(segment);
             return buf;
@@ -196,7 +272,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         assertEquals(firstChunk, in.getFilePointer());
 
         int secondChunk = 128;
-        byte[] result2 = IndexInputUtils.withSlice(in, secondChunk, byte[]::new, segment -> {
+        byte[] result2 = IndexInputUtils.withSlice(in, secondChunk, IndexInputUtilsTests::newScratch, segment -> {
             byte[] buf = new byte[(int) segment.byteSize()];
             MemorySegment.ofArray(buf).copyFrom(segment);
             return buf;
@@ -205,13 +281,85 @@ public class IndexInputUtilsTests extends ESTestCase {
         assertEquals(firstChunk + secondChunk, in.getFilePointer());
 
         int remaining = expectedData.length - firstChunk - secondChunk;
-        byte[] result3 = IndexInputUtils.withSlice(in, remaining, byte[]::new, segment -> {
+        byte[] result3 = IndexInputUtils.withSlice(in, remaining, IndexInputUtilsTests::newScratch, segment -> {
             byte[] buf = new byte[(int) segment.byteSize()];
             MemorySegment.ofArray(buf).copyFrom(segment);
             return buf;
         });
         assertArrayEquals(Arrays.copyOfRange(expectedData, firstChunk + secondChunk, expectedData.length), result3);
         assertEquals(expectedData.length, in.getFilePointer());
+    }
+
+    private void verifyWithVoidSlice(IndexInput in, byte[] expectedData) throws IOException {
+        final int firstChunk = 64;
+        final byte[] result1 = new byte[firstChunk];
+        IndexInputUtils.withVoidSlice(in, firstChunk, IndexInputUtilsTests::newScratch, segment -> {
+            assertEquals(result1.length, segment.byteSize());
+            MemorySegment.ofArray(result1).copyFrom(segment);
+        });
+        assertArrayEquals(Arrays.copyOfRange(expectedData, 0, firstChunk), result1);
+        assertEquals(firstChunk, in.getFilePointer());
+
+        final int secondChunk = 128;
+        final byte[] result2 = new byte[secondChunk];
+        IndexInputUtils.withVoidSlice(in, secondChunk, IndexInputUtilsTests::newScratch, segment -> {
+            assertEquals(result2.length, segment.byteSize());
+            MemorySegment.ofArray(result2).copyFrom(segment);
+        });
+        assertArrayEquals(Arrays.copyOfRange(expectedData, firstChunk, firstChunk + secondChunk), result2);
+        assertEquals(firstChunk + secondChunk, in.getFilePointer());
+
+        final int remaining = expectedData.length - firstChunk - secondChunk;
+        final byte[] result3 = new byte[remaining];
+        IndexInputUtils.withVoidSlice(in, remaining, IndexInputUtilsTests::newScratch, segment -> {
+            assertEquals(result3.length, segment.byteSize());
+            MemorySegment.ofArray(result3).copyFrom(segment);
+        });
+        assertArrayEquals(Arrays.copyOfRange(expectedData, firstChunk + secondChunk, expectedData.length), result3);
+        assertEquals(expectedData.length, in.getFilePointer());
+    }
+
+    private void verifyWithFloatSlice(IndexInput in, float[] expectedData) throws IOException {
+        final int firstChunk = 64;
+
+        float result1 = IndexInputUtils.withFloatSlice(in, firstChunk * Float.BYTES, IndexInputUtilsTests::newScratch, segment -> {
+            var data = getAsFloat(segment);
+            return getResult(data, 0, data.length);
+        });
+        assertEquals(getResult(expectedData, 0, firstChunk), result1, 0f);
+        assertEquals(firstChunk * Float.BYTES, in.getFilePointer());
+
+        final int secondChunk = 128;
+        float result2 = IndexInputUtils.withFloatSlice(in, secondChunk * Float.BYTES, IndexInputUtilsTests::newScratch, segment -> {
+            var data = getAsFloat(segment);
+            return getResult(data, 0, data.length);
+        });
+        assertEquals(getResult(expectedData, firstChunk, firstChunk + secondChunk), result2, 0f);
+        assertEquals((firstChunk + secondChunk) * Float.BYTES, in.getFilePointer());
+
+        long remaining = expectedData.length - firstChunk - secondChunk;
+        float result3 = IndexInputUtils.withFloatSlice(in, remaining * Float.BYTES, IndexInputUtilsTests::newScratch, segment -> {
+            var data = getAsFloat(segment);
+            return getResult(data, 0, data.length);
+        });
+        assertEquals(getResult(expectedData, firstChunk + secondChunk, expectedData.length), result3, 0f);
+        assertEquals(expectedData.length * Float.BYTES, in.getFilePointer());
+    }
+
+    private static float[] getAsFloat(MemorySegment segment) {
+        byte[] buf = new byte[(int) segment.byteSize()];
+        float[] out = new float[buf.length >>> 2];
+        MemorySegment.ofArray(buf).copyFrom(segment);
+        ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(out);
+        return out;
+    }
+
+    private static float getResult(float[] data, long start, long end) {
+        float result = 0;
+        for (int i = (int) start; i < end; ++i) {
+            result += data[i];
+        }
+        return result;
     }
 
     /** Stands in for the reusable pointer-array scratch buffer that production callers own. */
@@ -225,4 +373,19 @@ public class IndexInputUtilsTests extends ESTestCase {
         }
     }
 
+    private static void writeData(Directory dir, float[] data) throws IOException {
+        try (IndexOutput out = dir.createOutput(FILE_NAME, IOContext.DEFAULT)) {
+            ByteBuffer buffer = ByteBuffer.allocate(data.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            buffer.asFloatBuffer().put(data);
+            out.writeBytes(buffer.array(), buffer.capacity());
+        }
+    }
+
+    private static float[] randomFloatArrayOfLength(int size) {
+        float[] floats = new float[size];
+        for (int i = 0; i < size; i++) {
+            floats[i] = randomFloat();
+        }
+        return floats;
+    }
 }

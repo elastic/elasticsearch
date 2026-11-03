@@ -1,0 +1,5 @@
+FROM employees
+| WHERE salary > 10000
+| keep emp_no, height
+| SORT height
+| LIMIT 20

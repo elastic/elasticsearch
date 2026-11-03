@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsA
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.QueryServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.settings.GetSecuritySettingsAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -121,6 +122,12 @@ public class ClusterPrivilegeResolver {
         "cluster:monitor/project/*",
         "cluster:monitor/project_routing/*"
     );
+
+    // Boost profile actions only exist in serverless; these privileges are no-ops elsewhere.
+    private static final Set<String> READ_BOOST_PROFILES_PATTERN = Set.of("cluster:monitor/boost/profile/*");
+    // Explain is granted here although its response currently includes the resolved profile
+    private static final Set<String> READ_BOOST_RULES_PATTERN = Set.of("cluster:monitor/boost/rule/*", "cluster:monitor/boost/explain");
+
     private static final Set<String> MANAGE_PROJECT_ROUTING_PATTERN = Set.of(
         "cluster:monitor/project/*",
         "cluster:monitor/project_routing/*",
@@ -287,6 +294,11 @@ public class ClusterPrivilegeResolver {
         "manage_ingest_pipelines",
         MANAGE_INGEST_PIPELINE_PATTERN
     );
+    public static final NamedClusterPrivilege READ_BOOST_PROFILES = new ActionClusterPrivilege(
+        "read_boost_profiles",
+        READ_BOOST_PROFILES_PATTERN
+    );
+    public static final NamedClusterPrivilege READ_BOOST_RULES = new ActionClusterPrivilege("read_boost_rules", READ_BOOST_RULES_PATTERN);
     public static final NamedClusterPrivilege READ_PIPELINE = new ActionClusterPrivilege("read_pipeline", READ_PIPELINE_PATTERN);
     public static final NamedClusterPrivilege READ_PROJECT_ROUTING = new ActionClusterPrivilege(
         "read_project_routing",
@@ -312,6 +324,7 @@ public class ClusterPrivilegeResolver {
             ActionTypes.QUERY_ROLE_ACTION.name(),
             GetRoleMappingsAction.NAME,
             GetServiceAccountAction.NAME,
+            QueryServiceAccountAction.NAME,
             GetServiceAccountCredentialsAction.NAME + "*",
             GetUsersAction.NAME,
             ActionTypes.QUERY_USER_ACTION.name(),
@@ -472,6 +485,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_REINDEX,
             MANAGE_IDX_TEMPLATES,
             MANAGE_INGEST_PIPELINES,
+            READ_BOOST_PROFILES,
+            READ_BOOST_RULES,
             READ_PIPELINE,
             READ_PROJECT_ROUTING,
             TRANSPORT_CLIENT,

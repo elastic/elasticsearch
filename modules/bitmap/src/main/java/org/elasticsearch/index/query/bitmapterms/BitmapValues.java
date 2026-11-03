@@ -56,6 +56,15 @@ public interface BitmapValues extends Accountable {
     /** Writes {@link #last()} as sortable bytes. Undefined when empty. */
     void encodeLast(byte[] dest);
 
+    /**
+     * Whether the bitmap covers the inclusive range {@code [min, max]}, meaning it holds every value in
+     * that range. Both bounds must be non-negative, which the queries' precondition on the values gives.
+     * <p>
+     * A {@code false} may mean "cannot be decided cheaply" rather than "not covered": callers use this
+     * only to take a faster path, so declining costs an optimization, never correctness.
+     */
+    boolean coversRange(long min, long max);
+
     PeekableIterator iterator();
 
     /**

@@ -1,0 +1,389 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.parquet;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.datasources.NodeByteBudgetService;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionGate;
+import org.elasticsearch.xpack.esql.datasources.spi.AdmissionTracker;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.HeapFootprint;
+import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
+import org.elasticsearch.xpack.esql.datasources.spi.RowGroupIo;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageIoAffinity;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
+
+/**
+ * Node-scoped admission limit on retained Parquet I/O bytes (prefetch buffers and sliding
+ * windows) plus the decode working-set admitted beside those buffers. Cap at {@code heap / 8},
+ * shared by every query on the node. Tickets are a concurrency cap, not a substitute for the
+ * REQUEST circuit breaker: dest/dict still charge under that breaker, and assembled blocks
+ * still charge {@code <esql_block_factory>}. Crossing the ticket limit does not fail the
+ * query. Look-ahead is refused once {@code used + next} would exceed the cap. One in-flight
+ * group may overshoot when it is larger than the remaining budget, so a scan cannot stall;
+ * that overshoot is node-wide, not per iterator, and belongs to one owner lease until
+ * {@link #clearOwner}. Look-ahead {@link #tryAdmit} still refuses rather than fail the query.
+ * Test-only coalesced PER_GET draws a whole-unit {@link NodeByteBudget} ticket. There is no blocking
+ * wait and no charge-on-expiry.
+ */
+final class ParquetIoWatermark implements AdmissionGate {
+
+    static final int HEAP_DIVISOR = NodeByteBudgetService.HEAP_DIVISOR;
+
+    /**
+     * How a coalesced GET batch charges this watermark. {@link #UNGATED} is a null hold's
+     * {@link #forceAdd} (footer metadata, sliding window). {@link #GROUP_HOLD} is a footer
+     * estimate already {@link #tryAdmit}ted. {@link #PER_GET} is test-only: one unit ticket covering
+     * every miss in the coalesced call. A null hold is never {@link #PER_GET}.
+     */
+    enum ByteGate {
+        UNGATED,
+        GROUP_HOLD,
+        PER_GET
+    }
+
+    private final NodeByteBudgetService budget;
+    private final AtomicInteger holds = new AtomicInteger();
+    private volatile AdmissionTracker tracker = AdmissionTracker.NOOP;
+
+    static ParquetIoWatermark forHeap() {
+        return new ParquetIoWatermark(NodeByteBudgetService.forHeap());
+    }
+
+    ParquetIoWatermark(long limit) {
+        this(new NodeByteBudgetService(limit));
+    }
+
+    ParquetIoWatermark(NodeByteBudget nodeByteBudget) {
+        if (nodeByteBudget instanceof NodeByteBudgetService service) {
+            this.budget = service;
+        } else {
+            throw new IllegalArgumentException("node byte budget must be a NodeByteBudgetService");
+        }
+    }
+
+    NodeByteBudget nodeByteBudget() {
+        return budget;
+    }
+
+    void bindTracker(AdmissionTracker tracker) {
+        this.tracker = tracker == null ? AdmissionTracker.NOOP : tracker;
+        this.tracker.register(this);
+        budget.bindTracker(this.tracker);
+    }
+
+    int waiterCount() {
+        return budget.waiterCount();
+    }
+
+    /**
+     * Attempts to reserve {@code bytes} of retained I/O. Refuses once {@code used + bytes} would
+     * exceed the cap; the one overshoot is a ticket. Returns {@code false} without throwing;
+     * never a query failure.
+     */
+    boolean tryReserve(long bytes) {
+        NodeByteBudget.Hold hold = budget.tryAdmit(bytes);
+        return hold != null;
+    }
+
+    /**
+     * {@link #tryAdmit} plus an {@link AdmitHold} so the footer estimate is swapped for
+     * actual buffer sizes as they allocate, and leftover estimate is dropped when the prefetch
+     * future settles. Returns {@code null} when admission refuses.
+     */
+    @Nullable
+    AdmitHold tryAdmit(long bytes) {
+        NodeByteBudget.Hold hold = budget.tryAdmit(bytes);
+        return hold == null ? null : new AdmitHold(this, hold);
+    }
+
+    /**
+     * FIFO ticket for a unit that must proceed. Uncontended grants complete on the caller;
+     * contended grants are forked onto {@code executor}. {@link AdmitHold#drop()} is the
+     * same leftover-estimate swap as {@link #tryAdmit}.
+     */
+    SubscribableListener<AdmitHold> admitAsync(long bytes, RowGroupIo lease, BooleanSupplier cancelSignal, Executor executor) {
+        SubscribableListener<AdmitHold> listener = new SubscribableListener<>();
+        budget.admitAsync(bytes, lease, cancelSignal, executor)
+            .addListener(ActionListener.wrap(hold -> { listener.onResponse(wrap(hold)); }, listener::onFailure));
+        return listener;
+    }
+
+    AdmitHold wrap(NodeByteBudget.Hold hold) {
+        return new AdmitHold(this, hold);
+    }
+
+    /**
+     * Drops {@code lease} as the node-wide overshoot owner if it currently holds that slot,
+     * unpins it, and re-runs the grant loop even when {@code lease} is not the owner. Does not
+     * release bytes; those already returned from {@link DirectReadBuffer#close()}. Call after
+     * budget {@code finish()} has released the budget lock.
+     */
+    void clearOwner(RowGroupIo lease) {
+        budget.clearOwner(lease);
+    }
+
+    @Override
+    public String name() {
+        return AdmissionTracker.GATE_BYTES;
+    }
+
+    @Override
+    public StallPolicy stallPolicy() {
+        return StallPolicy.GRANT_AGE;
+    }
+
+    @Override
+    public RescueResult rescueHead(@Nullable Executor delivery) {
+        return budget.rescueHeadOverCap(delivery);
+    }
+
+    @Override
+    public void failCancelledWaiters() {
+        budget.failCancelledWaiters();
+    }
+
+    @Override
+    public int holders() {
+        int live = Math.max(0, holds.get());
+        if (live > 0) {
+            return live;
+        }
+        return budget.used() > 0L ? 1 : 0;
+    }
+
+    @Override
+    public String holderSummary() {
+        RowGroupIo owner = overshootOwner();
+        String ownerLabel = owner == null ? "none" : "lease#" + owner.startSeq();
+        return "used=" + budget.used() + "/" + budget.limit() + " owner=" + ownerLabel;
+    }
+
+    @Nullable
+    RowGroupIo overshootOwner() {
+        return budget.overshootOwner();
+    }
+
+    /**
+     * Unconditional charge used for buffers that must exist (sliding window on first use, actual
+     * coalesced {@code DirectReadBuffer} size) and for decode-working-set shortfalls that exceed
+     * the footer estimate already in a hold. Never waits. Admission of look-ahead happens in
+     * {@link #tryReserve}. When a prefetch already {@link #tryAdmit}ted a footer estimate,
+     * {@link #accountingFactory(CircuitBreaker, AdmitHold)} drops that many estimate bytes on
+     * each alloc so in-flight sibling GETs keep their hold until they allocate. Does not set
+     * the overshoot owner.
+     */
+    void forceAdd(long bytes) {
+        forceAdd(bytes, null);
+    }
+
+    void forceAdd(long bytes, @Nullable RowGroupIo lease) {
+        budget.add(bytes, lease);
+    }
+
+    void release(long bytes) {
+        release(bytes, null);
+    }
+
+    void release(long bytes, @Nullable RowGroupIo lease) {
+        budget.release(bytes, lease);
+    }
+
+    long used() {
+        return budget.used();
+    }
+
+    long limit() {
+        return budget.limit();
+    }
+
+    DirectBufferFactory accountingFactory(CircuitBreaker breaker) {
+        return accountingFactory(breaker, null);
+    }
+
+    /**
+     * Factory that charges this watermark with the allocated buffer's
+     * {@linkplain HeapFootprint#byteArrayBytes(long) heap footprint} beside the REQUEST breaker
+     * (which {@link DirectReadBuffer#allocate(CircuitBreaker, int)} charges the same figure), and
+     * releases both on {@link DirectReadBuffer#close()}. {@code admitHold} is a
+     * {@link #tryAdmit} estimate; each alloc drops that many leftover estimate bytes so a
+     * coalesced group of many GETs does not open a look-ahead hole after the first buffer.
+     * {@link AdmitHold#drop()} clears any remainder when the prefetch future settles.
+     */
+    DirectBufferFactory accountingFactory(CircuitBreaker breaker, @Nullable AdmitHold admitHold) {
+        DirectBufferFactory inner = DirectBufferFactory.forBreaker(breaker);
+        return len -> {
+            DirectReadBuffer allocated = inner.allocate(len);
+            DirectReadBuffer wrapped = null;
+            try {
+                long footprint = HeapFootprint.byteArrayBytes(len);
+                wrapped = account(allocated, footprint);
+                if (admitHold != null) {
+                    admitHold.drop(footprint);
+                }
+                return wrapped;
+            } catch (Throwable t) {
+                try {
+                    if (wrapped != null) {
+                        wrapped.close();
+                    } else {
+                        allocated.close();
+                    }
+                } catch (Throwable closeFailure) {
+                    t.addSuppressed(closeFailure);
+                }
+                throw t;
+            }
+        };
+    }
+
+    private DirectReadBuffer account(DirectReadBuffer inner, long footprint) {
+        RowGroupIo lease = affinityLease();
+        AtomicBoolean released = new AtomicBoolean();
+        DirectReadBuffer wrapped = new DirectReadBuffer(inner.buffer(), () -> {
+            try {
+                inner.close();
+            } finally {
+                if (released.compareAndSet(false, true)) {
+                    release(footprint, lease);
+                }
+            }
+        });
+        forceAdd(footprint, lease);
+        return wrapped;
+    }
+
+    @Nullable
+    private static RowGroupIo affinityLease() {
+        StorageIoAffinity.Scope scope = StorageIoAffinity.current();
+        return scope == null ? null : scope.lease();
+    }
+
+    static DirectBufferFactory bufferFactory(CircuitBreaker breaker, @Nullable ParquetIoWatermark watermark) {
+        return bufferFactory(breaker, watermark, null);
+    }
+
+    static DirectBufferFactory bufferFactory(
+        CircuitBreaker breaker,
+        @Nullable ParquetIoWatermark watermark,
+        @Nullable AdmitHold admitHold
+    ) {
+        return watermark == null ? DirectBufferFactory.forBreaker(breaker) : watermark.accountingFactory(breaker, admitHold);
+    }
+
+    /**
+     * Footer-estimate reservation released as real buffers allocate ({@link #drop(long)}).
+     * Leftover I/O estimate is dropped when the GET settles ({@link #dropIoRemainder}); decode
+     * working-set stays until {@link #drop()} at group release.
+     */
+    static final class AdmitHold {
+        private final ParquetIoWatermark watermark;
+        private final NodeByteBudget.Hold inner;
+        private final AtomicBoolean counted = new AtomicBoolean(true);
+        private final AtomicLong restoredDecode = new AtomicLong();
+        private boolean remainderDropped;
+
+        private AdmitHold(ParquetIoWatermark watermark, NodeByteBudget.Hold inner) {
+            this.watermark = watermark;
+            this.inner = inner;
+            watermark.holds.incrementAndGet();
+        }
+
+        /**
+         * Drops up to {@code bytes} of leftover estimate, swapping that slice for a retained
+         * array charged by {@link #forceAdd}. Sibling in-flight ranges keep their estimate.
+         */
+        synchronized void drop(long bytes) {
+            if (counted.get() == false) {
+                return;
+            }
+            inner.drop(bytes);
+        }
+
+        /**
+         * Grows or drops leftover estimate so {@link #remaining()} equals {@code target}.
+         * Never grows past {@link #bytes()}; a drop re-runs the grant loop.
+         */
+        synchronized void retarget(long target) {
+            if (counted.get() == false) {
+                return;
+            }
+            long want = Math.max(0L, Math.min(target, inner.bytes()));
+            long current = inner.remaining();
+            if (want > current) {
+                inner.grow(want - current);
+            } else if (want < current) {
+                inner.drop(current - want);
+            }
+        }
+
+        synchronized long remaining() {
+            return inner.remaining();
+        }
+
+        long bytes() {
+            return inner.bytes();
+        }
+
+        /**
+         * Releases unused I/O estimate after the GET settles, keeping {@code decodeBytes} of
+         * working-set reservation on this hold. {@code decodeBytes <= 0} drops the leftover
+         * I/O (the whole hold) because there is no decode slice to keep; dest that still
+         * allocates then {@code forceAdd}s. If I/O alloc already ate into the decode slice,
+         * {@link ParquetIoWatermark#forceAdd} restores it and never waits. No-op after
+         * {@link #drop()}.
+         */
+        synchronized void dropIoRemainder(long decodeBytes) {
+            if (counted.get() == false || remainderDropped) {
+                return;
+            }
+            remainderDropped = true;
+            if (decodeBytes <= 0L) {
+                drop();
+                return;
+            }
+            long leftover = inner.remaining();
+            if (leftover > decodeBytes) {
+                inner.drop(leftover - decodeBytes);
+            } else if (leftover < decodeBytes) {
+                long restore = decodeBytes - leftover;
+                watermark.forceAdd(restore);
+                restoredDecode.addAndGet(restore);
+            }
+        }
+
+        @Nullable
+        RowGroupIo lease() {
+            return inner.lease();
+        }
+
+        synchronized void drop() {
+            if (counted.compareAndSet(true, false) == false) {
+                return;
+            }
+            try {
+                inner.close();
+            } finally {
+                long restore = restoredDecode.getAndSet(0L);
+                if (restore > 0L) {
+                    watermark.release(restore);
+                }
+                watermark.holds.decrementAndGet();
+            }
+        }
+    }
+}

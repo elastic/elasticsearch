@@ -15,13 +15,14 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.UnifiedCompletionRequestBody;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.CompletionResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.completion.ChatCompletionChunkResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
@@ -30,7 +31,7 @@ import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionR
 import org.elasticsearch.xpack.inference.services.openai.OpenAiStreamingProcessor;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedStreamingProcessor;
-import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredTaskSchema;
@@ -59,7 +60,7 @@ public class OpenAiCompletionPayload implements SageMakerStreamSchemaPayload {
     );
 
     @Override
-    public SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequest request) throws Exception {
+    public SdkBytes chatCompletionRequestBytes(SageMakerModel model, UnifiedCompletionRequestBody request) throws Exception {
         return completion(model, new UnifiedChatCompletionRequestEntity(request, true), request.maxCompletionTokens());
     }
 
@@ -96,12 +97,7 @@ public class OpenAiCompletionPayload implements SageMakerStreamSchemaPayload {
                     throw OpenAiUnifiedChatCompletionResponseHandler.buildMidStreamError(model.getInferenceEntityId(), event.data(), e);
                 }
             }
-        })
-            .collect(
-                () -> new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(),
-                ArrayDeque::offer,
-                ArrayDeque::addAll
-            );
+        }).collect(() -> new ArrayDeque<ChatCompletionChunkResponse>(), ArrayDeque::offer, ArrayDeque::addAll);
         return new StreamingUnifiedChatCompletionResults.Results(results);
     }
 
@@ -154,15 +150,15 @@ public class OpenAiCompletionPayload implements SageMakerStreamSchemaPayload {
     }
 
     @Override
-    public ChatCompletionResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
-        return OpenAiChatCompletionResponseEntity.fromResponse(response.body().asByteArray());
+    public CompletionResults responseBody(SageMakerModel model, InvokeEndpointResponse response) throws Exception {
+        return OpenAiCompletionResponseEntity.fromResponse(response.body().asByteArray());
     }
 
     @Override
-    public StreamingChatCompletionResults.Results streamResponseBody(SageMakerModel model, SdkBytes response) {
+    public StreamingCompletionResults.Results streamResponseBody(SageMakerModel model, SdkBytes response) {
         var serverSentEvents = serverSentEvents(response);
         var results = serverSentEvents.flatMap(event -> OpenAiStreamingProcessor.parse(parserConfig, event))
-            .collect(() -> new ArrayDeque<StreamingChatCompletionResults.Result>(), ArrayDeque::offer, ArrayDeque::addAll);
-        return new StreamingChatCompletionResults.Results(results);
+            .collect(() -> new ArrayDeque<StreamingCompletionResults.Result>(), ArrayDeque::offer, ArrayDeque::addAll);
+        return new StreamingCompletionResults.Results(results);
     }
 }

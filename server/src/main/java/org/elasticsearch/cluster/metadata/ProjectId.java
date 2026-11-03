@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,7 +24,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ProjectId implements Writeable, ToXContent {
+public class ProjectId implements Writeable, ToXContent, Accountable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ProjectId.class);
 
     private static final String DEFAULT_STRING = "default";
     public static final ProjectId DEFAULT = new ProjectId(DEFAULT_STRING);
@@ -46,6 +50,11 @@ public class ProjectId implements Writeable, ToXContent {
 
     public String id() {
         return id;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(id);
     }
 
     public static ProjectId fromId(String id) {

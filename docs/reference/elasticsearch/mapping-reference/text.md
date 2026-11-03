@@ -45,6 +45,9 @@ The following parameters are accepted by `text` fields:
 [`eager_global_ordinals`](/reference/elasticsearch/mapping-reference/eager-global-ordinals.md)
 :   Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false` (default). Enabling this is a good idea on fields that are frequently used for (significant) terms aggregations.
 
+[`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
+:   Whether the field's values should be stored in doc values for retrieval and ES|QL queries. Accepts `true` or `false` (default). Unlike most field types, `text` doc values do not support sorting or aggregation.
+
 [`fielddata`](#fielddata-mapping-param)
 :   Can the field use in-memory fielddata for sorting, aggregations, or scripting? Accepts `true` or `false` (default).
 
@@ -58,7 +61,11 @@ The following parameters are accepted by `text` fields:
 :   Should the field be searchable? Accepts `true` (default) or `false`.
 
 [`index_options`](/reference/elasticsearch/mapping-reference/index-options.md)
-:   What information should be stored in the index, for search and highlighting purposes. Defaults to `positions`.
+:   What information should be stored in the index, for search and highlighting purposes. The default depends on the index mode:
+
+    - {applies_to}`stack: preview 9.6+` `docs` for indices created in the `columnar` or `logsdb_columnar` index mode, unless you set `index_phrases` or `position_increment_gap`.
+    - {applies_to}`stack: preview =9.5` `positions` in columnar index modes, which use the same default as other index modes in 9.5.
+    - `positions` for all other indices.
 
 [`index_prefixes`](/reference/elasticsearch/mapping-reference/index-prefixes.md)
 :   If enabled, term prefixes of between 2 and 5 characters are indexed into a separate field. This allows prefix searches to run more efficiently, at the expense of a larger index.

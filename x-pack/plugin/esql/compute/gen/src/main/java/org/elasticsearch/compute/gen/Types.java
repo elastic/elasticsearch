@@ -162,6 +162,7 @@ public class Types {
         "PreparedForEvaluation"
     );
     static final ClassName SEEN_GROUP_IDS = ClassName.get(AGGREGATION_PACKAGE, "SeenGroupIds");
+    static final ClassName BYTES_REF_SEQUENCE = ClassName.get(AGGREGATION_PACKAGE, "BytesRefSequence");
 
     public static final ClassName INTERMEDIATE_STATE_DESC = ClassName.get(AGGREGATION_PACKAGE, "IntermediateStateDesc");
     public static final TypeName LIST_AGG_FUNC_DESC = ParameterizedTypeName.get(ClassName.get(List.class), INTERMEDIATE_STATE_DESC);

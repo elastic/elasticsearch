@@ -30,7 +30,6 @@ import org.elasticsearch.indices.SystemIndexMappingUpdateService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 
 /**
@@ -284,7 +283,7 @@ public class InferenceIndexMappingManager {
         // receive the latest mappings via cluster state: every mappings bump must stay parseable by
         // all node versions a rolling upgrade can pair us with — see the compatibility constraint on
         // InferenceIndex and InferenceIndexMappingsCompatibilityTests which enforces it.
-        PutMappingRequest request = new PutMappingRequest(primaryIndex).source(descriptor.getMappings(), XContentType.JSON)
+        PutMappingRequest request = new PutMappingRequest(primaryIndex).source(descriptor.getMappings())
             .origin(ClientHelper.INFERENCE_ORIGIN);
 
         client.admin().indices().putMapping(request, ActionListener.wrap(response -> {

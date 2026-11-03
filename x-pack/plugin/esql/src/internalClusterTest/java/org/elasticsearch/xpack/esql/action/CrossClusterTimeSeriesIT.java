@@ -19,6 +19,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -34,9 +35,14 @@ public class CrossClusterTimeSeriesIT extends AbstractCrossClusterTestCase {
         populateTimeSeriesIndex(LOCAL_CLUSTER, INDEX_NAME);
         populateTimeSeriesIndex(REMOTE_CLUSTER_1, INDEX_NAME);
 
-        try (EsqlQueryResponse resp = runQuery("TS hosts, cluster-a:hosts METADATA _tsid", Boolean.TRUE)) {
+        try (EsqlQueryResponse resp = runQuery("TS hosts, cluster-a:hosts METADATA _tsid, _index", Boolean.TRUE)) {
             assertNotNull(
                 resp.columns().stream().map(ColumnInfoImpl::name).filter(name -> name.equalsIgnoreCase("_tsid")).findFirst().orElse(null)
+            );
+            int indexColumn = resp.columns().stream().map(ColumnInfoImpl::name).toList().indexOf("_index");
+            assertThat(
+                getValuesList(resp).stream().map(row -> row.get(indexColumn)).distinct().toList(),
+                containsInAnyOrder(INDEX_NAME, REMOTE_CLUSTER_1 + ":" + INDEX_NAME)
             );
 
             assertCCSExecutionInfoDetails(resp.getExecutionInfo(), 2);
@@ -94,7 +100,7 @@ public class CrossClusterTimeSeriesIT extends AbstractCrossClusterTestCase {
         final List<Doc> docs = getRandomDocs();
 
         for (Doc doc : docs) {
-            client().prepareIndex(indexName)
+            client(clusterAlias).prepareIndex(indexName)
                 .setSource(
                     "@timestamp",
                     doc.timestamp,
@@ -113,7 +119,7 @@ public class CrossClusterTimeSeriesIT extends AbstractCrossClusterTestCase {
                 )
                 .get();
         }
-        client().admin().indices().prepareRefresh(indexName).get();
+        client(clusterAlias).admin().indices().prepareRefresh(indexName).get();
     }
 
     private List<Doc> getRandomDocs() {

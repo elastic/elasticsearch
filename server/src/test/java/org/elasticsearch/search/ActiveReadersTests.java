@@ -20,13 +20,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
 
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.atomic.AtomicLong;
-
-import static java.util.Objects.requireNonNull;
+import java.util.stream.LongStream;
 
 public class ActiveReadersTests extends ESTestCase {
 
@@ -41,9 +39,7 @@ public class ActiveReadersTests extends ESTestCase {
         // add a couple of readers, both from same session and relocated ones (different sessionId)
         Map<ShardSearchContextId, ReaderContext> controlData = new HashMap<>();
 
-        Queue<Long> randomUniqueLongs = new LinkedList<>(
-            randomSet(numberOfTestContexts, numberOfTestContexts, () -> randomLongBetween(1, 3 * numberOfTestContexts))
-        );
+        Iterator<Long> relocatedIds = randomRelocatedIds(numberOfTestContexts);
 
         for (int i = 0; i < numberOfTestContexts; i++) {
             final ShardSearchContextId id;
@@ -55,11 +51,7 @@ public class ActiveReadersTests extends ESTestCase {
                 activeReaders.put(readerContext);
             } else {
                 // relocated context from different session
-                id = new ShardSearchContextId(
-                    randomFrom(relocatedSessionIds),
-                    requireNonNull(randomUniqueLongs.poll()),
-                    UUIDs.randomBase64UUID()
-                );
+                id = new ShardSearchContextId(randomFrom(relocatedSessionIds), relocatedIds.next(), UUIDs.randomBase64UUID());
                 long mappingKey = idGenerator.incrementAndGet();
                 activeReaders.generateRelocationMapping(id, mappingKey);
                 readerContext = createRandomReaderContext(new ShardSearchContextId(sessionId, mappingKey, id.getSearcherId()));
@@ -80,7 +72,6 @@ public class ActiveReadersTests extends ESTestCase {
 
     public void testAddPreventAddingSameIdTwice() {
         final String primarySessionId = UUIDs.randomBase64UUID();
-        AtomicLong idGenerator = new AtomicLong();
         ActiveReaders activeReaders = new ActiveReaders(primarySessionId);
         long id = randomLongBetween(0, 1000);
         String readerId = randomBoolean() ? null : UUIDs.randomBase64UUID();
@@ -99,9 +90,7 @@ public class ActiveReadersTests extends ESTestCase {
         final String sessionId = UUIDs.randomBase64UUID();
         List<String> relocatedSessionIds = randomList(5, 5, UUIDs::randomBase64UUID);
         int numberOfTestContexts = 50;
-        Queue<Long> randomUniqueLongs = new LinkedList<>(
-            randomSet(numberOfTestContexts, numberOfTestContexts, () -> randomLongBetween(1, 3 * numberOfTestContexts))
-        );
+        Iterator<Long> relocatedIds = randomRelocatedIds(numberOfTestContexts);
 
         AtomicLong idGenerator = new AtomicLong();
         ActiveReaders activeReaders = new ActiveReaders(sessionId);
@@ -120,11 +109,7 @@ public class ActiveReadersTests extends ESTestCase {
                 activeReaders.put(readerContext);
             } else {
                 // relocated context from different session
-                id = new ShardSearchContextId(
-                    randomFrom(relocatedSessionIds),
-                    requireNonNull(randomUniqueLongs.poll()),
-                    UUIDs.randomBase64UUID()
-                );
+                id = new ShardSearchContextId(randomFrom(relocatedSessionIds), relocatedIds.next(), UUIDs.randomBase64UUID());
                 long mappingKey = idGenerator.incrementAndGet();
                 activeReaders.generateRelocationMapping(id, mappingKey);
                 readerContext = createRandomReaderContext(new ShardSearchContextId(sessionId, mappingKey, id.getSearcherId()));
@@ -139,14 +124,14 @@ public class ActiveReadersTests extends ESTestCase {
         // remove all contexts in random order
         while (controlData.isEmpty() == false) {
             int lastReaderCount = activeReaders.size();
-            int lastRelocatopnMapCount = activeReaders.relocationMapSize();
+            int lastRelocationMapCount = activeReaders.relocationMapSize();
             ShardSearchContextId contextId = randomFrom(controlData.keySet());
             assertSame(controlData.remove(contextId), activeReaders.remove(contextId));
             assertEquals(lastReaderCount - 1, activeReaders.size());
             if (contextId.getSessionId().equals(sessionId) == false) {
-                assertEquals(lastRelocatopnMapCount - 1, activeReaders.relocationMapSize());
+                assertEquals(lastRelocationMapCount - 1, activeReaders.relocationMapSize());
             } else {
-                assertEquals(lastRelocatopnMapCount, activeReaders.relocationMapSize());
+                assertEquals(lastRelocationMapCount, activeReaders.relocationMapSize());
             }
             // trying to remove same id twice should not throw error but return null
             assertNull(activeReaders.remove(contextId));
@@ -173,4 +158,11 @@ public class ActiveReadersTests extends ESTestCase {
             );
     }
 
+    /**
+     * Returns exactly {@code count} distinct ids to use for readers relocated from another session. The range overlaps the reader
+     * keys generated locally, so a relocated id can collide with a local one.
+     */
+    private static Iterator<Long> randomRelocatedIds(int count) {
+        return randomSubsetOf(count, LongStream.rangeClosed(1, 3L * count).boxed().toList()).iterator();
+    }
 }

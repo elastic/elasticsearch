@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.NoMatchingProjectException;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -75,6 +77,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
@@ -206,6 +209,77 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(0L, 1500L);
         verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
+    }
+
+    public void testStopAfterExtractionShouldRetainCursorForNextWindow() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            DataExtractor.Result result = new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+            datafeedJob.stop();
+            return result;
+        }).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor).cancel();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+
+        currentTime = 3000L;
+        expectThrows(DatafeedJob.EmptyDataCountException.class, datafeedJob::runRealtime);
+
+        ArgumentCaptor<Long> startTimeCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(dataExtractorFactory, times(2)).newExtractor(startTimeCaptor.capture(), anyLong());
+        assertThat(startTimeCaptor.getAllValues(), equalTo(List.of(0L, 0L)));
+    }
+
+    public void testIsolateDuringActiveExtractionCancelsExtractorExactlyOnce() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            datafeedJob.isolate();
+            return new DataExtractor.Result(new SearchInterval(0L, 1000L), Optional.empty(), List.of());
+        }).when(dataExtractor).next();
+
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor, times(1)).cancel();
+        verify(dataExtractor, times(1)).next();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
+    public void testTaskCancelledWhileRunningShouldRaiseExtractionProblem() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        when(dataExtractor.isCancelled()).thenReturn(false);
+        doThrow(new TaskCancelledException("cancelled")).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+    }
+
+    public void testCancellationExceptionWhileRunningShouldRaiseExtractionProblem() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        when(dataExtractor.isCancelled()).thenReturn(false);
+        doThrow(new CancellationException()).when(dataExtractor).next();
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        assertNull(datafeedJob.lastEndTimeMs());
+    }
+
+    public void testStopBeforeExtractorThrowsShouldReturnQuietly() throws Exception {
+        DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, false);
+        doAnswer(invocation -> {
+            datafeedJob.stop();
+            throw new TaskCancelledException("cancelled");
+        }).when(dataExtractor).next();
+
+        assertNull(datafeedJob.runLookBack(0L, 1000L));
+
+        verify(dataExtractor).cancel();
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testLookBackRunWithNoEndTime() throws Exception {
@@ -482,6 +556,27 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
         assertThat(flushJobRequests.getAllValues().isEmpty(), is(true));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
+    }
+
+    public void testSkippedClustersStatsUpdatedOnExtractionFailure() throws Exception {
+        when(dataExtractor.hasNext()).thenReturn(true);
+        when(dataExtractor.next()).thenThrow(new ResourceNotFoundException("remote cluster skipped"));
+        List<LinkedClusterState> skippedStates = List.of(new LinkedClusterState("remote1", LinkedClusterState.Status.SKIPPED, null, 10));
+        when(dataExtractor.getLinkedClusterStates()).thenReturn(skippedStates);
+
+        CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
+        DatafeedJob datafeedJob = createDatafeedJob(
+            1000,
+            500,
+            -1,
+            -1,
+            randomBoolean(),
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            stats
+        );
+
+        expectThrows(DatafeedJob.ExtractionProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        assertThat(stats.getSkippedClusters(), equalTo(1));
     }
 
     public void testCloudCredentialFailureShouldAuditOncePerFailureEpisode() throws Exception {
@@ -1079,6 +1174,17 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(warningCaptor.getValue(), containsString("flapping"));
     }
 
+    public void testRealtimeWhenEndEqualsStartShouldNotExtractOrFlush() throws Exception {
+        long hourMs = TimeValue.timeValueHours(1).millis();
+        currentTime = hourMs + TimeValue.timeValueMinutes(30).millis();
+        DatafeedJob datafeedJob = createDatafeedJob(hourMs, 0L, hourMs - 1, -1, true, DELAYED_DATA_FREQ);
+
+        datafeedJob.runRealtime();
+
+        verify(dataExtractorFactory, never()).newExtractor(anyLong(), anyLong());
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+    }
+
     public void testBaselineCycleDoesNotTriggerAnnotation() throws Exception {
         CrossClusterSearchStats stats = new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime));
 
@@ -1115,7 +1221,9 @@ public class DatafeedJobTests extends ESTestCase {
             null,
             false,
             null,
+            false,
             new String[] { index },
+            null,
             null,
             null,
             null,
@@ -1161,6 +1269,66 @@ public class DatafeedJobTests extends ESTestCase {
         expectedRequest.setContent(new BytesArray(contentBytes), XContentType.JSON);
         when(client.execute(same(PostDataAction.INSTANCE), eq(expectedRequest))).thenReturn(postDataFuture);
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
+    }
+
+    public void testEffectiveMaxConsecutiveExtractionFailures() {
+        long frequencyMs = TimeValue.timeValueMinutes(10).millis();
+        long searchesPerDay = createDatafeedJobWithExtractionFailureThreshold(frequencyMs, null).numberOfSearchesIn24Hours();
+        assertThat(searchesPerDay, equalTo(TimeValue.timeValueDays(1).millis() / frequencyMs));
+
+        // Unset defaults to a day's worth of searches so a persistently broken datafeed surfaces within a day.
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(frequencyMs, null).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(searchesPerDay)
+        );
+
+        // An explicit positive value is used verbatim.
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(frequencyMs, 42).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(42L)
+        );
+
+        // -1 is no longer a user-facing option (the config builder maps it to the default), but a legacy -1 arriving over the
+        // wire from an older node is returned verbatim; DatafeedRunner treats any non-positive threshold as "never stop".
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(frequencyMs, -1).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(-1L)
+        );
+
+        // When the frequency is longer than a day, numberOfSearchesIn24Hours() is 0, so the default floors at 1.
+        long lowFrequencyMs = TimeValue.timeValueDays(2).millis();
+        assertThat(createDatafeedJobWithExtractionFailureThreshold(lowFrequencyMs, null).numberOfSearchesIn24Hours(), equalTo(0L));
+        assertThat(
+            createDatafeedJobWithExtractionFailureThreshold(lowFrequencyMs, null).effectiveMaxConsecutiveExtractionFailures(),
+            equalTo(1L)
+        );
+    }
+
+    private DatafeedJob createDatafeedJobWithExtractionFailureThreshold(long frequencyMs, Integer maxConsecutiveExtractionFailures) {
+        Supplier<Long> currentTimeSupplier = () -> currentTime;
+        return new DatafeedJob(
+            "datafeed-" + jobId,
+            null,
+            jobId,
+            null,
+            dataDescription.build(),
+            frequencyMs,
+            500,
+            dataExtractorFactory,
+            timingStatsReporter,
+            client,
+            auditor,
+            new AnnotationPersister(resultsPersisterService),
+            currentTimeSupplier,
+            delayedDataDetector,
+            null,
+            maxConsecutiveExtractionFailures,
+            -1,
+            -1,
+            false,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis(),
+            new CrossClusterSearchStats(() -> Instant.ofEpochMilli(currentTime))
+        );
     }
 
     private DatafeedJob createDatafeedJob(
@@ -1300,6 +1468,7 @@ public class DatafeedJobTests extends ESTestCase {
             new AnnotationPersister(resultsPersisterService),
             currentTimeSupplier,
             delayedDataDetector,
+            null,
             null,
             latestFinalBucketEndTimeMs,
             latestRecordTimeMs,

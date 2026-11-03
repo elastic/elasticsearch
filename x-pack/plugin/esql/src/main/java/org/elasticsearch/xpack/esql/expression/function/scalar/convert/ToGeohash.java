@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -31,6 +30,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToGeohash;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeohash;
 
 public class ToGeohash extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -38,11 +39,15 @@ public class ToGeohash extends AbstractConvertFunction {
         "ToGeohash",
         ToGeohash::new
     );
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeohash.class).unary(ToGeohash::new).name("to_geohash");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeohash.class)
+        .unary(ToGeohash::new)
+        // Invalid long and string inputs produce a warning and null, instead of failing when rendering the results
+        .capabilities("invalid_input_warns")
+        .name("to_geohash");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEOHASH, (source, fieldEval) -> fieldEval),
-        Map.entry(LONG, (source, fieldEval) -> fieldEval),
+        Map.entry(LONG, ToGeohashFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToGeohashFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToGeohashFromStringEvaluator.Factory::new)
     );
@@ -101,6 +106,11 @@ public class ToGeohash extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromString(BytesRef in) {
-        return Geohash.longEncode(in.utf8ToString());
+        return stringToGeohash(in.utf8ToString());
+    }
+
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { IllegalArgumentException.class })
+    static long fromLong(long in) {
+        return longToGeohash(in);
     }
 }

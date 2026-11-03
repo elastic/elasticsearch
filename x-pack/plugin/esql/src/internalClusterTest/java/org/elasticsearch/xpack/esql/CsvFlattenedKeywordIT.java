@@ -119,7 +119,7 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  *       once per distinct {@code (site, field)} pair the rewriter's
  *       {@link AstKeywordFieldRewriter.SkipSite} machinery declined to wrap. Sites cover
  *       grammar slots that accept only an attribute ({@code MV_EXPAND}, {@code ENRICH ON / WITH},
- *       {@code LOOKUP JOIN ... ON ...}) and the LHS of the match operator {@code :}. These
+ *       {@code LOOKUP JOIN ... ON ...}). These
  *       positions are still exercised at the runtime layer (the bare attribute reaches the
  *       engine), but {@code field_extract} itself is not tested there. Tests whose
  *       <em>only</em> in-scope field references are inside {@code LOOKUP JOIN ... ON ...} are
@@ -138,18 +138,19 @@ import static org.elasticsearch.xpack.esql.KeywordToFlattenedTransformer.Flatten
  *       arbitrary expression (e.g. {@code DISSECT &lt;field&gt;}) will fail when the field is wrapped
  *       in a function call. Those failures are the intended output of this test &mdash; the
  *       attribute-only positions the rewriter explicitly carves out
- *       ({@code MV_EXPAND}, {@code ENRICH ON / WITH}, {@code LOOKUP JOIN ... ON ...}, match
- *       operator {@code :} LHS) emit {@code skip-wrap} log lines instead so the inventory remains
- *       complete. See {@link AstKeywordFieldRewriter} for the full list.</li>
+ *       ({@code MV_EXPAND}, {@code ENRICH ON / WITH}, {@code LOOKUP JOIN ... ON ...}) emit
+ *       {@code skip-wrap} log lines instead so the inventory remains
+ *       complete. The match operator {@code :} LHS is a {@code primaryExpression}, so it is
+ *       wrapped in place rather than carved out. See {@link AstKeywordFieldRewriter} for the full list.</li>
  *   <li>Output column types: {@code field_extract} is only injected in expression contexts, so a
  *       converted keyword field that is projected directly (e.g. {@code KEEP first_name},
- *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) comes
- *       through with type {@code flattened}, while csv-spec expected results declare the column
- *       as {@code keyword}. These tests will fail with a column-type mismatch &mdash; that failure
- *       is the intended signal that those particular surfaces require an additional projection
- *       step (e.g. {@code EVAL field = field_extract(field, "v")} immediately before the
- *       projection) to fully recover keyword semantics. Synthesizing that extra projection is not
- *       yet implemented.</li>
+ *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) would
+ *       otherwise come through with type {@code flattened} while csv-spec expected results declare
+ *       it {@code keyword}. {@link AstKeywordFieldRewriter#appendTopLevelTailRecovery} recovers
+ *       those columns by appending {@code EVAL field = field_extract(field, "v")} plus an
+ *       order-restoring {@code KEEP}, so a direct projection is no longer a column-type mismatch.
+ *       What tail recovery cannot repair is anything a command already observed mid-pipeline: a
+ *       warning naming the field, for instance, still reflects the {@code flattened} type.</li>
  * </ul>
  */
 public class CsvFlattenedKeywordIT extends CsvIT {
@@ -1160,7 +1161,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * rewriter's iteration order is otherwise dependent on the in-scope set's iteration
          * order). Each line carries the site, the field name, and a reason string short enough
          * that a {@code grep "site=MV_EXPAND_ARG"} or
-         * {@code grep "site=MATCH_OPERATOR_LHS"} produces a usable inventory.
+         * {@code grep "site=LOOKUP_JOIN_ON"} produces a usable inventory.
          */
         private static void logRewriterSkipEvents(List<AstKeywordFieldRewriter.SkipEvent> events) {
             if (events.isEmpty()) {
@@ -1188,7 +1189,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             return switch (site) {
                 case MV_EXPAND_ARG -> "MV_EXPAND grammar slot accepts only an attribute, not an expression";
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
-                case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
                 case LOOKUP_JOIN_ON -> "LOOKUP JOIN ... ON ... accepts only an attribute, not an expression";
                 case QUALIFIED_NAME_BRACKETS -> "[<index>].[<field>] qualified-reference brackets accept only an identifier";
             };
@@ -1502,34 +1502,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             }
         }
 
-        /**
-         * An {@link AssumptionViolatedException} that does not carry a stack trace.
-         * <p>
-         * This variant skips the large majority of the CSV corpus &mdash; thousands of tests &mdash; and JUnit serialises
-         * the full stack trace of each thrown exception into the {@code <skipped>} element of the results XML. Those traces
-         * are identical from one skip to the next and add nothing beyond the human-readable message, yet at corpus scale
-         * they inflate the XML to tens of megabytes. The two overrides below reproduce the effect of constructing a
-         * {@link Throwable} with {@code writableStackTrace=false} &mdash; the constructor parameter that
-         * {@link AssumptionViolatedException} does not expose: {@link #fillInStackTrace()} never records a trace, and
-         * {@link #setStackTrace} ignores the synthetic seed frame the randomized runner would otherwise splice in. Each
-         * skip therefore keeps its reason while dropping the redundant trace entirely.
-         */
-        private static final class StacklessAssumptionViolatedException extends AssumptionViolatedException {
-            StacklessAssumptionViolatedException(String message) {
-                super(message);
-            }
-
-            @Override
-            public synchronized Throwable fillInStackTrace() {
-                return this;
-            }
-
-            @Override
-            public void setStackTrace(StackTraceElement[] stackTrace) {
-                // Intentionally a no-op: mirrors writableStackTrace=false so the randomized runner cannot re-attach a
-                // (single, identical) seed frame to the otherwise empty trace.
-            }
-        }
     }
 
     public static final java.util.List<String> EXPECTED_ERRORS = java.util.List.of(

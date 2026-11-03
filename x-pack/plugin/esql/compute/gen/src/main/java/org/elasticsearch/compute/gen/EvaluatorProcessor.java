@@ -44,7 +44,7 @@ public class EvaluatorProcessor implements Processor {
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.RELEASE_21;
+        return SourceVersion.latestSupported();
     }
 
     @Override

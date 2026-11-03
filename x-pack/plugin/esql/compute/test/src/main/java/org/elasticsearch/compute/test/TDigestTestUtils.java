@@ -21,7 +21,7 @@ public class TDigestTestUtils {
 
     private static final double QUANTILE_RANK_TOLERANCE = 0.005;
 
-    private static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("test-breaker");
+    private static final CircuitBreaker NOOP_BREAKER = NoopCircuitBreaker.INSTANCE;
     private static final MemoryTrackingTDigestArrays NOOP_ARRAYS = new MemoryTrackingTDigestArrays(NOOP_BREAKER);
 
     /**

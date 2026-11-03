@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.DoubleCounterBuilder;
+import io.opentelemetry.api.metrics.DoubleGauge;
 import io.opentelemetry.api.metrics.DoubleGaugeBuilder;
 import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.DoubleHistogramBuilder;
@@ -483,9 +484,16 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public ObservableDoubleGauge buildWithCallback(Consumer<ObservableDoubleMeasurement> callback) {
-            DoubleGaugeRecorder gauge = new DoubleGaugeRecorder(name, callback);
+            DoubleAsyncGaugeRecorder gauge = new DoubleAsyncGaugeRecorder(name, callback);
             recorder.register(gauge, gauge.getInstrument(), name, description, unit);
             callbacks.add(gauge);
+            return gauge;
+        }
+
+        @Override
+        public DoubleGauge build() {
+            DoubleGaugeRecorder gauge = new DoubleGaugeRecorder(name);
+            recorder.register(gauge, gauge.getInstrument(), name, description, unit);
             return gauge;
         }
 
@@ -497,11 +505,32 @@ public class RecordingOtelMeter implements Meter {
         }
     }
 
-    private class DoubleGaugeRecorder extends AbstractInstrument implements ObservableDoubleGauge, Callback, OtelInstrument {
+    private class DoubleGaugeRecorder extends AbstractInstrument implements DoubleGauge, OtelInstrument {
+        DoubleGaugeRecorder(String name) {
+            super(name, InstrumentType.DOUBLE_GAUGE);
+        }
+
+        @Override
+        public void set(double value) {
+            recorder.call(instrument, name, value, Map.of());
+        }
+
+        @Override
+        public void set(double value, Attributes attributes) {
+            recorder.call(instrument, name, value, toMap(attributes));
+        }
+
+        @Override
+        public void set(double value, Attributes attributes, Context context) {
+            recorder.call(instrument, name, value, toMap(attributes));
+        }
+    }
+
+    private class DoubleAsyncGaugeRecorder extends AbstractInstrument implements ObservableDoubleGauge, Callback, OtelInstrument {
         final Consumer<ObservableDoubleMeasurement> callback;
 
-        DoubleGaugeRecorder(String name, Consumer<ObservableDoubleMeasurement> callback) {
-            super(name, InstrumentType.DOUBLE_GAUGE);
+        DoubleAsyncGaugeRecorder(String name, Consumer<ObservableDoubleMeasurement> callback) {
+            super(name, InstrumentType.DOUBLE_ASYNC_GAUGE);
             this.callback = callback;
         }
 
@@ -521,7 +550,7 @@ public class RecordingOtelMeter implements Meter {
         }
 
         DoubleMeasurementRecorder(String name) {
-            super(name, InstrumentType.DOUBLE_GAUGE);
+            super(name, InstrumentType.DOUBLE_ASYNC_GAUGE);
         }
 
         @Override
@@ -554,7 +583,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public ObservableLongGauge buildWithCallback(Consumer<ObservableLongMeasurement> callback) {
-            LongGaugeRecorder gauge = new LongGaugeRecorder(name, callback);
+            LongAsyncGaugeRecorder gauge = new LongAsyncGaugeRecorder(name, callback);
             recorder.register(gauge, gauge.getInstrument(), name, description, unit);
             callbacks.add(gauge);
             return gauge;
@@ -562,7 +591,7 @@ public class RecordingOtelMeter implements Meter {
 
         @Override
         public LongGauge build() {
-            SyncLongGaugeRecorder gauge = new SyncLongGaugeRecorder(name);
+            LongGaugeRecorder gauge = new LongGaugeRecorder(name);
             recorder.register(gauge, gauge.getInstrument(), name, description, unit);
             return gauge;
         }
@@ -575,8 +604,8 @@ public class RecordingOtelMeter implements Meter {
         }
     }
 
-    private class SyncLongGaugeRecorder extends AbstractInstrument implements LongGauge, OtelInstrument {
-        SyncLongGaugeRecorder(String name) {
+    private class LongGaugeRecorder extends AbstractInstrument implements LongGauge, OtelInstrument {
+        LongGaugeRecorder(String name) {
             super(name, InstrumentType.LONG_GAUGE);
         }
 
@@ -596,11 +625,11 @@ public class RecordingOtelMeter implements Meter {
         }
     }
 
-    private class LongGaugeRecorder extends AbstractInstrument implements ObservableLongGauge, Callback, OtelInstrument {
+    private class LongAsyncGaugeRecorder extends AbstractInstrument implements ObservableLongGauge, Callback, OtelInstrument {
         final Consumer<ObservableLongMeasurement> callback;
 
-        LongGaugeRecorder(String name, Consumer<ObservableLongMeasurement> callback) {
-            super(name, InstrumentType.LONG_GAUGE);
+        LongAsyncGaugeRecorder(String name, Consumer<ObservableLongMeasurement> callback) {
+            super(name, InstrumentType.LONG_ASYNC_GAUGE);
             this.callback = callback;
         }
 
@@ -620,7 +649,7 @@ public class RecordingOtelMeter implements Meter {
         }
 
         LongMeasurementRecorder(String name) {
-            super(name, InstrumentType.LONG_GAUGE);
+            super(name, InstrumentType.LONG_ASYNC_GAUGE);
         }
 
         @Override

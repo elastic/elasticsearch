@@ -9,19 +9,28 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import java.util.Map;
+
 /**
- * Record non-additive long values based on a callback
+ * A gauge instrument that synchronously records non-additive long values.
  */
-public interface LongGauge extends Instrument, AutoCloseable {
+public interface LongGauge extends Instrument {
 
     /**
-     * Closing this instrument stops it from recording measurements and removes it from the {@link MeterRegistry}.
+     * Set the gauge value.
+     * @param value current gauge value
      */
-    @Override
-    void close();
+    void set(long value);
 
     /**
-     * Noop gauge for tests
+     * Set the gauge value.
+     * @param value current gauge value
+     * @param attributes key-value pairs to associate with this increment
+     */
+    void set(long value, Map<String, Object> attributes);
+
+    /**
+     * Noop counter for use in tests.
      */
     LongGauge NOOP = new LongGauge() {
         @Override
@@ -30,7 +39,12 @@ public interface LongGauge extends Instrument, AutoCloseable {
         }
 
         @Override
-        public void close() {
+        public void set(long value) {
+
+        }
+
+        @Override
+        public void set(long value, Map<String, Object> attributes) {
 
         }
     };

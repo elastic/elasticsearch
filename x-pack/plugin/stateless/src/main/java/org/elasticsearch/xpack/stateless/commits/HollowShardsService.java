@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -97,7 +98,7 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
      */
     public static final Setting<TimeValue> SETTING_HOLLOW_INGESTION_TTL = Setting.positiveTimeSetting(
         "stateless.hollow_index_shards.ingestion.ttl",
-        TimeValue.timeValueDays(3),
+        TimeValue.timeValueDays(1),
         Setting.Property.NodeScope
     );
 
@@ -224,7 +225,12 @@ public class HollowShardsService extends AbstractLifecycleComponent implements M
 
     @Override
     protected void doClose() throws IOException {
-        assert hollowShards.isEmpty() : "no ingestion blocker should be installed at this point";
+        // IndicesService closes before plugin components. By then every shard on this node is CLOSED, either while stopping
+        // IndicesService or by an earlier cluster state. In the latter case the engine may still be closing asynchronously, so
+        // afterIndexShardClosed (which removes the ingestion blocker) may not have run yet. Release any remaining blockers.
+        assert indicesService.lifecycleState() == Lifecycle.State.CLOSED
+            : "indices service must be closed before the hollow shards service but was " + indicesService.lifecycleState();
+        hollowShards.keySet().forEach(shardId -> removeHollowShard(shardId, "hollow shards service closed", () -> {}));
     }
 
     /**

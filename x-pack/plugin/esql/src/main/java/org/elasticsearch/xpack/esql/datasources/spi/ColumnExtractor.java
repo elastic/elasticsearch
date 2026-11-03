@@ -40,7 +40,8 @@ import java.io.IOException;
  * encoding references, and dispatching extractions — is handled by {@code SourceExtractors}
  * ({@code org.elasticsearch.xpack.esql.datasources.SourceExtractors}), not by this SPI.
  * <p>
- * Threading: a single driver thread owns an instance; implementations need not be thread-safe.
+ * Threading: a single driver owns an instance and invokes it serially, although an invocation may
+ * run on an external read executor rather than the driver thread. Implementations need not be thread-safe.
  */
 public interface ColumnExtractor extends Releasable {
 
@@ -112,6 +113,13 @@ public interface ColumnExtractor extends Releasable {
      * column whose file type differs from its target coerces value-by-value (per-value failures
      * null the cell and emit a response Warning header, bulk-API style). {@code null} — the whole
      * array or an entry — means "emit the file's own type" (no coercion).
+     * <p>
+     * A name that is absent from this file, or that the format maps to an unsupported type, is not
+     * a caller error. {@code SourceExtractors} hands the same deferred names to every file's
+     * extractor (union and first-file-wins schemas). Implementations must emit a constant-null
+     * block of {@code positions.length} for that slot rather than throw, matching the eager scan
+     * of the same file. Do not consult {@code targetTypes[c]} for that slot — there is no file
+     * type to coerce from.
      *
      * @param columnNames   logical columns to load, in output order; must not contain
      *                      {@link #ROW_POSITION_COLUMN}

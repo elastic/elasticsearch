@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.approximation.ApproximationVerifier;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -26,14 +26,12 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.allOf;
@@ -44,15 +42,10 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Unit tests for IN/NOT IN subquery analysis that don't fit the golden-test model: the negative (rejection / error) cases.
  */
-public class AnalyzerInSubqueryTests extends ESTestCase {
+public class AnalyzerInSubqueryTests extends AnalyzerTestCase {
 
-    @Before
-    public void checkInSubquerySupport() {
-        assumeTrue("Requires IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-    }
-
-    private static void checkMultiColumnInSubquery() {
-        assumeTrue("multi-column IN subquery", EsqlCapabilities.Cap.WHERE_IN_MULTI_COLUMN_SUBQUERY.isEnabled());
+    public AnalyzerInSubqueryTests(VersionMode versionMode) {
+        super(versionMode);
     }
 
     // basic IN and NOT IN subquery, validate JoinConfig
@@ -103,109 +96,37 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         assertEquals("employees", rightRelation.indexPattern());
     }
 
-    /**
-     * Verifies that an IN subquery in STATS WHERE filter is rejected.
-     */
-    public void testRejectsInSubqueryInStatsWhereFilter() {
-        errorInSubquery("""
-            FROM employees
-            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN subquery is not supported in [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]"));
-    }
-
-    /**
-     * Verifies that a NOT IN subquery in STATS WHERE filter is rejected.
-     */
-    public void testRejectsNotInSubqueryInStatsWhereFilter() {
-        errorInSubquery(
-            """
-                FROM employees
-                | STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
-                """,
-            containsString("IN subquery is not supported in [STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]")
-        );
-    }
-
-    /**
-     * Verifies that IN subquery in STATS WHERE with BY grouping is rejected.
-     */
-    public void testRejectsInSubqueryInStatsWhereFilterWithGrouping() {
-        errorInSubquery(
-            """
-                FROM employees
-                | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
-                """,
-            containsString(
-                "IN subquery is not supported in [STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
-            )
-        );
-    }
-
     // -- negative: IN subquery in INLINESTATS --
 
-    /**
-     * Verifies that an IN subquery in INLINESTATS WHERE filter is rejected.
-     */
-    public void testRejectsInSubqueryInInlineStatsWhereFilter() {
-        errorInSubquery(
-            """
-                FROM employees
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
-                """,
-            containsString("IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]")
-        );
-    }
-
-    /**
-     * Verifies that a NOT IN subquery in INLINESTATS WHERE filter is rejected.
-     */
-    public void testRejectsNotInSubqueryInInlineStatsWhereFilter() {
-        errorInSubquery(
-            """
-                FROM employees
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
-                """,
+    public void testInSubqueryInInlineStatsWhereWithTSSource() {
+        assumeTrue("Requires the TS command", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
+        errorWithK8s(
+            "TS k8s | INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)",
             containsString(
-                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
-            )
-        );
-    }
-
-    /**
-     * Verifies that IN subquery in INLINESTATS WHERE with BY grouping is rejected.
-     */
-    public void testRejectsInSubqueryInInlineStatsWhereFilterWithGrouping() {
-        errorInSubquery(
-            """
-                FROM employees
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
-                """,
-            containsString(
-                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
+                "INLINE STATS "
+                    + "[INLINE STATS m = MAX(network.bytes_in) WHERE cluster IN (FROM k8s | STATS c = COUNT(*) BY cluster | KEEP cluster)] "
+                    + "can only be used after STATS when used with TS command"
             )
         );
     }
 
     // -- negative: IN subquery in EVAL --
 
-    /**
-     * Verifies that an IN subquery inside EVAL is rejected.
-     */
-    public void testRejectsInSubqueryInEval() {
-        errorInSubquery("""
-            FROM employees
-            | EVAL x = emp_no IN (FROM employees | KEEP emp_no)
-            """, containsString("IN subquery is not supported in [EVAL x = emp_no IN (FROM employees | KEEP emp_no)]"));
+    public void testRejectsComplexLHSInSubqueryInEval() {
+        errorInSubquery(
+            """
+                FROM employees
+                | EVAL x = ABS(emp_no) IN (FROM employees | KEEP emp_no)
+                """,
+            containsString("Complicated IN subquery is not yet supported in Eval [EVAL x = ABS(emp_no) IN (FROM employees | KEEP emp_no)]")
+        );
     }
 
-    /**
-     * Verifies that a NOT IN subquery inside EVAL is rejected.
-     */
-    public void testRejectsNotInSubqueryInEval() {
+    public void testRejectsInSubqueryInsideNonAllowlistedFunctionInEval() {
         errorInSubquery("""
             FROM employees
-            | EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)
-            """, containsString("IN subquery is not supported in [EVAL x = emp_no NOT IN (FROM employees | KEEP emp_no)]"));
+            | EVAL x = TO_STRING(emp_no IN (FROM employees | KEEP emp_no))
+            """, containsString("IN subquery is not supported within expression [TO_STRING(emp_no IN (FROM employees | KEEP emp_no))]"));
     }
 
     // -- approximation incompatibility tests --
@@ -578,6 +499,41 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     /**
+     * A renamed grouping shadows the same-named index field for the whole aggregate, so the filter's {@code languages} means
+     * {@code salary} — but a MarkJoin below the aggregate can only bind the index field. Rejected rather than counting the wrong column.
+     */
+    public void testRejectsStatsWhereInSubqueryShadowedByGroupingAlias() {
+        errorInSubquery(
+            """
+                FROM employees
+                | STATS cnt = COUNT(*) WHERE languages IN (FROM employees | KEEP emp_no) BY languages = salary
+                """,
+            containsString("IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [languages]")
+        );
+    }
+
+    /**
+     * Same guard where the grouping alias is the only source of the name; this used to surface the internal
+     * "Unknown column [d] in left side of join" from join resolution instead.
+     */
+    public void testRejectsStatsWhereInSubqueryOnGroupingAliasOnly() {
+        errorInSubquery("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE d IN (FROM employees | KEEP emp_no) BY d = languages
+            """, containsString("IN subquery is not yet supported in an aggregate WHERE clause that references the grouping alias [d]"));
+    }
+
+    /**
+     * The guard is name-based: a renamed grouping that does not shadow the IN subquery's LHS still analyzes.
+     */
+    public void testStatsWhereInSubqueryWithUnrelatedGroupingAlias() {
+        analyzeInSubquery("""
+            FROM employees
+            | STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY g = salary
+            """);
+    }
+
+    /**
      * Verifies that an IN subquery in LIMIT BY clause is rejected.
      */
     public void testRejectsInSubqueryInLimitBy() {
@@ -599,34 +555,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             """, containsString("IN subquery is not supported in [LIMIT 10 BY emp_no NOT IN (FROM employees | KEEP emp_no)]"));
     }
 
-    /**
-     * Verifies that an IN subquery inside EVAL with multiple fields (one being the IN subquery) is rejected.
-     */
-    public void testRejectsInSubqueryInEvalAmongMultipleFields() {
-        errorInSubquery(
-            """
-                FROM employees
-                | EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary
-                """,
-            containsString("IN subquery is not supported in [EVAL a = 1, is_match = emp_no IN (FROM employees | KEEP emp_no), b = salary]")
-        );
-    }
-
-    /**
-     * Verifies that an IN subquery as a function argument inside EVAL is rejected.
-     * The InSubquery inside COALESCE is unresolved, and the verifier reports
-     * that IN/NOT IN subquery is not supported in Eval.
-     */
-    public void testRejectsInSubqueryAsFunctionArgInEval() {
-        errorInSubquery(
-            """
-                FROM employees
-                | EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)
-                """,
-            containsString("IN subquery is not supported in [EVAL result = COALESCE(emp_no IN (FROM employees | KEEP emp_no), false)]")
-        );
-    }
-
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
@@ -640,27 +568,27 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
 
     // -- helpers --
 
-    private static LogicalPlan analyzeInSubquery(String query) {
+    private LogicalPlan analyzeInSubquery(String query) {
         return analyzer().addEmployees().query(query);
     }
 
-    private static void errorInSubquery(String query, Matcher<String> messageMatcher) {
+    private void errorInSubquery(String query, Matcher<String> messageMatcher) {
         analyzer().addEmployees().error(query, messageMatcher);
     }
 
-    private static void errorWithK8s(String query, Matcher<String> messageMatcher) {
+    private void errorWithK8s(String query, Matcher<String> messageMatcher) {
         analyzer().addK8s().error(query, messageMatcher);
     }
 
-    private static void errorWithK8sDownsampled(String query, Matcher<String> messageMatcher) {
+    private void errorWithK8sDownsampled(String query, Matcher<String> messageMatcher) {
         analyzer().addK8sDownsampled().error(query, messageMatcher);
     }
 
-    private static void errorWithAllTypes(String query, Matcher<String> messageMatcher) {
+    private void errorWithAllTypes(String query, Matcher<String> messageMatcher) {
         analyzer().addIndex("all_types", "mapping-all-types.json").error(query, messageMatcher);
     }
 
-    private static void errorWithIncompatible(String query, Matcher<String> messageMatcher) {
+    private void errorWithIncompatible(String query, Matcher<String> messageMatcher) {
         analyzer().addEmployees().addIndex("employees_incompatible", "mapping-default-incompatible.json").error(query, messageMatcher);
     }
 
@@ -685,7 +613,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         return IndexResolution.valid(index);
     }
 
-    private static void errorWithUnionIndex(String query, Matcher<String> messageMatcher) {
+    private void errorWithUnionIndex(String query, Matcher<String> messageMatcher) {
         analyzer().addEmployees().addIndex(unionIndexResolution()).error(query, messageMatcher);
     }
 
@@ -702,7 +630,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     // -- multi-column IN subquery --
 
     public void testMultiColumnInSubqueryWrongColumnCount() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no)
@@ -712,7 +639,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     // -- multi-column IN subquery: data type mismatch --
 
     public void testMultiColumnInSubqueryTypeMismatchFirstColumn() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | KEEP first_name, salary)
@@ -720,7 +646,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryTypeMismatchSecondColumn() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, first_name)
@@ -728,7 +653,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnNotInSubqueryTypeMismatch() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) NOT IN (FROM employees | KEEP first_name, salary)
@@ -736,7 +660,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryTypeMismatchBothColumns() {
-        checkMultiColumnInSubquery();
         errorInSubquery(
             """
                 FROM employees
@@ -750,7 +673,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryNumericTypeMismatch() {
-        checkMultiColumnInSubquery();
         errorInSubquery("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees | EVAL x = languages::long, y = salary | KEEP x, y)
@@ -760,7 +682,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     // -- multi-column IN subquery: union type tests --
 
     public void testMultiColumnInSubqueryUnionTypeFirstLeftField() {
-        checkMultiColumnInSubquery();
         errorWithUnionIndex(
             """
                 FROM union_index*
@@ -775,7 +696,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryUnionTypeSecondLeftField() {
-        checkMultiColumnInSubquery();
         errorWithUnionIndex(
             """
                 FROM union_index*
@@ -790,7 +710,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryUnionTypeRightField() {
-        checkMultiColumnInSubquery();
         errorWithUnionIndex(
             """
                 FROM employees
@@ -805,7 +724,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnNotInSubqueryUnionTypeLeftField() {
-        checkMultiColumnInSubquery();
         errorWithUnionIndex(
             """
                 FROM union_index*
@@ -820,7 +738,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryFromUnionTypeLeftField() {
-        checkMultiColumnInSubquery();
         errorWithIncompatible("""
             FROM employees, (FROM employees_incompatible | KEEP emp_no, first_name, salary)
             | WHERE (emp_no, salary) IN (FROM employees | KEEP emp_no, salary)
@@ -829,7 +746,6 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     }
 
     public void testMultiColumnInSubqueryFromUnionTypeRightField() {
-        checkMultiColumnInSubquery();
         errorWithIncompatible("""
             FROM employees
             | WHERE (emp_no, salary) IN (FROM employees, (FROM employees_incompatible | KEEP emp_no, salary) | KEEP emp_no, salary)

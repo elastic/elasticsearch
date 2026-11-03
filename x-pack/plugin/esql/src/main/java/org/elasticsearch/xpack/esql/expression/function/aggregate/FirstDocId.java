@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstDocIdGroupingAggregatorFunction;
+import org.elasticsearch.xpack.esql.core.expression.AnyNullIsNull;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -26,7 +27,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
 /**
  * Internal aggregation function that collects the first seen docId per group.
  */
-public class FirstDocId extends AggregateFunction implements ToAggregator {
+public class FirstDocId extends UnaryAggregateFunction implements ToAggregator, AnyNullIsNull {
 
     public FirstDocId(Source source, Expression v) {
         this(source, v, Literal.TRUE, NO_WINDOW);
@@ -49,11 +50,6 @@ public class FirstDocId extends AggregateFunction implements ToAggregator {
     @Override
     public FirstDocId replaceChildren(List<Expression> newChildren) {
         return new FirstDocId(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
-    }
-
-    @Override
-    public FirstDocId withFilter(Expression filter) {
-        return new FirstDocId(source(), field(), filter, window());
     }
 
     @Override

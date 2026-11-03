@@ -1,0 +1,186 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.lucene.queries;
+
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.columnar.ColumnarStringAnyOfQuery;
+import org.elasticsearch.columnar.ColumnarStringAutomatonQuery;
+import org.elasticsearch.columnar.ColumnarStringRangeQuery;
+import org.elasticsearch.columnar.ColumnarStringTermQuery;
+import org.elasticsearch.columnar.ScanBudget;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+
+import java.util.Collection;
+
+/**
+ * Queries answered by the ColumNAR string column itself rather than by reading a blob for every document.
+ *
+ * <p>What each costs is the column's own business and varies by what it is: a term or a prefix over a column whose
+ * values arrive in term order bisects to the run of matches, and a dictionary column runs a test over its terms and
+ * then answers documents by ordinal. What is shared is that a test is paid once per distinct value rather than once
+ * per document wherever the column can arrange it.
+ *
+ * <p>Automata are built here rather than in the column library, which has no dependency on the mapper's automaton
+ * helpers and no business deciding what a pattern means. The library runs whatever it is handed.
+ */
+final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
+
+    static final ColumnarBinaryDocValuesQueries PAYLOAD = new ColumnarBinaryDocValuesQueries(false);
+    static final ColumnarBinaryDocValuesQueries SINGLE_VALUED = new ColumnarBinaryDocValuesQueries(true);
+
+    /** The column library keeps no notion of a heap budget, so it is handed the search layer's. */
+    private static final ScanBudget BUDGET = ContextIndexSearcher::checkBinaryDvDecodeBreaker;
+
+    private final boolean singleValued;
+
+    private ColumnarBinaryDocValuesQueries(boolean singleValued) {
+        this.singleValued = singleValued;
+    }
+
+    @Override
+    public Query term(String field, BytesRef term) {
+        return ColumnarStringTermQuery.term(field, term, singleValued, BUDGET);
+    }
+
+    @Override
+    public Query terms(String field, Collection<BytesRef> terms) {
+        return new ColumnarStringAnyOfQuery(field, terms, singleValued, BUDGET);
+    }
+
+    @Override
+    public Query range(String field, @Nullable BytesRef lower, @Nullable BytesRef upper, boolean includeLower, boolean includeUpper) {
+        return new ColumnarStringRangeQuery(field, lower, includeLower, upper, includeUpper, singleValued, BUDGET);
+    }
+
+    @Override
+    public Query prefix(String field, String value, boolean caseInsensitive) {
+        if (caseInsensitive == false) {
+            // The column bisects a prefix, so this never becomes an automaton.
+            return ColumnarStringTermQuery.prefix(field, new BytesRef(value), singleValued, BUDGET);
+        }
+        return new ColumnarStringAutomatonQuery(
+            field,
+            AutomatonQueries.caseInsensitivePrefix(value),
+            "caseInsensitivePrefix=" + value,
+            singleValued,
+            BUDGET
+        );
+    }
+
+    @Override
+    public Query fuzzy(String field, String term, int maxEdits, int prefixLength, boolean transpositions) {
+        // The compiled automaton comes from the query that defines the edit distance, as the scanning path also does.
+        final FuzzyQuery delegate = FuzzyQueries.create(
+            new Term(field, term),
+            maxEdits,
+            prefixLength,
+            1,
+            transpositions,
+            null,
+            null,
+            field
+        );
+        return new ColumnarStringAutomatonQuery(
+            field,
+            delegate.getAutomata().runAutomaton,
+            "fuzzy,term=" + term + ",maxEdits=" + maxEdits + ",prefixLength=" + prefixLength + ",transpositions=" + transpositions,
+            singleValued,
+            BUDGET
+        );
+    }
+
+    @Override
+    public Query caseInsensitiveTerm(String field, String value) {
+        return new ColumnarStringAutomatonQuery(
+            field,
+            Automata.makeCaseInsensitiveString(value),
+            "caseInsensitiveTerm=" + value,
+            singleValued,
+            BUDGET
+        );
+    }
+
+    @Override
+    public Query wildcard(String field, String pattern, boolean caseInsensitive, @Nullable CircuitBreaker breaker) {
+        if (caseInsensitive == false) {
+            // Better than any automaton is not needing one. A pattern that names a whole value, a start of one, or a
+            // run of bytes inside one is a shape ColumnarStringTermQuery answers, two of which bisect a column in term
+            // order rather than looking at its values at all. Deciding that here means what goes into the cache key is
+            // the cheap query rather than a pattern that has to be recognised again on every rewrite. Only the general
+            // case needs the automaton - and the breaker.
+            //
+            // The empty pattern is left to the automaton: Lucene reads it as naming no value at all rather than the
+            // value of no bytes, and narrowing is only worth having while it answers exactly what the automaton would.
+            // An escape is likewise left to the automaton rather than unescaped, so that what the two agree on is what
+            // Lucene's own parser says a pattern means.
+            if (pattern.isEmpty() == false && isPlainPattern(pattern)) {
+                return ColumnarStringTermQuery.term(field, new BytesRef(pattern), singleValued, BUDGET);
+            }
+            if (pattern.endsWith("*")) {
+                final String start = pattern.substring(0, pattern.length() - 1);
+                if (isPlainPattern(start)) {
+                    return ColumnarStringTermQuery.prefix(field, new BytesRef(start), singleValued, BUDGET);
+                }
+            }
+            if (pattern.length() >= 3 && pattern.charAt(0) == '*' && pattern.endsWith("*")) {
+                final String inside = pattern.substring(1, pattern.length() - 1);
+                if (isPlainPattern(inside)) {
+                    return ColumnarStringTermQuery.contains(field, new BytesRef(inside), singleValued, BUDGET);
+                }
+            }
+        }
+        return new ColumnarStringAutomatonQuery(
+            field,
+            AutomatonQueries.toWildcardByteRunAutomaton(new Term(field, pattern), caseInsensitive, breaker),
+            "pattern=" + pattern + ",caseInsensitive=" + caseInsensitive,
+            singleValued,
+            BUDGET
+        );
+    }
+
+    /** True when {@code s} contains no wildcard or escape characters and can be matched as plain bytes. */
+    private static boolean isPlainPattern(String s) {
+        return Strings.indexOfAny(s, '*', '?', '\\') < 0;
+    }
+
+    @Override
+    public Query automaton(String field, Automaton automaton, String description) {
+        return new ColumnarStringAutomatonQuery(field, automaton, description, singleValued, BUDGET);
+    }
+
+    @Override
+    public Query regexp(
+        String field,
+        String pattern,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        @Nullable CircuitBreaker breaker
+    ) {
+        return new ColumnarStringAutomatonQuery(
+            field,
+            // The byte-run form, as the scanning path uses: it is the one that tolerates a caller with no breaker.
+            AutomatonQueries.toRegexpByteRunAutomaton(field, pattern, syntaxFlags, matchFlags, maxDeterminizedStates, breaker),
+            "regexp=" + pattern + ",flags=" + syntaxFlags + "," + matchFlags,
+            singleValued,
+            BUDGET
+        );
+    }
+}

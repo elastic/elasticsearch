@@ -82,11 +82,7 @@ public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
                 services.environment(),
                 services.resourceWatcherService()
             );
-            final WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(
-                settings,
-                sslConfig,
-                services.threadPool()
-            );
+            final WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig);
             sslConfig.addReloadListener(manager::reload);
             // Store before start() so a partial start (watchers registered, initial load failed)
             // is still released by close().

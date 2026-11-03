@@ -14,9 +14,11 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -124,7 +126,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                 }
             };
         } else {
-            SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
+            SortableBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
             return new SortedBinaryRangeLeafCollector(values, ranges, sub) {
                 @Override
                 protected void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException {
@@ -259,7 +261,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         private final DocCollector collector;
         private final LeafBucketCollector sub;
 
-        SortedBinaryRangeLeafCollector(SortedBinaryDocValues values, Range[] ranges, LeafBucketCollector sub) {
+        SortedBinaryRangeLeafCollector(SortableBinaryDocValues values, Range[] ranges, LeafBucketCollector sub) {
             super(sub, values);
             for (int i = 1; i < ranges.length; ++i) {
                 if (RANGE_COMPARATOR.compare(ranges[i - 1], ranges[i]) > 0) {
@@ -270,14 +272,28 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
             if (singleton != null) {
                 this.collector = (doc, bucket) -> {
                     if (singleton.advanceExact(doc)) {
-                        collect(doc, singleton.binaryValue(), bucket, 0);
+                        collect(doc, singleton.binaryValue(), bucket, 0, null);
                     }
                 };
-            } else {
+            } else if (values.getValueOrder() == SortableBinaryDocValues.ValueOrder.SORTED) {
+                // Ascending values never revisit a range already passed, so each one starts where the last left off,
+                // which is also what keeps a document out of a range it has already been counted into.
                 this.collector = (doc, bucket) -> {
                     if (values.advanceExact(doc)) {
                         for (int i = 0, lo = 0; i < values.docValueCount(); ++i) {
-                            lo = collect(doc, values.nextValue(), bucket, lo);
+                            lo = collect(doc, values.nextValue(), bucket, lo, null);
+                        }
+                    }
+                };
+            } else {
+                // Values in array order leave no bound to carry, so each searches the whole range set and the
+                // ranges the document has been counted into are remembered instead.
+                final FixedBitSet counted = new FixedBitSet(Math.max(ranges.length, 1));
+                this.collector = (doc, bucket) -> {
+                    if (values.advanceExact(doc)) {
+                        counted.clear();
+                        for (int i = 0; i < values.docValueCount(); ++i) {
+                            collect(doc, values.nextValue(), bucket, 0, counted);
                         }
                     }
                 };
@@ -302,7 +318,13 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
             collector.collect(doc, bucket);
         }
 
-        private int collect(int doc, BytesRef value, long bucket, int lowBound) throws IOException {
+        /**
+         * Counts the document into every range this value falls in, from {@code lowBound} up, and returns where a
+         * value after it may start looking. {@code counted} is the ranges this document has already been counted
+         * into, for values that do not ascend and so cannot rule those out by where they start; {@code null} when
+         * they do.
+         */
+        private int collect(int doc, BytesRef value, long bucket, int lowBound, @Nullable FixedBitSet counted) throws IOException {
             int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
             int mid = (lo + hi) >>> 1;
             while (lo <= hi) {
@@ -343,7 +365,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
             assert endHi == ranges.length - 1 || compare(value, ranges[endHi + 1].from, 1) < 0;
 
             for (int i = startLo; i <= endHi; ++i) {
-                if (compare(value, ranges[i].to, -1) < 0) {
+                if (compare(value, ranges[i].to, -1) < 0 && (counted == null || counted.getAndSet(i) == false)) {
                     doCollect(sub, doc, bucket * ranges.length + i);
                 }
             }

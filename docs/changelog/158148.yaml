@@ -1,0 +1,6 @@
+pr: 158148
+summary: Fix hard_bounds ignoring offset in histogram
+area: Aggregations
+type: bug
+issues:
+ - 158146

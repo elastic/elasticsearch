@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexService;
@@ -33,8 +34,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
+import org.elasticsearch.xpack.logsdb.LogsDBLocalStateXPackPlugin;
 import org.junit.After;
 
 import java.io.IOException;
@@ -91,7 +91,7 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MapperExtrasPlugin.class, XPackPlugin.class, LogsDBPlugin.class);
+        return List.of(MapperExtrasPlugin.class, LogsDBLocalStateXPackPlugin.class);
     }
 
     private static final String INDEX = "test_index";
@@ -154,7 +154,7 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
         assertMappings();
         assertMessagesInSource(messages);
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(INDEX)) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(INDEX, SplitShardCountSummary.IRRELEVANT)) {
             try (var indexReader = searcher.getIndexReader()) {
                 if (useBinaryDocValues) {
                     var leafReader = indexReader.leaves().get(0).reader();
@@ -181,7 +181,7 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
         assertMappings();
         assertMessagesInSource(messages);
 
-        try (var searcher = indexService.getShard(0).acquireSearcher(INDEX)) {
+        try (var searcher = indexService.getShard(0).acquireExternalSearcher(INDEX, SplitShardCountSummary.IRRELEVANT)) {
             try (var indexReader = searcher.getIndexReader()) {
                 if (disableTemplating) {
                     // when templating is disabled, large values are either stored in binary doc values or stored fields

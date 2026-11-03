@@ -592,6 +592,30 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(withLifecycle.isMinimumLifecycleApplicable(backingIndex, randomBoolean()), is(false));
     }
 
+    public void testPromoteMarksEmptyFailureStoreForRolloverOnWrite() {
+        Index backingIndex = new Index(DataStream.getDefaultBackingIndexName("ds", 1), UUIDs.randomBase64UUID());
+        DataStream replicated = DataStream.builder("ds", List.of(backingIndex)).setReplicated(true).build();
+        assertThat(replicated.getFailureComponent().isRolloverOnWrite(), is(false));
+
+        DataStream promoted = replicated.promoteDataStream();
+        assertThat(promoted.isReplicated(), is(false));
+        assertThat(promoted.getFailureIndices(), hasSize(0));
+        assertThat(promoted.getFailureComponent().isRolloverOnWrite(), is(true));
+    }
+
+    public void testPromoteKeepsExistingFailureStoreUntouched() {
+        Index backingIndex = new Index(DataStream.getDefaultBackingIndexName("ds", 1), UUIDs.randomBase64UUID());
+        Index failureIndex = new Index(DataStream.getDefaultFailureStoreName("ds", 1, 0L), UUIDs.randomBase64UUID());
+        DataStream replicated = DataStream.builder("ds", List.of(backingIndex))
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(List.of(failureIndex)).build())
+            .setReplicated(true)
+            .build();
+
+        DataStream promoted = replicated.promoteDataStream();
+        assertThat(promoted.getFailureIndices(), equalTo(List.of(failureIndex)));
+        assertThat(promoted.getFailureComponent().isRolloverOnWrite(), is(false));
+    }
+
     public void testRolloverFailureStore() {
         DataStream ds = DataStreamTestHelper.randomInstance(true).promoteDataStream();
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();

@@ -1294,7 +1294,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public DataStream promoteDataStream() {
-        return copy().setReplicated(false).build();
+        Builder promoted = copy().setReplicated(false);
+        if (failureIndices.indices.isEmpty()) {
+            // A replicated data stream never has its failure store marked for lazy creation. Once promoted, mark an empty failure store
+            // for rollover on write, as DataStream#read does, so that it can be created lazily.
+            promoted.setFailureIndices(failureIndices.copy().setRolloverOnWrite(true).build());
+        }
+        return promoted.build();
     }
 
     /**

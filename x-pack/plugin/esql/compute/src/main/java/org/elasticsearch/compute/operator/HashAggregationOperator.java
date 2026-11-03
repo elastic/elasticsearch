@@ -351,6 +351,7 @@ public class HashAggregationOperator implements Operator {
     protected BlockHash blockHash;
     private boolean finished;
     protected ReleasableIterator<Page> output;
+    private Page pendingInputPage;
 
     /**
      * Maximum number of rows per output page.
@@ -500,7 +501,7 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return output == null && finished == false;
+        return output == null && pendingInputPage == null && finished == false;
     }
 
     @Override
@@ -512,6 +513,27 @@ public class HashAggregationOperator implements Operator {
             page.close();
             return;
         }
+        checkState(needsInput(), "Operator is already finishing");
+        requireNonNull(page, "page is null");
+        final boolean toEmit;
+        boolean success = false;
+        try {
+            toEmit = shouldEmitPartialResultsPeriodically(page);
+            success = true;
+        } finally {
+            if (success == false) {
+                page.releaseBlocks();
+            }
+        }
+        if (toEmit) {
+            pendingInputPage = page;
+            emit();
+        } else {
+            processInputPage(page);
+        }
+    }
+
+    private void processInputPage(Page page) {
         try {
             maybeReinitializeAfterPeriodicallyEmitted();
             List<GroupingAggregatorFunction.AddInput> prepared = new ArrayList<>(aggregators.size());
@@ -563,9 +585,6 @@ public class HashAggregationOperator implements Operator {
                 }
             }
             try (AddInput add = new AddInput()) {
-                checkState(needsInput(), "Operator is already finishing");
-                requireNonNull(page, "page is null");
-
                 for (GroupingAggregator aggregator : aggregators) {
                     GroupingAggregatorFunction.AddInput p = aggregator.prepareProcessPage(blockHash, page);
                     if (p != null) {
@@ -578,18 +597,33 @@ public class HashAggregationOperator implements Operator {
                 hashNanos += System.nanoTime() - add.hashStart;
             }
             rowsAddedInCurrentBatch += page.getPositionCount();
-            if (shouldEmitPartialResultsPeriodically()) {
-                emit();
-            }
         } finally {
-            page.releaseBlocks();
             pagesProcessed++;
             rowsReceived += page.getPositionCount();
+            page.releaseBlocks();
         }
     }
 
     @Override
     public Page getOutput() {
+        Page out = nextOutputPage();
+        if (out == null) {
+            if (pendingInputPage != null) {
+                try {
+                    processInputPage(pendingInputPage);
+                } finally {
+                    this.pendingInputPage = null;
+                }
+                if (finished) {
+                    emit();
+                    out = nextOutputPage();
+                }
+            }
+        }
+        return out;
+    }
+
+    private Page nextOutputPage() {
         if (output == null) {
             return null;
         }
@@ -609,7 +643,9 @@ public class HashAggregationOperator implements Operator {
             return;
         }
         finished = true;
-        emit();
+        if (pendingInputPage == null) {
+            emit();
+        }
     }
 
     private void maybeReinitializeAfterPeriodicallyEmitted() {
@@ -708,7 +744,10 @@ public class HashAggregationOperator implements Operator {
         return allKeys;
     }
 
-    protected boolean shouldEmitPartialResultsPeriodically() {
+    /**
+     * Whether to emit the current batch before {@code incomingPage} is added to it.
+     */
+    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
         if (aggregatorMode.isOutputPartial() == false) {
             return false;
         }
@@ -745,17 +784,23 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && output == null;
+        return finished && output == null && pendingInputPage == null;
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return output != null;
+        return output != null || pendingInputPage != null;
     }
 
     @Override
     public void close() {
-        Releasables.close(blockHash, () -> Releasables.close(aggregators), output, Releasables.wrap(partitionedAggregationBlocks));
+        Releasables.close(
+            blockHash,
+            () -> Releasables.close(aggregators),
+            output,
+            pendingInputPage,
+            Releasables.wrap(partitionedAggregationBlocks)
+        );
     }
 
     @Override

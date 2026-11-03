@@ -263,6 +263,10 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             if (g1.nonNull() && g2.nonNull() && g1.elementType() == ElementType.INT && g2.elementType() == ElementType.INT) {
                 return new IntIntBlockHash(blockFactory, g1.channel(), g2.channel(), emitBatchSize);
             }
+            // LongLongBlockHash has no room for a null, so it is only for groups that have none.
+            if (g1.nonNull() && g2.nonNull() && g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
+                return new LongLongBlockHash(blockFactory, g1.channel(), g2.channel(), emitBatchSize, true);
+            }
             // TODO: wire (LONG, LONG) with adaptive
             if (allowBrokenOptimizations) {
                 if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {

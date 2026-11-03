@@ -160,15 +160,20 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("DRA snapshot ${buildId}")
     }
 
-    def "downloads JDBC jar from a prebuilt snapshot when mode=prebuilt and hash override is set"() {
+    def "downloads JDBC jar from the pinned DRA build's maven aggregation zip when mode=prebuilt and hash override is set"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
         def shortHash = "abc12345"
         def buildId = "${bwcVersion}-${shortHash}"
+        def jarContent = "jdbc-jar-from-${buildId}".bytes
+        def jarEntry = "org/elasticsearch/plugin/x-pack-sql-jdbc/${bwcVersion}-SNAPSHOT/x-pack-sql-jdbc-${bwcVersion}-20261103.085400-1.jar"
         stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
-        stubJarArtifact(wireMock, mavenSnapshotArtifactPath(bwcVersion, "org.elasticsearch.plugin", "x-pack-sql-jdbc"))
-        redirectBwcRepositories(wireMock.baseUrl())
+        stubBinary(wireMock, draMavenAggregationPath(buildId, bwcVersion), zip([
+            (jarEntry): jarContent,
+            (jarEntry + ".sha1"): sha1Hex(jarContent).bytes,
+            ("org/elasticsearch/plugin/x-pack-sql-jdbc/${bwcVersion}-SNAPSHOT/x-pack-sql-jdbc-${bwcVersion}-20261103.085400-1-sources.jar".toString()): "sources".bytes
+        ]))
 
         when:
         def result = gradleRunner(
@@ -180,35 +185,33 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
 
-        then: "DRA Copy task succeeds"
+        then:
         result.task(":distribution:bwc:major1:buildBwcJdbc").outcome == TaskOutcome.SUCCESS
 
         and: "no nested Gradle build was triggered"
         result.output.contains("> Task :x-pack:plugin:sql:jdbc:assemble") == false
 
-        and: "the warning explains that the hash override does not pin Maven snapshots"
-        result.output.contains("tests.bwc.dra.hash is set")
-        result.output.contains("does not pin this JAR")
-
-        and: "the DRA log message names the snapshot build ID"
+        and: "the JAR comes from the pinned build, so there is no unpinned-JAR warning"
+        result.output.contains("does not pin this JAR") == false
         result.output.contains("DRA snapshot ${buildId}")
 
-        and: "the JDBC jar was created at the expected path"
+        and: "the JDBC jar from the aggregation zip was written to the expected path"
         file(
             "cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
                 "x-pack/plugin/sql/jdbc/build/distributions/" +
                 "x-pack-sql-jdbc-${bwcVersion}-SNAPSHOT.jar"
-        ).exists()
+        ).bytes == jarContent
     }
 
-    def "fails with a clear error when the JDBC jar is missing from the chosen prebuilt snapshot"() {
-        given: "the DRA snapshot exists but the Maven snapshot repository has no JDBC jar (WireMock answers 404)"
+    def "fails naming the artifact and build when the DRA maven aggregation zip lacks the JAR"() {
+        given:
         def bwcVersion = "8.4.0"
-        def bwcBranch = "8.x"
         def shortHash = "abc12345"
         def buildId = "${bwcVersion}-${shortHash}"
         stubManifestOk(wireMock, draManifestPath(buildId, bwcVersion))
-        redirectBwcRepositories(wireMock.baseUrl())
+        stubBinary(wireMock, draMavenAggregationPath(buildId, bwcVersion), zip([
+            "org/elasticsearch/elasticsearch-logging/8.4.0-SNAPSHOT/elasticsearch-logging-8.4.0-20261103.085400-1.jar": "x".bytes
+        ]))
 
         when:
         def result = gradleRunner(
@@ -216,28 +219,21 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
             "-Dtests.bwc.mode=prebuilt",
-            "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
-            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}",
-            "-Dtests.bwc.mavensnapshot.base.url=${wireMock.baseUrl()}"
+            "-Dtests.bwc.dra.hash.8.x=${shortHash}",
+            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).buildAndFail()
 
-        then: "the error names the coordinate, version, branch, mode, build ID and the URL searched"
+        then: "the error names the coordinate, version, branch, mode, build ID and the zip searched"
         result.output.contains(
             "BWC [${bwcVersion}]: pre-built snapshot artifact [org.elasticsearch.plugin:x-pack-sql-jdbc:${bwcVersion}-SNAPSHOT@jar] could not be resolved"
         )
-        result.output.contains("branch: ${bwcBranch}")
+        result.output.contains("branch: 8.x")
         result.output.contains("tests.bwc.mode: prebuilt")
         result.output.contains("DRA build ID: ${buildId}")
-        result.output.contains(
-            "searched: ${wireMock.baseUrl()}${mavenSnapshotArtifactPath(bwcVersion, 'org.elasticsearch.plugin', 'x-pack-sql-jdbc')}"
-        )
+        result.output.contains("searched: ${wireMock.baseUrl()}${draMavenAggregationPath(buildId, bwcVersion)}")
         result.output.contains("snapshot publishing or resolution bug")
 
-        and: "the opaque task-dependency resolution error is gone"
-        result.output.contains("Could not determine the dependencies of task") == false
-
         and: "no source build was attempted"
-        result.task(":distribution:bwc:major1:checkoutBwcBranch") == null
         result.output.contains("> Task :x-pack:plugin:sql:jdbc:assemble") == false
         result.output.contains("BWC [${bwcVersion}]: building") == false
     }
@@ -280,7 +276,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("BWC [${bwcVersion}]: building") == false
     }
 
-    def "falls back to local gradle build when DRA manifest returns 404"() {
+    def "fails instead of falling back to a source build when the pinned DRA build does not exist"() {
         given:
         def bwcVersion = "8.4.0"
         def shortHash = "notexist"
@@ -296,13 +292,14 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             "-Dtests.bwc.mode=auto",
             "-Dtests.bwc.dra.hash.8.x=${shortHash}",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
-        ).build()
+        ).buildAndFail()
 
-        then: "task succeeds via local build fallback"
-        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        then: "the failure names the pin"
+        result.output.contains("pinned DRA snapshot build [${buildId}]")
+        result.output.contains("-Dtests.bwc.dra.hash.8.x=${shortHash}")
 
-        and: "local nested build was used, not DRA"
-        assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
+        and: "no source build of the branch tip was attempted"
+        result.output.contains("extractedAssemble") == false
     }
 
     def "downloads distribution via resolveByLatest when mode=auto and remote tracking ref matches DRA manifest commit"() {
@@ -496,7 +493,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         buildFile << """
             allprojects { p ->
                 p.repositories.all { repo ->
-                    if (repo.name.startsWith("dra-bwc-elasticsearch-") || repo.name == "maven-snapshots-elasticsearch") {
+                    if (repo.name.startsWith("dra-bwc-elasticsearch-")) {
                         repo.setUrl('${baseUrl}')
                         allowInsecureProtocol = true
                     }
@@ -521,8 +518,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         "/elasticsearch/${buildId}/downloads/elasticsearch/elasticsearch-${version}-SNAPSHOT-${classifier}.tar.gz"
     }
 
-    private static String mavenSnapshotArtifactPath(String version, String mavenGroup, String module) {
-        "/${mavenGroup.replace('.', '/')}/${module}/${version}-SNAPSHOT/${module}-${version}-SNAPSHOT.jar"
+    private static String draMavenAggregationPath(String buildId, String version) {
+        "/elasticsearch/${buildId}/downloads/elasticsearch/elasticsearch-maven-aggregation-${version}-SNAPSHOT.zip"
     }
 
     // -------------------------------------------------------------------------
@@ -570,18 +567,33 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         )
     }
 
-    /** Stubs HEAD+GET for a Maven JAR artifact path, serving a minimal fake JAR body. */
-    private static void stubJarArtifact(WireMockServer wireMock, String path, byte[] content = "fake-jar-content".bytes) {
-        wireMock.stubFor(head(urlEqualTo(path)).willReturn(aResponse().withStatus(200)))
+    /** Stubs HEAD+GET for a binary artifact path; HEAD carries the Content-Length the zip reader needs. */
+    private static void stubBinary(WireMockServer wireMock, String path, byte[] content) {
         wireMock.stubFor(
-            get(urlEqualTo(path))
-                .willReturn(aResponse().withStatus(200).withBody(content))
+            head(urlEqualTo(path)).willReturn(aResponse().withStatus(200).withHeader("Content-Length", String.valueOf(content.length)))
         )
+        wireMock.stubFor(get(urlEqualTo(path)).willReturn(aResponse().withStatus(200).withBody(content)))
     }
 
     // -------------------------------------------------------------------------
     // Artifact factory
     // -------------------------------------------------------------------------
+
+    private static byte[] zip(Map<String, byte[]> entries) {
+        def baos = new ByteArrayOutputStream()
+        new java.util.zip.ZipOutputStream(baos).withCloseable { zos ->
+            entries.each { name, content ->
+                zos.putNextEntry(new java.util.zip.ZipEntry(name))
+                zos.write(content)
+                zos.closeEntry()
+            }
+        }
+        return baos.toByteArray()
+    }
+
+    private static String sha1Hex(byte[] content) {
+        java.security.MessageDigest.getInstance("SHA-1").digest(content).encodeHex().toString()
+    }
 
     /**
      * Creates a minimal tar.gz that {@link org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform}

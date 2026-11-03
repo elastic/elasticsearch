@@ -55,23 +55,42 @@ class DraSnapshotBuildIdValueSourceSpec extends Specification {
     }
 
     // -------------------------------------------------------------------------
-    // resolveByHash
+    // resolvePinned
     // -------------------------------------------------------------------------
 
-    def "resolveByHash returns build ID when manifest endpoint returns 200"() {
+    def "resolvePinned returns build ID when the pinned build exists"() {
         given:
         stubGet("/elasticsearch/8.4.0-abc12345/manifest-8.4.0-SNAPSHOT.json", 200, "{}")
 
         expect:
-        DraSnapshotBuildIdValueSource.resolveByHash(httpClient, baseUrl, "8.4.0", "abc12345") == "8.4.0-abc12345"
+        DraSnapshotBuildIdValueSource.resolvePinned(httpClient, baseUrl, "8.4.0", "8.x", "abc12345") == "8.4.0-abc12345"
     }
 
-    def "resolveByHash returns empty string when manifest endpoint returns 404"() {
+    def "resolvePinned fails rather than falling back when the pinned build does not exist"() {
         given:
         stubGet("/elasticsearch/8.4.0-notfound/manifest-8.4.0-SNAPSHOT.json", 404, null)
 
-        expect:
-        DraSnapshotBuildIdValueSource.resolveByHash(httpClient, baseUrl, "8.4.0", "notfound") == ""
+        when:
+        DraSnapshotBuildIdValueSource.resolvePinned(httpClient, baseUrl, "8.4.0", "8.x", "notfound")
+
+        then:
+        def e = thrown(IllegalStateException)
+        e.message.contains("8.4.0-notfound")
+        e.message.contains("tests.bwc.dra.hash.8.x")
+        e.message.contains("HTTP 404")
+    }
+
+    def "resolvePinned fails rather than falling back when the snapshot server is unreachable"() {
+        given:
+        server.stop(0)
+
+        when:
+        DraSnapshotBuildIdValueSource.resolvePinned(httpClient, baseUrl, "8.4.0", "8.x", "abc12345")
+
+        then:
+        def e = thrown(IllegalStateException)
+        e.message.contains("8.4.0-abc12345")
+        e.cause != null
     }
 
     // -------------------------------------------------------------------------

@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { generatePipelines } from "./pipeline.ts";
-import { setBwcVersionsPath, setSnapshotBwcVersionsPath } from "./bwc-versions.ts";
+import { setBwcVersionsPath, setSnapshotBwcPinArgs, setSnapshotBwcVersionsPath } from "./bwc-versions.ts";
 import { setBranchesJson } from "./later-branches.ts";
 
 describe("generatePipelines", () => {
   beforeEach(() => {
     setBwcVersionsPath(`${import.meta.dirname}/mocks/bwcVersions`);
     setSnapshotBwcVersionsPath(`${import.meta.dirname}/mocks/snapshotBwcVersions`);
+    setSnapshotBwcPinArgs("");
 
     setBranchesJson({
       branches: [
@@ -201,5 +202,16 @@ describe("generatePipelines", () => {
 
   test("should not include a pipeline when no changed file is in an included region", () => {
     expect(anyIncludedRegionPipeline(["build.gradle"])).toBeUndefined();
+  });
+
+  test("should pin bwc snapshot jobs to known-good DRA builds", () => {
+    setSnapshotBwcPinArgs(" -Dtests.bwc.dra.hash.8.10=aaaa1111 -Dtests.bwc.dra.hash.8.11=bbbb2222");
+
+    const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);
+    const bwc = pipelines.find((p) => p.name === "bwc-snapshots");
+
+    expect(bwc?.pipeline.steps?.[0]?.steps?.[0]?.command).toBe(
+      ".ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto -Dtests.bwc.dra.hash.8.10=aaaa1111 -Dtests.bwc.dra.hash.8.11=bbbb2222 v{{matrix.BWC_VERSION}}#bwcTest",
+    );
   });
 });

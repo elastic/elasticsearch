@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.timeseries;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper.ToEvaluator
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlLabels;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -232,7 +230,7 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
 
     private BytesRef write(TimeSeriesMetadata metadata, BreakingBytesRefBuilder buffer) throws IOException {
         buffer.clear();
-        var output = new MetadataOutputStream(buffer);
+        var output = new TimeSeriesMetadataOutputStream(buffer);
         if (operation == Operation.TO_STRING) {
             metadata.renderTo(output);
         } else if (operation == Operation.HASH) {
@@ -241,33 +239,6 @@ public final class TimeSeriesEvaluator implements ExpressionEvaluator {
             metadata.writeTo(output);
         }
         return buffer.bytesRefView();
-    }
-
-    /** Prevents length overflow while the backing builder accounts all allocated output memory. */
-    private static final class MetadataOutputStream extends OutputStream {
-        private final BreakingBytesRefBuilder buffer;
-
-        private MetadataOutputStream(BreakingBytesRefBuilder buffer) {
-            this.buffer = buffer;
-        }
-
-        @Override
-        public void write(int value) {
-            checkLength(1);
-            buffer.append((byte) value);
-        }
-
-        @Override
-        public void write(byte[] bytes, int offset, int length) {
-            checkLength(length);
-            buffer.append(bytes, offset, length);
-        }
-
-        private void checkLength(int additional) {
-            if ((long) buffer.length() + additional > ArrayUtil.MAX_ARRAY_LENGTH) {
-                throw new IllegalArgumentException("Time-series metadata exceeds the maximum array size");
-            }
-        }
     }
 
     @Override

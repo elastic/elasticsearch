@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 
 public class UriPartsProcessorFactoryTests extends ESTestCase {
 
@@ -47,8 +48,8 @@ public class UriPartsProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         UriPartsProcessor uriPartsProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(uriPartsProcessor.getTag(), equalTo(processorTag));
-        assertThat(uriPartsProcessor.getField(), equalTo(field));
-        assertThat(uriPartsProcessor.getTargetField(), equalTo(targetField));
+        assertThat(uriPartsProcessor.getField(), hasToString(field));
+        assertThat(uriPartsProcessor.getTargetField(), hasToString(targetField));
         assertThat(uriPartsProcessor.getRemoveIfSuccessful(), equalTo(removeIfSuccessful));
         assertThat(uriPartsProcessor.getKeepOriginal(), equalTo(keepOriginal));
         assertThat(uriPartsProcessor.getIgnoreMissing(), equalTo(ignoreMissing));

@@ -269,7 +269,9 @@ public class AnalyzerEqlTests extends ESTestCase {
         analyzer().addIndex(INDEX, "mapping-eql_test.json")
             .error(
                 "EQL eql_test \"process where true\" METADATA _score",
-                containsString("metadata field [_score] is not supported by the EQL command")
+                containsString(
+                    "metadata field [_score] is not supported by the EQL command; supported metadata fields are [_id, _index, _source]"
+                )
             );
         analyzer().addIndex(INDEX, "mapping-eql_test.json")
             .error(

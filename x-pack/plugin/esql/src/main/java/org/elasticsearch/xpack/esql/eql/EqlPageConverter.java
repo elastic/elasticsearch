@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.eql;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -37,6 +36,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -79,6 +79,18 @@ public final class EqlPageConverter {
     public static final Set<DataType> CONVERTIBLE_TYPES = Set.copyOf(
         EnumSet.of(KEYWORD, TEXT, LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME, IP, VERSION)
     );
+
+    private static final Map<String, Function<Event, Object>> METADATA_EXTRACTORS = Map.of(
+        MetadataAttribute.INDEX,
+        Event::index,
+        IdFieldMapper.NAME,
+        Event::id,
+        SourceFieldMapper.NAME,
+        // appendBytesRef copies into the block, so we do not retain the ref-counted response's bytes.
+        event -> event.source() == null ? null : event.source().toBytesRef()
+    );
+
+    public static final Set<String> SUPPORTED_METADATA = METADATA_EXTRACTORS.keySet();
 
     private EqlPageConverter() {}
 
@@ -182,18 +194,11 @@ public final class EqlPageConverter {
         if (event == null || event.missing()) {
             return null;
         }
-        if (MetadataAttribute.INDEX.equals(name)) {
-            return event.index();
+        Function<Event, Object> extractor = METADATA_EXTRACTORS.get(name);
+        if (extractor == null) {
+            throw new EsqlIllegalArgumentException("unexpected EQL metadata column [{}]", name);
         }
-        if (IdFieldMapper.NAME.equals(name)) {
-            return event.id();
-        }
-        if (SourceFieldMapper.NAME.equals(name)) {
-            BytesReference source = event.source();
-            // appendBytesRef copies into the block, so we do not retain the ref-counted response's bytes.
-            return source == null ? null : source.toBytesRef();
-        }
-        throw new EsqlIllegalArgumentException("unexpected EQL metadata column [{}]", name);
+        return extractor.apply(event);
     }
 
     /** Join keys as a single keyword value: {@code null} when empty, one value, or a multivalue entry. Nulls are dropped. */

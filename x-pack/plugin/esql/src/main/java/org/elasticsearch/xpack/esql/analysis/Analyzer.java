@@ -20,7 +20,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.iplocation.api.DatabaseProperty;
@@ -1013,14 +1012,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private static class ResolveEqlRelation extends ParameterizedAnalyzerRule<UnresolvedEqlRelation, AnalyzerContext> {
 
-        /** The metadata fields the EQL response envelope can populate ({@code Event.index()/id()/source()}). */
-        private static final Set<String> SUPPORTED_EQL_METADATA = Set.of(
-            MetadataAttribute.INDEX,
-            IdFieldMapper.NAME,
-            SourceFieldMapper.NAME
-        );
-        private static final String SUPPORTED_METADATA_HINT = "supported metadata fields are [_id, _index, _source]";
-
         @Override
         protected LogicalPlan rule(UnresolvedEqlRelation plan, AnalyzerContext context) {
             IndexResolution resolution = context.indexResolution().get(plan.indexPattern());
@@ -1108,18 +1099,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * fields outside that set (e.g. {@code _score}, {@code _version}) and unknown names/wildcards are rejected.
          */
         private static String validateEqlMetadata(List<NamedExpression> metadataFields) {
+            // Not a static constant: EqlPageConverter must only initialize (and load EQL classes) for EQL queries.
+            Set<String> supported = EqlPageConverter.SUPPORTED_METADATA;
+            String hint = "supported metadata fields are " + supported.stream().sorted().toList();
             List<String> errors = new ArrayList<>();
             for (NamedExpression metadata : metadataFields) {
-                if (metadata instanceof MetadataAttribute ma) {
-                    if (SUPPORTED_EQL_METADATA.contains(ma.name()) == false) {
-                        errors.add("metadata field [" + ma.name() + "] is not supported by the EQL command; " + SUPPORTED_METADATA_HINT);
+                switch (metadata) {
+                    case MetadataAttribute ma -> {
+                        if (supported.contains(ma.name()) == false) {
+                            errors.add("metadata field [" + ma.name() + "] is not supported by the EQL command; " + hint);
+                        }
                     }
-                } else if (metadata instanceof UnresolvedMetadataAttributeExpression um) {
                     // MetadataAttribute.create returned an unresolved expression: unknown name or a wildcard (the EQL
                     // delegate resolves no custom tags). Read pattern(), not name() — name() throws on an unresolved node.
-                    errors.add("unknown metadata field [" + um.pattern() + "]; " + SUPPORTED_METADATA_HINT);
-                } else {
-                    errors.add("unknown metadata field; " + SUPPORTED_METADATA_HINT);
+                    case UnresolvedMetadataAttributeExpression um -> errors.add("unknown metadata field [" + um.pattern() + "]; " + hint);
+                    default -> throw new IllegalStateException("Unexpected metadata type: " + metadata.getClass().getName());
                 }
             }
             return errors.isEmpty() ? null : String.join("; ", errors);

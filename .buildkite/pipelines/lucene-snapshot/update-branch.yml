@@ -1,4 +1,11 @@
 steps:
+  - label: Require lucene_snapshot branch
+    command: |
+      if [[ "${BUILDKITE_BRANCH}" != lucene_snapshot* ]]; then
+        echo "This pipeline only runs on lucene_snapshot* branches (got ${BUILDKITE_BRANCH})"
+        exit 1
+      fi
+    timeout_in_minutes: 5
   - trigger: "elasticsearch-agentic-workflow"
     label: ":robot_face: lucene-merge-conflicts"
     async: false

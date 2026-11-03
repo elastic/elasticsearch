@@ -561,6 +561,26 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Whether the mapping guarantees that a block loader returns a value for every document of the index for this field, so that
+     * the field is never {@code null} in ES|QL. Readers such as field caps, and through it ES|QL, may rely on it.
+     * <p>
+     * {@code nullability=false} alone is not enough, which is why mappers must not return {@code isNullable() == false} here:
+     * <ul>
+     *   <li>With {@code on_failure=ignore} a document that omits the field is indexed anyway
+     *       ({@link DocumentParserContext#enforceRequiredFields}), so the field has no value for it.</li>
+     *   <li>With {@code ignore_malformed} the requirement is marked satisfied before the value is parsed, so a malformed value is
+     *       dropped and the field has no value for the document.</li>
+     *   <li>A field with a {@code script} has no indexed values to check.</li>
+     * </ul>
+     * Mappers that can rule out all of these return {@code true} from {@link #isNullable()} {@code == false} combined with the
+     * checks above. A mapper that is not sure must keep the default, {@code false}, which means "unknown": the field may be null.
+     * {@code nullability}, {@code on_failure} and {@code ignore_malformed} are not updateable, so the guarantee cannot be removed later.
+     */
+    protected boolean guaranteesNonNull() {
+        return false;
+    }
+
+    /**
      * Whether this mapper enforces single-value semantics on the columnar batch path, analogous to
      * {@link #shouldEnforceSingleValue(XContentParser.Token)} for the row path. When {@code true},
      * {@link #mapColumnBatch} scans the source column upfront and throws {@link UnsupportedOperationException}

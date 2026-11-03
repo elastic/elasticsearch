@@ -32,6 +32,7 @@ public class IndexFieldCapabilitiesBuilder {
     private @Nullable String indexAnalyzer;
     private int indexAnalyzerPositionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
     private boolean indexLocalAnalyzer;
+    private boolean isStaticallyNonNullable;
 
     public IndexFieldCapabilitiesBuilder(String name, String type) {
         this.name = name;
@@ -100,6 +101,11 @@ public class IndexFieldCapabilitiesBuilder {
         return this;
     }
 
+    public IndexFieldCapabilitiesBuilder isStaticallyNonNullable(boolean isStaticallyNonNullable) {
+        this.isStaticallyNonNullable = isStaticallyNonNullable;
+        return this;
+    }
+
     public IndexFieldCapabilities build() {
         return new IndexFieldCapabilities(
             name,
@@ -114,7 +120,8 @@ public class IndexFieldCapabilitiesBuilder {
             meta,
             indexAnalyzer,
             indexAnalyzerPositionIncrementGap,
-            indexLocalAnalyzer
+            indexLocalAnalyzer,
+            isStaticallyNonNullable
         );
     }
 }

@@ -38,6 +38,11 @@ import java.util.Map;
  *                       the default otherwise, so a missing name does not affect equality
  * @param indexLocalAnalyzer {@code true} when a text field's analyzer name was withheld because it is defined under
  *                       {@code index.analysis}. Never set together with {@code indexAnalyzer}.
+ * @param isStaticallyNonNullable {@code true} when the mapping guarantees that every document of the index has a value for this
+ *                       field, as a block loader reads it: {@code nullability=false} with {@code on_failure=fail} and no
+ *                       {@code ignore_malformed}; see {@code FieldMapper#guaranteesNonNull}.
+ *                       {@code false} means "unknown": the field may be null. A node that does not report this flag looks the
+ *                       same. It is not part of the merged field caps response.
  */
 
 public record IndexFieldCapabilities(
@@ -53,7 +58,8 @@ public record IndexFieldCapabilities(
     Map<String, String> meta,
     @Nullable String indexAnalyzer,
     int indexAnalyzerPositionIncrementGap,
-    boolean indexLocalAnalyzer
+    boolean indexLocalAnalyzer,
+    boolean isStaticallyNonNullable
 ) implements Writeable {
 
     public IndexFieldCapabilities {
@@ -82,6 +88,8 @@ public record IndexFieldCapabilities(
         Boolean isPassthrough = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)
             ? in.readOptionalBoolean()
             : null;
+        boolean isStaticallyNonNullable = in.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_NON_NULLABLE)
+            && in.readBoolean();
         return new IndexFieldCapabilities(
             name,
             type,
@@ -95,7 +103,8 @@ public record IndexFieldCapabilities(
             meta,
             indexAnalyzer,
             indexAnalyzerPositionIncrementGap,
-            indexLocalAnalyzer
+            indexLocalAnalyzer,
+            isStaticallyNonNullable
         );
     }
 
@@ -122,6 +131,9 @@ public record IndexFieldCapabilities(
         }
         if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_PASSTHROUGH)) {
             out.writeOptionalBoolean(isPassthrough);
+        }
+        if (out.getTransportVersion().supports(FieldCapabilities.FIELD_CAPS_NON_NULLABLE)) {
+            out.writeBoolean(isStaticallyNonNullable);
         }
     }
 

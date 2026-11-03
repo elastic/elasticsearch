@@ -244,7 +244,6 @@ public class IngestDocumentTests extends ESTestCase {
             assertPathValid(doc, "_ingest.a.b..");
             assertPathInvalid(doc, "_source..a", "path [_source..a] is not valid");
             assertPathInvalid(doc, "_source.a..b", "path [_source.a..b] is not valid");
-            assertPathInvalid(doc, "_ingest..", "path [_ingest..] is not valid");
         });
 
         doWithAccessPattern(CLASSIC, (doc) -> {

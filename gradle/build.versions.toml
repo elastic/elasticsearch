@@ -1,5 +1,5 @@
 [versions]
-asm = "9.10.1"
+asm = "9.11.1"
 jackson = "2.21.8"
 junit = "6.1.3"
 spock = "2.3-groovy-4.0"

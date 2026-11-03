@@ -215,8 +215,13 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
     public void testDynamicUpdatesBetweenTrueAndFlattened() throws IOException {
         // Prefixes keep the two names in a known order in the rendered source.
         String mapped = "mapped_" + randomAlphaOfLength(5);
+        // The master records this setting when the mapping turns flattened, and keeps it after dynamic turns back to true.
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.RETAINS_UNMAPPED_FIELDS_SETTING.getKey(), true)
+            .build();
         MapperService mapperService = createMapperService(
-            columnarSettings(),
+            settings,
             mapping(b -> b.startObject(mapped).field("type", "keyword").endObject())
         );
 

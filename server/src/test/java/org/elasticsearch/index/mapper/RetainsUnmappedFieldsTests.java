@@ -204,6 +204,29 @@ public class RetainsUnmappedFieldsTests extends MapperServiceTestCase {
         assertMayHoldUnmappedFields(withSink, b -> b.field("field", "value").field("unmapped", "value"), false);
     }
 
+    /**
+     * A sink whose root's dynamic was never flattened absorbed nothing, which the mapping and settings tell without inspecting the
+     * segments: inspecting them collects the name of every field in every segment, on every shard of every ES|QL query.
+     */
+    public void testStrictColumnarSinkNeverFlattenedSkipsSegments() throws IOException {
+        assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), randomFrom(IndexMode.COLUMNAR, IndexMode.VECTORDB_COLUMNAR).getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), randomFrom("synthetic", "columnar_stored"))
+            .build();
+        MapperService mapperService = createMapperService(settings, topMapping(b -> {
+            if (randomBoolean()) {
+                b.field("dynamic", randomFrom("true", "strict"));
+            }
+            b.startObject("properties").startObject("field").field("type", "keyword").endObject().endObject();
+        }));
+        UnmappedFields unmappedFields = new UnmappedFields(mapperService.getIndexSettings(), mapperService.mappingLookup(), name -> {
+            throw new AssertionError("inspected the segments for [" + name + "]");
+        });
+        assertFalse(unmappedFields.mayExist());
+        assertFalse(unmappedFields.mayExist(randomAlphaOfLength(5)));
+    }
+
     public void testStrictColumnarSinkHoldsUnmappedFields() throws IOException {
         assumeTrue("flattened_unmapped_fields is enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
         Settings settings = Settings.builder()

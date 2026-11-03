@@ -5,6 +5,7 @@
  * 2.0.
  */
 
+import org.elasticsearch.gradle.OS
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 plugins {

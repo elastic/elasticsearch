@@ -745,10 +745,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                                 histogram.sourceText()
                             )
                         );
-                    } else if (readsNativeHistograms(buckets) == false && inputLabel(buckets, HistogramFunctionCall.LE_LABEL) == null) {
-                        // like Prometheus: an input without buckets evaluates to nothing
-                        warnings.add(histogram.functionName() + ": input vector has no le label; no buckets to evaluate");
-                    }
+                    } else if (readsNativeHistograms(buckets) == false
+                        && selectsMappedMetric(buckets)
+                        && inputLabel(buckets, HistogramFunctionCall.LE_LABEL) == null) {
+                            // like Prometheus: an input without buckets evaluates to nothing; one without series has nothing to say
+                            warnings.add(histogram.functionName() + ": input vector has no le label; no buckets to evaluate");
+                        }
                 }
                 case MetadataManipulationFunction relabel -> verifyRelabelInputs(relabel, failures);
                 case PromqlFunctionCall functionCall -> {
@@ -896,6 +898,13 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
             return null;
         }
         return PromqlLabels.getLabel(child(), name);
+    }
+
+    /** Whether {@code input} selects a metric the source maps: an unmapped one has no series, with or without {@code le}. */
+    private static boolean selectsMappedMetric(LogicalPlan input) {
+        return input.anyMatch(
+            node -> node instanceof Selector selector && selector.series().resolved() && selector.series().dataType() != DataType.NULL
+        );
     }
 
     /** Whether {@code input} selects native histograms, which carry their buckets in the value rather than in {@code le}. */

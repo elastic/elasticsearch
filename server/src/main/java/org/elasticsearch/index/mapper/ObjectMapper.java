@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -287,22 +288,18 @@ public class ObjectMapper extends Mapper {
             mappersBuilders.addAll(dedupedBuilders.values());
         }
 
+        // Merge duplicate children, using a LinkedHashMap to preserve declaration order.
+        // Objects that are flattened away are not merged with each other, so they are keyed by identity.
+        // TODO combine this with flattening - would be a breaking change as some broken mappings
+        // that are currently accepted and silently fixed would be rejected
         private void mergeDuplicateChildren(MapperMergeContext dedupContext) {
-            Map<String, Mapper.Builder> merged = new HashMap<>();
-            List<Mapper.Builder> flattenedAway = new ArrayList<>();
+            Map<Object, Mapper.Builder> merged = new LinkedHashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
-                if (isFlattenedAway(builder)) {
-                    flattenedAway.add(builder);
-                } else {
-                    merged.compute(
-                        builder.leafName(),
-                        (k, existing) -> existing == null ? builder : existing.mergeWith(builder, dedupContext)
-                    );
-                }
+                Object key = isFlattenedAway(builder) ? builder : builder.leafName();
+                merged.merge(key, builder, (existing, duplicate) -> existing.mergeWith(duplicate, dedupContext));
             }
             mappersBuilders.clear();
             mappersBuilders.addAll(merged.values());
-            mappersBuilders.addAll(flattenedAway);
         }
 
         // Nested builders are a genuine document boundary and must survive subobjects:false rather than being flattened into

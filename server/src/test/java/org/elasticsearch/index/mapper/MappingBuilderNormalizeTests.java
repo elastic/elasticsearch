@@ -400,4 +400,31 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
 
         assertNotNull(mapping.getRoot().getMapper("a"));
     }
+
+    private static final String HOISTED_FIELD_THEN_DIRECT_FIELD = """
+        {
+          "_doc": {
+            "subobjects": false,
+            "properties": {
+              "a": { "properties": { "x": { "type": "keyword", "ignore_above": 10 } } },
+              "a.x": { "type": "text" }
+            }
+          }
+        }
+        """;
+
+    /**
+     * Under {@code subobjects: false} a field inside a plain object is hoisted to a dotted name, and a later declaration of that
+     * dotted name is merged with it by the rules of the merge reason, which here reject the change of type.
+     */
+    public void testFieldDeclaredAgainAfterBeingHoistedIsMergedAsAConflict() throws IOException {
+        Exception e = expectThrows(Exception.class, () -> parse(HOISTED_FIELD_THEN_DIRECT_FIELD).build(MergeReason.MAPPING_UPDATE));
+        assertThat(e.getMessage(), containsString("cannot be changed from type [keyword] to [text]"));
+    }
+
+    public void testFieldDeclaredAgainAfterBeingHoistedTakesTheLaterDeclarationInATemplate() throws IOException {
+        Mapping mapping = parse(HOISTED_FIELD_THEN_DIRECT_FIELD).build(MergeReason.INDEX_TEMPLATE);
+
+        assertThat(mapping.getRoot().getMapper("a.x"), instanceOf(TextFieldMapper.class));
+    }
 }

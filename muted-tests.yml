@@ -570,3 +570,8 @@ tests:
   - :x-pack:plugin:migrate:internalClusterTest
   method: testMigrationRestartAfterFailure
   issue: https://github.com/elastic/elasticsearch/issues/164473
+- class: org.elasticsearch.xpack.esql.datasources.StreamingParallelParsingCoordinatorTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap
+  issue: https://github.com/elastic/elasticsearch/issues/164484

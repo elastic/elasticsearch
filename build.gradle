@@ -565,9 +565,6 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
     'distribution-closure-assignment': [
       'distribution/build.gradle::6',
     ],
-    'distribution-ext-closure-api': [
-      'distribution/build.gradle::1',
-    ],
   ])
 }
 

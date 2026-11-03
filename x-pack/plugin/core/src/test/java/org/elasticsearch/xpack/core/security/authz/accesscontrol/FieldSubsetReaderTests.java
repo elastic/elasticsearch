@@ -24,6 +24,8 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -48,11 +50,13 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.TermsEnum.SeekStatus;
 import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.AssertingLeafReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
@@ -772,6 +776,157 @@ public class FieldSubsetReaderTests extends MapperServiceTestCase {
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
+    }
+
+    public void testDocValuesSkippersMatchUnderlyingReader() throws Exception {
+        final List<String> fields = List.of("num_dense", "num_sparse", "ord_dense", "ord_sparse", "no_skipper");
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                for (int i = 0, numDocs = randomIntBetween(2, 100); i < numDocs; i++) {
+                    Document doc = new Document();
+                    for (int v = 0, values = i == 0 ? 2 : randomIntBetween(1, 3); v < values; v++) {
+                        doc.add(SortedNumericDocValuesField.indexedField("num_dense", randomLongBetween(-1000, 1000)));
+                        doc.add(SortedSetDocValuesField.indexedField("ord_dense", new BytesRef(randomAlphaOfLength(3))));
+                    }
+                    if (i == 0 || (i != 1 && randomBoolean())) {
+                        doc.add(SortedNumericDocValuesField.indexedField("num_sparse", randomLong()));
+                        doc.add(SortedDocValuesField.indexedField("ord_sparse", new BytesRef(randomAlphaOfLength(3))));
+                    }
+                    doc.add(new SortedNumericDocValuesField("no_skipper", randomLong()));
+                    iw.addDocument(doc);
+                }
+                iw.forceMerge(1);
+            }
+            final List<String> granted = randomSubsetOf(fields);
+            final List<String> denied = fields.stream().filter(field -> granted.contains(field) == false).toList();
+            for (List<String> grant : List.of(granted, denied)) {
+                try (
+                    DirectoryReader unfilteredReader = DirectoryReader.open(dir);
+                    DirectoryReader filteredReader = wrapWithGrantedFields(dir, grant)
+                ) {
+                    final LeafReader unfiltered = getOnlyLeafReader(unfilteredReader);
+                    final LeafReader filtered = getOnlyLeafReader(filteredReader);
+                    for (String field : fields) {
+                        assertThat(field, unfiltered.getDocValuesSkipper(field) == null, equalTo(field.equals("no_skipper")));
+                        if (grant.contains(field)) {
+                            assertThat(field, skipperStats(filtered, field), equalTo(skipperStats(unfiltered, field)));
+                            assertThat(field, docValues(filtered, field), equalTo(docValues(unfiltered, field)));
+                        } else {
+                            assertNull(field, filtered.getDocValuesSkipper(field));
+                            assertNull(field, filtered.getSortedNumericDocValues(field));
+                            assertNull(field, filtered.getSortedDocValues(field));
+                            assertNull(field, filtered.getSortedSetDocValues(field));
+                        }
+                    }
+                    assertNull(unfiltered.getDocValuesSkipper("missing"));
+                    assertNull(filtered.getDocValuesSkipper("missing"));
+                }
+            }
+        }
+    }
+
+    public void testDocValuesSkippersAgreeWithFieldInfos() throws Exception {
+        final List<String> fields = List.of("num", "ord", "no_skipper");
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                for (int i = 0, numDocs = randomIntBetween(1, 50); i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(SortedNumericDocValuesField.indexedField("num", randomLong()));
+                    doc.add(SortedSetDocValuesField.indexedField("ord", new BytesRef(randomAlphaOfLength(3))));
+                    doc.add(new SortedNumericDocValuesField("no_skipper", randomLong()));
+                    iw.addDocument(doc);
+                }
+            }
+            final List<String> granted = randomSubsetOf(fields);
+            final List<String> denied = fields.stream().filter(field -> granted.contains(field) == false).toList();
+            for (List<String> grant : List.of(granted, denied)) {
+                try (DirectoryReader reader = wrapWithGrantedFields(dir, grant)) {
+                    for (LeafReaderContext context : reader.leaves()) {
+                        final LeafReader leaf = new AssertingLeafReader(context.reader());
+                        for (String field : fields) {
+                            assertThat(
+                                field,
+                                leaf.getDocValuesSkipper(field) != null,
+                                equalTo(grant.contains(field) && field.equals("no_skipper") == false)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static DirectoryReader wrapWithGrantedFields(Directory dir, List<String> granted) throws IOException {
+        return FieldSubsetReader.wrap(
+            DirectoryReader.open(dir),
+            new CharacterRunAutomaton(granted.isEmpty() ? Automata.makeEmpty() : Automatons.patterns(granted)),
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+            fieldName -> true
+        );
+    }
+
+    private static List<Long> skipperStats(LeafReader reader, String field) throws IOException {
+        final DocValuesSkipper skipper = reader.getDocValuesSkipper(field);
+        if (skipper == null) {
+            return null;
+        }
+        return List.of((long) skipper.docCount(), skipper.minValue(), skipper.maxValue());
+    }
+
+    private static List<String> docValues(LeafReader reader, String field) throws IOException {
+        final List<String> values = new ArrayList<>();
+        if (field.startsWith("ord_")) {
+            final SortedSetDocValues dv = DocValues.getSortedSet(reader, field);
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                for (int i = 0; i < dv.docValueCount(); i++) {
+                    values.add(doc + ":" + dv.lookupOrd(dv.nextOrd()).utf8ToString());
+                }
+            }
+        } else {
+            final SortedNumericDocValues dv = DocValues.getSortedNumeric(reader, field);
+            for (int doc = dv.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dv.nextDoc()) {
+                for (int i = 0; i < dv.docValueCount(); i++) {
+                    values.add(doc + ":" + dv.nextValue());
+                }
+            }
+        }
+        return values;
+    }
+
+    public void testDocValuesSkipperOfHiddenField() throws Exception {
+        final int numDocs = randomIntBetween(16, 32);
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(dir, new IndexWriterConfig(null))) {
+                for (int i = 0; i < numDocs; i++) {
+                    Document doc = new Document();
+                    doc.add(SortedNumericDocValuesField.indexedField("hidden", randomLong()));
+                    doc.add(SortedNumericDocValuesField.indexedField("granted", randomLong()));
+                    iw.addDocument(doc);
+                }
+            }
+            try (
+                DirectoryReader reader = FieldSubsetReader.wrap(
+                    DirectoryReader.open(dir),
+                    new CharacterRunAutomaton(Automata.makeString("granted")),
+                    IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE,
+                    fieldName -> true
+                )
+            ) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                assertThat(
+                    searcher.count(SortedNumericDocValuesField.newSlowRangeQuery("hidden", Long.MIN_VALUE, Long.MAX_VALUE)),
+                    equalTo(0)
+                );
+                assertThat(
+                    searcher.count(SortedNumericDocValuesField.newSlowRangeQuery("granted", Long.MIN_VALUE, Long.MAX_VALUE)),
+                    equalTo(numDocs)
+                );
+
+                LeafReader leaf = getOnlyLeafReader(reader);
+                assertNull(leaf.getDocValuesSkipper("hidden"));
+                assertNotNull(leaf.getDocValuesSkipper("granted"));
+            }
+        }
     }
 
     /**

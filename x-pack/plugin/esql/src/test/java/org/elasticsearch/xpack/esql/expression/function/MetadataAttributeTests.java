@@ -24,7 +24,7 @@ public class MetadataAttributeTests extends AbstractNamedExpressionSerialization
         Source source = Source.EMPTY;
         String name = randomAlphaOfLength(5);
         DataType type = randomValueOtherThanMany(t -> false == t.supportedVersion().supportedLocally(), () -> randomFrom(DataType.types()));
-        Nullability nullability = randomFrom(Nullability.values());
+        Nullability nullability = randomFrom(Nullability.TRUE, Nullability.FALSE);
         boolean synthetic = randomBoolean();
         boolean searchable = randomBoolean();
         return new MetadataAttribute(source, name, type, nullability, new NameId(), synthetic, searchable);
@@ -42,7 +42,7 @@ public class MetadataAttributeTests extends AbstractNamedExpressionSerialization
         switch (between(0, 5)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
-            case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.TRUE, Nullability.FALSE));
             case 3 -> id = new NameId();
             case 4 -> synthetic = false == synthetic;
             case 5 -> searchable = false == searchable;

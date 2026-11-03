@@ -75,6 +75,12 @@ public class IndexResolverNonNullableTests extends ESTestCase {
         assertThat(nonNullableFields(index), empty());
     }
 
+    /** A lookup index is resolved without reporting the flag: a left join nulls the fields of the rows that do not match. */
+    public void testNothingIsReportedWhenNotAskedFor() {
+        EsIndex index = resolve(false, false, index("a", field("x", "long", true)));
+        assertThat(nonNullableFields(index), empty());
+    }
+
     public void testDateAndBooleanQualify() {
         EsIndex index = resolve(false, index("a", field("d", "date", true), field("b", "boolean", true), field("n", "date_nanos", true)));
         assertThat(nonNullableFields(index), equalTo(Set.of("d", "b", "n")));
@@ -133,11 +139,19 @@ public class IndexResolverNonNullableTests extends ESTestCase {
     }
 
     private static EsIndex resolve(boolean trackUnmappedFieldIndices, FieldCapabilitiesIndexResponse... indices) {
+        return resolve(true, trackUnmappedFieldIndices, indices);
+    }
+
+    private static EsIndex resolve(
+        boolean reportNonNullable,
+        boolean trackUnmappedFieldIndices,
+        FieldCapabilitiesIndexResponse... indices
+    ) {
         FieldCapabilitiesResponse caps = FieldCapabilitiesResponse.builder().withIndexResponses(List.of(indices)).build();
         IndexResolution resolution = IndexResolver.mergedMappings(
             "idx-*",
             false,
-            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, false),
+            new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false, false, false, false, reportNonNullable),
             trackUnmappedFieldIndices,
             IndexResolver.DO_NOT_GROUP
         );

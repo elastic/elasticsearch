@@ -138,6 +138,7 @@ public class IndexResolver {
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
             false, /* lookup indices should do not be empty */
+            false, /* a lookup join can null the fields of rows that do not match, so the flag does not hold */
             minimumVersion,
             false,
             false,
@@ -189,6 +190,7 @@ public class IndexResolver {
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, requestFilter, includeAllDimensions, false),
             indexPattern,
             true, /* allow empty index resolution when resolving main pattern */
+            true,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -225,6 +227,7 @@ public class IndexResolver {
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, ALL_FIELDS, requestFilter, false, true),
             indexPattern,
             true, /* the derived data streams may not exist */
+            false,
             minimumVersion,
             false,
             false,
@@ -288,6 +291,7 @@ public class IndexResolver {
             createResolveFieldRequest(options, indexPattern, projectRouting, fieldNames, requestFilter, includeAllDimensions, true),
             indexPattern,
             true, /* flat index expression could resolve to empty */
+            true,
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
@@ -319,6 +323,7 @@ public class IndexResolver {
         EsqlResolveFieldsRequest request,
         String indexPattern,
         boolean allowEmpty,
+        boolean reportNonNullable,
         TransportVersion minimumVersion,
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
@@ -351,7 +356,8 @@ public class IndexResolver {
                 useDenseVectorWhenNotSupported,
                 hasTimeSeriesAggregation,
                 needsAnalyzerGroups,
-                flattenedDataTypeEnabled.getAsBoolean()
+                flattenedDataTypeEnabled.getAsBoolean(),
+                reportNonNullable
             );
             LOGGER.debug(
                 "previously assumed minimum transport version [{}] updated to effective version [{}]"
@@ -428,8 +434,34 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
-        boolean flattenedDataTypeEnabled
-    ) {}
+        boolean flattenedDataTypeEnabled,
+        // Whether to report EsField#isStaticallyNonNullable. Only the resolution of the indices that a query reads from may: a field of a
+        // lookup index is null for the rows of a left join that do not match.
+        boolean reportNonNullable
+    ) {
+        public FieldsInfo(
+            FieldCapabilitiesResponse caps,
+            @Nullable TransportVersion minTransportVersion,
+            boolean currentBuildIsSnapshot,
+            boolean useAggregateMetricDoubleWhenNotSupported,
+            boolean useDenseVectorWhenNotSupported,
+            boolean hasTimeSeriesAggregation,
+            boolean needsAnalyzerGroups,
+            boolean flattenedDataTypeEnabled
+        ) {
+            this(
+                caps,
+                minTransportVersion,
+                currentBuildIsSnapshot,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation,
+                needsAnalyzerGroups,
+                flattenedDataTypeEnabled,
+                false
+            );
+        }
+    }
 
     // public for testing only
     public static IndexResolution mergedMappings(
@@ -622,7 +654,9 @@ public class IndexResolver {
         boolean aggregatable = first.isAggregatable();
         boolean isPassthrough = Boolean.TRUE.equals(first.isPassthrough());
         // A field missing from an index is null there, so every distinct mapping must have the field and guarantee a value.
-        boolean isStaticallyNonNullable = fcs.size() == distinctMappings && first.isStaticallyNonNullable();
+        boolean isStaticallyNonNullable = fieldsInfo.reportNonNullable()
+            && fcs.size() == distinctMappings
+            && first.isStaticallyNonNullable();
         EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
             ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
             : EsField.TimeSeriesFieldType.NONE;

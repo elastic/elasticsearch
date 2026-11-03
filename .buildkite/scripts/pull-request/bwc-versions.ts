@@ -38,3 +38,17 @@ export const getSnapshotBwcPinArgs = (): string => SNAPSHOT_BWC_PIN_ARGS;
 export const setSnapshotBwcPinArgs = (args: string): void => {
   SNAPSHOT_BWC_PIN_ARGS = args;
 };
+
+// Snapshot bwc versions that have a known-good DRA build (plus the current version). A version newly added to
+// .ci/snapshotBwcVersions stays out of PR and merge-queue bwc until intake promotes a build of it. Undefined: no gating.
+let INCLUDED_SNAPSHOT_BWC_VERSIONS: string[] | undefined;
+
+export const setIncludedSnapshotBwcVersions = (versions: string[] | undefined): void => {
+  INCLUDED_SNAPSHOT_BWC_VERSIONS = versions;
+};
+
+export const getIncludedSnapshotBwcVersions = (): string[] => {
+  const included = INCLUDED_SNAPSHOT_BWC_VERSIONS;
+  const all: string[] = getSnapshotBwcVersions();
+  return included ? all.filter((version) => included.includes(version)) : all;
+};

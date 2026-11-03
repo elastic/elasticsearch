@@ -76,6 +76,20 @@ export const startFakeGcs = async (options: FakeGcsOptions = {}): Promise<FakeGc
       return;
     }
 
+    if (req.method === "DELETE" && read) {
+      const key = `${decodeURIComponent(read[1] ?? "")}/${decodeURIComponent(read[2] ?? "")}`;
+      const expected = url.searchParams.get("ifGenerationMatch");
+      const current = objects.get(key)?.generation ?? 0;
+      if (expected !== null && Number(expected) !== current) {
+        fake.preconditionFailures++;
+        res.writeHead(412).end("precondition failed");
+        return;
+      }
+      objects.delete(key);
+      res.writeHead(current ? 204 : 404).end();
+      return;
+    }
+
     const write = url.pathname.match(/^\/upload\/storage\/v1\/b\/([^/]+)\/o$/);
     if (req.method === "POST" && write) {
       const key = `${decodeURIComponent(write[1] ?? "")}/${url.searchParams.get("name")}`;

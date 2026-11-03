@@ -63,6 +63,18 @@ export class GcsClient {
     }
   }
 
+  /** Deletes the object if its generation still matches. Throws PreconditionFailedError otherwise. */
+  async delete(name: string, ifGenerationMatch: string): Promise<void> {
+    const url = `${this.baseUrl}/storage/v1/b/${encodeURIComponent(this.bucket)}/o/${encodeURIComponent(name)}?${new URLSearchParams({ ifGenerationMatch })}`;
+    const response = await fetch(url, { method: "DELETE", headers: await this.headers(), signal: AbortSignal.timeout(30_000) });
+    if (response.status === 412) {
+      throw new PreconditionFailedError(`gs://${this.bucket}/${name} changed concurrently (generation != ${ifGenerationMatch})`);
+    }
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`DELETE gs://${this.bucket}/${name} returned HTTP ${response.status}: ${await response.text()}`);
+    }
+  }
+
   private async headers(): Promise<Record<string, string>> {
     const token = await this.token();
     return token ? { Authorization: `Bearer ${token}` } : {};

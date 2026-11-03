@@ -114,8 +114,15 @@ tasks.named("processYamlRestTestResources").configure {
 tasks.named("yamlRestTest").configure {
   // Pass the docs project directory through so the test class can resolve config files
   // (analysis configs, p12 truststores, etc.) that still live under docs/src/test/cluster/config
-  // and docs/*.p12 by their original paths.
-  systemProperty 'tests.docs.dir', projectDir.absolutePath
+  // and docs/*.p12 by their original paths. Route it through nonInputProperties: the value is an
+  // absolute path, which would make this task's build cache key non-relocatable across CI checkouts
+  // (it never hit the cache). The config files the test actually reads are declared as relative
+  // inputs below so their contents still invalidate the cache.
+  nonInputProperties.systemProperty 'tests.docs.dir', projectDir.absolutePath
+  inputs.files(fileTree(projectDir) {
+    include 'src/test/cluster/config/**'
+    include '*.p12'
+  }).withPropertyName('docsTestConfigFiles').withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
 }
 
 tasks.matching { it.name == 'forbiddenPatterns' }.configureEach {

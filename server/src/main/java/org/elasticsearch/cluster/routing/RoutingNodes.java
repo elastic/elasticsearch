@@ -943,6 +943,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // such as pending split clones.
         if (failedShard.primary() && failedShard.recoverySource().getType() == RecoverySource.Type.RESHARD_SPLIT) {
             final IndexReshardingMetadata reshardingMetadata = metadata.indexMetadata(failedShard.index()).getReshardingMetadata();
+            // The resharding metadata is added along with the split target shards and only removed once all of them are done,
+            // and only split target shards use a RESHARD_SPLIT recovery source.
+            assert reshardingMetadata != null : "missing resharding metadata for failed split target shard: " + failedShard;
+            assert IndexReshardingMetadata.isSplitTarget(failedShard.shardId(), reshardingMetadata)
+                : "failed shard with a RESHARD_SPLIT recovery source must be a split target: " + failedShard;
             if (IndexReshardingMetadata.isSplitTarget(failedShard.shardId(), reshardingMetadata) == false
                 || reshardingMetadata.getSplit()
                     .targetStateAtLeast(failedShard.id(), IndexReshardingState.Split.TargetShardState.HANDOFF)) {

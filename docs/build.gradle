@@ -179,12 +179,6 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 }
 
 tasks.named("yamlRestTest").configure {
-<<<<<<< HEAD
-  def repoFolder = "${layout.buildDirectory.asFile.get()}/cluster/shared/repo"
-  doFirst {
-    delete(repoFolder)
-  }
-=======
   // Pass the docs project directory through so the test class can resolve config files
   // (analysis configs, p12 truststores, etc.) that still live under docs/src/test/cluster/config
   // and docs/*.p12 by their original paths. Route it through nonInputProperties: the value is an
@@ -196,7 +190,10 @@ tasks.named("yamlRestTest").configure {
     include 'src/test/cluster/config/**'
     include '*.p12'
   }).withPropertyName('docsTestConfigFiles').withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
->>>>>>> 5c1e415a575a (fix(build): make cache-poisoning test sysprops relocatable (#164064))
+  def repoFolder = "${layout.buildDirectory.asFile.get()}/cluster/shared/repo"
+  doFirst {
+    delete(repoFolder)
+  }
 }
 
 tasks.named("forbiddenPatterns").configure {

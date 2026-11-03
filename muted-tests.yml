@@ -559,3 +559,8 @@ tests:
   tasks:
   - :qa:mixed-cluster:v9.5.7#yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/163053
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
+  issue: https://github.com/elastic/elasticsearch/issues/164538

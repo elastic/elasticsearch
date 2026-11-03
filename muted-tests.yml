@@ -574,11 +574,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testLastSearcherAcquiredTimeIsSetWhenAddingReplica
   issue: https://github.com/elastic/elasticsearch/issues/164193
-- class: org.elasticsearch.xpack.stateless.CorruptionWhileRelocatingIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testSearchShardRegistrationWithTargetCommitDoesNotGetPausedBccFromSource
-  issue: https://github.com/elastic/elasticsearch/issues/164195
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest

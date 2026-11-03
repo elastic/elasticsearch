@@ -340,7 +340,8 @@ public class DeploymentManager {
             logger.info("[{}] Stopping deployment, reason [{}]", task.getDeploymentId(), task.stoppedReason().orElse("unknown"));
             processContext.forcefullyStopProcess();
         } else {
-            logger.warn("[{}] No process context to stop", task.getDeploymentId());
+            // No process exists when startDeployment already failed and logged; this is a follow-on effect.
+            logger.debug("[{}] No process context to stop", task.getDeploymentId());
         }
     }
 
@@ -354,7 +355,7 @@ public class DeploymentManager {
             );
             processContext.stopProcessAfterCompletingPendingWork(listener);
         } else {
-            logger.warn("[{}] No process context to stop gracefully", task.getDeploymentId());
+            logger.debug("[{}] No process context to stop gracefully", task.getDeploymentId());
         }
     }
 

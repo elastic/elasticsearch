@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.ml.inference.deployment;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -114,6 +118,46 @@ public class DeploymentManagerTests extends ESTestCase {
         );
 
         assertThat(rejectedCount.intValue(), equalTo(1));
+    }
+
+    public void testStopWithoutProcessContextLogsAtDebugOnly() {
+        TrainedModelDeploymentTask task = mock(TrainedModelDeploymentTask.class);
+        when(task.getId()).thenReturn(1L);
+        when(task.getDeploymentId()).thenReturn("no-process-deployment");
+        DeploymentManager deploymentManager = new DeploymentManager(
+            mock(Client.class),
+            mock(NamedXContentRegistry.class),
+            tp,
+            mock(PyTorchProcessFactory.class),
+            10,
+            inferenceAuditor
+        );
+        String loggerName = DeploymentManager.class.getCanonicalName();
+        var logger = LogManager.getLogger(DeploymentManager.class);
+        Loggers.setLevel(logger, Level.DEBUG);
+        try {
+            MockLog.assertThatLogger(() -> {
+                deploymentManager.stopDeployment(task);
+                deploymentManager.stopAfterCompletingPendingWork(task, ActionListener.noop());
+            },
+                DeploymentManager.class,
+                new MockLog.UnseenEventExpectation("no warn when stopping", loggerName, Level.WARN, "*No process context to stop*"),
+                new MockLog.SeenEventExpectation(
+                    "debug on forceful stop",
+                    loggerName,
+                    Level.DEBUG,
+                    "[no-process-deployment] No process context to stop"
+                ),
+                new MockLog.SeenEventExpectation(
+                    "debug on graceful stop",
+                    loggerName,
+                    Level.DEBUG,
+                    "[no-process-deployment] No process context to stop gracefully"
+                )
+            );
+        } finally {
+            Loggers.setLevel(logger, (Level) null);
+        }
     }
 
 }

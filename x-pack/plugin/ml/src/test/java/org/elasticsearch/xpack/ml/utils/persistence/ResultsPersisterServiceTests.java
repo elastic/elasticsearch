@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -29,6 +32,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -41,6 +45,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.ShardRestoringException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -59,6 +64,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -471,6 +477,46 @@ public class ResultsPersisterServiceTests extends ESTestCase {
         verify(client, times(maxFailureRetries + 1)).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         assertThat(lastMessage.get(), containsString("failed to index after [10] attempts. Will attempt again"));
+    }
+
+    public void testBulkRequestLogsEachRetryAtDebugAndGiveUpOnceAtWarn() {
+        int maxFailureRetries = 3;
+        resultsPersisterService.setMaxFailureRetries(maxFailureRetries);
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { BULK_ITEM_RESPONSE_FAILURE }, 0L))).when(client)
+            .execute(eq(TransportBulkAction.TYPE), any(), any());
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(INDEX_REQUEST_FAILURE);
+
+        String loggerName = ResultsPersisterService.class.getCanonicalName();
+        var warnCount = new AtomicInteger();
+        var debugRetryCount = new AtomicInteger();
+        var logger = LogManager.getLogger(ResultsPersisterService.class);
+        Loggers.setLevel(logger, Level.DEBUG);
+        try (var mockLog = MockLog.capture(ResultsPersisterService.class)) {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                @Override
+                public void match(LogEvent event) {
+                    boolean retryLine = event.getMessage().getFormattedMessage().contains("Will attempt again");
+                    if (event.getLoggerName().equals(loggerName) && event.getLevel() == Level.WARN) {
+                        warnCount.incrementAndGet();
+                    } else if (event.getLoggerName().equals(loggerName) && event.getLevel() == Level.DEBUG && retryLine) {
+                        debugRetryCount.incrementAndGet();
+                    }
+                }
+
+                @Override
+                public void assertMatched() {}
+            });
+            expectThrows(
+                ElasticsearchException.class,
+                () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, msg -> {})
+            );
+            mockLog.assertAllExpectationsMatched();
+        } finally {
+            Loggers.setLevel(logger, (Level) null);
+        }
+        assertThat("one DEBUG line per retried attempt", debugRetryCount.get(), equalTo(maxFailureRetries));
+        assertThat("only the terminal give-up logs at WARN", warnCount.get(), equalTo(1));
     }
 
     public void testBulkRequestRetriesMsgHandlerIsCalled() {

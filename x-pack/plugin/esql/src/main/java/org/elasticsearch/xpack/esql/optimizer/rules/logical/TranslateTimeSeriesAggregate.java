@@ -491,8 +491,9 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
         boolean promqlLabel,
         int position
     ) {
-        // PromQL labels retain their complete dimension value through aliases used for normalization and private names.
-        boolean dimension = attribute.isDimension() || promqlLabel;
+        // PromQL labels retain their complete dimension value through aliases used for normalization and private names. A
+        // non-dimension field may change within a series, so it keeps every value it takes, as an ES|QL grouping does.
+        boolean dimension = attribute.isDimension() || (promqlLabel && attribute instanceof FieldAttribute == false);
         var valuesAgg = new Alias(group.source(), group.name(), valuesAggregate(context, attribute, dimension));
         firstPassAggs.add(valuesAgg);
         if (dimension) {

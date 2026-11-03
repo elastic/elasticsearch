@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIMESERIES_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -99,6 +100,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         TIME_DURATION,
         DOC_DATA_TYPE,
         TSID_DATA_TYPE,
+        TIMESERIES_DATA_TYPE,
         AGGREGATE_METRIC_DOUBLE,
         EXPONENTIAL_HISTOGRAM,
         TDIGEST,

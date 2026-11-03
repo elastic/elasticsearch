@@ -2978,16 +2978,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
 
     /** {@code on_disk_merge} can be flipped by a mapping update: the index type stays the same, so the update is not rejected. */
     public void testOnDiskMergeIndexOptions() throws IOException {
-        for (String type : new String[] {
-            "hnsw",
-            "int8_hnsw",
-            "int4_hnsw",
-            "flat",
-            "int8_flat",
-            "int4_flat",
-            "bbq_hnsw",
-            "bbq_flat",
-            "bbq_disk" }) {
+        for (String type : onDiskMergeIndexTypes()) {
             MapperService mapperService = createMapperService(fieldMapping(b -> onDiskMergeMapping(b, type, null)));
             assertFalse(type + " defaults to off", onDiskMergeOf(mapperService));
             assertFormatCarriesOnDiskMerge(type, mapperService, false);
@@ -3001,6 +2992,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             assertFalse(type, onDiskMergeOf(mapperService));
             assertThat(type, mapperService.documentMapper().mappingSource().toString(), not(containsString("on_disk_merge")));
         }
+    }
+
+    /** The index types whose format must carry {@code on_disk_merge}; subclasses that provide other formats can drop some. */
+    protected List<String> onDiskMergeIndexTypes() {
+        return List.of("hnsw", "int8_hnsw", "int4_hnsw", "flat", "int8_flat", "int4_flat", "bbq_hnsw", "bbq_flat", "bbq_disk");
     }
 
     /** @param onDiskMerge the value of {@code on_disk_merge}, or {@code null} to leave it out */

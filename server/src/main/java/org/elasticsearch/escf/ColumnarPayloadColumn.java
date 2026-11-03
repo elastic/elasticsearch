@@ -11,6 +11,7 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.core.Nullable;
@@ -73,7 +74,8 @@ public final class ColumnarPayloadColumn extends LuceneBinaryColumn {
      * @param valuelessDocs  the documents whose payload holds no value, or {@code null} if the field does not track them
      */
     public static boolean needsTermsColumn(@Nullable EscfColumnBuilder terms, @Nullable FixedBitSet valuelessDocs) {
-        return terms != null && (terms.isEmpty() == false || (valuelessDocs != null && valuelessDocs.cardinality() > 0));
+        return terms != null
+            && (terms.isEmpty() == false || (valuelessDocs != null && valuelessDocs.nextSetBit(0) != DocIdSetIterator.NO_MORE_DOCS));
     }
 
     /** The type the {@link #rowFieldCursor() row cursor} gives {@code doc}, which is {@link #fieldType()} for all but the valueless. */

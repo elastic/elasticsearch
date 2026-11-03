@@ -106,9 +106,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
     /// Entries are pruned by [#clusterChanged] once the corresponding shard stops initializing or its allocationId changes.
     private final Map<String, ShardId> cancelledAllocationIds = new HashMap<>();
 
-    /// The node ids marked for removal from the last cluster state seen by [#clusterChanged].
+    /// The node shutdowns from the last cluster state seen by [#clusterChanged].
     /// Guarded by the [ThrottlingRecoveryService] instance lock.
-    private Set<String> nodesMarkedForRemoval = Set.of();
+    private NodesShutdownMetadata nodeShutdowns = NodesShutdownMetadata.EMPTY;
 
     public ThrottlingRecoveryService(
         ThreadPool threadPool,
@@ -176,11 +176,11 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     threadPool.absoluteTimeInMillis()
                 );
                 // If its source node was marked for removal after its priority was set, promote the recovery to `RELOCATION_CAN_REMAIN_NO`.
-                if (sourceNodeId != null && nodesMarkedForRemoval.contains(sourceNodeId)) {
+                if (sourceNodeId != null && nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId)) {
                     final RecoveryPriority current = indexShard.recoveryState().getRecoveryPriority();
                     final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
                     if (current != updated) {
-                        pendingRecovery.raiseRecoveryPriority(updated);
+                        pendingRecovery.raiseRecoveryPriority(updated, sourceNodeId);
                     }
                 }
                 // Note that the PendingRecovery captures the IndexMetadata that was passed in when the recovery was enqueued, so it does
@@ -288,10 +288,7 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             if (isClosed()) {
                 return;
             }
-            final NodesShutdownMetadata nodeShutdowns = event.state().metadata().nodeShutdowns();
-            if (nodeShutdowns != event.previousState().metadata().nodeShutdowns()) {
-                nodesMarkedForRemoval = nodeShutdowns.getAllNodeIdsMarkedForRemoval();
-            }
+            nodeShutdowns = event.state().metadata().nodeShutdowns();
             if (localNode == null) {
                 assert clusterService.localNode().canContainData() == false
                     && pendingRecoveries.isEmpty()
@@ -317,12 +314,12 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     // easier testing. Indeed, a pending recovery never started, and if its allocation ID has changed or localNode
                     // became `null`, the old IndexShard object those stats belong to would have already been closed.
                     pending.stats().targetQueuedRecoveryDiscarded(recoveryState.getRecoverySource().getType());
-                } else if (sourceNodeId != null && nodesMarkedForRemoval.contains(sourceNodeId)) {
+                } else if (sourceNodeId != null && nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId)) {
                     final RecoveryPriority current = recoveryState.getRecoveryPriority();
                     final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
                     if (current != updated) {
                         it.remove();
-                        pending.raiseRecoveryPriority(updated);
+                        pending.raiseRecoveryPriority(updated, sourceNodeId);
                         reprioritized.add(pending);
                     }
                 }
@@ -635,7 +632,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return isCritical() ? RecoverySchedulingListener.PriorityGroup.CRITICAL : RecoverySchedulingListener.PriorityGroup.NON_CRITICAL;
         }
 
-        void raiseRecoveryPriority(RecoveryPriority updated) {
+        /// Raises the priority of this recovery because its source node `sourceNodeId` is marked for removal.
+        void raiseRecoveryPriority(RecoveryPriority updated, String sourceNodeId) {
             RecoveryState state = recoveryState();
             RecoveryPriority current = state.getRecoveryPriority();
             assert updated.ordinal() < current.ordinal()
@@ -646,9 +644,15 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             // changes the group and these counts need no update. A reprioritization that moves a recovery to the other
             // group would have to update them too.
             assert current.isCritical() == updated.isCritical()
-                : "unexpected recovery priority update from non-critical to critical, updated priority : " + updated + " , state " + state;
+                : "recovery priority update must not change the priority group, updated priority : " + updated + " , state " + state;
 
-            logger.debug("raising priority of recovery from [{}] to [{}]: {}", current, updated, state);
+            logger.debug(
+                "raising priority of recovery from [{}] to [{}] because source node [{}] is marked for removal: {}",
+                current,
+                updated,
+                sourceNodeId,
+                state
+            );
             state.setRecoveryPriority(updated);
         }
     }

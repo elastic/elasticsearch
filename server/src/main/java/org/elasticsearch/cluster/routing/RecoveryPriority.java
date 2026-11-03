@@ -142,7 +142,7 @@ public enum RecoveryPriority implements Writeable {
 
     /// Returns the higher of the two priorities, i.e. the one with the lower [#ordinal()].
     public static RecoveryPriority highest(RecoveryPriority first, RecoveryPriority second) {
-        return first.ordinal() <= second.ordinal() ? first : second;
+        return first.compareTo(second) <= 0 ? first : second;
     }
 
     /// Returns whether a recovery with this priority is critical, i.e. one for a shard copy that the client expects

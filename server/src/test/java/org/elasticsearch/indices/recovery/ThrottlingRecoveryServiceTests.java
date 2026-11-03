@@ -1554,7 +1554,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var routingNodes = mock(RoutingNodes.class);
         final var routingNode = mock(RoutingNode.class);
         when(event.state()).thenReturn(state);
-        when(event.previousState()).thenReturn(state);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.getRoutingNodes()).thenReturn(routingNodes);
         when(routingNodes.node(clusterService.localNode().getId())).thenReturn(routingNode);
@@ -1641,7 +1640,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var routingNodes = mock(RoutingNodes.class);
         final var routingNode = mock(RoutingNode.class);
         when(event.state()).thenReturn(state);
-        when(event.previousState()).thenReturn(state);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.getRoutingNodes()).thenReturn(routingNodes);
         when(routingNodes.node(clusterService.localNode().getId())).thenReturn(routingNode);
@@ -2488,7 +2486,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final var routingNodes = mock(RoutingNodes.class);
         final var routingNode = mock(RoutingNode.class);
         when(event.state()).thenReturn(state);
-        when(event.previousState()).thenReturn(state);
         when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(state.getRoutingNodes()).thenReturn(routingNodes);
         when(routingNodes.node(clusterService.localNode().getId())).thenReturn(routingNode);
@@ -2565,20 +2562,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 )
             );
         service.clusterChanged(
-            clusterChangedEventWithShutdowns(
-                clusterService,
-                NodesShutdownMetadata.EMPTY,
-                unrelatedShutdowns,
-                splitTargetShard,
-                relocationTargetShard
-            )
+            clusterChangedEventWithShutdowns(clusterService, unrelatedShutdowns, splitTargetShard, relocationTargetShard)
         );
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(assignedPriority));
 
         service.clusterChanged(
             clusterChangedEventWithShutdowns(
                 clusterService,
-                unrelatedShutdowns,
                 nodeShutdowns(
                     "relocation-source",
                     randomFrom(
@@ -2617,11 +2607,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertNotNull("blocker should have been dispatched", blockedRecoveryListener.get());
 
         service.clusterChanged(
-            clusterChangedEventWithShutdowns(
-                clusterService,
-                NodesShutdownMetadata.EMPTY,
-                nodeShutdowns("relocation-source", SingleNodeShutdownMetadata.Type.REMOVE)
-            )
+            clusterChangedEventWithShutdowns(clusterService, nodeShutdowns("relocation-source", SingleNodeShutdownMetadata.Type.REMOVE))
         );
         taskQueue.runAllRunnableTasks();
 
@@ -2659,17 +2645,13 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     private static ClusterChangedEvent clusterChangedEventWithShutdowns(
         ClusterService clusterService,
-        NodesShutdownMetadata previousNodeShutdowns,
         NodesShutdownMetadata nodeShutdowns,
         IndexShard... localShards
     ) {
         final var event = mock(ClusterChangedEvent.class);
-        final var previousState = mock(ClusterState.class);
         final var state = mock(ClusterState.class);
         final var routingNodes = mock(RoutingNodes.class);
         final var routingNode = mock(RoutingNode.class);
-        when(event.previousState()).thenReturn(previousState);
-        when(previousState.metadata()).thenReturn(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, previousNodeShutdowns).build());
         when(event.state()).thenReturn(state);
         when(state.metadata()).thenReturn(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, nodeShutdowns).build());
         when(state.getRoutingNodes()).thenReturn(routingNodes);

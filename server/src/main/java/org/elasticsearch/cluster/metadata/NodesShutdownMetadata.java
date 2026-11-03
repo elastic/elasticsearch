@@ -133,17 +133,6 @@ public class NodesShutdownMetadata implements Metadata.ClusterCustom {
     }
 
     /**
-     * Returns all node ids that are scheduled for being permanently removed from the cluster.
-     */
-    public Set<String> getAllNodeIdsMarkedForRemoval() {
-        return nodes.values()
-            .stream()
-            .filter(node -> node.getType().isRemovalType())
-            .map(SingleNodeShutdownMetadata::getNodeId)
-            .collect(Collectors.toUnmodifiableSet());
-    }
-
-    /**
      * Add or update the shutdown metadata for a single node.
      * @param nodeShutdownMetadata The single node shutdown metadata to add or update.
      * @return A new {@link NodesShutdownMetadata} that reflects the updated value.

@@ -1,0 +1,5 @@
+area: Store
+issues: []
+pr: 164491
+summary: Read files inside compound files with normal advice
+type: bug

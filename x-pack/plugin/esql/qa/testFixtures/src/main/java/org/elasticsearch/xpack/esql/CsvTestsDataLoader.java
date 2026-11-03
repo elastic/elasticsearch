@@ -28,10 +28,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.action.admin.indices.CreateIndexCapabilities;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -334,7 +336,9 @@ public class CsvTestsDataLoader {
             .withTypeMapping(Map.of("network.bytes_in", "double", "network.cost", "long")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
-        new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
+        // TODO: batch indexing rebuilds stored _source in the batch's field order, which changes the key order of _timeseries
+        new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json")
+            .withBatchIndexingDisabled(),
         new TestDataset("empty-k8s", "k8s-extra-mappings.json", "k8s-empty.csv").withSetting("k8s-settings.json"),
         new TestDataset(
             "promql_classic_histogram",
@@ -1216,10 +1220,15 @@ public class CsvTestsDataLoader {
 
     private static void load(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
         logger.debug("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
+        Settings settings = dataset.loadSettings();
+        if (dataset.batchIndexingDisabled()
+            && checkCapability(client, "PUT", "/{index}", CreateIndexCapabilities.BATCH_INDEXING_SETTING_CAPABILITY)) {
+            settings = Settings.builder().put(settings).put(IndexSettings.BATCH_INDEXING.getKey(), false).build();
+        }
         if (dataset.dataStream()) {
-            createDataStream(client, dataset);
+            createDataStream(client, dataset, settings);
         } else {
-            indexCreator.createIndex(client, dataset.indexName, readMappingFile(dataset), dataset.loadSettings());
+            indexCreator.createIndex(client, dataset.indexName, readMappingFile(dataset), settings);
         }
 
         // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
@@ -1228,7 +1237,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void createDataStream(RestClient client, TestDataset dataset) throws IOException {
+    private static void createDataStream(RestClient client, TestDataset dataset, Settings settings) throws IOException {
         String indexTemplate = """
             {
               "index_patterns": ["%s"],
@@ -1238,7 +1247,7 @@ public class CsvTestsDataLoader {
               },
               "data_stream": {}
             }
-            """.formatted(dataset.indexName(), Strings.toString(dataset.loadSettings()), readMappingFile(dataset));
+            """.formatted(dataset.indexName(), Strings.toString(settings), readMappingFile(dataset));
         Request createTemplate = new Request("PUT", "/_index_template/" + dataStreamTemplateName(dataset.indexName()));
         createTemplate.setJsonEntity(indexTemplate);
         client.performRequest(createTemplate);
@@ -1611,7 +1620,8 @@ public class CsvTestsDataLoader {
         @Nullable Map<String, String> dynamicTypeMapping,
         @Nullable String dynamic,
         List<String> inferenceEndpoints,
-        List<EsqlCapabilities.Cap> requiredCapabilities
+        List<EsqlCapabilities.Cap> requiredCapabilities,
+        boolean batchIndexingDisabled
     ) {
 
         public TestDataset(String indexName) {
@@ -1626,16 +1636,17 @@ public class CsvTestsDataLoader {
                 null,
                 null,
                 List.of(),
-                List.of()
+                List.of(),
+                false
             );
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, false, null, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, null, true, false, null, null, null, List.of(), List.of(), false);
         }
 
         public TestDataset(String indexName, String mappingFileName, String dataFileName, String settingFileName) {
-            this(indexName, mappingFileName, dataFileName, settingFileName, true, false, null, null, null, List.of(), List.of());
+            this(indexName, mappingFileName, dataFileName, settingFileName, true, false, null, null, null, List.of(), List.of(), false);
         }
 
         public TestDataset withIndex(String indexName) {
@@ -1650,7 +1661,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 
@@ -1666,7 +1678,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 
@@ -1682,7 +1695,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 
@@ -1698,7 +1712,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 
@@ -1714,7 +1729,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 
@@ -1738,7 +1754,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 
@@ -1772,7 +1789,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 
@@ -1811,7 +1829,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 
@@ -1827,7 +1846,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 List.of(inferenceEndpoints),
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 
@@ -1843,7 +1863,29 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                List.of(requiredCapabilities)
+                List.of(requiredCapabilities),
+                batchIndexingDisabled
+            );
+        }
+
+        /**
+         * Creates the index with {@code index.batch_indexing: false} on clusters that know that setting. Clusters without it (older
+         * versions in BWC suites) don't batch, so the dataset is indexed the same way everywhere.
+         */
+        public TestDataset withBatchIndexingDisabled() {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                dataStream,
+                typeMapping,
+                dynamicTypeMapping,
+                dynamic,
+                inferenceEndpoints,
+                requiredCapabilities,
+                true
             );
         }
 
@@ -1862,7 +1904,8 @@ public class CsvTestsDataLoader {
                 dynamicTypeMapping,
                 dynamic,
                 inferenceEndpoints,
-                requiredCapabilities
+                requiredCapabilities,
+                batchIndexingDisabled
             );
         }
 

@@ -177,30 +177,32 @@ public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPla
     }
 
     /**
-     * Moves an {@link MvExpand} below the {@link Project} directly underneath it,.
+     * Moves an {@link MvExpand} below the {@link Project} directly underneath it. The {@link MvExpand} then expands the
+     * {@link Project}'s input attribute that defines the target, and the {@link Project} outputs the expanded attribute in place
+     * of the target:
+     * {@snippet lang="text":
+     * MvExpand[b{r}#1,b{r}#2]                 Project[[b{r}#2]]
+     * \_Project[[a{r}#3 AS b#1]]        =>    \_MvExpand[a{r}#3,b{r}#2]
+     *   \_...                                   \_...
+     * }
+     * Two independent fixes may be needed on top of that.
      * <p>
-     * Without any renaming, the {@link Project} just has to output the expanded attribute instead of the target:
+     * If another output of the {@link Project} still needs the unexpanded values of the input attribute, an {@link Eval} copies the
+     * input attribute to a temporary attribute first, and the other outputs use the copy instead:
      * {@snippet lang="text":
-     * MvExpand[a{r}#1,a{r}#2]                 Project[[a{r}#2, b{r}#3]]
-     * \_Project[[a{r}#1, b{r}#3]]       =>    \_MvExpand[a{r}#1,a{r}#2]
-     *   \_...                                   \_...
+     * MvExpand[a{r}#1,a{r}#2]                  Project[[a{r}#2, $$a$mv_expand$4{r$}#4 AS b#3]]
+     * \_Project[[a{r}#1, a{r}#1 AS b#3]]  =>   \_MvExpand[a{r}#1,a{r}#2]
+     *   \_...                                    \_Eval[[a{r}#1 AS $$a$mv_expand$4#4]]
+     *                                              \_...
      * }
-     * If either the {@link Project} or the {@link MvExpand} renames the target, applying the {@link MvExpand} below the
-     * {@link Project} could make its output clash with other attributes of the same name. So the new expanded attribute always
-     * gets a temporary name, and the {@link Project} renames it back, keeping the original expanded attribute's name id:
+     * If the expanded attribute's name is already used by another attribute below the {@link Project} - e.g. one that the
+     * {@link Project} drops or renames - the {@link MvExpand} would output two attributes of the same name. The expanded
+     * attribute then gets a temporary name, and the {@link Project} renames it back, keeping the original expanded attribute's
+     * name id:
      * {@snippet lang="text":
-     * MvExpand[b{r}#1,b{r}#2]                 Project[[$$a$mv_expand$4{r$}#4 AS b#2]]
-     * \_Project[[a{r}#3 AS b#1]]        =>    \_MvExpand[a{r}#3,$$a$mv_expand$4{r$}#4]
-     *   \_...                                   \_...
-     * }
-     * Finally, if the {@link Project} still needs the original values of the target's input attribute for another output, the
-     * {@link MvExpand} cannot replace that attribute. An {@link Eval} then copies the input attribute to a temporary attribute, and
-     * the {@link MvExpand} expands the copy instead:
-     * {@snippet lang="text":
-     * MvExpand[a{r}#1,a{r}#2]                 Project[[$$a$mv_expand$5{r$}#5 AS a#2, a{r}#1 AS b#3]]
-     * \_Project[[a{r}#1, a{r}#1 AS b#3]] =>   \_MvExpand[$$a$mv_expand$4{r$}#4,$$a$mv_expand$5{r$}#5]
-     *   \_...                                   \_Eval[[a{r}#1 AS $$a$mv_expand$4#4]]
-     *                                             \_...
+     * MvExpand[b{r}#1,b{r}#2]                 Project[[$$b$mv_expand$5{r$}#5 AS b#2]]
+     * \_Project[[a{r}#3 AS b#1]]        =>    \_MvExpand[a{r}#3,$$b$mv_expand$5{r$}#5]
+     *   \_...[a{r}#3, b{r}#4]                   \_...[a{r}#3, b{r}#4]
      * }
      */
     private static LogicalPlan pushDownMvExpandPastProject(MvExpand mvExpand, Project project) {
@@ -233,46 +235,63 @@ public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPla
             return mvExpand;
         }
 
-        boolean renamed = targetProjection instanceof Alias || expanded.name().equals(target.name()) == false;
-        boolean inputUsedElsewhere = false;
-        for (int i = 0; i < projections.size(); i++) {
-            if (i != targetIndex && projections.get(i).references().contains(input)) {
-                inputUsedElsewhere = true;
+        List<NamedExpression> newProjections = new ArrayList<>(projections);
+        LogicalPlan newChild = project.child();
+
+        // Other outputs that still need the unexpanded input get it from a copy.
+        Alias copy = null;
+        for (int i = 0; i < newProjections.size(); i++) {
+            NamedExpression projection = newProjections.get(i);
+            if (i == targetIndex || projection.references().contains(input) == false) {
+                continue;
+            }
+            if (copy == null) {
+                copy = new Alias(input.source(), temporaryName(input.name()), input, null, true);
+            }
+            Attribute copied = copy.toAttribute();
+            newProjections.set(
+                i,
+                projection instanceof Alias alias
+                    ? alias.replaceChild(alias.child().transformUp(Attribute.class, a -> a.semanticEquals(input) ? copied : a))
+                    : new Alias(projection.source(), projection.name(), copied, projection.id(), projection.synthetic())
+            );
+        }
+        if (copy != null) {
+            newChild = new Eval(mvExpand.source(), newChild, List.of(copy));
+        }
+
+        // The expanded attribute must not share its name with another attribute below the Project.
+        boolean nameClash = false;
+        for (Attribute attribute : newChild.output()) {
+            if (attribute.name().equals(expanded.name()) && attribute.semanticEquals(input) == false) {
+                nameClash = true;
                 break;
             }
         }
-
-        List<NamedExpression> newProjections = new ArrayList<>(projections);
-        if (renamed == false && inputUsedElsewhere == false) {
-            newProjections.set(targetIndex, expanded);
-            return new Project(project.source(), new MvExpand(mvExpand.source(), project.child(), input, expanded), newProjections);
+        Attribute newExpanded = expanded;
+        NamedExpression expandedProjection = expanded;
+        if (nameClash) {
+            // MV_EXPAND does not drop rows with null values, so the expanded attribute is exactly as nullable as the original one.
+            newExpanded = new ReferenceAttribute(
+                expanded.source(),
+                null,
+                temporaryName(expanded.name()),
+                expanded.dataType(),
+                expanded.nullable(),
+                null,
+                true,
+                AnalyzedTextExpression.valuesAnalyzerOf(expanded)
+            );
+            expandedProjection = new Alias(targetProjection.source(), expanded.name(), newExpanded, expanded.id());
         }
+        newProjections.set(targetIndex, expandedProjection);
 
-        LogicalPlan newChild = project.child();
-        Attribute newTarget = input;
-        if (inputUsedElsewhere) {
-            Alias copy = new Alias(input.source(), temporaryName(input.name()), input, null, true);
-            newChild = new Eval(mvExpand.source(), newChild, List.of(copy));
-            newTarget = copy.toAttribute();
-        }
-        // MV_EXPAND does not drop rows with null values, so the expanded attribute is exactly as nullable as the original one.
-        Attribute newExpanded = new ReferenceAttribute(
-            expanded.source(),
-            null,
-            temporaryName(input.name()),
-            expanded.dataType(),
-            expanded.nullable(),
-            null,
-            true,
-            AnalyzedTextExpression.valuesAnalyzerOf(expanded)
-        );
-        newProjections.set(targetIndex, new Alias(targetProjection.source(), expanded.name(), newExpanded, expanded.id()));
-        return new Project(project.source(), new MvExpand(mvExpand.source(), newChild, newTarget, newExpanded), newProjections);
+        return new Project(project.source(), new MvExpand(mvExpand.source(), newChild, input, newExpanded), newProjections);
     }
 
     /**
-     * Temporary names are specific to the {@link MvExpand} pushdown and carry a fresh {@link NameId}, so that repeated pushdowns - also of the
-     * same attribute - never produce the same name twice.
+     * Temporary names are specific to the {@link MvExpand} pushdown and carry a fresh {@link NameId}, so that repeated
+     * pushdowns - also of the same attribute - never produce the same name twice.
      */
     private static String temporaryName(String name) {
         return Attribute.rawTemporaryName(name, "mv_expand", new NameId().toString());

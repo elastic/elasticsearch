@@ -382,7 +382,6 @@ public class SearchCommitPrefetcher {
                         executor,
                         forcePrefetch,
                         timestampMillis,
-                        // maxPrefetchedOffset must only advance for ranges this caller filled itself, so don't wait for other callers
                         false,
                         refCountingListener.acquire().map(populated -> {
                             if (populated) {

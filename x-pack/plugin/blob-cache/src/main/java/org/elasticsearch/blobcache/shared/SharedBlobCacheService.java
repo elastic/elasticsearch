@@ -1422,24 +1422,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * @param rangeToWrite the range of bytes to populate
          * @param writer a writer that handles writing of newly downloaded data to the shared cache
          * @param executor the executor used to download and to write new data
-         * @param awaitPendingFill when {@code true} and the range is being downloaded and written by another caller, the listener is not
-         *                         completed until that other caller is done. Use this when the caller must not report success for bytes
-         *                         that are not resident in cache yet.
-         * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of the
-         *                 range, in which case the listener is completed once writing is done.
-         *                 <p>
-         *                 The listener is completed with {@code false} when the current thread did not trigger the download and write.
-         *                 What that guarantees about residency depends on {@code awaitPendingFill}:
-         *                 <ul>
-         *                     <li>{@code awaitPendingFill == false}: the range is either already available in cache, or another caller
-         *                     will download and write it at some later point. {@code false} therefore says nothing about whether the
-         *                     range is resident.</li>
-         *                     <li>{@code awaitPendingFill == true}: the range is available in cache, either because it already was or
-         *                     because another caller finished downloading and writing it. If that other caller's download or write
-         *                     failed, the listener is completed with its exception instead.</li>
-         *                 </ul>
-         *                 The listener may be invoked on the current thread, an executor thread or another executor thread used by another
-         *                 caller.
+         * @param awaitPendingFill when {@code true}, the listener is not completed until every byte of the range is resident in cache,
+         *                         including bytes that another caller is downloading and writing. Use this when the caller must not report
+         *                         success for bytes that are not resident in cache yet.
+         * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of (part
+         *                 of) the range, and with {@code false} if the range is already available in cache or another caller is downloading
+         *                 and writing all of it. Without {@code awaitPendingFill}, {@code false} says nothing about whether the range is
+         *                 resident and {@code true} only covers the gaps this caller wrote. With {@code awaitPendingFill}, either value is
+         *                 delivered only once the whole range is resident, and a failed download or write anywhere in the range, by this
+         *                 or another caller, completes the listener with that exception instead. The listener may be invoked on the current
+         *                 thread, an executor thread or another executor thread used by another caller.
          */
         void populate(
             final ByteRange rangeToWrite,
@@ -1455,24 +1447,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             try {
                 incRefEnsureOpen();
                 try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
-                    // When awaiting a pending fill, the tracker listener is also how a caller that does not own a gap learns that the
-                    // range became resident, or that the owning caller's fill failed.
                     final SubscribableListener<Void> rangeAvailable = awaitPendingFill ? new SubscribableListener<>() : null;
-                    final ActionListener<Void> trackerListener;
-                    if (rangeAvailable != null) {
-                        // Unlike the assertion-only listener below, this must not swallow failures, so the assertion runs on success only.
-                        trackerListener = ActionListener.releaseAfter(rangeAvailable.delegateFailureIgnoreResponseAndWrap(l -> {
+                    ActionListener<Void> trackerListener = rangeAvailable != null ? rangeAvailable : ActionListener.noop();
+                    if (Assertions.ENABLED) {
+                        trackerListener = ActionListener.runBefore(trackerListener, () -> {
                             assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
-                            l.onResponse(null);
-                        }), refs.acquire());
-                    } else {
-                        trackerListener = Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
-                        }), refs.acquire()) : refs.acquireListener();
+                        });
                     }
-                    final var gapsOpt = tracker.waitForRange(rangeToWrite, rangeToWrite, trackerListener);
+                    final var gapsOpt = tracker.waitForRange(
+                        rangeToWrite,
+                        rangeToWrite,
+                        ActionListener.releaseAfter(trackerListener, refs.acquire())
+                    );
                     if (gapsOpt.isEmpty()) {
-                        completeNotFetched(rangeAvailable, listener);
+                        completePopulateWithFetchedBoolean(rangeAvailable, listener, false);
                         return;
                     }
                     executor.execute(new AbstractRunnable() {
@@ -1482,7 +1470,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         protected void doRun() {
                             final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
                             if (gaps.isEmpty()) {
-                                completeNotFetched(rangeAvailable, listener);
+                                completePopulateWithFetchedBoolean(rangeAvailable, listener, false);
                                 return;
                             }
                             final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
@@ -1493,9 +1481,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     streamFactory == null ? "without" : "with"
                                 )
                             );
+                            final ActionListener<Void> ownGapsDoneListener = listener.delegateFailure(
+                                (l, unused) -> completePopulateWithFetchedBoolean(rangeAvailable, l, true)
+                            );
                             final ActionListener<Void> gapsDoneListener = streamFactory != null
-                                ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
-                                : listener.map(unused -> true);
+                                ? ActionListener.releaseBefore(streamFactory, ownGapsDoneListener)
+                                : ownGapsDoneListener;
                             try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
                                 // Use current thread to fill the gaps in order
                                 for (SparseFileTracker.Gap gap : gaps) {
@@ -1525,16 +1516,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
         }
 
-        /**
-         * Completes a {@link #populate} listener for a caller that did not claim any gap, either because the range was already resident
-         * or because another caller claimed the remaining gaps first. When {@code rangeAvailable} is {@code null} the caller is not
-         * interested in waiting, otherwise the completion is deferred until the range is resident.
-         */
-        private static void completeNotFetched(@Nullable SubscribableListener<Void> rangeAvailable, ActionListener<Boolean> listener) {
+        private static void completePopulateWithFetchedBoolean(
+            @Nullable SubscribableListener<Void> rangeAvailable,
+            ActionListener<Boolean> listener,
+            boolean fetched
+        ) {
             if (rangeAvailable == null) {
-                listener.onResponse(false);
+                listener.onResponse(fetched);
             } else {
-                rangeAvailable.addListener(listener.map(ignored -> false));
+                rangeAvailable.addListener(listener.map(ignored -> fetched));
             }
         }
 

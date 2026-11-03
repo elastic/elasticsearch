@@ -274,9 +274,6 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     /**
      * Fetches and writes in cache a blob byte range, given the {@link CacheBlobReader} and the blob's associated {@link FileCacheKey}.
-     *
-     * @param awaitPendingFill when {@code true}, the listener is not completed for a region that another caller is already filling until
-     *                         that other caller is done. See {@link SharedBlobCacheService#fetchRange} for details.
      */
     private void fetchRange(
         FileCacheKey cacheKey,

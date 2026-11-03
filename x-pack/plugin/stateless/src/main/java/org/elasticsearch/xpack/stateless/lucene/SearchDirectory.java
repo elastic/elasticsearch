@@ -561,6 +561,14 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         );
     }
 
+    /**
+     * Whether the shard is still in its activation fill window (its cache misses fill the small activation ranges), i.e. it was
+     * activated recently and its cache is cold. Ends with {@link #clearActivationFillOverrides()}.
+     */
+    public boolean inActivationFillWindow() {
+        return objectStoreRangeSizeOverride > 0;
+    }
+
     /** See {@link #readPresentWithoutFill}; ends with {@link #clearActivationFillOverrides()}. */
     public void setReadPresentWithoutFill() {
         this.readPresentWithoutFill = true;

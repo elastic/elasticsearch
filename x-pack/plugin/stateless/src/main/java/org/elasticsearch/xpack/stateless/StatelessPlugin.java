@@ -210,6 +210,7 @@ import org.elasticsearch.xpack.stateless.memory.TransportPublishMergeMemoryEstim
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
+import org.elasticsearch.xpack.stateless.recovery.ActivationSortPrefetcher;
 import org.elasticsearch.xpack.stateless.recovery.EstimatedHeapUsageRecoveryGate;
 import org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
@@ -1469,6 +1470,9 @@ public class StatelessPlugin extends Plugin
             CheapShardUnparkOnWriteFilter.ENABLED_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_FILL_WINDOW_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_PREFETCH_SORT_DOC_VALUES_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_PREFETCH_QUERY_RANGES_MAX_SIZE_SETTING,
+            FastSearchActivationSettings.FAST_ACTIVATION_SKIP_WHOLE_BLOB_WARMING_WITH_OPEN_BYTES_SETTING,
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
@@ -1680,6 +1684,7 @@ public class StatelessPlugin extends Plugin
 
             indexModule.addIndexEventListener(this.searchShardInformationIndexListener.get());
             indexModule.addIndexEventListener(this.pitRelocationService.get());
+            indexModule.addSearchOperationListener(new ActivationSortPrefetcher(clusterService.get().getClusterSettings()));
 
             final var searchIdxVersion = indexModule.indexSettings().getIndexVersionCreated();
             indexModule.setDirectoryWrapper((in, shardRouting) -> {

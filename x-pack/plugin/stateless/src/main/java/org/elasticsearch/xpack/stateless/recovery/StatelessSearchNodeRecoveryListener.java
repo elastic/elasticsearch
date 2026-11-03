@@ -338,11 +338,29 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
                 warmingService.seedCacheFromCommitPointer(indexShard.shardId(), commitPointer.openRanges(), ActionListener.wrap(ignored -> {
                     logger.debug("{} fast activation: seeded open-time ranges from the commit pointer", indexShard.shardId());
                     searchDirectory.setReadPresentWithoutFill();
+                    // Phase 5 (item 3): start the fills of the small files that first queries read with dependent reads; not awaited
+                    final long queryRangesMaxSize = clusterService.getClusterSettings()
+                        .get(FastSearchActivationSettings.FAST_ACTIVATION_PREFETCH_QUERY_RANGES_MAX_SIZE_SETTING)
+                        .getBytes();
+                    if (queryRangesMaxSize > 0) {
+                        clusterService.threadPool()
+                            .generic()
+                            .execute(
+                                () -> ActivationQueryRangesPrefetcher.prefetch(
+                                    searchDirectory,
+                                    compoundCommit.commitFiles(),
+                                    queryRangesMaxSize
+                                )
+                            );
+                    }
+                    // Phase 5 (item 4): the reader needs nothing beyond the seeded bytes, so whole small blobs need not be warmed
+                    final boolean skipWholeBlobs = clusterService.getClusterSettings()
+                        .get(FastSearchActivationSettings.FAST_ACTIVATION_SKIP_WHOLE_BLOB_WARMING_WITH_OPEN_BYTES_SETTING);
                     warmingService.warmCacheForFastSearchActivation(
                         indexShard,
                         compoundCommit,
                         searchDirectory,
-                        wholeBlobThreshold,
+                        skipWholeBlobs ? 0L : wholeBlobThreshold,
                         true,
                         warmingListener
                     );

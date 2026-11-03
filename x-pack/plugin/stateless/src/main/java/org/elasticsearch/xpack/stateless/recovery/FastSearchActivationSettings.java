@@ -202,4 +202,42 @@ public final class FastSearchActivationSettings {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Phase 5, item 1 (see {@link ActivationSortPrefetcher}): before a field-sorted query runs on a shard that is in its activation fill
+     * window ({@link #FAST_ACTIVATION_FILL_WINDOW_SETTING}), create the sort fields' doc values on every segment so that their first
+     * pages are prefetched in one wave instead of one segment after the other. Off by default.
+     */
+    public static final Setting<Boolean> FAST_ACTIVATION_PREFETCH_SORT_DOC_VALUES_SETTING = Setting.boolSetting(
+        "stateless.cheap_shard.fast_activation.prefetch_sort_doc_values",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Phase 5, item 3 (see {@link ActivationQueryRangesPrefetcher}): when a shard is activated from a commit pointer that carries its
+     * open-time bytes, prefetch (asynchronously, not awaited) the small files that first queries read with dependent reads (terms index
+     * and dictionary, stored fields index, points index, small vector graphs), up to this many bytes in total. {@code 0} (default) is off.
+     */
+    public static final Setting<ByteSizeValue> FAST_ACTIVATION_PREFETCH_QUERY_RANGES_MAX_SIZE_SETTING = Setting.byteSizeSetting(
+        "stateless.cheap_shard.fast_activation.prefetch_query_ranges_max_size",
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofMb(256),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Phase 5, item 4: when the open-time bytes from the commit pointer were seeded in the cache, do not warm whole small blobs
+     * ({@link #FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING}) before opening the reader: the reader needs nothing else, so the shard
+     * starts after the pointer GET only. Off by default (the whole small blobs are warmed, phase 4 behaviour).
+     */
+    public static final Setting<Boolean> FAST_ACTIVATION_SKIP_WHOLE_BLOB_WARMING_WITH_OPEN_BYTES_SETTING = Setting.boolSetting(
+        "stateless.cheap_shard.fast_activation.skip_whole_blob_warming_with_open_bytes",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 }

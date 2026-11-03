@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.session.ExemplarsSettings;
+import org.elasticsearch.xpack.esql.telemetry.DirectClient;
 import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 
 import java.io.IOException;
@@ -98,6 +99,29 @@ public class EsqlQueryRequestTests extends ESTestCase {
         EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest("ROW a = 1").entryPoint(entryPoint);
         EsqlStatement statement = new EsqlStatement(new Row(Source.EMPTY, List.of()), List.of());
         assertThat(PreparedEsqlQueryRequest.from(source, statement, "copy").entryPoint(), is(entryPoint));
+    }
+
+    public void testDefaultDirectClientIsOther() {
+        assertThat(EsqlQueryRequest.syncEsqlQueryRequest("FROM idx").directClient(), is(DirectClient.OTHER));
+        assertThat(EsqlQueryRequest.asyncEsqlQueryRequest("FROM idx").directClient(), is(DirectClient.OTHER));
+        assertThat(new EsqlQueryRequest().directClient(), is(DirectClient.OTHER));
+    }
+
+    public void testDirectClientIsSettable() {
+        DirectClient directClient = randomFrom(DirectClient.values());
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest("FROM idx").directClient(directClient);
+        assertThat(request.directClient(), is(directClient));
+    }
+
+    public void testDirectClientRejectsNull() {
+        expectThrows(NullPointerException.class, () -> EsqlQueryRequest.syncEsqlQueryRequest("FROM idx").directClient(null));
+    }
+
+    public void testPreparedCopyKeepsDirectClient() {
+        DirectClient directClient = randomFrom(DirectClient.values());
+        EsqlQueryRequest source = EsqlQueryRequest.syncEsqlQueryRequest("ROW a = 1").directClient(directClient);
+        EsqlStatement statement = new EsqlStatement(new Row(Source.EMPTY, List.of()), List.of());
+        assertThat(PreparedEsqlQueryRequest.from(source, statement, "copy").directClient(), is(directClient));
     }
 
     public void testParseFields() throws IOException {

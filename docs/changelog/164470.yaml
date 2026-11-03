@@ -2,4 +2,4 @@ area: ES|QL
 issues: []
 pr: 164470
 summary: Fix TS_INFO and METRICS_INFO memory accounting
-type: "bug, enhancement"
+type: enhancement

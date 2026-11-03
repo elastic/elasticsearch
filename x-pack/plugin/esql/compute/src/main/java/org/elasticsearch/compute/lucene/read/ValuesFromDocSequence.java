@@ -131,7 +131,7 @@ class ValuesFromDocSequence extends ValuesReader {
             int firstDoc = docs.docs().getInt(offset);
             operator.positionFieldWork(shard, segment, firstDoc);
             LeafReaderContext ctx = operator.ctx(shard, segment);
-            fieldsMoved(ctx, shard);
+            fieldsMoved(ctx, shard, runFrom(offset));
             int runStart = offset;
             readRowStride(firstDoc);
             int prevDoc = firstDoc;
@@ -147,7 +147,7 @@ class ValuesFromDocSequence extends ValuesReader {
                     segment = newSegment;
                     operator.positionFieldWork(shard, segment, doc);
                     ctx = operator.ctx(shard, segment);
-                    fieldsMoved(ctx, shard);
+                    fieldsMoved(ctx, shard, runFrom(i));
                     runStart = i;
                 }
                 readRowStride(doc);
@@ -166,6 +166,22 @@ class ValuesFromDocSequence extends ValuesReader {
                 }
                 log.debug("loaded {} positions doc sequence estimated/actual {}/{} bytes", count, estimated, actualBytes);
             }
+        }
+
+        /**
+         * The documents that the load reads from {@code start} on, until it moves to another segment or back in this one.
+         */
+        private SegmentRun runFrom(int start) {
+            int shard = docs.shards().getInt(start);
+            int segment = docs.segments().getInt(start);
+            int end = start + 1;
+            while (end < docs.getPositionCount()
+                && docs.shards().getInt(end) == shard
+                && docs.segments().getInt(end) == segment
+                && docs.docs().getInt(end) >= docs.docs().getInt(end - 1)) {
+                end++;
+            }
+            return new SegmentRun(end - start, docs.docs().getInt(start), docs.docs().getInt(end - 1));
         }
 
         /**

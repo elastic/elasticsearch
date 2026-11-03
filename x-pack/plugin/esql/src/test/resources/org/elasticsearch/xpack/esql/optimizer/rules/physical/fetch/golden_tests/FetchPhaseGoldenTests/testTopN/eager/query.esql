@@ -1,0 +1,5 @@
+FROM employees
+| WHERE salary > 50000
+| SORT hire_date DESC
+| LIMIT 10
+| KEEP first_name, last_name, hire_date

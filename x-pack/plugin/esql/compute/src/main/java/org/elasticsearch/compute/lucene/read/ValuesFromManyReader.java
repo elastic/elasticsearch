@@ -87,6 +87,12 @@ import java.io.IOException;
  * │     1 │       0 │   1 │   │     1 │       1 │  12 │   │     1 │       1 │  12 │ 055 │   │     1 │       0 │   1 │ 682 │
  * └───────┴─────────┴─────┘   └───────┴─────────┴─────┘   └───────┴─────────┴─────┴─────┘   └───────┴─────────┴─────┴─────┘
  * }
+ * <h2>Stored fields</h2>
+ * <p>
+ *     In the forwards order the documents of each segment form one run. A run that is long and dense enough reads its
+ *     stored fields sequentially, like {@link ValuesFromSingleReader} does for a page of one segment. That pays off after
+ *     a sort on a field that follows the order of the documents, like the timestamp of a data stream.
+ * </p>
  */
 class ValuesFromManyReader extends ValuesReader {
     private static final Logger log = LogManager.getLogger(ValuesFromManyReader.class);
@@ -133,7 +139,7 @@ class ValuesFromManyReader extends ValuesReader {
             int firstDoc = docs.docs().getInt(p);
             operator.positionFieldWork(shard, segment, firstDoc);
             LeafReaderContext ctx = operator.ctx(shard, segment);
-            fieldsMoved(ctx, shard);
+            fieldsMoved(ctx, shard, runFrom(offset));
             readRowStride(firstDoc);
 
             int segmentStart = offset;
@@ -154,7 +160,7 @@ class ValuesFromManyReader extends ValuesReader {
                     assert changedSegment : "shard [" + shard + "] segment [" + segment + "] is the one just read";
                     segmentStart = i;
                     ctx = operator.ctx(shard, segment);
-                    fieldsMoved(ctx, shard);
+                    fieldsMoved(ctx, shard, runFrom(i));
                 }
                 readRowStride(docs.docs().getInt(p));
                 i++;
@@ -170,6 +176,23 @@ class ValuesFromManyReader extends ValuesReader {
                 }
                 log.debug("loaded {} positions total estimated/actual {}/{} bytes", p + 1, estimated, actual);
             }
+        }
+
+        /**
+         * The documents of the segment that starts at {@code start} in forwards order. The forwards order is sorted, so
+         * they are the ones up to the next shard or segment.
+         */
+        private SegmentRun runFrom(int start) {
+            int first = forwards[start];
+            int shard = docs.shards().getInt(first);
+            int segment = docs.segments().getInt(first);
+            int end = start + 1;
+            while (end < forwards.length
+                && docs.shards().getInt(forwards[end]) == shard
+                && docs.segments().getInt(forwards[end]) == segment) {
+                end++;
+            }
+            return new SegmentRun(end - start, docs.docs().getInt(first), docs.docs().getInt(forwards[end - 1]));
         }
 
         /**

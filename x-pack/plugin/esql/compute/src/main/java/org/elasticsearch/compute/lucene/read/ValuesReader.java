@@ -66,6 +66,29 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
     public void close() {}
 
     /**
+     * The documents of one segment that a load reads one after the other, in non-decreasing order.
+     *
+     * @param count    how many documents the run holds
+     * @param firstDoc the first document of the run
+     * @param lastDoc  the last document of the run
+     */
+    record SegmentRun(int count, int firstDoc, int lastDoc) {
+        /**
+         * Whether a sequential stored fields reader loads the run faster than a random access one. It decompresses each
+         * block once for all the documents of the run in it, which pays off when the run is long enough and its documents
+         * sit close enough. {@code storedFieldsSequentialProportion} is the least share of the documents between the first
+         * and the last that the run must hold.
+         */
+        boolean readsStoredFieldsSequentially(double storedFieldsSequentialProportion) {
+            if (count < ValuesFromSingleReader.SEQUENTIAL_BOUNDARY) {
+                return false;
+            }
+            long range = (long) lastDoc - firstDoc;
+            return range * storedFieldsSequentialProportion <= count;
+        }
+    }
+
+    /**
      * Shared per-load-call work state used by {@link ValuesFromManyReader} and
      * {@link ValuesFromDocSequence}. Holds the builders, readers, and stored-fields
      * loader for a single invocation of {@link #load}.
@@ -142,7 +165,11 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
             return sum;
         }
 
-        void fieldsMoved(LeafReaderContext ctx, int shard) throws IOException {
+        /**
+         * Moves the readers of every field to the segment of {@code ctx}, for the documents of {@code run}. A run that is
+         * long and dense enough reads its stored fields sequentially, like a page of one segment does.
+         */
+        void fieldsMoved(LeafReaderContext ctx, int shard, SegmentRun run) throws IOException {
             if (currentShard != shard) {
                 if (currentShard >= 0) {
                     convertAndAccumulate();
@@ -177,13 +204,17 @@ public abstract class ValuesReader implements ReleasableIterator<Block[]> {
                 sourceLoader = operator.sourceLoader(shard, sourcePaths);
                 storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
             }
+            boolean sequential = run.readsStoredFieldsSequentially(operator.shardContexts.get(shard).storedFieldsSequentialProportion());
+            StoredFieldLoader storedFieldLoader = sequential
+                ? StoredFieldLoader.fromSpecSequential(storedFieldsSpec)
+                : StoredFieldLoader.fromSpec(storedFieldsSpec);
             storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+                storedFieldLoader.getLoader(ctx, null),
                 sourceLoader != null ? sourceLoader.leaf(ctx, null) : null,
                 sourcePaths
             );
             if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-                operator.trackStoredFields(storedFieldsSpec, false);
+                operator.trackStoredFields(storedFieldsSpec, sequential);
             }
         }
 

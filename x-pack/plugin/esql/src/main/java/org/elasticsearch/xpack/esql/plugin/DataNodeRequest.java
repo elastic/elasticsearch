@@ -19,6 +19,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,6 +62,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
 
     private static final TransportVersion SINGLE_NODE_OPTIMIZATION = TransportVersion.fromName("esql_single_node_optimization");
     static final TransportVersion ESQL_EXTERNAL_WORKER_READINESS = TransportVersion.fromName("esql_external_worker_readiness");
+    static final TransportVersion ESQL_FETCH_CONTEXTS = TransportVersion.fromName("esql_fetch_phase_plan");
 
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
@@ -88,9 +91,52 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
      * dataset of the plan is behind the coordinator rather than missing the dataset. {@code 0} means unknown (old coordinator).
      */
     private final long requiredClusterStateVersion;
+    @Nullable
+    private final TimeValue fetchContextsKeepAlive;
 
     /**
-     * Constructor with all parameters, including the external-worker readiness fields.
+     * Constructor with all parameters.
+     *
+     * @param fetchContextsKeepAlive set when the data node opens a single-session reader context per shard and keeps the
+     *                               ones whose rows survive its node cut open for the fetch phase. Each one stays open at
+     *                               least this long after its last use.
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        boolean singleNodeOptimizations,
+        List<ExternalSplit> externalSplits,
+        boolean declineIfNotReady,
+        long requiredClusterStateVersion,
+        @Nullable TimeValue fetchContextsKeepAlive
+    ) {
+        this.sessionId = sessionId;
+        this.configuration = configuration;
+        this.clusterAlias = clusterAlias;
+        this.shards = shards;
+        this.aliasFilters = aliasFilters;
+        this.plan = plan;
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
+        this.runNodeLevelReduction = runNodeLevelReduction;
+        this.reductionLateMaterialization = reductionLateMaterialization;
+        this.singleNodeOptimizations = singleNodeOptimizations;
+        this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+        this.declineIfNotReady = declineIfNotReady;
+        this.requiredClusterStateVersion = requiredClusterStateVersion;
+        this.fetchContextsKeepAlive = fetchContextsKeepAlive;
+    }
+
+    /**
+     * Constructor with the external-worker readiness fields and without fetch contexts.
      */
     DataNodeRequest(
         String sessionId,
@@ -108,20 +154,60 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         boolean declineIfNotReady,
         long requiredClusterStateVersion
     ) {
-        this.sessionId = sessionId;
-        this.configuration = configuration;
-        this.clusterAlias = clusterAlias;
-        this.shards = shards;
-        this.aliasFilters = aliasFilters;
-        this.plan = plan;
-        this.indices = indices;
-        this.indicesOptions = indicesOptions;
-        this.runNodeLevelReduction = runNodeLevelReduction;
-        this.reductionLateMaterialization = reductionLateMaterialization;
-        this.singleNodeOptimizations = singleNodeOptimizations;
-        this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
-        this.declineIfNotReady = declineIfNotReady;
-        this.requiredClusterStateVersion = requiredClusterStateVersion;
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            singleNodeOptimizations,
+            externalSplits,
+            declineIfNotReady,
+            requiredClusterStateVersion,
+            null
+        );
+    }
+
+    /**
+     * Constructor with fetch contexts and the readiness fields at their "unknown" defaults.
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        boolean singleNodeOptimizations,
+        List<ExternalSplit> externalSplits,
+        @Nullable TimeValue fetchContextsKeepAlive
+    ) {
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            singleNodeOptimizations,
+            externalSplits,
+            false,
+            0L,
+            fetchContextsKeepAlive
+        );
     }
 
     /**
@@ -161,7 +247,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     }
 
     /**
-     * Constructor without externalSplits (defaults to empty list).
+     * Constructor without external splits and without fetch contexts.
      */
     DataNodeRequest(
         String sessionId,
@@ -248,6 +334,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             this.declineIfNotReady = false;
             this.requiredClusterStateVersion = 0L;
         }
+        this.fetchContextsKeepAlive = in.getTransportVersion().supports(ESQL_FETCH_CONTEXTS) ? in.readOptionalTimeValue() : null;
     }
 
     @Override
@@ -281,6 +368,12 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_WORKER_READINESS)) {
             out.writeBoolean(declineIfNotReady);
             out.writeVLong(requiredClusterStateVersion);
+        }
+        if (out.getTransportVersion().supports(ESQL_FETCH_CONTEXTS)) {
+            out.writeOptionalTimeValue(fetchContextsKeepAlive);
+        } else if (fetchContextsKeepAlive != null) {
+            // the plan sends documents off the node, which only fetch contexts can serve
+            throw new IllegalStateException("can't ask a node on [" + out.getTransportVersion() + "] for fetch contexts");
         }
     }
 
@@ -383,6 +476,21 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return requiredClusterStateVersion;
     }
 
+    /**
+     * Whether the data node keeps the reader contexts whose rows survive its node cut open for the fetch phase.
+     */
+    boolean keepFetchContexts() {
+        return fetchContextsKeepAlive != null;
+    }
+
+    /**
+     * How long each fetch context stays open after its last use, at least. Set only when the data node keeps them.
+     */
+    @Nullable
+    TimeValue fetchContextsKeepAlive() {
+        return fetchContextsKeepAlive;
+    }
+
     @Override
     public String getDescription() {
         String desc = "shards=" + shards + " plan=" + plan;
@@ -393,6 +501,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         }
         if (singleNodeOptimizations) {
             desc += " singleNodeOptimizations=true";
+        }
+        if (fetchContextsKeepAlive != null) {
+            desc += " fetchContextsKeepAlive=" + fetchContextsKeepAlive;
         }
         return desc;
     }
@@ -421,7 +532,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && singleNodeOptimizations == request.singleNodeOptimizations
             && externalSplits.equals(request.externalSplits)
             && declineIfNotReady == request.declineIfNotReady
-            && requiredClusterStateVersion == request.requiredClusterStateVersion;
+            && requiredClusterStateVersion == request.requiredClusterStateVersion
+            && Objects.equals(fetchContextsKeepAlive, request.fetchContextsKeepAlive);
     }
 
     @Override
@@ -440,7 +552,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             singleNodeOptimizations,
             externalSplits,
             declineIfNotReady,
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            fetchContextsKeepAlive
         );
     }
 
@@ -459,7 +572,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             singleNodeOptimizations,
             externalSplits,
             declineIfNotReady,
-            requiredClusterStateVersion
+            requiredClusterStateVersion,
+            fetchContextsKeepAlive
         );
     }
 

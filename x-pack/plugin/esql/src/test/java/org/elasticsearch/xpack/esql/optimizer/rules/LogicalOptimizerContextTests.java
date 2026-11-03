@@ -92,7 +92,10 @@ public class LogicalOptimizerContextTests extends ESTestCase {
             randomIntBetween(1, 50),
             randomIntBetween(1, 20),
             randomIntBetween(1, 20),
-            randomIntBetween(1, 100_000)
+            randomIntBetween(1, 100_000),
+            randomIntBetween(1, 1000),
+            randomPositiveTimeValue(),
+            randomFrom(EsqlFlags.FetchPhaseMode.values())
         );
     }
 }

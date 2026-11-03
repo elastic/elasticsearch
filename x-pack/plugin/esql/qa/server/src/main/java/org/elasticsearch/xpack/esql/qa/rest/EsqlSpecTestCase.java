@@ -571,6 +571,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.PARTITIONING_AGGREGATIONS.capabilityName()))) {
             pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(50_000, 100_000));
         }
+        // off by default, so the specs only run through the fetch phase when the pragma turns it on
+        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.FETCH_PHASE.capabilityName()))) {
+            pragma.put(QueryPragmas.FETCH_PHASE.getKey(), true);
+        }
     }
 
     protected MappedFieldType.FieldExtractPreference fieldExtractPreference() {

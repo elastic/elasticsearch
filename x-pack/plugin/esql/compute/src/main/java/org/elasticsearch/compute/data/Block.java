@@ -526,7 +526,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
         if (block instanceof DocBlock && out.getTransportVersion().supports(DocVector.ESQL_DOC_ORIGINS) == false) {
-            // older nodes know the element type but can't read it
+            // older nodes know the element type but can't read it, and the planner only sends _doc when every node can
             throw new IllegalStateException("can't send documents to a node on [" + out.getTransportVersion() + "]");
         }
         if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleArrayBlock a) {

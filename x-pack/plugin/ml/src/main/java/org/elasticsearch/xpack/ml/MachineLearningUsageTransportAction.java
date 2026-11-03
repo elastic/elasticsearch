@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.ml;
 
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -18,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
@@ -562,10 +565,21 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 );
                 listener.onResponse(inferenceUsage);
             }, e -> {
-                logger.warn("Failed to get inference endpoints to include in ML usage", e);
+                logInferenceEndpointsFailure(e);
                 listener.onResponse(inferenceUsage);
             })
         );
+    }
+
+    static void logInferenceEndpointsFailure(Exception e) {
+        // "all shards failed" on the _all endpoint fetch is a fleet-wide steady state, and a missing master is
+        // transient; the section is omitted either way, so only unexpected failures warrant WARN.
+        boolean expected = ExceptionsHelper.unwrap(e, SearchPhaseExecutionException.class, MasterNotDiscoveredException.class) != null;
+        if (expected) {
+            logger.debug("Failed to get inference endpoints to include in ML usage", e);
+        } else {
+            logger.warn("Failed to get inference endpoints to include in ML usage", e);
+        }
     }
 
     private static void addDeploymentStats(

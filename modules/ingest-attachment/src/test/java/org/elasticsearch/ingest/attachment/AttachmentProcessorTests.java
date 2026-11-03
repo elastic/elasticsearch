@@ -1073,4 +1073,34 @@ public class AttachmentProcessorTests extends ESTestCase {
             }
         }
     }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it.
+     */
+    public void testMalformedTargetFieldFailsAtExecutionTime() throws Exception {
+        Processor processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "a..b",
+            EnumSet.allOf(AttachmentProcessor.Property.class),
+            10000,
+            false,
+            null,
+            null,
+            false,
+            -1,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            new SetOnce<>()
+        );
+
+        // the source is fine, so it is the target that causes the failure
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", getAsBinaryOrBase64("text-in-english.txt"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
 }

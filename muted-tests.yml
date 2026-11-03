@@ -494,16 +494,6 @@ tests:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/164383
-- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
-  tasks:
-  - :x-pack:plugin:security:test
-  method: testVerifiesHostnameOfIpLiteralUrl
-  issue: https://github.com/elastic/elasticsearch/issues/164387
-- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
-  tasks:
-  - :x-pack:plugin:security:test
-  method: testPinnedFingerprintVerifiesHostnameOfIpLiteralUrl
-  issue: https://github.com/elastic/elasticsearch/issues/164389
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
   tasks:
   - :x-pack:plugin:logsdb:javaRestTest
@@ -559,3 +549,12 @@ tests:
   - :x-pack:plugin:esql:test
   method: testTryAdvanceOrParkDoesNotDropRowsAcrossDeterministicPoisonGap
   issue: https://github.com/elastic/elasticsearch/issues/164484
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v9.5.7#yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/163053
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
+  issue: https://github.com/elastic/elasticsearch/issues/164538

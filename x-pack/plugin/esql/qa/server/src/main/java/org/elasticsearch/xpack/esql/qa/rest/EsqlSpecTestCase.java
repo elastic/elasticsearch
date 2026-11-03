@@ -13,6 +13,7 @@ import org.apache.http.HttpEntity;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -44,12 +45,14 @@ import org.junit.Before;
 import org.junit.Rule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -84,6 +87,9 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBE
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_CRUD_AS_INDEX_ACTIONS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 // Each class covers one csv-spec file and should complete well within 20 minutes;
 // monolithic subclasses that run all spec files must add their own longer annotation.
@@ -94,6 +100,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     public ProfileLogger profileLogger = new ProfileLogger();
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
+    private static final Map<RestClient, Boolean> COORDINATORS_WITH_THE_FETCH_PHASE = new ConcurrentHashMap<>();
     private final String fileName;
     private final String groupName;
     private final String testName;
@@ -492,7 +499,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         boolean checkTook = supportsTook() && rarely();
         Map<?, ?> prevTooks = checkTook ? tooks() : null;
 
-        addPragmas(builder);
+        Settings pragmas = addPragmas(builder);
+        // an older node can't read the plans of the fetch phase, so the coordinator plans eagerly, which the profile shows
+        boolean fetchPhaseFallsBack = QueryPragmas.FETCH_PHASE.get(pragmas)
+            && hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.FETCH_PHASE.capabilityName())) == false;
+        if (fetchPhaseFallsBack) {
+            builder.profile(true);
+        }
 
         if (mayDropWarnings()) {
             testCase.makeWarningsOptional();
@@ -505,6 +518,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         );
 
         assertNotPartial(answer);
+        if (fetchPhaseFallsBack) {
+            assertNothingFetched(answer);
+        }
 
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
@@ -539,7 +555,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    private void addPragmas(RequestObjectBuilder builder) throws IOException {
+    /**
+     * Adds the pragmas of the test to {@code builder}, and returns them.
+     */
+    private Settings addPragmas(RequestObjectBuilder builder) throws IOException {
         MappedFieldType.FieldExtractPreference preference = fieldExtractPreference();
         Settings.Builder pragmaBuilder = Settings.builder();
         if (preference != null) {
@@ -553,6 +572,48 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             builder.pragmas(pragma);
             builder.pragmasOk();
         }
+        return pragma;
+    }
+
+    /**
+     * No driver of the profile fetched, and no fetch operator ran.
+     */
+    private static void assertNothingFetched(Map<String, Object> answer) {
+        Map<?, ?> profile = (Map<?, ?>) answer.get("profile");
+        assertNotNull("the profile of a query that falls back to the eager plan", profile);
+        for (Object driver : (List<?>) profile.get("drivers")) {
+            Map<?, ?> driverProfile = (Map<?, ?>) driver;
+            assertThat("a fetch driver ran", driverProfile.get("description"), not(equalTo("fetch")));
+            for (Object operator : (List<?>) driverProfile.get("operators")) {
+                assertThat(String.valueOf(((Map<?, ?>) operator).get("operator")), not(startsWith("FetchOperator")));
+            }
+        }
+    }
+
+    /**
+     * Whether the nodes this test sends its queries to have the fetch phase. The capability of a cluster is the one of its
+     * oldest node, but a coordinator that has the fetch phase takes the pragma in a mixed cluster too, and plans eagerly
+     * while an older node is present. An older node that doesn't know {@code local_only} answers 4xx, and has no fetch
+     * phase either.
+     */
+    private boolean coordinatorHasTheFetchPhase() {
+        return COORDINATORS_WITH_THE_FETCH_PHASE.computeIfAbsent(client(), coordinator -> {
+            Request request = new Request("GET", "_capabilities");
+            request.addParameter("method", "POST");
+            request.addParameter("path", "/_query");
+            request.addParameter("capabilities", EsqlCapabilities.Cap.FETCH_PHASE.capabilityName());
+            request.addParameter("local_only", "true");
+            try {
+                return Boolean.TRUE.equals(entityAsMap(coordinator.performRequest(request)).get("supported"));
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
+                    return false;
+                }
+                throw new UncheckedIOException(e);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     /**
@@ -572,7 +633,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             pragma.put(PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD.getKey(), between(50_000, 100_000));
         }
         // off by default, so the specs only run through the fetch phase when the pragma turns it on
-        if (randomBoolean() && hasCapabilities(client(), List.of(EsqlCapabilities.Cap.FETCH_PHASE.capabilityName()))) {
+        if (randomBoolean() && coordinatorHasTheFetchPhase()) {
             pragma.put(QueryPragmas.FETCH_PHASE.getKey(), true);
         }
     }

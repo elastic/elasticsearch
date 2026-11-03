@@ -7,12 +7,20 @@
 
 package org.elasticsearch.compute.lucene.read;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+
+import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FetchDocsSourceOperatorStatusTests extends AbstractWireSerializingTestCase<FetchDocsSourceOperator.Status> {
     public void testToXContent() {
@@ -28,6 +36,20 @@ public class FetchDocsSourceOperatorStatusTests extends AbstractWireSerializingT
         assertThat(status.documentsFound(), equalTo(0L));
         assertThat(status.valuesLoaded(), equalTo(0L));
         assertThat(status.rowsEmitted(), equalTo(0L));
+    }
+
+    /**
+     * A profile for a node that doesn't know the fetch phase keeps the operator and leaves its status out.
+     */
+    public void testAProfileForAnOlderNodeLeavesTheStatusOut() throws IOException {
+        FetchDocsSourceOperator.Status status = createTestInstance();
+        OperatorStatus operator = new OperatorStatus("FetchDocsSourceOperator", status);
+        TransportVersion older = TransportVersionUtils.getPreviousVersion(status.getMinimalSupportedVersion());
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of(FetchDocsSourceOperator.Status.ENTRY));
+
+        OperatorStatus copy = copyWriteable(operator, registry, OperatorStatus::readFrom, older);
+        assertThat(copy.operator(), equalTo(operator.operator()));
+        assertThat(copy.status(), nullValue());
     }
 
     @Override

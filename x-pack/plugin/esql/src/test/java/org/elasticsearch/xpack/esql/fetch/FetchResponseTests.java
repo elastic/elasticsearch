@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.fetch;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.fetch.FetchResponse.ShardResult;
 
 import java.io.EOFException;
@@ -197,10 +199,41 @@ public class FetchResponseTests extends ComputeTestCase {
         return pages;
     }
 
+    /**
+     * Every version with the fetch phase reads a response the same way. A node only answers a fetch request, which only
+     * those versions send.
+     */
+    public void testRoundTripsAtEveryVersionWithTheFetchPhase() throws IOException {
+        BlockFactory factory = blockFactory();
+        List<Page> pages = randomPages(factory);
+        int rows = pages.stream().mapToInt(Page::getPositionCount).sum();
+        List<ShardResult> results = List.of(ShardResult.succeeded(new ShardId("index", "uuid", 0), rows));
+        TransportVersion version = TransportVersionUtils.randomVersionSupporting(FetchRequest.ESQL_FETCH);
+        try (
+            FetchResponse response = new FetchResponse(factory, results, pages, DriverCompletionInfo.EMPTY, 23, 29);
+            FetchResponse copy = copy(factory, response, version)
+        ) {
+            assertThat(copy.shardResults(), equalTo(results));
+            assertThat(copy.tookNanos(), equalTo(23L));
+            List<Page> taken = copy.takePages();
+            try {
+                assertThat(taken, equalTo(pages));
+            } finally {
+                FetchResponse.releasePages(taken);
+            }
+        }
+    }
+
     private static FetchResponse copy(BlockFactory factory, FetchResponse response) throws IOException {
+        return copy(factory, response, TransportVersion.current());
+    }
+
+    private static FetchResponse copy(BlockFactory factory, FetchResponse response, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
             response.writeTo(out);
             try (BlockStreamInput in = new BlockStreamInput(out.bytes().streamInput(), factory)) {
+                in.setTransportVersion(version);
                 return new FetchResponse(in, new ThreadContext(Settings.EMPTY));
             }
         }

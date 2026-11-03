@@ -545,3 +545,18 @@ tests:
   - :modules:data-streams:internalClusterTest
   method: testReduceShardsOnRollover
   issue: https://github.com/elastic/elasticsearch/issues/164371
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  tasks:
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
+  method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
+  issue: https://github.com/elastic/elasticsearch/issues/164383
+- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
+  tasks:
+  - :x-pack:plugin:security:test
+  method: testVerifiesHostnameOfIpLiteralUrl
+  issue: https://github.com/elastic/elasticsearch/issues/164387
+- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
+  tasks:
+  - :x-pack:plugin:security:test
+  method: testPinnedFingerprintVerifiesHostnameOfIpLiteralUrl
+  issue: https://github.com/elastic/elasticsearch/issues/164389

@@ -86,7 +86,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             AggregatorMode.INITIAL,
             List.of(rate),
-            1024
+            1024,
+            Integer.MAX_VALUE,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
         try (var operator = (TimeSeriesAggregationOperator) factory.get(driverContext)) {
             Page page = new Page(
@@ -213,7 +216,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             AggregatorMode.SINGLE,
             aggregatorFactories,
-            10_000
+            10_000,
+            Integer.MAX_VALUE,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory blockFactory = blockFactory();
@@ -296,7 +302,10 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             AggregatorMode.SINGLE,
             aggregatorFactories,
-            10_000
+            10_000,
+            Integer.MAX_VALUE,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory blockFactory = blockFactory();
@@ -357,7 +366,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
             1024,
             Integer.MAX_VALUE,
-            1
+            1,
+            null
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -409,7 +419,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             List.of(rate),
             1024,
             Integer.MAX_VALUE,
-            1
+            1,
+            null
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -495,7 +506,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             ),
             1024,
             targetChunkRows,
-            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -573,7 +585,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(2, 3))),
                 1024,
                 targetChunkRows,
-                TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD
+                TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+                null
             );
             BlockFactory bf = blockFactory();
             var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -601,7 +614,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2, 3))),
                 1024,
                 targetChunkRows,
-                TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD
+                TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+                null
             );
             try (Operator op = finalFactory.get(driverCtx)) {
                 while (intermediatePages.isEmpty() == false) {
@@ -811,7 +825,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2, 3))),
             1024,
             finalTargetChunkRows,
-            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -855,7 +870,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             aggregators,
             10_000,
             targetChunkRows,
-            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
         BlockFactory bf = blockFactory();
         var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
@@ -1014,7 +1030,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             List.of(aggregatorFactory),
             10_000,
             targetChunkRows,
-            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory bf = blockFactory();
@@ -1118,7 +1135,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
             1024,
             targetChunkRows,
-            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory bf = blockFactory();
@@ -1161,7 +1179,8 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             List.of(new SumIntAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(2))),
             1024,
             targetChunkRows,
-            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
 
         BlockFactory bf = blockFactory();

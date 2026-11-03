@@ -449,6 +449,9 @@ public class IndexResolver {
         // For each field name, store a list of the field caps responses from each index
         var collectedFieldCaps = collectFieldCaps(fieldsInfo.caps, trackUnmappedFieldIndices);
         Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
+        // The field caps of indices with an equal mapping hash are listed once, so a field that every index has is listed once for each
+        // distinct mapping hash.
+        int distinctMappings = (int) indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexMappingHash).distinct().count();
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
         // TODO flattened is simpler - could we get away with that?
@@ -486,7 +489,7 @@ public class IndexResolver {
             var fieldCap = fieldsCaps.get(fullName);
             List<IndexFieldCapabilities> fcs = fieldCap.fieldCapabilities;
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldsInfo, name, fullName, fcs, isAlias, indexDedupCache)
+                ? createField(fieldsInfo, name, fullName, fcs, isAlias, indexDedupCache, distinctMappings)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalTypes(),
@@ -607,7 +610,8 @@ public class IndexResolver {
         List<IndexFieldCapabilities> fcs,
         boolean isAlias,
         // If this isn't null, it also means we need to create CompactInvalidMappedField instead of InvalidMappedField.
-        @Nullable Map<Set<String>, Set<String>> indexDedupCache
+        @Nullable Map<Set<String>, Set<String>> indexDedupCache,
+        int distinctMappings
     ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
@@ -617,6 +621,8 @@ public class IndexResolver {
         }
         boolean aggregatable = first.isAggregatable();
         boolean isPassthrough = Boolean.TRUE.equals(first.isPassthrough());
+        // A field missing from an index is null there, so every distinct mapping must have the field and guarantee a value.
+        boolean isStaticallyNonNullable = fcs.size() == distinctMappings && first.isStaticallyNonNullable();
         EsField.TimeSeriesFieldType timeSeriesFieldType = fieldsInfo.hasTimeSeriesAggregation()
             ? EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first)
             : EsField.TimeSeriesFieldType.NONE;
@@ -642,6 +648,7 @@ public class IndexResolver {
             for (IndexFieldCapabilities fc : rest) {
                 aggregatable &= fc.isAggregatable();
                 isPassthrough &= Boolean.TRUE.equals(fc.isPassthrough());
+                isStaticallyNonNullable &= fc.isStaticallyNonNullable();
             }
         }
 
@@ -657,13 +664,13 @@ public class IndexResolver {
             return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias, timeSeriesFieldType);
         }
         if (type == DATETIME) {
-            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType);
+            return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType, isStaticallyNonNullable);
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);
         }
 
-        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, isPassthrough);
+        return new EsField(name, type, new HashMap<>(), aggregatable, isAlias, timeSeriesFieldType, isPassthrough, isStaticallyNonNullable);
     }
 
     /**

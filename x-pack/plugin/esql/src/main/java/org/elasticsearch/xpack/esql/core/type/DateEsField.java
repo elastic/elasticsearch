@@ -21,7 +21,17 @@ import java.util.Map;
 public class DateEsField extends EsField {
 
     public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues, TimeSeriesFieldType tsType) {
-        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, tsType);
+        return dateEsField(name, properties, hasDocValues, tsType, false);
+    }
+
+    public static DateEsField dateEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        TimeSeriesFieldType tsType,
+        boolean isStaticallyNonNullable
+    ) {
+        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, tsType, isStaticallyNonNullable);
     }
 
     private DateEsField(
@@ -29,9 +39,10 @@ public class DateEsField extends EsField {
         DataType dataType,
         Map<String, EsField> properties,
         boolean hasDocValues,
-        TimeSeriesFieldType timeSeriesFieldType
+        TimeSeriesFieldType timeSeriesFieldType,
+        boolean isStaticallyNonNullable
     ) {
-        super(name, dataType, properties, hasDocValues, timeSeriesFieldType);
+        super(name, dataType, properties, hasDocValues, false, timeSeriesFieldType, false, isStaticallyNonNullable);
     }
 
     protected DateEsField(StreamInput in) throws IOException {
@@ -40,13 +51,14 @@ public class DateEsField extends EsField {
             DataType.DATETIME,
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
-            readTimeSeriesFieldType(in)
+            readTimeSeriesFieldType(in),
+            readStaticallyNonNullable(in)
         );
     }
 
     @Override
     public EsField withProperties(Map<String, EsField> newProperties) {
-        return dateEsField(getName(), newProperties, isAggregatable(), getTimeSeriesFieldType());
+        return dateEsField(getName(), newProperties, isAggregatable(), getTimeSeriesFieldType(), isStaticallyNonNullable());
     }
 
     @Override
@@ -55,6 +67,7 @@ public class DateEsField extends EsField {
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         writeTimeSeriesFieldType(out);
+        writeStaticallyNonNullable(out);
     }
 
     public String getWriteableName(TransportVersion transportVersion) {

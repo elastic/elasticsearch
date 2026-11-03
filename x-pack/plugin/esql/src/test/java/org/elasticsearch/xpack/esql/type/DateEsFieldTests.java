@@ -27,13 +27,15 @@ public class DateEsFieldTests extends AbstractEsFieldTypeTests<DateEsField> {
         Map<String, EsField> properties = instance.getProperties();
         boolean aggregatable = instance.isAggregatable();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
-        switch (between(0, 3)) {
+        boolean isStaticallyNonNullable = instance.isStaticallyNonNullable();
+        switch (between(0, 4)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> aggregatable = false == aggregatable;
             case 3 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
+            case 4 -> isStaticallyNonNullable = false == isStaticallyNonNullable;
             default -> throw new IllegalArgumentException();
         }
-        return DateEsField.dateEsField(name, properties, aggregatable, tsType);
+        return DateEsField.dateEsField(name, properties, aggregatable, tsType, isStaticallyNonNullable);
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -271,7 +272,7 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             primaryOnNode1,
             ShardRoutingState.STARTED
         );
-        shardOnNode1 = shardOnNode1.relocate("node3", 230, ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+        shardOnNode1 = shardOnNode1.relocate("node3", 230, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(shardOnNode1)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false, ShardRoutingState.STARTED));

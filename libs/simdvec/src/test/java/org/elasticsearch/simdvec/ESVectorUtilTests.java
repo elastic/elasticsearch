@@ -17,6 +17,9 @@ import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
@@ -825,34 +828,46 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return vectors;
     }
 
+    // Bulk-path datasets arrive from DocValues.binaryValue(), whose BytesRef rarely starts at offset 0;
+    // encoding the test datasets behind a junk prefix exercises the offset arithmetic end to end.
+    private static final int VECTOR_BYTES_PREFIX = 13;
+
     private static BytesRef encodeFloatVectors(float[][] vectors) {
         int dims = vectors[0].length;
-        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer buffer = ByteBuffer.allocate(VECTOR_BYTES_PREFIX + vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.position(VECTOR_BYTES_PREFIX);
         var floatBuffer = buffer.asFloatBuffer();
         for (float[] vector : vectors) {
             floatBuffer.put(vector);
         }
-        return new BytesRef(buffer.array());
+        return new BytesRef(buffer.array(), VECTOR_BYTES_PREFIX, vectors.length * dims * Float.BYTES);
     }
 
     private static BytesRef encodeByteVectors(byte[][] vectors) {
         int dims = vectors[0].length;
-        byte[] bytes = new byte[vectors.length * dims];
-        int offset = 0;
+        byte[] bytes = new byte[VECTOR_BYTES_PREFIX + vectors.length * dims];
+        int offset = VECTOR_BYTES_PREFIX;
         for (byte[] vector : vectors) {
             System.arraycopy(vector, 0, bytes, offset, dims);
             offset += dims;
         }
-        return new BytesRef(bytes);
+        return new BytesRef(bytes, VECTOR_BYTES_PREFIX, vectors.length * dims);
     }
 
     private static BytesRef encodeBFloat16Vectors(float[][] vectors) {
         int dims = vectors[0].length;
-        byte[] buffer = new byte[vectors.length * dims * BFloat16.BYTES];
+        byte[] buffer = new byte[VECTOR_BYTES_PREFIX + vectors.length * dims * BFloat16.BYTES];
         for (int i = 0; i < vectors.length; i++) {
-            ESVectorUtil.floatToBFloat16(vectors[i], 0, buffer, i * dims * BFloat16.BYTES, dims, ByteOrder.LITTLE_ENDIAN);
+            ESVectorUtil.floatToBFloat16(
+                vectors[i],
+                0,
+                buffer,
+                VECTOR_BYTES_PREFIX + i * dims * BFloat16.BYTES,
+                dims,
+                ByteOrder.LITTLE_ENDIAN
+            );
         }
-        return new BytesRef(buffer);
+        return new BytesRef(buffer, VECTOR_BYTES_PREFIX, vectors.length * dims * BFloat16.BYTES);
     }
 
     private static class TestMultiFloatVectorsSource implements MultiFloatVectorsSource {
@@ -1536,6 +1551,54 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             for (int l = 0; l < k; l++) {
                 for (int d = 0; d < n; d++) {
                     c[cBase + d] = Math.fma(a[aBase + l], b[l * n + d], c[cBase + d]);
+                }
+            }
+        }
+        return c;
+    }
+
+    public void testByteMatrixMultiply() {
+        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null; Arena arena = Arena.ofShared()) {
+            TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
+            int m = randomIntBetween(2, 1024);
+            int k = randomIntBetween(2, 2500);
+            int n = randomIntBetween(2, 1024);
+            int aSize = m * k;
+            int bSize = k * n;
+            long resultSize = m * n;
+
+            MemorySegment a = arena.allocate(aSize);
+            MemorySegment b = arena.allocate(bSize);
+            MemorySegment.copy(randomByteArrayOfLength(aSize), 0, a, ValueLayout.JAVA_BYTE, 0, aSize);
+            MemorySegment.copy(randomByteArrayOfLength(bSize), 0, b, ValueLayout.JAVA_BYTE, 0, bSize);
+
+            int[] expected = basicMatrixMultiply(a.toArray(ValueLayout.JAVA_BYTE), b.toArray(ValueLayout.JAVA_BYTE), m, k, n);
+
+            // pre-filled, as the implementations must overwrite the result rather than accumulate into it
+            // the API on SegmentAllocator has changed between JDKs, so use one that hasn't
+            MemorySegment scalar = arena.allocate(resultSize * Integer.BYTES, Integer.BYTES);
+            scalar.fill(randomByte());
+            defaultedProvider.getVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, scalar, tasks);
+            assertThat(scalar.toArray(ValueLayout.JAVA_INT), equalTo(expected));
+
+            MemorySegment panama = arena.allocate(resultSize * Integer.BYTES, Integer.BYTES);
+            panama.fill(randomByte());
+            panamaProvider.getVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, panama, tasks);
+            assertThat(panama.toArray(ValueLayout.JAVA_INT), equalTo(expected));
+
+            MemorySegment nativeResult = arena.allocate(resultSize * Integer.BYTES, Integer.BYTES);
+            nativeResult.fill(randomByte());
+            nativeProvider.getVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, nativeResult, tasks);
+            assertThat(nativeResult.toArray(ValueLayout.JAVA_INT), equalTo(expected));
+        }
+    }
+
+    private static int[] basicMatrixMultiply(byte[] a, byte[] b, int m, int k, int n) {
+        int[] c = new int[m * n];
+        for (int i = 0; i < m; i++) {
+            for (int l = 0; l < k; l++) {
+                for (int d = 0; d < n; d++) {
+                    c[i * n + d] += a[i * k + l] * b[l * n + d];
                 }
             }
         }

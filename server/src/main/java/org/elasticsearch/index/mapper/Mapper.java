@@ -142,6 +142,12 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         public abstract Mapper build(MapperBuilderContext context);
 
         /**
+         * Rewrites the builder into a normalized form - merges duplicate mapper definitions,
+         * collapses object mappers with subobjects:false, propagates nested include directives, etc.
+         */
+        public void normalize(MapperBuilderContext context) {}
+
+        /**
          * Returns the total number of fields that this builder will create.
          * Used for field budget accounting during merges.
          */

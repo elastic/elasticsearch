@@ -9,6 +9,7 @@
 
 package org.elasticsearch.columnar.string;
 
+import org.apache.lucene.index.DocsWithFieldSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -375,6 +376,17 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
         return numValues;
     }
 
+    /** The documents of {@code docSlots} that have at least one slot, as the consumer's counting pass collects them. */
+    protected static DocsWithFieldSet docsWithField(final BytesRef[][] docSlots) {
+        final DocsWithFieldSet docsWithField = new DocsWithFieldSet();
+        for (int doc = 0; doc < docSlots.length; doc++) {
+            if (docSlots[doc] != null) {
+                docsWithField.add(doc);
+            }
+        }
+        return docsWithField;
+    }
+
     /** What the consumer counts before writing a column: documents, slots, nulls and the value lengths. */
     protected static StringColumnValues.Totals totals(final BytesRef[][] docSlots) {
         int minLength = -1;
@@ -436,6 +448,8 @@ public abstract class ColumnarStringTestCase extends ESTestCase {
                 cursors,
                 options,
                 null,
+                // Either way the presence comes out the same: collected by a counting pass, or walked by the writer.
+                randomBoolean() ? docsWithField(docSlots) : null,
                 dir,
                 IOContext.DEFAULT,
                 out.outputs(),

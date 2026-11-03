@@ -119,7 +119,6 @@ public class TranslogIndexBatchTests extends ESTestCase {
             shardId,
             path,
             indexSettings,
-            // released pages are scrambled, so reading serialized operations after their stream was closed fails these tests
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
             ByteSizeValue.ofBytes(8 * 1024),
             DiskIoBufferPool.INSTANCE,

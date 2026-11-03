@@ -7,13 +7,10 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -21,9 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.hamcrest.Matcher;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -932,20 +927,17 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         assertChargesRetainedState(true);
     }
 
-    /**
-     * Compares the breaker charge with the operator's reachable state. {@link RamUsageTester} cannot look inside JDK
-     * collections, so {@link #operatorStateBytes} adds a minimal per-element cost. The result is a lower bound of the heap.
-     */
+    /** Compares the breaker charge with a lower bound of the operator's reachable state. */
     private void assertChargesRetainedState(boolean finalMode) {
         BlockFactory factory = blockFactory();
         try (Operator op = createOperator(factory, finalMode)) {
-            long retainedBefore = operatorStateBytes(op);
+            long retainedBefore = RetainedOperatorState.bytes(op);
             long chargedBefore = factory.breaker().getUsed();
             for (int i = 0; i < 512; i++) {
                 // Each host appears in three indices, so every series has several index abstractions.
                 addSeries(op, factory, finalMode, "h" + (i / 3), "index-" + (i % 3));
             }
-            long retained = operatorStateBytes(op) - retainedBefore;
+            long retained = RetainedOperatorState.bytes(op) - retainedBefore;
             long charged = factory.breaker().getUsed() - chargedBefore;
             assertThat(charged, greaterThanOrEqualTo(retained));
         }
@@ -1045,39 +1037,6 @@ public class TsInfoOperatorTests extends OperatorTestCase {
             op.addInput(buildPage(factory, "{\"cpu_usage\":0.5,\"host\":\"" + host + "\"}", index));
         }
     }
-
-    private static long operatorStateBytes(Operator op) {
-        return RamUsageTester.ramUsed(op, new RamUsageTester.Accumulator() {
-            @Override
-            public long accumulateObject(Object object, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
-                // Shared infrastructure and inputs, not state the operator accumulates.
-                if (object instanceof BlockFactory
-                    || object instanceof BigArrays
-                    || object instanceof CircuitBreaker
-                    || object instanceof MetricsInfoOperator.MetricFieldLookup) {
-                    return 0;
-                }
-                return super.accumulateObject(object, shallowSize, fieldValues, queue);
-            }
-
-            @Override
-            public long accumulateArray(Object array, long shallowSize, List<Object> values, Collection<Object> queue) {
-                long bytes = super.accumulateArray(array, shallowSize, values, queue);
-                // JDK collections reach here with only their contents. Add the smallest hash node and the slot each element needs.
-                return switch (array) {
-                    case Map<?, ?> map -> bytes + map.size() * (HASH_NODE_BYTES + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-                    case HashSet<?> set -> bytes + set.size() * (HASH_NODE_BYTES + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-                    case Collection<?> collection -> bytes + collection.size() * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-                    default -> bytes;
-                };
-            }
-        });
-    }
-
-    /** A {@link java.util.HashMap} node holds a hash and three references. */
-    private static final long HASH_NODE_BYTES = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 3L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-    );
 
     private static List<String> readOrderedValues(BytesRefBlock block, int position) {
         List<String> values = new ArrayList<>();

@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,8 +74,8 @@ public class TsInfoOperator implements Operator {
     private record SeriesKey(String metricName, String dimensionsJson) {}
 
     /**
-     * Accumulated state of one series. The value lists are canonical and shared with other series,
-     * so they are replaced, never mutated.
+     * Accumulated state of one series. The value lists are immutable and usually shared with other series
+     * through {@link MetadataValues}, so they are replaced, never mutated.
      */
     private static final class Series {
         final SeriesKey key;
@@ -89,7 +88,7 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    /** The series' metric metadata in one data stream or standalone index. The name and lists are canonical. */
+    /** The series' metric metadata in one data stream or standalone index. The name and lists come from {@link MetadataValues}. */
     private static final class IndexAbstractionMetadata {
         final String name;
         List<String> units = List.of();
@@ -104,19 +103,10 @@ public class TsInfoOperator implements Operator {
     /** Index abstractions of one series with equal metadata produce one output row. */
     private record FieldMetadata(List<String> units, List<String> fieldTypes, List<String> metricTypes) {}
 
-    /**
-     * Estimated bytes per {@link LinkedHashMap} entry, also used for {@link HashMap} entries. The node holds a hash
-     * and five references. A hash map keeps its load between 0.375 and 0.75, so each entry also uses about two table slots.
-     */
-    private static final long MAP_ENTRY_BYTES = RamUsageEstimator.alignObjectSize(
-        RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Integer.BYTES + 5L * RamUsageEstimator.NUM_BYTES_OBJECT_REF
-    ) + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-
     /** A new series with its map entry and an index abstraction list of capacity one. */
-    private static final long SERIES_BYTES = MAP_ENTRY_BYTES + RamUsageEstimator.shallowSizeOfInstance(SeriesKey.class) + RamUsageEstimator
-        .shallowSizeOfInstance(Series.class) + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF
-        );
+    private static final long SERIES_BYTES = MetadataValues.MAP_ENTRY_BYTES + RamUsageEstimator.shallowSizeOfInstance(SeriesKey.class)
+        + RamUsageEstimator.shallowSizeOfInstance(Series.class) + RamUsageEstimates.ARRAY_LIST_SHALLOW_SIZE + RamUsageEstimator
+            .alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF);
 
     /** An {@link ArrayList} grows by half its capacity, so two slots per element cover its backing array. */
     private static final long INDEX_ABSTRACTION_BYTES = RamUsageEstimator.shallowSizeOfInstance(IndexAbstractionMetadata.class) + 2L
@@ -189,10 +179,8 @@ public class TsInfoOperator implements Operator {
     }
 
     private Map<SeriesKey, Series> seriesByKey = new LinkedHashMap<>();
-    /** Canonical metric names, dimension JSON and index abstraction names. */
-    private Map<String, String> canonicalStrings = new HashMap<>();
-    /** Canonical sorted, distinct value lists for metadata and dimension field keys. */
-    private Map<List<String>, List<String>> canonicalLists = new HashMap<>();
+    /** Metric names, dimension JSON, index abstraction names and value lists, shared by all series. */
+    private MetadataValues values;
     private int entriesAccumulated;
 
     private final Mode mode;
@@ -236,6 +224,7 @@ public class TsInfoOperator implements Operator {
         this.indexChannel = indexChannel;
         this.finalChannels = channels;
         this.limit = limit;
+        this.values = new MetadataValues(breaker, "TsInfoOperator");
     }
 
     @Override
@@ -321,7 +310,7 @@ public class TsInfoOperator implements Operator {
 
         if (prefix == null) {
             String dimensionsJson = buildDimensionsJson(dimensionKeyValues);
-            List<String> dimensionFieldKeys = canonicalList(dimensionKeyValues.navigableKeySet());
+            List<String> dimensionFieldKeys = values.sharedList(dimensionKeyValues.navigableKeySet());
             collectMetrics(metadata, null, indexName, indexAbstractionName, dimensionsJson, dimensionFieldKeys);
         }
     }
@@ -348,11 +337,11 @@ public class TsInfoOperator implements Operator {
             if (fieldInfo != null) {
                 Series series = findOrCreateSeriesWithinLimit(fieldInfo.name(), dimensionsJson);
                 assert series != null : "INITIAL mode has no series limit";
-                series.dimensionFieldKeys = union(series.dimensionFieldKeys, dimensionFieldKeys);
+                addDimensionFieldKeys(series, dimensionFieldKeys);
                 IndexAbstractionMetadata indexAbstraction = findOrCreateIndexAbstraction(series, indexAbstractionName);
-                indexAbstraction.units = withValue(indexAbstraction.units, fieldInfo.unit());
-                indexAbstraction.fieldTypes = withValue(indexAbstraction.fieldTypes, fieldInfo.fieldType());
-                indexAbstraction.metricTypes = withValue(indexAbstraction.metricTypes, fieldInfo.metricType());
+                indexAbstraction.units = values.sharedWithValue(indexAbstraction.units, fieldInfo.unit());
+                indexAbstraction.fieldTypes = values.sharedWithValue(indexAbstraction.fieldTypes, fieldInfo.fieldType());
+                indexAbstraction.metricTypes = values.sharedWithValue(indexAbstraction.metricTypes, fieldInfo.metricType());
             } else if (value instanceof Map<?, ?> nested) {
                 collectMetrics((Map<String, Object>) nested, key, indexName, indexAbstractionName, dimensionsJson, dimensionFieldKeys);
             }
@@ -399,15 +388,15 @@ public class TsInfoOperator implements Operator {
                     continue;
                 }
 
-                series.dimensionFieldKeys = union(series.dimensionFieldKeys, canonicalList(readMultiValue(dfBlock, pos, scratch)));
-                List<String> units = canonicalList(readMultiValue(unitBlock, pos, scratch));
-                List<String> fieldTypes = canonicalList(readMultiValue(ftBlock, pos, scratch));
-                List<String> metricTypes = canonicalList(readMultiValue(mtBlock, pos, scratch));
+                addDimensionFieldKeys(series, values.sharedList(readMultiValue(dfBlock, pos, scratch)));
+                List<String> units = values.sharedList(readMultiValue(unitBlock, pos, scratch));
+                List<String> fieldTypes = values.sharedList(readMultiValue(ftBlock, pos, scratch));
+                List<String> metricTypes = values.sharedList(readMultiValue(mtBlock, pos, scratch));
                 for (String indexAbstractionName : readMultiValue(dsBlock, pos, scratch)) {
                     IndexAbstractionMetadata indexAbstraction = findOrCreateIndexAbstraction(series, indexAbstractionName);
-                    indexAbstraction.units = union(indexAbstraction.units, units);
-                    indexAbstraction.fieldTypes = union(indexAbstraction.fieldTypes, fieldTypes);
-                    indexAbstraction.metricTypes = union(indexAbstraction.metricTypes, metricTypes);
+                    indexAbstraction.units = values.sharedUnion(indexAbstraction.units, units);
+                    indexAbstraction.fieldTypes = values.sharedUnion(indexAbstraction.fieldTypes, fieldTypes);
+                    indexAbstraction.metricTypes = values.sharedUnion(indexAbstraction.metricTypes, metricTypes);
                 }
             }
         } finally {
@@ -445,11 +434,21 @@ public class TsInfoOperator implements Operator {
         Series series = seriesByKey.get(new SeriesKey(metricName, dimensionsJson));
         if (series == null && seriesByKey.size() < limit) {
             trackBytes(SERIES_BYTES);
-            SeriesKey key = new SeriesKey(canonicalString(metricName), canonicalString(dimensionsJson));
+            SeriesKey key = new SeriesKey(values.string(metricName), values.string(dimensionsJson));
             series = new Series(key);
             seriesByKey.put(key, series);
         }
         return series;
+    }
+
+    /**
+     * Adopts the shared key list of the first row of a series. The keys come from the series' dimension JSON, so later
+     * rows carry the same list. Only inconsistent input grows it, into a list the series owns.
+     */
+    private void addDimensionFieldKeys(Series series, List<String> sharedKeys) {
+        series.dimensionFieldKeys = series.dimensionFieldKeys.isEmpty()
+            ? sharedKeys
+            : values.unsharedUnion(series.dimensionFieldKeys, sharedKeys);
     }
 
     private IndexAbstractionMetadata findOrCreateIndexAbstraction(Series series, String name) {
@@ -459,54 +458,10 @@ public class TsInfoOperator implements Operator {
             }
         }
         trackBytes(INDEX_ABSTRACTION_BYTES);
-        IndexAbstractionMetadata indexAbstraction = new IndexAbstractionMetadata(canonicalString(name));
+        IndexAbstractionMetadata indexAbstraction = new IndexAbstractionMetadata(values.string(name));
         series.indexAbstractions.add(indexAbstraction);
         entriesAccumulated++;
         return indexAbstraction;
-    }
-
-    private String canonicalString(String value) {
-        String canonical = canonicalStrings.get(value);
-        if (canonical == null) {
-            trackBytes(MAP_ENTRY_BYTES + RamUsageEstimator.sizeOf(value));
-            canonicalStrings.put(value, value);
-            canonical = value;
-        }
-        return canonical;
-    }
-
-    /** Returns the shared, immutable list of {@code values}, which are sorted and distinct by type. */
-    private List<String> canonicalList(SortedSet<String> values) {
-        List<String> list = List.copyOf(values);
-        List<String> canonical = canonicalLists.get(list);
-        if (canonical == null) {
-            trackBytes(MAP_ENTRY_BYTES + RamUsageEstimator.sizeOfCollection(list));
-            canonicalLists.put(list, list);
-            canonical = list;
-        }
-        return canonical;
-    }
-
-    /** Returns the canonical union of two canonical lists. */
-    private List<String> union(List<String> current, List<String> added) {
-        if (current == added || added.isEmpty()) {
-            return current;
-        }
-        if (current.isEmpty()) {
-            return added;
-        }
-        SortedSet<String> merged = new TreeSet<>(current);
-        return merged.addAll(added) ? canonicalList(merged) : current;
-    }
-
-    /** Returns the canonical list of {@code current} plus {@code value}. A null value adds nothing. */
-    private List<String> withValue(List<String> current, String value) {
-        if (value == null || current.contains(value)) {
-            return current;
-        }
-        SortedSet<String> merged = new TreeSet<>(current);
-        merged.add(value);
-        return canonicalList(merged);
     }
 
     @Override
@@ -644,8 +599,8 @@ public class TsInfoOperator implements Operator {
     private void releaseState() {
         // Replace rather than clear the maps, because clear() keeps their tables allocated.
         seriesByKey = new LinkedHashMap<>();
-        canonicalStrings = new HashMap<>();
-        canonicalLists = new HashMap<>();
+        values.close();
+        values = new MetadataValues(breaker, "TsInfoOperator");
         breaker.addWithoutBreaking(-trackedBytes);
         trackedBytes = 0;
     }

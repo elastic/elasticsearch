@@ -23,8 +23,9 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
  * from test | sort x | limit 100 | sort x | limit 10
  * </pre>
  * Both <code>sort x | limit 100</code> and <code>sort x | limit 10</code> will be transformed into TopN nodes.
- * Since they sort by the same key and the latter applies a stricter (or equal) limit,
- * the first TopN becomes redundant and can be pruned.
+ * Since they sort by the same key, the two TopNs are merged into one that keeps the lower of the two limits
+ * (see {@link TopN#mergeWithChildTopN}). The merged TopN is only local if both inputs were, so that a pipeline-breaking
+ * (non-local) TopN is never replaced by a local one.
  */
 public class PruneRedundantTopN extends OptimizerRules.ParameterizedOptimizerRule<TopN, LogicalOptimizerContext> {
 
@@ -34,19 +35,10 @@ public class PruneRedundantTopN extends OptimizerRules.ParameterizedOptimizerRul
 
     @Override
     protected LogicalPlan rule(TopN plan, LogicalOptimizerContext ctx) {
-        while (plan.child() instanceof TopN childTopN) {
-            // Check if the child TopN is redundant compared to the plan TopN.
-            // A child TopN is redundant if it matches the plan's sort order and has a greater or equal limit.
-            if (childTopN.order().equals(plan.order())
-                // Although `PushDownAndCombineLimits` is expected to have propagated the stricter (lower) limit,
-                // we still compare limit values here to ensure correctness and avoid relying solely on prior optimizations.
-                // This limit check should always pass, but we validate it explicitly for robustness.
-                && (int) plan.limit().fold(ctx.foldCtx()) <= (int) childTopN.limit().fold(ctx.foldCtx())) {
-                // Skip the redundant child TopN and continue checking for more consecutive TopNs
-                plan = plan.replaceChild(childTopN.child());
-            } else {
-                break;
-            }
+        // Merge consecutive TopNs that sort by the same order, keeping the lower limit.
+        // The merge preserves non-locality: a non-local TopN is a pipeline breaker and must never be pruned in favor of a local one.
+        while (plan.child() instanceof TopN childTopN && childTopN.order().equals(plan.order())) {
+            plan = plan.mergeWithChildTopN(childTopN, ctx.foldCtx());
         }
         return plan;
     }

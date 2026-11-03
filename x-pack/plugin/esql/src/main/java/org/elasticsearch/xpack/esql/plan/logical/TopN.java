@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -83,6 +84,24 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn, DocP
 
     public boolean local() {
         return local;
+    }
+
+    /**
+     * Merges this {@code TopN} with its direct child {@code TopN} into a single {@code TopN} over the child's child.
+     * <p>
+     * The caller must ensure that both {@code TopN}s sort by the same {@link #order()}. In that case the merged {@code TopN} is
+     * equivalent to applying both: it keeps the lower of the two limits, and it is only {@link #local() local} if both are.
+     * The latter is deliberate: a non-local {@code TopN} is a pipeline breaker, so merging must never turn one into a local
+     * {@code TopN} that is executed per data node only.
+     * <p>
+     * When adding fields to this class, consider how they have to be combined here.
+     */
+    public TopN mergeWithChildTopN(TopN childTopN, FoldContext foldCtx) {
+        assert order.equals(childTopN.order)
+            : "can only merge TopNs with the same sort order, got [" + order + "] and [" + childTopN.order + "]";
+        assert child() == childTopN : "can only merge with the direct child TopN";
+        Expression mergedLimit = (int) limit.fold(foldCtx) <= (int) childTopN.limit.fold(foldCtx) ? limit : childTopN.limit;
+        return new TopN(source(), childTopN.child(), order, mergedLimit, local && childTopN.local);
     }
 
     public Expression limit() {

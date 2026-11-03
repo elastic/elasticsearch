@@ -126,8 +126,8 @@ public class SliceKnnSearchIT extends ESIntegTestCase {
         final KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder("vector", queryVector(), 2, 10, null, null, null);
         assertResponse(prepareSearch(index, "plain").setQuery(knnQuery), response -> {
             assertThat(response.getFailedShards(), equalTo(1));
-            assertThat(response.getShardFailures()[0].index(), equalTo(index));
-            assertThat(response.getShardFailures()[0].reason(), containsString(SLICES_REQUIRED));
+            assertThat(response.getShardFailures().getFirst().index(), equalTo(index));
+            assertThat(response.getShardFailures().getFirst().reason(), containsString(SLICES_REQUIRED));
             assertThat(response.getHits().getHits().length, equalTo(1));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("plain-1"));
         });

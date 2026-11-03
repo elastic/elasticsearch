@@ -209,7 +209,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         // maybe force merge
         if (randomBoolean()) {
             var forceMergeResponse = client().admin().indices().forceMerge(new ForceMergeRequest("k8s").maxNumSegments(1)).actionGet();
-            assertEquals(0, forceMergeResponse.getShardFailures().length);
+            assertThat(forceMergeResponse.getShardFailures(), empty());
         }
 
         // index again and check for success

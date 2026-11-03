@@ -234,7 +234,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             9,
             1,
             took,
-            List.of(),
+            ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
 
@@ -356,7 +356,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             9,
             1,
             took,
-            List.of(),
+            ShardSearchFailure.EMPTY_ARRAY,
             clusters
         );
         AsyncSearchResponse asyncSearchResponse;
@@ -599,7 +599,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             9,
             1,
             took,
-            List.of(),
+            ShardSearchFailure.EMPTY_ARRAY,
             clusters
         );
 
@@ -748,7 +748,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             9,
             1,
             took,
-            List.of(),
+            ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
         AsyncSearchResponse asyncSearchResponse;

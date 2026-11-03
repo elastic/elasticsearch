@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -208,7 +209,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             switch (operation) {
                 case REFRESH -> {
                     var refreshResult = client(coordinatorNode).admin().indices().prepareRefresh(indexName).get();
-                    assertEquals(Arrays.toString(refreshResult.getShardFailures()), 0, refreshResult.getFailedShards());
+                    assertEquals(Objects.toString(refreshResult.getShardFailures()), 0, refreshResult.getFailedShards());
                     indexed.values().forEach(IndexedDocument::refresh);
                 }
                 case SEARCH -> {

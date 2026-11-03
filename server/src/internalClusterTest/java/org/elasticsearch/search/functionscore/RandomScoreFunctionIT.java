@@ -20,7 +20,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.hamcrest.CoreMatchers;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -42,6 +41,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -107,11 +107,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                         .setPreference(preference)
                         .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(seed).setField("foo"))),
                     response -> {
-                        assertThat(
-                            "Failures " + Arrays.toString(response.getShardFailures()),
-                            response.getShardFailures().length,
-                            CoreMatchers.equalTo(0)
-                        );
+                        assertThat(response.getShardFailures(), empty());
                         final int hitCount = response.getHits().getHits().length;
                         final SearchHit[] currentHits = Arrays.copyOf(response.getHits().getHits(), response.getHits().getHits().length);
                         ArrayUtil.timSort(currentHits, (o1, o2) -> {

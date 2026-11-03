@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -86,7 +85,8 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                             // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
                                             // request comes in. It's a small window but a known limitation.
                                             if (response.getTotalShards() != response.getSuccessfulShards()
-                                                && Stream.of(response.getShardFailures())
+                                                && response.getShardFailures()
+                                                    .stream()
                                                     .allMatch(ssf -> ssf.getCause() instanceof NoShardAvailableActionException)) {
                                                 nonCriticalExceptions.add(
                                                     "Count is "

@@ -79,7 +79,6 @@ import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -1132,7 +1131,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         assertThat(forgetFollowerResponse.getTotalShards(), equalTo(numberOfShards));
         assertThat(forgetFollowerResponse.getSuccessfulShards(), equalTo(numberOfShards));
         assertThat(forgetFollowerResponse.getFailedShards(), equalTo(0));
-        assertThat(forgetFollowerResponse.getShardFailures(), emptyArray());
+        assertThat(forgetFollowerResponse.getShardFailures(), empty());
 
         final IndicesStatsResponse afterForgetFollowerStats = leaderClient().admin()
             .indices()

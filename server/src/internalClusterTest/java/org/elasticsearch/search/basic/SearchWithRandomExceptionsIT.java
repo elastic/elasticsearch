@@ -113,12 +113,12 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         logger.info("Start Refresh");
         // don't assert on failures here
         BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("test").execute().get();
-        final boolean refreshFailed = refreshResponse.getShardFailures().length != 0 || refreshResponse.getFailedShards() != 0;
+        final boolean refreshFailed = !refreshResponse.getShardFailures().isEmpty() || refreshResponse.getFailedShards() != 0;
         logger.info(
             "Refresh failed [{}] numShardsFailed: [{}], shardFailuresLength: [{}], successfulShards: [{}], totalShards: [{}] ",
             refreshFailed,
             refreshResponse.getFailedShards(),
-            refreshResponse.getShardFailures().length,
+            refreshResponse.getShardFailures().size(),
             refreshResponse.getSuccessfulShards(),
             refreshResponse.getTotalShards()
         );

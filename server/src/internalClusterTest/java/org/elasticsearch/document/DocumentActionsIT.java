@@ -161,7 +161,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
             assertNoFailuresAndResponse(prepareSearch("test").setSize(0), countResponse -> {
                 assertThat(
                     "Failures " + countResponse.getShardFailures(),
-                    countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
+                    countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().size(),
                     equalTo(0)
                 );
                 assertThat(countResponse.getHits().getTotalHits().value(), equalTo(2L));

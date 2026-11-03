@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -172,7 +173,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         builder.field(IS_RUNNING.getPreferredName(), isRunning);
         builder.field(TOOK.getPreferredName(), tookInMillis);
         builder.field(TIMED_OUT.getPreferredName(), isTimeout);
-        if (shardFailures.length == 0) {
+        if (CollectionUtils.isEmpty(shardFailures) == false) {
             builder.startArray(SHARD_FAILURES.getPreferredName());
             for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(Arrays.asList(shardFailures))) {
                 shardFailure.toXContent(builder, params);
@@ -235,12 +236,12 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             && Objects.equals(tookInMillis, that.tookInMillis)
             && Objects.equals(isTimeout, that.isTimeout)
             && Objects.equals(asyncExecutionId, that.asyncExecutionId)
-            && Objects.equals(shardFailures, that.shardFailures);
+            && Arrays.equals(shardFailures, that.shardFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId, shardFailures);
+        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId, Arrays.hashCode(shardFailures));
     }
 
     @Override

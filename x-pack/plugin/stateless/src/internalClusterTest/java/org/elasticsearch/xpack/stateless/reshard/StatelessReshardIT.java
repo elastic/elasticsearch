@@ -166,6 +166,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -574,8 +575,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var refresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).execute();
         final var refreshThread = new Thread(() -> {
             var refreshResponse = refresh.actionGet();
-            assertEquals(Arrays.toString(refreshResponse.getShardFailures()), multiple, refreshResponse.getTotalShards());
-            assertEquals(Arrays.toString(refreshResponse.getShardFailures()), multiple, refreshResponse.getSuccessfulShards());
+            assertEquals(Objects.toString(refreshResponse.getShardFailures()), multiple, refreshResponse.getTotalShards());
+            assertEquals(Objects.toString(refreshResponse.getShardFailures()), multiple, refreshResponse.getSuccessfulShards());
             // Note that the coordinator does not need to observe SPLIT since refresh requests are resplit.
             var split = getSplit(indexNode, index);
             assertTrue(
@@ -672,8 +673,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         // guarantees that all target shards sent the request to transition to DONE.
         // So this test does not directly exercise search filters, those are covered in other tests.
         var splitRefresh = client(searchCoordinator).admin().indices().prepareRefresh(indexName).get(SAFE_AWAIT_TIMEOUT);
-        assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
-        assertEquals(Arrays.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
+        assertEquals(Objects.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getTotalShards());
+        assertEquals(Objects.toString(splitRefresh.getShardFailures()), multiple, splitRefresh.getSuccessfulShards());
 
         assertSearchResults(searchCoordinator, indexName, searchTestType, equalTo(multiple), equalTo(allIndexedDocuments.keySet()));
 
@@ -4559,8 +4560,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
                     fail("Search should throw stale request exception");
                 } catch (ExecutionException e) {
                     var searchPhaseException = (SearchPhaseExecutionException) e.getCause();
-                    assertEquals(1, searchPhaseException.shardFailures().length);
-                    assertTrue(searchPhaseException.shardFailures()[0].getCause() instanceof StaleRequestException);
+                    assertEquals(1, searchPhaseException.shardFailures().size());
+                    assertTrue(searchPhaseException.shardFailures().getFirst().getCause() instanceof StaleRequestException);
                 } catch (TimeoutException e) {
                     throw new RuntimeException(e);
                 }

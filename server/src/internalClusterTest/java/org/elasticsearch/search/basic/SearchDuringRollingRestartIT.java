@@ -150,7 +150,7 @@ public class SearchDuringRollingRestartIT extends ESIntegTestCase {
     }
 
     private static boolean isExpectedRollingRestartFailure(Throwable e) {
-        if (e instanceof SearchPhaseExecutionException spee && spee.shardFailures().length > 0) {
+        if (e instanceof SearchPhaseExecutionException spee && !spee.shardFailures().isEmpty()) {
             for (ShardSearchFailure shardFailure : spee.shardFailures()) {
                 if (isExpectedRollingRestartCause(shardFailure.getCause()) == false) {
                     return false;

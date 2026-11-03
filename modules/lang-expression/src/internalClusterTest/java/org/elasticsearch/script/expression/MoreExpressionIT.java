@@ -48,8 +48,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 // TODO: please convert to unit tests!
@@ -542,8 +543,8 @@ public class MoreExpressionIT extends ESIntegTestCase {
             // shards that don't have docs with the "text" field will not fail,
             // so we may or may not get a total failure
             assertResponse(req, rsp -> {
-                assertThat(rsp.getShardFailures().length, greaterThan(0)); // at least the shards containing the docs should have failed
-                message.set(rsp.getShardFailures()[0].reason());
+                assertThat(rsp.getShardFailures(), not(empty())); // at least the shards containing the docs should have failed
+                message.set(rsp.getShardFailures().getFirst().reason());
             });
         } catch (SearchPhaseExecutionException e) {
             message.set(e.toString());

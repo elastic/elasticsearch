@@ -170,7 +170,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             prepareSearch("text_index").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
             searchResponse -> {
                 if (searchResponse.getFailedShards() > 0) {
-                    logger.warn("failed search {}", Arrays.toString(searchResponse.getShardFailures()));
+                    logger.warn("failed search {}", searchResponse.getShardFailures());
                 }
                 assertHitCount(searchResponse, 1);
                 assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value1"));

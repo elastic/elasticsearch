@@ -335,7 +335,7 @@ public class SearchShardRecoveryIT extends AbstractStatelessPluginIntegTestCase 
         repository.unblock();
         var refreshResponse = future.get();
         assertThat("Refresh should have failed", refreshResponse.getFailedShards(), equalTo(1));
-        Throwable cause = ExceptionsHelper.unwrapCause(refreshResponse.getShardFailures()[0].getCause());
+        Throwable cause = ExceptionsHelper.unwrapCause(refreshResponse.getShardFailures().getFirst().getCause());
         assertThat("Cause should be shard closed", cause, instanceOf(IndexShardClosedException.class));
     }
 

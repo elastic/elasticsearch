@@ -449,7 +449,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     100L,
-                    List.of(),
+                    ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -588,7 +588,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             1,
             0,
             100L,
-            List.of(),
+            ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
     }
@@ -659,7 +659,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomLong(),
-                    List.of(),
+                    ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 hit.decRef(); // transfer creation ref so the response is the sole owner
@@ -747,7 +747,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomLong(),
-                    List.of(),
+                    ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 searchHit.decRef(); // transfer creation ref so the response is the sole owner
@@ -831,7 +831,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomLong(),
-                    List.of(),
+                    ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -900,7 +900,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     randomLong(),
-                    List.of(),
+                    ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
 
@@ -1200,7 +1200,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     successful,
                     skipped,
                     randomLong(),
-                    List.of(),
+                    ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponseTests.randomClusters()
                 );
 
@@ -1368,7 +1368,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     1L,
-                    List.of(),
+                    ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -1392,7 +1392,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     1L,
-                    List.of(),
+                    ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -1458,7 +1458,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     1,
                     0,
                     1L,
-                    List.of(),
+                    ShardSearchFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -1913,7 +1913,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             2,
             0,
             33,
-            List.of(),
+            ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
 
@@ -1939,7 +1939,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             successful,
             skipped,
             44,
-            List.of(),
+            ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
         hitsRemote1.decRef(); // transfer ownership to searchResponseRemote1
@@ -1966,7 +1966,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             successful,
             skipped,
             55,
-            List.of(),
+            ShardSearchFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
         hitsRemote2.decRef(); // transfer ownership to searchResponseRemote2

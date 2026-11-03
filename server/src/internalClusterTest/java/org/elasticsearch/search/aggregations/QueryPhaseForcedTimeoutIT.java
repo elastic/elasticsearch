@@ -104,7 +104,7 @@ public class QueryPhaseForcedTimeoutIT extends ESIntegTestCase {
             assertThat("no hits returned", resp.getHits().getHits().length, equalTo(0));
             assertThat(resp.getAggregations(), notNullValue());
             assertThat("no aggr returned", resp.getAggregations().asList().isEmpty(), is(true));
-            assertThat("no shard failures expected", resp.getShardFailures() == null || resp.getShardFailures().length == 0, is(true));
+            assertThat("no shard failures expected", resp.getShardFailures() == null || resp.getShardFailures().isEmpty(), is(true));
         } finally {
             if (resp != null) {
                 resp.decRef();

@@ -19,7 +19,6 @@ import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.ThrowingRankBuilderType;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
@@ -395,7 +394,8 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
             response -> {
                 assertThat(response.getFailedShards(), greaterThan(0));
                 assertTrue(
-                    Arrays.stream(response.getShardFailures())
+                    response.getShardFailures()
+                        .stream()
                         .allMatch(failure -> failure.getCause().getMessage().contains("rfs - simulated failure"))
                 );
                 assertHitCount(response, 5);

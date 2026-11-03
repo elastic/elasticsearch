@@ -536,7 +536,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessPluginIn
                                 numDocs,
                                 indexToDocCount.keySet(),
                                 refreshResponse.getFailedShards(),
-                                Arrays.toString(refreshResponse.getShardFailures())
+                                refreshResponse.getShardFailures()
                             );
                         }
                     }

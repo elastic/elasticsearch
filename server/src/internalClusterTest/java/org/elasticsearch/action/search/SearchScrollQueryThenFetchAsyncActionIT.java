@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchScrollQueryThenFetchAsyncActionIT extends ESIntegTestCase {
@@ -88,7 +89,7 @@ public class SearchScrollQueryThenFetchAsyncActionIT extends ESIntegTestCase {
             } else {
                 assertResponse(client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)), response -> {
                     assertThat(response.getSuccessfulShards(), equalTo(numToSucceed));
-                    assertThat(response.getShardFailures().length, equalTo(numShards - numToSucceed));
+                    assertThat(response.getShardFailures(), hasSize(numShards - numToSucceed));
                     for (ShardSearchFailure failure : response.getShardFailures()) {
                         assertThat(failure.getCause(), instanceOf(SearchContextMissingException.class));
                     }

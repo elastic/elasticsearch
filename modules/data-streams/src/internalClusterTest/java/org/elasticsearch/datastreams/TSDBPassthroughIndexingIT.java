@@ -53,6 +53,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -196,7 +197,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
         // maybe force merge
         if (randomBoolean()) {
             var forceMergeResponse = client().admin().indices().forceMerge(new ForceMergeRequest("k8s").maxNumSegments(1)).actionGet();
-            assertEquals(0, forceMergeResponse.getShardFailures().length);
+            assertThat(forceMergeResponse.getShardFailures(), empty());
         }
 
         // validate index:

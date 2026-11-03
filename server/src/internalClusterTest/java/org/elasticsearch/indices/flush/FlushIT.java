@@ -22,7 +22,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -61,7 +60,7 @@ public class FlushIT extends ESIntegTestCase {
                         try {
                             // don't use assertAllSuccessful it uses a randomized context that belongs to a different thread
                             assertThat(
-                                "Unexpected ShardFailures: " + Arrays.toString(flushResponse.getShardFailures()),
+                                "Unexpected ShardFailures: " + flushResponse.getShardFailures(),
                                 flushResponse.getFailedShards(),
                                 equalTo(0)
                             );
@@ -94,10 +93,10 @@ public class FlushIT extends ESIntegTestCase {
             expectThrows(ValidationException.class, indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(false))).getMessage(),
             containsString("wait_if_ongoing must be true for a force flush")
         );
-        assertThat(indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(), emptyArray());
+        assertThat(indicesAdmin().flush(new FlushRequest().force(true).waitIfOngoing(true)).actionGet().getShardFailures(), empty());
         assertThat(
             indicesAdmin().flush(new FlushRequest().force(false).waitIfOngoing(randomBoolean())).actionGet().getShardFailures(),
-            emptyArray()
+            empty()
         );
     }
 

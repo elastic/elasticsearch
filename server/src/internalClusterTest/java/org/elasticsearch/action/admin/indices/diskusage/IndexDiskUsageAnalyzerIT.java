@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -41,10 +40,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
@@ -218,7 +217,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
             TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { "index_*" }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
-        assertThat(Arrays.toString(resp.getShardFailures()), resp.getShardFailures(), emptyArray());
+        assertThat(resp.getShardFailures(), empty());
         assertThat(resp.getTotalShards(), equalTo(totalShards));
         assertThat(resp.getSuccessfulShards(), equalTo(totalShards));
         assertThat(resp.getFailedShards(), equalTo(0));
@@ -285,7 +284,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
             assertThat(resp.getFailedShards(), equalTo(failedShards.get()));
             assertThat(resp.getSuccessfulShards(), equalTo(resp.getTotalShards() - resp.getFailedShards()));
             assertThat(successfulShards.get(), equalTo(numberOfShards - failedShards.get()));
-            assertThat(resp.getShardFailures(), arrayWithSize(failedShards.get()));
+            assertThat(resp.getShardFailures(), hasSize(failedShards.get()));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
                 MockTransportService.getInstance(node).clearAllRules();

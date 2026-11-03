@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -1573,7 +1574,7 @@ public class ProfileServiceTests extends ESTestCase {
                 0,
                 0,
                 0L,
-                List.of(),
+                ShardSearchFailure.EMPTY_ARRAY,
                 Clusters.EMPTY,
                 null,
                 null,

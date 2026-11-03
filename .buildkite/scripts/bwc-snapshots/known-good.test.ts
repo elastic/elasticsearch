@@ -6,7 +6,7 @@ import { join } from "path";
 
 import { DraClient } from "./dra.ts";
 import { type FakeDra, type FakeGcs, addDraBuild, startFakeDra, startFakeGcs } from "./fake-servers.ts";
-import { type KnownGoodStore, loadPinArgs, promote, resolvePins, storeFromEnv } from "./known-good.ts";
+import { type KnownGoodStore, loadSnapshotBwcPins, promote, resolvePins, storeFromEnv } from "./known-good.ts";
 
 const BUCKET = "bwc-known-good-test";
 const PREFIX = "elasticsearch/bwc-known-good";
@@ -155,22 +155,23 @@ describe("known-good store", () => {
     ]);
   });
 
-  test("builds gradle pin arguments for PR jobs", async () => {
+  test("builds gradle pin arguments for PR jobs and leaves out versions without a known-good build", async () => {
     addDraBuild(fakeDra, "9.4.10-aaaa1111", "Mon, 02 Nov 2026 10:00:00 GMT");
     addDraBuild(fakeDra, "8.19.25-cccc3333", "Mon, 02 Nov 2026 10:00:00 GMT");
     await promote(store, dra, { branch: "9.4", buildId: "9.4.10-aaaa1111" });
     await promote(store, dra, { branch: "8.19", buildId: "8.19.25-cccc3333" });
 
-    expect(await loadPinArgs(["8.19.25", "9.4.10", "9.6.0", "9.7.0"], store, dra, "9.7.0")).toBe(
-      " -Dtests.bwc.dra.hash.8.19=cccc3333 -Dtests.bwc.dra.hash.9.4=aaaa1111",
-    );
+    expect(await loadSnapshotBwcPins(["8.19.25", "9.4.10", "9.6.0", "9.7.0"], store, dra, "9.7.0")).toEqual({
+      pinArgs: " -Dtests.bwc.dra.hash.8.19=cccc3333 -Dtests.bwc.dra.hash.9.4=aaaa1111",
+      includedVersions: ["8.19.25", "9.4.10", "9.7.0"],
+    });
   });
 
   test("PR pins fail open when the store is disabled or unreachable", async () => {
-    expect(await loadPinArgs(["9.4.10"], undefined, dra, "9.7.0")).toBe("");
+    expect(await loadSnapshotBwcPins(["9.4.10"], undefined, dra, "9.7.0")).toEqual({ pinArgs: "" });
 
     await gcs.close();
-    expect(await loadPinArgs(["9.4.10"], store, dra, "9.7.0")).toBe("");
+    expect(await loadSnapshotBwcPins(["9.4.10"], store, dra, "9.7.0")).toEqual({ pinArgs: "" });
     gcs = await startFakeGcs();
   });
 });

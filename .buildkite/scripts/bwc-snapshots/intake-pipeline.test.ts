@@ -31,9 +31,9 @@ describe("intake bwc-snapshots group", () => {
       { version: "8.19.25", branch: "8.19", knownGood: knownGood("8.19.25-aaaa1111"), latest: latest("8.19.25-aaaa1111") },
       // a newer DRA build exists: candidate + promote
       { version: "9.4.10", branch: "9.4", knownGood: knownGood("9.4.10-bbbb2222"), latest: latest("9.4.10-cccc3333") },
-      // no known-good build yet: test the newest build and promote it
+      // no known-good build yet (gated): candidate only
       { version: "9.6.0", branch: "9.6", latest: latest("9.6.0-dddd4444") },
-      // nothing in DRA yet: moving tip as before
+      // nothing in DRA yet (gated): no job
       { version: "9.5.7", branch: "9.5" },
       // the version this checkout builds
       { version: "9.7.0", branch: "9.7", current: true },
@@ -71,28 +71,25 @@ describe("intake bwc-snapshots group", () => {
         allow_dependency_failure: true,
         env: { USE_BWC_KNOWN_GOOD_CREDENTIALS: "true" },
       },
+      // gated: only a soft-failing candidate until it has a known-good build
       {
-        label: "9.6.0 / bwc-snapshots (9.6.0-dddd4444)",
-        key: "bwc-snapshots-9_6_0",
+        label: "9.6.0 / bwc-snapshots candidate 9.6.0-dddd4444 (not gating: no known-good build yet)",
+        key: "bwc-snapshots-candidate-9_6_0",
         command:
           "... -Dtests.bwc.dra.hash.8.19=aaaa1111 -Dtests.bwc.dra.hash.9.4=bbbb2222 -Dtests.bwc.dra.hash.9.6=dddd4444 v9.6.0#bwcTest",
+        soft_fail: true,
         env: { BWC_VERSION: "9.6.0" },
       },
       {
         label: "9.6.0 / promote 9.6.0-dddd4444 to known-good",
         key: "bwc-snapshots-promote-9_6_0",
         command:
-          "node .buildkite/scripts/bwc-snapshots/cli.ts promote --branch 9.6 --build-id 9.6.0-dddd4444 --step bwc-snapshots-9_6_0",
-        depends_on: "bwc-snapshots-9_6_0",
+          "node .buildkite/scripts/bwc-snapshots/cli.ts promote --branch 9.6 --build-id 9.6.0-dddd4444 --step bwc-snapshots-candidate-9_6_0",
+        depends_on: "bwc-snapshots-candidate-9_6_0",
         allow_dependency_failure: true,
         env: { USE_BWC_KNOWN_GOOD_CREDENTIALS: "true" },
       },
-      {
-        label: "9.5.7 / bwc-snapshots",
-        key: "bwc-snapshots-9_5_7",
-        command: "... -Dtests.bwc.dra.hash.8.19=aaaa1111 -Dtests.bwc.dra.hash.9.4=bbbb2222 v9.5.7#bwcTest",
-        env: { BWC_VERSION: "9.5.7" },
-      },
+      // 9.5.7: nothing in DRA to test or promote yet; periodic source builds cover it
       {
         label: "9.7.0 / bwc-snapshots",
         key: "bwc-snapshots-9_7_0",
@@ -116,6 +113,36 @@ describe("intake bwc-snapshots group", () => {
     expect(summary(unpinnedIntakeBwcGroup(["9.4.10", "9.7.0"]))).toEqual([
       { label: "9.4.10 / bwc-snapshots", key: "bwc-snapshots-9_4_10", command: "... v9.4.10#bwcTest", env: { BWC_VERSION: "9.4.10" } },
       { label: "9.7.0 / bwc-snapshots", key: "bwc-snapshots-9_7_0", command: "... v9.7.0#bwcTest", env: { BWC_VERSION: "9.7.0" } },
+    ]);
+  });
+
+  test("alerts on Slack when a version has not gone green", () => {
+    const group = intakeBwcGroup(
+      [{ version: "9.6.0", branch: "9.6", latest: latest("9.6.0-dddd4444") }],
+      [
+        {
+          version: "9.6.0",
+          branch: "9.6",
+          since: "2026-11-01T00:00:00.000Z",
+          hours: 50,
+          latestBuildId: "9.6.0-dddd4444",
+          knownGoodBuildId: undefined,
+        },
+      ],
+      { channel: "#es-delivery-alerts", mention: "<@U123>" },
+    );
+
+    const alert = group.steps?.find((step) => step.key === "bwc-snapshots-alert-9_6_0");
+    expect(alert?.label).toBe(":rotating_light: 9.6.0 bwc not green for 50h");
+    expect(alert?.soft_fail).toBe(true);
+    expect(alert?.notify).toEqual([
+      {
+        slack: {
+          channels: ["#es-delivery-alerts"],
+          message:
+            "<@U123> bwc 9.6.0 has had no passing bwc run since 2026-11-01T00:00:00.000Z (50h), so it is left out of PR, merge-queue and intake bwc. Newest DRA build: 9.6.0-dddd4444. ${BUILDKITE_BUILD_URL}",
+        },
+      },
     ]);
   });
 });

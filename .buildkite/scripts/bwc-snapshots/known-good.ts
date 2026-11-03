@@ -99,19 +99,27 @@ export class GcsKnownGoodStore implements KnownGoodStore {
  * - BWC_KNOWN_GOOD_GCS_URL: API base URL, for tests and dry-runs against a fake GCS server
  */
 export const storeFromEnv = (env: NodeJS.ProcessEnv = process.env): KnownGoodStore | undefined => {
+  const gcs = gcsFromEnv(env);
+  return gcs && new GcsKnownGoodStore(gcs.client, gcs.bucket, gcs.prefix);
+};
+
+/** The GCS client and object prefix configured by the BWC_KNOWN_GOOD_* variables, or undefined when disabled. */
+export const gcsFromEnv = (
+  env: NodeJS.ProcessEnv = process.env,
+): { client: GcsClient; bucket: string; prefix: string } | undefined => {
   const bucket = env["BWC_KNOWN_GOOD_BUCKET"];
   if (!bucket) {
     return undefined;
   }
   const credentials = env["BWC_KNOWN_GOOD_CREDENTIALS"];
-  const gcs = new GcsClient({
+  const client = new GcsClient({
     bucket,
     baseUrl: env["BWC_KNOWN_GOOD_GCS_URL"],
     token: credentials
       ? serviceAccountToken(credentials, "https://www.googleapis.com/auth/devstorage.read_write")
       : undefined,
   });
-  return new GcsKnownGoodStore(gcs, bucket, env["BWC_KNOWN_GOOD_PREFIX"] ?? "elasticsearch/bwc-known-good");
+  return { client, bucket, prefix: (env["BWC_KNOWN_GOOD_PREFIX"] ?? "elasticsearch/bwc-known-good").replace(/\/$/, "") };
 };
 
 /** Release branch of an unreleased version: 9.4.10 => 9.4 */
@@ -188,29 +196,42 @@ export const pinArgs = (buildIds: Record<string, string>): string =>
 export const knownGoodBuildIds = (pins: VersionPin[]): Record<string, string> =>
   Object.fromEntries(pins.flatMap((pin) => (pin.knownGood ? [[pin.branch, pin.knownGood.build_id]] : [])));
 
+export type SnapshotBwcPins = {
+  /** Gradle arguments for the known-good pins, with a leading space; "" for none */
+  pinArgs: string;
+  /** Versions to test: those with a known-good build, plus the current version. Undefined means all (no gating). */
+  includedVersions?: string[];
+};
+
 /**
- * Pins for PR and merge-queue bwc jobs. Fails open: if the store is disabled or unreachable, returns no pins so that
- * bwc jobs keep today's behaviour instead of losing coverage.
+ * Pins and gating for PR and merge-queue bwc jobs. A version without a known-good build is left out until intake
+ * promotes one. Fails open: if the store is disabled or unreachable, every version is tested at the moving tip as
+ * before, rather than silently losing bwc coverage.
  */
-export const loadPinArgs = async (
+export const loadSnapshotBwcPins = async (
   versions: string[],
   store: KnownGoodStore | undefined,
   dra: Dra,
   current: string = currentVersion(),
-): Promise<string> => {
+): Promise<SnapshotBwcPins> => {
   if (!store) {
     console.log("BWC_KNOWN_GOOD_BUCKET is not set; bwc snapshot jobs test the moving branch tips");
-    return "";
+    return { pinArgs: "" };
   }
   try {
     const pins = await resolvePins(versions, current, store, dra);
     for (const pin of pins.filter((p) => !p.current)) {
-      console.log(`bwc ${pin.version}: ${pin.knownGood ? `pinned to ${pin.knownGood.build_id}` : "no known-good build"}`);
+      console.log(
+        `bwc ${pin.version}: ${pin.knownGood ? `pinned to ${pin.knownGood.build_id}` : "no known-good build, left out until one is promoted"}`,
+      );
     }
-    return pinArgs(knownGoodBuildIds(pins));
+    return {
+      pinArgs: pinArgs(knownGoodBuildIds(pins)),
+      includedVersions: pins.filter((pin) => pin.current || pin.knownGood).map((pin) => pin.version),
+    };
   } catch (e) {
     console.log(`Could not read known-good bwc builds from ${store.location}, testing the moving branch tips: ${e}`);
-    return "";
+    return { pinArgs: "" };
   }
 };
 

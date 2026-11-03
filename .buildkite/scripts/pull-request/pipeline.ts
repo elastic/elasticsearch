@@ -4,7 +4,7 @@ import { basename, resolve } from "path";
 import { execSync } from "child_process";
 
 import type { BuildkitePipeline, BuildkiteRetry, BuildkiteStep, EsPipeline, EsPipelineConfig } from "./types.ts";
-import { getBwcVersions, getSnapshotBwcPinArgs, getSnapshotBwcVersions } from "./bwc-versions.ts";
+import { getBwcVersions, getIncludedSnapshotBwcVersions, getSnapshotBwcPinArgs } from "./bwc-versions.ts";
 import { getLaterBranches } from "./later-branches.ts";
 
 // Auto-retry configuration for PR pipelines.
@@ -156,7 +156,14 @@ export const generatePipelines = (
     }
 
     let yaml = readFileSync(`${directory}/${file}`, "utf-8");
-    yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(getSnapshotBwcVersions()));
+    if (yaml.includes("$SNAPSHOT_BWC_VERSIONS")) {
+      const snapshotBwcVersions = getIncludedSnapshotBwcVersions();
+      if (snapshotBwcVersions.length === 0) {
+        // No version has a known-good build yet, and buildkite rejects an empty matrix dimension.
+        continue;
+      }
+      yaml = yaml.replaceAll("$SNAPSHOT_BWC_VERSIONS", JSON.stringify(snapshotBwcVersions));
+    }
     yaml = yaml.replaceAll("$BWC_SNAPSHOT_PIN_ARGS", getSnapshotBwcPinArgs());
 
     if (yaml.includes("$LATER_BRANCHES")) {

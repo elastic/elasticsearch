@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { generatePipelines } from "./pipeline.ts";
-import { setBwcVersionsPath, setSnapshotBwcPinArgs, setSnapshotBwcVersionsPath } from "./bwc-versions.ts";
+import {
+  setBwcVersionsPath,
+  setIncludedSnapshotBwcVersions,
+  setSnapshotBwcPinArgs,
+  setSnapshotBwcVersionsPath,
+} from "./bwc-versions.ts";
 import { setBranchesJson } from "./later-branches.ts";
 
 describe("generatePipelines", () => {
@@ -9,6 +14,7 @@ describe("generatePipelines", () => {
     setBwcVersionsPath(`${import.meta.dirname}/mocks/bwcVersions`);
     setSnapshotBwcVersionsPath(`${import.meta.dirname}/mocks/snapshotBwcVersions`);
     setSnapshotBwcPinArgs("");
+    setIncludedSnapshotBwcVersions(undefined);
 
     setBranchesJson({
       branches: [
@@ -213,5 +219,22 @@ describe("generatePipelines", () => {
     expect(bwc?.pipeline.steps?.[0]?.steps?.[0]?.command).toBe(
       ".ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.bwc.mode=auto -Dtests.bwc.dra.hash.8.10=aaaa1111 -Dtests.bwc.dra.hash.8.11=bbbb2222 v{{matrix.BWC_VERSION}}#bwcTest",
     );
+  });
+
+  test("should leave bwc snapshot versions without a known-good build out of the matrix", () => {
+    setIncludedSnapshotBwcVersions(["7.17.14", "8.11.0"]);
+
+    const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);
+    const bwc = pipelines.find((p) => p.name === "bwc-snapshots");
+
+    expect(bwc?.pipeline.steps?.[0]?.steps?.[0]?.matrix).toEqual({ setup: { BWC_VERSION: ["7.17.14", "8.11.0"] } });
+  });
+
+  test("should drop the bwc snapshot pipeline when no version is included", () => {
+    setIncludedSnapshotBwcVersions([]);
+
+    const pipelines = generatePipelines(`${import.meta.dirname}/mocks/pipelines`, ["build.gradle"]);
+
+    expect(pipelines.map((p) => p.name)).not.toContain("bwc-snapshots");
   });
 });

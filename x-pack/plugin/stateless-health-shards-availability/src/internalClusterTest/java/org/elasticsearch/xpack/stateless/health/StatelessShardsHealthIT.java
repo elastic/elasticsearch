@@ -7,20 +7,28 @@
 
 package org.elasticsearch.xpack.stateless.health;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.StartedShardEntry;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexRequest;
+import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -37,6 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.not;
 
 public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -487,6 +496,110 @@ public class StatelessShardsHealthIT extends AbstractStatelessPluginIntegTestCas
         assertThat(affectedIndices, everyItem(in(indexNames)));
 
         safeGet(indicesAdmin().prepareDelete(indexNames.toArray(String[]::new)).execute());
+    }
+
+    /// Reproduces the shards availability indicator turning RED while the search shards of a reshard split target are still
+    /// recovering just after the target primary has started.
+    ///
+    /// The split creates the target search shards with an `UnassignedInfo` of reason `RESHARD_ADDED`. While the target primary is
+    /// inactive, its search shards are considered provisionally inactive because the primary recovery source is `RESHARD_SPLIT`.
+    /// Once the target primary is active, the replica grace period (`replica_unassigned_buffer_time`) is evaluated against the
+    /// replica's unassigned time, which is when the split created the target shards, not when the primary became active. If the
+    /// target primary took longer than the grace period to start, the grace period has already expired and the target shard is
+    /// reported with no searchable copy, so the health turns RED until the search shards finish recovering (which in production
+    /// can take up to 25s because search shard recovery waits for the split target warming timeout).
+    ///
+    /// The test delays the target primary start beyond the grace period by holding its shard-started notification, then keeps
+    /// the target search shard from starting the same way and checks the health right after the target primary becomes active.
+    public void testSplitTargetSearchShardsRecoveringAfterTargetPrimaryStartsDoNotTurnHealthRed() throws Exception {
+        startMasterOnlyNode();
+        final var indexNode = startIndexNode();
+        final var searchNode = startSearchNode();
+        ensureStableCluster(3);
+
+        // shorten the grace period so that test does not take forever to run
+        final var replicaBufferTime = TimeValue.timeValueSeconds(10);
+        updateClusterSettings(
+            Settings.builder().put(ShardsAvailabilityHealthIndicatorService.REPLICA_INACTIVE_BUFFER_TIME.getKey(), replicaBufferTime)
+        );
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        indexDocsAndRefresh(indexName, between(10, 50));
+        waitForStatusAndGet(HealthStatus.GREEN);
+
+        final var targetShardId = new ShardId(resolveIndex(indexName), 1);
+
+        final var releaseTargetPrimaryStarted = holdShardStarted(indexNode, targetShardId);
+        final var releaseTargetReplicaStarted = holdShardStarted(searchNode, targetShardId);
+
+        try {
+            final var reshardFuture = client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
+
+            awaitClusterState(state -> state.routingTable().index(indexName).size() == 2);
+            final var targetReplica = clusterService().state().routingTable().index(indexName).shard(targetShardId.id()).replicaShards();
+            assertThat(targetReplica, hasSize(1));
+            assertThat(targetReplica.getFirst().unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.RESHARD_ADDED));
+
+            // Keep the target primary inactive for longer than the replica grace period, which counts from when the
+            // split created the target shards. Health stays GREEN in the meantime since an initializing RESHARD_SPLIT
+            // primary makes both the primary and its search shards provisionally unavailable.
+            safeSleep(replicaBufferTime);
+            assertThat(getShardsAvailabilityStatus(), equalTo(HealthStatus.GREEN));
+
+            logger.info("--> releasing target primary shard-started notification");
+            releaseTargetPrimaryStarted.onResponse(null);
+            awaitClusterState(state -> state.routingTable().index(indexName).shard(targetShardId.id()).primaryShard().active());
+
+            // The target search shard just started recovering, the grace period for it should not have expired yet
+            final var hir = getShardsAvailabilityIndicator();
+            assertThat(
+                "health turned RED while the split target search shard is recovering: " + hir,
+                hir.status(),
+                not(equalTo(HealthStatus.RED))
+            );
+
+            logger.info("--> releasing target search shard shard-started notification");
+            releaseTargetReplicaStarted.onResponse(null);
+            safeGet(reshardFuture);
+            awaitClusterState(state -> state.metadata().getProject().index(indexName).getReshardingMetadata() == null);
+            waitForStatusAndGet(HealthStatus.GREEN);
+        } finally {
+            releaseTargetPrimaryStarted.onResponse(null);
+            releaseTargetReplicaStarted.onResponse(null);
+        }
+    }
+
+    /// Holds shard-started notifications for `shardId` sent from `nodeName` until the returned listener is completed.
+    private SubscribableListener<Void> holdShardStarted(String nodeName, ShardId shardId) {
+        final var release = new SubscribableListener<Void>();
+        // StartedShardEntry#toString contains the shard id formatted as "[index][id]"
+        final var shardIdMarker = shardId.toString();
+        MockTransportService.getInstance(nodeName).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (ShardStateAction.SHARD_STARTED_ACTION_NAME.equals(action) && request.toString().contains(shardIdMarker)) {
+                if (release.isDone() == false) {
+                    logger.info("--> holding shard-started notification [{}] sent from [{}]", request, nodeName);
+                }
+                release.addListener(ActionListener.wrap(ignored -> connection.sendRequest(requestId, action, request, options), e -> {
+                    throw new AssertionError(e);
+                }));
+                return;
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        return release;
+    }
+
+    private HealthIndicatorResult getShardsAvailabilityIndicator() {
+        final var indicator = ShardsAvailabilityHealthIndicatorService.NAME;
+        return safeGet(client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(indicator, true, 10))).findIndicator(
+            indicator
+        );
+    }
+
+    private HealthStatus getShardsAvailabilityStatus() {
+        return getShardsAvailabilityIndicator().status();
     }
 
     /**

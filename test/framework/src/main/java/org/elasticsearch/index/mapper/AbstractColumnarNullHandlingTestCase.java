@@ -63,10 +63,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -523,59 +521,28 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
     }
 
     /**
-     * Indexes a valued batch and the batch {@code valuelessBatchOf} builds, in which no document holds a value, in the given order, in
-     * every index mode that is not a vector one and, for a strictly columnar mode, with and without the ColumNAR codec, through
-     * whichever path the index maps the field on. Every index is tried before failing, so a failure names them all.
+     * Indexes a valued batch, a batch holding a single all-null array and a batch of random documents that hold no value, into one
+     * writer, with the valued batch first or last, through whichever path the index maps the field on.
      */
-    private void indexValuelessBatchInEveryIndexMode(boolean valuedFirst, Function<MapperService, List<String>> valuelessBatchOf)
-        throws IOException {
-        final List<IndexMode> batchMapped = new ArrayList<>();
-        final List<String> rejected = new ArrayList<>();
-        for (IndexMode indexMode : List.of(
-            IndexMode.STANDARD,
-            IndexMode.TIME_SERIES,
-            IndexMode.LOGSDB,
-            IndexMode.LOOKUP,
-            IndexMode.COLUMNAR,
-            IndexMode.LOGSDB_COLUMNAR
-        )) {
-            for (boolean withCodec : indexMode.isStrictColumnar() ? new boolean[] { true, false } : new boolean[] { true }) {
-                final MapperService mapperService = createMapperService(
-                    columnarVersion(withCodec),
-                    indexModeSettings(indexMode),
-                    indexModeMapping(indexMode)
-                );
-                final boolean batchPath = takesBatchPath(mapperService);
-                if (batchPath) {
-                    batchMapped.add(indexMode);
-                }
-                final List<String> valued = valuedBatch(mapperService);
-                final List<String> valueless = valuelessBatchOf.apply(mapperService);
-                try {
-                    indexBatches(
-                        mapperService,
-                        batchPath,
-                        valuedFirst ? List.of(valued, valueless) : List.of(valueless, valued),
-                        valued.size()
-                    );
-                } catch (IllegalArgumentException e) {
-                    rejected.add(
-                        "["
-                            + indexMode
-                            + "] codec="
-                            + withCodec
-                            + " "
-                            + (batchPath ? "batch" : "row")
-                            + " path rejected "
-                            + valueless
-                            + ": "
-                            + e.getMessage()
-                    );
-                }
-            }
+    private void assertValuelessBatchesIndex(IndexMode indexMode, boolean withCodec, boolean valuedFirst) throws IOException {
+        final MapperService mapperService = createMapperService(
+            columnarVersion(withCodec),
+            indexModeSettings(indexMode),
+            indexModeMapping(indexMode)
+        );
+        final boolean batchPath = takesBatchPath(mapperService);
+        if (indexMode.isStrictColumnar()) {
+            assertTrue("a strictly columnar index must map the field on the batch path", batchPath);
         }
-        assertThat(batchMapped, hasItems(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
-        assertThat(rejected, empty());
+        final List<String> valued = valuedBatch(mapperService);
+        final List<String> singleAllNullArray = List.of(allNullArrayDoc(mapperService));
+        final List<String> valueless = valuelessBatch(mapperService);
+        indexBatches(
+            mapperService,
+            batchPath,
+            valuedFirst ? List.of(valued, singleAllNullArray, valueless) : List.of(singleAllNullArray, valueless, valued),
+            valued.size()
+        );
     }
 
     /**
@@ -766,20 +733,68 @@ public abstract class AbstractColumnarNullHandlingTestCase extends MapperService
         addBatchAlongsideValue("{}");
     }
 
-    public void testBatchOfOneAllNullArrayIndexesAfterValuedBatch() throws IOException {
-        indexValuelessBatchInEveryIndexMode(true, mapperService -> List.of(allNullArrayDoc(mapperService)));
+    public void testStandardValuelessBatchAfterValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.STANDARD, true, true);
     }
 
-    public void testBatchOfOneAllNullArrayIndexesBeforeValuedBatch() throws IOException {
-        indexValuelessBatchInEveryIndexMode(false, mapperService -> List.of(allNullArrayDoc(mapperService)));
+    public void testStandardValuelessBatchBeforeValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.STANDARD, true, false);
     }
 
-    public void testBatchOfOnlyValuelessDocsIndexesAfterValuedBatch() throws IOException {
-        indexValuelessBatchInEveryIndexMode(true, AbstractColumnarNullHandlingTestCase::valuelessBatch);
+    public void testTimeSeriesValuelessBatchAfterValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.TIME_SERIES, true, true);
     }
 
-    public void testBatchOfOnlyValuelessDocsIndexesBeforeValuedBatch() throws IOException {
-        indexValuelessBatchInEveryIndexMode(false, AbstractColumnarNullHandlingTestCase::valuelessBatch);
+    public void testTimeSeriesValuelessBatchBeforeValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.TIME_SERIES, true, false);
+    }
+
+    public void testLogsdbValuelessBatchAfterValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.LOGSDB, true, true);
+    }
+
+    public void testLogsdbValuelessBatchBeforeValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.LOGSDB, true, false);
+    }
+
+    public void testLookupValuelessBatchAfterValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.LOOKUP, true, true);
+    }
+
+    public void testLookupValuelessBatchBeforeValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.LOOKUP, true, false);
+    }
+
+    public void testColumnarValuelessBatchAfterValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.COLUMNAR, true, true);
+    }
+
+    public void testColumnarValuelessBatchBeforeValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.COLUMNAR, true, false);
+    }
+
+    public void testColumnarWithoutCodecValuelessBatchAfterValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.COLUMNAR, false, true);
+    }
+
+    public void testColumnarWithoutCodecValuelessBatchBeforeValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.COLUMNAR, false, false);
+    }
+
+    public void testLogsdbColumnarValuelessBatchAfterValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, true);
+    }
+
+    public void testLogsdbColumnarValuelessBatchBeforeValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.LOGSDB_COLUMNAR, true, false);
+    }
+
+    public void testLogsdbColumnarWithoutCodecValuelessBatchAfterValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, true);
+    }
+
+    public void testLogsdbColumnarWithoutCodecValuelessBatchBeforeValuedBatch() throws IOException {
+        assertValuelessBatchesIndex(IndexMode.LOGSDB_COLUMNAR, false, false);
     }
 
     /** A bare null reaches no column at all, so the document does not carry the field. */

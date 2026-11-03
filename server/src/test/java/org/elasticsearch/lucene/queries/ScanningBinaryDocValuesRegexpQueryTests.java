@@ -249,7 +249,7 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
                         searcher.count(new ScanningBinaryDocValuesRegexpQuery(fieldName, "foo", 0, 0, 1000, SEPARATE_COUNT, null))
                     );
 
-                    // Case-insensitive via RegExp.ASCII_CASE_INSENSITIVE matchFlag: matches "foo" and "FOO" (none here, so still 1)
+                    // Case-insensitive via RegExp.CASE_INSENSITIVE matchFlag: matches "foo" and "FOO" (none here, so still 1)
                     assertEquals(
                         1,
                         searcher.count(
@@ -257,7 +257,7 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
                                 fieldName,
                                 "foo",
                                 0,
-                                RegExp.ASCII_CASE_INSENSITIVE,
+                                RegExp.CASE_INSENSITIVE,
                                 1000,
                                 SEPARATE_COUNT,
                                 null
@@ -273,7 +273,7 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
                                 fieldName,
                                 "hello",
                                 0,
-                                RegExp.ASCII_CASE_INSENSITIVE,
+                                RegExp.CASE_INSENSITIVE,
                                 1000,
                                 SEPARATE_COUNT,
                                 null
@@ -289,7 +289,7 @@ public class ScanningBinaryDocValuesRegexpQueryTests extends ESTestCase {
                                 fieldName,
                                 "world",
                                 0,
-                                RegExp.ASCII_CASE_INSENSITIVE,
+                                RegExp.CASE_INSENSITIVE,
                                 1000,
                                 SEPARATE_COUNT,
                                 null

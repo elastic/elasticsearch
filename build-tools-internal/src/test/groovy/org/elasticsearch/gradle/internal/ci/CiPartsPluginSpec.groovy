@@ -36,6 +36,13 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
             [(":lib:test"): 1, (":lib:internalClusterTest"): 2, (":lib:yamlRestTest#0"): 2, (":lib:yamlRestTest#1"): 3],
             [(":lib"): 3]
         ).toJson()
+        new File(workspace, ".ci/test-parts/bc-upgrade").mkdirs()
+        new File(workspace, CiPartsPlugin.BC_UPGRADE_ASSIGNMENT_FILE).text = new CiPartAssignment(
+            2,
+            [(":lib:bcUpgradeTest"): new CiPartAssignment.Split(3, CiPartAssignment.SplitBy.CLASS)],
+            [(":lib:bcUpgradeTest#0"): 1, (":lib:bcUpgradeTest#1"): 2, (":lib:bcUpgradeTest#2"): 2],
+            [(":lib"): 2]
+        ).toJson()
         rootProject = buildProject("elasticsearch", null, workspace)
         project = buildProject("lib", rootProject)
         project.pluginManager.apply(JavaPlugin)
@@ -89,7 +96,51 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
 
     def "requested parts are read from checkPart task requests"() {
         expect:
-        CiPartsPlugin.requestedParts(["checkPart3", ":server:checkPart12", "check", "checkPart", "checkPart2x"]) == [3, 12] as Set
+        CiPartsPlugin.requestedParts(CiPartsPlugin.CHECK, ["checkPart3", ":server:checkPart12", "check", "checkPart", "checkPart2x", "bcUpgradeTestPart1"]) == [3, 12] as Set
+        CiPartsPlugin.requestedParts(CiPartsPlugin.BC_UPGRADE, ["checkPart3", "bcUpgradeTestPart1", ":qa:rolling-upgrade:bcUpgradeTestPart2"]) == [1, 2] as Set
+    }
+
+    def "bcUpgradeTest parts split the bcUpgradeTest task by class"() {
+        given:
+        project.gradle.startParameter.taskNames = ["bcUpgradeTestPart2"]
+        project.tasks.register("bcUpgradeTest", Test)
+        applyPluginUnderTest(project)
+
+        expect:
+        bcNames(1) == [":lib:bcUpgradeTest"] as Set
+        bcNames(2) == [":lib:bcUpgradeTest"] as Set
+        // only bcUpgradeTest is in these parts, not check's work
+        project.tasks.getByName("bcUpgradeTest").inputs.properties["ciShards"] == "CLASS=3:1,2"
+        // the check suite's split task is untouched by bcUpgradeTestPartN requests
+        project.tasks.getByName("yamlRestTest").systemProperties["tests.rest.shard"] == null
+    }
+
+    def "projects without bcUpgradeTest get empty bcUpgradeTest parts but for assemble"() {
+        given:
+        applyPluginUnderTest(project)
+        project.extensions.getByType(CiPartsExtension).includeAssemble.set(true)
+
+        expect:
+        bcNames(1) == [] as Set
+        // :lib's home part in the bcUpgradeTest assignment
+        bcNames(2) == [":lib:assemble"] as Set
+    }
+
+    def "a bcUpgradeTest task missing from the assignment runs whole in exactly one part"() {
+        given:
+        def other = buildProject("other", rootProject)
+        other.tasks.register("bcUpgradeTest", Test)
+        other.gradle.startParameter.taskNames = ["bcUpgradeTestPart1"]
+        applyPluginUnderTest(other)
+        def deps = { int part ->
+            def task = other.tasks.getByName("bcUpgradeTestPart$part")
+            task.taskDependencies.getDependencies(task).collect { it.path } as Set
+        }
+
+        expect:
+        [deps(1), deps(2)].count { it == [":other:bcUpgradeTest"] as Set } == 1
+        [deps(1), deps(2)].count { it.isEmpty() } == 1
+        other.tasks.getByName("bcUpgradeTest").inputs.properties["ciShards"] == null
     }
 
     def "split yaml tasks only run the shards of the requested parts"() {
@@ -138,6 +189,11 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         names.every { n -> kept.findIndexOf { it.contains("${n}.class".toString()) } == kept.findIndexOf { it.contains("${n}\$Inner.class".toString()) } }
         kept.every { it.contains("org/foo/resource.txt") }
         kept.every { it.size() > 50 }
+    }
+
+    private Set<String> bcNames(int part) {
+        def task = project.tasks.getByName("bcUpgradeTestPart$part")
+        return task.taskDependencies.getDependencies(task).collect { it.path } as Set
     }
 
     private Set<String> names(int part) {

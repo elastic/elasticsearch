@@ -355,21 +355,14 @@ allprojects {
     }
   }
 
-  // checkPartN is registered by the elasticsearch.ci-parts plugin from the checked-in assignment in
-  // .ci/test-parts. The project-path split below only still drives the bwc and bc-upgrade parts.
+  // checkPartN and bcUpgradeTestPartN are registered by the elasticsearch.ci-parts plugin from the checked-in
+  // assignments in .ci/test-parts. The project-path split below only still drives the bwc parts.
   def splitForCI = { proj, partString ->
     proj.tasks.addRule("Pattern: v<BWC_VERSION>#bwcTest$partString") { name ->
       if (name.endsWith("#bwcTest$partString")) {
         proj.project.getTasks().register(name) {
           task -> task.dependsOn(proj.tasks.named { tskName -> tskName == (name - partString) })
         }
-      }
-    }
-
-    proj.tasks.register("bcUpgradeTest$partString") {
-      dependsOn tasks.matching { it.name == 'bcUpgradeTest' }
-      withReleaseBuild {
-        dependsOn 'assemble'
       }
     }
   }
@@ -572,6 +565,14 @@ tasks.register("generateCiPartAssignment", GenerateCiPartAssignmentTask) {
   configFile = layout.settingsDirectory.file('.ci/test-parts/config.json')
   durationsFile = layout.settingsDirectory.file('.ci/test-parts/durations.json')
   assignmentFile = layout.settingsDirectory.file('.ci/test-parts/assignment.json')
+}
+
+tasks.register("generateBcUpgradeTestPartAssignment", GenerateCiPartAssignmentTask) {
+  group = 'build'
+  description = 'Regenerates .ci/test-parts/bc-upgrade/assignment.json from config.json and durations.json.'
+  configFile = layout.settingsDirectory.file('.ci/test-parts/bc-upgrade/config.json')
+  durationsFile = layout.settingsDirectory.file('.ci/test-parts/bc-upgrade/durations.json')
+  assignmentFile = layout.settingsDirectory.file('.ci/test-parts/bc-upgrade/assignment.json')
 }
 
 tasks.register("checkBuildLogic").configure {

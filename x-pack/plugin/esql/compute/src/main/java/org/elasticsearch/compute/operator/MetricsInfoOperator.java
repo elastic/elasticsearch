@@ -25,6 +25,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +69,8 @@ import java.util.TreeSet;
  * and dimension keys there. Output combines the index abstractions of a metric that share metadata, one metric at a
  * time, so no second full-size structure is built. Names and metadata lists repeat across entries, so they come from
  * {@link MetadataValues}, which keeps and charges each distinct value once. Dimension keys grow as documents and
- * backing indices add keys, so each entry owns its list.
+ * backing indices add keys, so each entry owns them, as a sorted array of ids into the operator's dimension names.
+ * A row maps its dimension names to ids once, so merging them into each of its metrics compares integers, not strings.
  */
 public class MetricsInfoOperator implements Operator {
 
@@ -84,14 +88,15 @@ public class MetricsInfoOperator implements Operator {
 
     /**
      * The metric's state in one data stream or standalone index. The name and metadata lists are shared through
-     * {@link MetadataValues}. The dimension keys are owned by this entry.
+     * {@link MetadataValues}. The dimension ids are owned by this entry.
      */
     private static final class IndexAbstractionMetadata {
         final String name;
         List<String> units = List.of();
         List<String> fieldTypes = List.of();
         List<String> metricTypes = List.of();
-        List<String> dimensionFieldKeys = List.of();
+        /** Sorted, distinct ids into the operator's dimension names. */
+        int[] dimensionIds = NO_DIMENSIONS;
 
         IndexAbstractionMetadata(String name) {
             this.name = name;
@@ -112,6 +117,12 @@ public class MetricsInfoOperator implements Operator {
     private static final long INDEX_ABSTRACTION_BYTES = MetadataValues.MAP_ENTRY_BYTES + RamUsageEstimator.shallowSizeOfInstance(
         IndexAbstractionMetadata.class
     );
+
+    /** A new dimension name with its map entry, its boxed id and its slot in the list of names, excluding the name. */
+    private static final long DIMENSION_NAME_BYTES = MetadataValues.MAP_ENTRY_BYTES + RamUsageEstimator.shallowSizeOfInstance(Integer.class)
+        + 2L * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+
+    private static final int[] NO_DIMENSIONS = new int[0];
 
     /**
      * Looks up metric field metadata on demand.
@@ -191,8 +202,12 @@ public class MetricsInfoOperator implements Operator {
     }
 
     private Map<String, Metric> metricsByName = new LinkedHashMap<>();
-    /** Metric names, index abstraction names, dimension names and metadata lists, shared by all entries. */
+    /** Metric names, index abstraction names and metadata lists, shared by all entries. */
     private MetadataValues values;
+    /** Ids of the dimension names seen so far. */
+    private Map<String, Integer> dimensionIdsByName = new HashMap<>();
+    /** Dimension names by id. */
+    private List<String> dimensionNames = new ArrayList<>();
     private int metricsAccumulated;
 
     private final Mode mode;
@@ -264,7 +279,7 @@ public class MetricsInfoOperator implements Operator {
                 }
                 String indexName = indexBlock.getBytesRef(indexBlock.getFirstValueIndex(p), scratch).utf8ToString();
                 String indexAbstractionName = dataStreamsByIndex.getOrDefault(indexName, indexName);
-                recordFieldSet(indexName, indexAbstractionName, readMultiValue(fieldNamesBlock, p, scratch));
+                recordFieldSet(indexName, indexAbstractionName, fieldNamesBlock, p, scratch);
             }
         } finally {
             page.releaseBlocks();
@@ -290,7 +305,7 @@ public class MetricsInfoOperator implements Operator {
                 List<String> units = values.sharedList(readMultiValue(unitBlock, pos, scratch));
                 List<String> fieldTypes = values.sharedList(readMultiValue(ftBlock, pos, scratch));
                 List<String> metricTypes = values.sharedList(readMultiValue(mtBlock, pos, scratch));
-                SortedSet<String> dimensionFields = readMultiValue(dfBlock, pos, scratch);
+                int[] dimensionIds = dimensionIds(readMultiValue(dfBlock, pos, scratch));
 
                 Metric metric = findOrCreateMetric(metricName);
                 for (String indexAbstractionName : readMultiValue(dsBlock, pos, scratch)) {
@@ -298,7 +313,7 @@ public class MetricsInfoOperator implements Operator {
                     indexAbstraction.units = values.sharedUnion(indexAbstraction.units, units);
                     indexAbstraction.fieldTypes = values.sharedUnion(indexAbstraction.fieldTypes, fieldTypes);
                     indexAbstraction.metricTypes = values.sharedUnion(indexAbstraction.metricTypes, metricTypes);
-                    indexAbstraction.dimensionFieldKeys = values.unsharedUnion(indexAbstraction.dimensionFieldKeys, dimensionFields);
+                    addDimensionIds(indexAbstraction, dimensionIds);
                 }
             }
         } finally {
@@ -333,12 +348,22 @@ public class MetricsInfoOperator implements Operator {
      * @param indexName            concrete index name, used for the field lookup because mappings are per index
      * @param indexAbstractionName parent data-stream name or concrete index name, used as the grouping key so that
      *                             backing indices of the same data stream share a single entry
-     * @param fieldNames           names of the fields that occur together in a document
+     * @param fieldNamesBlock      names of the fields that occur together in a document, at {@code position}. The
+     *                             presence check reports each field once, so the names are distinct.
      */
-    private void recordFieldSet(String indexName, String indexAbstractionName, SortedSet<String> fieldNames) {
-        SortedSet<String> dimensionKeys = new TreeSet<>();
+    private void recordFieldSet(
+        String indexName,
+        String indexAbstractionName,
+        BytesRefBlock fieldNamesBlock,
+        int position,
+        BytesRef scratch
+    ) {
+        List<String> dimensionKeys = new ArrayList<>();
         List<MetricFieldInfo> metrics = new ArrayList<>();
-        for (String fieldName : fieldNames) {
+        int start = fieldNamesBlock.getFirstValueIndex(position);
+        int end = start + fieldNamesBlock.getValueCount(position);
+        for (int i = start; i < end; i++) {
+            String fieldName = fieldNamesBlock.getBytesRef(i, scratch).utf8ToString();
             MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, fieldName);
             if (fieldInfo != null) {
                 metrics.add(fieldInfo);
@@ -346,8 +371,9 @@ public class MetricsInfoOperator implements Operator {
                 dimensionKeys.add(fieldName);
             }
         }
+        int[] dimensionIds = dimensionIds(dimensionKeys);
         for (MetricFieldInfo fieldInfo : metrics) {
-            recordMetric(fieldInfo, indexAbstractionName, dimensionKeys);
+            recordMetric(fieldInfo, indexAbstractionName, dimensionIds);
         }
     }
 
@@ -356,7 +382,7 @@ public class MetricsInfoOperator implements Operator {
      * stream share one entry. Conflicting unit/metric_type/field_type across backing indices of the same data stream
      * become multi-valued.
      */
-    private void recordMetric(MetricFieldInfo fieldInfo, String indexAbstractionName, SortedSet<String> dimensionKeys) {
+    private void recordMetric(MetricFieldInfo fieldInfo, String indexAbstractionName, int[] dimensionIds) {
         IndexAbstractionMetadata indexAbstraction = findOrCreateIndexAbstraction(
             findOrCreateMetric(fieldInfo.name()),
             indexAbstractionName
@@ -364,7 +390,77 @@ public class MetricsInfoOperator implements Operator {
         indexAbstraction.units = values.sharedWithValue(indexAbstraction.units, fieldInfo.unit());
         indexAbstraction.fieldTypes = values.sharedWithValue(indexAbstraction.fieldTypes, fieldInfo.fieldType());
         indexAbstraction.metricTypes = values.sharedWithValue(indexAbstraction.metricTypes, fieldInfo.metricType());
-        indexAbstraction.dimensionFieldKeys = values.unsharedUnion(indexAbstraction.dimensionFieldKeys, dimensionKeys);
+        addDimensionIds(indexAbstraction, dimensionIds);
+    }
+
+    /** Returns the sorted, distinct ids of {@code names}, assigning ids to names seen for the first time. */
+    private int[] dimensionIds(Collection<String> names) {
+        if (names.isEmpty()) {
+            return NO_DIMENSIONS;
+        }
+        int[] ids = new int[names.size()];
+        int count = 0;
+        for (String name : names) {
+            ids[count++] = dimensionId(name);
+        }
+        Arrays.sort(ids);
+        int distinct = 1;
+        for (int i = 1; i < count; i++) {
+            if (ids[i] != ids[distinct - 1]) {
+                ids[distinct++] = ids[i];
+            }
+        }
+        return distinct == count ? ids : Arrays.copyOf(ids, distinct);
+    }
+
+    private int dimensionId(String name) {
+        Integer id = dimensionIdsByName.get(name);
+        if (id == null) {
+            trackBytes(DIMENSION_NAME_BYTES + RamUsageEstimator.sizeOf(name));
+            id = dimensionNames.size();
+            dimensionNames.add(name);
+            dimensionIdsByName.put(name, id);
+        }
+        return id;
+    }
+
+    /** Merges {@code added} into the entry's ids. Both are sorted and distinct. The replaced array is released. */
+    private void addDimensionIds(IndexAbstractionMetadata indexAbstraction, int[] added) {
+        int[] current = indexAbstraction.dimensionIds;
+        if (current == added || added.length == 0) {
+            return;
+        }
+        int missing = 0;
+        for (int i = 0, a = 0; a < added.length; a++) {
+            while (i < current.length && current[i] < added[a]) {
+                i++;
+            }
+            if (i == current.length || current[i] != added[a]) {
+                missing++;
+            }
+        }
+        if (missing == 0) {
+            return;
+        }
+        int[] merged = new int[current.length + missing];
+        trackBytes(RamUsageEstimator.sizeOf(merged));
+        int i = 0;
+        int a = 0;
+        int m = 0;
+        while (i < current.length || a < added.length) {
+            if (a == added.length || (i < current.length && current[i] < added[a])) {
+                merged[m++] = current[i++];
+            } else if (i == current.length || added[a] < current[i]) {
+                merged[m++] = added[a++];
+            } else {
+                merged[m++] = current[i++];
+                a++;
+            }
+        }
+        if (current.length > 0) {
+            releaseBytes(RamUsageEstimator.sizeOf(current));
+        }
+        indexAbstraction.dimensionIds = merged;
     }
 
     private Metric findOrCreateMetric(String name) {
@@ -469,13 +565,15 @@ public class MetricsInfoOperator implements Operator {
      * metric is written. It holds references to the metric's names and at most one copy of each distinct dimension key
      * per row, so it is not charged to the breaker.
      */
-    private static Map<FieldMetadata, OutputRow> rowsByMetadata(Metric metric) {
+    private Map<FieldMetadata, OutputRow> rowsByMetadata(Metric metric) {
         Map<FieldMetadata, OutputRow> rows = new LinkedHashMap<>();
         for (IndexAbstractionMetadata indexAbstraction : metric.indexAbstractions.values()) {
             FieldMetadata metadata = new FieldMetadata(indexAbstraction.units, indexAbstraction.fieldTypes, indexAbstraction.metricTypes);
             OutputRow row = rows.computeIfAbsent(metadata, k -> new OutputRow(new ArrayList<>(), new TreeSet<>()));
             row.indexAbstractionNames().add(indexAbstraction.name);
-            row.dimensionFieldKeys().addAll(indexAbstraction.dimensionFieldKeys);
+            for (int id : indexAbstraction.dimensionIds) {
+                row.dimensionFieldKeys().add(dimensionNames.get(id));
+            }
         }
         for (OutputRow row : rows.values()) {
             row.indexAbstractionNames().sort(null);
@@ -507,14 +605,21 @@ public class MetricsInfoOperator implements Operator {
         trackedBytes += delta;
     }
 
+    private void releaseBytes(long bytes) {
+        breaker.addWithoutBreaking(-bytes);
+        trackedBytes -= bytes;
+    }
+
     @Override
     public void close() {
         releaseState();
     }
 
     private void releaseState() {
-        // Replace rather than clear the map, because clear() keeps its table allocated.
+        // Replace rather than clear the maps, because clear() keeps their tables allocated.
         metricsByName = new LinkedHashMap<>();
+        dimensionIdsByName = new HashMap<>();
+        dimensionNames = new ArrayList<>();
         values.close();
         values = new MetadataValues(breaker, "MetricsInfoOperator");
         breaker.addWithoutBreaking(-trackedBytes);

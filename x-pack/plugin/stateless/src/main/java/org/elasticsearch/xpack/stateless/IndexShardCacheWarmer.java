@@ -69,10 +69,8 @@ public class IndexShardCacheWarmer {
         preWarmIndexShardCache(indexShard, INDEXING_EARLY);
     }
 
-    /**
-     * Schedule the pre-warming of a shard during a primary relocation
-     * @param listener completes once the prewarming has completed or failed
-     */
+    /// schedule the pre-warming of a shard during a primary relocation
+    /// @param listener completes once the prewarming has completed or failed
     public void preWarmIndexShardCacheForPeerRecovery(
         IndexShard indexShard,
         StatelessCommitService.SourceBlobsInfo sourceBlobsInfo,

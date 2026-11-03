@@ -344,8 +344,8 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
             // get the duration here and pass to next listener so that the flush-duration does not include the waiting time (timeout below)
             final var initialFlushDuration = getTimeSince(beforeInitialFlush);
 
-            // send the "prewarm" after the preFlush so the prewarmed BCC is closer to the one we flush while holding the permits on the
-            // target side
+            // send the "prewarm" after the "preflush" so the prewarmed shard on the target is closer to the one we flush,
+            // and hence handoff completes sooner, and we hold the permits for less time
             final var prewarmStep = new SubscribableListener<Void>();
             prewarmStep.addTimeout(prewarmWaitTimeout, threadPool, recoveryExecutor);
             initiatePrewarm(parentClient, request, indexShard, prewarmStep);

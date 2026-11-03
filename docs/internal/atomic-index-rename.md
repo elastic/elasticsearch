@@ -235,6 +235,19 @@ sees:
 | `Store`, `Translog`, `ReplicationTracker`, `ShardIndexWarmerService`, `ShardBitsetFilterCache` | Their own log and exception messages | Fixed: renamed with the shard, see above. |
 | A point in time or scroll opened before the rename | `_index` of hits from that context | Low and short-lived: only contexts that outlive the rename, and only their own hits. New searches report the new name because the coordinator builds the shard target from the current routing. |
 | `ClusterInfo` shard-size keys on the master | Allocation decisions for up to one refresh interval | Fixed (D2): a rename triggers a refresh. |
+| Long-lived maps keyed by `Index` or `ShardId` on the master (found: serverless `SearchMetricsService`, which feeds the replicas autoscaler) | The autoscaler scales the renamed index up and then fails to scale it down, since it addresses the index by the key's name | Was real: three `AutoscalingReplicaIT` tests timed out in the serverless check. Fixed in the companion PR by re-keying renamed entries on each cluster change. |
+
+The last row is a hazard of T1 worth naming on its own, because it does not
+show up as a failed lookup. A `HashMap#put` whose key is equal to an existing
+key refreshes the value and keeps the first key object, so a map keyed by
+`Index` that outlives a rename keeps the creation-time name in its keys while
+its values are current. Code that takes the name from the key (`entry.getKey().getName()`)
+reads a stale name with no exception until it is used in a request. The
+`ClusterChangedEvent#indicesRenamed()` hook is the fix at each such holder:
+remove the entry under the previous `Index` and put it back under the current
+one. In server the `Index`-keyed maps are per-task (block application, index
+closing, resize updates) and do not outlive a cluster state; the only
+long-lived one found so far is the serverless metrics service.
 
 Everything else a user sees comes from state that is updated: write responses
 (`_index` from the renamed `IndexShard`), shard-level stats APIs and `_cat`
@@ -925,14 +938,20 @@ YAML tests pass, and a new `StatelessRenameIndexIT#testSearchImmediatelyAfterRen
 checks that a search works right after the acknowledgement without waiting
 for green).
 
-Two serverless failures need companion changes in the serverless repository
-and are left open here: `ReplicaRankingContextTests` and
-`ReplicasUpdaterServiceTests` build several `Index` fixtures with the same
+Three serverless failures need companion changes, collected in
+elastic/elasticsearch-serverless#8144 on a fork branch of the same name so
+that the serverless check on this PR pairs the two: `ReplicaRankingContextTests`
+and `ReplicasUpdaterServiceTests` build several `Index` fixtures with the same
 UUID, which collapse under T1 (the same class of fixture fix as step 1 of the
-production sequence); and `RawStorageMeteringIT` and `UsageReportIT`, which
-run with the T11 trick and assert on records keyed by the index name, so the
-temporary name shows up in their expectations (either opt the classes out
-with `renameIndexOnCreate()` or decide how metering should treat a rename).
+production sequence); `RawStorageMeteringIT` and `UsageReportIT` run with the
+T11 trick and assert on records keyed by the index name, so the temporary name
+shows up in their expectations (the classes opt out with `renameIndexOnCreate()`;
+how metering should treat a rename is still open); and `AutoscalingReplicaIT`,
+where `SearchMetricsService` kept the creation-time name in its `Index` keys
+(see the T4 inventory), the one production bug the serverless check found. The
+companion PR's own CI compiles against the Elasticsearch commit pinned in
+serverless `main`, so it cannot pass until this PR merges; the pair is tested
+by the serverless check here.
 
 ## Suggested sequence of production PRs
 

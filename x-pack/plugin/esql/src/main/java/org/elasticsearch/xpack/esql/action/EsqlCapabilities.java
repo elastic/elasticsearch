@@ -3608,6 +3608,11 @@ public class EsqlCapabilities {
         PROMQL_CHANGES(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for PromQL {@code predict_linear()} with a literal horizon in seconds.
+         */
+        PROMQL_PREDICT_LINEAR(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */
@@ -4671,6 +4676,12 @@ public class EsqlCapabilities {
          * rather than every key of the object.
          */
         METRICS_INFO_FIELD_PRESENCE,
+
+        /**
+         * Each shard resolves a field the plan reads that some shards may not map to what it holds, and runs a filter pushed to it
+         * where it can query that field, or matches every document for the filter to check.
+         */
+        UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

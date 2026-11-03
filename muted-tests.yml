@@ -469,3 +469,8 @@ tests:
   - :x-pack:plugin:stateless:test
   method: testHollowEngineWithConcurrentNonHollowFlush
   issue: https://github.com/elastic/elasticsearch/issues/164263
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionDisruptionIT
+  tasks:
+  - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
+  method: testDeleteMountedFrozenIndexBeforeSwap
+  issue: https://github.com/elastic/elasticsearch/issues/164398

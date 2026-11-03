@@ -48,6 +48,17 @@ public class DatafeedNodeSelector {
         "datafeed awaiting job relocation."
     );
 
+    /** True if an unassigned datafeed's explanation only reflects its job moving between nodes. */
+    public static boolean isJobRelocationExplanation(String datafeedId, String jobId, String explanation) {
+        return AWAITING_JOB_ASSIGNMENT.getExplanation().equals(explanation)
+            || AWAITING_JOB_RELOCATION.getExplanation().equals(explanation)
+            || staleJobStateReason(datafeedId, jobId).equals(explanation);
+    }
+
+    private static String staleJobStateReason(String datafeedId, String jobId) {
+        return "cannot start datafeed [" + datafeedId + "], because the job's [" + jobId + "] state is stale";
+    }
+
     private final String datafeedId;
     private final String jobId;
     private final List<String> datafeedIndices;
@@ -161,8 +172,7 @@ public class DatafeedNodeSelector {
         }
 
         if (jobTaskState != null && jobTaskState.isStatusStale(jobTask)) {
-            String reason = "cannot start datafeed [" + datafeedId + "], because the job's [" + jobId + "] state is stale";
-            priorityFailureCollector.add(new AssignmentFailure(reason, true));
+            priorityFailureCollector.add(new AssignmentFailure(staleJobStateReason(datafeedId, jobId), true));
         }
 
         return priorityFailureCollector.get();

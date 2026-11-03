@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -156,9 +157,9 @@ public class HistogramQuantileTests extends AbstractNodeTestCase<HistogramQuanti
             List.of(randomQuantile(source))
         );
 
-        // one rest view, every label but le; the relation's own dimensions never become named labels
+        // one rest view, every label but le and the metric name; the relation's own dimensions never become named labels
         assertEquals(1, node.output().size());
-        assertEquals(Set.of("le"), PromqlLabels.metadataLabel(node.output()).unset());
+        assertEquals(Set.of(LabelMatcher.NAME, HistogramQuantile.LE_LABEL), PromqlLabels.metadataLabel(node.output()).unset());
     }
 
     private static EsRelation randomEsRelationWithLeAndIrrelevantLabel(Source source) {

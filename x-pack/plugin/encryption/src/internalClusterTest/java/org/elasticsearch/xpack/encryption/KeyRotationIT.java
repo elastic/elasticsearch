@@ -92,7 +92,8 @@ public class KeyRotationIT extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+        // retirement only happens on ticks between rotations, so leave room for slow publications
+        builder.put(KeyRotationCoordinator.ROTATION_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(10))
             .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1));
         SecuritySettingsSource.addSecureSettings(builder, secure -> {
             secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v1");
@@ -199,7 +200,7 @@ public class KeyRotationIT extends SecurityIntegTestCase {
 
     public void testEachInstallOrRotationAddsExactlyOneNewKey() throws Exception {
         // Wait for two install or rotation events
-        assertBusy(() -> assertThat(keyAddEvents, hasSize(greaterThanOrEqualTo(2))), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(keyAddEvents, hasSize(greaterThanOrEqualTo(2))), 60, TimeUnit.SECONDS);
         for (int count : keyAddEvents) {
             assertThat("each install or rotation must add exactly one key", count, equalTo(1));
         }

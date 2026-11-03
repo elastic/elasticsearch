@@ -131,29 +131,8 @@ public class NestedObjectMapper extends ObjectMapper {
                         + "] is nested inside another nested object, but columnar index modes support only a single level of nesting"
                 );
             }
-            boolean parentIncludedInRoot = this.includeInRoot.value();
-            final Query parentTypeFilter;
-            if (context instanceof NestedMapperBuilderContext nc) {
-                // we're already inside a nested mapper, so adjust our includes
-                if (nc.parentIncludedInRoot && this.includeInParent.value()) {
-                    this.includeInRoot = Explicit.IMPLICIT_FALSE;
-                }
-                parentTypeFilter = nc.nestedTypeFilter;
-            } else {
-                // this is a top-level nested mapper, so include_in_parent = include_in_root
-                parentIncludedInRoot |= this.includeInParent.value();
-                if (this.includeInParent.value()) {
-                    this.includeInRoot = Explicit.IMPLICIT_FALSE;
-                }
-                parentTypeFilter = Queries.newNonNestedFilter(indexCreatedVersion);
-            }
             final String fullPath = context.buildFullName(leafName());
-            final String nestedTypePath;
-            if (indexCreatedVersion.before(IndexVersions.V_8_0_0)) {
-                nestedTypePath = "__" + fullPath;
-            } else {
-                nestedTypePath = fullPath;
-            }
+            final String nestedTypePath = nestedTypePath(fullPath);
             if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ARRAYS) {
                 throw new MapperException(
                     "parameter [ "
@@ -165,18 +144,10 @@ public class NestedObjectMapper extends ObjectMapper {
                         + "]"
                 );
             }
-            final Query nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
-            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
-                context.buildFullName(leafName()),
-                context.isSourceSynthetic(),
-                context.isSourceColumnarStored(),
-                context.isDataStream(),
-                context.parentObjectContainsDimensions(),
-                nestedTypeFilter,
-                parentIncludedInRoot,
-                context.getDynamic(dynamic),
-                context.getMergeReason()
-            );
+            NestedMapperBuilderContext nestedContext = childContext(context);
+            final Query parentTypeFilter = context instanceof NestedMapperBuilderContext nc
+                ? nc.nestedTypeFilter
+                : Queries.newNonNestedFilter(indexCreatedVersion);
             return new NestedObjectMapper(
                 leafName(),
                 fullPath,
@@ -189,9 +160,44 @@ public class NestedObjectMapper extends ObjectMapper {
                 includeInRoot,
                 parentTypeFilter,
                 nestedTypePath,
-                nestedTypeFilter,
+                nestedContext.nestedTypeFilter,
                 bitSetProducer,
                 indexSettings
+            );
+        }
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            // the root document counts as a parent that this object is included in
+            boolean parentIncludedInRoot = context instanceof NestedMapperBuilderContext nc ? nc.parentIncludedInRoot : true;
+            if (parentIncludedInRoot && this.includeInParent.value()) {
+                this.includeInRoot = Explicit.IMPLICIT_FALSE;
+            }
+        }
+
+        private String nestedTypePath(String fullPath) {
+            return indexCreatedVersion.before(IndexVersions.V_8_0_0) ? "__" + fullPath : fullPath;
+        }
+
+        @Override
+        protected NestedMapperBuilderContext childContext(MapperBuilderContext context) {
+            boolean parentIncludedInRoot = this.includeInRoot.value();
+            if (context instanceof NestedMapperBuilderContext == false) {
+                // this is a top-level nested mapper, so include_in_parent = include_in_root
+                parentIncludedInRoot |= this.includeInParent.value();
+            }
+            String fullPath = context.buildFullName(leafName());
+            return new NestedMapperBuilderContext(
+                fullPath,
+                context.isSourceSynthetic(),
+                context.isSourceColumnarStored(),
+                context.isDataStream(),
+                context.parentObjectContainsDimensions(),
+                NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath(fullPath)),
+                parentIncludedInRoot,
+                context.getDynamic(dynamic),
+                context.getMergeReason()
             );
         }
     }

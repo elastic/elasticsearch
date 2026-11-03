@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 
 import java.io.Reader;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -152,9 +153,11 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
     // written under the monitor, before lastReloadToken.
     private volatile RuntimeException lastReloadFailure;
 
-    // Set once this instance has loaded its resources (synonyms etc.) at least once. The initial load is
-    // deferred to shard recovery (a null-token reload); because one instance is shared across indices it
-    // only needs to load once per node, so later null-token reloads are no-ops. Volatile for shouldReload().
+    // Set once this instance has loaded all of its resources (synonyms etc.). The initial load is deferred to
+    // shard recovery (a null-token reload); because one instance is shared across indices it only needs to
+    // load once per node, so later null-token reloads are no-ops. Stays false when a lenient filter fell back
+    // to partial or empty rules (TokenFilterFactory#isDegraded), so the next sharer's recovery load retries
+    // rather than inheriting the fallback. Volatile for shouldReload().
     private volatile boolean loaded;
 
     // Set by close() when the last sharer releases this instance. reload() discards its result rather than
@@ -251,7 +254,7 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
             return;
         }
         this.components = rebuilt;
-        this.loaded = true;
+        this.loaded = Arrays.stream(rebuilt.getTokenFilters()).noneMatch(TokenFilterFactory::isDegraded);
         // Publish the token now that the rebuild succeeded, clearing any failure from an earlier token.
         // Clear the failure before the token, matching the ordering shouldReload() relies on.
         if (reloadToken != null) {

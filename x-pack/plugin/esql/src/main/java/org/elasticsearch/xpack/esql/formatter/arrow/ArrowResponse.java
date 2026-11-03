@@ -439,7 +439,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         // - ResponseValueUtils: conversions to a toString-able representation for text output
         // - PositionToXContent: conversions for ESQL JSON output
         return switch (type) {
-            case NULL -> new BlockArrowFormatter.AsNull(type);
+            case UNSUPPORTED, NULL -> new BlockArrowFormatter.AsNull(type);
 
             case BOOLEAN -> new BlockArrowFormatter.AsBoolean(type);
 
@@ -496,7 +496,6 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case TIME_DURATION -> null;
             case DOC_DATA_TYPE -> null;
             case PARTIAL_AGG -> null;
-            case UNSUPPORTED -> null;
         };
     }
 }

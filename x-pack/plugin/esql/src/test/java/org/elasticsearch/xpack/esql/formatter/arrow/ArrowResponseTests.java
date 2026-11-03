@@ -275,6 +275,7 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.FLATTENED, FLATTENED_VALUES),
 
         Map.entry(DataType.NULL, NULL_VALUES),
+        Map.entry(DataType.UNSUPPORTED, NULL_VALUES),
 
         // All geo types just pass-through WKB, use random binary data
         Map.entry(DataType.GEO_POINT, BINARY_VALUES),
@@ -318,7 +319,13 @@ public class ArrowResponseTests extends ESTestCase {
     }
 
     public void testSpecialResponseTypes() {
-        for (DataType type : List.of(DataType.COUNTER_INTEGER, DataType.COUNTER_LONG, DataType.COUNTER_DOUBLE, DataType.SOURCE)) {
+        for (DataType type : List.of(
+            DataType.COUNTER_INTEGER,
+            DataType.COUNTER_LONG,
+            DataType.COUNTER_DOUBLE,
+            DataType.SOURCE,
+            DataType.UNSUPPORTED
+        )) {
             assertFalse(
                 "Response support must not enable general-purpose function arguments for [" + type + "]",
                 DataType.isRepresentableInExpression(type)
@@ -328,7 +335,6 @@ public class ArrowResponseTests extends ESTestCase {
         }
         assertFalse(DataType.isRepresentableInExpression(DataType.DOC_DATA_TYPE));
         assertFalse(DataType.isRepresentableInOutput(DataType.DOC_DATA_TYPE));
-        assertFalse(DataType.isRepresentableInOutput(DataType.UNSUPPORTED));
     }
 
     public void testNonResponseTypesRejected() {

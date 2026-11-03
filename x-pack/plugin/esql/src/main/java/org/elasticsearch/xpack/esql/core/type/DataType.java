@@ -831,8 +831,7 @@ public enum DataType implements Writeable {
         SCALED_FLOAT,
         HALF_FLOAT,
         PARTIAL_AGG,
-        DOC_DATA_TYPE,
-        UNSUPPORTED
+        DOC_DATA_TYPE
     );
 
     /**
@@ -850,7 +849,7 @@ public enum DataType implements Writeable {
      * wherever a representable value is expected.
      */
     public static boolean isRepresentableInExpression(DataType t) {
-        return isRepresentableInOutput(t) && t.isCounter() == false && t != SOURCE;
+        return isRepresentableInOutput(t) && t.isCounter() == false && t != SOURCE && t != UNSUPPORTED;
     }
 
     public static boolean isCounter(DataType t) {

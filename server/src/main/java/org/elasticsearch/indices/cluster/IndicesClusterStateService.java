@@ -881,7 +881,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                        // Pending allocation state handled by updatePendingAllocationTracker
                         continue;
                     }
 
@@ -904,7 +903,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                        // Pending allocation state handled by updatePendingAllocationTracker
                     }
                 }
             }

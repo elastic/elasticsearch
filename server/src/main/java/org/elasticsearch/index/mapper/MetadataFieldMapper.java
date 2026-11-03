@@ -137,7 +137,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         /**
          * Returns true if any parameter has a value that differs from its default.
          */
-        private boolean hasNonDefaultParameters() {
+        protected boolean hasNonDefaultParameters() {
             for (Parameter<?> param : getParameters()) {
                 if (param.isConfigured()) {
                     return true;

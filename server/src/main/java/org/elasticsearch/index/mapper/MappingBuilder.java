@@ -35,6 +35,11 @@ import java.util.function.Predicate;
  */
 public class MappingBuilder implements ToXContentFragment {
 
+    private static final List<Params> PARAMS_TO_CHECK = List.of(
+        ToXContent.EMPTY_PARAMS,
+        new ToXContent.MapParams(Map.of("include_defaults", "true"))
+    );
+
     private final RootObjectMapper.Builder rootBuilder;
     private final Map<String, MetadataFieldMapper.Builder> metadataBuilders;
     @Nullable
@@ -142,6 +147,9 @@ public class MappingBuilder implements ToXContentFragment {
      * @return the built {@link Mapping}
      */
     public Mapping build(MergeReason reason) {
+        normalize(reason);
+        List<String> serializedBeforeBuild = null;
+        assert (serializedBeforeBuild = serializations()) != null;
         RootObjectMapper root = rootBuilder.build(rootContext(reason));
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()
@@ -149,9 +157,24 @@ public class MappingBuilder implements ToXContentFragment {
             .toArray(MetadataFieldMapper[]::new);
         Mapping mapping = new Mapping(root, metadataMappers, meta);
         assert serializesLike(mapping);
+        assert serializedBeforeBuild.equals(serializations())
+            : "building changed the serialization of the builder: BEFORE "
+                + serializedBeforeBuild.get(0)
+                + " AFTER "
+                + serializations().get(0);
         return mapping;
     }
 
+    private List<String> serializations() {
+        return PARAMS_TO_CHECK.stream().map(params -> serialize(this, params)).toList();
+    }
+
+    /**
+     * Writes the mapping source this builder produces. A tree that has not been normalized yet is normalized first under
+     * {@link MergeReason#MAPPING_UPDATE}, so a duplicate that only {@link MergeReason#INDEX_TEMPLATE} resolves throws a
+     * conflict instead of being serialized as last-wins. Callers holding a template tree must {@link #normalize} or
+     * {@link #build} it under its own reason first, after which this finds nothing left to normalize.
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         normalize(MergeReason.MAPPING_UPDATE);
@@ -181,7 +204,7 @@ public class MappingBuilder implements ToXContentFragment {
      * builder's from drifting in the meantime; it goes with the mapper-side serialization.
      */
     private boolean serializesLike(Mapping mapping) {
-        for (Params params : List.of(ToXContent.EMPTY_PARAMS, new ToXContent.MapParams(Map.of("include_defaults", "true")))) {
+        for (Params params : PARAMS_TO_CHECK) {
             String fromMapping = serialize(mapping, params);
             String fromBuilder = serialize(this, params);
             assert fromMapping.equals(fromBuilder)

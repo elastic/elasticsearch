@@ -16,7 +16,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -43,7 +42,6 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
@@ -727,46 +725,9 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        assert builderSerializesLikeMapper(params);
         builder.startObject(leafName());
         doXContentBody(builder, params);
         return builder.endObject();
-    }
-
-    /**
-     * Checks that {@link Builder#toXContent} writes the same bytes as this mapper does, on every serialization the
-     * tests perform. Both serializers exist side by side until the mapper's is removed, and this is what keeps the
-     * builder's from drifting in the meantime; it goes with the mapper-side serialization.
-     */
-    private boolean builderSerializesLikeMapper(Params params) throws IOException {
-        Builder mergeBuilder = getMergeBuilder();
-        if (mergeBuilder == null) {
-            return true;
-        }
-        String fromMapper;
-        try (XContentBuilder expected = XContentFactory.jsonBuilder()) {
-            expected.startObject();
-            expected.startObject(leafName());
-            doXContentBody(expected, params);
-            expected.endObject();
-            expected.endObject();
-            fromMapper = Strings.toString(expected);
-        }
-        String fromBuilder;
-        try (XContentBuilder actual = XContentFactory.jsonBuilder()) {
-            actual.startObject();
-            mergeBuilder.toXContent(actual, params);
-            actual.endObject();
-            fromBuilder = Strings.toString(actual);
-        }
-        assert fromMapper.equals(fromBuilder)
-            : "builder serialization differs from mapper serialization of ["
-                + fullPath()
-                + "]: mapper "
-                + fromMapper
-                + " builder "
-                + fromBuilder;
-        return true;
     }
 
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
@@ -987,7 +948,8 @@ public abstract class FieldMapper extends Mapper {
                 fieldBuilders.put(mapper.leafName(), builder);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
-                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
+                        && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
                 }
@@ -2609,6 +2571,16 @@ public abstract class FieldMapper extends Mapper {
 
         protected boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
             return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
+        }
+
+        public abstract DimensionBuilder dimension(boolean dimension);
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            if (inheritDimensionParameterFromParentObject(context)) {
+                dimension(true);
+            }
         }
     }
 

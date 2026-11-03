@@ -281,10 +281,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return sourceFieldMapper;
         }
 
+        private boolean shouldSerializeMode() {
+            return serializeMode || (mode.isConfigured() && sourceModeIsNoop == false);
+        }
+
         private void resolveSerializeMode() {
-            if (mode.isConfigured() && sourceModeIsNoop == false) {
-                serializeMode = true;
-            }
+            serializeMode = shouldSerializeMode();
         }
 
         /**
@@ -292,21 +294,39 @@ public class SourceFieldMapper extends MetadataFieldMapper {
          * to be written.
          */
         private boolean isSharedInstance(Mode sourceMode) {
-            return isDefault() && (sourceMode == null || serializeMode == false);
+            return isDefault() && (sourceMode == null || shouldSerializeMode() == false);
         }
 
         // TODO this is overly complex, to handle BWC concerns from static Mapper instance serialization - once serialization
         // has moved to the Builder completely we can simplify
+        // This writes what the built mapper would write without changing the parameters, so that serializing a builder
+        // leaves validation and merging of the parsed values unaffected.
         @Override
-        public void normalize(MapperBuilderContext context) {
-            super.normalize(context);
-            resolveSerializeMode();
-            Mode sourceMode = resolveSourceMode();
-            boolean shared = isSharedInstance(sourceMode);
-            if (shared) {
-                enabled.setValue(Explicit.IMPLICIT_TRUE);
+        protected void serializeParameters(XContentBuilder builder, Params params) throws IOException {
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+            if (isSharedInstance(resolveSourceMode()) == false) {
+                enabled.toXContent(builder, includeDefaults);
+                Mode serializedMode = serializedMode();
+                if (serializedMode != null) {
+                    builder.field(mode.name, serializedMode.toString().toLowerCase(Locale.ROOT));
+                }
             }
-            mode.setValue(shared == false && serializeMode && enabled.getValue().explicit() == false ? sourceMode : null);
+            includes.toXContent(builder, includeDefaults);
+            excludes.toXContent(builder, includeDefaults);
+        }
+
+        @Override
+        protected boolean hasNonDefaultParameters() {
+            boolean sharedInstance = isSharedInstance(resolveSourceMode());
+            return (sharedInstance == false && (enabled.isConfigured() || serializedMode() != null))
+                || includes.isConfigured()
+                || excludes.isConfigured();
+        }
+
+        private Mode serializedMode() {
+            Mode sourceMode = resolveSourceMode();
+            boolean writesMode = isSharedInstance(sourceMode) == false && shouldSerializeMode() && enabled.getValue().explicit() == false;
+            return writesMode ? sourceMode : null;
         }
 
         public boolean isSynthetic() {

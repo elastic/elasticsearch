@@ -177,8 +177,11 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
     @Override
     public void testInnerQueriesChargeBreakerOnce() {
-        assumeTrue("The CB is not applicable because WrapperQueryBuilder is rewritten to a different query builder type and the" +
-            " inner query is a serialized string", false);
+        assumeTrue(
+            "The CB is not applicable because WrapperQueryBuilder is rewritten to a different query builder type and the inner query is a"
+                + " serialized string",
+            false
+        );
     }
 
     @Override

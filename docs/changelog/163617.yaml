@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 163617
+summary: Charge doc value decodes when a script iterates them
+type: enhancement

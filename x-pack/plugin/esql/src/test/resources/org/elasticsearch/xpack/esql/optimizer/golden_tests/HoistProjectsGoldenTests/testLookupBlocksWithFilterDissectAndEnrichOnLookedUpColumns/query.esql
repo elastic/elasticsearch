@@ -1,0 +1,14 @@
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang
+| DROP language_code
+| WHERE lang IS NOT NULL
+| DISSECT lang "%{lang_head}ch"
+| EVAL language_code = languages - 1
+| ENRICH languages ON language_code WITH enriched_minus_one = language_name
+| DROP language_code
+| EVAL language_code = languages - 2
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS lang_minus_two
+| DROP language_code

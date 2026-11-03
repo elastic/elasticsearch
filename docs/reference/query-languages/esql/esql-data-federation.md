@@ -2,7 +2,7 @@
 navigation_title: "Data Federation"
 description: "Query data stored in external cloud storage using ES|QL without ingesting it into Elasticsearch."
 applies_to:
-  stack: experimental 9.5+
+  stack: preview 9.6+, experimental =9.5
   serverless: unavailable
 products:
   - id: elasticsearch
@@ -19,48 +19,66 @@ You can query data stored in compatible external data sources, using the same sy
 
 Before using {{esql}} Data Federation, review the following requirements and limitations:
 
-- This feature is not enabled by default. Refer to [Enable the feature](#enable-the-feature).
+- {applies_to}`stack: experimental =9.5` This feature is not enabled by default. Refer to [](#enable-the-feature).
 - For {{ech}}, {{ece}}, and {{eck}} deployments or self-managed clusters, ES|QL Data Federation requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 - To use the {{esql}} Data Federation UI in {{kib}}, you need the cluster `manage` privilege.
 - Currently, this feature is not supported on Windows.
 
-## Enable the feature
+## Turn the feature on or off [enable-the-feature]
 
-{{esql}} Data Federation is not enabled by default. To use it, enable the feature in {{es}} and enable the UI in {{kib}}.
+{{esql}} Data Federation has an {{es}} setting and a separate {{kib}} UI setting. How each one works depends on your version.
 
 **{{es}}**
 
-Add the following to your {{es}} configuration:
+:::::{applies-switch}
+
+::::{applies-item} stack: preview 9.6+
+{{esql}} Data Federation is on by default. To turn it off, set the following in the {{es}} configuration on every node in your cluster:
+
+```yaml
+esql.federation.enabled: false
+```
+
+When the feature is off, you can't create or manage data sources and datasets, or query datasets.
+
+This is a static setting: restart each node after changing it. You can't change it with the cluster settings API. On {{ech}}, add it to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md). For other deployment types, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+::::
+
+::::{applies-item} stack: experimental =9.5
+{{esql}} Data Federation is not enabled by default. Enable it before creating data sources or datasets, or querying datasets. Set the following in the {{es}} configuration on every node in your cluster:
 
 ```yaml
 esql.federation.enabled: true
 ```
 
-To learn how to configure this setting on your deployment, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+This is a static setting: restart each node after changing it. You can't enable it with the cluster settings API. On {{ech}}, add it to your deployment's [user settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md). For other deployment types, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
+::::
+
+:::::
 
 **{{kib}}**
 
-The {{kib}} UI lets you connect data sources and add datasets without using the API. How you enable it depends on your version.
+The {{kib}} UI lets you connect data sources and add datasets without using the API. Its setting is independent of the {{es}} setting.
 
 :::::{applies-switch}
 
-::::{applies-item} stack: experimental 9.6+
-Turn on the UI with an advanced setting:
+::::{applies-item} stack: preview 9.6+
+The UI is on by default. To turn it off:
 
 1. Find **Advanced settings** in the navigation menu or use the global search field, then select the **Global Settings** tab.
-2. Turn on **{{esql}} Data Federation**:
+2. Toggle off **{{esql}} Data Federation** (`dataFederation:enabled`) to hide the management UI:
 
-   ![The ES|QL Data Federation advanced setting turned on in the Global Settings tab](images/data-federation/advanced-setting.png)
+   ![The ES|QL Data Federation advanced setting in the Global Settings tab](images/data-federation/advanced-setting.png)
 3. Click **Save changes**, then reload the page.
 
 :::{note}
-The setting applies to all spaces. Turning it off hides the UI only. Existing data sources and datasets keep working, and you can still manage them with the API. To learn more, refer to [global advanced settings](kibana://reference/advanced-settings.md#kibana-global-settings-reference).
+The setting applies to all spaces. Turning it off hides the UI only. Unless Data Federation is turned off in {{es}}, you can still manage data sources and datasets with the API and query datasets with {{esql}}. To learn more, refer to [global advanced settings](kibana://reference/advanced-settings.md#kibana-global-settings-reference).
 :::
 
 ::::
 
 ::::{applies-item} stack: experimental =9.5
-Add the following to your {{kib}} configuration:
+The UI is not enabled by default. Add the following to your {{kib}} configuration:
 
 ```yaml
 xpack.dataFederation.enabled: true
@@ -140,7 +158,7 @@ The exceptions are operations that need structures only an {{es}} index has, suc
 
 Relevance scoring works differently for datasets:
 
-- {applies_to}`stack: experimental 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
+- {applies_to}`stack: preview 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
 - {applies_to}`stack: experimental =9.5` Dataset rows do not contribute to `_score`.
 
 {{esql}} Data Federation is not currently supported on Windows.

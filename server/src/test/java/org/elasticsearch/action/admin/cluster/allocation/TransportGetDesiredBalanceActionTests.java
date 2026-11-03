@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -191,7 +192,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
                             shard = shard.relocate(
                                 randomValueOtherThan(nodeId, () -> randomFrom(nodeIds)),
                                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                                ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+                                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                             );
                         }
                         indexRoutingTableBuilder.addShard(shard);

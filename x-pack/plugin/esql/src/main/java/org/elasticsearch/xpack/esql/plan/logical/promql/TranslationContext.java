@@ -60,7 +60,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
 /**
  * Shared state and assembly helpers for one PromQL translation. Translators read the labels of their input through
  * references ({@link UnresolvedPromqlAttribute}) and never look at which columns their input carries:
- * {@code BindPromqlLabelReferences} binds the references right after translation. This context also preserves aggregation
+ * {@code PruneUnresolvedPromqlAttributeRefs} binds the references right after translation. This context also preserves aggregation
  * boundaries and assembles the command output.
  */
 public record TranslationContext(
@@ -208,7 +208,7 @@ public record TranslationContext(
                 packDims,
                 groupings(step, List.of(packedGrouping)),
                 aggregates(value, step, List.of(packedGrouping.toAttribute()))
-            );// The unpacked dimensions are the keys; BindPromqlLabelReferences lays them out once they are bound.
+            );// The unpacked dimensions are the keys; PruneUnresolvedPromqlAttributeRefs lays them out once they are bound.
             UnpackDims unpackDims = new UnpackDims(source, agg, packedGrouping.toAttribute(), keys);
             List<NamedExpression> projections = new ArrayList<>(List.of(value.toAttribute(), step));
             projections.addAll(keys);

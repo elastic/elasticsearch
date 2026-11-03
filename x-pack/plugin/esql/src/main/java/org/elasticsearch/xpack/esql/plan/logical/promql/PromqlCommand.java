@@ -508,7 +508,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     /**
      * Translates this command into its ES|QL plan: every top-level branch translated, combined, and projected to the
      * declared {@link #output()}. The plan reads its labels through references ({@link UnresolvedPromqlAttribute}) that
-     * {@code BindPromqlLabelReferences} binds right after.
+     * {@code PruneUnresolvedPromqlAttributeRefs} binds right after.
      */
     public LogicalPlan translate(AnalyzerContext analyzer) {
         var context = new TranslationContext(this, analyzer);

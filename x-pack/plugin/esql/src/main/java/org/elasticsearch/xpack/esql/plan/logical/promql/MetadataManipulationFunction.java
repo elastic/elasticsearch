@@ -216,7 +216,7 @@ public final class MetadataManipulationFunction extends PromqlFunctionCall {
         Alias derived = namesBuiltInColumn(context)
             ? new Alias(source, TemporaryNameGenerator.locallyUniqueTemporaryName(destination.name()), destinationValue)
             : new Alias(source, destination.name(), destinationValue, destination.id());
-        // The derived label shadows a stored one of the same name; BindPromqlLabelReferences drops the stored column.
+        // The derived label shadows a stored one of the same name; PruneUnresolvedPromqlAttributeRefs drops the stored column.
         var fields = new ArrayList<Alias>(List.of(derived));
         UnresolvedPromqlAttribute metadata = PromqlLabels.metadataLabel(output());
         if (metadata != null) {

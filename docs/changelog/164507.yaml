@@ -1,6 +1,6 @@
 area: Data streams
 issues:
  - 164471
-pr: 0
+pr: 164507
 summary: Do not redirect failed bulk documents to the failure store of a CCR follower data stream
 type: bug

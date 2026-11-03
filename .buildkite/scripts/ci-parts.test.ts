@@ -8,15 +8,17 @@ import { describe, expect, test } from "vitest";
 
 const PROJECT_ROOT = join(import.meta.dirname, "..", "..");
 const PIPELINES = join(PROJECT_ROOT, ".buildkite", "pipelines");
-const readPartCount = (): number => {
-  const assignment: unknown = JSON.parse(readFileSync(join(PROJECT_ROOT, ".ci", "test-parts", "assignment.json"), "utf-8"));
+const readPartCount = (...path: string[]): number => {
+  const assignment: unknown = JSON.parse(readFileSync(join(PROJECT_ROOT, ".ci", "test-parts", ...path), "utf-8"));
   if (typeof assignment !== "object" || assignment === null || !("parts" in assignment) || typeof assignment.parts !== "number") {
-    throw new Error("assignment.json has no numeric 'parts'");
+    throw new Error(`${path.join("/")} has no numeric 'parts'`);
   }
   return assignment.parts;
 };
-const PARTS = readPartCount();
-const ALL_PARTS = Array.from({ length: PARTS }, (_, i) => i + 1);
+const partList = (parts: number): number[] => Array.from({ length: parts }, (_, i) => i + 1);
+const PARTS = readPartCount("assignment.json");
+const ALL_PARTS = partList(PARTS);
+const BC_UPGRADE_PARTS = partList(readPartCount("bc-upgrade", "assignment.json"));
 
 const pipelineFiles = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {
@@ -37,6 +39,17 @@ describe("CI parts", () => {
     expect(users.length).toBeGreaterThan(0);
     for (const file of users) {
       expect(partsReferenced(readFileSync(file, "utf-8")), file).toEqual(ALL_PARTS);
+    }
+  });
+
+  test("upgrade test scripts run every bcUpgradeTestPartN", () => {
+    for (const script of ["run-pr-upgrade-tests.sh", "run-bc-upgrade-tests.sh"]) {
+      const text = readFileSync(join(PROJECT_ROOT, ".buildkite", "scripts", script), "utf-8");
+      expect(text, script).toContain("bcUpgradeTestPart{{matrix.PART}}");
+      const matrix = text.match(/PART:\s*\[([^\]]*)\]/);
+      expect(matrix, script).not.toBeNull();
+      const parts = [...(matrix?.[1] ?? "").matchAll(/\d+/g)].map((m) => Number(m[0]));
+      expect(parts, script).toEqual(BC_UPGRADE_PARTS);
     }
   });
 

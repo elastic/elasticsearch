@@ -5060,6 +5060,74 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * A region whose first page is cached but not the rest: a prefetch (or availability check) of a range further in the region must not
+     * be reported as cached. {@code tryPrefetch} used to check the first {@code length} bytes of the region instead of the range, so a
+     * 1-byte Lucene prefetch anywhere in a region with a cached start was dropped.
+     */
+    public void testPrefetchAndAvailabilityOfRangeInPartiallyCachedRegion() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = 2 * regionSize;
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), randomBoolean())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheFile = cacheService.getCacheFile(
+                generateCacheKey(),
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
+            );
+            // cache the first page and a page in the middle of the region
+            final byte[] testData = randomByteArrayOfLength((int) fileLength);
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            // and a range across the boundary of the first two regions
+            for (ByteRange range : List.of(ByteRange.of(0L, size(1)), ByteRange.of(size(5), size(6)), ByteRange.of(size(9), size(11)))) {
+                cacheFile.populateAndRead(
+                    range,
+                    range,
+                    (channel, pos, relativePos, len) -> len,
+                    (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                        SharedBytes.copyToCacheFileAligned(
+                            channel,
+                            new java.io.ByteArrayInputStream(testData, Math.toIntExact(range.start()) + relativePos, len),
+                            channelPos,
+                            relativePos,
+                            len,
+                            progressUpdater,
+                            writeBuffer.clear()
+                        );
+                        ActionListener.completeWith(completionListener, () -> null);
+                    },
+                    "test"
+                );
+            }
+            final long uncached = randomLongBetween(size(1), size(5) - 1);
+            assertFalse("a range beyond the cached start of the region is not cached", cacheFile.tryPrefetch(uncached, 1));
+            assertFalse(cacheFile.isRangeAvailable(ByteRange.of(uncached, uncached + 1)));
+            assertFalse(cacheFile.isRangeAvailable(ByteRange.of(size(5) - 1, size(5) + 1)));
+            final long cached = randomLongBetween(size(5), size(6) - 1);
+            assertTrue(cacheFile.isRangeAvailable(ByteRange.of(cached, randomLongBetween(cached + 1, size(6)))));
+            assertTrue(cacheFile.isRangeAvailable(ByteRange.of(0L, randomLongBetween(1L, size(1)))));
+            assertTrue("a cached range across regions", cacheFile.isRangeAvailable(ByteRange.of(size(10) - 1, size(10) + 1)));
+            assertFalse(cacheFile.isRangeAvailable(ByteRange.of(size(10) - 1, size(11) + 1)));
+        }
+    }
+
     public void testGetIfPresentFindsPopulatedEntry() throws Exception {
         final long regionSize = size(10);
         final long fileLength = size(randomIntBetween(5, 19));

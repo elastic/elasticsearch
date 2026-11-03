@@ -1715,7 +1715,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     continue;
                 }
                 final var chunk = fileRegion.chunk;
-                if (chunk.tracker.checkAvailable(subRangeToRead.length()) == false) {
+                // the sub-range must be available, not the first subRangeToRead.length() bytes of the region: otherwise a prefetch in a
+                // region whose start is cached (e.g. headers) is reported as cached and dropped (found by the "cheap shards" phase 4 trace)
+                if (chunk.tracker.checkAvailable(subRangeToRead.end()) == false) {
                     continue;
                 }
                 if (chunk.tryPrefetch(subRangeToRead.start(), subRangeToRead.length())) {
@@ -1723,6 +1725,28 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             }
             return length == 0;
+        }
+
+        /**
+         * Whether all of {@code range} is in the cache: every region it touches is cached and has no missing or pending byte in
+         * {@code range}. Unlike {@link #tryRead}, the regions do not need to be filled from their start (prototype, "cheap shards":
+         * ranges written in the cache at known positions, see the stateless plugin's commit pointer open bytes).
+         */
+        public boolean isRangeAvailable(ByteRange range) {
+            if (range.isEmpty()) {
+                return false;
+            }
+            for (int region = getRegion(range.start()); region <= getEndingRegion(range.end()); region++) {
+                final ByteRange subRange = mapSubRangeToRegion(range, region);
+                if (subRange.isEmpty()) {
+                    continue;
+                }
+                final CacheEntry<CacheFileRegion<KeyType>> fileRegion = cache.getIfPresent(cacheKey, region);
+                if (fileRegion == null || fileRegion.chunk.tracker.getAbsentBytesWithin(subRange) != 0L) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {

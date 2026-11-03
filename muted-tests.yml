@@ -570,3 +570,23 @@ tests:
   - :x-pack:plugin:logsdb:javaRestTest
   method: testHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/164408
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingPrometheusK8sPromqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:prometheus-k8s-promql.irate_on_plain_numeric_long}
+  issue: https://github.com/elastic/elasticsearch/issues/164411
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingPrometheusK8sPromqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:prometheus-k8s-promql.set_operator_union_rate_or_irate}
+  issue: https://github.com/elastic/elasticsearch/issues/164413
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecPrometheusK8sPromqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:prometheus-k8s-promql.irate_on_plain_numeric_long}
+  issue: https://github.com/elastic/elasticsearch/issues/164415
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecPrometheusK8sPromqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:prometheus-k8s-promql.set_operator_union_rate_or_irate}
+  issue: https://github.com/elastic/elasticsearch/issues/164417

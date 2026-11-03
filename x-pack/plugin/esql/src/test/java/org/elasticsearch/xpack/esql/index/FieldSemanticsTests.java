@@ -6,13 +6,19 @@
  */
 package org.elasticsearch.xpack.esql.index;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -131,5 +137,31 @@ public class FieldSemanticsTests extends ESTestCase {
         );
         assertThat("aggregatable only when every index is", capabilities.aggregatable(), equalTo(false));
         assertThat(capabilities.searchable(), equalTo(true));
+    }
+
+    public void testOnlyBuiltWhenNeeded() {
+        IndexFieldCapabilities bytes = caps("bytes", "long", false, TimeSeriesParams.MetricType.COUNTER, Map.of("unit", "By"));
+        FieldCapabilitiesResponse response = FieldCapabilitiesResponse.builder()
+            .withIndexResponses(
+                List.of(new FieldCapabilitiesIndexResponse("idx", "idx", Map.of("bytes", bytes), true, IndexMode.TIME_SERIES, 1, 1L, 1L))
+            )
+            .build();
+        assertThat(resolve(response, true).get("bytes").metricType(), equalTo("counter"));
+        assertThat(resolve(response, false), anEmptyMap());
+    }
+
+    private static Map<String, FieldSemantics> resolve(FieldCapabilitiesResponse response, boolean needsFieldSemantics) {
+        IndexResolver.FieldsInfo info = new IndexResolver.FieldsInfo(
+            response,
+            TransportVersion.current(),
+            false,
+            false,
+            false,
+            false,
+            false,
+            needsFieldSemantics,
+            false
+        );
+        return IndexResolver.mergedMappings("idx", false, info, false, IndexResolver.DO_NOT_GROUP).get().fieldSemantics();
     }
 }

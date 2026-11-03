@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -831,12 +832,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final ParserUtils.Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
-        // After METRICS_INFO or TS_INFO, the output is metadata, not time series data, so use regular Aggregate.
+        // After METRICS_INFO, TS_INFO or DESCRIBE, the output is metadata, not time series data, so use regular Aggregate.
         return input -> {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
             boolean hasTimeSeries = hasOuterTimeSeries(input);
-            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
+            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo || p instanceof Describe);
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
                     source(ctx),
@@ -2065,6 +2066,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             valueColumnName,
             new UnresolvedTimestamp(source)
         );
+    }
+
+    @Override
+    public PlanFactory visitDescribeCommand(EsqlBaseParser.DescribeCommandContext ctx) {
+        return input -> new Describe(source(ctx), input);
     }
 
     @Override

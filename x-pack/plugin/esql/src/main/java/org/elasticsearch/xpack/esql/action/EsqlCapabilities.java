@@ -4500,6 +4500,12 @@ public class EsqlCapabilities {
         NAMED_SUBQUERY_LET(Build.current().isSnapshot()),
 
         /**
+         * {@code DESCRIBE} returns one row per input column with its role, origin, metric type, unit and a usage hint,
+         * and {@code column_metadata} reports the same field semantics as {@code _meta.field}.
+         */
+        DESCRIBE_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Does the usage information for ESQL contain the datasource failure-reason counters
          * ({@code datasources.queries.failures.by_error_type.*}, {@code datasources.discovery.failures.by_error_type.*},
          * {@code datasources.config.<kind>.changes.rejected.by_reason.*} and

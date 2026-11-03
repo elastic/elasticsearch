@@ -135,6 +135,20 @@ public class IndexResolver {
         TransportVersion minimumVersion,
         ActionListener<IndexResolution> listener
     ) {
+        resolveLookupIndices(indexPattern, fieldNames, false, minimumVersion, listener);
+    }
+
+    /**
+     * Like {@link #resolveLookupIndices(String, Set, TransportVersion, ActionListener)}, also building the field semantics
+     * when {@code needsFieldSemantics}.
+     */
+    public void resolveLookupIndices(
+        String indexPattern,
+        Set<String> fieldNames,
+        boolean needsFieldSemantics,
+        TransportVersion minimumVersion,
+        ActionListener<IndexResolution> listener
+    ) {
         doResolveIndices(
             createResolveFieldRequest(DEFAULT_OPTIONS, indexPattern, null, fieldNames, null, false, false),
             indexPattern,
@@ -144,6 +158,7 @@ public class IndexResolver {
             false,
             false,
             false, /* HIGHLIGHT only reads the analyzer groups of the main indices */
+            needsFieldSemantics,
             false,
             null,
             DO_NOT_GROUP,
@@ -182,6 +197,7 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ActionListener<Versioned<IndexResolution>> listener
@@ -195,6 +211,7 @@ public class IndexResolver {
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
             needsAnalyzerGroups,
+            needsFieldSemantics,
             trackUnmappedFieldIndices,
             null,
             (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
@@ -227,6 +244,7 @@ public class IndexResolver {
             indexPattern,
             true, /* the derived data streams may not exist */
             minimumVersion,
+            false,
             false,
             false,
             false,
@@ -279,6 +297,7 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         IndexViewOrigins indexViewOrigins,
@@ -294,6 +313,7 @@ public class IndexResolver {
             useDenseVectorWhenNotSupported,
             hasTimeSeriesAggregation,
             needsAnalyzerGroups,
+            needsFieldSemantics,
             trackUnmappedFieldIndices,
             routingInfoCapture,
             (innerIndexPattern, fieldCapabilitiesResponse) -> Maps.transformValues(
@@ -325,6 +345,7 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
         boolean trackUnmappedFieldIndices,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
         OriginalIndexExtractor originalIndexExtractor,
@@ -352,6 +373,7 @@ public class IndexResolver {
                 useDenseVectorWhenNotSupported,
                 hasTimeSeriesAggregation,
                 needsAnalyzerGroups,
+                needsFieldSemantics,
                 flattenedDataTypeEnabled.getAsBoolean()
             );
             LOGGER.debug(
@@ -417,6 +439,8 @@ public class IndexResolver {
      * @param needsAnalyzerGroups whether the query has a HIGHLIGHT that uses the mapping analyzers. When {@code false}, a text
      *                            field whose indices disagree on the analyzer does not record which index uses which, since
      *                            only HIGHLIGHT reads it and the index names can be many.
+     * @param needsFieldSemantics whether the query has a DESCRIBE, the only reader of {@link EsIndex#fieldSemantics()}.
+     *                            When {@code false}, they are not built.
      * @param flattenedDataTypeEnabled whether the {@code flattened} data type is enabled (the {@code esql.query.flattened.enabled}
      *                                 kill switch). When {@code false}, {@code flattened} fields are resolved as
      *                                 {@link DataType#UNSUPPORTED}, reverting to pre-flattened-support behavior.
@@ -429,8 +453,32 @@ public class IndexResolver {
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
         boolean flattenedDataTypeEnabled
-    ) {}
+    ) {
+        public FieldsInfo(
+            FieldCapabilitiesResponse caps,
+            @Nullable TransportVersion minTransportVersion,
+            boolean currentBuildIsSnapshot,
+            boolean useAggregateMetricDoubleWhenNotSupported,
+            boolean useDenseVectorWhenNotSupported,
+            boolean hasTimeSeriesAggregation,
+            boolean needsAnalyzerGroups,
+            boolean flattenedDataTypeEnabled
+        ) {
+            this(
+                caps,
+                minTransportVersion,
+                currentBuildIsSnapshot,
+                useAggregateMetricDoubleWhenNotSupported,
+                useDenseVectorWhenNotSupported,
+                hasTimeSeriesAggregation,
+                needsAnalyzerGroups,
+                false,
+                flattenedDataTypeEnabled
+            );
+        }
+    }
 
     // public for testing only
     public static IndexResolution mergedMappings(
@@ -456,7 +504,9 @@ public class IndexResolver {
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
-        Map<String, FieldSemantics> fieldSemantics = Maps.newMapWithExpectedSize(names.length);
+        Map<String, FieldSemantics> fieldSemantics = fieldsInfo.needsFieldSemantics()
+            ? Maps.newMapWithExpectedSize(names.length)
+            : Map.of();
         Map<Set<String>, Set<String>> indexDedupCache = useCompactInvalidMappedField(fieldsInfo.minTransportVersion())
             ? new HashMap<>()
             : null;
@@ -487,7 +537,9 @@ public class IndexResolver {
 
             var fieldCap = fieldsCaps.get(fullName);
             List<IndexFieldCapabilities> fcs = fieldCap.fieldCapabilities;
-            fieldSemantics.put(fullName, FieldSemantics.from(fullName, fcs));
+            if (fieldsInfo.needsFieldSemantics()) {
+                fieldSemantics.put(fullName, FieldSemantics.from(fullName, fcs));
+            }
             EsField field = firstUnsupportedParent == null
                 ? createField(fieldsInfo, name, fullName, fcs, isAlias, indexDedupCache)
                 : new UnsupportedEsField(

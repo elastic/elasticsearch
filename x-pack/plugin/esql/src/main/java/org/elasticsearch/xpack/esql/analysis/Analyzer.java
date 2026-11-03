@@ -153,6 +153,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ApplyWindowFilter;
@@ -169,6 +170,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -353,6 +355,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new Batch<>(
                 "Finish Analysis",
                 Limiter.ONCE,
+                new ResolveDescribe(),
                 new DetermineUnmappedFieldsToKeep(),
                 new ResolveImplicitTimeSeriesIdentityGrouping(),
                 new ResolvedProjects(),
@@ -434,6 +437,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             throw new VerificationException(failures);
         }
         return plan;
+    }
+
+    /**
+     * Replaces {@code DESCRIBE} with a table describing its resolved child. Runs once resolution is done,
+     * so the child's columns, renames and computed fields are final.
+     */
+    private static class ResolveDescribe extends ParameterizedAnalyzerRule<Describe, AnalyzerContext> {
+        @Override
+        protected LogicalPlan rule(Describe describe, AnalyzerContext context) {
+            if (describe.child().resolved() == false) {
+                return describe;
+            }
+            List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
+            resolutions.addAll(context.lookupResolution().values());
+            Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
+            return describe.describe(semantics);
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
     }
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<UnresolvedRelation, AnalyzerContext> {

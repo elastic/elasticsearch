@@ -2014,7 +2014,14 @@ public class EsqlSession {
             }
         })
             .<PreAnalysisResult>andThen(
-                (l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), parsed, r, executionInfo, l)
+                (l, r) -> preAnalyzeLookupIndices(
+                    preAnalysis.lookupIndices().iterator(),
+                    parsed,
+                    preAnalysis.needsFieldSemantics(),
+                    r,
+                    executionInfo,
+                    l
+                )
             )
             .andThenApply(r -> {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
@@ -2087,6 +2094,7 @@ public class EsqlSession {
     private void preAnalyzeLookupIndices(
         Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
+        boolean needsFieldSemantics,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2094,7 +2102,7 @@ public class EsqlSession {
         forAll(
             lookupIndices,
             preAnalysisResult,
-            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, r, executionInfo, l),
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, r, executionInfo, l),
             listener
         );
     }
@@ -2102,6 +2110,7 @@ public class EsqlSession {
     private void preAnalyzeLookupIndex(
         PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
+        boolean needsFieldSemantics,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2161,6 +2170,7 @@ public class EsqlSession {
         indexResolver.resolveLookupIndices(
             qualifiedPattern,
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
+            needsFieldSemantics,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
@@ -2850,6 +2860,7 @@ public class EsqlSession {
                 preAnalysis.useDenseVectorWhenNotSupported(),
                 preAnalysis.hasTimeSeriesAggregation(),
                 preAnalysis.needsAnalyzerGroups(),
+                preAnalysis.needsFieldSemantics(),
                 trackUnmappedFieldIndices,
                 indicesExpressionGrouper,
                 planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
@@ -2866,6 +2877,7 @@ public class EsqlSession {
                             preAnalysis.useDenseVectorWhenNotSupported(),
                             false,
                             preAnalysis.needsAnalyzerGroups(),
+                            preAnalysis.needsFieldSemantics(),
                             trackUnmappedFieldIndices,
                             indicesExpressionGrouper,
                             planningCpu.meteredCpu(retryListener)
@@ -2941,6 +2953,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
+            preAnalysis.needsFieldSemantics(),
             trackUnmappedFieldIndices,
             null,
             result.indexViewOrigins(),
@@ -2980,6 +2993,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
+            preAnalysis.needsFieldSemantics(),
             trackUnmappedFieldIndices,
             routingInfoCapture,
             result.indexViewOrigins(),
@@ -3002,6 +3016,7 @@ public class EsqlSession {
                         preAnalysis.useDenseVectorWhenNotSupported(),
                         false,
                         preAnalysis.needsAnalyzerGroups(),
+                        preAnalysis.needsFieldSemantics(),
                         trackUnmappedFieldIndices,
                         null,
                         result.indexViewOrigins(),

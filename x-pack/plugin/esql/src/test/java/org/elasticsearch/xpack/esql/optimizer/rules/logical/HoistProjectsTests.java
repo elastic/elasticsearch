@@ -798,56 +798,6 @@ public class HoistProjectsTests extends AbstractLogicalPlanOptimizerTests {
     }
 
     /**
-     * Nothing below the Project is called {@code fn}, so the MV_EXPAND keeps its expanded attribute.
-     * {@snippet lang="text":
-     * Project[[_meta_field{f}#10, emp_no{f}#4, fn{r}#16, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, languages{f}#7,
-     * last_name{f}#8, long_noidx{f}#14, salary{f}#9]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_MvExpand[first_name{f}#5,fn{r}#16]
-     *     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#..]
-     * }
-     */
-    public void testMvExpandOverRenameIsPushedBelowTheProject() {
-        LogicalPlan before = substituted("""
-            FROM test
-            | RENAME first_name AS fn
-            | MV_EXPAND fn
-            """);
-        Attribute originalExpanded = before.collect(MvExpand.class).getFirst().expanded();
-
-        MvExpand mvExpand = hoistedOnce(before, MvExpand.class).collect(MvExpand.class).getFirst();
-
-        assertThat(Expressions.name(mvExpand.target()), equalTo("first_name"));
-        assertThat(mvExpand.expanded(), equalTo(originalExpanded));
-        as(mvExpand.child(), EsRelation.class);
-    }
-
-    /**
-     * Below the Project, {@code last_name} is still the original column that the RENAME shadows, so the expanded attribute
-     * gets a temporary name and is renamed back above the MV_EXPAND.
-     * {@snippet lang="text":
-     * Project[[_meta_field{f}#10, emp_no{f}#4, $$last_name$mv_expand$17{r$}#17 AS last_name#16, gender{f}#6, hire_date{f}#11,
-     * job{f}#12, job.raw{f}#13, languages{f}#7, long_noidx{f}#14, salary{f}#9]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_MvExpand[first_name{f}#5,$$last_name$mv_expand$17{r$}#17]
-     *     \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#..]
-     * }
-     */
-    public void testMvExpandShadowingAColumnBelowTheProjectGetsATemporaryName() {
-        MvExpand mvExpand = hoistedPast("""
-            FROM test
-            | RENAME first_name AS last_name
-            | MV_EXPAND last_name
-            """, MvExpand.class);
-
-        assertThat(Expressions.name(mvExpand.target()), equalTo("first_name"));
-        assertThat(mvExpand.expanded().name(), startsWith("$$last_name$mv_expand$"));
-        List<String> names = Expressions.names(mvExpand.output());
-        assertThat(Set.copyOf(names), hasSize(names.size()));
-        as(mvExpand.child(), EsRelation.class);
-    }
-
-    /**
      * MV_EXPAND keeps rows whose target is null, so the temporary expanded attribute must stay as nullable as the original.
      * {@snippet lang="text":
      * Project[[_meta_field{f}#10, emp_no{f}#4, $$last_name$mv_expand$17{r$}#17 AS last_name#16, gender{f}#6, hire_date{f}#11,
@@ -870,72 +820,6 @@ public class HoistProjectsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(mvExpand.expanded().name(), startsWith("$$last_name$mv_expand$"));
         assertThat(mvExpand.expanded().nullable(), equalTo(originalExpanded.nullable()));
         assertThat(mvExpand.expanded().nullable(), not(equalTo(Nullability.FALSE)));
-    }
-
-    /**
-     * {@code original} still needs the unexpanded {@code first_name}, so it reads a copy of it instead. The expanded attribute
-     * {@code fn} doesn't clash with anything and keeps its name.
-     * {@snippet lang="text":
-     * Project[[_meta_field{f}#10, emp_no{f}#4, fn{r}#17, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13, languages{f}#7,
-     * last_name{f}#8, long_noidx{f}#14, salary{f}#9, $$first_name$mv_expand$18{r$}#18 AS original#3]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_MvExpand[first_name{f}#5,fn{r}#17]
-     *     \_Eval[[first_name{f}#5 AS $$first_name$mv_expand$18#18]]
-     *       \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#..]
-     * }
-     */
-    public void testMvExpandOfAColumnStillNeededUnexpandedCopiesItFirst() {
-        LogicalPlan plan = hoistedOnce("""
-            FROM test
-            | EVAL original = first_name
-            | RENAME first_name AS fn
-            | MV_EXPAND fn
-            """, MvExpand.class);
-
-        MvExpand mvExpand = plan.collect(MvExpand.class).getFirst();
-        assertThat(Expressions.name(mvExpand.target()), equalTo("first_name"));
-        assertThat(mvExpand.expanded().name(), equalTo("fn"));
-
-        var eval = as(mvExpand.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(1));
-        Alias copy = eval.fields().getFirst();
-        assertThat(copy.child(), equalTo(mvExpand.target()));
-        assertThat(copy.name(), startsWith("$$first_name$mv_expand$"));
-
-        Alias original = (Alias) as(plan, Project.class).projections()
-            .stream()
-            .filter(p -> p.name().equals("original"))
-            .findFirst()
-            .orElseThrow();
-        assertThat(original.child(), equalTo(copy.toAttribute()));
-    }
-
-    /**
-     * Copying the input and renaming the expanded attribute are independent; here, both are needed.
-     * {@snippet lang="text":
-     * Project[[_meta_field{f}#10, emp_no{f}#4, $$last_name$mv_expand$19{r$}#19 AS last_name#17, gender{f}#6, hire_date{f}#11,
-     * job{f}#12, job.raw{f}#13, languages{f}#7, long_noidx{f}#14, salary{f}#9, $$first_name$mv_expand$18{r$}#18 AS original#3]]
-     * \_Limit[1000[INTEGER],false,false]
-     *   \_MvExpand[first_name{f}#5,$$last_name$mv_expand$19{r$}#19]
-     *     \_Eval[[first_name{f}#5 AS $$first_name$mv_expand$18#18]]
-     *       \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#..]
-     * }
-     */
-    public void testMvExpandCopyingItsInputAndShadowingAColumnBelowTheProject() {
-        LogicalPlan plan = hoistedOnce("""
-            FROM test
-            | EVAL original = first_name
-            | RENAME first_name AS last_name
-            | MV_EXPAND last_name
-            """, MvExpand.class);
-
-        MvExpand mvExpand = plan.collect(MvExpand.class).getFirst();
-        assertThat(Expressions.name(mvExpand.target()), equalTo("first_name"));
-        assertThat(mvExpand.expanded().name(), startsWith("$$last_name$mv_expand$"));
-        var eval = as(mvExpand.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains(startsWith("$$first_name$mv_expand$")));
-        List<String> names = Expressions.names(mvExpand.output());
-        assertThat(Set.copyOf(names), hasSize(names.size()));
     }
 
     /**

@@ -154,4 +154,52 @@ public class HoistProjectsGoldenTests extends GoldenTestCase {
             | DROP language_code
             """, LOGICAL);
     }
+
+    /**
+     * Nothing below the Project is called {@code fn}, so the MV_EXPAND keeps its expanded attribute.
+     */
+    public void testMvExpandOverRenameIsHoistedPast() {
+        runGoldenTest("""
+            FROM employees
+            | RENAME first_name AS fn
+            | MV_EXPAND fn
+            """, LOGICAL);
+    }
+
+    /**
+     * Below the Project, {@code last_name} is still the original column that the RENAME shadows, so the expanded attribute
+     * gets a temporary name and is renamed back above the MV_EXPAND.
+     */
+    public void testMvExpandShadowingAColumnBelowTheProjectGetsATemporaryName() {
+        runGoldenTest("""
+            FROM employees
+            | RENAME first_name AS last_name
+            | MV_EXPAND last_name
+            """, LOGICAL);
+    }
+
+    /**
+     * {@code original} still needs the unexpanded {@code first_name}, so it reads a copy of it instead. The expanded attribute
+     * {@code fn} doesn't clash with anything and keeps its name.
+     */
+    public void testMvExpandOfAColumnStillNeededUnexpandedCopiesItFirst() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL original = first_name
+            | RENAME first_name AS fn
+            | MV_EXPAND fn
+            """, LOGICAL);
+    }
+
+    /**
+     * Copying the input and renaming the expanded attribute are independent; here, both are needed.
+     */
+    public void testMvExpandCopyingItsInputAndShadowingAColumnBelowTheProject() {
+        runGoldenTest("""
+            FROM employees
+            | EVAL original = first_name
+            | RENAME first_name AS last_name
+            | MV_EXPAND last_name
+            """, LOGICAL);
+    }
 }

@@ -219,6 +219,7 @@ public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPla
             }
         }
         if (targetIndex < 0) {
+            // Should never happen: the target is resolved against the MvExpand's child, i.e. the Project's output.
             return mvExpand;
         }
         NamedExpression targetProjection = projections.get(targetIndex);
@@ -227,11 +228,13 @@ public final class HoistProjects extends OptimizerRules.OptimizerRule<LogicalPla
             if (alias.child() instanceof Attribute aliased) {
                 input = aliased;
             } else {
+                // Should never happen: a Project only aliases attributes, see Project#validateProjections.
                 return mvExpand;
             }
         } else if (targetProjection instanceof Attribute attribute) {
             input = attribute;
         } else {
+            // Should never happen: a resolved Project only contains attributes and aliases, see Project#validateProjections.
             return mvExpand;
         }
 

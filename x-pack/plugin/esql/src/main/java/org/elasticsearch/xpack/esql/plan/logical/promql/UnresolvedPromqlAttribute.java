@@ -30,7 +30,7 @@ import java.util.Set;
  * which columns the input already carries.
  * <p>
  * A metadata reference's unset is the transform its operator applies to input metadata: labels dropped from the
- * blob (without(...), label_replace destination, arith dropping __name__, …). PathTrace accumulates those into
+ * blob (without(...), label_replace destination, arith dropping __name__, ...). PathTrace accumulates those into
  * the against-source view that names the column. Leaving labels out requires typed {@code _timeseries}
  * ({@code ts_unset}); keyword metadata does not support that.
  */
@@ -79,7 +79,7 @@ public final class UnresolvedPromqlAttribute extends Attribute implements Unreso
     }
 
     /**
-     * Labels this metadata transform drops from its input blob (without, label_replace dst, …).
+     * Labels this metadata transform drops from its input blob (without, label_replace dst, ...).
      * Null for a promoted label. After PathTrace, absolute against the source.
      */
     public @Nullable Set<String> unset() {

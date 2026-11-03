@@ -237,7 +237,7 @@ public final class PruneUnresolvedPromqlAttributeRefs extends ParameterizedRule<
                         aliases.add(alias);
                         column = alias.toAttribute();
                     } else if (column.id().equals(exposed.id()) == false || column.name().equals(exposed.name()) == false) {
-                        // PathTrace may name the column _timeseries$…; rename to the declared public name for KEEP/API.
+                        // PathTrace may name the column _timeseries$...; rename to the declared public name for KEEP/API.
                         Alias alias = new Alias(column.source(), exposed.name(), column, exposed.id());
                         aliases.add(alias);
                         column = alias.toAttribute();

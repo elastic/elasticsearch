@@ -280,9 +280,14 @@ public class ExternalSourceMetricsTests extends ESTestCase {
     }
 
     public void testClientMapsEveryQueryClient() {
-        assertThat(ExternalSourceMetrics.client(QueryMetric.KIBANA), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
-        assertThat(ExternalSourceMetrics.client(QueryMetric.OTHER), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
-        assertThat(ExternalSourceMetrics.client(QueryMetric.REST), equalTo(ExternalSourceMetrics.CLIENT_NONE));
+        for (QueryMetric client : QueryMetric.values()) {
+            String expected = switch (client) {
+                case KIBANA -> ExternalSourceMetrics.CLIENT_KIBANA;
+                case REST -> ExternalSourceMetrics.CLIENT_NONE;
+                case FLEET, LOGSTASH, OBSERVABILITY, CONNECTORS, ELASTIC_SYNTHETICS, OTHER -> ExternalSourceMetrics.CLIENT_OTHER;
+            };
+            assertThat(client.toString(), ExternalSourceMetrics.client(client), equalTo(expected));
+        }
     }
 
     public void testRecordQueryTagsClientOnTotalAndDuration() {

@@ -679,7 +679,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     public void testClientFromProductOrigin() throws Exception {
         assertClientCounted(null, QueryMetric.REST);
         assertClientCounted("kibana", QueryMetric.KIBANA);
-        assertClientCounted("fleet", QueryMetric.OTHER);
+        assertClientCounted("fleet", QueryMetric.FLEET);
+        assertClientCounted("logstash-output-elasticsearch", QueryMetric.LOGSTASH);
+        assertClientCounted("my-app", QueryMetric.OTHER);
     }
 
     private void assertClientCounted(@Nullable String origin, QueryMetric expectedClient) throws Exception {

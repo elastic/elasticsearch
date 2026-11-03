@@ -4684,11 +4684,11 @@ public class EsqlCapabilities {
         UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
 
         /**
-         * The usage information for ESQL counts queries by the client in {@code X-elastic-product-origin}: {@code queries.kibana}
-         * for Kibana, the new {@code queries.other} for any other origin, and {@code queries.rest} for a request without
-         * the header. Before this, every query was counted as {@code rest}.
+         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
+         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
+         * for a request without the header. Before this, every query was counted as {@code rest}.
          */
-        USAGE_QUERIES_OTHER_CLIENT,
+        USAGE_QUERIES_BY_CLIENT,
 
         /**
          * Does the usage information for ESQL count queries by the API they came in on ({@code entry_points.<entry_point>})?

@@ -62,29 +62,24 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
-    /**
-     * Schema and non-chunked writer for the value of the response's {@code profile} field.
-     * Production response rendering remains chunked.
-     */
-    public static final ProfileSchema<ProfileValue> PROFILE_SCHEMA = ProfileSchema.<ProfileValue>object((builder, value, params) -> {
-        builder.startObject();
-        if (value.queryProfile() != null) {
-            EsqlQueryProfile.PROFILE_SCHEMA.write(builder, value.queryProfile(), params);
-        }
-        builder.startArray("drivers");
-        for (DriverProfile driver : value.profile().drivers()) {
-            ChunkedToXContent.wrapAsToXContent(driver).toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.startArray("plans");
-        for (PlanProfile plan : value.profile().plans()) {
-            PlanProfile.PROFILE_SCHEMA.write(builder, plan, params);
-        }
-        builder.endArray();
-        TransportVersion minimumVersion = value.profile().minimumVersion();
-        builder.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
-        return builder.endObject();
-    })
+    /** Schema and chunked writer for the value of the response's {@code profile} field. */
+    public static final ProfileSchema<ProfileValue> PROFILE_SCHEMA = ProfileSchema.<ProfileValue>chunkedObject(
+        (value, params) -> Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((builder, chunkParams) -> {
+            if (value.queryProfile() != null) {
+                EsqlQueryProfile.PROFILE_SCHEMA.write(builder, value.queryProfile(), chunkParams);
+            }
+            return builder;
+        }),
+            ChunkedToXContentHelper.array("drivers", value.profile().drivers().iterator(), params),
+            ChunkedToXContentHelper.array("plans", value.profile().plans().iterator()),
+            Iterators.single((builder, chunkParams) -> {
+                TransportVersion minimumVersion = value.profile().minimumVersion();
+                builder.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
+                return builder;
+            }),
+            ChunkedToXContentHelper.endObject()
+        )
+    )
         .include(EsqlQueryProfile.PROFILE_SCHEMA)
         .required("drivers", ProfileSchema.array(ProfileSchema.ref("DriverProfile")))
         .required("plans", ProfileSchema.array(ProfileSchema.ref("PlanProfile")))
@@ -671,20 +666,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     public static ChunkedToXContent profileXContent(Profile profile, @Nullable EsqlExecutionInfo executionInfo) {
-        return params -> Iterators.concat(ChunkedToXContentHelper.startObject("profile"), Iterators.single((b, p) -> {
-            if (executionInfo != null) {
-                executionInfo.queryProfile().toXContent(b, p);
-            }
-            return b;
-        }),
-            ChunkedToXContentHelper.array("drivers", profile.drivers.iterator(), params),
-            ChunkedToXContentHelper.array("plans", profile.plans.iterator()),
-            Iterators.single((b, p) -> {
-                TransportVersion minimumVersion = profile.minimumVersion();
-                b.field("minimumTransportVersion", minimumVersion == null ? null : minimumVersion.id());
-                return b;
-            }),
-            ChunkedToXContentHelper.endObject()
+        return params -> Iterators.concat(
+            ChunkedToXContentHelper.chunk((builder, chunkParams) -> builder.field("profile")),
+            PROFILE_SCHEMA.toXContentChunked(new ProfileValue(profile, executionInfo == null ? null : executionInfo.queryProfile()), params)
         );
     }
 

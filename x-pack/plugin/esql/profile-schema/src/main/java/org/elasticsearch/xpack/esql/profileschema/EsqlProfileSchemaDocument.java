@@ -104,11 +104,10 @@ public final class EsqlProfileSchemaDocument {
         for (ProfileSchema.Variant<Operator.Status> variant : variants) {
             Map<String, Object> properties = new LinkedHashMap<>();
             properties.put("operator", ProfileSchema.string());
-            properties.put("status_type", ProfileSchema.constant(variant.name()));
             properties.put("status", ProfileSchema.ref(operatorDefinition(variant.name())));
-            alternatives.add(strictObject(properties, List.of("operator", "status_type", "status")));
+            alternatives.add(strictObject(properties, List.of("operator", "status")));
         }
-        return Map.of("oneOf", alternatives);
+        return Map.of("anyOf", alternatives);
     }
 
     private static Map<String, Object> formatReaderStatusSchema(List<ProfileSchema.Variant<FormatReaderStatus>> variants) {

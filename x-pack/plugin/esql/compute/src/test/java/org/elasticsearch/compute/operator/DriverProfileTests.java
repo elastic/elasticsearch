@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverProfile> {
     public void testProfileSchemas() {
         Map<?, ?> operatorProperties = (Map<?, ?>) OperatorStatus.PROFILE_SCHEMA.schema().get("properties");
-        assertEquals(List.of("operator", "status_type", "status"), new ArrayList<>(operatorProperties.keySet()));
+        assertEquals(List.of("operator", "status"), new ArrayList<>(operatorProperties.keySet()));
         assertEquals(List.of("operator"), OperatorStatus.PROFILE_SCHEMA.schema().get("required"));
 
         Map<?, ?> driverProperties = (Map<?, ?>) DriverProfile.PROFILE_SCHEMA.schema().get("properties");
@@ -135,14 +135,12 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
               "operators" : [
                 {
                   "operator" : "LuceneSource",
-                  "status_type" : "lucene_source",
                   "status" :
             """.stripTrailing() + " " + LuceneSourceOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
 
                 },
                 {
                   "operator" : "ValuesSourceReader",
-                  "status_type" : "values_source_reader",
                   "status" :
             """.stripTrailing() + " " + ValuesSourceReaderOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
 

@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
@@ -70,6 +71,7 @@ public final class EsqlProfileSchemaRegistry {
             variant(ValuesSourceReaderOperatorStatus.ENTRY, ValuesSourceReaderOperatorStatus.PROFILE_SCHEMA),
             variant(AsyncOperator.Status.ENTRY, AsyncOperator.Status.PROFILE_SCHEMA),
             variant(EnrichQuerySourceOperator.Status.ENTRY, EnrichQuerySourceOperator.Status.PROFILE_SCHEMA),
+            variant(LookupQueryOperator.Status.ENTRY, LookupQueryOperator.Status.PROFILE_SCHEMA),
             variant(EnrichLookupOperator.Status.ENTRY, EnrichLookupOperator.Status.PROFILE_SCHEMA),
             variant(LookupFromIndexOperator.Status.ENTRY, LookupFromIndexOperator.Status.PROFILE_SCHEMA),
             variant(

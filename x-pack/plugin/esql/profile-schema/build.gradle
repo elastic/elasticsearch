@@ -55,6 +55,13 @@ def generateProfileSchema = tasks.register('generateProfileSchema', JavaExec) {
   outputs.file(generatedSchema)
 }
 
+tasks.register('exportProfileSchema') {
+  group = 'Build'
+  description = 'Exports the complete ES|QL profile response JSON Schema.'
+  dependsOn generateProfileSchema
+  outputs.file(generatedSchema)
+}
+
 artifacts {
   esqlProfileSchema(generatedSchema) {
     builtBy generateProfileSchema

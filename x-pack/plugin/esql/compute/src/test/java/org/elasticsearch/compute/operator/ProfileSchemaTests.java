@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -41,6 +42,27 @@ public class ProfileSchemaTests extends ESTestCase {
         ProfileSchema.Builder<Value> builder = ProfileSchema.object((xContent, value, params) -> xContent);
         builder.required("name", ProfileSchema.string());
         expectThrows(IllegalArgumentException.class, () -> builder.optional("name", ProfileSchema.string()));
+    }
+
+    public void testChunkedWriterIsUsedForDirectAndChunkedOutput() throws IOException {
+        ProfileSchema<Value> schema = ProfileSchema.<Value>chunkedObject(
+            (value, params) -> Iterators.concat(
+                Iterators.single((builder, chunkParams) -> builder.startObject().field("name", value.name())),
+                Iterators.single((builder, chunkParams) -> builder.endObject())
+            )
+        ).required("name", ProfileSchema.string()).build();
+
+        try (var direct = XContentFactory.jsonBuilder()) {
+            schema.write(direct, new Value("test", 0), ToXContent.EMPTY_PARAMS);
+            assertEquals("{\"name\":\"test\"}", Strings.toString(direct));
+        }
+        try (var chunked = XContentFactory.jsonBuilder()) {
+            var chunks = schema.toXContentChunked(new Value("test", 0), ToXContent.EMPTY_PARAMS);
+            while (chunks.hasNext()) {
+                chunks.next().toXContent(chunked, ToXContent.EMPTY_PARAMS);
+            }
+            assertEquals("{\"name\":\"test\"}", Strings.toString(chunked));
+        }
     }
 
     private record Value(String name, long count) {}

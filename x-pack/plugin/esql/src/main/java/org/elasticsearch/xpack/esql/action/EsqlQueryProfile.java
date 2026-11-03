@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -70,7 +71,12 @@ public class EsqlQueryProfile implements Writeable, ToXContentFragment {
         .optional("files_scanned", ProfileSchema.integer())
         .optional("splits_scanned", ProfileSchema.integer())
         .optional("bytes_scanned", ProfileSchema.integer())
-        .required("unmapped_fields", ProfileSchema.enumeration("default", "load", "nullify"))
+        .required(
+            "unmapped_fields",
+            ProfileSchema.enumeration(
+                Arrays.stream(UnmappedResolution.values()).map(value -> value.name().toLowerCase(Locale.ROOT)).toArray()
+            )
+        )
         .optional("external_warm_aggregates", ProfileSchema.integer())
         .optional(SPLIT_DISCOVERY, ProfileSchema.integer())
         .optional(SPLIT_DISCOVERY_CPU, ProfileSchema.integer())

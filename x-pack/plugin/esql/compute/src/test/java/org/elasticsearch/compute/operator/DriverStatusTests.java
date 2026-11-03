@@ -73,14 +73,12 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
               "completed_operators" : [
                 {
                   "operator" : "LuceneSource",
-                  "status_type" : "lucene_source",
                   "status" :
             """.trim() + " " + LuceneSourceOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
 
                 },
                 {
                   "operator" : "ValuesSourceReader",
-                  "status_type" : "values_source_reader",
                   "status" :
             """.stripTrailing() + " " + ValuesSourceReaderOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
 
@@ -89,7 +87,6 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
               "active_operators" : [
                 {
                   "operator" : "ExchangeSink",
-                  "status_type" : "exchange_sink",
                   "status" :
             """.stripTrailing() + " " + ExchangeSinkOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
 

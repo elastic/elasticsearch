@@ -13,7 +13,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
@@ -60,8 +59,38 @@ public record DriverProfile(
     DriverSleeps sleeps
 ) implements Writeable, ChunkedToXContentObject {
 
-    public static final ProfileSchema<DriverProfile> PROFILE_SCHEMA = ProfileSchema.<DriverProfile>object(
-        (builder, value, params) -> ChunkedToXContent.wrapAsToXContent(value).toXContent(builder, params)
+    public static final ProfileSchema<DriverProfile> PROFILE_SCHEMA = ProfileSchema.<DriverProfile>chunkedObject(
+        (value, params) -> Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
+            b.field("description", value.description);
+            b.field("cluster_name", value.clusterName);
+            b.field("node_name", value.nodeName);
+            b.timestampFieldsFromUnixEpochMillis("start_millis", "start", value.startMillis);
+            b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", value.stopMillis);
+            b.field("took_nanos", value.tookNanos);
+            if (b.humanReadable()) {
+                b.field("took_time", TimeValue.timeValueNanos(value.tookNanos));
+            }
+            b.field("cpu_nanos", value.cpuNanos);
+            if (b.humanReadable()) {
+                b.field("cpu_time", TimeValue.timeValueNanos(value.cpuNanos));
+            }
+            b.field("driver_nanos", value.driverNanos);
+            if (b.humanReadable()) {
+                b.field("driver_time", TimeValue.timeValueNanos(value.driverNanos));
+            }
+            b.field("documents_found", value.operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
+            b.field("values_loaded", value.operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
+            b.field("rows_emitted", value.operators.stream().mapToLong(OperatorStatus::rowsEmitted).sum());
+            b.field("bytes_read", value.operators.stream().mapToLong(OperatorStatus::bytesRead).sum());
+            b.field("read_nanos", value.operators.stream().mapToLong(OperatorStatus::readNanos).sum());
+            b.field("read_cpu_nanos", value.operators.stream().mapToLong(OperatorStatus::readCpuNanos).sum());
+            b.field("iterations", value.iterations);
+            return b;
+        }),
+            ChunkedToXContentHelper.array("operators", value.operators.iterator()),
+            ChunkedToXContentHelper.chunk((b, p) -> b.field("sleeps", value.sleeps)),
+            ChunkedToXContentHelper.endObject()
+        )
     )
         .required("description", ProfileSchema.string())
         .required("cluster_name", ProfileSchema.string())
@@ -129,37 +158,7 @@ public record DriverProfile(
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
-            b.field("description", description);
-            b.field("cluster_name", clusterName);
-            b.field("node_name", nodeName);
-            b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
-            b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
-            b.field("took_nanos", tookNanos);
-            if (b.humanReadable()) {
-                b.field("took_time", TimeValue.timeValueNanos(tookNanos));
-            }
-            b.field("cpu_nanos", cpuNanos);
-            if (b.humanReadable()) {
-                b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
-            }
-            b.field("driver_nanos", driverNanos);
-            if (b.humanReadable()) {
-                b.field("driver_time", TimeValue.timeValueNanos(driverNanos));
-            }
-            b.field("documents_found", operators.stream().mapToLong(OperatorStatus::documentsFound).sum());
-            b.field("values_loaded", operators.stream().mapToLong(OperatorStatus::valuesLoaded).sum());
-            b.field("rows_emitted", operators.stream().mapToLong(OperatorStatus::rowsEmitted).sum());
-            b.field("bytes_read", operators.stream().mapToLong(OperatorStatus::bytesRead).sum());
-            b.field("read_nanos", operators.stream().mapToLong(OperatorStatus::readNanos).sum());
-            b.field("read_cpu_nanos", operators.stream().mapToLong(OperatorStatus::readCpuNanos).sum());
-            b.field("iterations", iterations);
-            return b;
-        }),
-            ChunkedToXContentHelper.array("operators", operators.iterator()),
-            ChunkedToXContentHelper.chunk((b, p) -> b.field("sleeps", sleeps)),
-            ChunkedToXContentHelper.endObject()
-        );
+        return PROFILE_SCHEMA.toXContentChunked(this, params);
     }
 
     @Override

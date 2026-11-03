@@ -30,15 +30,10 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status) 
         builder.startObject();
         builder.field("operator", value.operator);
         if (value.status != null) {
-            builder.field("status_type", value.status.getWriteableName());
             builder.field("status", value.status);
         }
         return builder.endObject();
-    })
-        .required("operator", ProfileSchema.string())
-        .optional("status_type", ProfileSchema.string())
-        .optional("status", ProfileSchema.dynamicObject(Map.of()))
-        .build();
+    }).required("operator", ProfileSchema.string()).optional("status", ProfileSchema.dynamicObject(Map.of())).build();
 
     public static OperatorStatus readFrom(StreamInput in) throws IOException {
         return new OperatorStatus(in.readString(), in.readOptionalNamedWriteable(Operator.Status.class));

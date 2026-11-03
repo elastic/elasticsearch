@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,22 +39,35 @@ public final class ProfileSchema<T> {
         XContentBuilder write(XContentBuilder builder, T value, ToXContent.Params params) throws IOException;
     }
 
+    /** Produces chunks for a complete object or inline object fragment. */
+    @FunctionalInterface
+    public interface ChunkedWriter<T> {
+        Iterator<? extends ToXContent> write(T value, ToXContent.Params params);
+    }
+
     private final Map<String, Object> schema;
     private final Writer<T> writer;
+    private final ChunkedWriter<T> chunkedWriter;
 
-    private ProfileSchema(Map<String, Object> schema, Writer<T> writer) {
+    private ProfileSchema(Map<String, Object> schema, Writer<T> writer, ChunkedWriter<T> chunkedWriter) {
         this.schema = Collections.unmodifiableMap(new LinkedHashMap<>(schema));
-        this.writer = Objects.requireNonNull(writer);
+        this.writer = writer;
+        this.chunkedWriter = chunkedWriter;
     }
 
     /** Build a strict object schema. */
     public static <T> Builder<T> object(Writer<T> writer) {
-        return new Builder<>(writer, false);
+        return new Builder<>(Objects.requireNonNull(writer), null, false);
+    }
+
+    /** Build a strict object schema whose production writer is chunked. */
+    public static <T> Builder<T> chunkedObject(ChunkedWriter<T> writer) {
+        return new Builder<>(null, Objects.requireNonNull(writer), false);
     }
 
     /** Build an object fragment intended to be inlined into a containing object. */
     public static <T> Builder<T> fragment(Writer<T> writer) {
-        return new Builder<>(writer, true);
+        return new Builder<>(Objects.requireNonNull(writer), null, true);
     }
 
     /** The draft-7 schema for this object or fragment. */
@@ -63,7 +77,22 @@ public final class ProfileSchema<T> {
 
     /** Write the object or fragment using the writer colocated with its schema. */
     public XContentBuilder write(XContentBuilder builder, T value, ToXContent.Params params) throws IOException {
-        return writer.write(builder, value, params);
+        if (writer != null) {
+            return writer.write(builder, value, params);
+        }
+        Iterator<? extends ToXContent> chunks = chunkedWriter.write(value, params);
+        while (chunks.hasNext()) {
+            chunks.next().toXContent(builder, params);
+        }
+        return builder;
+    }
+
+    /** Produce the same serialization as {@link #write}, preserving chunks when available. */
+    public Iterator<? extends ToXContent> toXContentChunked(T value, ToXContent.Params params) {
+        if (chunkedWriter != null) {
+            return chunkedWriter.write(value, params);
+        }
+        return List.<ToXContent>of((builder, chunkParams) -> writer.write(builder, value, chunkParams)).iterator();
     }
 
     /** A string schema. */
@@ -150,12 +179,14 @@ public final class ProfileSchema<T> {
     /** Builds the ordered properties and required list for an object or inline fragment. */
     public static final class Builder<T> {
         private final Writer<T> writer;
+        private final ChunkedWriter<T> chunkedWriter;
         private final boolean fragment;
         private final Map<String, Object> properties = new LinkedHashMap<>();
         private final List<String> required = new ArrayList<>();
 
-        private Builder(Writer<T> writer, boolean fragment) {
-            this.writer = Objects.requireNonNull(writer);
+        private Builder(Writer<T> writer, ChunkedWriter<T> chunkedWriter, boolean fragment) {
+            this.writer = writer;
+            this.chunkedWriter = chunkedWriter;
             this.fragment = fragment;
         }
 
@@ -217,7 +248,7 @@ public final class ProfileSchema<T> {
             if (fragment == false) {
                 result.put("additionalProperties", false);
             }
-            return new ProfileSchema<>(result, writer);
+            return new ProfileSchema<>(result, writer, chunkedWriter);
         }
 
         private void property(String name, Map<String, Object> propertySchema) {

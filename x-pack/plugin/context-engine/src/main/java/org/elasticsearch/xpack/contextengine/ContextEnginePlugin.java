@@ -87,22 +87,12 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
     static final int SESSION_EVENTS_MAPPINGS_VERSION = 1;
 
     /**
-     * The embedding endpoint used by the session memory {@code content.semantic} and {@code media} fields. It must support the
+     * The embedding endpoint used by the session memory {@code inputs} field. It must support the
      * {@code embedding} task type; the default is the preconfigured multimodal Jina endpoint.
      */
     public static final Setting<String> SESSION_MEMORY_INFERENCE_ID = Setting.simpleString(
         "xpack.context_engine.session_memory.inference_id",
         ".jina-embeddings-v5-omni-small",
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * The rerank endpoint that orders session memory search hits. It must support the {@code rerank} task type with image
-     * documents as well as text; PDFs are never sent to it. The default is the preconfigured multimodal Jina reranker.
-     */
-    public static final Setting<String> SESSION_MEMORY_RERANK_INFERENCE_ID = Setting.simpleString(
-        "xpack.context_engine.session_memory.rerank_inference_id",
-        ".jina-reranker-m0",
         Setting.Property.NodeScope
     );
 
@@ -116,7 +106,7 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(SESSION_MEMORY_INFERENCE_ID, SESSION_MEMORY_RERANK_INFERENCE_ID, AiIndexTemplateRegistry.AI_INDEX_REGISTRY_ENABLED);
+        return List.of(SESSION_MEMORY_INFERENCE_ID, AiIndexTemplateRegistry.AI_INDEX_REGISTRY_ENABLED);
     }
 
     @Override

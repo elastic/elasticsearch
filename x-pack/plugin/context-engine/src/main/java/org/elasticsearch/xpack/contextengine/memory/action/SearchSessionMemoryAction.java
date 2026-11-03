@@ -39,15 +39,15 @@ public class SearchSessionMemoryAction {
     public static final String NAME = "cluster:admin/xpack/context_engine/session_memory/search";
     public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
     public static final int DEFAULT_SIZE = 10;
-    /** Every hit is reranked, so the cap bounds the rerank pool as well as the kNN candidates. */
+    /** Bounds the kNN candidate pool, which is ten per requested hit. */
     public static final int MAX_SIZE = 100;
 
     private SearchSessionMemoryAction() {/* no instances */}
 
     /**
      * Searches session memory by meaning. The query is text, or a non-text input object in the same shape as a
-     * {@code media} item, and is matched against both {@code content.semantic} and {@code media} through the session
-     * memory endpoint. The optional filters narrow the candidate set before the vector search.
+     * {@code media} item, and is matched against the memory's content and media through the session memory endpoint. The
+     * optional filters narrow the candidate set before the vector search.
      */
     public static class Request extends UntypedActionRequest implements ToXContentObject {
 

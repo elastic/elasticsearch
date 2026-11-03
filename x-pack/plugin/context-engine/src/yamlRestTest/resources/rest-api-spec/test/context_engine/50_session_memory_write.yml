@@ -16,22 +16,6 @@ setup:
             }
           }
 
-  - do:
-      inference.put:
-        task_type: rerank
-        inference_id: test-rerank
-        body: >
-          {
-            "service": "test_reranking_service",
-            "service_settings": {
-              "model_id": "my_model",
-              "api_key": "abc64"
-            },
-            "task_settings": {
-              "use_text_length": true
-            }
-          }
-
 ---
 teardown:
   - do:
@@ -40,11 +24,6 @@ teardown:
   - do:
       inference.delete:
         inference_id: test-embedding
-        ignore: 404
-
-  - do:
-      inference.delete:
-        inference_id: test-rerank
         ignore: 404
 
 ---
@@ -177,11 +156,10 @@ teardown:
           query: "dark mode"
           session_id: "session-2"
 
-  # The test reranker scores a document by 1 / its length, so the short text beats the image data URI.
+  # The test embedding service does not score similarity meaningfully, so only membership is asserted.
   - match: { count: 2 }
   - is_true: results.0._score
-  - match: { results.0.memory.id: "search-text" }
-  - match: { results.1.memory.id: "search-image" }
+  - is_true: results.0.memory.id
 
   - do:
       context_engine.search_session_memory:
@@ -192,8 +170,6 @@ teardown:
           session_id: "session-2"
 
   - match: { count: 2 }
-  - match: { results.0.memory.id: "search-text" }
-  - match: { results.1.memory.id: "search-image" }
 
   - do:
       context_engine.search_session_memory:
@@ -282,51 +258,3 @@ teardown:
           query: ""
 
   - match: { error.reason: "/.*\\[query\\]\\scannot\\sbe\\sempty.*/" }
-
----
-"Search reranks every text and media document and scores a memory by its best one":
-  - do:
-      context_engine.remember:
-        body:
-          id: "rank-text"
-          session_id: "session-3"
-          user_id: "user-1"
-          agent_id: "agent-1"
-          content: "The user prefers dark mode."
-
-  - do:
-      context_engine.remember:
-        body:
-          id: "rank-pdf"
-          session_id: "session-3"
-          user_id: "user-1"
-          agent_id: "agent-1"
-          content: "Slide deck from the offsite, with the budget approved for Q3 and the hiring plan for the new team."
-          media:
-            - type: "pdf"
-              value: "data:application/pdf;base64,QnVkZ2V0IGFwcHJvdmVkIGZvciBRMy4="
-
-  - do:
-      context_engine.remember:
-        body:
-          id: "rank-pdf-only"
-          session_id: "session-3"
-          user_id: "user-1"
-          agent_id: "agent-1"
-          media:
-            - type: "pdf"
-              value: "data:application/pdf;base64,QnVkZ2V0IGFwcHJvdmVkIGZvciBRMy4="
-
-  # The test reranker scores a document by 1 / its length: the 28-character text wins and the 98-character content follows.
-  # PDFs are not rerankable, so the PDF-only memory comes last with a zero score.
-  - do:
-      context_engine.search_session_memory:
-        body:
-          query: "The user prefers dark mode."
-          session_id: "session-3"
-
-  - match: { count: 3 }
-  - match: { results.0.memory.id: "rank-text" }
-  - match: { results.1.memory.id: "rank-pdf" }
-  - match: { results.2.memory.id: "rank-pdf-only" }
-  - match: { results.2._score: 0.0 }

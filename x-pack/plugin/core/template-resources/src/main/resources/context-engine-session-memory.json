@@ -46,15 +46,9 @@
           "type": "keyword"
         },
         "content": {
-          "type": "text",
-          "fields": {
-            "semantic": {
-              "type": "semantic",
-              "inference_id": "${xpack.contextengine.session_memory.inference_id}"
-            }
-          }
+          "type": "text"
         },
-        "media": {
+        "inputs": {
           "type": "semantic",
           "inference_id": "${xpack.contextengine.session_memory.inference_id}"
         },

@@ -11,13 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.contextengine.memory.SessionMemoryIndexService;
 
 public class TransportRememberAction extends HandledTransportAction<RememberAction.Request, RememberAction.Response> {
@@ -25,20 +22,9 @@ public class TransportRememberAction extends HandledTransportAction<RememberActi
     private final SessionMemoryIndexService sessionMemoryIndexService;
 
     @Inject
-    public TransportRememberAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Client client,
-        NamedXContentRegistry xContentRegistry,
-        ClusterService clusterService,
-        FeatureService featureService
-    ) {
+    public TransportRememberAction(TransportService transportService, ActionFilters actionFilters, Client client) {
         super(RememberAction.NAME, transportService, actionFilters, RememberAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.sessionMemoryIndexService = new SessionMemoryIndexService(
-            client,
-            xContentRegistry,
-            feature -> featureService.clusterHasFeature(clusterService.state(), feature)
-        );
+        this.sessionMemoryIndexService = new SessionMemoryIndexService(client);
     }
 
     @Override

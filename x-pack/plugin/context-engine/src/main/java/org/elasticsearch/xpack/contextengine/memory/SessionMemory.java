@@ -12,13 +12,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,7 +43,14 @@ public class SessionMemory implements Writeable, ToXContentObject {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField CONTENT_FIELD = new ParseField("content");
     public static final ParseField MEDIA_FIELD = new ParseField("media");
+    public static final ParseField INPUTS_FIELD = new ParseField("inputs");
     public static final ParseField ATTRIBUTES_FIELD = new ParseField("attributes");
+
+    /**
+     * Serializes the stored shape, where the content and media are written together as the {@code inputs} semantic field
+     * instead of a {@code media} array, so one embedding space covers every input a memory holds.
+     */
+    public static final ToXContent.Params STORED_PARAMS = new ToXContent.MapParams(Map.of("stored", "true"));
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SessionMemory, Void> PARSER = new ConstructingObjectParser<>(
@@ -55,7 +65,7 @@ public class SessionMemory implements Writeable, ToXContentObject {
             (String) args[6],
             (String) args[7],
             (String) args[8],
-            (List<Map<String, Object>>) args[9],
+            args[9] != null ? (List<Map<String, Object>>) args[9] : mediaFromInputs((List<Object>) args[11]),
             (Map<String, Object>) args[10]
         )
     );
@@ -72,6 +82,33 @@ public class SessionMemory implements Writeable, ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), CONTENT_FIELD);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> p.map(), MEDIA_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), ATTRIBUTES_FIELD);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseInputs(p), INPUTS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
+    }
+
+    private static List<Object> parseInputs(XContentParser parser) throws IOException {
+        List<Object> inputs = new ArrayList<>();
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            inputs.add(parser.map());
+            return inputs;
+        }
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            inputs.add(parser.currentToken() == XContentParser.Token.START_OBJECT ? parser.map() : parser.text());
+        }
+        return inputs;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> mediaFromInputs(List<Object> inputs) {
+        if (inputs == null) {
+            return null;
+        }
+        List<Map<String, Object>> media = new ArrayList<>();
+        for (Object input : inputs) {
+            if (input instanceof Map<?, ?> item) {
+                media.add((Map<String, Object>) item);
+            }
+        }
+        return media;
     }
 
     public static SessionMemory fromXContent(XContentParser parser) throws IOException {
@@ -178,7 +215,16 @@ public class SessionMemory implements Writeable, ToXContentObject {
         if (content != null) {
             builder.field(CONTENT_FIELD.getPreferredName(), content);
         }
-        if (media.isEmpty() == false) {
+        if (params.paramAsBoolean("stored", false)) {
+            List<Object> inputs = new ArrayList<>();
+            if (content != null) {
+                inputs.add(content);
+            }
+            inputs.addAll(media);
+            if (inputs.isEmpty() == false) {
+                builder.field(INPUTS_FIELD.getPreferredName(), inputs);
+            }
+        } else if (media.isEmpty() == false) {
             builder.field(MEDIA_FIELD.getPreferredName(), media);
         }
         if (attributes != null) {
@@ -237,7 +283,8 @@ public class SessionMemory implements Writeable, ToXContentObject {
     }
 
     /**
-     * Non-text inputs for the {@code media} field, each an object with a {@code type} and a data URL {@code value}.
+     * Non-text inputs, each an object with a {@code type} and a data URL {@code value}, stored next to the content in the
+     * {@code inputs} field.
      */
     public List<Map<String, Object>> media() {
         return media;

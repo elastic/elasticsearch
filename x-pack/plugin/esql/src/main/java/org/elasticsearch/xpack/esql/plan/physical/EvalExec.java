@@ -24,7 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class EvalExec extends UnaryExec implements EstimatesRowSize, RowCountPreserving {
+public class EvalExec extends UnaryExec implements EstimatesRowSize, RowCountPreserving, CarriesDetachedDoc {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "EvalExec",

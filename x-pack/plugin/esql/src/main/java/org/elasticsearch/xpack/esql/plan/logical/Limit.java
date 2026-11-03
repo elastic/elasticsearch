@@ -146,4 +146,9 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         // Global limit always needs to be on the coordinator
         return local ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
     }
+
+    @Override
+    public boolean carriesDocOnDataNodes() {
+        return true;
+    }
 }

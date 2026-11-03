@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 // TODO: decide whether HIGHLIGHT should always run on the coordinator. For now we do not force a location in the planner.
 // TODO: carry the resolved analyzer name once the "analyzer" option is supported.
-public class HighlightExec extends UnaryExec {
+public class HighlightExec extends UnaryExec implements CarriesDetachedDoc {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,

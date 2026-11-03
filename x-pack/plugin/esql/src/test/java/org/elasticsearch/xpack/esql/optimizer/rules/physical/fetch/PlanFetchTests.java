@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhaseOutcomes.Decision;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -59,6 +61,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering.SORTED;
 import static org.hamcrest.Matchers.contains;
@@ -349,6 +352,43 @@ public class PlanFetchTests extends ESTestCase {
         );
     }
 
+    /**
+     * {@code CHANGE_POINT} keeps each row tied to its document, but it runs only on the coordinator, after the cut. Its
+     * exec doesn't say that a detached {@code _doc} can pass through it, so the plan stays eager.
+     */
+    public void testACommandThatKeepsTheDocumentsButRunsOnTheCoordinatorKeepsThePlanEager() {
+        assertIneligible(
+            "FROM employees | CHANGE_POINT salary ON hire_date | KEEP first_name, hire_date, salary, type, pvalue",
+            "[ChangePointExec] runs after the cut"
+        );
+        assertWarnings(DEFAULT_LIMIT_WARNING);
+    }
+
+    /** {@code _doc} passes through a projection on the data nodes, so every projection of the fragment keeps it. */
+    public void testProjectionBeforeTheCutKeepsTheDocuments() {
+        PhysicalPlan plan = applyTo(topNPlanWithBeforeTheCut(relation -> new Project(Source.EMPTY, relation, relation.output())));
+        FetchExec fetch = single(plan, FetchExec.class);
+        Project fragmentRoot = as(single(plan, FragmentExec.class).fragment(), Project.class);
+        Project beforeTheCut = as(as(fragmentRoot.child(), TopN.class).child(), Project.class);
+        assertThat(beforeTheCut.output().getFirst(), equalTo(fetch.doc()));
+    }
+
+    /** A local {@code LIMIT} only cuts the rows of one node, and {@code _doc} passes through it on the data nodes. */
+    public void testLocalLimitBeforeTheCutKeepsTheFetch() {
+        PhysicalPlan plan = topNPlanWithBeforeTheCut(relation -> new Limit(Source.EMPTY, EsqlTestUtils.of(100), relation, false, true));
+        FetchExec fetch = single(applyTo(plan), FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+    }
+
+    /** A local {@code TopN} only cuts the rows of one node, and {@code _doc} passes through it on the data nodes. */
+    public void testLocalTopNBeforeTheCutKeepsTheFetch() {
+        PhysicalPlan plan = topNPlanWithBeforeTheCut(
+            relation -> new TopN(Source.EMPTY, relation, sortOn(relation.output().getLast()), EsqlTestUtils.of(100), true)
+        );
+        FetchExec fetch = single(applyTo(plan), FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+    }
+
     public void testNoExchange() {
         assertIneligible("ROW x = 1", "no exchange");
         assertWarnings(DEFAULT_LIMIT_WARNING);
@@ -517,7 +557,7 @@ public class PlanFetchTests extends ESTestCase {
      */
     private static PhysicalPlan topNPlan(List<Attribute> returned, Map<String, List<String>> concreteIndices) {
         Attribute sort = field("sort", DataType.LONG);
-        List<Order> order = List.of(new Order(Source.EMPTY, sort, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
+        List<Order> order = sortOn(sort);
         List<Attribute> relationOutput = new ArrayList<>(returned);
         relationOutput.add(sort);
         EsRelation relation = new EsRelation(
@@ -535,6 +575,22 @@ public class PlanFetchTests extends ESTestCase {
         Project fragmentRoot = new Project(Source.EMPTY, topN, exchangeOutput);
         ExchangeExec exchange = new ExchangeExec(Source.EMPTY, fragmentRoot.output(), false, new FragmentExec(fragmentRoot));
         return new ProjectExec(Source.EMPTY, new TopNExec(Source.EMPTY, exchange, order, EsqlTestUtils.of(10), null), returned);
+    }
+
+    /**
+     * {@link #topNPlan} returning {@code first_name}, with {@code beforeTheCut} between the cut that ends the fragment and
+     * the relation.
+     */
+    private static PhysicalPlan topNPlanWithBeforeTheCut(Function<EsRelation, LogicalPlan> beforeTheCut) {
+        PhysicalPlan plan = topNPlan(List.of(field("first_name", DataType.KEYWORD)), Map.of("", List.of("idx")));
+        return plan.transformDown(
+            FragmentExec.class,
+            fragment -> fragment.withFragment(fragment.fragment().transformUp(EsRelation.class, beforeTheCut))
+        );
+    }
+
+    private static List<Order> sortOn(Attribute key) {
+        return List.of(new Order(Source.EMPTY, key, Order.OrderDirection.ASC, Order.NullsPosition.LAST));
     }
 
     private static FieldAttribute field(String name, DataType type) {

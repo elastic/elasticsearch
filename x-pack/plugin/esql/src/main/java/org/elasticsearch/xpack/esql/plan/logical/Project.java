@@ -175,4 +175,9 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
 
         return Objects.equals(projections, other.projections) && Objects.equals(child(), other.child());
     }
+
+    @Override
+    public boolean carriesDocOnDataNodes() {
+        return true;
+    }
 }

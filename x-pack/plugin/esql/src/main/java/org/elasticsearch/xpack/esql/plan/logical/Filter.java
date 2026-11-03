@@ -117,6 +117,11 @@ public class Filter extends UnaryPlan
         checkFilterConditionDataType(condition, failures);
     }
 
+    @Override
+    public boolean carriesDocOnDataNodes() {
+        return true;
+    }
+
     public static void checkFilterConditionDataType(Expression expression, Failures failures) {
         if (expression.dataType() != NULL && expression.dataType() != BOOLEAN) {
             failures.add(fail(expression, "Condition expression needs to be boolean, found [{}]", expression.dataType()));

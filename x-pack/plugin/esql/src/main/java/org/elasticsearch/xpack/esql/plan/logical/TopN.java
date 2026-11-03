@@ -111,4 +111,9 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn, DocP
     public ExecuteLocation executesOn() {
         return local ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
     }
+
+    @Override
+    public boolean carriesDocOnDataNodes() {
+        return true;
+    }
 }

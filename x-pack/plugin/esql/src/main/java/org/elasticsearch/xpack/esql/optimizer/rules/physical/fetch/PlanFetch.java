@@ -21,21 +21,19 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
+import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.physical.CarriesDetachedDoc;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
-import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
-import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -148,19 +146,25 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * The plans the fetch phase supports, checked in this order:
      * <ol>
      *     <li>one cluster exchange, over a fragment, without aggregation and without {@code FORK} or {@code UNION},</li>
-     *     <li>only {@code KEEP}, {@code DROP}, {@code RENAME}, {@code EVAL}, {@code WHERE}, {@code LIMIT} and
-     *     {@code HIGHLIGHT} between the coordinator cut and the root,</li>
+     *     <li>between the coordinator cut and the root, only execs that a detached {@code _doc} can pass through, the
+     *     {@link CarriesDetachedDoc} ones,</li>
      *     <li>the coordinator cut reads the exchange and mirrors the cut that ends the fragment, a {@code TopN} or a
      *     {@code LIMIT},</li>
-     *     <li>only {@code WHERE}, {@code EVAL}, projections and local copies of the cut between the fragment cut and the
-     *     relation,</li>
+     *     <li>between the fragment cut and the relation, only commands that {@code _doc} can pass through on the data
+     *     nodes, the ones whose {@link DocPreserving#carriesDocOnDataNodes()} says so,</li>
      *     <li>one relation, on the local cluster,</li>
      *     <li>at least one column the query only needs after the cut, and that can be fetched.</li>
      * </ol>
-     * The lists are deliberately short. Any other command keeps the plan eager, which is always correct, so a new
-     * command needs no change here. Adding a command to a list needs a reason why {@code _doc} still names the document
-     * of every row after it. Commands that duplicate rows, join them or build them from several documents need that
-     * reason one by one.
+     * Each command answers for itself, so the rule keeps no list of commands. A command that doesn't opt in keeps the
+     * plan eager, which is always correct, so a new command needs no change here. Opting in needs a reason why
+     * {@code _doc} still names the document of every row after the command. Commands that duplicate rows, join them or
+     * build them from several documents need that reason one by one.
+     * <p>
+     * The fetch runs right above the coordinator cut, so the commands after it see the fetched columns. A {@code LIMIT}
+     * after the cut only drops more rows. It shows up above a {@code WHERE} that follows the cut, because the implicit
+     * limit of the query cannot move below a {@code WHERE}. {@code HIGHLIGHT} computes its columns from the values of
+     * the row alone, so it highlights the fetched text of the winners. The optimizer moves a sort and a limit below it
+     * unless the sort reads a generated highlight column, so it usually follows the cut.
      */
     private static Shape shape(PhysicalPlan plan) {
         List<ExchangeExec> exchanges = plan.collect(ExchangeExec.class);
@@ -182,11 +186,12 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         AttributeSet.Builder readAfterExchange = AttributeSet.builder().addAll(plan.outputSet());
         PhysicalPlan node = plan;
         while (node.children().size() != 1 || node.children().getFirst() != exchange) {
-            if (isSupportedAfterCut(node) == false) {
+            if (node instanceof UnaryExec unary && unary instanceof CarriesDetachedDoc) {
+                readAfterExchange.addAll(unary.references());
+                node = unary.child();
+            } else {
                 return ineligible("[" + node.nodeName() + "] runs after the cut");
             }
-            readAfterExchange.addAll(node.references());
-            node = ((UnaryExec) node).child();
         }
         if (node instanceof TopNExec == false && node instanceof LimitExec == false) {
             return ineligible("[" + node.nodeName() + "] reads the exchange instead of a LIMIT or TopN");
@@ -205,10 +210,11 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
 
         LogicalPlan step = ((UnaryPlan) fragmentCut).child();
         while (step instanceof EsRelation == false) {
-            if (isSupportedBeforeCut(step) == false) {
+            if (step instanceof DocPreserving preserving && preserving.carriesDocOnDataNodes()) {
+                step = preserving.preservingInput();
+            } else {
                 return ineligible("[" + step.nodeName() + "] runs before the cut");
             }
-            step = ((UnaryPlan) step).child();
         }
         EsRelation relation = (EsRelation) step;
         if (relation.indexMode() != IndexMode.STANDARD && relation.indexMode() != IndexMode.TIME_SERIES) {
@@ -315,31 +321,6 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             return fragmentLimit.local() == false && limit.limit().equals(fragmentLimit.limit());
         }
         return false;
-    }
-
-    /**
-     * The fetch runs right above the coordinator cut, so everything after it sees the fetched columns. A {@code LIMIT}
-     * after the cut only drops more rows. It shows up above a {@code WHERE} that follows the cut, because the implicit
-     * limit of the query cannot move below a {@code WHERE}.
-     * <p>
-     * {@code HIGHLIGHT} appends one column per field it highlights, computed from the values of the row alone, so it
-     * highlights the fetched text of the winners. The optimizer moves a sort and a limit below it unless the sort reads
-     * a generated highlight column, so it usually follows the cut.
-     */
-    private static boolean isSupportedAfterCut(PhysicalPlan node) {
-        return node instanceof ProjectExec
-            || node instanceof EvalExec
-            || node instanceof FilterExec
-            || node instanceof LimitExec
-            || node instanceof HighlightExec;
-    }
-
-    private static boolean isSupportedBeforeCut(LogicalPlan step) {
-        return step instanceof Filter
-            || step instanceof Eval
-            || step instanceof Project
-            || (step instanceof Limit limit && limit.local())
-            || (step instanceof TopN topN && topN.local());
     }
 
     private static boolean isLocal(EsRelation relation) {

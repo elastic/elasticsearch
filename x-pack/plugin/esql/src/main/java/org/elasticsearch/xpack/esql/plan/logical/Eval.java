@@ -189,6 +189,11 @@ public class Eval extends UnaryPlan
         });
     }
 
+    @Override
+    public boolean carriesDocOnDataNodes() {
+        return true;
+    }
+
     /**
      * True for a {@code _source} column bound to a constant {@code null}. When a {@link MergePlan} branch is missing a column
      * present in a sibling branch, {@code Analyzer.resolveMergePlan} null-fills it with {@code new Literal(source, null, attrType)}

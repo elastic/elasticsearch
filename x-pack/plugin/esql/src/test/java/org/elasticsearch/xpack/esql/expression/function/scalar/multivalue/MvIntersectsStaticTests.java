@@ -42,7 +42,7 @@ public class MvIntersectsStaticTests extends ESTestCase {
 
     public void testNotTranslatableWithLiteralArguments() {
         for (DataType dataType : DataType.types()) {
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentableInExpression(dataType) == false) {
                 continue;
             }
             MvIntersects mvIntersects = new MvIntersects(Source.EMPTY, randomLiteral(dataType), randomLiteral(dataType));
@@ -52,7 +52,7 @@ public class MvIntersectsStaticTests extends ESTestCase {
 
     public void testNotTranslatableWithNonFoldableArguments() {
         for (DataType dataType : DataType.types()) {
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentableInExpression(dataType) == false) {
                 continue;
             }
             FieldAttribute fieldAttr = new FieldAttribute(
@@ -84,7 +84,7 @@ public class MvIntersectsStaticTests extends ESTestCase {
 
     public void testTranslatable() {
         for (DataType dataType : DataType.types()) {
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentableInExpression(dataType) == false) {
                 continue;
             }
             FieldAttribute fieldAttr = new FieldAttribute(

@@ -24,6 +24,8 @@ Requires a counter input; non-counter inputs are automatically coerced with `to_
 increase(http_requests_total[5m])
 ```
 
-**Differences from Prometheus**
+:::{note}
+**Differences from {{prom}}**
 
-{{es}} computes the value over fixed time buckets and, at bucket boundaries, interpolates the counter value from the adjacent buckets' samples, falling back to Prometheus-style extrapolation wherever an adjacent bucket has no samples (the series edges and any gaps). Prometheus instead extrapolates within each range window, so results can differ slightly.
+{{es}} computes the value over fixed time buckets and, at bucket boundaries, interpolates the counter value from the adjacent buckets' samples, falling back to {{prom}}-style extrapolation wherever an adjacent bucket has no samples (the series edges and any gaps). {{prom}} instead extrapolates within each range window, so results can differ slightly.
+:::

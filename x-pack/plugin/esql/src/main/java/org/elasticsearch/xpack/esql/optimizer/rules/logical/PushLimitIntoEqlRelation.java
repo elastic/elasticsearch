@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 /**
  * Folds a row {@code LIMIT} sitting directly above an {@link EqlRelation} into the relation's request {@code size},
- * so {@code EQL idx "process where true" | LIMIT n} fetches ~n matches instead of the EQL engine default. Mirrors
+ * so {@code EQL idx "process where true" | LIMIT n} fetches ~n matches instead of the ES|QL result-truncation cap. Mirrors
  * {@link PushLimitToKnn}: the value is folded into the leaf but the {@link Limit} node is kept (the operator still
  * trims, and keeping it is harmless if the response over-returns).
  *
@@ -24,15 +24,8 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
  * mid-match); {@code WITH {"size"}} is the way to bound whole matches. A limit that does not sit directly above the
  * relation (e.g. {@code | WHERE … | LIMIT n}) is not pushed: the source must over-scan so the downstream filter still
  * sees enough rows. When no limit is pushed the request falls back to the ES|QL result-truncation cap (see
- * {@code LocalExecutionPlanner#planEqlSource}).
- *
- * <p>The push is also skipped when the delegated search would return a tail rather than a head — either the EQL query
- * carries its own explicit {@code head}/{@code tail} pipe, or it asks for {@code WITH {"result_position":"tail"}}. A
- * pushed size over a tail fetches a suffix while the kept {@code Limit} trims a prefix, so the same query would return
- * different events depending on whether the push fired (e.g. {@code "… | tail 3"} or {@code result_position:"tail"}
- * with an outer {@code LIMIT 2} would yield the last 2 rather than the first 2). In that case the query keeps its own
- * limit and the outer {@code LIMIT} trims the result. The default (and explicit {@code head}) position returns a stable
- * prefix, so the push is sound there.
+ * {@code LocalExecutionPlanner#planEqlSource}). The push is also skipped when the EQL query has its own
+ * {@code head}/{@code tail} pipe: that limit decides and the outer one only trims.
  */
 public class PushLimitIntoEqlRelation extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
 
@@ -42,7 +35,7 @@ public class PushLimitIntoEqlRelation extends OptimizerRules.ParameterizedOptimi
 
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
-        if (limit.child() instanceof EqlRelation relation && limit.limit().foldable() && pushKeepsLimitStable(relation)) {
+        if (limit.child() instanceof EqlRelation relation && limit.limit().foldable() && relation.hasExplicitLimit() == false) {
             int value = (Integer) limit.limit().fold(ctx.foldCtx());
             // Keep the smallest limit; return the same instance when nothing changes so the fixed-point batch stops.
             if (relation.pushedLimit() == null || value < relation.pushedLimit()) {
@@ -50,17 +43,5 @@ public class PushLimitIntoEqlRelation extends OptimizerRules.ParameterizedOptimi
             }
         }
         return limit;
-    }
-
-    /**
-     * Whether folding the outer {@code LIMIT} into the request size returns the same rows regardless of whether the push
-     * fires (a blocking op upstream can prevent it). True only when the delegated search yields a stable prefix: the
-     * query has no explicit {@code head}/{@code tail} of its own, and it does not ask for tail results. A pushed size
-     * over a tail fetches a suffix while the kept {@code Limit} trims a prefix, so the rows would depend on plan shape.
-     */
-    private static boolean pushKeepsLimitStable(EqlRelation relation) {
-        // result_position defaults to "head" in EqlRequests; only an explicit tail override makes the push unstable.
-        boolean tailRequested = "tail".equals(relation.options().get("result_position"));
-        return relation.hasExplicitLimit() == false && tailRequested == false;
     }
 }

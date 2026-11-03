@@ -64,6 +64,7 @@ public class EqlRequestsTests extends ESTestCase {
         EqlSearchRequest request = build("process where true", "logs-*", NO_SCHEMA, Map.of());
         assertThat(request.indices(), arrayContaining("logs-*"));
         assertThat(request.query(), equalTo("process where true"));
+        assertThat(request.resultPosition(), equalTo("tail"));
     }
 
     public void testCommaSeparatedIndicesAreSplit() {

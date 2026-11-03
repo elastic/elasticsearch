@@ -74,16 +74,26 @@ CPU therefore bound the query, sized by the EQL result set. Keep that result set
 
 `LIMIT` and the `size` option bound different things:
 
-* A `LIMIT n` placed directly after the command is folded into the EQL request in **every mode**, so only
-  about `n` matches are fetched — unless the EQL query carries its own explicit `head`/`tail` pipe or asks for
-  `result_position: tail`, in which case the fold is skipped (a pushed size would change which events come
-  back) and the `LIMIT` simply trims the result. `LIMIT` bounds **rows**: for a `sequence` or `sample` query,
-  whose rows are unnested per event, it can return a partial match (some events of a match without the rest).
+* A `LIMIT n` that reaches the command becomes the EQL request size in **every mode**. That is a `LIMIT`
+  placed directly after the command, or one that {{esql}} moves down to it past commands that keep every row,
+  such as `KEEP`, `DROP`, `RENAME`, `EVAL`, `DISSECT` and `GROK`. A `LIMIT` after `MV_EXPAND` or `LOOKUP JOIN`
+  also reaches the command, because {{esql}} copies it below them, and so does the default `LIMIT` {{esql}} adds
+  to a query that has none. For an event query the command then returns
+  exactly what the EQL search returns for that size: by default the `n` most recent events, or the `n` oldest
+  with `result_position: head`. The exception is an EQL query with its own explicit `head`/`tail` pipe: the
+  query's own limit then decides, and the `LIMIT` simply trims the result. `LIMIT` bounds **rows**: for a
+  `sequence` or `sample` query, whose rows are unnested per event, it fetches `n` matches and can return a
+  partial match (some events of a match without the rest).
 * `WITH { "size": n }` bounds whole **matches** — events, sequences or samples — and takes precedence over
   `LIMIT`. Use it when you want complete matches rather than a row count.
-* If neither a pushed `LIMIT` nor `WITH { "size": … }` sets the size, the request falls back to the
-  {{esql}} result-truncation limit, and the command warns that the results may be incomplete only if the
-  response actually fills that limit.
+* If neither a `LIMIT` that reaches the command nor `WITH { "size": … }` sets the size, the request falls back
+  to the {{esql}} result-truncation limit, and the command warns that the results may be incomplete only if the
+  response actually fills that limit. This includes a `LIMIT` behind a command that can drop or reorder rows,
+  such as `WHERE`, `SORT` or `STATS`: for example in `| WHERE … | LIMIT n`, the command first fetches up to the
+  truncation limit of matches (by default the most recent ones, returned in ascending time order), and the
+  `WHERE` and `LIMIT` then run on those rows, so without a `SORT` the `LIMIT` keeps the oldest of them. Matches
+  outside the fetched set are never considered, even if they would pass the `WHERE`. Set `WITH { "size": … }`
+  to control how many matches are fetched.
 
 ### Partial results
 
@@ -138,9 +148,9 @@ wrong-typed value, is rejected when the query is parsed.
     in `process where …`). Defaults to `event.category`.
 
 `result_position`
-:   Whether to return results from the beginning (`head`) or the end (`tail`) of the timeline. Unlike a standalone
-    EQL search (which defaults to `tail`), the `EQL` command defaults to `head`, so a `LIMIT n` returns the first
-    n matches — a stable prefix — rather than the last n. Set `tail` to override.
+:   Whether to return results from the beginning (`head`) or the end (`tail`) of the timeline. Defaults to `tail`,
+    the same as a standalone EQL search. Either way, the returned events are in ascending time order. Does not
+    apply to `sample` queries.
 
 `allow_partial_sequence_results`
 :   Whether a `sequence` that spanned a failed shard may still be returned. Defaults to `false`

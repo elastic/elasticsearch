@@ -69,20 +69,25 @@ public class LogicalPlanOptimizerEqlTests extends ESTestCase {
         assertPushedLimit("EQL eql_test \"sequence [process where true] [network where true]\"", 1000);
     }
 
-    public void testExplicitQueryLimitBlocksPush() {
+    public void testExplicitQueryTailBlocksPush() {
         // The EQL query carries its own | tail 3; an outer LIMIT must not be pushed on top of it (it would fold into
         // the tail and change which events come back), so the request size is left to the cap.
         assertPushedLimit("EQL eql_test \"process where true | tail 3\" | LIMIT 2", null);
     }
 
-    public void testTailResultPositionBlocksPush() {
-        // WITH {"result_position":"tail"} is the same lever as an explicit | tail: a pushed size would fetch the last n
-        // while the kept LIMIT trims the first n, so the rows would depend on whether the push fired. Do not push.
-        assertPushedLimit("EQL eql_test \"process where true\" WITH {\"result_position\": \"tail\"} | LIMIT 2", null);
+    public void testExplicitQueryHeadBlocksPush() {
+        assertPushedLimit("EQL eql_test \"process where true | head 3\" | LIMIT 2", null);
     }
 
-    public void testHeadResultPositionStillPushes() {
-        // An explicit head (the default anyway) returns a stable prefix, so the push stays sound.
+    public void testLimitBehindKeepIsPushed() {
+        assertPushedLimit("EQL eql_test \"process where true\" | KEEP pid | LIMIT 2", 2);
+    }
+
+    public void testTailResultPositionPushes() {
+        assertPushedLimit("EQL eql_test \"process where true\" WITH {\"result_position\": \"tail\"} | LIMIT 2", 2);
+    }
+
+    public void testHeadResultPositionPushes() {
         assertPushedLimit("EQL eql_test \"process where true\" WITH {\"result_position\": \"head\"} | LIMIT 2", 2);
     }
 

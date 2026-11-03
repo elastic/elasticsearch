@@ -136,6 +136,15 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testLimitReturnsMostRecentEventByDefault() {
+        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | LIMIT 1", "powershell.exe");
+        assertSingleProcessName("EQL " + INDEX + " \"process where true\" | KEEP process.name | LIMIT 1", "powershell.exe");
+    }
+
+    public void testLimitReturnsOldestEventWithHeadResultPosition() {
+        assertSingleProcessName("EQL " + INDEX + " \"process where true\" WITH {\"result_position\": \"head\"} | LIMIT 1", "cmd.exe");
+    }
+
     public void testSequenceQueryUnnestsToOneRowPerEventWithTypedColumns() {
         // process (pid 100) followed by network (pid 100) forms one sequence; pid 200 has no network follow-up.
         String query = "EQL " + INDEX + " \"sequence by process.pid [process where true] [network where true]\"";
@@ -420,6 +429,15 @@ public class EqlCommandIT extends AbstractEsqlIntegTestCase {
             throw new AssertionError("query must not fail", failure.get());
         }
         return new CapturedQuery(rows.get(), warnings);
+    }
+
+    private void assertSingleProcessName(String query, String expected) {
+        try (EsqlQueryResponse resp = run(query)) {
+            int nameColumn = resp.columns().stream().map(c -> c.name()).toList().indexOf("process.name");
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows, hasSize(1));
+            assertEquals(expected, Objects.toString(rows.get(0).get(nameColumn)));
+        }
     }
 
     private static List<Object> rowByName(List<List<Object>> rows, String processName) {

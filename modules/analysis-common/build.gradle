@@ -37,4 +37,11 @@ artifacts {
 tasks.named("yamlRestCompatTestTransform").configure { task ->
   task.replaceValueInMatch("tokens.0.token", "absenț", "romanian")
   task.skipTest("indices.analyze/15_analyze/Custom analyzer is not buildable", "error response changed with #123743")
+  task.skipTest("analysis-common/40_token_filters/synonym", "synonym filter uses SynonymGraphFilter on new indices")
+  task.skipTest("analysis-common/40_token_filters/synonym_without_index", "synonym filter uses SynonymGraphFilter on new indices")
+  task.skipTest("indices.analyze/10_synonyms/Non-standard position length", "synonym filter uses SynonymGraphFilter on new indices")
+  task.skipTest("search.query/60_synonym_graph/simple multiterm phrase", "synonym filter uses SynonymGraphFilter on new indices")
+  task.skipTestsByFilePattern("**/indices/validate_query/10_synonyms.yml", "synonym filter uses SynonymGraphFilter on new indices")
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("The \\[synonym_graph\\] token filter is deprecated.*")
 }

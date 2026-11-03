@@ -33,4 +33,6 @@ testClusters.configureEach {
 
 tasks.named("yamlRestCompatTestTransform").configure { task ->
   task.skipTest("match_only_text/10_basic/synthetic_source match_only_text as multi-field with ignored keyword as parent", "ignore_above now uses sorted binary doc values")
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("The \\[synonym_graph\\] token filter is deprecated.*")
 }

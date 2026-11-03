@@ -63,8 +63,12 @@ setup:
 
 ---
 "Delete synonym set - index uses the synonym set, so it can't be deleted":
+  - requires:
+      test_runner_features: ["allowed_warnings"]
 
   - do:
+      allowed_warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       indices.create:
         index: my_index1
         body:

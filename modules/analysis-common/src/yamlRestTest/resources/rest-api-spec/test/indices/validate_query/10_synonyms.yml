@@ -61,7 +61,7 @@
 
   - is_true: valid
   - length: { explanations: 1 }
-  - match: { explanations.0.explanation: "field:\"(one two) bar*\"" }
+  - match: { explanations.0.explanation: "field:\"(two one) bar*\"" }
 
   - do:
       indices.validate_query:
@@ -75,4 +75,4 @@
 
   - is_true: valid
   - length: { explanations: 1 }
-  - match: { explanations.0.explanation: "field:\"foo (one* two*)\"" }
+  - match: { explanations.0.explanation: "field:\"foo (two* one*)\"" }

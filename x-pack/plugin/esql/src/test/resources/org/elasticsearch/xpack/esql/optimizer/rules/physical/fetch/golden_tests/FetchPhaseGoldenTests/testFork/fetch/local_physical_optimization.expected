@@ -1,0 +1,44 @@
+ProjectExec[[first_name{r}#0, last_name{r}#1, hire_date{r}#2, _fork{r}#3]]
+\_FetchExec[_doc{f}#4,[first_name{f}#0, last_name{f}#1],employees,[],null]
+  \_TopNExec[[Order[hire_date{r}#2,DESC,FIRST]],10[INTEGER],null]
+    \_MergeExec[[_doc{f}#4, hire_date{r}#2, _fork{r}#3],FORK]
+      |_ProjectExec[[_doc{f}#5, hire_date{f}#6, _fork{r}#7]]
+      | \_EvalExec[[fork1[KEYWORD] AS _fork#7]]
+      |   \_TopNExec[[Order[hire_date{f}#6,DESC,FIRST]],20[INTEGER],null]
+      |     \_ExchangeExec[[_doc{f}#5, hire_date{f}#6],false]
+      |       \_ProjectExec[[_doc{f}#5, hire_date{f}#6]]
+      |         \_FieldExtractExec[[hire_date{f}#6]<[],[],[]>,_doc{f}#5]
+      |           \_EsQueryExec[employees], indexMode[standard], [_doc{f}#5], limit[20], sort[[FieldSort[field=hire_date{f}#6, direction=DESC, nulls=FIRST]]] estimatedRowSize[24] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "salary",
+    "next" : {
+      "range" : {
+        "salary" : {
+          "gt" : 50000,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "salary > 50000@2:16"
+  }
+}, tags=[]]]]
+      \_ProjectExec[[_doc{f}#5, hire_date{f}#8, _fork{r}#9]]
+        \_EvalExec[[fork2[KEYWORD] AS _fork#9]]
+          \_TopNExec[[Order[hire_date{f}#8,DESC,FIRST]],20[INTEGER],null]
+            \_ExchangeExec[[_doc{f}#5, hire_date{f}#8],false]
+              \_ProjectExec[[_doc{f}#5, hire_date{f}#8]]
+                \_FieldExtractExec[[hire_date{f}#8]<[],[],[]>,_doc{f}#5]
+                  \_EsQueryExec[employees], indexMode[standard], [_doc{f}#5], limit[20], sort[[FieldSort[field=hire_date{f}#8, direction=DESC, nulls=FIRST]]] estimatedRowSize[24] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "languages",
+    "next" : {
+      "range" : {
+        "languages" : {
+          "gt" : 2,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "languages > 2@3:16"
+  }
+}, tags=[]]]]

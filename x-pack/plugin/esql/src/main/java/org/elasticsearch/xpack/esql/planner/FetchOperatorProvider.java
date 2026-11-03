@@ -40,4 +40,20 @@ public interface FetchOperatorProvider {
     FetchOperatorProvider UNSUPPORTED = (exec, docChannel) -> {
         throw new IllegalStateException("this planner can't plan the fetch phase");
     };
+
+    /**
+     * For a plan whose TopN keeps documents that left the nodes that read them, but that fetches nothing itself, like a
+     * branch of a {@code FORK} whose fetch runs after the merge.
+     */
+    FetchOperatorProvider DETACHED_DOCUMENTS = new FetchOperatorProvider() {
+        @Override
+        public Operator.OperatorFactory fetchOperator(FetchExec exec, int docChannel) {
+            throw new IllegalStateException("this plan fetches nothing itself");
+        }
+
+        @Override
+        public boolean receivesDetachedDocuments() {
+            return true;
+        }
+    };
 }

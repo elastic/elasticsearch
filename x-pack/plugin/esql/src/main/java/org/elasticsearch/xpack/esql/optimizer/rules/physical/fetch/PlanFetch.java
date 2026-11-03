@@ -119,6 +119,12 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
                 logger.debug("fetch phase planned: eager {}, deferred {}", candidate.demand().eager(), candidate.demand().deferred());
                 yield rewritten;
             }
+            case ForkFetch.Candidate fork -> {
+                PhysicalPlan rewritten = ForkFetch.rewrite(plan, fork);
+                outcomes.record(Outcome.APPLIED, null);
+                logger.debug("fetch phase planned through [FORK]: fetched {}", fork.fetched());
+                yield rewritten;
+            }
         };
     }
 
@@ -130,26 +136,31 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      */
     record Demand(List<Attribute> eager, List<Attribute> deferred) {}
 
-    private sealed interface Shape permits Declined, Candidate {}
-
-    private record Declined(Outcome outcome, String reason) implements Shape {}
+    sealed interface Shape permits Declined, Candidate, ForkFetch.Candidate {}
 
     /**
-     * A plan the rule can rewrite.
-     *
-     * @param coordinatorCut      the coordinator half of the cut, the parent of the exchange
-     * @param filterAroundTheFetch the filter right after the cut, when some of its conditions run before the fetch
-     * @param fragmentRoot        the projection {@code ProjectAwayColumns} put on top of the fragment
+     * What the checks of one exchange found: the exchange with its cut and fragment, or why the plan stays eager.
      */
-    private record Candidate(
-        ExchangeExec exchange,
-        FragmentExec fragment,
-        Project fragmentRoot,
-        UnaryExec coordinatorCut,
-        @Nullable FilterAroundTheFetch filterAroundTheFetch,
-        EsRelation relation,
-        Demand demand
-    ) implements Shape {}
+    sealed interface BranchShape permits Declined, Branch, ForkFetch.ForkBranch {}
+
+    record Declined(Outcome outcome, String reason) implements Shape, BranchShape {}
+
+    /**
+     * An exchange over a fragment, with the coordinator half of the cut that ends the fragment right above it.
+     *
+     * @param cut          the coordinator half of the cut, the parent of the exchange
+     * @param fragmentRoot the projection {@code ProjectAwayColumns} put on top of the fragment
+     */
+    record Branch(UnaryExec cut, ExchangeExec exchange, FragmentExec fragment, Project fragmentRoot, EsRelation relation)
+        implements
+            BranchShape {}
+
+    /**
+     * A plan with one exchange the rule can rewrite.
+     *
+     * @param filterAroundTheFetch the filter right after the cut, when some of its conditions run before the fetch
+     */
+    private record Candidate(Branch branch, @Nullable FilterAroundTheFetch filterAroundTheFetch, Demand demand) implements Shape {}
 
     /**
      * A filter right after the coordinator cut, split around the fetch. The conditions that read only columns crossing the
@@ -159,11 +170,7 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * @param conditionsBeforeTheFetch never empty
      * @param conditionsAfterTheFetch  empty when every condition runs before the fetch
      */
-    private record FilterAroundTheFetch(
-        FilterExec filter,
-        List<Expression> conditionsBeforeTheFetch,
-        List<Expression> conditionsAfterTheFetch
-    ) {
+    record FilterAroundTheFetch(FilterExec filter, List<Expression> conditionsBeforeTheFetch, List<Expression> conditionsAfterTheFetch) {
         /**
          * The split of {@code filter}, or {@code null} when every condition reads a fetched column, and the whole filter
          * stays after the fetch.
@@ -226,21 +233,19 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * below it unless the sort reads a generated highlight column, so it usually follows the cut.
      */
     private static Shape shape(PhysicalPlan plan) {
+        List<MergeExec> merges = plan.collect(MergeExec.class);
+        if (merges.isEmpty() == false) {
+            return merges.size() == 1 ? ForkFetch.shape(plan, merges.getFirst()) : ineligible("more than one [MergeExec]");
+        }
         List<ExchangeExec> exchanges = plan.collect(ExchangeExec.class);
         if (exchanges.size() != 1) {
             return ineligible(exchanges.isEmpty() ? "no exchange" : "more than one exchange");
         }
-        if (plan.anyMatch(MergeExec.class::isInstance)) {
-            return ineligible("[MergeExec] combines several plans");
-        }
         ExchangeExec exchange = exchanges.getFirst();
-        if (exchange.inBetweenAggs()) {
-            return ineligible("the exchange carries an aggregation");
+        Declined unsupportedExchange = checkExchange(exchange);
+        if (unsupportedExchange != null) {
+            return unsupportedExchange;
         }
-        if (exchange.child() instanceof FragmentExec == false) {
-            return ineligible("the exchange does not read a fragment");
-        }
-        FragmentExec fragment = (FragmentExec) exchange.child();
 
         AttributeSet.Builder readAfterExchange = AttributeSet.builder().addAll(plan.outputSet());
         PhysicalPlan node = plan;
@@ -260,13 +265,61 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         UnaryExec coordinatorCut = (UnaryExec) node;
         readAfterExchange.addAll(coordinatorCut.references());
 
+        BranchShape found = branch(coordinatorCut, exchange);
+        if (found instanceof Declined declined) {
+            return declined;
+        }
+        Branch branch = (Branch) found;
+        Declined inconsistent = checkEveryColumnIsRead(branch, readAfterExchange.build());
+        if (inconsistent != null) {
+            return inconsistent;
+        }
+
+        Demand demand = demand(branch.fragmentRoot(), branch.relation(), coordinatorCut);
+        if (demand.deferred().isEmpty()) {
+            return new Declined(Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS, "the cut reads every column, or the others cannot be fetched");
+        }
+        FilterAroundTheFetch filterAroundTheFetch = afterTheCut instanceof FilterExec filter
+            ? FilterAroundTheFetch.split(filter, AttributeSet.of(demand.eager()))
+            : null;
+        return new Candidate(branch, filterAroundTheFetch, demand);
+    }
+
+    static Declined ineligible(String reason) {
+        return new Declined(Outcome.INELIGIBLE_SHAPE, reason);
+    }
+
+    /**
+     * Why the rule can't plan the fetch for the rows of {@code exchange}, or {@code null} when it can.
+     */
+    @Nullable
+    private static Declined checkExchange(ExchangeExec exchange) {
+        if (exchange.inBetweenAggs()) {
+            return ineligible("the exchange carries an aggregation");
+        }
+        if (exchange.child() instanceof FragmentExec == false) {
+            return ineligible("the exchange does not read a fragment");
+        }
+        return null;
+    }
+
+    /**
+     * Checks the exchange below {@code cut}, the fragment it reads and the commands of that fragment: the fragment must
+     * end in the data node half of {@code cut}, carry {@code _doc} down to its relation, and read local indices only.
+     */
+    static BranchShape branch(UnaryExec cut, ExchangeExec exchange) {
+        Declined unsupportedExchange = checkExchange(exchange);
+        if (unsupportedExchange != null) {
+            return unsupportedExchange;
+        }
+        FragmentExec fragment = (FragmentExec) exchange.child();
         if (fragment.fragment() instanceof Project == false) {
             return ineligible("the fragment does not end in a projection");
         }
         Project fragmentRoot = (Project) fragment.fragment();
         LogicalPlan fragmentCut = fragmentRoot.child();
-        if (mirrors(coordinatorCut, fragmentCut) == false) {
-            return ineligible("[" + coordinatorCut.nodeName() + "] does not repeat the cut that ends the fragment");
+        if (mirrors(cut, fragmentCut) == false) {
+            return ineligible("[" + cut.nodeName() + "] does not repeat the cut that ends the fragment");
         }
 
         LogicalPlan step = ((UnaryPlan) fragmentCut).child();
@@ -284,26 +337,23 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         if (isLocal(relation) == false) {
             return new Declined(Outcome.INELIGIBLE_REMOTE_CLUSTER, "the relation reads a remote cluster");
         }
-
-        // every column that crosses the exchange must be read above it, otherwise the analysis is wrong about the plan
-        List<Attribute> unread = exchange.output().stream().filter(a -> readAfterExchange.contains(a) == false).toList();
-        if (unread.isEmpty() == false || exchange.output().equals(fragmentRoot.output()) == false) {
-            assert false : "exchange output " + exchange.output() + " differs from what the fragment produces and the coordinator reads";
-            return new Declined(Outcome.INCONSISTENT_PROJECTION, "the exchange carries columns nothing reads " + unread);
-        }
-
-        Demand demand = demand(fragmentRoot, relation, coordinatorCut);
-        if (demand.deferred().isEmpty()) {
-            return new Declined(Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS, "the cut reads every column, or the others cannot be fetched");
-        }
-        FilterAroundTheFetch filterAroundTheFetch = afterTheCut instanceof FilterExec filter
-            ? FilterAroundTheFetch.split(filter, AttributeSet.of(demand.eager()))
-            : null;
-        return new Candidate(exchange, fragment, fragmentRoot, coordinatorCut, filterAroundTheFetch, relation, demand);
+        return new Branch(cut, exchange, fragment, fragmentRoot, relation);
     }
 
-    private static Declined ineligible(String reason) {
-        return new Declined(Outcome.INELIGIBLE_SHAPE, reason);
+    /**
+     * Every column that crosses the exchange must be read above it, otherwise the analysis is wrong about the plan.
+     *
+     * @param readAfterExchange the columns the plan reads above the exchange, and the ones it returns
+     */
+    @Nullable
+    static Declined checkEveryColumnIsRead(Branch branch, AttributeSet readAfterExchange) {
+        List<Attribute> exchanged = branch.exchange().output();
+        List<Attribute> unread = exchanged.stream().filter(a -> readAfterExchange.contains(a) == false).toList();
+        if (unread.isEmpty() == false || exchanged.equals(branch.fragmentRoot().output()) == false) {
+            assert false : "exchange output " + exchanged + " differs from what the fragment produces and the coordinator reads";
+            return new Declined(Outcome.INCONSISTENT_PROJECTION, "the exchange carries columns nothing reads " + unread);
+        }
+        return null;
     }
 
     /**
@@ -401,9 +451,33 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
     }
 
     private static PhysicalPlan rewrite(PhysicalPlan plan, Candidate candidate) {
-        // the data drivers produce _doc next to the eager columns, and every projection inside the fragment keeps it
-        Attribute doc = new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        LogicalPlan body = candidate.fragmentRoot().child();
+        Attribute doc = newDocAttribute();
+        Branch branch = candidate.branch();
+        PhysicalPlan cut = branch.cut().replaceChild(narrowExchange(branch, doc, candidate.demand().eager()));
+        return fetchAfterTheCut(
+            plan,
+            branch.cut(),
+            cut,
+            candidate.filterAroundTheFetch(),
+            doc,
+            candidate.demand().deferred(),
+            branch.relation()
+        );
+    }
+
+    /**
+     * A {@code _doc} column of its own.
+     */
+    static Attribute newDocAttribute() {
+        return new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+    }
+
+    /**
+     * The exchange of {@code branch} that carries {@code doc} and the {@code eager} columns only. The data drivers produce
+     * {@code doc} next to the eager columns, and every projection inside the fragment keeps it.
+     */
+    static ExchangeExec narrowExchange(Branch branch, Attribute doc, List<Attribute> eager) {
+        LogicalPlan body = branch.fragmentRoot().child();
         body = body.transformUp(
             EsRelation.class,
             relation -> relation.indexMode() == IndexMode.LOOKUP
@@ -416,24 +490,37 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
             projections.addAll(project.projections());
             return project.withProjections(projections);
         });
-        List<Attribute> exchanged = CollectionUtils.prependToCopy(doc, candidate.demand().eager());
-        FragmentExec fragment = candidate.fragment().withFragment(new Project(candidate.fragmentRoot().source(), body, exchanged));
-        ExchangeExec exchange = new ExchangeExec(candidate.exchange().source(), exchanged, false, fragment);
+        List<Attribute> exchanged = CollectionUtils.prependToCopy(doc, eager);
+        FragmentExec fragment = branch.fragment().withFragment(new Project(branch.fragmentRoot().source(), body, exchanged));
+        return new ExchangeExec(branch.exchange().source(), exchanged, false, fragment);
+    }
 
-        // the coordinator cuts the narrow rows, then fetches the deferred columns of the winners
-        UnaryExec coordinatorCut = candidate.coordinatorCut();
-        PhysicalPlan cut = coordinatorCut.replaceChild(exchange);
-        FilterAroundTheFetch filter = candidate.filterAroundTheFetch();
+    /**
+     * Puts the fetch of {@code fetched} right above {@code cut}, which takes the place of {@code originalCut} in
+     * {@code plan}. The conditions of {@code filter} that read no fetched column run between them.
+     *
+     * @param doc      the {@code _doc} column of the rows of {@code cut}
+     * @param relation the relation the documents come from, which authorizes the fetch
+     */
+    static PhysicalPlan fetchAfterTheCut(
+        PhysicalPlan plan,
+        UnaryExec originalCut,
+        PhysicalPlan cut,
+        @Nullable FilterAroundTheFetch filter,
+        Attribute doc,
+        List<Attribute> fetched,
+        EsRelation relation
+    ) {
         FetchExec fetch = new FetchExec(
-            coordinatorCut.source(),
+            originalCut.source(),
             filter == null ? cut : filter.beforeTheFetch(cut),
             doc,
-            candidate.demand().deferred(),
-            candidate.relation().indexPattern(),
-            localIndices(candidate.relation()),
+            fetched,
+            relation.indexPattern(),
+            localIndices(relation),
             null
         );
-        PhysicalPlan replaced = filter == null ? coordinatorCut : filter.filter();
+        PhysicalPlan replaced = filter == null ? originalCut : filter.filter();
         PhysicalPlan replacement = filter == null ? fetch : filter.afterTheFetch(fetch);
 
         // the coordinator returns what it returned before, never _doc
@@ -444,7 +531,7 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
         return rewritten;
     }
 
-    private static List<String> localIndices(EsRelation relation) {
+    static List<String> localIndices(EsRelation relation) {
         List<String> local = relation.originalIndices().get(LOCAL_CLUSTER_GROUP_KEY);
         return local == null ? List.of() : List.copyOf(local);
     }

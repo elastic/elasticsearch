@@ -1,0 +1,35 @@
+ProjectExec[[title{r}#0, author{r}#1, _score{r}#2]]
+\_FetchExec[_doc{r}#3,[author{f}#1, title{f}#0],books,[],null]
+  \_TopNExec[[Order[_score{r}#2,DESC,FIRST]],10[INTEGER],null]
+    \_AggregateExec[[_id{r}#4, _index{r}#5],[SUM(_score{r}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS _score#2, FIRSTDOCID(_doc{f}#7,true[BOOLEAN],PT0S[TIME_DURATION]) AS _doc#3],SINGLE,[_id{r}#4, _index{r}#5, $$_score$value{r}#8, $$_score$delta{r}#9, $$_score$seen{r}#10, $$_doc$_doc{r}#11],null]
+      \_EvalExec[[null[NULL] AS $$$FIRST$0#12]]
+        \_FuseScoreEvalExec[_score{r}#6,_fork{r}#13,RrfConfig[rankConstant=60.0, weights={}]]
+          \_MergeExec[[_doc{f}#7, _id{r}#4, _index{r}#5, _score{r}#6, _fork{r}#13],FORK]
+            |_ProjectExec[[_doc{f}#14, _id{m}#15, _index{m}#16, _score{m}#17, _fork{r}#18]]
+            | \_EvalExec[[fork1[KEYWORD] AS _fork#18]]
+            |   \_TopNExec[[Order[_score{m}#17,DESC,FIRST]],50[INTEGER],null]
+            |     \_ExchangeExec[[_doc{f}#14, _id{m}#15, _index{m}#16, _score{m}#17],false]
+            |       \_ProjectExec[[_doc{f}#14, _id{m}#15, _index{m}#16, _score{m}#17]]
+            |         \_FieldExtractExec[[_id{m}#15, _index{m}#16]<[],[],[]>,_doc{f}#14]
+            |           \_EsQueryExec[books], indexMode[standard], [_doc{f}#14, _score{m}#17], limit[50], sort[[ScoreSort[direction=DESC]]] estimatedRowSize[116] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "match" : {
+    "title" : {
+      "query" : "Tolkien",
+      "lenient" : true
+    }
+  }
+}, tags=[]]]]
+            \_ProjectExec[[_doc{f}#14, _id{m}#15, _index{m}#16, _score{m}#17, _fork{r}#19]]
+              \_EvalExec[[fork2[KEYWORD] AS _fork#19]]
+                \_TopNExec[[Order[_score{m}#17,DESC,FIRST]],50[INTEGER],null]
+                  \_ExchangeExec[[_doc{f}#14, _id{m}#15, _index{m}#16, _score{m}#17],false]
+                    \_ProjectExec[[_doc{f}#14, _id{m}#15, _index{m}#16, _score{m}#17]]
+                      \_FieldExtractExec[[_id{m}#15, _index{m}#16]<[],[],[]>,_doc{f}#14]
+                        \_EsQueryExec[books], indexMode[standard], [_doc{f}#14, _score{m}#17], limit[50], sort[[ScoreSort[direction=DESC]]] estimatedRowSize[116] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "match" : {
+    "author" : {
+      "query" : "Tolkien",
+      "lenient" : true
+    }
+  }
+}, tags=[]]]]

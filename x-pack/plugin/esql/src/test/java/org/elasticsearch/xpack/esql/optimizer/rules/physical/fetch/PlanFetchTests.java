@@ -19,8 +19,10 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTests;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -39,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -48,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -68,6 +73,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering.SORTED;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,6 +81,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class PlanFetchTests extends ESTestCase {
@@ -443,6 +450,170 @@ public class PlanFetchTests extends ESTestCase {
         );
         FetchExec fetch = single(applyTo(plan), FetchExec.class);
         assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+    }
+
+    /**
+     * Each branch sends the documents of its candidates with the columns its cut and {@code FUSE} read. {@code FUSE} keeps
+     * the {@code _doc} of each group, and the fetch loads the other columns for the rows of the final cut.
+     */
+    public void testFuseFetchesTheColumnsOfTheFinalWinners() {
+        PhysicalPlan plan = plan(
+            "FROM employees METADATA _id, _index, _score"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | FUSE | SORT _score DESC | LIMIT 10 | KEEP first_name, emp_no, _score"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("emp_no", "first_name"));
+        TopNExec finalCut = as(fetch.child(), TopNExec.class);
+        AggregateExec fuse = as(finalCut.child(), AggregateExec.class);
+        Alias firstDoc = as(fuse.aggregates().getLast(), Alias.class);
+        assertThat(firstDoc.child(), instanceOf(FirstDocId.class));
+        assertThat(fetch.doc().id(), equalTo(firstDoc.id()));
+        List<ExchangeExec> exchanges = plan.collect(ExchangeExec.class);
+        assertThat(exchanges, hasSize(2));
+        for (ExchangeExec exchange : exchanges) {
+            assertThat(names(exchange.output()), equalTo(List.of("_doc", "hire_date", "_id", "_index", "_score")));
+        }
+    }
+
+    /** {@code _version} is the same metadata in every branch, so {@code FUSE} lets the fetch load it for the final winners. */
+    public void testFuseFetchesTheMetadataOfTheFinalWinners() {
+        PhysicalPlan plan = plan(
+            "FROM employees METADATA _id, _index, _score, _version"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | FUSE | SORT _score DESC | LIMIT 10 | KEEP _version, _score"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("_version")));
+        assertThat(fetch.fetchedAttributes().getFirst(), instanceOf(MetadataAttribute.class));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), not(hasItem("_version")));
+        }
+    }
+
+    /**
+     * Without {@code FUSE}, the rows of every branch reach the final cut as they are, and the fetch reads the {@code _doc}
+     * of the merge.
+     */
+    public void testForkFetchesTheColumnsOfTheFinalCut() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP first_name, emp_no, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("emp_no", "first_name"));
+        MergeExec merge = as(as(fetch.child(), TopNExec.class).child(), MergeExec.class);
+        assertThat(merge.output().getFirst(), equalTo(fetch.doc()));
+        for (PhysicalPlan branch : merge.children()) {
+            assertTrue(EsQueryExec.isDocAttribute(branch.output().getFirst()));
+            assertThat(names(branch.output()), not(hasItem("first_name")));
+        }
+    }
+
+    /** {@code _source} is the same metadata in every branch, so the fetch loads it for the rows of the final cut. */
+    public void testForkFetchesTheSourceOfTheFinalCut() {
+        PhysicalPlan plan = plan(
+            "FROM employees METADATA _source"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP _source, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("_source")));
+        assertThat(fetch.fetchedAttributes().getFirst(), instanceOf(MetadataAttribute.class));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), not(hasItem("_source")));
+        }
+    }
+
+    /** The final cut sorts on a column no branch cut reads, so every branch keeps sending it. */
+    public void testAColumnTheFinalCutReadsStaysEager() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT emp_no | LIMIT 10 | KEEP first_name, emp_no, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), hasItem("emp_no"));
+        }
+    }
+
+    /** A column a branch reads after its own cut must be there as a value, so every branch keeps sending it. */
+    public void testAColumnABranchReadsAfterItsCutStaysEager() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (SORT hire_date DESC | LIMIT 50 | WHERE first_name != \"x\") (SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP first_name, emp_no, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("emp_no")));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), hasItem("first_name"));
+        }
+    }
+
+    /** The final cut sorts on the {@code FIRST} that {@code FUSE} keeps of a column, so every branch keeps sending it. */
+    public void testAColumnTheFinalCutReadsAfterFuseStaysEager() {
+        PhysicalPlan plan = plan(
+            "FROM employees METADATA _id, _index, _score"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | FUSE | SORT first_name, _score DESC | LIMIT 10 | KEEP first_name, emp_no, _score"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("emp_no")));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), hasItem("first_name"));
+        }
+    }
+
+    /**
+     * {@code FUSE} by another key can put several documents in a group, so its {@code FIRST} of a column isn't the value of
+     * the document it would keep, and the plan stays eager.
+     */
+    public void testFuseByAnotherKeyKeepsThePlanEager() {
+        assertIneligible(
+            "FROM employees METADATA _id, _index, _score"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | FUSE KEY BY first_name | SORT _score DESC | LIMIT 10 | KEEP first_name, emp_no, _score",
+            "[AggregateExec] runs between the cut and the [FORK]"
+        );
+    }
+
+    /** A filter right after the final cut on a column that crosses the exchanges drops rows before the fetch. */
+    public void testAFilterAfterTheFinalCutRunsBeforeTheFetch() {
+        PhysicalPlan plan = plan(
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | WHERE hire_date > \"1990-01-01\" | KEEP first_name, emp_no, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        FilterExec filter = as(fetch.child(), FilterExec.class);
+        assertThat(referencedNames(filter), equalTo(Set.of("hire_date")));
+        assertThat(filter.child(), instanceOf(TopNExec.class));
+    }
+
+    /** After the final cut of a {@code FORK}, only execs a detached {@code _doc} can pass through may run. */
+    public void testAStatsAfterTheFinalCutKeepsTheForkEager() {
+        assertIneligible(
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | STATS m = MAX(salary)",
+            "[AggregateExec] runs after the cut"
+        );
+    }
+
+    /** Running the rule on the {@code FORK} it planned changes nothing: the fetch now runs after the final cut. */
+    public void testRunningTwiceOnAForkIsANoop() {
+        PhysicalPlan fetched = plan(
+            "FROM employees METADATA _id, _index, _score"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | FUSE | SORT _score DESC | LIMIT 10 | KEEP first_name, emp_no, _score"
+        ).plan();
+        FetchPhaseOutcomes outcomes = new FetchPhaseOutcomes();
+        assertThat(new PlanFetch(outcomes).apply(fetched, context(EsqlFlags.withFetchPhase(true))), sameInstance(fetched));
+        assertThat(outcomes.all(), contains(new Decision(Outcome.INELIGIBLE_SHAPE, "[FetchExec] runs after the cut")));
     }
 
     public void testNoExchange() {

@@ -135,6 +135,33 @@ public class EsqlFetchPartialResultsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * The fetch after a {@code FORK} goes on without the rows of a shard whose context is gone, like any other fetch, and
+     * the local cluster reports the shard as failed once the merge is done. The second branch finds nothing.
+     */
+    public void testAForkGoesOnWithoutTheRowsOfAFailedFetch() {
+        createIndices();
+        freeContextsBeforeTheirFetch(shardId -> shardId.getIndexName().equals(LOST));
+        String query = "FROM "
+            + KEPT
+            + ","
+            + LOST
+            + " | FORK (SORT ts DESC | LIMIT "
+            + LIMIT
+            + ") (WHERE ts < 0 | SORT ts DESC | LIMIT "
+            + LIMIT
+            + ") | SORT ts DESC | LIMIT "
+            + LIMIT
+            + " | KEEP ts, payload";
+        try (EsqlQueryResponse response = run(request(query, true))) {
+            assertThat(getValuesList(response), equalTo(rowsOfKept()));
+            assertTrue(response.isPartial());
+            EsqlExecutionInfo.Cluster local = response.getExecutionInfo().getCluster(LOCAL);
+            assertThat(local.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+            assertFailuresOf(local, LOST, SearchContextMissingException.class);
+        }
+    }
+
+    /**
      * A data node that stops between the query phase and the fetch drops the rows of its shards, and the response is
      * partial.
      */

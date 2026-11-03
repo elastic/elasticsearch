@@ -9,15 +9,20 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.util.HashSet;
@@ -93,10 +98,40 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
      * Rows carry their {@code _doc} across an exchange only for a {@link FetchExec} above it, which loads the documents
      * from the nodes that own them. The data nodes then keep the readers of those documents open and detach them, so the
      * documents still name their readers on the coordinator. Without the fetch, nothing would do either.
+     * <p>
+     * The {@code _doc} a fetch reads can come from several exchanges: through a {@code FORK}, whose merge takes the
+     * {@code _doc} of each branch at the same position, and through an aggregation that keeps the first {@code _doc} of
+     * each group.
      */
     private static void checkDocumentsLeaveTheirNodeOnlyForAFetch(PhysicalPlan plan, Failures failures) {
         Set<NameId> fetched = new HashSet<>();
-        plan.forEachDown(FetchExec.class, fetch -> fetched.add(fetch.doc().id()));
+        // parents come first, so the _doc a node reads is known before the nodes below it
+        plan.forEachDown(node -> {
+            switch (node) {
+                case FetchExec fetch -> fetched.add(fetch.doc().id());
+                case MergeExec merge -> {
+                    for (int position = 0; position < merge.output().size(); position++) {
+                        if (fetched.contains(merge.output().get(position).id())) {
+                            for (PhysicalPlan branch : merge.children()) {
+                                fetched.add(branch.output().get(position).id());
+                            }
+                        }
+                    }
+                }
+                case AggregateExec aggregate -> {
+                    for (NamedExpression expression : aggregate.aggregates()) {
+                        if (fetched.contains(expression.id())
+                            && expression instanceof Alias alias
+                            && alias.child() instanceof FirstDocId firstDoc
+                            && firstDoc.field() instanceof Attribute doc) {
+                            fetched.add(doc.id());
+                        }
+                    }
+                }
+                default -> {
+                }
+            }
+        });
         plan.forEachDown(ExchangeExec.class, exchange -> {
             for (Attribute attribute : exchange.output()) {
                 if (EsQueryExec.isDocAttribute(attribute) && fetched.contains(attribute.id()) == false) {

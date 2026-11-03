@@ -7,22 +7,29 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FetchExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.List;
 import java.util.Map;
@@ -65,6 +72,66 @@ public class PhysicalVerifierFetchTests extends ESTestCase {
         String failures = verify(plan).toString();
         assertThat(failures, containsString("must read a [_doc] attribute"));
         assertThat("the documents cross for nothing", failures, containsString("can only cross an exchange for a fetch"));
+    }
+
+    /**
+     * A fetch after {@code FUSE} reads the {@code _doc} that {@code FUSE} keeps of each group, which comes through the merge
+     * from the {@code _doc} every branch sends across its exchange.
+     */
+    public void testTheDocumentsOfEveryForkBranchReachTheFetchThroughFuse() {
+        PhysicalPlan plan = fetchAfterFuse(forkOf(exchange(doc, a), exchange(doc, a)));
+        Failures failures = verify(plan);
+        assertFalse(failures.toString(), failures.hasFailures());
+    }
+
+    /**
+     * The merge takes the column of each branch at its own position, so a branch whose {@code _doc} sits elsewhere sends
+     * it for nothing.
+     */
+    public void testABranchWhoseDocumentsTheMergeDoesNotTakeCantSendThem() {
+        Attribute docOfTheSecondBranch = new FieldAttribute(
+            Source.EMPTY,
+            null,
+            null,
+            EsQueryExec.DOC_ID_FIELD.getName(),
+            EsQueryExec.DOC_ID_FIELD
+        );
+        assertThat(
+            verify(fetchAfterFuse(forkOf(exchange(doc, a), exchange(a, docOfTheSecondBranch)))).toString(),
+            containsString("document identity [_doc] can only cross an exchange for a fetch")
+        );
+    }
+
+    /**
+     * A {@code FORK} of {@code branches}, each with the columns {@code _doc} and {@code a} or the other way around, that
+     * outputs {@code _doc} and then {@code a}.
+     */
+    private static MergeExec forkOf(PhysicalPlan... branches) {
+        List<Attribute> output = List.of(
+            new FieldAttribute(Source.EMPTY, null, null, EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD),
+            field("a", DataType.LONG)
+        );
+        return new MergeExec(Source.EMPTY, List.of(branches), output, MergeExec.Kind.FORK);
+    }
+
+    /**
+     * {@code FUSE} over {@code merge}, which keeps the first {@code _doc} of each group, then the fetch of {@code b}.
+     */
+    private PhysicalPlan fetchAfterFuse(MergeExec merge) {
+        Attribute mergedDoc = merge.output().get(0);
+        Attribute mergedA = merge.output().get(1);
+        Alias firstDoc = new Alias(Source.EMPTY, EsQueryExec.DOC_ID_FIELD.getName(), new FirstDocId(Source.EMPTY, mergedDoc));
+        List<NamedExpression> aggregates = List.of(firstDoc, mergedA);
+        AggregateExec fuse = new AggregateExec(
+            Source.EMPTY,
+            merge,
+            List.of(mergedA),
+            aggregates,
+            AggregatorMode.SINGLE,
+            AbstractPhysicalOperationProviders.intermediateAttributes(aggregates, List.of(mergedA)),
+            null
+        );
+        return new ProjectExec(Source.EMPTY, fetch(fuse, firstDoc.toAttribute()), List.of(mergedA, b));
     }
 
     private FetchExec fetch(PhysicalPlan child, Attribute documents) {

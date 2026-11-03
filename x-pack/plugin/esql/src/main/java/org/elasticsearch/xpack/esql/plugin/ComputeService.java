@@ -1240,13 +1240,17 @@ public class ComputeService {
             initialClusterStatuses,
             planTimeProfile,
             warnIndexCoordinatorOnce,
-            SiblingPlacement.SINGLE
+            SiblingPlacement.SINGLE,
+            null
         );
     }
 
     /**
      * Runs one producer after split discovery, placing it with {@code placement} so sibling
      * UNION leaves rotate and hop instead of stacking on the coordinator.
+     *
+     * @param mergeFetchContexts the reader contexts of a {@code FORK} whose fetch runs after the merge, which every branch
+     *                           keeps in the same execution. {@code null} when the plan opens its own, if it keeps any.
      */
     public void executePlan(
         String sessionId,
@@ -1262,7 +1266,8 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
-        SiblingPlacement placement
+        SiblingPlacement placement,
+        @Nullable FetchContextLease.Execution mergeFetchContexts
     ) {
         final long splitDiscoveryStart = System.nanoTime();
         ExternalPlanningReservation reservation = execInfo == null ? null : execInfo.externalPlanning();
@@ -1295,7 +1300,8 @@ public class ComputeService {
                         planTimeProfile,
                         warnIndexCoordinatorOnce,
                         splitDiscoveryStart,
-                        placement
+                        placement,
+                        mergeFetchContexts
                     ),
                     releasing
                 ),
@@ -1397,7 +1403,8 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         Runnable warnIndexCoordinatorOnce,
         long splitDiscoveryStart,
-        SiblingPlacement placement
+        SiblingPlacement placement,
+        @Nullable FetchContextLease.Execution mergeFetchContexts
     ) {
         final ExternalDistributionResult distributionResult;
         try {
@@ -1514,9 +1521,14 @@ public class ComputeService {
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
         // documents that leave the data nodes name the contexts they keep open for the fetch phase, which this execution
         // frees once it no longer reads them, and the query once it ends. The fetch reads only local indices.
-        final FetchContextLease.Execution fetchContexts = dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)
-            ? fetchPhaseServices.contextService().leaseFor(rootTask).newExecution(localOriginalIndices)
-            : null;
+        final FetchContextLease.Execution fetchContexts;
+        if (dataNodePlan.output().stream().anyMatch(EsQueryExec::isDocAttribute)) {
+            fetchContexts = mergeFetchContexts != null
+                ? mergeFetchContexts
+                : fetchPhaseServices.contextService().leaseFor(rootTask).newExecution(localOriginalIndices);
+        } else {
+            fetchContexts = null;
+        }
         /*
          * Grab the output attributes here, so we can pass them to
          * the listener without holding on to a reference to the
@@ -1568,7 +1580,10 @@ public class ComputeService {
                         })
                     )
                 ) {
-                    FetchOperatorProvider fetchOperators = FetchOperatorProvider.UNSUPPORTED;
+                    // a branch of a FORK whose fetch runs after the merge keeps documents that left their node, and fetches nothing
+                    FetchOperatorProvider fetchOperators = fetchContexts == null
+                        ? FetchOperatorProvider.UNSUPPORTED
+                        : FetchOperatorProvider.DETACHED_DOCUMENTS;
                     ActionListener<DriverCompletionInfo> coordinatorListener = localListener.acquireCompute();
                     if (coordinatorPlan.anyMatch(FetchExec.class::isInstance)) {
                         // the fetches of the query send their requests as children of its task, and count their drivers as its own

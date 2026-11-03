@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
 
-public class FuseScoreEvalExec extends UnaryExec {
+public class FuseScoreEvalExec extends UnaryExec implements CarriesDetachedDoc {
     private final Attribute scoreAttr;
     private final Attribute discriminatorAttr;
     private final FuseConfig fuseConfig;

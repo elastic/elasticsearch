@@ -224,6 +224,45 @@ public class FetchContextsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * Every branch of a {@code FORK} keeps the contexts of its candidates until the final cut after the merge. The ones no
+     * final winner reads are freed before the fetch loads the winner, whatever branch registered them.
+     */
+    public void testTheLosersOfEveryForkBranchAreFreedBeforeTheFetch() throws Exception {
+        Set<ShardSearchContextId> fetched = ConcurrentHashMap.newKeySet();
+        CountDownLatch fetchArrived = new CountDownLatch(1);
+        CountDownLatch releaseFetches = new CountDownLatch(1);
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            ((MockTransportService) transportService).<FetchRequest>addRequestHandlingBehavior(
+                FetchService.FETCH_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    request.shards().forEach(shard -> fetched.add(shard.contextId()));
+                    fetchArrived.countDown();
+                    safeAwait(releaseFetches);
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+        }
+        // one winner of two branches: the other candidates of both branches lose
+        String query = "FROM "
+            + INDEX
+            + " | FORK (WHERE ts % 2 == 0 | SORT ts DESC | LIMIT 5) (WHERE ts % 3 == 0 | SORT ts DESC | LIMIT 5)"
+            + " | SORT ts DESC | LIMIT 1 | KEEP a, b, ts";
+        ActionFuture<EsqlQueryResponse> response = client().execute(EsqlQueryAction.INSTANCE, request(query, true));
+        try {
+            safeAwait(fetchArrived);
+            assertBusy(() -> assertThat("only the winner stays open", Set.copyOf(registeredIds), equalTo(Set.copyOf(fetched))));
+        } finally {
+            releaseFetches.countDown();
+        }
+        try (EsqlQueryResponse result = response.actionGet(30, TimeUnit.SECONDS)) {
+            assertThat(getValuesList(result), equalTo(List.of(List.of("a-58", 580L, 58L))));
+        }
+        assertThat(fetched, hasSize(1));
+        assertThat("a registered context per shard and branch", registered.get(), equalTo(2 * shards));
+        assertBusy(() -> assertThat(freed.get(), equalTo(registered.get())));
+    }
+
+    /**
      * Without the fetch phase the query reads through unregistered contexts, as it always did.
      */
     public void testQueryWithoutTheFetchPhaseRegistersNoContext() {

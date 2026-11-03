@@ -497,6 +497,91 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * A hybrid search: each {@code FORK} branch sends the documents of its candidates, {@code FUSE} ranks them with RRF, and
+     * the fetch loads the other columns for the five rows of the final cut only. 60, 54 and 48 rank in both branches.
+     */
+    public void testFuseFetchesTheColumnsOfTheFinalWinners() {
+        Run run = runBoth(
+            "FROM "
+                + indexName
+                + " METADATA _id, _index, _score"
+                + " | FORK (WHERE unique_sort % 2 == 0 | SORT unique_sort DESC | LIMIT 10)"
+                + " (WHERE unique_sort % 3 == 0 | SORT unique_sort DESC | LIMIT 10)"
+                + " | FUSE"
+                + " | SORT _score DESC, unique_sort DESC"
+                + " | LIMIT 5"
+                + " | KEEP unique_sort, payload, category"
+        );
+        assertThat(
+            run.rows(),
+            equalTo(
+                List.of(
+                    List.of(60L, "payload-60", "cat-0"),
+                    List.of(54L, "payload-54", "cat-4"),
+                    List.of(48L, "payload-48", "cat-3"),
+                    List.of(63L, "payload-63", "cat-3"),
+                    List.of(62L, "payload-62", "cat-2")
+                )
+            )
+        );
+        assertFetched(run, 5);
+        assertFetchedOnly(run, "payload");
+        assertFetchedOnly(run, "category");
+    }
+
+    /**
+     * Without {@code FUSE}, a document that two branches found stays two rows, and the fetch reads it once for each, from
+     * the reader of the branch that found it.
+     */
+    public void testForkFetchesTheColumnsOfTheRowsOfEveryBranch() {
+        Run run = runBoth(
+            "FROM "
+                + indexName
+                + " | FORK (WHERE unique_sort % 2 == 0 | SORT unique_sort DESC | LIMIT 3)"
+                + " (WHERE unique_sort % 3 == 0 | SORT unique_sort DESC | LIMIT 3)"
+                + " | SORT unique_sort DESC, _fork"
+                + " | LIMIT 4"
+                + " | KEEP unique_sort, payload, _fork"
+        );
+        assertThat(
+            run.rows(),
+            equalTo(
+                List.of(
+                    List.of(63L, "payload-63", "fork2"),
+                    List.of(62L, "payload-62", "fork1"),
+                    List.of(60L, "payload-60", "fork1"),
+                    List.of(60L, "payload-60", "fork2")
+                )
+            )
+        );
+        assertFetched(run, 4);
+        assertFetchedOnly(run, "payload");
+    }
+
+    /** {@code _source} is the column the fetch saves the most on, and a {@code FORK} loads it for the final cut only. */
+    public void testForkFetchesTheSourceOfTheRowsOfEveryBranch() {
+        Run run = runBoth(
+            "FROM "
+                + indexName
+                + " METADATA _source"
+                + " | FORK (WHERE unique_sort % 2 == 0 | SORT unique_sort DESC | LIMIT 3)"
+                + " (WHERE unique_sort % 3 == 0 | SORT unique_sort DESC | LIMIT 3)"
+                + " | SORT unique_sort DESC, _fork"
+                + " | LIMIT 4"
+                + " | KEEP unique_sort, _source, _fork"
+        );
+        List<Long> expected = List.of(63L, 62L, 60L, 60L);
+        assertThat(run.rows(), hasSize(expected.size()));
+        for (int row = 0; row < expected.size(); row++) {
+            assertThat(run.rows().get(row).getFirst(), equalTo(expected.get(row)));
+            Map<?, ?> source = (Map<?, ?>) run.rows().get(row).get(1);
+            assertThat(source.get("payload"), equalTo("payload-" + expected.get(row)));
+        }
+        assertFetched(run, 4);
+        assertFetchedOnly(run, "_source");
+    }
+
+    /**
      * An expression before the cut runs on every candidate row, so its input loads before the cut and its value crosses
      * the exchange. The input crosses too when the query returns it, instead of being read a second time. The other
      * columns are still fetched.

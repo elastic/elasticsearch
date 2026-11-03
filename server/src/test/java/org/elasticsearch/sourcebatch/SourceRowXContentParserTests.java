@@ -60,6 +60,7 @@ public class SourceRowXContentParserTests extends ESTestCase {
 
     private static final Map<String, TypedAccessor> ACCESSORS = new LinkedHashMap<>();
     static {
+        ACCESSORS.put("booleanValue", XContentParser::booleanValue);
         ACCESSORS.put("shortValue", XContentParser::shortValue);
         ACCESSORS.put("intValue", XContentParser::intValue);
         ACCESSORS.put("longValue", XContentParser::longValue);

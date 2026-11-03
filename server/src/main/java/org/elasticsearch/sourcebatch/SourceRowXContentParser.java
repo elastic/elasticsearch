@@ -633,6 +633,9 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
 
     @Override
     protected boolean doBooleanValue() {
+        if (currentToken != Token.VALUE_BOOLEAN) {
+            throw new XContentParseException(getTokenLocation(), "Current token (" + currentToken + ") not of boolean type");
+        }
         return currentType == SourceValueType.TRUE;
     }
 

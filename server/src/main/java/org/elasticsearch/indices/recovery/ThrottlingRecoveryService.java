@@ -638,8 +638,8 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         }
 
         /// Raises the priority of this recovery to `updated`.
-        ///
-        /// The pending recoveries queue orders on this priority. This must not be called while the recovery is in the queue.
+        /// Note that since the pending recoveries queue orders on this priority, this should not be called while the
+        /// recovery is in the queue.
         void raiseRecoveryPriority(RecoveryPriority updated) {
             RecoveryState state = recoveryState();
             RecoveryPriority current = state.getRecoveryPriority();

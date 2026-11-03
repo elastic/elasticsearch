@@ -2555,7 +2555,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(service.currentQueueSize(), equalTo(2));
         assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(assignedPriority));
 
-        // Neither a restart of the source node nor the removal of another node should cause the recovery priority to be updated
+        // Neither a source node restart nor the removal of another node should trigger reprioritization
         final var unrelatedShutdowns = randomBoolean()
             ? nodeShutdowns("relocation-source", SingleNodeShutdownMetadata.Type.RESTART)
             : nodeShutdowns(
@@ -2659,7 +2659,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
     }
 
     /// A raised priority is never lowered again, even if the shutdown of the source node that caused it is removed
-    /// while the relocation is still queued.
     public void testRaisedPriorityIsKeptWhenSourceNodeShutdownIsRemoved() {
         final var taskQueue = new DeterministicTaskQueue();
         final var clusterService = newClusterService(1);

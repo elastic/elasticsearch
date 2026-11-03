@@ -9,7 +9,9 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -18,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -44,6 +47,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class InternalCompositeTests extends InternalMultiBucketAggregationTestCase<InternalComposite> {
     private List<String> sourceNames;
@@ -286,6 +290,200 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             assertThat(bucket.getDocCount(), equalTo(expectedBucket.getDocCount()));
             assertThat(bucket.getFormats(), equalTo(expectedBucket.getFormats()));
         }
+    }
+
+    /**
+     * A partial reduce (e.g. on a data node with batched query phase) of a mapped and an unmapped index may produce buckets with
+     * different formats. Formats are written once for the whole composite, so they must still format the keys of all the buckets
+     * after a serialization round trip, even if the last bucket (here a missing bucket) comes from the unmapped index.
+     */
+    public void testPartialReduceMixedFormatsSurvivesSerialization() throws IOException {
+        final String name = randomAlphaOfLength(10);
+        final List<String> names = List.of("ip");
+        final int[] muls = new int[] { 1 };
+        final MissingOrder[] orders = new MissingOrder[] { MissingOrder.LAST };
+        final String ipValue = "4.42.218.30";
+        final BytesRef ipKey = new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipValue)));
+
+        var mapped = new InternalComposite(
+            name,
+            10,
+            names,
+            List.of(DocValueFormat.IP),
+            List.of(
+                new InternalComposite.InternalBucket(
+                    names,
+                    List.of(DocValueFormat.IP),
+                    new CompositeKey(ipKey),
+                    1,
+                    InternalAggregations.EMPTY
+                )
+            ),
+            new CompositeKey(ipKey),
+            muls,
+            orders,
+            false,
+            emptyMap()
+        );
+        var missingKey = new CompositeKey(new Comparable<?>[] { null });
+        var unmapped = new InternalComposite(
+            name,
+            10,
+            names,
+            List.of(DocValueFormat.RAW),
+            List.of(new InternalComposite.InternalBucket(names, List.of(DocValueFormat.RAW), missingKey, 1, InternalAggregations.EMPTY)),
+            missingKey,
+            muls,
+            orders,
+            false,
+            emptyMap()
+        );
+
+        List<InternalAggregation> toReduce = Arrays.asList(mapped, unmapped);
+        Collections.shuffle(toReduce, random());
+        InternalComposite partial = (InternalComposite) InternalAggregationTestCase.reduce(
+            toReduce,
+            emptyReduceContextBuilder().forPartialReduction()
+        );
+        assertThat(partial.getBuckets().size(), equalTo(2));
+        assertThat(partial.getBuckets().get(1).getRawKey(), equalTo(missingKey));
+
+        // The hop from the data node to the coordinator
+        InternalComposite wire = (InternalComposite) copyNamedWriteable(partial, getNamedWriteableRegistry(), InternalAggregation.class);
+        assertThat(wire.getBuckets().get(0).getKey().get("ip"), equalTo(ipValue));
+        assertNull(wire.getBuckets().get(1).getKey().get("ip"));
+
+        InternalComposite finalReduce = (InternalComposite) InternalAggregationTestCase.reduce(
+            List.of(wire),
+            emptyReduceContextBuilder().forFinalReduction()
+        );
+        assertThat(finalReduce.getBuckets().get(0).getKey().get("ip"), equalTo(ipValue));
+        assertNull(finalReduce.getBuckets().get(1).getKey().get("ip"));
+    }
+
+    private static InternalComposite dateComposite(String name, DocValueFormat format, long key) {
+        final List<String> names = List.of("date");
+        final var bucketKey = new CompositeKey(key);
+        return new InternalComposite(
+            name,
+            10,
+            names,
+            List.of(format),
+            List.of(new InternalComposite.InternalBucket(names, List.of(format), bucketKey, 1, InternalAggregations.EMPTY)),
+            bucketKey,
+            new int[] { 1 },
+            new MissingOrder[] { MissingOrder.DEFAULT },
+            false,
+            emptyMap()
+        );
+    }
+
+    /**
+     * Buckets with non-null keys that really have different formats (here dates of indices with different formats) must keep their
+     * own format after a serialization round trip, and still use a single format list if the node on the other side is older.
+     */
+    public void testPartialReduceDifferentNonNullFormatsSurvivesSerialization() throws IOException {
+        final String name = randomAlphaOfLength(10);
+        final var epochSecond = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("epoch_second"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        final var isoDate = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("strict_date_optional_time"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        final var first = dateComposite(name, epochSecond, 1_000L);
+        final var second = dateComposite(name, isoDate, 2_000L);
+        final String expectedFirst = epochSecond.format(1_000L).toString();
+        final String expectedSecond = isoDate.format(2_000L).toString();
+        assertThat(expectedFirst, not(equalTo(expectedSecond)));
+
+        List<InternalAggregation> toReduce = Arrays.asList(first, second);
+        Collections.shuffle(toReduce, random());
+        InternalComposite partial = (InternalComposite) InternalAggregationTestCase.reduce(
+            toReduce,
+            emptyReduceContextBuilder().forPartialReduction()
+        );
+        assertThat(partial.getBuckets().size(), equalTo(2));
+
+        InternalComposite wire = (InternalComposite) copyNamedWriteable(partial, getNamedWriteableRegistry(), InternalAggregation.class);
+        assertThat(wire.getBuckets().get(0).getKey().get("date"), equalTo(expectedFirst));
+        assertThat(wire.getBuckets().get(1).getKey().get("date"), equalTo(expectedSecond));
+        assertThat(wire.getBuckets().get(0).getFormats(), equalTo(List.of(epochSecond)));
+        assertThat(wire.getBuckets().get(1).getFormats(), equalTo(List.of(isoDate)));
+
+        // With a node that doesn't know about per bucket formats, we write the formats of the composite only
+        InternalComposite oldWire = (InternalComposite) copyNamedWriteable(
+            partial,
+            getNamedWriteableRegistry(),
+            InternalAggregation.class,
+            TransportVersionUtils.getPreviousVersion(InternalComposite.COMPOSITE_PER_BUCKET_FORMATS)
+        );
+        assertThat(oldWire.getBuckets().size(), equalTo(2));
+        assertThat(oldWire.getBuckets().get(0).getFormats(), equalTo(oldWire.getBuckets().get(1).getFormats()));
+    }
+
+    /**
+     * The mapped / unmapped case that is fixed by selecting the formats must also work when talking to an older node.
+     */
+    public void testPartialReduceMixedFormatsOldTransportVersion() throws IOException {
+        final String name = randomAlphaOfLength(10);
+        final List<String> names = List.of("ip");
+        final BytesRef ipKey = new BytesRef(InetAddressPoint.encode(InetAddresses.forString("4.42.218.30")));
+        final var missingKey = new CompositeKey(new Comparable<?>[] { null });
+        var mapped = new InternalComposite(
+            name,
+            10,
+            names,
+            List.of(DocValueFormat.IP),
+            List.of(
+                new InternalComposite.InternalBucket(
+                    names,
+                    List.of(DocValueFormat.IP),
+                    new CompositeKey(ipKey),
+                    1,
+                    InternalAggregations.EMPTY
+                )
+            ),
+            new CompositeKey(ipKey),
+            new int[] { 1 },
+            new MissingOrder[] { MissingOrder.LAST },
+            false,
+            emptyMap()
+        );
+        var unmapped = new InternalComposite(
+            name,
+            10,
+            names,
+            List.of(DocValueFormat.RAW),
+            List.of(new InternalComposite.InternalBucket(names, List.of(DocValueFormat.RAW), missingKey, 1, InternalAggregations.EMPTY)),
+            missingKey,
+            new int[] { 1 },
+            new MissingOrder[] { MissingOrder.LAST },
+            false,
+            emptyMap()
+        );
+        InternalComposite partial = (InternalComposite) InternalAggregationTestCase.reduce(
+            List.of(mapped, unmapped),
+            emptyReduceContextBuilder().forPartialReduction()
+        );
+        InternalComposite oldWire = (InternalComposite) copyNamedWriteable(
+            partial,
+            getNamedWriteableRegistry(),
+            InternalAggregation.class,
+            TransportVersionUtils.getPreviousVersion(InternalComposite.COMPOSITE_PER_BUCKET_FORMATS)
+        );
+        assertThat(oldWire.getBuckets().get(0).getKey().get("ip"), equalTo("4.42.218.30"));
+        assertNull(oldWire.getBuckets().get(1).getKey().get("ip"));
+    }
+
+    /**
+     * Without buckets there is nothing to pick formats from, the default ones are returned.
+     */
+    public void testFormatsForBucketsEmpty() {
+        assertThat(InternalComposite.formatsForBuckets(emptyList(), List.of(DocValueFormat.IP)), equalTo(List.of(DocValueFormat.IP)));
     }
 
     public void testCompareCompositeKeyBiggerFieldName() {

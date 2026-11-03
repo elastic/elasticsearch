@@ -131,9 +131,21 @@ public final class PromqlLabels {
      * {@link DataType#isString} themselves.
      */
     public static @Nullable Attribute getLabel(LogicalPlan source, String label) {
+        return getField(source, label, true);
+    }
+
+    /**
+     * The field of {@code source} carrying {@code label}, by canonical name, dimension or not, or null when the source has
+     * none. A label an aggregate groups by need not be a dimension: any field of the series is one of its labels.
+     */
+    public static @Nullable Attribute getField(LogicalPlan source, String label) {
+        return getField(source, label, false);
+    }
+
+    private static @Nullable Attribute getField(LogicalPlan source, String label, boolean dimension) {
         for (Attribute attribute : source.output()) {
             if (attribute instanceof FieldAttribute field
-                && field.isDimension()
+                && (dimension == false || field.isDimension())
                 && (attribute instanceof TimeSeriesMetadataAttribute) == false
                 && labelName(attribute).equals(label)) {
                 return attribute;

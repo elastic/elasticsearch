@@ -154,6 +154,24 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(timeSeriesMetadata.excludedFields(), hasItems("pod", "event"));
     }
 
+    /**
+     * {@code by(label)} groups by the label's field whether or not it is a dimension, directly over the source or through a
+     * per-series function. Binding only dimensions would drop {@code event} from the keys and sum every series into one group.
+     */
+    public void testByGroupsOnNonDimensionLabel() {
+        for (String expression : List.of("sum by (event) (network.bytes_in)", "sum by (event) (rate(network.total_bytes_in[5m]))")) {
+            var plan = logicalOptimizerWithLatestVersion.optimize(
+                planPromql("PROMQL index=k8s step=1h result=(" + expression + ")", false)
+            );
+            var read = plan.collect(TimeSeriesAggregate.class)
+                .stream()
+                .flatMap(aggregate -> aggregate.references().stream())
+                .filter(attribute -> attribute instanceof FieldAttribute && attribute.name().equals("event"))
+                .toList();
+            assertThat(expression, read, hasSize(1));
+        }
+    }
+
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
         String query = "PROMQL index=k8s step=1h result=(sum without (pod) (network.bytes_in))";
         var logical = logicalOptimizerWithLatestVersion.optimize(planPromql(query, false));

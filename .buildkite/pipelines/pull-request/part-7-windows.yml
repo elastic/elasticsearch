@@ -11,4 +11,5 @@ steps:
       diskType: hyperdisk-balanced
       diskSizeGb: 350
     env:
+      EXTRA_GRADLE_ARGS: "--configuration-cache"
       GRADLE_TASK: checkPart7

@@ -18,19 +18,19 @@ When a data source connects to a private bucket, its encrypted credentials are s
 
 ### Credential encryption
 
-When a data source includes credentials, {{es}} encrypts them using the cluster state encryption key before storing them in the cluster state.
+When a data source includes credentials, {{es}} encrypts them using the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md) before storing them in the cluster state.
 
-The cluster state encryption key is available automatically in most environments, including {{ech}}, {{ece}}, {{eck}}, and {{serverless-short}}.
+To store credentials, each node needs a cluster state encryption password in its keystore. On {{ech}} and {{ece}}, the password is provided automatically. On self-managed clusters, the [automatic security setup](docs-content://deploy-manage/security/self-auto-setup.md) creates one, but the setup doesn't run in every case, for example on upgraded clusters. If no password is configured, a `PUT /_query/data_source` request that includes credentials returns a `503` error. To configure one, refer to [protect the cluster state encryption key with a password](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-key-password).
 
-By default, if the cluster state encryption key is not available when you create a data source, a `PUT /_query/data_source` request that includes credentials returns a `503` error.
-
-On upgraded self-managed clusters, the encryption password is not configured automatically. To configure a cluster state encryption key, add `cluster.state.encryption.password.<id>` and `cluster.state.encryption.active_password_id` to the keystore on every node, then call `POST /_nodes/reload_secure_settings`.
+A `503` error can also occur while the cluster is starting up and the key isn't loaded yet. Retry the request once the cluster is ready.
 
 :::{warning}
 Setting `cluster.state.encryption.required: false` lets a data source with credentials be created even when no encryption key is available. The credentials are then stored unencrypted in the cluster state, with only a warning in the logs. Keep the default unless you accept that risk.
 :::
 
-Learn more about the [cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md).
+If you [reset the cluster state encryption key](/reference/elasticsearch/cluster-state-encryption-key.md#cluster-state-encryption-key-reset), {{es}} deletes the credentials of every data source but keeps the rest of each definition. A GET request returns `null` for the deleted credentials. To restore access, update each data source with its credentials.
+
+{applies_to}`stack: preview 9.6+` Snapshots don't include credentials either. After a restore, update each data source with its credentials. Refer to [query limitations](esql-data-federation-querying.md#limitations).
 
 ### Credential masking
 
@@ -56,7 +56,7 @@ Dataset operations are authorized by the standard {{es}} [index privileges](../.
 
 The `read` privilege granted on a dataset name must not carry document-level or field-level security. `FROM <dataset>` is rejected if it does. The same restriction applies to [{{esql}} views](esql-views.md#esql-views-privileges).
 
-Creating a dataset that references a data source also requires the `read` [data source privilege](#data-source-privileges) for that data source. The two are authorized independently.
+Creating or replacing a dataset that references a data source also requires the `read` [data source privilege](#data-source-privileges) for that data source. The two are authorized independently. Querying a dataset requires only `read` on the dataset name, not a data source privilege.
 
 ### Data source privileges [data-source-privileges]
 
@@ -72,6 +72,8 @@ Each `global.data_source` privilege allows one operation, and `manage` allows al
 | Reference a data source from a dataset | `read` |
 | All of the above | `manage` |
 | Test a data source connection | None. Requires the cluster `manage` privilege. |
+
+A `GET /_query/data_source` request without a name lists every data source, so it requires privileges on `*` or the cluster `manage` privilege. With privileges on specific data sources, include a name or pattern in the request, such as `GET /_query/data_source/acme_*`.
 
 :::{note}
 The {{esql}} Data Federation UI in {{kib}} requires the cluster `manage` privilege. A role with only `global.data_source` privileges can manage data sources with the API, but not in the UI.

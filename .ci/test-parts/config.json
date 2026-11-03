@@ -1,5 +1,5 @@
 {
-  "parts": 6,
+  "parts": 10,
   "workers": 13,
   "antiAffinity": [
     [

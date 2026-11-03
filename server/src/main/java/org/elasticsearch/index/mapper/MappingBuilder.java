@@ -147,22 +147,29 @@ public class MappingBuilder implements ToXContentFragment {
      * @return the built {@link Mapping}
      */
     public Mapping build(MergeReason reason) {
-        normalize(reason);
+        // Serializing consults state that is not available during recovery, such as the inference model registry
+        boolean checkSerialization = reason != MergeReason.MAPPING_RECOVERY;
         List<String> serializedBeforeBuild = null;
-        assert (serializedBeforeBuild = serializations()) != null;
+        assert checkSerialization == false || (serializedBeforeBuild = serializationsAfterNormalizing(reason)) != null;
         RootObjectMapper root = rootBuilder.build(rootContext(reason));
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()
             .map(MetadataFieldMapper.Builder::build)
             .toArray(MetadataFieldMapper[]::new);
         Mapping mapping = new Mapping(root, metadataMappers, meta);
-        assert serializesLike(mapping);
-        assert serializedBeforeBuild.equals(serializations())
+        assert checkSerialization == false || serializesLike(mapping);
+        assert checkSerialization == false || serializedBeforeBuild.equals(serializations())
             : "building changed the serialization of the builder: BEFORE "
                 + serializedBeforeBuild.get(0)
                 + " AFTER "
                 + serializations().get(0);
         return mapping;
+    }
+
+    // Only assertions call this: the root builder normalizes the tree itself when it is built
+    private List<String> serializationsAfterNormalizing(MergeReason reason) {
+        normalize(reason);
+        return serializations();
     }
 
     private List<String> serializations() {

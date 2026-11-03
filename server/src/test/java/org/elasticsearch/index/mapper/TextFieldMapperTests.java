@@ -1306,6 +1306,8 @@ public class TextFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createMapperService(IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES, indexSettings, () -> true, mapping)
             .documentMapper();
         assertFalse(((TextFieldMapper) mapper.mappers().getMapper("name")).fieldType().isStored());
+        // mappings persisted before this keyword counted as compatible have an explicit store, and keep it
+        assertThat(mapper.mappingSource().string(), containsString("\"store\":false"));
     }
 
     public void testDoesNotDelegateSyntheticSourceForNormalizedKeywordMultiFieldWhenStoreOriginalValue() throws IOException {

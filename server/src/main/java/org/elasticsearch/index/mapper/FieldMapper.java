@@ -927,16 +927,16 @@ public abstract class FieldMapper extends Mapper {
 
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
+            /**
+             * The same question as {@link #hasSyntheticSourceCompatibleKeywordField}, answered the way mappers did before a
+             * normalizer that skips storing the original value counted. Persisted mappings were written with that answer, so
+             * it decides how a default {@code store} is serialized.
+             */
+            private boolean hasLegacySyntheticSourceCompatibleKeywordField;
+
             public Builder add(FieldMapper.Builder builder) {
                 fieldBuilders.put(builder.leafName(), builder);
-
-                if (builder instanceof KeywordFieldMapper.Builder kwd) {
-                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
-                        && (kwd.docValuesParameters().enabled || kwd.isStored())) {
-                        hasSyntheticSourceCompatibleKeywordField = true;
-                    }
-                }
-
+                updateSyntheticSourceCompatibleKeywordField(builder);
                 return this;
             }
 
@@ -948,9 +948,9 @@ public abstract class FieldMapper extends Mapper {
                 fieldBuilders.put(mapper.leafName(), builder);
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
-                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
-                        && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
+                        hasLegacySyntheticSourceCompatibleKeywordField = true;
                     }
                 }
             }
@@ -978,6 +978,9 @@ public abstract class FieldMapper extends Mapper {
                         && (kwd.docValuesParameters().enabled || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
+                    if (kwd.hasNormalizer() == false && (kwd.docValuesParameters().enabled || kwd.isStored())) {
+                        hasLegacySyntheticSourceCompatibleKeywordField = true;
+                    }
                 }
             }
 
@@ -991,6 +994,10 @@ public abstract class FieldMapper extends Mapper {
 
             public boolean hasSyntheticSourceCompatibleKeywordField() {
                 return hasSyntheticSourceCompatibleKeywordField;
+            }
+
+            public boolean hasLegacySyntheticSourceCompatibleKeywordField() {
+                return hasLegacySyntheticSourceCompatibleKeywordField;
             }
 
             void normalize(MapperBuilderContext context) {
@@ -1707,12 +1714,14 @@ public abstract class FieldMapper extends Mapper {
             IndexSettings indexSettings,
             Supplier<Boolean> isDimension
         ) {
-            return Parameter.boolParam("index", false, initializer, () -> {
-                if (indexSettings.isIndexDisabledByDefault()) {
-                    return false;
-                }
-                return useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false;
-            });
+            return Parameter.boolParam("index", false, initializer, () -> defaultIndexed(indexSettings, isDimension.get()));
+        }
+
+        public static boolean defaultIndexed(IndexSettings indexSettings, boolean isDimension) {
+            if (indexSettings.isIndexDisabledByDefault()) {
+                return false;
+            }
+            return useTimeSeriesDocValuesSkippers(indexSettings, isDimension) == false;
         }
 
         public static boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings, boolean isDimension) {

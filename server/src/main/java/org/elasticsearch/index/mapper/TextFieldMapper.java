@@ -382,22 +382,39 @@ public final class TextFieldMapper extends FieldMapper {
                 return true;
             });
 
-            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                // ideally and for simplicity, store should be set to false by default
-                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
-                    return false;
-                }
+            this.store = Parameter.storeParam(
+                m -> ((TextFieldMapper) m).store,
+                () -> defaultStore(indexSettings, isWithinMultiField, multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField())
+            )
+                // mappings written before a normalizer that skips storing the original value counted as a synthetic source
+                // compatible keyword have an explicit "store": false, and serialization must keep writing it
+                .setSerializerCheck(
+                    (includeDefaults, isConfigured, value) -> includeDefaults
+                        || value != defaultStore(
+                            indexSettings,
+                            isWithinMultiField,
+                            multiFieldsBuilder.hasLegacySyntheticSourceCompatibleKeywordField()
+                        )
+                );
+        }
 
-                boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
-                // however, because historically we set store to true to support synthetic source, we must also keep that logic:
-                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
-                    return isSyntheticSourceEnabled
-                        && isWithinMultiField == false
-                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                } else {
-                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                }
-            });
+        private static boolean defaultStore(
+            IndexSettings indexSettings,
+            boolean isWithinMultiField,
+            boolean hasSyntheticSourceCompatibleKeywordField
+        ) {
+            // ideally and for simplicity, store should be set to false by default
+            if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
+                return false;
+            }
+
+            boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
+            // however, because historically we set store to true to support synthetic source, we must also keep that logic:
+            if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
+                return isSyntheticSourceEnabled && isWithinMultiField == false && hasSyntheticSourceCompatibleKeywordField == false;
+            } else {
+                return isSyntheticSourceEnabled && hasSyntheticSourceCompatibleKeywordField == false;
+            }
         }
 
         private Builder(String name, MappingParserContext context) {

@@ -244,6 +244,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             script
         );
         private final Parameter<Boolean> dimension;
+        // A dimension inherited from a parent object has always been applied after the layout of the field was decided, so it
+        // takes no part in choosing between postings and a doc values skipper.
+        private boolean dimensionInherited;
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
@@ -628,7 +631,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             if (fieldtype.equals(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES) == false) {
                 // NOTE: override index options only if we are not using a sparse doc values index (and we use an inverted index)
-                fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
+                fieldtype.setIndexOptions(TextParams.toIndexOptions(indexedForLayout(), this.indexOptions.getValue()));
             }
             if (fieldtype.equals(Defaults.FIELD_TYPE)) {
                 // deduplicate in the common default case to save some memory
@@ -642,8 +645,22 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private boolean shouldUseTimeSeriesSkipper() {
             return docValuesParameters.getValue().enabled()
-                && indexed.get() == false
-                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
+                && indexedForLayout() == false
+                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get() && dimensionInherited == false);
+        }
+
+        private boolean indexedForLayout() {
+            return indexed.isSet()
+                ? indexed.getValue()
+                : Parameter.defaultIndexed(indexSettings, dimension.get() && dimensionInherited == false);
+        }
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            if (dimension.get() == false && inheritDimensionParameterFromParentObject(context)) {
+                dimensionInherited = true;
+            }
+            super.normalize(context);
         }
 
         // TODO: for columnar the default should be based on the soon the built skipper mapping attribute.
@@ -658,7 +675,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private boolean shouldUseStandardSkipper() {
             return docValuesParameters().enabled()
-                && indexed.get() == false
+                && indexedForLayout() == false
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
                 && indexSettings.useDocValuesSkipper();
         }

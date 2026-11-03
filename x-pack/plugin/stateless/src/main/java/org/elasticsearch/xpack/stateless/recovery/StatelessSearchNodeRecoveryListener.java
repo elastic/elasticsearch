@@ -102,7 +102,8 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
         try {
             final var existingBlobContainer = initializeBlobContainer(indexShard, store);
             final var clusterSettings = clusterService.getClusterSettings();
-            if (clusterSettings.get(FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING) && existingBlobContainer != null) {
+            if (FastSearchActivationSettings.getOrDefault(clusterSettings, FastSearchActivationSettings.FAST_ACTIVATION_ENABLED_SETTING)
+                && existingBlobContainer != null) {
                 if (clusterSettings.get(
                     FastSearchActivationSettings.FAST_ACTIVATION_DISCOVERY_SETTING
                 ) == FastSearchActivationSettings.Discovery.POINTER) {

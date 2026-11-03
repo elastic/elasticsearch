@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -39,6 +41,15 @@ import java.util.Locale;
 public final class FastSearchActivationSettings {
 
     private FastSearchActivationSettings() {}
+
+    /**
+     * Returns the value of a cheap-shards setting, or its default when the node's cluster settings do not register it. Some test
+     * harnesses build nodes without the plugin's settings; reading an unregistered setting throws, which would break recovery there
+     * even though every cheap-shards feature is off by default.
+     */
+    public static <T> T getOrDefault(ClusterSettings clusterSettings, Setting<T> setting) {
+        return clusterSettings.isDynamicSetting(setting.getKey()) ? clusterSettings.get(setting) : setting.getDefault(Settings.EMPTY);
+    }
 
     public static final Setting<Boolean> FAST_ACTIVATION_ENABLED_SETTING = Setting.boolSetting(
         "stateless.cheap_shard.fast_activation.enabled",

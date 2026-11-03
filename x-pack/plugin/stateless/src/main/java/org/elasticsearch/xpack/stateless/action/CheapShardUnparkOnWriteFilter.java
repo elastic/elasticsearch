@@ -33,6 +33,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.stateless.allocation.CheapShardParkedAllocationDecider;
+import org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings;
 
 import java.util.List;
 import java.util.Set;
@@ -102,7 +103,10 @@ public class CheapShardUnparkOnWriteFilter implements ActionFilter {
         }
         if (writes.isEmpty() == false) {
             final ClusterService cs = clusterService.get();
-            if (cs != null && client.get() != null && projectResolver.get() != null && cs.getClusterSettings().get(ENABLED_SETTING)) {
+            if (cs != null
+                && client.get() != null
+                && projectResolver.get() != null
+                && FastSearchActivationSettings.getOrDefault(cs.getClusterSettings(), ENABLED_SETTING)) {
                 unparkTargets(projectResolver.get().getProjectMetadata(cs.state()), writes);
             }
         }

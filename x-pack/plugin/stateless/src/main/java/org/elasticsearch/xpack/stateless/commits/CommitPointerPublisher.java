@@ -59,7 +59,10 @@ public class CommitPointerPublisher implements IndexEventListener {
     }
 
     private boolean enabled() {
-        return clusterService.getClusterSettings().get(FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING);
+        return FastSearchActivationSettings.getOrDefault(
+            clusterService.getClusterSettings(),
+            FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING
+        );
     }
 
     @Override

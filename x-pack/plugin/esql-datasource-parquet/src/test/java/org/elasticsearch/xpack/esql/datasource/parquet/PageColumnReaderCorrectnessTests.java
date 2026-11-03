@@ -918,7 +918,13 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                 int positions = block.getPositionCount();
                 assertThat(column + " read nothing", positions, greaterThan(0));
                 for (int p = 0; p < positions; p++) {
-                    assertEquals(column + " null at " + p, p % 5 == 0, block.isNull(p));
+                    boolean isNull = p % 5 == 0;
+                    assertEquals(column + " null at " + p, isNull, block.isNull(p));
+                    if (isNull) {
+                        // Comparing reads can only false-pass: memory that happens to be reproducible agrees
+                        // with itself. Read the masked element itself, which is deterministic when zeroed.
+                        assertMaskedPositionIsDefined(column, dataType, block, p);
+                    }
                 }
                 byte[] actual = serialize(block);
                 if (expected == null) {
@@ -927,6 +933,28 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
                     assertArrayEquals(column + " serialized form changed on read " + read, expected, actual);
                 }
             }
+        }
+    }
+
+    /**
+     * The backing element at a masked position, read directly. Single-valued here, so the position indexes the
+     * array. A bytes column keeps its values in a {@link org.apache.lucene.util.BytesRef} array rather than a
+     * primitive one, so there is no slot to read and the byte comparison is the only oracle for it.
+     */
+    private static void assertMaskedPositionIsDefined(String column, DataType dataType, Block block, int p) {
+        String where = column + " masked position " + p;
+        assertEquals(where + " must index the array directly", p, block.getFirstValueIndex(p));
+        if (block instanceof BooleanBlock b) {
+            assertFalse(where, b.getBoolean(p));
+        } else if (block instanceof IntBlock b) {
+            assertEquals(where, 0, b.getInt(p));
+        } else if (block instanceof LongBlock b) {
+            // An unsigned column sign-flip-encodes its whole batch after decoding, masked positions included,
+            // so a defined zero arrives here as the encoding of zero rather than as zero.
+            long expected = dataType == DataType.UNSIGNED_LONG ? ParquetColumnDecoding.encodeUnsignedLong(0L) : 0L;
+            assertEquals(where, expected, b.getLong(p));
+        } else if (block instanceof DoubleBlock b) {
+            assertEquals(where, 0.0, b.getDouble(p), 0.0);
         }
     }
 

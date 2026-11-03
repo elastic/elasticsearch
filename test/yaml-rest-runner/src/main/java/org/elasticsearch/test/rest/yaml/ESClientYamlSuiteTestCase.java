@@ -42,6 +42,7 @@ import org.junit.rules.ErrorCollector;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Parameter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -58,7 +59,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.zip.CRC32;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -97,6 +100,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Property that allows to control whether spec validation is enabled or not (default true).
      */
     private static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
+    /**
+     * Property that runs only a share of the yaml test files so that one long suite can be spread over several CI jobs:
+     * {@code <count>:<shard>[,<shard>...]}, e.g. {@code -Dtests.rest.shard=3:0,2}. A file belongs to shard
+     * {@code crc32("<api>/<file name>") % count}, so every file runs in exactly one shard. The build sets it for test
+     * tasks that the CI part assignment splits by yaml file (see {@code CiPartsPlugin}).
+     */
+    public static final String REST_TESTS_SHARD = "tests.rest.shard";
 
     private static final String TESTS_PATH = "rest-api-spec/test";
     private static final String SPEC_PATH = "rest-api-spec/api";
@@ -334,6 +344,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         Map<String, ?> yamlParameters,
         Map<String, Set<Path>> yamlSuites
     ) throws Exception {
+        Predicate<String> inShard = shardFilter(System.getProperty(REST_TESTS_SHARD));
         List<ClientYamlTestSuite> suites = new ArrayList<>();
         IllegalArgumentException validationException = null;
         // yaml suites are grouped by directory (effectively by api)
@@ -341,6 +352,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
             for (Path yamlFile : yamlFiles) {
                 ClientYamlTestSuite suite = ClientYamlTestSuite.parse(executeableSectionRegistry, api, yamlFile, yamlParameters);
+                if (inShard.test(suite.getPath()) == false) {
+                    continue;
+                }
                 suites.add(suite);
                 try {
                     suite.validate();
@@ -465,6 +479,41 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             .map(e -> Map.entry(e.getKey(), e.getValue().stream().filter(declaredFiles::contains).collect(Collectors.toSet())))
             .filter(e -> e.getValue().isEmpty() == false)
             .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+    }
+
+    /**
+     * Parses a {@link #REST_TESTS_SHARD} value into a predicate on a suite path ({@code <api>/<file name>}); a {@code null}
+     * value keeps every suite.
+     */
+    // pkg private for tests
+    static Predicate<String> shardFilter(String value) {
+        if (value == null || value.isBlank()) {
+            return suitePath -> true;
+        }
+        String[] countAndShards = value.split(":");
+        if (countAndShards.length != 2) {
+            throw new IllegalArgumentException("[" + REST_TESTS_SHARD + "] must be <count>:<shard>[,<shard>...] but was [" + value + "]");
+        }
+        int count = Integer.parseInt(countAndShards[0].trim());
+        Set<Integer> shards = new HashSet<>();
+        for (String shard : countAndShards[1].split(",")) {
+            int s = Integer.parseInt(shard.trim());
+            if (count < 1 || s < 0 || s >= count) {
+                throw new IllegalArgumentException("[" + REST_TESTS_SHARD + "] has shard " + s + " outside of [0, " + count + ")");
+            }
+            shards.add(s);
+        }
+        return suitePath -> shards.contains(shardOf(suitePath, count));
+    }
+
+    /**
+     * The shard of a suite path. Must stay identical to {@code org.elasticsearch.gradle.internal.ci.CiShards#bucket}, which
+     * the build uses for the same purpose.
+     */
+    static int shardOf(String suitePath, int count) {
+        CRC32 crc = new CRC32();
+        crc.update(suitePath.getBytes(StandardCharsets.UTF_8));
+        return (int) (crc.getValue() % count);
     }
 
     /** Find all yaml suites that match the given list of paths from the root test path. */

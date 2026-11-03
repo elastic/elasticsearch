@@ -937,6 +937,74 @@ public class BulkOperationTests extends ESTestCase {
     }
 
     /**
+     * Failure stores are not replicated by CCR, so a failing document written to a follower data stream must not be redirected, even if
+     * the failure store is enabled and the stream has no failure indices. The bulk must complete with the original failure.
+     */
+    public void testFailingDocumentOnReplicatedDataStreamWithFailureStoreEnabledCompletesBulk() {
+        String followerName = "follower-data-stream";
+        IndexMetadata backingIndex = DataStreamTestHelper.createBackingIndex(followerName, 1, millis).numberOfShards(1).build();
+        DataStream followerStream = DataStream.builder(followerName, List.of(backingIndex.getIndex()))
+            .setGeneration(1)
+            .setReplicated(true)
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+            .build();
+        ClusterState followerState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .indices(Map.of(backingIndex.getIndex().getName(), backingIndex))
+                    .dataStreams(Map.of(followerName, followerStream), Map.of())
+                    .build()
+            )
+            .build();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(followerName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        NodeClient client = getNodeClient(
+            thatFailsDocuments(Map.of(new IndexAndId(backingIndex.getIndex().getName(), "1"), () -> new MapperException("mapping go boom")))
+        );
+
+        BulkResponse response = safeAwait(l -> newBulkOperation(client, bulkRequest, followerState, mockObserver(followerState), l).run());
+
+        assertThat(response.hasFailures(), is(true));
+        BulkItemResponse failedItem = response.getItems()[0];
+        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.NOT_ENABLED));
+    }
+
+    /**
+     * If a redirected document cannot be resolved to a failure index, the item must fail instead of leaving the bulk incomplete.
+     */
+    public void testRedirectToFailureStoreWithoutFailureIndicesFailsItem() {
+        String streamName = "no-failure-indices-data-stream";
+        IndexMetadata backingIndex = DataStreamTestHelper.createBackingIndex(streamName, 1, millis).numberOfShards(1).build();
+        DataStream stream = DataStream.builder(streamName, List.of(backingIndex.getIndex()))
+            .setGeneration(1)
+            .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .indices(Map.of(backingIndex.getIndex().getName(), backingIndex))
+                    .dataStreams(Map.of(streamName, stream), Map.of())
+                    .build()
+            )
+            .build();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest(streamName).id("1").source(Map.of("key", "val")).opType(DocWriteRequest.OpType.CREATE));
+        NodeClient client = getNodeClient(
+            thatFailsDocuments(Map.of(new IndexAndId(backingIndex.getIndex().getName(), "1"), () -> new MapperException("mapping go boom")))
+        );
+
+        BulkResponse response = safeAwait(l -> newBulkOperation(client, bulkRequest, state, mockObserver(state), l).run());
+
+        assertThat(response.hasFailures(), is(true));
+        BulkItemResponse failedItem = response.getItems()[0];
+        assertThat(failedItem.getFailure().getCause(), is(instanceOf(MapperException.class)));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
+    }
+
+    /**
      * A bulk operation to a data stream with a failure store enabled may still partially fail if the redirected documents experience
      * a shard-level failure while writing to the failure store indices.
      */

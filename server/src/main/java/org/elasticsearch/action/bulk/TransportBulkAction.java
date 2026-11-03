@@ -930,7 +930,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         DataStream targetDataStream = DataStream.resolveDataStream(indexAbstraction, projectMetadata);
 
         // We will store the failure if the write target belongs to a data stream with a failure store.
-        return targetDataStream != null && targetDataStream.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings);
+        // Failure stores are not replicated by CCR, so a follower data stream can never store failures even if the failure store is
+        // enabled.
+        return targetDataStream != null
+            && targetDataStream.isReplicated() == false
+            && targetDataStream.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings);
     }
 
     /**

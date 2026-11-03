@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ScopeTsidFunnel;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -401,11 +402,14 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return dataPoints.getFirst().getStartTimestampUnixNano();
         }
 
+        /** Hashes the metric name set canonically so sender ordering does not change the time series identity. */
         public String getMetricNamesHash(BufferedMurmur3Hasher hasher) {
             if (metricNamesHash == null) {
                 hasher.reset();
-                for (int i = 0; i < dataPoints.size(); i++) {
-                    hasher.addString(dataPoints.get(i).getMetricName());
+                String[] sortedMetricNames = metricNames.toArray(String[]::new);
+                Arrays.sort(sortedMetricNames);
+                for (String metricName : sortedMetricNames) {
+                    hasher.addString(metricName);
                 }
                 metricNamesHash = Integer.toHexString(hasher.digestHash().hashCode());
             }

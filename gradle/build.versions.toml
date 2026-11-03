@@ -1,5 +1,5 @@
 [versions]
-asm = "9.10.1"
+asm = "9.11.1"
 jackson = "2.21.8"
 jacoco = "0.8.15"
 junit = "6.1.3"

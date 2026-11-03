@@ -656,7 +656,10 @@ public class HashAggregationOperator implements Operator {
 
     void clearCurrentBatch() {
         rowsAddedInCurrentBatch = 0;
-        if (blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
+        // Only reuse via clear() when partitioning is active. TimeSeriesBlockHash may share its
+        // BytesRefArray with emitted ordinal dictionaries (incRef); clear()/truncate would corrupt
+        // those keys. Close+recreate drops the hash's ref and leaves emitted keys intact (#164417).
+        if (supportPartitioning && blockHash instanceof PartitionedBlockHash partitionedBlockHash) {
             partitionedBlockHash.clear();
         } else {
             blockHash.close();

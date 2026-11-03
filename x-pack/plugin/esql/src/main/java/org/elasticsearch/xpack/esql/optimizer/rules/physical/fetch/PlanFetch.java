@@ -368,9 +368,9 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      *     sees, so the fetch would read them a second time. In {@code SORT a + 1 | LIMIT 10 | KEEP a}, the sort key is
      *     an {@code Eval} of {@code a}, so {@code a} is eager.</li>
      * </ul>
-     * Everything else stays eager, which keeps the fetch partial rather than all or nothing: {@code _score}, values
-     * computed inside the fragment, and fields that may be unmapped all keep crossing as values. Renames are not
-     * followed: a rename after the cut reads its source column after the cut, so the source column is deferred.
+     * Everything else stays eager, which keeps the fetch partial rather than all or nothing: {@code _score} and values
+     * computed inside the fragment keep crossing as values. Renames are not followed: a rename after the cut reads its
+     * source column after the cut, so the source column is deferred.
      *
      * @param fragmentRoot   the {@link Project} at the root of the fragment. Its output is what crosses the exchange.
      * @param coordinatorCut the coordinator half of the cut, the parent of the exchange

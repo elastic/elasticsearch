@@ -18,6 +18,7 @@ import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTests;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.rules.ResolveHighlightIndexKey;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -625,17 +627,66 @@ public class PlanFetchTests extends ESTestCase {
         assertDeclined(plan("FROM employees | SORT hire_date | LIMIT 10 | KEEP hire_date"), Outcome.INELIGIBLE_NO_DEFERRABLE_FIELDS);
     }
 
+    /** A field that may be unmapped is fetched like a mapped one, and the fetch side reads it as the data node would. */
+    public void testAPotentiallyUnmappedFieldIsFetched() {
+        PhysicalPlan plan = planWithUnmappedFields(
+            UnmappedResolution.LOAD,
+            "FROM employees | SORT hire_date | LIMIT 10 | KEEP first_name, does_not_exist"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("first_name", "does_not_exist"));
+        FieldAttribute unmapped = (FieldAttribute) fetch.fetchedAttributes()
+            .stream()
+            .filter(attribute -> attribute.name().equals("does_not_exist"))
+            .findFirst()
+            .orElseThrow();
+        assertThat(unmapped.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "hire_date")));
+    }
+
+    /** The unmapped fields of {@code unmapped_fields="load_all"} are one {@code _source} shaped column, fetched like {@code _source}. */
+    public void testTheUnmappedFieldsOfLoadAllAreFetched() {
+        PhysicalPlan plan = planWithUnmappedFields(
+            UnmappedResolution.LOAD_ALL,
+            "FROM employees | SORT hire_date | LIMIT 10 | KEEP first_name*, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), containsInAnyOrder("first_name", UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "hire_date")));
+    }
+
+    /** Every branch of a {@code FORK} reads the unmapped fields of one pattern, so the fetch loads them for the final cut. */
+    public void testAForkFetchesTheUnmappedFieldsOfLoadAll() {
+        PhysicalPlan plan = planWithUnmappedFields(
+            UnmappedResolution.LOAD_ALL,
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50) (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP first_name*, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        }
+    }
+
     /**
-     * A field that may be unmapped is read through a rule that runs on the data node and that the fetch side does not
-     * run, so it keeps crossing the exchange while the other columns are fetched.
+     * A branch that drops some unmapped fields reads them with another pattern than the other branch, so one fetch can't
+     * load the column for the rows of both, and every branch keeps sending it.
      */
-    public void testPotentiallyUnmappedFieldStaysEager() {
-        Attribute unmapped = new FieldAttribute(Source.EMPTY, "unmapped_kw", new PotentiallyUnmappedKeywordEsField("unmapped_kw"));
-        Attribute mapped = field("first_name", DataType.KEYWORD);
-        PhysicalPlan rewritten = applyTo(topNPlan(List.of(mapped, unmapped), Map.of("", List.of("idx"))));
-        FetchExec fetch = single(rewritten, FetchExec.class);
-        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
-        assertThat(names(fetch.child().output()), equalTo(List.of("_doc", "sort", "unmapped_kw")));
+    public void testAForkWhoseBranchesReadOtherUnmappedFieldsKeepsThemEager() {
+        PhysicalPlan plan = planWithUnmappedFields(
+            UnmappedResolution.LOAD_ALL,
+            "FROM employees"
+                + " | FORK (WHERE salary > 1000 | SORT hire_date DESC | LIMIT 50 | DROP does_not_exist*)"
+                + " (WHERE languages > 2 | SORT hire_date DESC | LIMIT 50)"
+                + " | SORT hire_date DESC | LIMIT 10 | KEEP first_name*, hire_date"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), not(hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        for (ExchangeExec exchange : plan.collect(ExchangeExec.class)) {
+            assertThat(names(exchange.output()), hasItem(UnmappedFieldsAttribute.ATTRIBUTE_NAME));
+        }
     }
 
     /** Rows from a remote cluster cannot be fetched yet, the plan stays eager. */
@@ -689,6 +740,15 @@ public class PlanFetchTests extends ESTestCase {
             .addIndex(EsIndexGenerator.esIndex("employees", mapping(), Map.of("employees", IndexMode.STANDARD)))
             .minimumTransportVersion(minimumVersion);
         return plan(employees, query, flags, configuration);
+    }
+
+    /** {@code query} over {@code employees} with {@code SET unmapped_fields} at {@code unmappedFields}. */
+    private static Planned planWithUnmappedFields(UnmappedResolution unmappedFields, String query) {
+        TestAnalyzer employees = EsqlTestUtils.analyzer()
+            .addIndex(EsIndexGenerator.esIndex("employees", mapping(), Map.of("employees", IndexMode.STANDARD)))
+            .minimumTransportVersion(TransportVersion.current())
+            .unmappedResolution(unmappedFields);
+        return plan(employees, query);
     }
 
     private static Planned plan(TestAnalyzer analyzer, String query) {

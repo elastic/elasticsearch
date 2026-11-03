@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.PlanFetch.Dec
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.PlanFetch.Demand;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.PlanFetch.FilterAroundTheFetch;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.CarriesDetachedDoc;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -85,8 +86,8 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.PlanFe
  * <ul>
  *     <li>every branch fetches it on its own, see {@link PlanFetch#demand}, and reads it only to pass it on after its
  *     cut,</li>
- *     <li>it is the same field or the same metadata, like {@code _source}, in every branch, so the document gives the
- *     same value whatever branch found it,</li>
+ *     <li>it is the same field, the same metadata, like {@code _source}, or the unmapped fields of the same pattern in
+ *     every branch, so the document gives the same value whatever branch found it,</li>
  *     <li>nothing between the merge and the final cut reads it, other than a {@code FIRST} of {@code FUSE},</li>
  *     <li>the final cut doesn't read it, nor the {@code FIRST} that stands for it.</li>
  * </ul>
@@ -351,7 +352,8 @@ final class ForkFetch {
     }
 
     /**
-     * Whether two columns the fetch can load give the same value for a document: the same field, or the same metadata.
+     * Whether two columns the fetch can load give the same value for a document: the same field, the same metadata, or
+     * the unmapped fields of the same pattern. Branches can carry different patterns, and the fetch loads one of them.
      */
     private static boolean sameColumnOfTheDocument(Attribute one, Attribute other) {
         if (one.getClass() != other.getClass() || one.dataType() != other.dataType()) {
@@ -360,6 +362,7 @@ final class ForkFetch {
         return switch (one) {
             case FieldAttribute field -> field.fieldName().equals(((FieldAttribute) other).fieldName());
             case MetadataAttribute metadata -> metadata.name().equals(other.name());
+            case UnmappedFieldsAttribute unmapped -> unmapped.pattern().equals(((UnmappedFieldsAttribute) other).pattern());
             default -> throw new IllegalStateException("the fetch can't load [" + one + "]");
         };
     }

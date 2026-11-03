@@ -213,6 +213,28 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
+    /** A field that may be unmapped is fetched, and each shard reads it from its mapping or from {@code _source}. */
+    public void testPotentiallyUnmappedField() {
+        runBoth("""
+            SET unmapped_fields="load";
+            FROM employees
+            | SORT hire_date
+            | LIMIT 10
+            | KEEP first_name, does_not_exist
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** The unmapped fields of {@code load_all} are one {@code _source} shaped column, fetched for the ten winners only. */
+    public void testUnmappedFieldsOfLoadAll() {
+        runBoth("""
+            SET unmapped_fields="load_all";
+            FROM employees
+            | SORT hire_date
+            | LIMIT 10
+            | KEEP first_name*, hire_date
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
     private void runBoth(String query, SearchStats searchStats) {
         withFetchPhase(query, searchStats).run();
         withoutFetchPhase(query, searchStats).run();

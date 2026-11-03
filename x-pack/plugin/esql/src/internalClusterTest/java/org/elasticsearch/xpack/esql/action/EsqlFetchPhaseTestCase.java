@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.fetch.FetchOperator;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -778,18 +779,33 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A field that some indices don't map loads through a rule that picks the loader per node, which the fetch side
-     * doesn't run, so it crosses the exchange as a value. The other columns are still fetched.
+     * A field that some indices don't map is fetched, and each shard reads it as the data node would. The index that maps
+     * it reads its doc values, which a normalizer lowercases and which skip a value over {@code ignore_above}. The index
+     * that doesn't reads {@code _source}. On several nodes the two indices sit on different nodes. Without node level
+     * reduction, the node of the mapped index then reads the field as a mapped keyword before the cut, and the fetch
+     * side, which reads it as a field that may be unmapped, must return the same values.
      */
-    public void testAPotentiallyUnmappedFieldStaysEager() {
+    public void testFetchesAPotentiallyUnmappedField() {
         String mapped = indexName + "_mapped";
         String unmapped = indexName + "_unmapped";
-        assertAcked(
-            indicesAdmin().prepareCreate(mapped)
-                .setSettings(indexSettings(1, 0))
-                .setMapping("unique_sort", "type=long", "optional", "type=keyword", "payload", "type=keyword")
-        );
-        assertAcked(indicesAdmin().prepareCreate(unmapped).setSettings(indexSettings(1, 0)).setMapping("""
+        Settings.Builder mappedSettings = indexSettings(1, 0).put("index.analysis.normalizer.lowercase.type", "custom")
+            .putList("index.analysis.normalizer.lowercase.filter", "lowercase");
+        Settings.Builder unmappedSettings = indexSettings(1, 0);
+        if (internalCluster().numDataNodes() > 1) {
+            String mappedNode = internalCluster().getRandomDataNodeName();
+            mappedSettings.put("index.routing.allocation.include._name", mappedNode);
+            unmappedSettings.put("index.routing.allocation.exclude._name", mappedNode);
+        }
+        assertAcked(indicesAdmin().prepareCreate(mapped).setSettings(mappedSettings).setMapping("""
+            {
+              "properties": {
+                "unique_sort": { "type": "long" },
+                "optional": { "type": "keyword", "normalizer": "lowercase", "ignore_above": 10 },
+                "payload": { "type": "keyword" }
+              }
+            }
+            """));
+        assertAcked(indicesAdmin().prepareCreate(unmapped).setSettings(unmappedSettings).setMapping("""
             {
               "dynamic": false,
               "properties": {
@@ -800,10 +816,11 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
             """));
         BulkRequestBuilder bulk = client().prepareBulk();
         for (int i = 0; i < 3; i++) {
-            bulk.add(prepareIndex(mapped).setSource("unique_sort", i, "optional", "mapped-" + i, "payload", "payload-" + i));
-            bulk.add(
-                prepareIndex(unmapped).setSource("unique_sort", i + 3, "optional", "unmapped-" + (i + 3), "payload", "payload-" + (i + 3))
-            );
+            int even = 2 * i;
+            int odd = 2 * i + 1;
+            String mappedValue = i == 2 ? "Mapped-Over-Ignore-Above" : "Mapped-" + even;
+            bulk.add(prepareIndex(mapped).setSource("unique_sort", even, "optional", mappedValue, "payload", "payload-" + even));
+            bulk.add(prepareIndex(unmapped).setSource("unique_sort", odd, "optional", "Unmapped-" + odd, "payload", "payload-" + odd));
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -812,21 +829,56 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
                 + mapped
                 + ","
                 + unmapped
-                + " | SORT unique_sort DESC | LIMIT 3 | KEEP unique_sort, optional, payload"
+                + " | SORT unique_sort DESC | LIMIT 4 | KEEP unique_sort, optional, payload"
         );
         assertThat(
             run.rows(),
             equalTo(
                 List.of(
-                    List.of(5L, "unmapped-5", "payload-5"),
-                    List.of(4L, "unmapped-4", "payload-4"),
-                    List.of(3L, "unmapped-3", "payload-3")
+                    List.of(5L, "Unmapped-5", "payload-5"),
+                    Arrays.asList(4L, null, "payload-4"),
+                    List.of(3L, "Unmapped-3", "payload-3"),
+                    List.of(2L, "mapped-2", "payload-2")
                 )
             )
         );
-        assertFetched(run, 3);
-        assertLoadedOnlyBeforeTheCut(run, "optional");
+        assertFetched(run, 4);
+        assertFetchedOnly(run, "optional");
         assertFetchedOnly(run, "payload");
+    }
+
+    /**
+     * {@code unmapped_fields="load_all"} returns the unmapped fields of each row as one {@code _source} shaped column, which
+     * the fetch loads for the rows of the cut only.
+     */
+    public void testFetchesTheUnmappedFieldsOfLoadAll() {
+        String index = indexName + "_load_all";
+        assertAcked(indicesAdmin().prepareCreate(index).setSettings(indexSettings(2, 0)).setMapping("""
+            {
+              "dynamic": false,
+              "properties": {
+                "unique_sort": { "type": "long" },
+                "payload": { "type": "keyword" }
+              }
+            }
+            """));
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < 10; i++) {
+            bulk.add(prepareIndex(index).setSource("unique_sort", i, "payload", "payload-" + i, "extra", "extra-" + i));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        Run run = runBoth("SET unmapped_fields=\"load_all\"; FROM " + index + " | SORT unique_sort DESC | LIMIT 3");
+        assertThat(run.columns(), equalTo(List.of("payload", "unique_sort", UnmappedFieldsAttribute.ATTRIBUTE_NAME)));
+        List<Long> expected = List.of(9L, 8L, 7L);
+        assertThat(run.rows(), hasSize(expected.size()));
+        for (int row = 0; row < expected.size(); row++) {
+            assertThat(run.rows().get(row).get(1), equalTo(expected.get(row)));
+            Map<?, ?> unmappedFields = (Map<?, ?>) run.rows().get(row).get(2);
+            assertThat(unmappedFields, equalTo(Map.of("extra", "extra-" + expected.get(row))));
+        }
+        assertFetched(run, 3);
+        assertFetchedOnly(run, UnmappedFieldsAttribute.ATTRIBUTE_NAME);
     }
 
     /**

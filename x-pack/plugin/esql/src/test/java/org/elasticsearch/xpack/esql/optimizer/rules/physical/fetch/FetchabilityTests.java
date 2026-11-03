@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 
 import java.util.List;
@@ -44,8 +46,13 @@ public class FetchabilityTests extends ESTestCase {
         assertFetchable(field(new MultiTypeEsField("f", DataType.DATE_NANOS, true, Map.of(), EsField.TimeSeriesFieldType.NONE, null)));
     }
 
+    /** The loader of each shard reads these from the shard's mapping where it has one, and from {@code _source} otherwise. */
+    public void testFieldsThatMayBeUnmappedAreFetchable() {
+        assertFetchable(field(new PotentiallyUnmappedKeywordEsField("f")));
+        assertFetchable(new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.ALL));
+    }
+
     public void testFieldsWithoutAMappingAreNotFetchable() {
-        assertNotFetchable(field(new PotentiallyUnmappedKeywordEsField("f")));
         assertNotFetchable(field(new MissingEsField("f")));
         assertNotFetchable(field(new UnsupportedEsField("f", List.of("geo_shape_custom"))));
         assertNotFetchable(field(new EsField("f", DataType.UNSUPPORTED, Map.of(), true, EsField.TimeSeriesFieldType.NONE)));

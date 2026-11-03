@@ -540,11 +540,6 @@ tests:
   - :server:internalClusterTest
   method: testMetadataVersion
   issue: https://github.com/elastic/elasticsearch/issues/164246
-- class: org.elasticsearch.xpack.stateless.reshard.SnapshotsWithReshardingIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testRestoreOverOpenIndexWhileResharding_onSeparateNodes_handoffInFlight
-  issue: https://github.com/elastic/elasticsearch/issues/164466
 - class: org.elasticsearch.system_indices.action.SystemDataStreamMigrationIT
   tasks:
   - :x-pack:plugin:migrate:internalClusterTest

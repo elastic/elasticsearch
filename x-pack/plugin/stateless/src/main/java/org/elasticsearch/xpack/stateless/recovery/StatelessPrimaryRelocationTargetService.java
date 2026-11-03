@@ -71,7 +71,8 @@ public class StatelessPrimaryRelocationTargetService {
     }
 
     void handlePrewarmRelocation(TransportStatelessPrimaryRelocationPrewarmAction.Request request, ActionListener<Void> listener) {
-        ActionListener.completeWith(listener, () -> {
+        // reply to the source when the warming has completed (or failed)
+        ActionListener.run(listener, l -> {
             logger.trace("{} prewarming due to primary relocation", request.shardId());
 
             final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
@@ -84,13 +85,12 @@ public class StatelessPrimaryRelocationTargetService {
                 Set.of()
             );
             try {
-                indexShardCacheWarmer.preWarmIndexShardCacheForPeerRecovery(indexShard, sourceBlobsInfo, request.hasRecentIdLookup());
+                indexShardCacheWarmer.preWarmIndexShardCacheForPeerRecovery(indexShard, sourceBlobsInfo, request.hasRecentIdLookup(), l);
             } catch (IndexShardNotRecoveringException e) {
                 // This could happen if the prewarm request is delayed. The caller decides whether to ignore this failure.
                 logger.trace(format("%s not prewarming as shard is not recovering", request.shardId()), e);
                 throw e;
             }
-            return null;
         });
     }
 

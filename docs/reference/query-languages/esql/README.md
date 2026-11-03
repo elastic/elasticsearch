@@ -438,6 +438,14 @@ Inside `TS ... | STATS ...`, a bare field is implicitly wrapped in `last_over_ti
 ./gradlew :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateKibanaDefinitionTests
 ```
 
+### Implicit union casts
+
+When a field is mapped as `aggregate_metric_double` in one index and a plain numeric in another (the shape raw-versus-downsampled indices produce), field discovery reports the column as `unsupported` with both original types, but `avg`, `sum`, `min`, `max` and `count` (and binary comparisons) implicitly reconcile the legs and run anyway. The conflict shape the rule accepts and the functions it accepts under are published for Kibana in [`kibana/generated/x-pack-esql/definition/implicit_union_casts.json`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/implicit_union_casts.json); Kibana uses it to tell a resolvable conflict from a fatal one instead of guessing from `suggested_cast`. To regenerate, run:
+
+```
+./gradlew :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.aggregate.ImplicitUnionCastKibanaDefinitionTests
+```
+
 ### Reserved keywords
 
 The reserved-keyword list is generated from identifier-shaped literals in `EsqlBaseLexer.VOCABULARY` by `ReservedKeywordsDocsTests`. Tokens whose ANTLR literal is missing (for example `STATS`) are recovered by lexing the symbolic name. To regenerate:

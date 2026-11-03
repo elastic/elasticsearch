@@ -56,7 +56,9 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.PrefetchResult;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherMetrics;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -178,7 +180,8 @@ public class SearchEngine extends Engine {
         SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
         CircuitBreaker readerHeapBreaker,
         StatelessReaderHeapMetrics readerHeapMetrics,
-        ReshardSearchFilters reshardSearchFilters
+        ReshardSearchFilters reshardSearchFilters,
+        SearchCommitPrefetcherMetrics prefetcherMetrics
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
@@ -374,7 +377,8 @@ public class SearchEngine extends Engine {
                 config.getThreadPool(),
                 prefetchExecutor,
                 clusterSettings,
-                prefetcherDynamicSettings
+                prefetcherDynamicSettings,
+                prefetcherMetrics
             );
             warmReaderCacheAfterResharding();
             success = true;
@@ -640,7 +644,7 @@ public class SearchEngine extends Engine {
         commitPrefetcher.maybePrefetchLatestCommit(
             newCommitNotification,
             timeSinceLastSearcherWasAcquiredInMillis,
-            listener.delegateResponse((l, e) -> {
+            listener.<PrefetchResult>map(ignored -> null).delegateResponse((l, e) -> {
                 // We don't want to prevent the new commit notification to make progress
                 logger.warn(() -> "Unable to prefetch commit for notification " + newCommitNotification, e);
                 l.onResponse(null);

@@ -590,3 +590,23 @@ tests:
   - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
   method: test {csv-spec:prometheus-k8s-promql.set_operator_union_rate_or_irate}
   issue: https://github.com/elastic/elasticsearch/issues/164417
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sIncreaseIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:prometheus-k8s-increase.increase_of_long_no_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/164421
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesIncreaseIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/164423
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesPromqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:k8s-timeseries-promql.increase_on_plain_numeric_long}
+  issue: https://github.com/elastic/elasticsearch/issues/164425
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesPromqlIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
+  method: test {csv-spec:k8s-timeseries-promql.rate_small_window_no_set_operator}
+  issue: https://github.com/elastic/elasticsearch/issues/164427

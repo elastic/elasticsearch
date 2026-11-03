@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
@@ -119,7 +120,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             ShardRouting newRouting = shardRouting;
             String nodeId = newRouting.currentNodeId();
             UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
-            newRouting = newRouting.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
+            newRouting = newRouting.moveToUnassigned(unassignedInfo, RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
             final DiscoveryNode localNode = getInstanceFromNode(ClusterService.class).localNode();
@@ -172,7 +173,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             ShardRouting newRouting = shardRouting;
             String nodeId = newRouting.currentNodeId();
             UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom");
-            newRouting = newRouting.moveToUnassigned(unassignedInfo, ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
+            newRouting = newRouting.moveToUnassigned(unassignedInfo, RecoveryPriority.UNASSIGNED_NEW_PRIMARY)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
             final DiscoveryNode localNode = getInstanceFromNode(ClusterService.class).localNode();

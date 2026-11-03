@@ -58,6 +58,24 @@ public class PromqlVerifierTests extends ESTestCase {
         .stripErrorPrefix(true)
         .unmappedResolution(UnmappedResolution.NULLIFY);
 
+    public void testPredictLinearArguments() {
+        tsdb.error(
+            "PROMQL index=test step=5m predict_linear(network.bytes_in[5m])",
+            ParsingException.class,
+            containsString("Invalid number of parameters for function [predict_linear], required [2], found [1]")
+        );
+        tsdb.error(
+            "PROMQL index=test step=5m predict_linear(network.bytes_in[5m], network.bytes_in)",
+            containsString("expected type scalar in call to function [predict_linear], got instant_vector")
+        );
+        for (String horizon : List.of("time()", "scalar(sum(network.bytes_in))")) {
+            tsdb.error(
+                "PROMQL index=test step=5m predict_linear(network.bytes_in[5m], " + horizon + ")",
+                containsString("expected literal parameter in call to function [predict_linear]")
+            );
+        }
+    }
+
     public void testPromqlRangeVector() {
         tsdb.error(
             "PROMQL index=test step=5m network.bytes_in[5m]",

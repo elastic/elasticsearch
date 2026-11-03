@@ -325,9 +325,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
   method: testOptimizeMultipleVersions
   issue: https://github.com/elastic/elasticsearch/issues/162517
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1MissingIndicesIT
-  method: testSearchesAgainstNonMatchingIndices
-  issue: https://github.com/elastic/elasticsearch/issues/162565
 - class: org.elasticsearch.search.heappressure.TopHitsLeafCollectorHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/162932
 - class: org.elasticsearch.painless.heappressure.RuntimeFieldHighlightHeapPressureIT
@@ -348,9 +345,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordMissingMetricOnTopDocumentOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.esql.plugin.EsqlQueryMetricsCollectorIT
-  method: testCsvReadNanosIsolatedBetweenQueries
-  issue: https://github.com/elastic/elasticsearch/issues/162715
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
@@ -496,11 +490,6 @@ tests:
   - :x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest
   method: test {yaml=esql/200_view/validate-warns-but-still-stores-the-view}
   issue: https://github.com/elastic/elasticsearch/issues/164095
-- class: org.elasticsearch.xpack.security.support.CleanupRoleMappingDuplicatesMigrationIT
-  tasks:
-  - :x-pack:plugin:security:internalClusterTest
-  method: testMigrationFallbackNamePreCondition
-  issue: https://github.com/elastic/elasticsearch/issues/164170
 - class: org.elasticsearch.test.cluster.local.RolledLogReaderTests
   tasks:
   - :test:test-clusters:test
@@ -551,18 +540,28 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testShardFilesNotDeletedOnStateNotRecoveredDedicatedMaster
   issue: https://github.com/elastic/elasticsearch/issues/164248
-- class: org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettingsTests
+- class: org.elasticsearch.datastreams.DataStreamAutoshardingIT
   tasks:
-  - :x-pack:plugin:inference:test
-  method: testFromMap_ExplicitNullRateLimit_ThrowsException
-  issue: https://github.com/elastic/elasticsearch/issues/164266
-- class: org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankServiceSettingsTests
+  - :modules:data-streams:internalClusterTest
+  method: testReduceShardsOnRollover
+  issue: https://github.com/elastic/elasticsearch/issues/164371
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   tasks:
-  - :x-pack:plugin:inference:test
-  method: testFromMap_ExplicitNullRateLimit_ThrowsException
-  issue: https://github.com/elastic/elasticsearch/issues/164269
-- class: org.elasticsearch.xpack.inference.services.huggingface.completion.HuggingFaceChatCompletionServiceSettingsTests
+  - :test:external-modules:test-esql-heap-attack:javaRestTest
+  method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
+  issue: https://github.com/elastic/elasticsearch/issues/164383
+- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
   tasks:
-  - :x-pack:plugin:inference:test
-  method: testFromMap_ExplicitNullRateLimit_ThrowsException
-  issue: https://github.com/elastic/elasticsearch/issues/164271
+  - :x-pack:plugin:security:test
+  method: testVerifiesHostnameOfIpLiteralUrl
+  issue: https://github.com/elastic/elasticsearch/issues/164387
+- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
+  tasks:
+  - :x-pack:plugin:security:test
+  method: testPinnedFingerprintVerifiesHostnameOfIpLiteralUrl
+  issue: https://github.com/elastic/elasticsearch/issues/164389
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
+  tasks:
+  - :x-pack:plugin:logsdb:javaRestTest
+  method: testEsqlSource
+  issue: https://github.com/elastic/elasticsearch/issues/164392

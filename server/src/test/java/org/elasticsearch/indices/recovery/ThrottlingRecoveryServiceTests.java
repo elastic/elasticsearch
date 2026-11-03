@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -2657,6 +2658,140 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(completionOrder, equalTo(List.of("relocation", "split-target")));
     }
 
+    /// A raised priority is never lowered again, even if the shutdown of the source node that caused it is removed
+    /// while the relocation is still queued.
+    public void testRaisedPriorityIsKeptWhenSourceNodeShutdownIsRemoved() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(1);
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final var blockedRecoveryListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newCriticalRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            blockedRecoveryListener::set
+        );
+        taskQueue.runAllRunnableTasks();
+        assertNotNull("blocker should have been dispatched", blockedRecoveryListener.get());
+
+        final var completionOrder = new CopyOnWriteArrayList<String>();
+        final var splitTargetShard = mockIndexShard(
+            newRecoveryState(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING),
+            UUIDs.randomBase64UUID(),
+            stats
+        );
+        service.enqueue(
+            ProjectId.DEFAULT,
+            onRecoveryDoneListener(() -> completionOrder.add("split-target")),
+            splitTargetShard,
+            newIndexMetadata(),
+            l -> l.onRecoveryDone(splitTargetShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+        );
+        final var relocationTargetShard = mockRelocationTargetIndexShard(
+            clusterService,
+            "relocation-source",
+            randomFrom(RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED, RecoveryPriority.RELOCATE_REBALANCING)
+        );
+        service.enqueue(
+            ProjectId.DEFAULT,
+            onRecoveryDoneListener(() -> completionOrder.add("relocation")),
+            relocationTargetShard,
+            newIndexMetadata(),
+            l -> l.onRecoveryDone(relocationTargetShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+        );
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(2));
+
+        service.clusterChanged(
+            clusterChangedEventWithShutdowns(
+                clusterService,
+                nodeShutdowns(
+                    "relocation-source",
+                    randomFrom(
+                        SingleNodeShutdownMetadata.Type.REMOVE,
+                        SingleNodeShutdownMetadata.Type.REPLACE,
+                        SingleNodeShutdownMetadata.Type.SIGTERM
+                    )
+                ),
+                splitTargetShard,
+                relocationTargetShard
+            )
+        );
+        assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
+
+        // The shutdown is removed, or turned into a restart, while the relocation is still queued
+        service.clusterChanged(
+            clusterChangedEventWithShutdowns(
+                clusterService,
+                randomBoolean() ? NodesShutdownMetadata.EMPTY : nodeShutdowns("relocation-source", SingleNodeShutdownMetadata.Type.RESTART),
+                splitTargetShard,
+                relocationTargetShard
+            )
+        );
+        assertThat(service.currentQueueSize(), equalTo(2));
+        assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
+
+        blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        assertThat(completionOrder, equalTo(List.of("relocation", "split-target")));
+        assertThat(relocationTargetShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO));
+    }
+
+    public void testNonRelocationIsNotReprioritizedWhenSourceNodeIsMarkedForRemoval() {
+        final var taskQueue = new DeterministicTaskQueue();
+        final var clusterService = newClusterService(1);
+        final var service = newStartedService(taskQueue.getThreadPool(), DefaultProjectResolver.INSTANCE, clusterService);
+        final var blockedRecoveryListener = new AtomicReference<RecoveryListener>();
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            mockIndexShard(newCriticalRecoveryState(), UUIDs.randomBase64UUID(), stats),
+            newIndexMetadata(),
+            blockedRecoveryListener::set
+        );
+        taskQueue.runAllRunnableTasks();
+        assertNotNull("blocker should have been dispatched", blockedRecoveryListener.get());
+
+        final var shutdowns = nodeShutdowns(
+            "primary-node",
+            randomFrom(
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                SingleNodeShutdownMetadata.Type.REPLACE,
+                SingleNodeShutdownMetadata.Type.SIGTERM
+            )
+        );
+        final var shutdownRegisteredBeforeEnqueue = randomBoolean();
+        if (shutdownRegisteredBeforeEnqueue) {
+            service.clusterChanged(clusterChangedEventWithShutdowns(clusterService, shutdowns));
+        }
+
+        // A replica added for performance reasons has a lower priority than RELOCATION_CAN_REMAIN_NO
+        final var replicaShard = mockReplicaRecoveryTargetIndexShard(
+            clusterService,
+            "primary-node",
+            RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING
+        );
+        service.enqueue(
+            ProjectId.DEFAULT,
+            noopRecoveryListener(),
+            replicaShard,
+            newIndexMetadata(),
+            l -> l.onRecoveryDone(replicaShard.recoveryState(), ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
+        );
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(1));
+        assertThat(replicaShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+
+        service.clusterChanged(clusterChangedEventWithShutdowns(clusterService, shutdowns, replicaShard));
+        assertThat(service.currentQueueSize(), equalTo(1));
+        assertThat(replicaShard.recoveryState().getRecoveryPriority(), equalTo(RecoveryPriority.UNASSIGNED_PERFORMANCE_SCALING));
+
+        blockedRecoveryListener.get().onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
+        taskQueue.runAllRunnableTasks();
+        assertThat(service.currentQueueSize(), equalTo(0));
+    }
+
     private static ClusterChangedEvent clusterChangedEventWithShutdowns(
         ClusterService clusterService,
         NodesShutdownMetadata nodeShutdowns,
@@ -2862,18 +2997,41 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         return indexShard;
     }
 
+    /// Mocks the target of a relocation from the node `sourceNodeId` to the local node.
     private IndexShard mockRelocationTargetIndexShard(
         ClusterService clusterService,
         String sourceNodeId,
         RecoveryPriority recoveryPriority
     ) {
+        return mockPeerRecoveryTargetIndexShard(clusterService, sourceNodeId, sourceNodeId, recoveryPriority);
+    }
+
+    /// Mocks a replica recovering on the local node from its primary on the node `sourceNodeId`
+    private IndexShard mockReplicaRecoveryTargetIndexShard(
+        ClusterService clusterService,
+        String sourceNodeId,
+        RecoveryPriority recoveryPriority
+    ) {
+        return mockPeerRecoveryTargetIndexShard(clusterService, sourceNodeId, null, recoveryPriority);
+    }
+
+    private IndexShard mockPeerRecoveryTargetIndexShard(
+        ClusterService clusterService,
+        String sourceNodeId,
+        @Nullable String relocatingNodeId,
+        RecoveryPriority recoveryPriority
+    ) {
         final var routing = TestShardRouting.shardRoutingBuilder(
             new ShardId(randomIndexName(), UUIDs.randomBase64UUID(), 0),
             clusterService.localNode().getId(),
-            randomBoolean(),
+            relocatingNodeId != null && randomBoolean(),
             ShardRoutingState.INITIALIZING
-        ).withRelocatingNodeId(sourceNodeId).withRecoveryPriority(recoveryPriority).build();
-        final var recoveryState = new RecoveryState(routing, targetNode, sourceNode);
+        )
+            .withRelocatingNodeId(relocatingNodeId)
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .withRecoveryPriority(recoveryPriority)
+            .build();
+        final var recoveryState = new RecoveryState(routing, clusterService.localNode(), DiscoveryNodeUtils.create(sourceNodeId));
         final var indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(routing.shardId());
         when(indexShard.recoveryState()).thenReturn(recoveryState);

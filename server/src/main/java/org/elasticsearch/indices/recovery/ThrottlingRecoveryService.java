@@ -633,19 +633,21 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
             return isCritical() ? RecoverySchedulingListener.PriorityGroup.CRITICAL : RecoverySchedulingListener.PriorityGroup.NON_CRITICAL;
         }
 
-        /// Raises the priority of this recovery to `updated`
+        /// Raises the priority of this recovery to `updated`.
+        ///
+        /// The pending recoveries queue orders on this priority, this must not be called while the recovery is in the queue.
         void raiseRecoveryPriority(RecoveryPriority updated) {
             RecoveryState state = recoveryState();
             RecoveryPriority current = state.getRecoveryPriority();
             assert updated.ordinal() < current.ordinal()
-                : "recovery priority should only be raised, updated : " + updated + " , state " + state;
+                : "recovery priority should only be raised, updated: " + updated + ", state: " + state;
             // Queued and running recoveries are counted per priority group, in the scheduling metrics and in the
             // RecoveriesThrottle, and the matching decrement uses the group the recovery has when it leaves the queue or
             // completes. Relocations are always non-critical, so raising their priority to RELOCATION_CAN_REMAIN_NO never
             // changes the group and these counts need no update. A reprioritization that moves a recovery to the other
             // group would have to update them too.
             assert current.isCritical() == updated.isCritical()
-                : "recovery priority update should not change the priority group, updated priority : " + updated + " , state " + state;
+                : "recovery priority update should not change the priority group, updated priority: " + updated + ", state: " + state;
 
             logger.debug("raising priority of recovery from [{}] to [{}]: {}", current, updated, state);
             state.setRecoveryPriority(updated);

@@ -703,6 +703,10 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
                     && stats.currentFromStoreQueued() == queuedSplits
             )
         );
+        // Before the shutdown, the relocations have the priority the master assigned to them, which is below the split targets
+        final var prioritiesBeforeShutdown = getRelocationPriorities(evacuatedIndex, targetNode);
+        assertThat(prioritiesBeforeShutdown.size(), equalTo(relocations));
+        assertThat(prioritiesBeforeShutdown.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)));
 
         // Shut down the source node of the relocations, which are still queued on the target node behind the split targets.
         // The put-shutdown response is only sent once every node has applied the shutdown, and the target node raises the

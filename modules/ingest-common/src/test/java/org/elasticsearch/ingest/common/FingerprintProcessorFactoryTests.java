@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -123,5 +125,23 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         assertThat(fingerprintProcessor.getSalt(), equalTo(new byte[0]));
         assertThat(fingerprintProcessor.getThreadLocalHasher().get().getAlgorithm(), equalTo(FingerprintProcessor.Factory.DEFAULT_METHOD));
         assertThat(fingerprintProcessor.isIgnoreMissing(), equalTo(false));
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testCreateWithMalformedTargetField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("fields", List.of("source"));
+        config.put("target_field", "a..b");
+        FingerprintProcessor processor = factory.create(null, randomAlphaOfLength(10), null, config, null);
+        assertThat(processor.getTargetField(), hasToString("a..b"));
+
+        // the source is fine, so it is the target that causes the failure
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        ingestDocument.setFieldValue("source", "value");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

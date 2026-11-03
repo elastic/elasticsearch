@@ -46,9 +46,11 @@ subquery, function, and so on), or change a result so it matches Prometheus, upd
   Write the link with the `es-issue` substitution: `[#123]({{es-issue}}123)`.
 - Rows are numbered across all sections, in page order. Keep the numbers sequential when you add or remove a row.
 - Check the version badges. A row without a badge applies to every version. A difference that only exists from some
-  version on gets `stack: ga <version>+` and `serverless: ga`. Don't keep rows that only apply to older versions, such
-  as `stack: ga =9.5`: the badge renders as "Generally available in 9.5", which reads as if the limitation still
-  applies. When a change lifts a limitation, remove its row.
+  version on gets `stack: ga <version>+` and `serverless: ga`. A difference that only exists in older versions gets
+  those versions and no `serverless` badge, such as `stack: ga =9.6` or `stack: preview =9.4, ga =9.5`.
+- When a change lifts a limitation completely, remove its row and badge the Supported line with the version that lifts
+  it. When it lifts the limitation only in part, or when older versions return a different result without an error,
+  keep a row for the older versions.
 - Unsupported functions are listed separately: their list is generated from `PromqlFunctionRegistry` by
   `PromqlKibanaDefinitionGeneratorTests`.
 

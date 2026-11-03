@@ -11,7 +11,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.NumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
@@ -661,28 +660,14 @@ public final class LuceneSliceQueue {
             if (weight == null) {
                 return Map.of();
             }
-            List<NumericDocValuesRangeQuery> clauses = PrimarySortRange.requiredRangeClauses(weight.getQuery());
-            if (clauses.isEmpty()) {
-                return Map.of();
-            }
-            Map<LeafReaderContext, PrimarySortRange.DocRange> ranges = new IdentityHashMap<>();
-            long totalDocs = 0;
-            try {
-                for (LeafReaderContext leaf : leaves) {
-                    if (keepWhole.contains(leaf) == false && partitioner.isLarge(leaf)) {
-                        PrimarySortRange.DocRange range = PrimarySortRange.find(leaf, clauses);
-                        if (range != null) {
-                            ranges.put(leaf, range);
-                            totalDocs += range.length();
-                        }
-                    }
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            List<LeafReaderContext> largeLeaves = leaves.stream()
+                .filter(leaf -> keepWhole.contains(leaf) == false && partitioner.isLarge(leaf))
+                .toList();
+            Map<LeafReaderContext, PrimarySortRange.DocRange> ranges = PrimarySortRange.find(largeLeaves, weight.getQuery());
             if (ranges.isEmpty()) {
                 return Map.of();
             }
+            long totalDocs = ranges.values().stream().mapToLong(PrimarySortRange.DocRange::length).sum();
             // Same rule as the caller, with the matching docs in place of all docs. They are never more, so slices are never larger.
             int desiredSliceSize = (int) Math.min(MAX_DOCS_PER_SLICE, Math.max(minDocsPerSlice, Math.ceilDiv(totalDocs, taskConcurrency)));
             AdaptivePartitioner rangePartitioner = new AdaptivePartitioner(desiredSliceSize, partitioner.maxSegmentsPerSlice);

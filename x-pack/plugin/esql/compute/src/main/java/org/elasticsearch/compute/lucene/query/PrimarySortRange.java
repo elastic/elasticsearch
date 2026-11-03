@@ -22,8 +22,11 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Finds the doc range of a leaf that can match a filter on the leaf's primary index-sort field.
@@ -51,16 +54,35 @@ final class PrimarySortRange {
     private PrimarySortRange() {}
 
     /**
+     * Finds the doc range of each leaf in {@code leaves} that can match the range clauses of {@code query} on the
+     * primary sort field of the leaf. A leaf is missing from the result if it cannot say which range matches,
+     * see {@link #findInLeaf}.
+     */
+    static Map<LeafReaderContext, DocRange> find(List<LeafReaderContext> leaves, Query query) {
+        List<NumericDocValuesRangeQuery> clauses = new ArrayList<>();
+        collect(query, clauses);
+        if (clauses.isEmpty()) {
+            return Map.of();
+        }
+        Map<LeafReaderContext, DocRange> ranges = new IdentityHashMap<>();
+        try {
+            for (LeafReaderContext leaf : leaves) {
+                DocRange range = findInLeaf(leaf, clauses);
+                if (range != null) {
+                    ranges.put(leaf, range);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return ranges;
+    }
+
+    /**
      * Collects the numeric range clauses that every matching doc must satisfy. It only looks
      * through wrappers that keep that guarantee. For any other query it collects nothing, which
      * gives a wider range and is always safe.
      */
-    static List<NumericDocValuesRangeQuery> requiredRangeClauses(Query query) {
-        List<NumericDocValuesRangeQuery> clauses = new ArrayList<>();
-        collect(query, clauses);
-        return clauses;
-    }
-
     private static void collect(Query query, List<NumericDocValuesRangeQuery> clauses) {
         if (query instanceof NumericDocValuesRangeQuery range) {
             clauses.add(range);
@@ -84,7 +106,7 @@ final class PrimarySortRange {
      * {@code INT} or {@code LONG} with a skipper. These are the same conditions under which
      * Lucene's {@code IndexSortSortedNumericDocValuesRangeQuery} uses the index sort.
      */
-    static DocRange find(LeafReaderContext leaf, List<NumericDocValuesRangeQuery> clauses) throws IOException {
+    private static DocRange findInLeaf(LeafReaderContext leaf, List<NumericDocValuesRangeQuery> clauses) throws IOException {
         LeafReader reader = leaf.reader();
         Sort indexSort = reader.getMetaData().sort();
         if (indexSort == null || indexSort.getSort().length == 0) {
@@ -116,10 +138,10 @@ final class PrimarySortRange {
         if (DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, primary.getField())) == null) {
             return null;
         }
-        return find(skipper, primary.getReverse(), lower, upper);
+        return findInSkipper(skipper, primary.getReverse(), lower, upper);
     }
 
-    private static DocRange find(DocValuesSkipper skipper, boolean reverse, long lower, long upper) throws IOException {
+    private static DocRange findInSkipper(DocValuesSkipper skipper, boolean reverse, long lower, long upper) throws IOException {
         if (lower > upper || lower > skipper.maxValue() || upper < skipper.minValue()) {
             return new DocRange(0, 0);
         }

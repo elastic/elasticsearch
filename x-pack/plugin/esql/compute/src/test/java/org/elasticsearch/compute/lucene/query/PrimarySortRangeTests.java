@@ -22,7 +22,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.NumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -37,13 +36,15 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests {@link PrimarySortRange} and how {@link LuceneSliceQueue.PartitioningStrategy#DOC} uses it. The key
@@ -94,8 +95,8 @@ public class PrimarySortRangeTests extends ESTestCase {
         reader = DirectoryReader.open(directory);
     }
 
-    private static List<NumericDocValuesRangeQuery> clauses(Query query) {
-        return PrimarySortRange.requiredRangeClauses(query);
+    private Map<LeafReaderContext, PrimarySortRange.DocRange> ranges(Query query) {
+        return PrimarySortRange.find(reader.leaves(), query);
     }
 
     public void testRangeContainsEveryMatchAndIsNarrow() throws IOException {
@@ -104,37 +105,21 @@ public class PrimarySortRangeTests extends ESTestCase {
             index(reverse);
             long lower = between(0, NUM_VALUES - 1);
             long upper = lower + between(0, 5);
-            List<NumericDocValuesRangeQuery> clauses = clauses(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, lower, upper));
+            Map<LeafReaderContext, PrimarySortRange.DocRange> ranges = ranges(
+                SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, lower, upper)
+            );
             long rangeDocs = 0;
             for (LeafReaderContext leaf : reader.leaves()) {
-                PrimarySortRange.DocRange range = PrimarySortRange.find(leaf, clauses);
-                assertThat(range, org.hamcrest.Matchers.notNullValue());
+                PrimarySortRange.DocRange range = ranges.get(leaf);
+                assertThat(range, notNullValue());
                 SortedNumericDocValues values = DocValues.getSortedNumeric(leaf.reader(), SORT_FIELD);
                 for (int doc = 0; doc < leaf.reader().maxDoc(); doc++) {
                     assertTrue(values.advanceExact(doc));
                     long value = values.nextValue();
                     if (value >= lower && value <= upper) {
-                        var skipper = leaf.reader().getDocValuesSkipper(SORT_FIELD);
-                        String detail = "reverse="
-                            + reverse
-                            + " lower="
-                            + lower
-                            + " upper="
-                            + upper
-                            + " range="
-                            + range
-                            + " maxDoc="
-                            + leaf.reader().maxDoc()
-                            + " skipper=["
-                            + skipper.minValue()
-                            + ","
-                            + skipper.maxValue()
-                            + "] docCount="
-                            + skipper.docCount()
-                            + " value="
-                            + value;
-                        assertThat("doc " + doc + " " + detail, doc, greaterThanOrEqualTo(range.minDoc()));
-                        assertThat("doc " + doc + " " + detail, doc, lessThan(range.maxDoc()));
+                        String message = "reverse=" + reverse + " doc=" + doc + " value=" + value + " range=" + range;
+                        assertThat(message, doc, greaterThanOrEqualTo(range.minDoc()));
+                        assertThat(message, doc, lessThan(range.maxDoc()));
                     }
                 }
                 rangeDocs += range.length();
@@ -146,57 +131,59 @@ public class PrimarySortRangeTests extends ESTestCase {
 
     public void testEmptyRange() throws IOException {
         index(randomBoolean());
-        List<NumericDocValuesRangeQuery> clauses = clauses(
+        Map<LeafReaderContext, PrimarySortRange.DocRange> ranges = ranges(
             SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, NUM_VALUES + 10, NUM_VALUES + 20)
         );
         for (LeafReaderContext leaf : reader.leaves()) {
-            assertThat(PrimarySortRange.find(leaf, clauses), equalTo(new PrimarySortRange.DocRange(0, 0)));
+            assertThat(ranges.get(leaf), equalTo(new PrimarySortRange.DocRange(0, 0)));
         }
     }
 
     public void testClausesIntersect() throws IOException {
         index(randomBoolean());
-        BooleanQuery query = new BooleanQuery.Builder().add(
+        BooleanQuery both = new BooleanQuery.Builder().add(
             SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 0, 300),
             BooleanClause.Occur.FILTER
         ).add(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 100, 400), BooleanClause.Occur.MUST).build();
-        List<NumericDocValuesRangeQuery> both = clauses(query);
-        List<NumericDocValuesRangeQuery> one = clauses(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 100, 300));
+        Map<LeafReaderContext, PrimarySortRange.DocRange> bothRanges = ranges(both);
+        Map<LeafReaderContext, PrimarySortRange.DocRange> oneRanges = ranges(
+            SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 100, 300)
+        );
         for (LeafReaderContext leaf : reader.leaves()) {
-            assertThat(PrimarySortRange.find(leaf, both), equalTo(PrimarySortRange.find(leaf, one)));
+            assertThat(bothRanges.get(leaf), equalTo(oneRanges.get(leaf)));
         }
     }
 
     public void testNoRangeOnPrimarySortField() throws IOException {
         index(randomBoolean());
-        List<NumericDocValuesRangeQuery> clauses = clauses(SortedNumericDocValuesField.newSlowRangeQuery("other", 1, 2));
-        for (LeafReaderContext leaf : reader.leaves()) {
-            assertThat(PrimarySortRange.find(leaf, clauses), nullValue());
-        }
+        assertThat(ranges(SortedNumericDocValuesField.newSlowRangeQuery("other", 1, 2)).keySet(), empty());
     }
 
     public void testNoIndexSort() throws IOException {
         index(null);
-        List<NumericDocValuesRangeQuery> clauses = clauses(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 1, 2));
-        for (LeafReaderContext leaf : reader.leaves()) {
-            assertThat(PrimarySortRange.find(leaf, clauses), nullValue());
-        }
+        assertThat(ranges(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 1, 2)).keySet(), empty());
     }
 
-    public void testRequiredClauses() {
-        Query a = SortedNumericDocValuesField.newSlowRangeQuery("a", 1, 2);
-        Query b = SortedNumericDocValuesField.newSlowRangeQuery("b", 1, 2);
-        Query c = SortedNumericDocValuesField.newSlowRangeQuery("c", 1, 2);
-        Query d = SortedNumericDocValuesField.newSlowRangeQuery("d", 1, 2);
+    /**
+     * Only the clauses a doc must match count. A doc does not have to match a SHOULD or a MUST_NOT clause as a
+     * range, so they must not narrow the result. Boost and constant score wrappers are looked through.
+     */
+    public void testOnlyRequiredClausesAreUsed() throws IOException {
+        index(randomBoolean());
+        Query required = SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 10, 12);
         Query query = new ConstantScoreQuery(
-            new BooleanQuery.Builder().add(new BoostQuery(a, 2f), BooleanClause.Occur.FILTER)
-                .add(b, BooleanClause.Occur.MUST)
-                // A doc does not have to match a SHOULD or a MUST_NOT clause as a range, so they must not narrow the result.
-                .add(c, BooleanClause.Occur.SHOULD)
-                .add(d, BooleanClause.Occur.MUST_NOT)
+            new BooleanQuery.Builder().add(new BoostQuery(required, 2f), BooleanClause.Occur.FILTER)
+                .add(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 200, 300), BooleanClause.Occur.SHOULD)
+                .add(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 0, 5), BooleanClause.Occur.MUST_NOT)
                 .build()
         );
-        assertThat(clauses(query).stream().map(NumericDocValuesRangeQuery::getField).toList(), equalTo(List.of("a", "b")));
+        Map<LeafReaderContext, PrimarySortRange.DocRange> ranges = ranges(query);
+        Map<LeafReaderContext, PrimarySortRange.DocRange> expected = ranges(required);
+        for (LeafReaderContext leaf : reader.leaves()) {
+            assertThat(ranges.get(leaf), equalTo(expected.get(leaf)));
+        }
+        Query onlyOptional = new BooleanQuery.Builder().add(required, BooleanClause.Occur.SHOULD).build();
+        assertThat(ranges(onlyOptional).keySet(), empty());
     }
 
     /**

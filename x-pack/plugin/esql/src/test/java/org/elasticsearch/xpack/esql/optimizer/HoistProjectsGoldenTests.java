@@ -202,4 +202,32 @@ public class HoistProjectsGoldenTests extends GoldenTestCase {
             | MV_EXPAND last_name
             """, LOGICAL);
     }
+
+    /**
+     * The two aggregates are deduplicated into one column, so {@code b} is an alias of {@code a}. The first MV_EXPAND therefore
+     * leaves a copy of {@code a} for {@code b}, and the second one expands that copy; the Project ends up above both.
+     */
+    public void testTwoMvExpandsOfDeduplicatedAggregates() {
+        runGoldenTest("""
+            ROW a = 1
+            | STATS a = COUNT(*), b = COUNT(*)
+            | MV_EXPAND a
+            | MV_EXPAND b
+            """, LOGICAL);
+    }
+
+    /**
+     * The renamed {@code c} reads the original {@code a}, which the second EVAL shadows. The MV_EXPAND must expand the original
+     * {@code a} below the Project, next to the shadowing one, which gets a temporary name.
+     */
+    public void testMvExpandOfARenameWhoseSourceColumnIsShadowed() {
+        runGoldenTest("""
+            ROW a = 2
+            | EVAL c = a
+            | EVAL a = 12
+            | RENAME c AS b
+            | KEEP *
+            | MV_EXPAND b
+            """, LOGICAL);
+    }
 }

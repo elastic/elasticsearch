@@ -1,0 +1,6 @@
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| LIMIT 10
+| KEEP first_name, language_name

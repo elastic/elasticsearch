@@ -13,9 +13,8 @@ package org.elasticsearch.xpack.esql.plan.physical;
  * names each document by its origin, not by a shard of the node that runs the exec. A projection may also drop the
  * column.
  * <p>
- * It is the coordinator counterpart of
- * {@link org.elasticsearch.xpack.esql.plan.logical.DocPreserving#carriesDocOnDataNodes()}, and opt-in like it. Without
- * the marker the query loads its columns before the exec, as it does without the fetch phase, which is always correct.
- * Add it only once a test shows that the fetch phase returns the same rows through the exec.
+ * It is the coordinator counterpart of {@link org.elasticsearch.xpack.esql.plan.logical.CarriesDocOnDataNodes}, and
+ * opt-in like it. Without the marker the query loads its columns before the exec, as it does without the fetch phase,
+ * which is always correct. Add it only once a test shows that the fetch phase returns the same rows through the exec.
  */
 public interface CarriesDetachedDoc {}

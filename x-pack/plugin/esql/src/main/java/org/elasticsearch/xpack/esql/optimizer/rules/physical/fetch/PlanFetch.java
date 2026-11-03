@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderE
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.fetch.FetchPhasePolicy.Outcome;
-import org.elasticsearch.xpack.esql.plan.logical.DocPreserving;
+import org.elasticsearch.xpack.esql.plan.logical.CarriesDocOnDataNodes;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.physical.CarriesDetachedDoc;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -213,14 +214,15 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      *     <li>the coordinator cut reads the exchange and mirrors the cut that ends the fragment, a {@code TopN} or a
      *     {@code LIMIT},</li>
      *     <li>between the fragment cut and the relation, only commands that {@code _doc} can pass through on the data
-     *     nodes, the ones whose {@link DocPreserving#carriesDocOnDataNodes()} says so,</li>
-     *     <li>one relation, on the local cluster,</li>
+     *     nodes, the {@link CarriesDocOnDataNodes} ones, down the input each of them names,</li>
+     *     <li>one relation on that path, on the local cluster,</li>
      *     <li>at least one column the query only needs after the cut, and that can be fetched.</li>
      * </ol>
      * Each command answers for itself, so the rule keeps no list of commands. A command that doesn't opt in keeps the
      * plan eager, which is always correct, so a new command needs no change here. Opting in needs a reason why
-     * {@code _doc} still names the document of every row after the command. Commands that duplicate rows, join them or
-     * build them from several documents need that reason one by one.
+     * {@code _doc} still names the document of every row after the command. {@code MV_EXPAND} and {@code LOOKUP JOIN}
+     * repeat rows, so the cut can hold several rows of one document, which the fetch loads once. The columns a
+     * {@code LOOKUP JOIN} adds come from another index and keep crossing as values.
      * <p>
      * The fetch runs right above the coordinator cut, so the commands after it see the fetched columns. The exception is a
      * filter right after the cut: its conditions that read no fetched column run between the cut and the fetch, see
@@ -324,11 +326,11 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
 
         LogicalPlan step = ((UnaryPlan) fragmentCut).child();
         while (step instanceof EsRelation == false) {
-            if (step instanceof DocPreserving preserving && preserving.carriesDocOnDataNodes()) {
-                step = preserving.preservingInput();
-            } else {
+            LogicalPlan docInput = step instanceof CarriesDocOnDataNodes carrier ? carrier.docInput() : null;
+            if (docInput == null) {
                 return ineligible("[" + step.nodeName() + "] runs before the cut");
             }
+            step = docInput;
         }
         EsRelation relation = (EsRelation) step;
         if (relation.indexMode() != IndexMode.STANDARD && relation.indexMode() != IndexMode.TIME_SERIES) {
@@ -364,9 +366,9 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      *     <li>{@link Fetchability#isFetchable} accepts it,</li>
      *     <li>the coordinator cut does not read it. A sort key crosses the exchange even when the query does not return
      *     it.</li>
-     *     <li>no {@link Eval} of the fragment reads its values. The data node loads those for every row the {@code Eval}
-     *     sees, so the fetch would read them a second time. In {@code SORT a + 1 | LIMIT 10 | KEEP a}, the sort key is
-     *     an {@code Eval} of {@code a}, so {@code a} is eager.</li>
+     *     <li>no {@link Eval} of the fragment reads its values, and no {@link Join} looks it up. The data node loads those
+     *     for every row the command sees, so the fetch would read them a second time. In
+     *     {@code SORT a + 1 | LIMIT 10 | KEEP a}, the sort key is an {@code Eval} of {@code a}, so {@code a} is eager.</li>
      * </ul>
      * Everything else stays eager, which keeps the fetch partial rather than all or nothing: {@code _score} and values
      * computed inside the fragment keep crossing as values. Renames are not followed: a rename after the cut reads its
@@ -378,7 +380,7 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
     static Demand demand(Project fragmentRoot, EsRelation relation, PhysicalPlan coordinatorCut) {
         AttributeSet relationOutput = relation.outputSet();
         AttributeSet readByCut = coordinatorCut.references();
-        AttributeSet loadedBeforeTheCut = loadedByEvals(fragmentRoot.child());
+        AttributeSet loadedBeforeTheCut = loadedBeforeTheCut(fragmentRoot.child());
         List<Attribute> eager = new ArrayList<>();
         List<Attribute> deferred = new ArrayList<>();
         for (Attribute attribute : fragmentRoot.output()) {
@@ -392,18 +394,25 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
     }
 
     /**
-     * The attributes whose values an {@link Eval} of the fragment reads, so the data node loads them before the cut.
+     * The attributes whose values the data node loads before the cut: the ones an {@link Eval} of the fragment reads, and
+     * the keys a {@link Join} looks up.
      * <p>
      * A field passed straight to a function the loader may compute itself, like {@code LENGTH(message)}, doesn't count.
      * The data node may load the length and never the message, and only the data node can tell. Filters don't count
      * either: Lucene usually answers them without loading values. Where these guesses are wrong, the column is read
      * twice, once before the cut and once by the fetch.
      */
-    private static AttributeSet loadedByEvals(LogicalPlan fragmentBody) {
+    private static AttributeSet loadedBeforeTheCut(LogicalPlan fragmentBody) {
         AttributeSet.Builder loaded = AttributeSet.builder();
         fragmentBody.forEachDown(Eval.class, eval -> {
             for (Alias field : eval.fields()) {
                 collectValueReads(field.child(), loaded);
+            }
+        });
+        fragmentBody.forEachDown(Join.class, join -> {
+            loaded.addAll(join.leftReferences());
+            if (join.config().joinOnConditions() != null) {
+                collectValueReads(join.config().joinOnConditions(), loaded);
             }
         });
         return loaded.build();
@@ -477,22 +486,31 @@ public final class PlanFetch extends ParameterizedRule<PhysicalPlan, PhysicalPla
      * {@code doc} next to the eager columns, and every projection inside the fragment keeps it.
      */
     static ExchangeExec narrowExchange(Branch branch, Attribute doc, List<Attribute> eager) {
-        LogicalPlan body = branch.fragmentRoot().child();
-        body = body.transformUp(
-            EsRelation.class,
-            relation -> relation.indexMode() == IndexMode.LOOKUP
-                ? relation
-                : relation.withAttributes(CollectionUtils.prependToCopy(doc, relation.output()))
-        );
-        body = body.transformUp(Project.class, project -> {
+        LogicalPlan body = carryDoc(branch.fragmentRoot().child(), doc);
+        List<Attribute> exchanged = CollectionUtils.prependToCopy(doc, eager);
+        FragmentExec fragment = branch.fragment().withFragment(new Project(branch.fragmentRoot().source(), body, exchanged));
+        return new ExchangeExec(branch.exchange().source(), exchanged, false, fragment);
+    }
+
+    /**
+     * {@code plan} with {@code doc} from the relation up to {@code plan}, through the inputs that
+     * {@link CarriesDocOnDataNodes#docInput} names: the relation produces it, and every projection on the way keeps it.
+     * The other inputs, like the lookup index of a join, stay as they are.
+     */
+    private static LogicalPlan carryDoc(LogicalPlan plan, Attribute doc) {
+        if (plan instanceof EsRelation relation) {
+            return relation.withAttributes(CollectionUtils.prependToCopy(doc, relation.output()));
+        }
+        LogicalPlan docInput = ((CarriesDocOnDataNodes) plan).docInput();
+        LogicalPlan carried = carryDoc(docInput, doc);
+        LogicalPlan rebuilt = plan.replaceChildren(plan.children().stream().map(child -> child == docInput ? carried : child).toList());
+        if (rebuilt instanceof Project project) {
             List<NamedExpression> projections = new ArrayList<>(project.projections().size() + 1);
             projections.add(doc);
             projections.addAll(project.projections());
             return project.withProjections(projections);
-        });
-        List<Attribute> exchanged = CollectionUtils.prependToCopy(doc, eager);
-        FragmentExec fragment = branch.fragment().withFragment(new Project(branch.fragmentRoot().source(), body, exchanged));
-        return new ExchangeExec(branch.exchange().source(), exchanged, false, fragment);
+        }
+        return rebuilt;
     }
 
     /**

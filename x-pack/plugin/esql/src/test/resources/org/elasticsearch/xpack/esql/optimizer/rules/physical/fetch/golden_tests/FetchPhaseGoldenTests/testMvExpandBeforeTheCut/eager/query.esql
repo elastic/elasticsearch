@@ -1,0 +1,5 @@
+FROM employees
+| MV_EXPAND job_positions
+| SORT emp_no, job_positions
+| LIMIT 10
+| KEEP first_name, job_positions

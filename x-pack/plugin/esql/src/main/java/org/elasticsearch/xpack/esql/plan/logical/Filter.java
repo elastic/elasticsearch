@@ -35,7 +35,8 @@ public class Filter extends UnaryPlan
         TelemetryAware,
         SortAgnostic,
         SortPreserving,
-        DocPreserving {
+        DocPreserving,
+        CarriesDocOnDataNodes {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Filter", Filter::new);
 
     private final Expression condition;
@@ -115,11 +116,6 @@ public class Filter extends UnaryPlan
     @Override
     public void postAnalysisVerification(Failures failures) {
         checkFilterConditionDataType(condition, failures);
-    }
-
-    @Override
-    public boolean carriesDocOnDataNodes() {
-        return true;
     }
 
     public static void checkFilterConditionDataType(Expression expression, Failures failures) {

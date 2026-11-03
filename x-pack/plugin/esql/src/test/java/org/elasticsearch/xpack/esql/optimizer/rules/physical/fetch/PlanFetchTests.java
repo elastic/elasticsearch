@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.plugin.ReductionPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -411,10 +412,48 @@ public class PlanFetchTests extends ESTestCase {
             "FROM employees | SORT salary | LIMIT 100 | SORT hire_date | LIMIT 10 | KEEP first_name, hire_date",
             "[TopNExec] runs after the cut"
         );
-        assertIneligible(
-            "FROM employees | MV_EXPAND languages | SORT hire_date | LIMIT 10 | KEEP first_name, languages",
-            "[MvExpand] runs before the cut"
+    }
+
+    /**
+     * {@code MV_EXPAND} repeats the {@code _doc} of a row for each of its values. The expanded column is computed before the
+     * cut and crosses as a value, the other columns of the document are fetched.
+     */
+    public void testMvExpandBeforeTheCutFetchesTheColumnsOfTheDocuments() {
+        PhysicalPlan plan = plan("FROM employees | MV_EXPAND languages | SORT hire_date | LIMIT 10 | KEEP first_name, languages").plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(names(single(plan, ExchangeExec.class).output()), containsInAnyOrder("_doc", "hire_date", "languages"));
+    }
+
+    /**
+     * A {@code LOOKUP JOIN} keeps the {@code _doc} of each left row. The columns of the lookup index and the key it looks up
+     * cross as values, the other columns of the left rows are fetched.
+     */
+    public void testALookupJoinBeforeTheCutFetchesTheColumnsOfTheLeftRows() {
+        PhysicalPlan plan = planWithLanguagesLookup(
+            "FROM employees | LOOKUP JOIN languages_lookup ON language_code | SORT hire_date | LIMIT 10"
+                + " | KEEP first_name, language_code, language_name"
+        ).plan();
+        FetchExec fetch = single(plan, FetchExec.class);
+        assertThat(names(fetch.fetchedAttributes()), equalTo(List.of("first_name")));
+        assertThat(
+            names(single(plan, ExchangeExec.class).output()),
+            containsInAnyOrder("_doc", "hire_date", "language_code", "language_name")
         );
+    }
+
+    /** Only the relation the rows come from gets {@code _doc}. The lookup index of a join has no {@code _doc} to give. */
+    public void testTheLookupIndexOfAJoinGetsNoDoc() {
+        PhysicalPlan plan = planWithLanguagesLookup(
+            "FROM employees | LOOKUP JOIN languages_lookup ON language_code | SORT hire_date | LIMIT 10 | KEEP first_name, language_name"
+        ).plan();
+        FragmentExec fragment = single(plan, FragmentExec.class);
+        List<EsRelation> relations = fragment.fragment().collect(EsRelation.class);
+        assertThat(relations, hasSize(2));
+        for (EsRelation relation : relations) {
+            boolean carriesDoc = relation.output().stream().anyMatch(EsQueryExec::isDocAttribute);
+            assertThat(relation.indexPattern(), carriesDoc, equalTo(relation.indexMode() != IndexMode.LOOKUP));
+        }
     }
 
     /**
@@ -748,6 +787,17 @@ public class PlanFetchTests extends ESTestCase {
             .addIndex(EsIndexGenerator.esIndex("employees", mapping(), Map.of("employees", IndexMode.STANDARD)))
             .minimumTransportVersion(TransportVersion.current())
             .unmappedResolution(unmappedFields);
+        return plan(employees, query);
+    }
+
+    /** {@code query} over {@code employees} with a {@code language_code} field, next to the {@code languages_lookup} index. */
+    private static Planned planWithLanguagesLookup(String query) {
+        Map<String, EsField> mapping = new HashMap<>(mapping());
+        mapping.put("language_code", new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
+        TestAnalyzer employees = EsqlTestUtils.analyzer()
+            .addIndex(EsIndexGenerator.esIndex("employees", mapping, Map.of("employees", IndexMode.STANDARD)))
+            .addLanguagesLookup()
+            .minimumTransportVersion(TransportVersion.current());
         return plan(employees, query);
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.CarriesDocOnDataNodes;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -73,7 +76,13 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
-public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic, ExecutesOn, PostOptimizationVerificationAware {
+public class Join extends BinaryPlan
+    implements
+        PostAnalysisVerificationAware,
+        SortAgnostic,
+        ExecutesOn,
+        PostOptimizationVerificationAware,
+        CarriesDocOnDataNodes {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
     public static final DataType[] UNSUPPORTED_TYPES = {
@@ -366,6 +375,19 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     @Override
     public ExecuteLocation executesOn() {
         return mode;
+    }
+
+    /**
+     * A {@code LOOKUP JOIN} keeps every row of its left side, once for each row of the lookup index that matches it, or
+     * once when none does, and the {@code _doc} of the row with it. The subclasses join in other ways, so {@code _doc}
+     * doesn't pass through them.
+     */
+    @Override
+    public LogicalPlan docInput() {
+        boolean lookupJoin = getClass() == Join.class
+            && LEFT.equals(config.type())
+            && right().anyMatch(plan -> plan instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP);
+        return lookupJoin ? left() : null;
     }
 
     private void checkRemoteJoin(Failures failures) {

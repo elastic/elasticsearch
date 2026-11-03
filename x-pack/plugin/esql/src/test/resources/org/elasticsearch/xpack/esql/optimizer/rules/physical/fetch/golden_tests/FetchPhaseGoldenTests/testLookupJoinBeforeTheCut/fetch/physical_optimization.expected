@@ -1,0 +1,10 @@
+ProjectExec[[first_name{f}#0, language_name{f}#1]]
+\_FetchExec[_doc{f}#2,[first_name{f}#0],employees,[],null]
+  \_TopNExec[[Order[emp_no{f}#3,ASC,LAST]],10[INTEGER],null]
+    \_ExchangeExec[[_doc{f}#2, emp_no{f}#3, language_name{f}#1],false]
+      \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[_doc{f}#2, emp_no{f}#3, language_name{f}#1]]
+\_TopN[[Order[emp_no{f}#3,ASC,LAST]],10[INTEGER],false]
+  \_Join[LEFT,[languages{f}#4],[language_code{f}#5],null,ANY]
+    |_EsRelation[employees][_doc{f}#2, avg_worked_seconds{f}#6, birth_date{f}#7, emp_no{f}#3, first_name{f}#0, gender{f}#8, height{f}#9, height.float{f}#10, height.half_float{f}#11, height.scaled_float{f}#12, hire_date{f}#13, is_rehired{f}#14, job_positions{f}#15, languages{f}#4, languages.byte{f}#16, languages.long{f}#17, languages.short{f}#18, last_name{f}#19, salary{f}#20, salary_change{f}#21, salary_change.int{f}#22, salary_change.keyword{f}#23, salary_change.long{f}#24, still_hired{f}#25]
+    \_EsRelation[languages_lookup][LOOKUP][language_code{f}#5, language_name{f}#1]<>]]

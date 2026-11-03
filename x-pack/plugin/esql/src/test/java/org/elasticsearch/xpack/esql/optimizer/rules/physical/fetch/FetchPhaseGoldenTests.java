@@ -213,6 +213,29 @@ public class FetchPhaseGoldenTests extends GoldenTestCase {
             """, EsqlTestUtils.TEST_SEARCH_STATS);
     }
 
+    /** {@code MV_EXPAND} repeats the {@code _doc} of a row for each value, and the fetch loads each document once. */
+    public void testMvExpandBeforeTheCut() {
+        runBoth("""
+            FROM employees
+            | MV_EXPAND job_positions
+            | SORT emp_no, job_positions
+            | LIMIT 10
+            | KEEP first_name, job_positions
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
+    /** A {@code LOOKUP JOIN} on the data nodes keeps the {@code _doc} of its left rows, and its own columns cross as values. */
+    public void testLookupJoinBeforeTheCut() {
+        runBoth("""
+            FROM employees
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT emp_no
+            | LIMIT 10
+            | KEEP first_name, language_name
+            """, EsqlTestUtils.TEST_SEARCH_STATS);
+    }
+
     /** A field that may be unmapped is fetched, and each shard reads it from its mapping or from {@code _source}. */
     public void testPotentiallyUnmappedField() {
         runBoth("""

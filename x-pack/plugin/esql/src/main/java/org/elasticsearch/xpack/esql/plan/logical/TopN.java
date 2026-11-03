@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn, DocPreserving {
+public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn, DocPreserving, CarriesDocOnDataNodes {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopN", TopN::new);
 
     private final List<Order> order;
@@ -110,10 +110,5 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn, DocP
     @Override
     public ExecuteLocation executesOn() {
         return local ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
-    }
-
-    @Override
-    public boolean carriesDocOnDataNodes() {
-        return true;
     }
 }

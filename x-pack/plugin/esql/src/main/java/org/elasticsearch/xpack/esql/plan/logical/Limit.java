@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker, ExecutesOn, DocPreserving {
+public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker, ExecutesOn, DocPreserving, CarriesDocOnDataNodes {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Limit", Limit::new);
 
     private final Expression limit;
@@ -145,10 +145,5 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     public ExecuteLocation executesOn() {
         // Global limit always needs to be on the coordinator
         return local ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
-    }
-
-    @Override
-    public boolean carriesDocOnDataNodes() {
-        return true;
     }
 }

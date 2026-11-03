@@ -19,7 +19,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
  * Consumers should follow {@link #preservingInput()} instead of maintaining their own command allowlist.
  * <p>
  * Whether the {@code _doc} column itself can pass through a command is a separate question, answered by
- * {@link #carriesDocOnDataNodes()}.
+ * {@link CarriesDocOnDataNodes}.
  */
 public interface DocPreserving {
 
@@ -32,23 +32,5 @@ public interface DocPreserving {
             return unaryPlan.child();
         }
         throw new IllegalStateException(getClass().getName() + " must override preservingInput()");
-    }
-
-    /**
-     * Whether the {@code _doc} column can pass through this command on the data nodes, each row keeping the {@code _doc}
-     * of its document. There the command runs inside the fragment, and {@code _doc} points at the shards of the node.
-     * <p>
-     * Keeping rows tied to documents is not enough. {@link ChangePoint} and
-     * {@link org.elasticsearch.xpack.esql.plan.logical.inference.Rerank} do, but they run only on the coordinator, where
-     * {@code _doc} has left the node that read the documents. There a physical exec answers, through
-     * {@link org.elasticsearch.xpack.esql.plan.physical.CarriesDetachedDoc}. When the physical optimizer runs, the plan
-     * of the data nodes is still a logical fragment, and the plan of the coordinator is already physical.
-     * <p>
-     * The default is {@code false}: the query loads its columns before the command, as it does without the fetch phase,
-     * which is always correct. Answer {@code true} only once a test shows that the fetch phase returns the same rows
-     * through the command.
-     */
-    default boolean carriesDocOnDataNodes() {
-        return false;
     }
 }

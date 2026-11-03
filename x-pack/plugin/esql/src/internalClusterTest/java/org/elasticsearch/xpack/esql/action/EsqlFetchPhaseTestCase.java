@@ -204,9 +204,10 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * {@code MV_EXPAND} repeats documents before the cut, so the query loads its columns eagerly.
+     * {@code MV_EXPAND} before the cut repeats the {@code _doc} of a row for each of its values. The fetch loads each
+     * document once, for every row it repeats.
      */
-    public void testMvExpandBeforeTheCutStaysEager() {
+    public void testFetchesTheDocumentsAnMvExpandRepeats() {
         String index = indexName + "_mv_expand";
         assertAcked(
             indicesAdmin().prepareCreate(index)
@@ -233,8 +234,64 @@ public abstract class EsqlFetchPhaseTestCase extends AbstractEsqlIntegTestCase {
                 )
             )
         );
-        assertNotFetched(run);
-        assertLoadedOnlyBeforeTheCut(run, "payload");
+        assertFetched(run, 2);
+        assertLoadedOnlyBeforeTheCut(run, "tags");
+        assertFetchedOnly(run, "payload");
+    }
+
+    /**
+     * A {@code LOOKUP JOIN} before the cut keeps the {@code _doc} of each row of the index. A key that two rows of the lookup
+     * index match repeats its row, and the fetch loads that document once. The key and the columns of the lookup index cross
+     * as values.
+     */
+    public void testFetchesTheRowsOfALookupJoin() {
+        String lookup = indexName + "_lookup";
+        assertAcked(
+            indicesAdmin().prepareCreate(lookup)
+                .setSettings(indexSettings(1, 0).put("index.mode", "lookup"))
+                .setMapping("key", "type=keyword", "name", "type=keyword")
+        );
+        client().prepareBulk()
+            .add(prepareIndex(lookup).setSource("key", "k0", "name", "zero"))
+            .add(prepareIndex(lookup).setSource("key", "k1", "name", "one"))
+            .add(prepareIndex(lookup).setSource("key", "k1", "name", "uno"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        String index = indexName + "_rows";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(indexSettings(2, 0))
+                .setMapping("unique_sort", "type=long", "key", "type=keyword", "payload", "type=keyword")
+        );
+        List<String> keys = List.of("k0", "k1", "k2", "k1");
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < keys.size(); i++) {
+            bulk.add(prepareIndex(index).setSource("unique_sort", i, "key", keys.get(i), "payload", "payload-" + i));
+        }
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        Run run = runBoth(
+            "FROM "
+                + index
+                + " | LOOKUP JOIN "
+                + lookup
+                + " ON key | SORT unique_sort DESC, name | LIMIT 5 | KEEP unique_sort, key, name, payload"
+        );
+        assertThat(
+            run.rows(),
+            equalTo(
+                List.of(
+                    List.of(3L, "k1", "one", "payload-3"),
+                    List.of(3L, "k1", "uno", "payload-3"),
+                    Arrays.asList(2L, "k2", null, "payload-2"),
+                    List.of(1L, "k1", "one", "payload-1"),
+                    List.of(1L, "k1", "uno", "payload-1")
+                )
+            )
+        );
+        assertFetched(run, 3);
+        assertLoadedOnlyBeforeTheCut(run, "key");
+        assertFetchedOnly(run, "payload");
     }
 
     public void testWithoutKeepKeepsTheOutputOrder() {

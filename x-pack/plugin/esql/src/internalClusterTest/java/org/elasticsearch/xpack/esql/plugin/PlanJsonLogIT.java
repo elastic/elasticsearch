@@ -59,7 +59,8 @@ public class PlanJsonLogIT extends AbstractEsqlIntegTestCase {
                 mockLog.addExpectation(
                     seen(
                         "IN subplan phase",
-                        "JSON plan phase [subplan-*]: kind [semi_join], view [], location [1:*], source [id IN (FROM emps_in_view | KEEP id)]"
+                        "JSON plan phase [subplan-*]: kind [semi_join], view [], location [1:*], "
+                            + "source [id IN (FROM emps_in_view | KEEP id)]"
                     )
                 );
                 mockLog.addExpectation(

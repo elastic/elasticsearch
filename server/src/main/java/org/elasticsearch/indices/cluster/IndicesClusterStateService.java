@@ -1090,23 +1090,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final ShardAllocationKey key = ShardAllocationKey.fromRouting(shardRouting);
 
         try {
-            final DiscoveryNode sourceNode;
-            if (shardRouting.recoverySource().getType() == Type.PEER) {
-                sourceNode = findSourceNodeForPeerRecovery(state.routingTable(project.id()), state.nodes(), shardRouting);
-                if (sourceNode == null) {
-                    logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
-                    return;
-                }
-            } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
-                ShardId sourceShardId = reshardSplitRecoverySource.getSourceShardId();
-                sourceNode = findSourceNodeForReshardSplitRecovery(state.routingTable(project.id()), state.nodes(), sourceShardId);
-                if (sourceNode == null) {
-                    logger.trace("ignoring initializing reshard target shard {} - no source node can be found.", shardId);
-                    return;
-                }
-            } else {
-                sourceNode = null;
+            final SourceNodeResolution sourceNodeResolution = findSourceNode(state, project, shardRouting);
+            if (sourceNodeResolution.giveUp()) {
+                logger.trace("ignoring initializing shard {} - no source node can be found.", shardId);
+                return;
             }
+            final DiscoveryNode sourceNode = sourceNodeResolution.sourceNode();
 
             final Optional<PendingAllocationState.InFlight> claim = tryClaimInFlight(key, primaryTerm);
             if (claim.isEmpty()) {
@@ -1311,10 +1300,24 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 return;
                             }
 
+                            // Recompute the source node too: it can go stale the same way (e.g. the peer/split
+                            // source relocates or leaves) across a retry loop that can span cluster state updates.
+                            final ProjectMetadata currentProject = currentState.metadata()
+                                .lookupProject(currentRouting.index())
+                                .orElse(null);
+                            assert currentProject != null : "null index project but non-null shard routing " + currentRouting;
+                            final SourceNodeResolution sourceNodeResolution = findSourceNode(currentState, currentProject, currentRouting);
+                            if (sourceNodeResolution.giveUp()) {
+                                logger.debug("{} giving up on shard lock retry: no source node can currently be found", key);
+                                pendingAllocationStates.remove(key, inFlightTicket);
+                                listener.onResponse(false);
+                                return;
+                            }
+
                             createShardWhenLockAvailable(
                                 currentRouting,
                                 currentState,
-                                sourceNode,
+                                sourceNodeResolution.sourceNode(),
                                 primaryTerm,
                                 key,
                                 inFlightTicket,
@@ -1399,6 +1402,29 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     clusterState
                 );
             }
+        }
+    }
+
+    /// The result of resolving the source node to recover a shard from: `sourceNode` is null either because this
+    /// recovery type doesn't need one, or because `giveUp` is true and it's required but can't currently be found
+    /// (the caller should abandon this attempt without failing; a later cluster state will retry).
+    private record SourceNodeResolution(@Nullable DiscoveryNode sourceNode, boolean giveUp) {
+        private static final SourceNodeResolution NONE_NEEDED = new SourceNodeResolution(null, false);
+    }
+
+    private SourceNodeResolution findSourceNode(ClusterState state, ProjectMetadata project, ShardRouting shardRouting) {
+        if (shardRouting.recoverySource().getType() == Type.PEER) {
+            DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(state.routingTable(project.id()), state.nodes(), shardRouting);
+            return sourceNode == null ? new SourceNodeResolution(null, true) : new SourceNodeResolution(sourceNode, false);
+        } else if (shardRouting.recoverySource() instanceof RecoverySource.ReshardSplitRecoverySource reshardSplitRecoverySource) {
+            DiscoveryNode sourceNode = findSourceNodeForReshardSplitRecovery(
+                state.routingTable(project.id()),
+                state.nodes(),
+                reshardSplitRecoverySource.getSourceShardId()
+            );
+            return sourceNode == null ? new SourceNodeResolution(null, true) : new SourceNodeResolution(sourceNode, false);
+        } else {
+            return SourceNodeResolution.NONE_NEEDED;
         }
     }
 

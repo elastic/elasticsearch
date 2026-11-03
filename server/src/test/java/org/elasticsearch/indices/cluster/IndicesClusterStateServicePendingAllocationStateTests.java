@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -846,6 +847,111 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             indicesService.getShardOrNull(shardRouting.shardId()).routingEntry().allocationId(),
             equalTo(newAllocation.allocationId())
         );
+    }
+
+    public void testLockWaitGivesUpWhenSourceNodeGoesStale() throws Exception {
+        String indexName = randomIndexName();
+        ClusterState base = ClusterStateCreationUtils.state(indexName, false, ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
+        String localNodeId = base.nodes().getLocalNodeId();
+        Index index = base.metadata().getProject().index(indexName).getIndex();
+        ShardRouting primary = base.routingTable().index(index).shard(0).primaryShard();
+        assertTrue(primary.active());
+        assertFalse(primary.currentNodeId().equals(localNodeId));
+        ShardRouting replica = TestShardRouting.newShardRouting(primary.shardId(), localNodeId, false, ShardRoutingState.INITIALIZING);
+
+        indicesService.failNextCreateShard = new ShardLockObtainFailedException(replica.shardId(), "test lock held");
+        applyState(
+            ClusterState.builder(base)
+                .routingTable(
+                    RoutingTable.builder().add(IndexRoutingTable.builder(index).addShard(primary).addShard(replica).build()).build()
+                )
+                .build()
+        );
+        assertNull(indicesService.getShardOrNull(replica.shardId()));
+        assertBusy(() -> assertFalse(pendingApplierTasks.isEmpty()));
+
+        // The primary relocates to a node this cluster state doesn't know about (routing changes,
+        // DiscoveryNodes doesn't) -- the replica's own routing/allocation id is unchanged, so its
+        // InFlight ticket survives the sweep, but the primary can no longer be resolved to an actual node.
+        ShardRouting primaryOnUnknownNode = TestShardRouting.newShardRouting(
+            primary.shardId(),
+            "unknown-node",
+            true,
+            ShardRoutingState.STARTED
+        );
+        applyState(
+            ClusterState.builder(state)
+                .routingTable(
+                    RoutingTable.builder()
+                        .add(IndexRoutingTable.builder(index).addShard(primaryOnUnknownNode).addShard(replica).build())
+                        .build()
+                )
+                .build()
+        );
+        assertTrue(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(replica)));
+        int createsBefore = indicesService.createShardCalls.get();
+
+        // Recomputing the source node from the current state (not the stale, captured one) must give up
+        // quietly -- no source can be found anymore -- rather than recover from the gone primary.
+        final var lockRetry = pendingApplierTasks.remove();
+        lockRetry.consumer().accept(state);
+        lockRetry.listener().onResponse(null);
+
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore));
+        assertFalse(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(replica)));
+    }
+
+    public void testLockWaitUsesRelocatedSourceNode() throws Exception {
+        String indexName = randomIndexName();
+        ClusterState base = ClusterStateCreationUtils.state(indexName, false, ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING);
+        String localNodeId = base.nodes().getLocalNodeId();
+        Index index = base.metadata().getProject().index(indexName).getIndex();
+        ShardRouting primary = base.routingTable().index(index).shard(0).primaryShard();
+        assertTrue(primary.active());
+        assertFalse(primary.currentNodeId().equals(localNodeId));
+        ShardRouting replica = TestShardRouting.newShardRouting(primary.shardId(), localNodeId, false, ShardRoutingState.INITIALIZING);
+
+        indicesService.failNextCreateShard = new ShardLockObtainFailedException(replica.shardId(), "test lock held");
+        applyState(
+            ClusterState.builder(base)
+                .routingTable(
+                    RoutingTable.builder().add(IndexRoutingTable.builder(index).addShard(primary).addShard(replica).build()).build()
+                )
+                .build()
+        );
+        assertNull(indicesService.getShardOrNull(replica.shardId()));
+        assertBusy(() -> assertFalse(pendingApplierTasks.isEmpty()));
+
+        // The primary relocates to a brand new node while the lock-wait is pending. The replica's own
+        // routing/allocation id is untouched, so its InFlight ticket survives the sweep.
+        DiscoveryNode newPrimaryNode = DiscoveryNodeUtils.builder("new-primary-node").name("new-primary-node").build();
+        ShardRouting relocatedPrimary = TestShardRouting.newShardRouting(
+            primary.shardId(),
+            newPrimaryNode.getId(),
+            true,
+            ShardRoutingState.STARTED
+        );
+        applyState(
+            ClusterState.builder(state)
+                .nodes(DiscoveryNodes.builder(state.nodes()).add(newPrimaryNode))
+                .routingTable(
+                    RoutingTable.builder()
+                        .add(IndexRoutingTable.builder(index).addShard(relocatedPrimary).addShard(replica).build())
+                        .build()
+                )
+                .build()
+        );
+        assertTrue(indicesClusterStateService.pendingAllocationStates.containsKey(allocationKey(replica)));
+
+        // The retry must recompute and use the relocated primary's new node, not the stale one captured
+        // at the original attempt.
+        final var lockRetry = pendingApplierTasks.remove();
+        lockRetry.consumer().accept(state);
+        lockRetry.listener().onResponse(null);
+
+        MockIndexShard shard = indicesService.getShardOrNull(replica.shardId());
+        assertNotNull(shard);
+        assertThat(shard.recoveryState().getSourceNode(), equalTo(newPrimaryNode));
     }
 
     // --- helpers ---

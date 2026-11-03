@@ -136,6 +136,68 @@ public class SourceFilterTests extends ESTestCase {
         assertFilteringPathsAgree(new SourceFilter(null, new String[] { "foo\\\\.other" }), document, expected);
     }
 
+    public void testIncludeUnderParentEndingInSingleBackslash() {
+        assertFilteringPathsAgree(
+            new SourceFilter(new String[] { "foo\\.bar" }, null),
+            Map.of("foo\\", Map.of("bar", 1, "other", 2)),
+            Map.of("foo\\", Map.of("bar", 1))
+        );
+    }
+
+    public void testExcludeUnderParentEndingInSingleBackslash() {
+        assertFilteringPathsAgree(
+            new SourceFilter(null, new String[] { "foo\\.secret" }),
+            Map.of("foo\\", Map.of("secret", 1, "public", 2)),
+            Map.of("foo\\", Map.of("public", 2))
+        );
+    }
+
+    public void testAmbiguousEscapedDotIncludesMatchBothReadings() {
+        SourceFilter filter = new SourceFilter(new String[] { "foo\\.bar" }, null);
+        Map<String, Object> document = Map.of("foo\\", Map.of("bar", 1, "other", 0), "foo.bar", 2, "foo", Map.of("bar", 3, "other", 0));
+        Map<String, Object> expected = Map.of("foo\\", Map.of("bar", 1), "foo.bar", 2, "foo", Map.of("bar", 3));
+        assertFilteringPathsAgree(filter, document, expected);
+        assertFilteringPathsAgree(new SourceFilter(filter.getIncludes(), filter.getExcludes()), document, expected);
+        assertTrue(filter.isExplicitlyIncluded("foo\\.bar"));
+        assertTrue(filter.isExplicitlyIncluded("foo.bar"));
+        assertFalse(filter.isPathFiltered("foo\\.bar", false));
+        assertFalse(filter.isPathFiltered("foo.bar", false));
+    }
+
+    public void testAmbiguousEscapedDotExcludesMatchBothReadings() {
+        SourceFilter filter = new SourceFilter(null, new String[] { "foo\\.secret" });
+        Map<String, Object> document = Map.of(
+            "foo\\",
+            Map.of("secret", 1, "public", 2),
+            "foo.secret",
+            3,
+            "foo",
+            Map.of("secret", 4, "public", 5)
+        );
+        Map<String, Object> expected = Map.of("foo\\", Map.of("public", 2), "foo", Map.of("public", 5));
+        assertFilteringPathsAgree(filter, document, expected);
+        assertFilteringPathsAgree(new SourceFilter(filter.getIncludes(), filter.getExcludes()), document, expected);
+        assertTrue(filter.isPathFiltered("foo\\.secret", false));
+        assertTrue(filter.isPathFiltered("foo.secret", false));
+        assertFalse(filter.isPathFiltered("foo\\.public", false));
+    }
+
+    public void testTrailingBackslashParentWithWildcardExclude() {
+        assertFilteringPathsAgree(
+            new SourceFilter(null, new String[] { "foo\\.secret", "ignored*" }),
+            Map.of("foo\\", Map.of("secret", 1, "public", 2), "foo.secret", 3, "ignored_field", 4),
+            Map.of("foo\\", Map.of("public", 2))
+        );
+    }
+
+    public void testTrailingBackslashParentWithArray() {
+        assertFilteringPathsAgree(
+            new SourceFilter(new String[] { "foo\\.bar" }, null),
+            Map.of("foo\\", List.of(Map.of("bar", 1, "other", 0), Map.of("bar", 2)), "foo.bar", List.of(3, 4)),
+            Map.of("foo\\", List.of(Map.of("bar", 1), Map.of("bar", 2)), "foo.bar", List.of(3, 4))
+        );
+    }
+
     private void assertFilteringPathsAgree(SourceFilter filter, Map<String, Object> document, Map<String, Object> expected) {
         for (XContentType type : List.of(XContentType.JSON, XContentType.SMILE, XContentType.YAML, XContentType.CBOR)) {
             Source fromMap = Source.fromMap(document, type);

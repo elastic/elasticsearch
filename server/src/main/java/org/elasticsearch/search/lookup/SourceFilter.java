@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -51,14 +52,17 @@ public final class SourceFilter {
      * @param excludes  an array of fields to exclude (may be null)
      */
     public SourceFilter(String[] includes, String[] excludes) {
-        this.includes = normalizeFilters(includes);
-        this.excludes = normalizeFilters(excludes);
+        this.includes = expandFilters(includes);
+        this.excludes = expandFilters(excludes);
         // TODO: Remove this once we upgrade to Jackson 2.14. There is currently a bug
         // in exclude filtering if one of the excludes contains a wildcard '*'.
         // see https://github.com/FasterXML/jackson-core/pull/729
-        this.canFilterBytes = Arrays.stream(this.excludes).noneMatch(field -> field.contains("*"))
-            && Arrays.stream(this.includes).noneMatch(field -> field.contains("\\."))
-            && Arrays.stream(this.excludes).noneMatch(field -> field.contains("\\."));
+        boolean excludesHaveWildcard = Arrays.stream(this.excludes).anyMatch(field -> field.contains("*"));
+        // The byte parser interprets backslash-dot as an escaped dot. Use map filtering to also match
+        // literal backslashes before a path separator, including parents whose names end in a backslash.
+        boolean hasBackslashBeforeDot = Arrays.stream(this.includes).anyMatch(field -> field.contains("\\."))
+            || Arrays.stream(this.excludes).anyMatch(field -> field.contains("\\."));
+        this.canFilterBytes = excludesHaveWildcard == false && hasBackslashBeforeDot == false;
         this.empty = CollectionUtils.isEmpty(this.includes) && CollectionUtils.isEmpty(this.excludes);
     }
 
@@ -204,17 +208,27 @@ public final class SourceFilter {
         };
     }
 
-    private static String[] normalizeFilters(String[] filters) {
+    /**
+     * Keep each literal pattern alongside its escaped-dot interpretation. For example, {@code foo\.bar} can match
+     * {@code bar} under a parent named {@code foo\}, or a dotted path/field named {@code foo.bar}. Keeping both
+     * preserves existing map-filter matches, especially exclusions. Deduplicate so rebuilding a filter from its
+     * includes and excludes does not accumulate patterns.
+     */
+    private static String[] expandFilters(String[] filters) {
         if (filters == null) {
             return Strings.EMPTY_ARRAY;
         }
-        return Arrays.stream(filters).map(SourceFilter::normalizeFilter).toArray(String[]::new);
+        Set<String> expanded = new LinkedHashSet<>();
+        for (String filter : filters) {
+            expanded.add(filter);
+            expanded.add(normalizeFilter(filter));
+        }
+        return expanded.toArray(String[]::new);
     }
 
     /**
-     * Normalize escaped dots once so map filtering, byte filtering and path checks use the same patterns. Preserve
-     * standalone backslash segments and runs of literal backslashes. Patterns that still contain {@code \.} use map
-     * filtering because {@link org.elasticsearch.xcontent.support.filtering.FilterPath} would interpret it as an escaped dot.
+     * Build the escaped-dot interpretation without stripping standalone backslash segments or runs of literal
+     * backslashes. The original literal interpretation is retained by {@link #expandFilters(String[])}.
      */
     private static String normalizeFilter(String filter) {
         if (filter.contains("\\.") == false) {

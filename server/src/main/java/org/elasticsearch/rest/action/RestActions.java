@@ -101,7 +101,7 @@ public class RestActions {
             builder.field(SKIPPED_FIELD.getPreferredName(), skipped);
         }
         builder.field(FAILED_FIELD.getPreferredName(), failed);
-        if (!shardFailures.isEmpty()) {
+        if (shardFailures != null && !shardFailures.isEmpty()) {
             builder.startArray(FAILURES_FIELD.getPreferredName());
             for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
                 shardFailure.toXContent(builder, params);

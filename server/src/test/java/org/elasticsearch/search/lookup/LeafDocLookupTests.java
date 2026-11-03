@@ -10,6 +10,7 @@ package org.elasticsearch.search.lookup;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -28,6 +29,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -35,6 +37,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SCRIPT;
 import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SEARCH;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -495,5 +498,36 @@ public class LeafDocLookupTests extends ESTestCase {
         lookup.get("field");
         lookup.getScriptField("field");
         assertTrue("a reader without an estimate must not be accounted", accounted.isEmpty());
+    }
+
+    /** The read and enumeration methods reject the call with a client error; the mutators are unsupported. */
+    public void testEnumerationThrowsIllegalArgument() {
+        assertNotEnumerable(docLookup::size, "size");
+        assertNotEnumerable(docLookup::isEmpty, "isEmpty");
+        assertNotEnumerable(() -> docLookup.containsValue(docValues), "containsValue");
+        assertNotEnumerable(docLookup::keySet, "keySet");
+        assertNotEnumerable(docLookup::values, "values");
+        assertNotEnumerable(docLookup::entrySet, "entrySet");
+
+        expectThrows(UnsupportedOperationException.class, () -> docLookup.put("field", docValues));
+        expectThrows(UnsupportedOperationException.class, () -> docLookup.remove("field"));
+        expectThrows(UnsupportedOperationException.class, () -> docLookup.putAll(Map.of()));
+        expectThrows(UnsupportedOperationException.class, docLookup::clear);
+    }
+
+    /** A map holding the lookup, such as a script's {@code params}, is rejected by the self-reference check. */
+    public void testEnsureNoSelfReferencesRejectsDocLookup() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("doc", docLookup);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> CollectionUtils.ensureNoSelfReferences(params, "test")
+        );
+        assertThat(e.getMessage(), containsString("[doc] does not support [isEmpty]"));
+    }
+
+    private static void assertNotEnumerable(ThrowingRunnable call, String method) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, call);
+        assertThat(e.getMessage(), containsString("[doc] does not support [" + method + "]"));
     }
 }

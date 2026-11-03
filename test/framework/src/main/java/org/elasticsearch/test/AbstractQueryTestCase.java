@@ -167,6 +167,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         } catch (UnsupportedOperationException e) {
             assumeNoException("Runs only for queries that support nesting", e);
         }
+
         CircuitBreaker breaker = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
         try {

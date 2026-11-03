@@ -61,14 +61,14 @@ public class ValueConversions {
         return new BytesRef(new Version(value).toString());
     }
 
-    /**
-     * Convert any xcontent source to json
-     */
     /** Renders typed time-series metadata as its JSON display form. */
     public static BytesRef timeSeriesToJson(BytesRef value, BytesRef scratch) {
         return new BytesRef(TimeSeriesMetadata.render(value));
     }
 
+    /**
+     * Convert any xcontent source to json
+     */
     public static BytesRef sourceToJson(BytesRef value, BytesRef scratch) {
         try {
             var valueArray = new BytesArray(value);

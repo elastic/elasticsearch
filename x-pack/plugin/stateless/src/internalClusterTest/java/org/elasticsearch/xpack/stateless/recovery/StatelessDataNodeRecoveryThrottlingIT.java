@@ -704,7 +704,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             )
         );
         // Before the shutdown, the relocations have the priority the master assigned to them, which is below the split targets
-        final var prioritiesBeforeShutdown = getRelocationPriorities(evacuatedIndex, targetNode);
+        final var prioritiesBeforeShutdown = getRelocationPriorities(evacuatedIndex, targetNode, relocations);
         assertThat(prioritiesBeforeShutdown.size(), equalTo(relocations));
         assertThat(prioritiesBeforeShutdown.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)));
 
@@ -712,7 +712,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         // The put-shutdown response is only sent once every node has applied the shutdown, and the target node raises the
         // priority of its queued relocations while applying it.
         triggerSigtermShutdown(shuttingDownNode);
-        final var priorities = getRelocationPriorities(evacuatedIndex, targetNode);
+        final var priorities = getRelocationPriorities(evacuatedIndex, targetNode, relocations);
         assertThat(priorities.size(), equalTo(relocations));
         assertThat(priorities.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO)));
         awaitRecoveryCountStats(
@@ -822,7 +822,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
         awaitRecoveryCountStats(
             Map.of(targetNode, stats -> stats.currentAsTarget() == 1 && stats.currentAsTargetQueued() == queuedRelocations)
         );
-        final var relocationsBeforeShutdown = getRelocationPriorities(notPreferredIndexName, targetNode);
+        final var relocationsBeforeShutdown = getRelocationPriorities(notPreferredIndexName, targetNode, relocations);
         assertThat(relocationsBeforeShutdown.size(), equalTo(relocations));
         assertThat(relocationsBeforeShutdown.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)));
 
@@ -836,7 +836,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             )
         );
 
-        final var priorities = getRelocationPriorities(notPreferredIndexName, targetNode);
+        final var priorities = getRelocationPriorities(notPreferredIndexName, targetNode, relocations);
         assertThat(priorities.keySet(), equalTo(relocationsBeforeShutdown.keySet()));
         // The recovery API reports the raised priority of the queued relocations. The one that started keeps its priority.
         assertThat(
@@ -851,7 +851,7 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
             )
         );
         // The forced relocations get the priority of a forced move from the master
-        final var forcedPriorities = getRelocationPriorities(evacuatedIndexName, targetNode);
+        final var forcedPriorities = getRelocationPriorities(evacuatedIndexName, targetNode, forcedRelocations);
         assertThat(forcedPriorities.size(), equalTo(forcedRelocations));
         assertThat(forcedPriorities.values(), everyItem(equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NO)));
 
@@ -893,11 +893,22 @@ public class StatelessDataNodeRecoveryThrottlingIT extends AbstractStatelessPlug
     }
 
     /// Returns the priority that the target node reports in the recovery API for each relocation of the index to it, which is the
-    /// priority its queue uses.
-    private Map<ShardId, RecoveryPriority> getRelocationPriorities(String indexName, String targetNode) {
+    /// priority its queue uses. Waits until the target node has applied a cluster state with `expectedRelocations`
+    /// relocations of the index to it.
+    private Map<ShardId, RecoveryPriority> getRelocationPriorities(String indexName, String targetNode, int expectedRelocations) {
         final var targetNodeId = getNodeId(targetNode);
-        // The coordinating node picks the shard copies to report on from its own cluster state. Coordinating on the
-        // target node makes sure this includes every relocation that the target node has already applied.
+        // The target node enqueues a relocation while applying the cluster state that starts it, so the recovery stats can
+        // report it before that state becomes visible through the target node's ClusterService#state. The recovery API
+        // picks the shard copies to report on from the coordinating node's cluster state, so wait for the target node to
+        // finish applying it and then coordinate on that node.
+        awaitClusterState(
+            targetNode,
+            state -> state.getRoutingNodes()
+                .node(targetNodeId)
+                .shardsWithState(indexName, ShardRoutingState.INITIALIZING)
+                .filter(ShardRouting::isRelocationTarget)
+                .count() == expectedRelocations
+        );
         return client(targetNode).admin()
             .indices()
             .prepareRecoveries(indexName)

@@ -121,6 +121,9 @@ abstract class StreamingFetchPhaseDocsIterator extends FetchPhaseDocsIterator {
         final AtomicReference<Throwable> producerError = new AtomicReference<>();
 
         DocIdToIndex[] docs = sortDocsByDocId(docIds);
+        if (prefetchIdDocValues()) {
+            prefetchIdDocValues(indexReader, docs);
+        }
         if (prefetchStoredFields()) {
             prefetchStoredFields(indexReader, docs);
         }

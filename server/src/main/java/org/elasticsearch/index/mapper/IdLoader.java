@@ -110,6 +110,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
+    /**
+     * Asks the codec to prefetch what {@link #leaf} will read from {@code reader}, without reading it, so that a directory backed by a
+     * remote store can fetch the ids of several segments concurrently before the first {@link #leaf} call. Best effort; a no-op unless
+     * the {@code _id} is loaded from doc values. See {@code SearchService#FETCH_PHASE_PREFETCH_ID_DOC_VALUES}.
+     */
+    default void prefetch(LeafReader reader) throws IOException {}
+
     BlockLoader blockLoader(ByteSizeValue ordinalsByteSize);
 
     /**
@@ -595,6 +602,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
     final class DocValuesIdLoader implements IdLoader {
 
         @Override
+        public void prefetch(LeafReader reader) throws IOException {
+            // creating the doc values makes the codec prefetch the first page of their data (and addresses), see Lucene90DocValuesProducer
+            DocValues.getBinary(reader, IdFieldMapper.NAME);
+        }
+
+        @Override
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
             BinaryDocValues binaryDocValues = DocValues.getBinary(reader, IdFieldMapper.NAME);
             if (docIdsInLeaf == null) {
@@ -632,6 +645,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
      * {@link IdFieldMapper#decodeIdentity} to recover the user-visible plain id.
      */
     final class SliceDocValuesIdLoader implements IdLoader {
+
+        @Override
+        public void prefetch(LeafReader reader) throws IOException {
+            // creating the doc values makes the codec prefetch the first page of their data (and addresses), see Lucene90DocValuesProducer
+            DocValues.getBinary(reader, IdFieldMapper.NAME);
+        }
 
         @Override
         public Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {

@@ -21,6 +21,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.store.Directory;
@@ -373,6 +374,76 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
 
         docs.reader.close();
         docs.directory.close();
+    }
+
+    public void testPrefetchesIdDocValuesOfEveryLeafBeforeLoadingTheFirst() throws IOException {
+        int docCount = randomIntBetween(60, 300);
+        Directory directory = newDirectory();
+        RandomIndexWriter writer = new RandomIndexWriter(
+            random(),
+            directory,
+            newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+        );
+        for (int i = 0; i < docCount; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("field", "foo", Field.Store.NO));
+            writer.addDocument(doc);
+            if (i % 20 == 0) {
+                writer.commit();
+            }
+        }
+        writer.commit();
+        IndexReader reader = writer.getReader();
+        writer.close();
+
+        int[] docs = randomDocIds(docCount - 1);
+        final Set<Integer> expectedLeaves = new HashSet<>();
+        for (int doc : docs) {
+            expectedLeaves.add(ReaderUtil.subIndex(doc, reader.leaves()));
+        }
+        final boolean prefetch = randomBoolean();
+        final List<Integer> prefetchedLeaves = new ArrayList<>();
+        final List<Integer> prefetchedAtFirstSetNextReader = new ArrayList<>();
+        final boolean[] setNextReaderSeen = new boolean[1];
+        FetchPhaseDocsIterator it = new FetchPhaseDocsIterator(DirectoryMetrics.Capture.NOOP) {
+            @Override
+            protected boolean prefetchIdDocValues() {
+                return prefetch;
+            }
+
+            @Override
+            protected void prefetchIdDocValues(LeafReaderContext ctx) {
+                assertFalse("prefetched after the first leaf was loaded", setNextReaderSeen[0]);
+                prefetchedLeaves.add(ctx.ord);
+            }
+
+            @Override
+            protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) {
+                if (setNextReaderSeen[0] == false) {
+                    prefetchedAtFirstSetNextReader.addAll(prefetchedLeaves);
+                }
+                setNextReaderSeen[0] = true;
+            }
+
+            @Override
+            protected SearchHit nextDoc(int doc) {
+                return new SearchHit(doc);
+            }
+        };
+        SearchHit[] hits = it.iterate(null, reader, docs, randomBoolean(), new QuerySearchResult()).hits;
+        assertThat(hits.length, equalTo(docs.length));
+        for (SearchHit hit : hits) {
+            hit.decRef();
+        }
+        if (prefetch) {
+            // once per leaf with hits, all before the first leaf is loaded
+            assertThat(prefetchedAtFirstSetNextReader.size(), equalTo(expectedLeaves.size()));
+            assertThat(new HashSet<>(prefetchedAtFirstSetNextReader), equalTo(expectedLeaves));
+        } else {
+            assertThat(prefetchedLeaves, equalTo(List.of()));
+        }
+        reader.close();
+        directory.close();
     }
 
     public void testExceptions() throws IOException {

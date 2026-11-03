@@ -115,6 +115,39 @@ abstract class FetchPhaseDocsIterator {
     }
 
     /**
+     * Whether to prefetch the {@code _id} doc values of every segment that has documents to fetch before loading the first one. See
+     * {@link SearchService#FETCH_PHASE_PREFETCH_ID_DOC_VALUES}.
+     */
+    protected boolean prefetchIdDocValues() {
+        return false;
+    }
+
+    /**
+     * Prefetches the {@code _id} doc values of one segment that has documents to fetch (see {@link #prefetchIdDocValues()}).
+     */
+    protected void prefetchIdDocValues(LeafReaderContext ctx) throws IOException {}
+
+    /**
+     * Calls {@link #prefetchIdDocValues(LeafReaderContext)} once for every segment of {@code docs}, so that a directory that reads from
+     * a remote store loads the {@code _id}s of all segments concurrently rather than one segment after the other. Best effort.
+     *
+     * @param docs the documents to fetch, sorted by doc id
+     */
+    final void prefetchIdDocValues(IndexReader indexReader, DocIdToIndex[] docs) {
+        LeafReaderContext ctx = null;
+        try {
+            for (DocIdToIndex doc : docs) {
+                if (ctx == null || doc.docId >= ctx.docBase + ctx.reader().maxDoc()) {
+                    ctx = indexReader.leaves().get(ReaderUtil.subIndex(doc.docId, indexReader.leaves()));
+                    prefetchIdDocValues(ctx);
+                }
+            }
+        } catch (IOException e) {
+            LOGGER.debug("failed to prefetch _id doc values", e);
+        }
+    }
+
+    /**
      * Called for each document within a leaf reader.
      *
      * @param doc the global doc id
@@ -170,6 +203,10 @@ abstract class FetchPhaseDocsIterator {
         // make sure that we iterate in doc id order
         Arrays.sort(docs);
         int currentDoc = docs.length > 0 ? docs[0].docId : -1;
+        // before the stored fields: their prefetch may read the stored fields index synchronously, segment after segment
+        if (prefetchIdDocValues()) {
+            prefetchIdDocValues(indexReader, docs);
+        }
         if (prefetchStoredFields()) {
             prefetchStoredFields(indexReader, docs);
         }

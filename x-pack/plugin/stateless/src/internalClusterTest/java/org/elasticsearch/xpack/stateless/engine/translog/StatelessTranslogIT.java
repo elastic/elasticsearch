@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.engine.translog;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -22,16 +23,20 @@ import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -42,25 +47,33 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
+import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -74,8 +87,10 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
+import static org.elasticsearch.index.engine.EngineTestCase.generateNewSeqNo;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator.FLUSH_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -84,6 +99,16 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
+
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), StatelessMockRepositoryPlugin.class);
+    }
 
     public void testTranslogFileHoldDirectoryOfReferencedFiles() throws Exception {
         startMasterOnlyNode();
@@ -536,6 +561,91 @@ public class StatelessTranslogIT extends AbstractStatelessPluginIntegTestCase {
             .put(FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "1")
             .put(FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "500ms")
             .put(PUBLISH_TIMEOUT_SETTING.getKey(), "1s");
+    }
+
+    /**
+     * Recovery fills sequence-number gaps while holding an ensure-open reference across the remote translog sync. If the primary term
+     * advances before that upload is validated, the sync can no longer succeed, and the shard must still finish closing.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/163242">#163242</a>.
+     */
+    public void testShardClosesWhenPrimaryTermAdvancesDuringRecoveryTranslogSync() throws Exception {
+        final var extraNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            .build();
+        final var nodeA = startMasterAndIndexNode(extraNodeSettings);
+        final var nodeB = startMasterAndIndexNode(extraNodeSettings);
+        ensureStableCluster(2);
+
+        final var indexName = randomIndexName();
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put("index.routing.allocation.include._name", nodeA)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .build()
+        );
+        indexDocs(indexName, 1);
+        flush(indexName);
+        ensureGreen(indexName);
+
+        // Persist a sequence-number gap. A non-forced flush skips the commit when Lucene has nothing new to write, and closing the index
+        // rejects the gap, so force a commit and then fail the shard. Recovery has to write no-ops and sync them remotely while it still
+        // holds an ensure-open reference.
+        final var index = resolveIndex(indexName);
+        final var primary = findIndexShard(index, 0, nodeA);
+        primary.withEngine(engine -> {
+            generateNewSeqNo(engine);
+            return null;
+        });
+        assertThat(primary.seqNoStats().getMaxSeqNo(), greaterThan(primary.seqNoStats().getLocalCheckpoint()));
+        assertNoFailures(indicesAdmin().prepareFlush(indexName).setForce(true).get());
+
+        final var uploadBarrier = new CyclicBarrier(2);
+        setNodeRepositoryStrategy(nodeA, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerWriteBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                BytesReference bytes,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                if (purpose == OperationPurpose.TRANSLOG) {
+                    safeAwait(uploadBarrier);
+                    safeAwait(uploadBarrier);
+                }
+                originalRunnable.run();
+            }
+        });
+        try {
+            primary.failShard("recover with a sequence-number gap", new Exception("boom"));
+            safeAwait(uploadBarrier);
+
+            final var nodeAClusterService = internalCluster().getInstance(ClusterService.class, nodeA);
+            final long termDuringRecovery = nodeAClusterService.state().metadata().indexMetadata(index).primaryTerm(0);
+            // An initializing primary is not relocated by an allocation filter alone. Cancel it after pinning the index to node B so a
+            // new primary is initialized there, which advances the primary term and removes the recovering shard from node A.
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", nodeB), indexName);
+            ClusterRerouteUtils.reroute(client(), new CancelAllocationCommand(indexName, 0, nodeA, true));
+            safeAwait(
+                ClusterServiceUtils.addTemporaryStateListener(
+                    nodeAClusterService,
+                    cs -> cs.metadata().indexMetadata(index).primaryTerm(0) > termDuringRecovery
+                )
+            );
+
+            final var shardClosed = new CountDownLatch(1);
+            internalCluster().getInstance(IndicesClusterStateService.class, nodeA).onClusterStateShardsClosed(shardClosed::countDown);
+            assertFalse("shard close finished while its recovery translog sync was still blocked", shardClosed.await(2, TimeUnit.SECONDS));
+
+            safeAwait(uploadBarrier);
+            safeAwait(shardClosed);
+            ensureGreen(indexName);
+        } finally {
+            setNodeRepositoryStrategy(nodeA, StatelessMockRepositoryStrategy.DEFAULT);
+        }
     }
 
     private void runStressTest(int failureCount, Failures... failureTypes) throws Exception {

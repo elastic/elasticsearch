@@ -435,6 +435,32 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
         }
 
         @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            MapperBuilderContext childContext = context.createChildContext(leafName(), null);
+            for (FieldMapper.Builder propertyBuilder : properties.getValue().values()) {
+                propertyBuilder.normalize(childContext);
+            }
+        }
+
+        /**
+         * The {@code properties} parameter is never serialized with the others, so that its block follows the
+         * multi-fields, as {@link FlattenedFieldMapper#doXContentBody} writes it.
+         */
+        @Override
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            super.doXContentBody(builder, params);
+            Map<String, FieldMapper.Builder> propertyBuilders = properties.getValue();
+            if (propertyBuilders.isEmpty() == false) {
+                builder.startObject("properties");
+                for (FieldMapper.Builder propertyBuilder : new TreeMap<>(propertyBuilders).values()) {
+                    propertyBuilder.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+        }
+
+        @Override
         public FlattenedFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
             if (multiFields.iterator().hasNext()) {

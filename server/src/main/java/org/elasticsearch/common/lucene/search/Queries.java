@@ -23,7 +23,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.ReanalyzingTextQuery;
@@ -36,14 +35,12 @@ import java.util.regex.Pattern;
 
 public final class Queries {
 
-    @SuppressForbidden(reason = "Providing instance")
     private static MatchNoDocsQuery noDocs() {
-        return new MatchNoDocsQuery();
+        return MatchNoDocsQuery.INSTANCE;
     }
 
-    @SuppressForbidden(reason = "Providing instance")
     private static MatchAllDocsQuery allDocs() {
-        return new MatchAllDocsQuery();
+        return MatchAllDocsQuery.INSTANCE;
     }
 
     public static final MatchNoDocsQuery NO_DOCS_INSTANCE = noDocs();

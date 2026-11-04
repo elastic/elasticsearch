@@ -8,12 +8,17 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.LetResolver;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.MultiColumnInSubquery;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.LetBinding;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -22,6 +27,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
@@ -266,10 +273,35 @@ public class LetParserTests extends AbstractStatementParserTests {
             new QueryParams(),
             new org.elasticsearch.xpack.esql.inference.InferenceSettings(org.elasticsearch.common.settings.Settings.EMPTY),
             "my_view",
-            ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
         );
         assertThat(stmt.letBindings().size(), is(1));
         assertThat(stmt.letBindings().get(0).name(), is("x"));
+    }
+
+    /** A view body goes through parseView and then LetResolver, the two steps the session applies to it. */
+    public void testChainedForkBindingsInViewBodyRejected() {
+        assumeLet();
+        var parser = new EsqlParser(new EsqlConfig(EsqlTestUtils.TEST_FUNCTION_REGISTRY));
+        StringBuilder query = new StringBuilder("LET f0 = (FROM a | FORK (WHERE x > 0) (WHERE x < 0));");
+        for (int i = 1; i < 40; i++) {
+            query.append("LET f").append(i).append(" = (FROM f").append(i - 1).append(" | FORK (WHERE x > 0) (WHERE x < 0));");
+        }
+        query.append("FROM f39");
+        var stmt = parser.parseView(
+            query.toString(),
+            new QueryParams(),
+            new InferenceSettings(Settings.EMPTY),
+            "my_view",
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
+        );
+        expectThrows(
+            VerificationException.class,
+            containsString("ES|QL query exceeded the maximum of [500] plan nodes allowed after expanding views, subqueries and FORKs"),
+            () -> LetResolver.resolve(stmt.plan(), stmt.letBindings(), ViewResolver.DEFAULT_MAX_PLAN_NODES_COUNT)
+        );
     }
 
     // -----------------------------------------------------------------------

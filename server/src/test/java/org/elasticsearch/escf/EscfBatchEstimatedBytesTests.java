@@ -58,6 +58,15 @@ public class EscfBatchEstimatedBytesTests extends ESTestCase {
         }
     }
 
+    public void testCountsStoredSpellings() throws IOException {
+        try (EscfBatch batch = encode(new String[] { "{\"d\":-1.90}", "{\"d\":3.14}" })) {
+            int schema = 1;                                       // "d"
+            int doubles = 2 * Long.BYTES;                         // two 8-byte words
+            int spellings = "-1.90".length();                     // only the non-canonical spelling is stored
+            assertEquals(schema + doubles + spellings, batch.estimatedBytes());
+        }
+    }
+
     private static EscfBatch encode(String[] docs) throws IOException {
         List<BytesReference> sources = List.of(docs).stream().<BytesReference>map(BytesArray::new).toList();
         return EscfEncoder.encode(sources, XContentType.JSON);

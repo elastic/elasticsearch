@@ -31,7 +31,10 @@ public final class EscfColumnKind {
     /** All values are {@code long}s (JSON ints and longs upcast to 64-bit). */
     public static final byte LONG = 0x01;
 
-    /** All values are {@code double}s (JSON floats and doubles upcast to 64-bit). */
+    /**
+     * All values are {@code double}s (JSON floats and doubles upcast to 64-bit). A value whose spelling is not its
+     * canonical rendering may carry that spelling alongside, see {@link EscfColumnData#lexicalForms()}.
+     */
     public static final byte DOUBLE = 0x02;
 
     /** All values are booleans, stored as a value bitset (bit set = {@code true}). */

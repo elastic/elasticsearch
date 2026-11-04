@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.simdjson.JsonDocumentHandler;
 import org.elasticsearch.sourcebatch.KeyValueWriter;
 import org.elasticsearch.sourcebatch.LeafSink;
@@ -18,6 +19,7 @@ import org.elasticsearch.sourcebatch.SourceValueType;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -172,7 +174,7 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             return;
         }
         byte type = fitsFloat ? SourceValueType.FLOAT : SourceValueType.DOUBLE;
-        int colIdx = row.doubleField(fieldName, value);
+        int colIdx = row.doubleField(fieldName, value, lexicalForm(value, srcBuf, srcOff, srcLen));
         if (rawTextMode) {
             sink.onTextPrimitive(colIdx, backend.columnPath(colIdx), type, new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen));
         } else if (firePathSink) {
@@ -269,6 +271,20 @@ final class EscfDocumentHandler implements JsonDocumentHandler {
             elemNumeric[elemCount] = Double.doubleToRawLongBits(value);
         }
         elemCount++;
+    }
+
+    /**
+     * The token's spelling when it is not the canonical {@code Double.toString} rendering of {@code value}, which
+     * readers fall back to; else {@code null}, so that nothing is stored for the common case.
+     */
+    @Nullable
+    private static XContentString.UTF8Bytes lexicalForm(double value, byte[] srcBuf, int srcOff, int srcLen) {
+        // Check if we need to store the spelling; a JSON number token is ASCII, so ISO-8859-1 decodes it exactly.
+        String text = new String(srcBuf, srcOff, srcLen, StandardCharsets.ISO_8859_1);
+        if (Double.toString(value).equals(text)) {
+            return null;
+        }
+        return new XContentString.UTF8Bytes(srcBuf, srcOff, srcLen);
     }
 
     @Override

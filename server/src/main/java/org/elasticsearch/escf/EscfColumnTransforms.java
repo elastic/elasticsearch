@@ -14,6 +14,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.sourcebatch.ArrayReader;
 import org.elasticsearch.sourcebatch.SourceValueType;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.util.Arrays;
@@ -105,7 +106,9 @@ public final class EscfColumnTransforms {
      * Returns a cursor that stringifies every present value to its UTF-8 keyword form. Nested and
      * flat arrays are flattened to one tuple per leaf element (same doc-id repeated); absent rows
      * and empty arrays emit nothing. JSON null emits a tuple with {@code value()==null}.
-     * Numbers use canonical {@code toString}; BINARY and KEY_VALUE throw.
+     * Numbers render as {@code Long.toString} / {@code Double.toString}, except that a value in a dense DOUBLE
+     * column that was stored with its spelling yields that spelling (see {@link EscfColumnData#lexicalForms()}).
+     * BINARY and KEY_VALUE throw.
      *
      * @param column the source ESCF column
      * @param retainValues {@code false} when each value is consumed before the next {@link
@@ -156,7 +159,12 @@ public final class EscfColumnTransforms {
                             return doc;
                         }
                         case SourceValueType.DOUBLE -> {
-                            currentValue = new BytesRef(Double.toString(column.getDoubleValue(doc)));
+                            // A dense DOUBLE column renders the double, or returns its stored spelling when it has
+                            // one.
+                            // TODO: a union row has no spelling and renders canonically.
+                            currentValue = column.kind() == EscfColumnKind.DOUBLE
+                                ? utf8(column.getStringValue(doc))
+                                : new BytesRef(Double.toString(column.getDoubleValue(doc)));
                             return doc;
                         }
                         case SourceValueType.STRING -> {
@@ -248,5 +256,10 @@ public final class EscfColumnTransforms {
                 return currentValue;
             }
         };
+    }
+
+    private static BytesRef utf8(Text text) {
+        XContentString.UTF8Bytes bytes = text.bytes();
+        return new BytesRef(bytes.bytes(), bytes.offset(), bytes.length());
     }
 }

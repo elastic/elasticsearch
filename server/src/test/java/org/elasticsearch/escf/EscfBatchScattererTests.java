@@ -9,6 +9,7 @@
 
 package org.elasticsearch.escf;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -189,6 +190,37 @@ public class EscfBatchScattererTests extends ESTestCase {
             int[] selectors = { 0, 1, 0 };
             assertRoundTrip(source, selectors, 2);
         }
+    }
+
+    public void testLexicalForms() throws IOException {
+        List<BytesReference> docs = List.of(json("{\"d\":-1.90}"), json("{\"d\":3.14}"), json("{\"d\":7.50}"), json("{\"u\":null}"));
+        try (EscfBatch source = encode(docs)) {
+            assertEquals(EscfColumnKind.DOUBLE, columnKind(source, "d"));
+            int[] selectors = { 0, 1, 0, 1 };
+            EscfBatch[] parts = scatter(source, selectors, 2);
+            try {
+                assertRoundTripRows(source, selectors, parts);
+                assertEquals(List.of("-1.90", "7.50"), spellings(parts[0], "d"));
+                assertEquals(List.of("3.14"), spellings(parts[1], "d"));
+            } finally {
+                closeAll(parts);
+            }
+        }
+    }
+
+    /** The utf8 renderings of every value of the column at {@code path}, in cursor order. */
+    private static List<String> spellings(EscfBatch batch, String path) {
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < batch.schema().leafCount(); i++) {
+            if (path.equals(batch.schema().getFullPath(i))) {
+                var cursor = EscfColumnTransforms.utf8Cursor(batch.column(i), true);
+                while (cursor.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    out.add(cursor.value() == null ? null : cursor.value().utf8ToString());
+                }
+                return out;
+            }
+        }
+        throw new AssertionError("Column '" + path + "' not found in batch schema");
     }
 
     /**

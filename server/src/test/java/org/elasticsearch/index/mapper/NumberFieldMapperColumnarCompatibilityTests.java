@@ -1210,6 +1210,33 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
         expectThrows(UnsupportedOperationException.class, () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":1}", "{\"f\":null}"));
     }
 
+    /**
+     * A keyword sub-field indexes the client's spelling of a floating-point number, as the row path does, even when
+     * that spelling is not the canonical rendering of the double (#163555). Both encoders must agree.
+     */
+    public void testDoubleParentWithKeywordSubFieldKeepsSpelling() throws IOException {
+        for (SourceEncoder encoder : SourceEncoder.available()) {
+            assertColumnarMatchesXContent(mapping(b -> {
+                b.startObject(FIELD).field("type", "double");
+                b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+                b.endObject();
+            }),
+                columnarSettings(),
+                encoder,
+                batch(
+                    "double parent, keyword sub-field, " + encoder,
+                    1L,
+                    doc("d1", 1L, "{\"f\":-1.90}"),
+                    doc("d2", 2L, "{\"f\":3.14}"),
+                    doc("d3", 3L, "{\"f\":1e3}"),
+                    doc("d4", 4L, "{}"),
+                    doc("d5", 5L, "{\"f\":123.41999816894531}"),
+                    doc("d6", 6L, "{\"f\":12.40}")
+                )
+            );
+        }
+    }
+
     public void testLongParentWithKeywordSubField() throws IOException {
         assertColumnarMatchesXContent(mapping(b -> {
             b.startObject(FIELD).field("type", "long");

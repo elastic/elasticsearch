@@ -75,12 +75,12 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         for (final boolean https : new boolean[] { false, true }) {
             for (final boolean chunkedEncoding : new boolean[] { false, true }) {
                 for (final boolean alwaysSignRequests : new boolean[] { false, true }) {
-                    for (final boolean requestChecksumWhenRequired : new boolean[] { false, true }) {
+                    for (final boolean unsafelyOmitRequestBodyChecksums : new boolean[] { false, true }) {
                         // legacy_content_md5 only changes DeleteObjects, so it doesn't need crossing with everything else. One config
                         // per scheme and signing mode is enough to show it still works next to the other settings.
-                        final boolean legacyContentMd5 = chunkedEncoding && requestChecksumWhenRequired == false;
+                        final boolean legacyContentMd5 = chunkedEncoding && unsafelyOmitRequestBodyChecksums == false;
                         testConfigs.add(
-                            new TestConfig(https, chunkedEncoding, alwaysSignRequests, legacyContentMd5, requestChecksumWhenRequired)
+                            new TestConfig(https, chunkedEncoding, alwaysSignRequests, legacyContentMd5, unsafelyOmitRequestBodyChecksums)
                         );
                     }
                 }
@@ -142,7 +142,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                         .orElse(List.of())
                         .isEmpty()) {
                     assertThat(contentSha256Header, testConfig.getExpectedUploadContentSha256HeaderMatcher());
-                    if (testConfig.requestChecksumWhenRequired) {
+                    if (testConfig.unsafelyOmitRequestBodyChecksums) {
                         assertNoChecksumRequestHeaders(exchange.getRequestHeaders().keySet());
                     } else {
                         assertChecksumRequestHeadersPresent(exchange.getRequestHeaders().keySet());
@@ -165,7 +165,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                                 matchesPattern(S3HttpHandler.SHA256_PATTERN),
                                 // ... or there's a properly-signed footer
                                 equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER"),
-                                // ... or signed chunks with no footer, which is what we get when request_checksum_when_required is set
+                                // ... or signed chunks with no footer, which is what we get when unsafely_omit_request_body_checksums is
+                                // set
                                 equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD")
                             ),
 
@@ -290,31 +291,31 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         private final boolean chunkedEncoding;
         private final boolean alwaysSignRequests;
         private final boolean legacyContentMd5;
-        private final boolean requestChecksumWhenRequired;
+        private final boolean unsafelyOmitRequestBodyChecksums;
 
         TestConfig(
             boolean https,
             boolean chunkedEncoding,
             boolean alwaysSignRequests,
             boolean legacyContentMd5,
-            boolean requestChecksumWhenRequired
+            boolean unsafelyOmitRequestBodyChecksums
         ) {
             this.https = https;
             this.chunkedEncoding = chunkedEncoding;
             this.alwaysSignRequests = alwaysSignRequests;
             this.legacyContentMd5 = legacyContentMd5;
-            this.requestChecksumWhenRequired = requestChecksumWhenRequired;
+            this.unsafelyOmitRequestBodyChecksums = unsafelyOmitRequestBodyChecksums;
         }
 
         @Override
         public String toString() {
             return Strings.format(
-                "{scheme=%s,chunkedEncoding=%s,alwaysSignRequests=%s,legacyContentMd5=%s,requestChecksumWhenRequired=%s}",
+                "{scheme=%s,chunkedEncoding=%s,alwaysSignRequests=%s,legacyContentMd5=%s,unsafelyOmitRequestBodyChecksums=%s}",
                 https ? "https" : "http",
                 chunkedEncoding,
                 alwaysSignRequests,
                 legacyContentMd5,
-                requestChecksumWhenRequired
+                unsafelyOmitRequestBodyChecksums
             );
         }
 
@@ -323,7 +324,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             addBooleanSettingDefaultFalse(builder, "disable_chunked_encoding", chunkedEncoding == false);
             addBooleanSettingDefaultFalse(builder, "always_sign_requests", alwaysSignRequests);
             addBooleanSettingDefaultFalse(builder, "legacy_content_md5", legacyContentMd5);
-            addBooleanSettingDefaultFalse(builder, "request_checksum_when_required", requestChecksumWhenRequired);
+            addBooleanSettingDefaultFalse(builder, "unsafely_omit_request_body_checksums", unsafelyOmitRequestBodyChecksums);
             return builder.build();
         }
 
@@ -346,7 +347,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         /// leaves the unsigned payload marker over unsigned HTTPS, signed chunks without a footer when chunked, and a SHA-256 of the
         /// body when chunked encoding is disabled.
         Matcher<String> getExpectedUploadContentSha256HeaderMatcher() {
-            if (requestChecksumWhenRequired == false) {
+            if (unsafelyOmitRequestBodyChecksums == false) {
                 return anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(getExpectedUploadContentSha256Header()));
             }
             if (https && alwaysSignRequests == false) {
@@ -376,8 +377,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 + alwaysSignRequests
                 + "_legacy_content_md5_"
                 + legacyContentMd5
-                + "_request_checksum_when_required_"
-                + requestChecksumWhenRequired;
+                + "_unsafely_omit_request_body_checksums_"
+                + unsafelyOmitRequestBodyChecksums;
         }
 
         String getRepositoryBasePath() {
@@ -390,8 +391,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 + alwaysSignRequests
                 + "_legacy_content_md5_"
                 + legacyContentMd5
-                + "_request_checksum_when_required_"
-                + requestChecksumWhenRequired;
+                + "_unsafely_omit_request_body_checksums_"
+                + unsafelyOmitRequestBodyChecksums;
         }
 
         String getAccessKey() {
@@ -405,7 +406,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 + "-"
                 + legacyContentMd5
                 + "-"
-                + requestChecksumWhenRequired;
+                + unsafelyOmitRequestBodyChecksums;
         }
 
         static TestConfig fromAuthorizationHeader(String authorizationHeader) {

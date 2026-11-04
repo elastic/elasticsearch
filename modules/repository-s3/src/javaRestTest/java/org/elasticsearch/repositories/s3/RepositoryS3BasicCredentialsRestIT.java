@@ -55,7 +55,11 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .setting("s3.client." + CLIENT + ".legacy_content_md5", () -> randomFrom("true", "false"), ignored -> randomBoolean())
-        .setting("s3.client." + CLIENT + ".request_checksum_when_required", () -> randomFrom("true", "false"), ignored -> randomBoolean())
+        .setting(
+            "s3.client." + CLIENT + ".unsafely_omit_request_body_checksums",
+            () -> randomFrom("true", "false"),
+            ignored -> randomBoolean()
+        )
         .build();
 
     @ClassRule

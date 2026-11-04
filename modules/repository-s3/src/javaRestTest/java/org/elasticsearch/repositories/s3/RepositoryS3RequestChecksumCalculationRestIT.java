@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * An operator who already tells the AWS SDK to only checksum when required, through the {@code aws.requestChecksumCalculation} system
- * property, must keep that behaviour while {@code request_checksum_when_required} is unset or {@code false}. The setting only ever
+ * property, must keep that behaviour while {@code unsafely_omit_request_body_checksums} is unset or {@code false}. The setting only ever
  * switches the SDK to {@code WHEN_REQUIRED}, so leaving it off must never push the client back to {@code WHEN_SUPPORTED}.
  * <p>
  * This needs its own cluster because the system property applies to the whole node, which the content integrity suite can't vary per
@@ -143,14 +143,14 @@ public class RepositoryS3RequestChecksumCalculationRestIT extends ESRestTestCase
      */
     public void testUnsetSettingLeavesTheNodeWideWhenRequiredPropertyInEffect() throws Exception {
         // the repository registration helper randomly adds the key, so clear it to leave the setting unset
-        assertUploadsCarryNoChecksum(s -> Settings.builder().put(s).putNull("request_checksum_when_required").build());
+        assertUploadsCarryNoChecksum(s -> Settings.builder().put(s).putNull("unsafely_omit_request_body_checksums").build());
     }
 
     /**
      * An explicit {@code false} means the same as unset, so it must not override the operator's property either.
      */
     public void testExplicitFalseSettingLeavesTheNodeWideWhenRequiredPropertyInEffect() throws Exception {
-        assertUploadsCarryNoChecksum(s -> Settings.builder().put(s).put("request_checksum_when_required", false).build());
+        assertUploadsCarryNoChecksum(s -> Settings.builder().put(s).put("unsafely_omit_request_body_checksums", false).build());
     }
 
     private void assertUploadsCarryNoChecksum(UnaryOperator<Settings> repositorySettings) throws Exception {

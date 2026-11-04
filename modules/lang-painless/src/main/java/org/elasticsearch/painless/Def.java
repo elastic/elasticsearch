@@ -1486,14 +1486,36 @@ public final class Def {
      * @param receiverClass Class of the array to load the value from
      * @return a MethodHandle that accepts the receiver as first argument, returns iterator
      */
-    static MethodHandle lookupIterator(Class<?> receiverClass) {
+    static MethodHandle lookupIterator(PainlessLookup painlessLookup, Class<?> receiverClass, boolean scriptPushed) {
+        MethodHandle iterator;
+        Method estimator = null;
+
         if (Iterable.class.isAssignableFrom(receiverClass)) {
-            return OBJECT_ITERATOR;
+            iterator = OBJECT_ITERATOR;
+            if (scriptPushed) {
+                // The class's own iterator() estimator, so doc values that decode on every next() charge the whole document.
+                estimator = painlessLookup.lookupRuntimeAllocationEstimator(receiverClass, "iterator", 0);
+            }
         } else if (receiverClass.isArray()) {
-            return ArrayIteratorHelper.newIterator(receiverClass);
+            iterator = ArrayIteratorHelper.newIterator(receiverClass);
         } else {
             throw new IllegalArgumentException("Cannot iterate over [" + receiverClass.getCanonicalName() + "]");
         }
+
+        if (scriptPushed == false) {
+            return iterator;
+        }
+
+        iterator = MethodHandles.dropArguments(iterator, 1, PainlessScript.class);
+
+        if (estimator != null) {
+            return chargeAllocationBeforeCall(iterator, estimator, new Object[0], false);
+        }
+
+        // An array wrapper, or an iterable with no estimator to read: the iterator alone.
+        MethodHandle charge = MethodHandles.insertArguments(SCRIPT_CHECK_ALLOC_BYTES, 1, AllocSizes.ITERATOR_BYTES);
+        charge = MethodHandles.dropArguments(charge, 0, iterator.type().parameterType(0));
+        return MethodHandles.foldArguments(iterator, charge);
     }
 
     // Conversion methods for def to primitive types.

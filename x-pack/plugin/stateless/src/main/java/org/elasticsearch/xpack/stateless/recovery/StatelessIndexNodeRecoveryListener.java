@@ -264,16 +264,10 @@ public class StatelessIndexNodeRecoveryListener extends AbstractStatelessRecover
     }
 
     @Override
-    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
         // Can be null if there was a problem creating the shard.
         if (indexShard != null) {
             splitTargetService.cancelSplits(indexShard);
-        }
-    }
-
-    @Override
-    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null) {
             splitSourceService.cancelSplits(indexShard);
         }
     }

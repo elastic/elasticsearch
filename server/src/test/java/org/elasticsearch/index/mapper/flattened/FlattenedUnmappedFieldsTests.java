@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -460,5 +462,41 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("does not support [flattened]"));
+    }
+
+    /**
+     * An absorbed field is the key of its name in the sink, unless it is below a nested object, where it is read from {@code _source}.
+     */
+    public void testSinkFieldType() throws IOException {
+        MapperService mapperService = columnarService(b -> b.startObject("n").field("type", "nested").endObject());
+        assertThat(
+            UnmappedSinkFieldMapper.unmappedFieldType(mapperService.mappingLookup(), randomFrom("absorbed", "obj.absorbed")),
+            instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class)
+        );
+        assertNull(UnmappedSinkFieldMapper.unmappedFieldType(mapperService.mappingLookup(), "n.u"));
+        assertNull(UnmappedSinkFieldMapper.unmappedFieldType(createMapperService(mapping(b -> {})).mappingLookup(), "absorbed"));
+    }
+
+    /**
+     * A columnar_stored root is written from the {@code _source} precomputed at index time, which holds the absorbed fields, so it doesn't
+     * load the sink: with no mapped field, nothing reads doc values. The absorbed fields still come back from the precomputed
+     * {@code _source}.
+     */
+    public void testColumnarStoredRootSkipsSink() throws IOException {
+        Settings settings = Settings.builder()
+            .put(columnarSettings())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "columnar_stored")
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        String bare = randomAlphanumericOfLength(6);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("bare", bare)));
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
+            LeafReader leaf = getOnlyLeafReader(reader);
+            assertNull(mapperService.mappingLookup().getMapping().syntheticFieldLoader(null, true).docValuesLoader(leaf, null));
+            assertEquals(
+                "{\"bare\":\"" + bare + "\"}",
+                syntheticSource(mapperService.documentMapper(), new SourceFilter(new String[] { "bare" }, null), reader, 0)
+            );
+        });
     }
 }

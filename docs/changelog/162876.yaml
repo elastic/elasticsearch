@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 162876
+summary: Apply field visibility to `source_geometry`
+type: bug

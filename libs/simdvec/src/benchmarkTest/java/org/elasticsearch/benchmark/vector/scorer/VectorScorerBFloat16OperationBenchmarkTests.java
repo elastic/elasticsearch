@@ -17,8 +17,6 @@ import org.elasticsearch.simdvec.SimdVecLibrary;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.junit.AssumptionViolatedException;
 
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
-
 public class VectorScorerBFloat16OperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
@@ -60,9 +58,6 @@ public class VectorScorerBFloat16OperationBenchmarkTests extends BenchmarkTest {
             };
             assertEquals(expected, bench.lucene(), delta);
             assertEquals(expected, bench.nativeWithNativeSeg(), delta);
-            if (supportsHeapSegments()) {
-                assertEquals(expected, bench.nativeWithHeapSeg(), delta);
-            }
         } finally {
             bench.teardown();
         }

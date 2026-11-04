@@ -127,14 +127,14 @@ public class InboundHandler {
             if (header.isRequest()) {
                 handleRequest(channel, /* autocloses absent exception */ message);
             } else {
-                // Responses do not support short circuiting currently
-                assert message.isShortCircuit() == false;
                 responseHandler = findResponseHandler(header);
                 // ignore if its null, the service logs it
-                if (responseHandler != null) {
-                    executeResponseHandler( /* autocloses absent exception */ message, responseHandler, remoteAddress);
-                } else {
+                if (responseHandler == null) {
                     message.close();
+                } else if (message.isShortCircuit()) {
+                    handleRejectedResponse( /* autocloses */ message, responseHandler, remoteAddress);
+                } else {
+                    executeResponseHandler( /* autocloses absent exception */ message, responseHandler, remoteAddress);
                 }
             }
         } finally {
@@ -170,6 +170,19 @@ public class InboundHandler {
             assert header.isError() == false;
             handleResponse(remoteAddress, EMPTY_STREAM_INPUT, responseHandler, /* autocloses */ message);
         }
+    }
+
+    /**
+     * Fails a response that its handler rejected while it arrived, see {@link TransportResponseHandler#reserveResponseBytes}.
+     *
+     * @param message guaranteed to get closed by this method
+     */
+    private void handleRejectedResponse(InboundMessage message, TransportResponseHandler<?> handler, InetSocketAddress remoteAddress) {
+        message.close();
+        final Exception e = message.getException();
+        assert e instanceof CircuitBreakingException : e;
+        logger.debug(() -> "Circuit breaker tripped reserving memory for response from [" + remoteAddress + "]", e);
+        handleException(handler, new RemoteTransportException("Failed to reserve memory for response to [" + handler + "]", e));
     }
 
     private TransportResponseHandler<?> findResponseHandler(Header header) {

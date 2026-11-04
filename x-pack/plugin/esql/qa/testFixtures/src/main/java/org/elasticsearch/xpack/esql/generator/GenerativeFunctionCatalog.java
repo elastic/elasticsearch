@@ -140,8 +140,8 @@ public final class GenerativeFunctionCatalog {
 
     /**
      * Limits the catalog to functions the cluster under test registers, which it advertises as {@code fn_<name>}
-     * capabilities. The function definitions come from the test's own build, so without this a cluster running an
-     * older version would be sent functions it doesn't have.
+     * capabilities. The definitions are already the release branch's when {@link #DEFINITIONS_DIR_PROPERTY} is set,
+     * and the test build's otherwise. This still drops a function the cluster does not advertise.
      *
      * @param clusterCapabilities tests whether the cluster under test supports an ES|QL capability, by name
      */

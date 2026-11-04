@@ -1427,6 +1427,18 @@ public final class IndexSettings {
             : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
     }
 
+    /**
+     * Resolves {@link #DISABLE_SEQUENCE_NUMBERS} for an index from its metadata settings alone. The default depends on whether the
+     * node is stateless (see {@link #getColumnarDisableSeqNoDataStreamIndexVersion}), which index metadata settings do not carry, so
+     * the node settings must be merged in when the setting is not explicitly set.
+     */
+    public static boolean sequenceNumbersDisabled(Settings indexMetadataSettings, Settings nodeSettings) {
+        if (DISABLE_SEQUENCE_NUMBERS.exists(indexMetadataSettings)) {
+            return DISABLE_SEQUENCE_NUMBERS.get(indexMetadataSettings);
+        }
+        return DISABLE_SEQUENCE_NUMBERS.get(Settings.builder().put(nodeSettings).put(indexMetadataSettings).build());
+    }
+
     public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting("index.disable_sequence_numbers", settings -> {
         if (settings == null) {
             return Boolean.FALSE.toString();

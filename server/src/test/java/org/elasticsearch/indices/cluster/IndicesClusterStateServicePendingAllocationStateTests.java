@@ -82,6 +82,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -803,6 +804,43 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertThat(recreated.recoveryState().getLocalRetries(), equalTo(1));
         assertFalse(isAwaitingRecoveryRetry(replacement));
         verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
+    }
+
+    public void testUpdateShardDoesNotResendShardStartedWhileRecoveryInFlight() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        currentInFlight(shardRouting); // sanity: ticket is live before the state transition below
+        MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
+        assertNotNull(shard);
+
+        // The shard reaches POST_RECOVERY locally (IndexShard#postRecovery's own synchronous
+        // transition) before the recovery's own completion callback (onRecoveryDone) has run, so the
+        // InFlight ticket is still held. A cluster state update for the same (still-initializing)
+        // allocation must not have updateShard resend shardStarted on its behalf -- that would be the
+        // first shardStarted ever sent for this attempt, racing ahead of recovery's own completion.
+        shard.setState(IndexShardState.POST_RECOVERY);
+        applyState(stateWithShardRouting(shardRouting));
+
+        verify(shardStateAction, never()).shardStarted(any(), anyLong(), anyString(), any(), any(), any(), any());
+        assertThat(
+            indicesClusterStateService.pendingAllocationStates.get(allocationKey(shardRouting)),
+            instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class)
+        );
+    }
+
+    public void testUpdateShardResendsShardStartedOnceRecoveryNoLongerInFlight() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
+        assertNotNull(shard);
+
+        // Recovery already finished and released its own ticket (independent of whether master
+        // actually received the resulting shardStarted, e.g. a master failover lost it), but the
+        // cluster state still shows this allocation as initializing. With no InFlight ticket left,
+        // updateShard's resend is legitimate.
+        indicesClusterStateService.pendingAllocationStates.remove(allocationKey(shardRouting));
+        shard.setState(IndexShardState.POST_RECOVERY);
+        applyState(stateWithShardRouting(shardRouting));
+
+        verify(shardStateAction).shardStarted(eq(shardRouting), anyLong(), anyString(), any(), any(), any(), any());
     }
 
     public void testLockWaitSurvivesUnrelatedClusterStateUpdate() throws Exception {

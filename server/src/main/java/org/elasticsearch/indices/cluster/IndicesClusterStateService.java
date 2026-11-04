@@ -1380,10 +1380,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         final IndexShardState state = shard.state();
-        if (shardRouting.initializing() && (state == IndexShardState.STARTED || state == IndexShardState.POST_RECOVERY)) {
+        final boolean recoveryStillInFlight = pendingAllocationStates.get(
+            ShardAllocationKey.fromRouting(shardRouting)
+        ) instanceof PendingAllocationState.InFlight;
+        if (shardRouting.initializing()
+            && (state == IndexShardState.STARTED || state == IndexShardState.POST_RECOVERY)
+            && recoveryStillInFlight == false) {
             // the master thinks we are initializing, but we are already started or on POST_RECOVERY and waiting
             // for master to confirm a shard started message (either master failover, or a cluster event before
-            // we managed to tell the master we started), mark us as started
+            // we managed to tell the master we started), mark us as started. If the recovery is still in
+            // flight, shard.state() reached POST_RECOVERY before the recovery's own completion callback
+            // sent its first shardStarted -- let that callback send it instead of resending one that was never sent.
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "{} master marked shard as initializing, but shard has state [{}], resending shard started to {}",

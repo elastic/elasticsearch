@@ -7966,3 +7966,47 @@ mapped-1       | William Faulkner | text_state_mapped      | null
 nonexistent-1  | none             | text_state_nonexistent | null
 unmapped-1     | none             | text_state_unmapped    | null
 ;
+
+#####################################################
+# ROW: no _source, so it adds no unmapped fields    #
+#####################################################
+
+rowAlone
+required_capability: optional_fields_load_all_row
+
+SET unmapped_fields="LOAD_ALL"\;
+ROW a = 1, b = "x"
+;
+
+a:integer | b:keyword
+1         | x
+;
+
+rowThenPipe
+required_capability: optional_fields_load_all_row
+
+SET unmapped_fields="LOAD_ALL"\;
+ROW message = "r"
+| EVAL n = LENGTH(message)
+| KEEP message, n
+;
+
+message:keyword | n:integer
+r               | 1
+;
+
+// The wildcard KEEP acts inside _unmapped_fields, so only unmapped_message is left in it for the row of the index.
+rowBranchNextToIndexHasNoUnmappedFields
+required_capability: optional_fields_load_all_row
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM partial_mapping_sample_data, (ROW extra = 1)
+| SORT extra, @timestamp
+| KEEP extra, unmapped_message*
+| LIMIT 2
+;
+
+extra:integer | _unmapped_fields:_source
+1             | null
+null          | "{""unmapped_message"":""Disconnected from 10.1.0.3""}"
+;

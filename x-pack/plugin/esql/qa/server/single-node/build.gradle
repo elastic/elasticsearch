@@ -126,6 +126,8 @@ esqlCsvSpecTests {
     specFilesDir = project(xpackModule('esql:qa:testFixtures')).file('src/main/resources')
     packageName = 'org.elasticsearch.xpack.esql.qa.single_node'
     variant 'EsqlSpec', 'AbstractEsqlSpecIT'
+    // The spec files with queries that set unmapped_fields="load", see LoadAllFromLoad.SPEC_FILES
+    variant 'EsqlSpecLoadAll', 'AbstractEsqlSpecLoadAllIT', 'enrich.csv-spec', 'flattened-unmapped-load.csv-spec', 'flattened-unmapped-sink-load.csv-spec', 'in_subquery.csv-spec', 'nested_subquery.csv-spec', 'subquery.csv-spec', 'unmapped-load.csv-spec', 'unmapped-punk-singles.csv-spec', 'unmapped-type-conflicts.csv-spec', 'views.csv-spec'
     variant 'EsqlSpecApproximation', 'AbstractEsqlSpecApproximationIT'
     variant 'EsqlSpecForceStoredLoading', 'AbstractEsqlSpecForceStoredLoadingIT'
     variant 'EsqlSpecFork', 'AbstractEsqlSpecForkIT'

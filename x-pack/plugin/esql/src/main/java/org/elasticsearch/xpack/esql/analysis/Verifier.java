@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -733,7 +734,7 @@ public class Verifier {
     }
 
     static String loadAllUnsupportedCommandMessage(String command) {
-        return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
+        return "unmapped_fields=\"LOAD_ALL\" only supports the FROM, ROW, KEEP, DROP, RENAME, EVAL, GROK, DISSECT, IP_LOCATION, "
             + (EsqlCapabilities.Cap.FILLNULL.isEnabled() ? "FILLNULL, " : "")
             + "REGISTERED_DOMAIN, URI_PARTS, USER_AGENT, MV_EXPAND, SAMPLE, CHANGE_POINT, DEDUP, WHERE, SORT, LIMIT, "
             + "LIMIT BY, STATS, INLINE STATS, LOOKUP JOIN, ENRICH, FORK and subquery commands; ["
@@ -742,7 +743,7 @@ public class Verifier {
     }
 
     private static boolean supportedInLoadAllMode(LogicalPlan plan) {
-        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false) || plan instanceof Project
+        return (plan instanceof EsRelation esr && esr.indexMode().isTsdb() == false) || plan instanceof Project || plan instanceof Row
         // Keep/Drop/Rename may still be present, or already resolved to Project, by the time verification runs.
             || plan instanceof Keep
             || plan instanceof Drop

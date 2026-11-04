@@ -187,6 +187,10 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
         return smallCore != null ? smallCore.iterator() : bigCore.iterator();
     }
 
+    byte[][] keyPages() {
+        return keyPages;
+    }
+
     /**
      * Build the control byte for a populated entry out of the hash.
      * The control bytes for a populated entry has the high bit clear
@@ -309,6 +313,18 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
             for (int i = 0; i < len; i++) {
                 long k1 = keys[i * 2];
                 long k2 = keys[i * 2 + 1];
+                long hash = hash(k1, k2);
+                int id = add(k1, k2, hash);
+                ids[i] = id >= 0 ? id : -1 - id;
+            }
+            return size == preSize + len;
+        }
+
+        boolean mergeKeys(int[] key1s, int[] key1Map, long[] key2s, int[] ids, int len) {
+            final int preSize = size;
+            for (int i = 0; i < len; i++) {
+                long k1 = key1Map[key1s[i]];
+                long k2 = key2s[i];
                 long hash = hash(k1, k2);
                 int id = add(k1, k2, hash);
                 ids[i] = id >= 0 ? id : -1 - id;
@@ -690,6 +706,39 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
             return size == preSize + len;
         }
 
+        boolean mergeKeys(int[] key1s, int[] key1Map, long[] key2s, int[] ids, int len) {
+            final int preSize = size;
+            if (preSize == 0) {
+                int pageIndex = 0;
+                byte[] keyPage = keyPages[0];
+                int indexInPage = 0;
+                for (int id = 0; id < len; id++) {
+                    long key1 = key1Map[key1s[id]];
+                    long key2 = key2s[id];
+                    long hash = hash(key1, key2);
+                    insert((int) hash, control(hash), id);
+                    if (indexInPage == PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
+                        keyPage = keyPages[++pageIndex];
+                        indexInPage = 0;
+                    }
+                    LONG_HANDLE.set(keyPage, indexInPage, key1);
+                    LONG_HANDLE.set(keyPage, indexInPage + Long.BYTES, key2);
+                    indexInPage += KEY_SIZE;
+                    ids[id] = id;
+                }
+                size = len;
+                return true;
+            }
+            for (int i = 0; i < len; i++) {
+                long k1 = key1Map[key1s[i]];
+                long k2 = key2s[i];
+                long hash = hash(k1, k2);
+                int id = addImpl(k1, k2, hash);
+                ids[i] = id >= 0 ? id : -1 - id;
+            }
+            return size == preSize + len;
+        }
+
         private boolean equalKeys(final long keyOffset, final long key1, final long key2) {
             final byte[] page = keyPages[(int) (keyOffset >> PAGE_SHIFT)];
             final int indexInPage = (int) (keyOffset & PAGE_MASK);
@@ -896,6 +945,16 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable, P
             }
         }
         return partitionedKeys;
+    }
+
+    boolean mergeKeys(int[] key1s, int[] key1Map, long[] key2s, int[] ids, int len) {
+        Objects.checkFromIndexSize(0, len, key1s.length);
+        Objects.checkFromIndexSize(0, len, key2s.length);
+        Objects.checkFromIndexSize(0, len, ids.length);
+        ensureCapacity(Math.addExact(size, len));
+        return smallCore != null
+            ? smallCore.mergeKeys(key1s, key1Map, key2s, ids, len)
+            : bigCore.mergeKeys(key1s, key1Map, key2s, ids, len);
     }
 
     @Override

@@ -37,13 +37,13 @@ import org.elasticsearch.xpack.oteldata.otlp.tsid.ResourceTsidFunnel;
 import org.elasticsearch.xpack.oteldata.otlp.tsid.ScopeTsidFunnel;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 
 public class DataPointGroupingContext implements AbstractOTLPTransportAction.ProcessingContext {
@@ -367,7 +367,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final List<KeyValue> dataPointAttributes;
         private final String unit;
         private final @Nullable AggregationTemporality temporality;
-        private final Set<String> metricNames = new HashSet<>();
+        // sorted so that getMetricNamesHash is independent of the order in which the sender emitted the metrics
+        private final Set<String> metricNames = new TreeSet<>();
         private final List<DataPoint> dataPoints = new ArrayList<>();
         private final TargetIndex targetIndex;
         private String metricNamesHash;
@@ -406,9 +407,7 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         public String getMetricNamesHash(BufferedMurmur3Hasher hasher) {
             if (metricNamesHash == null) {
                 hasher.reset();
-                String[] sortedMetricNames = metricNames.toArray(String[]::new);
-                Arrays.sort(sortedMetricNames);
-                for (String metricName : sortedMetricNames) {
+                for (String metricName : metricNames) {
                     hasher.addString(metricName);
                 }
                 metricNamesHash = Integer.toHexString(hasher.digestHash().hashCode());

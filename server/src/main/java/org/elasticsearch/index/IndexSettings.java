@@ -1401,32 +1401,21 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
-    /*
-     * Index version 9_111 (UPGRADE_TO_LUCENE_10_5_1) was backported to 9.5, but the changes gated on the three versions below
-     * (COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY 9_108, ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT 9_109 and
-     * DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS 9_110) were not. A stateful index created on 9.5 can therefore have a version above those gates
-     * without having had the new behavior, so stateful gates on COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG (9_112), the first version after
-     * the backported ones. Stateless keeps the original gates.
+    /**
+     * Whether an index was created by a stateful 9.5 node. Index version 9_111 (UPGRADE_TO_LUCENE_10_5_1) was backported to 9.5, but the
+     * changes gated on 9_108 (COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY), 9_109 (ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT) and
+     * 9_110 (DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS) were not, so such an index has a version above those gates without having had the new
+     * behavior. Stateless has all of them, and the 9_111_0_xx versions are the only ones a stateful 9.5 index can have in that range.
      */
-
-    public static IndexVersion getColumnarDisableSeqNoDataStreamIndexVersion(boolean stateless) {
-        return stateless
-            ? IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY
-            : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
-    }
-
-    public static IndexVersion getIdFieldDefaultPostingsFormatIndexVersion(boolean stateless) {
-        return stateless ? IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
-    }
-
-    public static IndexVersion getDocValuesDefaultsForAllMappersIndexVersion(boolean stateless) {
-        return stateless ? IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+    public static boolean createdInStateful95(IndexVersion version, boolean stateless) {
+        return stateless == false
+            && version.between(IndexVersions.UPGRADE_TO_LUCENE_10_5_1, IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG);
     }
 
     /**
      * Resolves {@link #DISABLE_SEQUENCE_NUMBERS} for an index from its metadata settings alone. The default depends on whether the
-     * node is stateless (see {@link #getColumnarDisableSeqNoDataStreamIndexVersion}), which index metadata settings do not carry, so
-     * the node settings must be merged in when the setting is not explicitly set.
+     * node is stateless (see {@link #createdInStateful95}), which index metadata settings do not carry, so the node settings must be
+     * merged in when the setting is not explicitly set.
      */
     public static boolean sequenceNumbersDisabled(Settings indexMetadataSettings, Settings nodeSettings) {
         if (DISABLE_SEQUENCE_NUMBERS.exists(indexMetadataSettings)) {
@@ -1444,8 +1433,9 @@ public final class IndexSettings {
             var indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
             // BWC only: columnar indices created before the gate disabled sequence numbers for all columnar indices. From the gate this
             // is done per index at creation, for data-stream backing indices only (see IndexMode.IndexModeSettingsProvider).
-            if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)
-                && indexVersion.before(getColumnarDisableSeqNoDataStreamIndexVersion(DiscoveryNode.isStateless(settings)))) {
+            if ((indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)
+                && indexVersion.before(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY))
+                || createdInStateful95(indexVersion, DiscoveryNode.isStateless(settings))) {
                 return Boolean.TRUE.toString();
             }
         }
@@ -2145,7 +2135,7 @@ public final class IndexSettings {
 
     /**
      * Whether the node this index is allocated on is stateless. Used to pick between the stateless and stateful index version gates, see
-     * {@link #getDocValuesDefaultsForAllMappersIndexVersion}.
+     * {@link #createdInStateful95}.
      */
     public boolean isStateless() {
         return stateless;

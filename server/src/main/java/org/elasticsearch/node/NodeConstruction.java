@@ -999,7 +999,7 @@ class NodeConstruction {
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
         IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
             Sets.union(
-                builtinIndexSettingProviders(settings),
+                builtinIndexSettingProviders(),
                 pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
             )
         );
@@ -2014,7 +2014,7 @@ class NodeConstruction {
         };
     }
 
-    private Set<IndexSettingProvider> builtinIndexSettingProviders(Settings settings) {
-        return Set.of(new IndexMode.IndexModeSettingsProvider(DiscoveryNode.isStateless(settings)));
+    private Set<IndexSettingProvider> builtinIndexSettingProviders() {
+        return Set.of(new IndexMode.IndexModeSettingsProvider());
     }
 }

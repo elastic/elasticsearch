@@ -1346,41 +1346,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         // is where the columnar disable-by-default begins.
         IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
             IndexVersions.DISABLE_SEQUENCE_NUMBERS,
-            IndexVersionUtils.getPreviousVersion(IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(false))
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
         );
         assertTrue(
             "a standalone columnar index below the gating version disables sequence numbers",
             IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(aggregateColumnarSettings(null, beforeGate, null))
-        );
-    }
-
-    /**
-     * 9_111_0_xx index versions were backported to 9.5 without the columnar data-stream sequence number change, so on stateful the
-     * provider must not inject the setting for them. Stateless applies it from the original gate.
-     */
-    public void testColumnarDataStreamSequenceNumberInjectionGatedByStateless() {
-        Settings statelessNode = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
-        IndexVersion backported = IndexVersions.UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5;
-        assertFalse(
-            "stateful must not inject the setting for a backported 9.5 index version",
-            IndexSettings.DISABLE_SEQUENCE_NUMBERS.exists(aggregateColumnarSettings("my-data-stream", backported, null, Settings.EMPTY))
-        );
-        assertTrue(
-            "stateless injects the setting from the original gate",
-            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(
-                aggregateColumnarSettings(
-                    "my-data-stream",
-                    IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY,
-                    null,
-                    statelessNode
-                )
-            )
-        );
-        assertTrue(
-            "stateful injects the setting from the first non-backported version",
-            IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(
-                aggregateColumnarSettings("my-data-stream", IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, null, Settings.EMPTY)
-            )
         );
     }
 
@@ -1392,15 +1362,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         @Nullable String dataStreamName,
         IndexVersion createdVersion,
         @Nullable Boolean explicitDisableSequenceNumbers
-    ) {
-        return aggregateColumnarSettings(dataStreamName, createdVersion, explicitDisableSequenceNumbers, Settings.EMPTY);
-    }
-
-    private Settings aggregateColumnarSettings(
-        @Nullable String dataStreamName,
-        IndexVersion createdVersion,
-        @Nullable Boolean explicitDisableSequenceNumbers,
-        Settings nodeSettings
     ) {
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
@@ -1421,10 +1382,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             Settings.EMPTY,
             null,
             null,
-            nodeSettings,
+            Settings.EMPTY,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
-            Set.of(new IndexMode.IndexModeSettingsProvider(DiscoveryNode.isStateless(nodeSettings)))
+            Set.of(new IndexMode.IndexModeSettingsProvider())
         );
     }
 

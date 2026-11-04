@@ -193,7 +193,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     indexSettings,
                     FieldMapper.DocValuesParameter.Values.DISABLED_HIGH_CARDINALITY,
                     FieldMapper.DocValuesParameter.Values.Cardinality.HIGH,
-                    IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(indexSettings.isStateless())
+                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> ((MatchOnlyTextFieldMapper) m).docValuesParameters,
                 indexSettings

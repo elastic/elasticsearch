@@ -263,7 +263,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             String mapping = randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING);
             IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
                 IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT,
-                IndexVersionUtils.getPreviousVersion(IndexSettings.getIdFieldDefaultPostingsFormatIndexVersion(false))
+                IndexVersionUtils.getPreviousVersion(IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)
             );
             final boolean randomSyntheticId = syntheticId(indexMode.equals(IndexMode.TIME_SERIES))
                 && indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);

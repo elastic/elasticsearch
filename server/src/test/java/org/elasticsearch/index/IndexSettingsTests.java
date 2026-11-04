@@ -1334,7 +1334,7 @@ public class IndexSettingsTests extends ESTestCase {
         // BWC: below the gate, columnar modes disable sequence numbers by default.
         IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
             IndexVersions.DISABLE_SEQUENCE_NUMBERS,
-            IndexVersionUtils.getPreviousVersion(IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(false))
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
         );
         for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
@@ -1347,7 +1347,8 @@ public class IndexSettingsTests extends ESTestCase {
 
         // From the gate, columnar modes keep sequence numbers by default; only data-stream backing indices disable them (set at creation).
         IndexVersion fromGate = IndexVersionUtils.randomVersionBetween(
-            IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(false),
+            // 9_111_0_xx are stateful 9.5 backports that keep the legacy behavior, so start from the first version after them
+            IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG,
             IndexVersion.current()
         );
         for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
@@ -1388,6 +1389,8 @@ public class IndexSettingsTests extends ESTestCase {
                     is(true)
                 );
                 assertThat(IndexSettings.sequenceNumbersDisabled(metadata.getSettings(), Settings.EMPTY), is(true));
+                // the same version on a stateless node is not a stateful 9.5 index, so the node settings must reach the default
+                assertThat(IndexSettings.sequenceNumbersDisabled(metadata.getSettings(), statelessNode), is(false));
             }
             IndexMetadata statelessMetadata = newIndexMeta(columnarMode.getName() + "-index", settings, stateless);
             assertThat(
@@ -1397,7 +1400,6 @@ public class IndexSettingsTests extends ESTestCase {
             );
             // Index metadata settings do not carry the stateless flag, so the node settings must be merged when resolving the default.
             assertThat(IndexSettings.sequenceNumbersDisabled(statelessMetadata.getSettings(), statelessNode), is(false));
-            assertThat(IndexSettings.sequenceNumbersDisabled(statelessMetadata.getSettings(), Settings.EMPTY), is(true));
         }
     }
 

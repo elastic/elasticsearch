@@ -265,7 +265,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             settings,
             FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
             FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-            IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(settings.isStateless())
+            IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
         );
     }
 
@@ -280,7 +280,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
             .build();
         MapperService mapperService = createMapperService(
-            IndexVersionUtils.getPreviousVersion(IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(false)),
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS),
             settings,
             fieldMapping(b -> b.field("type", "keyword"))
         );

@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocValuesFieldFactory;
@@ -81,7 +82,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                     indexSettings,
                     FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(indexSettings.isStateless())
+                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings

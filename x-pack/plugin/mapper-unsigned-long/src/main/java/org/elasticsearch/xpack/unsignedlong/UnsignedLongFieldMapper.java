@@ -119,7 +119,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     indexSettings,
                     FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(indexSettings.isStateless())
+                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
                 ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings

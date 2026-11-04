@@ -175,6 +175,75 @@ static inline int64_t dotd2q4_inner_avx2(const int8_t* a, const int8_t* q, const
     return sum;
 }
 
+// 4-bit doc x 4-bit query in one pass. The doc is four contiguous bit planes of length/4 bytes, the
+// query four planes of length/4 bytes. Per byte and query plane, the four doc planes combine as
+// sum(popcnt(doc_d & q) << d) <= 8 * 15 = 120, so they are weighted in u8 before the SAD: one SAD and
+// one accumulator per query plane, and a single horizontal reduction per vector.
+static inline int64_t dotd4q4_inner_avx2(const int8_t* a, const int8_t* q, const int32_t length) {
+    constexpr int doc_bits = 4;
+    constexpr int query_bits = 4;
+    constexpr int m128_bytes = sizeof(__m128i);
+    const int32_t bit_length = length / 4;
+
+    __m256i acc[query_bits];
+    apply_indexed<query_bits>([&](auto Q) {
+        acc[Q] = _mm256_setzero_si256();
+    });
+
+    int r = 0;
+    // One step at the width of the given operations. Two query planes at a time: their running sums share
+    // the doc plane loads, and AVX2 has too few registers to keep all four next to the accumulators.
+    const auto step = [&](const auto load, const auto popcnt_and, const auto add8, const auto sad) {
+        apply_indexed<query_bits / 2>([&](auto P) {
+            constexpr int Q0 = 2 * P;
+            constexpr int Q1 = 2 * P + 1;
+            const auto query0 = load(q + Q0 * bit_length + r);
+            const auto query1 = load(q + Q1 * bit_length + r);
+            // highest doc plane first, doubling the running sums before adding each lower plane
+            const auto top = load(a + (doc_bits - 1) * bit_length + r);
+            auto weighted0 = popcnt_and(top, query0);
+            auto weighted1 = popcnt_and(top, query1);
+            apply_indexed<doc_bits - 1>([&](auto I) {
+                constexpr int D = doc_bits - 2 - I;
+                const auto doc_plane = load(a + D * bit_length + r);
+                weighted0 = add8(add8(weighted0, weighted0), popcnt_and(doc_plane, query0));
+                weighted1 = add8(add8(weighted1, weighted1), popcnt_and(doc_plane, query1));
+            });
+            acc[Q0] = _mm256_add_epi64(acc[Q0], sad(weighted0));
+            acc[Q1] = _mm256_add_epi64(acc[Q1], sad(weighted1));
+        });
+    };
+
+    const int upperBound = bit_length & ~(sizeof(__m256i) - 1);
+    for (; r < upperBound; r += sizeof(__m256i)) {
+        step(
+            [](const int8_t* p) { return _mm256_loadu_si256((const __m256i_u*)p); },
+            [](const __m256i d, const __m256i q) { return popcnt_bytes_256(_mm256_and_si256(d, q)); },
+            [](const __m256i x, const __m256i y) { return _mm256_add_epi8(x, y); },
+            [](const __m256i w) { return _mm256_sad_epu8(w, _mm256_setzero_si256()); }
+        );
+    }
+    if (bit_length - r >= m128_bytes) {
+        step(
+            [](const int8_t* p) { return _mm_loadu_si128((const __m128i_u*)p); },
+            [](const __m128i d, const __m128i q) { return popcnt_bytes_128(_mm_and_si128(d, q)); },
+            [](const __m128i x, const __m128i y) { return _mm_add_epi8(x, y); },
+            [](const __m128i w) { return _mm256_zextsi128_si256(_mm_sad_epu8(w, _mm_setzero_si128())); }
+        );
+        r += m128_bytes;
+    }
+
+    __m256i total = _mm256_setzero_si256();
+    apply_indexed<query_bits>([&](auto Q) {
+        total = _mm256_add_epi64(total, _mm256_slli_epi64(acc[Q], Q));
+    });
+    int64_t sum = mm256_reduce_epi64<_mm_add_epi64>(total);
+
+    // fewer than 16 bytes are left: at most one step each of 8, 4, 2 and 1 bytes
+    scalar_tail(r, bit_length, [&](auto load) { dot_striped_scalar<doc_bits, query_bits>(sum, a, q, bit_length, r, load); });
+    return sum;
+}
+
 EXPORT int64_t vec_dotd1q4(
     const int8_t* a_ptr,
     const int8_t* query_ptr,
@@ -334,12 +403,7 @@ EXPORT void vec_dotd2q4_bulk_sparse(
 }
 
 EXPORT int64_t vec_dotd4q4(const int8_t* a, const int8_t* query, const int32_t length) {
-    const int32_t bit_length = length / 4;
-    int64_t p0 = dotd1qN_inner<4>(a + 0 * bit_length, query, bit_length);
-    int64_t p1 = dotd1qN_inner<4>(a + 1 * bit_length, query, bit_length);
-    int64_t p2 = dotd1qN_inner<4>(a + 2 * bit_length, query, bit_length);
-    int64_t p3 = dotd1qN_inner<4>(a + 3 * bit_length, query, bit_length);
-    return p0 + (p1 << 1) + (p2 << 2) + (p3 << 3);
+    return dotd4q4_inner_avx2(a, query, length);
 }
 
 EXPORT void vec_dotd4q4_bulk(
@@ -349,7 +413,7 @@ EXPORT void vec_dotd4q4_bulk(
     const int32_t count,
     f32_t* results
 ) {
-    dotd4q4_inner_bulk<int8_t, sequential_mapper, dotd1qN_inner<4>>(a, query, length, length, NULL, count, results);
+    dotd_striped_inner_bulk<int8_t, sequential_mapper, dotd4q4_inner_avx2>(a, query, length, length, NULL, count, results);
 }
 
 EXPORT void vec_dotd4q4_bulk_masked(
@@ -361,7 +425,7 @@ EXPORT void vec_dotd4q4_bulk_masked(
     const int32_t count,
     f32_t* results
 ) {
-    dotd4q4_inner_bulk<int8_t, masked_mapper, dotd1qN_inner<4>, masked_output>(
+    dotd_striped_inner_bulk<int8_t, masked_mapper, dotd4q4_inner_avx2, masked_output>(
         a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
 }
 
@@ -372,6 +436,6 @@ EXPORT void vec_dotd4q4_bulk_sparse(
     const int32_t count,
     f32_t* results
 ) {
-    dotd4q4_inner_bulk<const int8_t*, sparse_mapper, dotd1qN_inner<4>>
+    dotd_striped_inner_bulk<const int8_t*, sparse_mapper, dotd4q4_inner_avx2>
         ((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }

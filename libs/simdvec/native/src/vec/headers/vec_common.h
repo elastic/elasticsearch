@@ -163,4 +163,44 @@ static inline T tree_reduce(const T values[N]) {
     }
 }
 
+// Scores the last bytes of a plane after the vector steps, fewer than 16 of them, with at most one step
+// each of 8, 4, 2 and 1 bytes; step(load) scores the bytes at r, reading each plane through load. Bounded
+// steps rather than a loop, which the compiler would otherwise vectorize into far more code than these at
+// most 15 bytes are worth.
+template <typename Step>
+static inline void scalar_tail(int& r, const int32_t bit_length, const Step& step) {
+    constexpr int u64_bytes = sizeof(uint64_t);
+    constexpr int u32_bytes = sizeof(uint32_t);
+    constexpr int u16_bytes = sizeof(uint16_t);
+    if (bit_length - r >= u64_bytes) {
+        step([](const void* p) { return *((const uint64_t*)p); });
+        r += u64_bytes;
+    }
+    if (bit_length - r >= u32_bytes) {
+        step([](const void* p) { return (uint64_t)*((const uint32_t*)p); });
+        r += u32_bytes;
+    }
+    if (bit_length - r >= u16_bytes) {
+        step([](const void* p) { return (uint64_t)*((const uint16_t*)p); });
+        r += u16_bytes;
+    }
+    if (r < bit_length) {
+        step([](const void* p) { return (uint64_t)*((const uint8_t*)p); });
+        r++;
+    }
+}
+
+// Adds to sum the dot product of the bytes at r of a striped doc and query, read through load (see
+// scalar_tail): doc_bits and query_bits contiguous bit planes of bit_length bytes each, each plane pair
+// weighted by 2^(doc bit + query bit).
+template <int doc_bits, int query_bits, typename Load>
+static inline void dot_striped_scalar(int64_t& sum, const int8_t* a, const int8_t* q, const int32_t bit_length, const int r, const Load& load) {
+    apply_indexed<doc_bits>([&](auto D) {
+        const uint64_t doc = load(a + D * bit_length + r);
+        apply_indexed<query_bits>([&](auto Q) {
+            sum += (int64_t)__builtin_popcountll(load(q + Q * bit_length + r) & doc) << (D + Q);
+        });
+    });
+}
+
 #endif // VEC_COMMON_H

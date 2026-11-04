@@ -44,7 +44,9 @@ directly for the following two cases:
 
 `DEDUP` cannot be used when any column in scope has one of the following types: `aggregate_metric_double`, counter types (`counter_long`, `counter_integer`, `counter_double`), or `date_range`. Attempting to do so results in a validation error.
 
-Columns of an `unsupported` type are ignored when comparing rows, and `DEDUP` does not fail because of them. This includes fields mapped to incompatible types across the indices of a `FROM` (a union type): such a field is returned as `null` until it is converted, so it cannot tell rows apart. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` returns a single row. A later conversion such as `EVAL e = emp_no::long` does not bring the removed rows back. To deduplicate on the value of such a field, convert it first and then `DEDUP`: `EVAL e = emp_no::long | DROP emp_no | DEDUP`.
+`DEDUP` also fails when a column in scope has different types in the indices, views or subqueries it reads (a union type), because such a column cannot be compared until it is converted. For example, if `emp_no` is `integer` in one index and `long` in another, `FROM employees, employees_incompatible | KEEP emp_no | DEDUP` fails. Convert the column to a single type before `DEDUP`, for example `EVAL emp_no = emp_no::long | DEDUP`, or drop it with `DROP emp_no`.
+
+Columns of an `unsupported` type are always `null`, so they are ignored when comparing rows, and `DEDUP` does not fail because of them.
 
 Full-text search functions (such as `MATCH` or `KQL`) cannot appear after `DEDUP` in the same pipeline.
 

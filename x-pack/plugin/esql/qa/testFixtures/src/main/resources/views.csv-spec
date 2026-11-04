@@ -3753,3 +3753,20 @@ null                           | Disconnected    | fork2
 2023-10-23T13:33:34.937Z       | Disconnected    | fork1
 2023-10-23T13:33:34.937123456Z | Disconnected    | fork1
 ;
+
+dedupOverUnionTypeColumnFromViewAndIndexConvertedInPlace
+required_capability: dedup_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+// employees_all is a view over employees, where emp_no is integer; in employees_incompatible it is long.
+FROM employees_all, employees_incompatible
+| KEEP emp_no
+| EVAL emp_no = emp_no::long
+| DEDUP
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;

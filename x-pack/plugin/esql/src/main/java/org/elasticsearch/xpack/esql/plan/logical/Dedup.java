@@ -21,6 +21,10 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /**
  * Removes duplicate rows from the result set (similar in spirit to SQL {@code DISTINCT}).
@@ -78,13 +82,44 @@ public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryA
 
     @Override
     public void postAnalysisVerification(Failures failures) {
+        List<UnsupportedAttribute> unionTyped = new ArrayList<>();
         for (Attribute attr : child().output()) {
             // Synthetic attributes (e.g. union-type conversions pushed into UnionAll branches) are dropped before the final output,
             // so the user never groups by them.
-            if (attr.synthetic() == false) {
+            if (attr.synthetic()) {
+                continue;
+            }
+            if (attr instanceof UnsupportedAttribute ua && isUnionType(ua)) {
+                unionTyped.add(ua);
+            } else {
                 Aggregate.checkUnsupportedGroupingType(attr, failures);
             }
         }
+        if (unionTyped.isEmpty() == false) {
+            String columns = unionTyped.stream()
+                .map(ua -> "[" + ua.name() + "] with types " + new TreeSet<>(ua.originalTypes()))
+                .collect(Collectors.joining(", "));
+            String example = unionTyped.getFirst().name();
+            failures.add(
+                fail(
+                    this,
+                    "DEDUP cannot compare columns with conflicting types: {}; "
+                        + "convert each to a single type first, for example EVAL {} = {}::keyword, or DROP it",
+                    columns,
+                    example,
+                    example
+                )
+            );
+        }
+    }
+
+    /**
+     * Whether the column has different types in the indices or subqueries DEDUP reads. Its values are real but can't be read until
+     * converted, so leaving it out of the comparison would collapse rows that differ only in it. Such a column carries all of its
+     * types, while a column of a type ES|QL doesn't support carries the single type it is mapped as and is always {@code null}.
+     */
+    private static boolean isUnionType(UnsupportedAttribute attr) {
+        return attr.originalTypes().size() > 1;
     }
 
     @Override

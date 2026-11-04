@@ -47,7 +47,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestClusterStateAction extends BaseRestHandler {
 
-    private static final Set<String> RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, "metric");
+    private static final Set<String> RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, "metric", "wait_for_metadata_version");
 
     private final SettingsFilter settingsFilter;
 

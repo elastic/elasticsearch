@@ -135,10 +135,6 @@ tests:
   - :x-pack:plugin:ml:qa:native-multi-node-tests:javaRestTest
   method: testUpdateDeployment_GivenAllocationsAreIncreased
   issue: https://github.com/elastic/elasticsearch/issues/163323
-- class: org.elasticsearch.repositories.s3.RepositoryS3EcsCredentialsRestIT
-  tasks:
-  - :modules:repository-s3:javaRestTest
-  issue: https://github.com/elastic/elasticsearch/issues/164044
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   tasks:
   - :qa:mixed-cluster:v8.16.6#mixedClusterTest

@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.columnar.ColumnarFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -336,6 +337,8 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
                     .put("index.sort.field", "kw")
                     .put("index.sort.order", descending ? "desc" : "asc")
                     .put("index.sort.missing", missingFirst ? "_first" : "_last")
+                    // A scheduled refresh mid-bulk would leave the single batch in two segments, each sorted on its own.
+                    .put("index.refresh_interval", -1)
                     .build();
                 indicesAdmin().prepareCreate(index).setSettings(settings).setMapping(mapping).get();
                 final int perBatch = (shuffled.size() + batches - 1) / batches;
@@ -719,7 +722,7 @@ public class ColumnarKeywordCodecTests extends ESSingleNodeTestCase {
     /** The doc-values format the {@code kw} field's values were written with in {@code index}. */
     private String keywordDocValuesFormat(String index) throws IOException {
         final IndexShard shard = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index)).getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             String format = null;
             boolean found = false;
             for (LeafReaderContext leaf : searcher.getLeafContexts()) {

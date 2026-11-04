@@ -58,8 +58,8 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
 /**
- * The join race behind elastic/esql-planning#2319: a node accepts transport requests before it has applied any cluster
- * state, and the coordinator sees it as an external worker as soon as it applies the join; every split sent to it until
+ * The join race: a node accepts transport requests before it has applied any cluster state, and the coordinator sees it
+ * as an external worker as soon as it applies the join; every split sent to it until
  * its first apply completes would land on a node with no dataset, no key and default settings. The coordinator therefore
  * holds a node that has just joined back ({@code ExternalWorkerReadiness}) until the node confirms it applied the state
  * that added it, which a node parked in its first apply can only do once that apply is done. Meanwhile the other workers
@@ -268,6 +268,43 @@ public class ExternalWorkerFirstStateIT extends AbstractExternalDataSourceIT {
         ensureStableCluster(3);
     }
 
+    /**
+     * A query pinned to the coordinator ({@code external_distribution=coordinator_only}) reads its splits there whatever
+     * workers there are, so it does not wait for the joining one: it completes while the node is still parked.
+     */
+    @TestLogging(
+        value = DISPATCH_LOGGER + ":DEBUG," + READINESS_LOGGER + ":DEBUG",
+        reason = "asserts the coordinator neither waited for nor sent anything to the joining worker"
+    )
+    public void testQueryPinnedToTheCoordinatorDoesNotWaitForTheLoneJoiningWorker() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startMasterOnlyNode();
+        String coordinator = internalCluster().startCoordinatingOnlyNode(withWaitBudget(TimeValue.timeValueMinutes(1)));
+        ensureStableCluster(2);
+        String dataset = registerFixture("join_lone_pinned");
+
+        try {
+            String parked = startParkedDataNode();
+            ClusterService parkedClusterService = awaitParkedAndVisible(parked, coordinator);
+            assertHeldBack(coordinator, parkedClusterService);
+            try (var mockLog = MockLog.capture(DISPATCH_LOGGER, READINESS_LOGGER)) {
+                mockLog.addExpectation(noCoordinatorWait());
+                mockLog.addExpectation(noWait(parked));
+                EsqlQueryRequest request = request(dataset, true, "coordinator_only");
+                try (var response = client(coordinator).execute(EsqlQueryAction.INSTANCE, request).actionGet(TIMEOUT)) {
+                    assertThat(response.isPartial(), equalTo(false));
+                    assertThat(getValuesList(response), equalTo(List.of(List.of(ROWS, ID_SUM))));
+                    assertThat("read on the coordinator", externalScanNodeNames(response), equalTo(Set.of(coordinator)));
+                }
+                mockLog.assertAllExpectationsMatched();
+                assertFalse("the window must still be open after the query", parkedClusterService.state().clusterRecovered());
+            }
+        } finally {
+            ParkFirstApplyPlugin.releaseApplier();
+        }
+        ensureStableCluster(3);
+    }
+
     /** The coordinator's wait is bounded by its own {@code esql.external.worker_ready_timeout}; past it, the retryable 503. */
     @TestLogging(
         value = DISPATCH_LOGGER + ":DEBUG," + READINESS_LOGGER + ":DEBUG",
@@ -393,13 +430,15 @@ public class ExternalWorkerFirstStateIT extends AbstractExternalDataSourceIT {
         return Settings.builder().put(ExternalSourceSettings.WORKER_READY_TIMEOUT.getKey(), budget).build();
     }
 
+    private static final String COORDINATOR_WAIT_LINE =
+        "waiting up to [*] for an external worker to apply its cluster state before distributing [*] external splits, session [*";
+
     private static MockLog.SeenEventExpectation coordinatorWaiting() {
-        return new MockLog.SeenEventExpectation(
-            "coordinator wait",
-            READINESS_LOGGER,
-            Level.DEBUG,
-            "waiting up to [*] for an external worker to apply its cluster state before distributing [*] external splits, session [*"
-        );
+        return new MockLog.SeenEventExpectation("coordinator wait", READINESS_LOGGER, Level.DEBUG, COORDINATOR_WAIT_LINE);
+    }
+
+    private static MockLog.UnseenEventExpectation noCoordinatorWait() {
+        return new MockLog.UnseenEventExpectation("no coordinator wait", READINESS_LOGGER, Level.DEBUG, COORDINATOR_WAIT_LINE);
     }
 
     /**
@@ -489,8 +528,12 @@ public class ExternalWorkerFirstStateIT extends AbstractExternalDataSourceIT {
     }
 
     private static EsqlQueryRequest request(String dataset, boolean profile) {
+        return request(dataset, profile, "round_robin");
+    }
+
+    private static EsqlQueryRequest request(String dataset, boolean profile, String distribution) {
         var request = syncEsqlQueryRequest("FROM " + dataset + " | STATS c = COUNT(*), s = SUM(id)");
-        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build()));
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), distribution).build()));
         request.acceptedPragmaRisks(true);
         request.profile(profile);
         return request;

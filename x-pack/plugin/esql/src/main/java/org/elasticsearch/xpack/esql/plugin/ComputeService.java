@@ -519,11 +519,14 @@ public class ComputeService {
         return (int) Math.max(1, Math.min(floor, Integer.MAX_VALUE));
     }
 
+    /** The {@link QueryPragmas#EXTERNAL_DISTRIBUTION} value that keeps every external split on the coordinator. */
+    static final String COORDINATOR_ONLY_DISTRIBUTION = "coordinator_only";
+
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
         String value = pragmas.externalDistribution();
         return switch (value) {
             case "", "adaptive" -> new AdaptiveStrategy();
-            case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
+            case COORDINATOR_ONLY_DISTRIBUTION -> CoordinatorOnlyStrategy.INSTANCE;
             case "round_robin" -> new RoundRobinStrategy();
             case "weighted_round_robin" -> new WeightedRoundRobinStrategy();
             default -> {
@@ -544,6 +547,11 @@ public class ComputeService {
     static boolean allExternalWorkersJoining(DiscoveryNodes nodes, UnaryOperator<DiscoveryNodes> ready) {
         return NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(ready.apply(nodes)).isEmpty()
             && NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes).isEmpty() == false;
+    }
+
+    /** Whether the query asked for its external splits to be read on the coordinator, so no worker is waited for. */
+    static boolean pinnedToCoordinator(QueryPragmas pragmas) {
+        return COORDINATOR_ONLY_DISTRIBUTION.equals(pragmas.externalDistribution());
     }
 
     /**
@@ -1289,7 +1297,9 @@ public class ComputeService {
                 releasing
             );
             final UnaryOperator<DiscoveryNodes> ready = externalWorkerReadiness::readyNodes;
-            if (collected.splits().isEmpty() || allExternalWorkersJoining(clusterService.state().nodes(), ready) == false) {
+            if (collected.splits().isEmpty()
+                || pinnedToCoordinator(configuration.pragmas())
+                || allExternalWorkersJoining(clusterService.state().nodes(), ready) == false) {
                 runAfterDiscovery.accept(0L);
                 return;
             }

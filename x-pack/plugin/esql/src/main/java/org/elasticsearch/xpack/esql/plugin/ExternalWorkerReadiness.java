@@ -49,8 +49,8 @@ import java.util.function.BooleanSupplier;
  *
  * <p>A node accepts transport requests before it has applied any cluster state, and a coordinator sees it as an external
  * worker as soon as it applies the join; until the node's own first apply completes, every external split sent to it
- * fails or waits (elastic/esql-planning#2319). A shard has no such window, being routable only once its node reported it
- * started, but external splits are routed by role. So each added worker is asked, through
+ * fails or waits. A shard has no such window, being routable only once its node reported it started, but external
+ * splits are routed by role. So each added worker is asked, through
  * {@link TransportAwaitClusterStateVersionAppliedAction}, to confirm it has applied the version that added it, and is
  * held back until it answers. The hold is installed by the applier, before the state that adds the node is visible, so a
  * query cannot see the node without seeing it held back; the node is forgotten by the listener, once the state without
@@ -85,7 +85,7 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
     /**
      * The waits of {@link #awaitEligibleWorker} not yet decided, woken on every change to what {@link #readyNodes} can
      * return: a release, and the visible state gaining or losing a node. The change is made before the waiters are woken
-     * and a waiter registers before it first evaluates, so none is missed.
+     * and a waiter re-evaluates after registering, so no change is missed.
      */
     private final Set<Waiter> waiters = ConcurrentHashMap.newKeySet();
     /** {@link ExternalSourceSettings#WORKER_READY_TIMEOUT}, tracked live; bounds {@link #awaitEligibleWorker}. */
@@ -142,17 +142,19 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
             return;
         }
         logger.debug("waiting up to [{}] for an external worker to apply its cluster state before {}", timeout, what);
-        new Waiter(satisfied, task, what, inCallerContext, timeout);
+        new Waiter(satisfied, task, what, inCallerContext, timeout).start();
     }
 
     private static ExternalUnavailableException timedOut(TimeValue timeout) {
         return DataNodeComputeHandler.workerNotReady("waited [" + timeout + "] on the coordinator");
     }
 
-    /** One wait of {@link #awaitEligibleWorker}: registered in {@link #waiters} until its first outcome. */
+    /** One wait of {@link #awaitEligibleWorker}: registered in {@link #waiters} from {@link #start} until its outcome. */
     private final class Waiter {
         private final BooleanSupplier satisfied;
+        private final CancellableTask task;
         private final String what;
+        private final ActionListener<Void> listener;
         private final TimeValue timeout;
         private final long startNanos = System.nanoTime();
         private final SubscribableListener<Void> outcome = new SubscribableListener<>();
@@ -160,9 +162,27 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
 
         Waiter(BooleanSupplier satisfied, CancellableTask task, String what, ActionListener<Void> listener, TimeValue timeout) {
             this.satisfied = satisfied;
+            this.task = task;
             this.what = what;
+            this.listener = listener;
             this.timeout = timeout;
-            // Registered first: the outcome unregisters, and the timer or the cancellation can fire inline below.
+        }
+
+        /**
+         * Arms the bound and the cancellation, registers, then subscribes the outcome, which unregisters: an outcome
+         * reached before the subscription, a task already cancelled, say, is delivered by it inline.
+         */
+        void start() {
+            try {
+                timer = threadPool.schedule(() -> {
+                    if (tryComplete() == false) {
+                        outcome.onFailure(timedOut(timeout));
+                    }
+                }, timeout, threadPool.generic());
+            } catch (EsRejectedExecutionException e) {
+                outcome.onFailure(e);
+            }
+            task.addListener(() -> outcome.onFailure(new TaskCancelledException(task.getReasonCancelled())));
             waiters.add(this);
             outcome.addListener(new ActionListener<>() {
                 @Override
@@ -177,17 +197,6 @@ public final class ExternalWorkerReadiness implements ClusterStateApplier, Clust
                     listener.onFailure(e);
                 }
             });
-            try {
-                timer = threadPool.schedule(() -> {
-                    if (tryComplete() == false) {
-                        outcome.onFailure(timedOut(timeout));
-                    }
-                }, timeout, threadPool.generic());
-            } catch (EsRejectedExecutionException e) {
-                outcome.onFailure(e);
-                return;
-            }
-            task.addListener(() -> outcome.onFailure(new TaskCancelledException(task.getReasonCancelled())));
             tryComplete();
         }
 

@@ -55,6 +55,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
@@ -400,8 +401,9 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
 
     /**
      * The second worker answers while the state that adds it is still being applied, from an applier registered after the
-     * readiness: the release wakes the wait against the old state, which has no second worker. The wait must still be
-     * woken once the state is visible, rather than sit out the whole budget.
+     * readiness: the release wakes the wait against the old state, which has no second worker. The applier lets that
+     * woken check run, and find nothing, before it returns, so that only a wake after the state is visible can end the
+     * wait; the wait must not sit out the whole budget.
      */
     public void testWaitSeesAWorkerReleasedBeforeTheStateThatAddsItIsVisible() throws Exception {
         setWorkerReadyTimeout(TimeValue.timeValueMinutes(1));
@@ -409,28 +411,42 @@ public class ExternalWorkerReadinessTests extends ESTestCase {
         apply(state(10, first));
         awaitAwaits(1);
         PlainActionFuture<Void> waited = new PlainActionFuture<>();
-        readiness.awaitEligibleWorker(this::aWorkerIsReadyOrNoneExists, task(), WHAT, waited);
+        AtomicInteger evaluations = new AtomicInteger();
+        readiness.awaitEligibleWorker(() -> {
+            // Counted after the read: a count seen by the applier then means the check read the state before the swap.
+            boolean ready = aWorkerIsReadyOrNoneExists();
+            evaluations.incrementAndGet();
+            return ready;
+        }, task(), WHAT, waited);
         assertFalse(waited.isDone());
         DiscoveryNode second = dataNode("second", "e2");
         // Recorded rather than asserted in the applier: an error thrown there would hang the apply, not fail the test.
+        AtomicReference<String> failedInTheApply = new AtomicReference<>();
         AtomicReference<Set<String>> pendingAfterTheAnswer = new AtomicReference<>();
-        AtomicReference<Exception> failedToAnswer = new AtomicReference<>();
+        AtomicBoolean doneDuringTheApply = new AtomicBoolean(true);
         clusterService.addStateApplier(event -> {
-            if (event.nodesDelta().addedNodes().contains(second)) {
-                try {
-                    awaitAwaits(2);
-                    awaits.get(1).listener().onResponse(applied());
-                    pendingAfterTheAnswer.set(readiness.pendingEphemeralIds());
-                } catch (Exception e) {
-                    failedToAnswer.set(e);
-                }
+            if (event.nodesDelta().addedNodes().contains(second) == false) {
+                return;
             }
+            if (waitUntil(() -> awaits.size() == 2, 30, TimeUnit.SECONDS) == false) {
+                failedInTheApply.set("the second worker was not asked during the apply");
+                return;
+            }
+            final int before = evaluations.get();
+            awaits.get(1).listener().onResponse(applied());
+            pendingAfterTheAnswer.set(readiness.pendingEphemeralIds());
+            if (waitUntil(() -> evaluations.get() > before, 10, TimeUnit.SECONDS) == false) {
+                failedInTheApply.set("the release did not wake the wait");
+                return;
+            }
+            doneDuringTheApply.set(waited.isDone());
         });
 
         apply(state(11, first, second));
 
-        assertNull("the second worker's await was not answered during the apply", failedToAnswer.get());
+        assertNull(failedInTheApply.get(), failedInTheApply.get());
         assertThat("released during the apply", pendingAfterTheAnswer.get(), contains("e1"));
+        assertFalse("the woken check ran against the old state and found no worker", doneDuringTheApply.get());
         assertNull("woken once the state is visible", waited.actionGet(TimeValue.timeValueSeconds(10)));
     }
 

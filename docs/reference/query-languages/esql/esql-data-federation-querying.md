@@ -221,8 +221,8 @@ Slow queries
 503 error when creating a data source with credentials
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
-503 error after changing a dataset {applies_to}`stack: preview 9.7+`
-:   A node that has not yet applied a recent dataset change, or that has just joined the cluster, cannot read external data until it catches up, and briefly waits for that. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query.
+503 error after changing a dataset or adding a node {applies_to}`stack: preview 9.7+`
+:   A node that has not yet applied a recent dataset change, or that has just joined the cluster, cannot read external data until it catches up. {{es}} waits briefly for it. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query.
 
 $$$unknown-index-dataset$$$
 

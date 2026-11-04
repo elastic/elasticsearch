@@ -30,7 +30,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
 
         final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
         boolean lowercase = settings.getAsBoolean("lowercase", true);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
+        CharArraySet stopWords = Analysis.parseStopWords(indexSettings.getIndexVersionCreated(), env, settings, defaultStopwords);
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
         if (sPattern == null) {

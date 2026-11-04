@@ -34,7 +34,12 @@ public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stop
 
     RomanianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
-        CharArraySet stopwords = Analysis.parseStopWords(env, settings, RomanianAnalyzer.getDefaultStopSet());
+        CharArraySet stopwords = Analysis.parseStopWords(
+            indexSettings.getIndexVersionCreated(),
+            env,
+            settings,
+            RomanianAnalyzer.getDefaultStopSet()
+        );
         CharArraySet stemExclusionSet = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
         boolean modernRomanian = indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
         if (modernRomanian) {
@@ -42,7 +47,9 @@ public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stop
             analyzer = new RomanianAnalyzer(stopwords, stemExclusionSet);
         } else {
             // for older index versions we need the old behaviour without normalization
-            analyzer = new StopwordAnalyzerBase(Analysis.parseStopWords(env, settings, RomanianAnalyzer.getDefaultStopSet())) {
+            analyzer = new StopwordAnalyzerBase(
+                Analysis.parseStopWords(indexSettings.getIndexVersionCreated(), env, settings, RomanianAnalyzer.getDefaultStopSet())
+            ) {
 
                 protected Analyzer.TokenStreamComponents createComponents(String fieldName) {
                     final Tokenizer source = new StandardTokenizer();

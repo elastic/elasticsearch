@@ -256,4 +256,17 @@ public class FlightTableParametersTests extends ESTestCase {
             assertEquals("the satellite on the other host was never called", 0, server.headerLog.size());
         }
     }
+
+    /** A satellite that refuses a location says why, and the user sees it (marked as the satellite's), not "failed to resolve". */
+    public void testARefusalOfTheSatelliteAtResolutionIsShownToTheUser() throws Exception {
+        try (BlockingSatelliteServer server = new BlockingSatelliteServer()) {
+            server.failCapabilitiesWith = org.apache.arrow.flight.CallStatus.INVALID_ARGUMENT.withDescription("location not allowed");
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> factory(TimeValue.ZERO).resolveMetadata("grpc://127.0.0.1:" + server.port() + "/t", Map.of("location", "/etc/"))
+            );
+            assertThat(e.getMessage(), containsString("the satellite rejected the request [INVALID_ARGUMENT]"));
+            assertThat(e.getMessage(), containsString("the satellite says: location not allowed"));
+        }
+    }
 }

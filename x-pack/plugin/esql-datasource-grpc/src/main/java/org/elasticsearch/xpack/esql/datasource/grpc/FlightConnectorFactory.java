@@ -213,7 +213,7 @@ class FlightConnectorFactory implements ConnectorFactory {
         } catch (IllegalArgumentException e) {
             throw e; // a dataset that cannot be served: the message says why, and it is the user's to fix
         } catch (Exception e) {
-            IllegalArgumentException rejected = FlightClients.authenticationFailure(e);
+            IllegalArgumentException rejected = FlightConnector.rejection(e);
             if (rejected != null) {
                 throw rejected;
             }

@@ -104,7 +104,7 @@ class FlightSplitProvider implements SplitProvider {
         } catch (IllegalArgumentException e) {
             throw e; // a satellite that cannot be served: the message says why, and the limit it names is the operator's to change
         } catch (Exception e) {
-            IllegalArgumentException rejected = FlightClients.authenticationFailure(e);
+            IllegalArgumentException rejected = FlightConnector.rejection(e);
             if (rejected != null) {
                 throw rejected;
             }

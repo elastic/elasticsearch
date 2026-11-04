@@ -168,7 +168,7 @@ class FlightConnector implements Connector {
         return ExceptionsHelper.unwrap(e, CircuitBreakingException.class) instanceof CircuitBreakingException breaker ? breaker : e;
     }
 
-    private static IllegalArgumentException rejection(Throwable t) {
+    static IllegalArgumentException rejection(Throwable t) {
         IllegalArgumentException authentication = FlightClients.authenticationFailure(t);
         if (authentication != null) {
             return authentication;

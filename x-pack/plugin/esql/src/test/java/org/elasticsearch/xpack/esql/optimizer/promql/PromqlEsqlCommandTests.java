@@ -405,6 +405,7 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         );
         // `offset 5m` evaluates a sample at real time `s` as if it occurred at `s + 5m`: a materialized @timestamp + 5m.
         assertThat(findTimestampShiftDuration(plan), equalTo(offset));
+        assertTimeSeriesAggregateInputsAreDefined(plan);
         // The source window extends further back by the offset: start - window - offset.
         long lowerBoundMs = start.toEpochMilli() - window.toMillis() - offset.toMillis();
         assertHasTimestampLowerBound(plan, lowerBoundMs, "window+offset");
@@ -420,9 +421,27 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
         );
         // `offset -5m` (look ahead) shifts @timestamp by a negative duration.
         assertThat(findTimestampShiftDuration(plan), equalTo(signedOffset));
+        assertTimeSeriesAggregateInputsAreDefined(plan);
         // start - (window + (-5m)) = start - 0 = start
         long lowerBoundMs = start.toEpochMilli() - window.toMillis() - signedOffset.toMillis();
         assertHasTimestampLowerBound(plan, lowerBoundMs, "window+offset");
+    }
+
+    /**
+     * The shifted timestamp is also read by the {@link TimeSeriesAggregate} itself, which does not report it through
+     * {@code references()}: check that whatever it reads is still produced by its child.
+     */
+    private void assertTimeSeriesAggregateInputsAreDefined(LogicalPlan plan) {
+        List<TimeSeriesAggregate> aggregates = plan.collect(TimeSeriesAggregate.class);
+        assertThat(aggregates, hasSize(1));
+        var aggregate = aggregates.get(0);
+        aggregate.forEachExpression(
+            Attribute.class,
+            attribute -> assertTrue(
+                "[" + attribute + "] is not produced by the child of the aggregate:\n" + plan,
+                aggregate.child().outputSet().contains(attribute)
+            )
+        );
     }
 
     /** Finds the duration of the materialized {@code @timestamp + offset} shift produced for an offset selector. */

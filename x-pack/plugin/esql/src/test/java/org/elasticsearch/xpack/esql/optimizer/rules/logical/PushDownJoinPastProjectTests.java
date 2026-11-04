@@ -113,7 +113,7 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
     // Project[[languages{f}#17 AS language_code#9, $$language_name$temp_name$27{r$}#28 AS foo#12, language_name{f}#26]]
     // \_Limit[1000[INTEGER],true]
     // \_Join[LEFT,[languages{f}#17],[languages{f}#17],[language_code{f}#25]]
-    // |_Eval[[salary{f}#19 * 2[INTEGER] AS language_name#4, language_name{r}#4 AS $$language_name$temp_name$27#28]]
+    // |_Eval[[salary{f}#19 * 2[INTEGER] AS $$language_name$temp_name$27#28]]
     // | \_Limit[1000[INTEGER],false]
     // | \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
     // \_EsRelation[languages_lookup][LOOKUP][language_code{f}#25, language_name{f}#26]
@@ -151,11 +151,9 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         var languageName = as(projections.get(2), FieldAttribute.class);
         assertTrue(lookupRel.outputSet().contains(languageName));
 
+        // language_name is only used by its temporary copy, so it is merged into it
         var evalExprs = eval.fields();
-        assertThat(Expressions.names(evalExprs), contains("language_name", tempName.name()));
-        var originalLanguageName = unwrapAlias(evalExprs.get(1), ReferenceAttribute.class);
-        assertEquals("language_name", originalLanguageName.name());
-        assertTrue(originalLanguageName.semanticEquals(as(evalExprs.get(0), Alias.class).toAttribute()));
+        assertThat(Expressions.names(evalExprs), contains(tempName.name()));
 
         var mul = unwrapAlias(evalExprs.get(0), Mul.class);
         assertEquals(new Literal(Source.EMPTY, 2, DataType.INTEGER), mul.right());

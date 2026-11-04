@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTop
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.InsertEmptyBucketsAfterAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.MaterializeRelationClassAndName;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.MergeEvalAliases;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
@@ -236,6 +237,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new HoistRemoteEnrichLimit(),
             new CombineProjections(),
             new CombineEvals(),
+            new MergeEvalAliases(),
             new PropagateEmptyRelation(),
             new FoldNull(),
             new SplitInWithFoldableValue(),

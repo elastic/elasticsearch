@@ -342,9 +342,10 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             .map(Add.class::cast)
             .findFirst()
             .orElseThrow();
-        ReferenceAttribute leftRef = as(as(add.left(), ToDouble.class).field(), ReferenceAttribute.class);
-        ReferenceAttribute rightRef = as(as(add.right(), ToDouble.class).field(), ReferenceAttribute.class);
-        assertFalse(leftRef.semanticEquals(rightRef));
+        // each avg_over_time is merged into the add as sum / count, over distinct references to the aggregates
+        Div leftAvg = as(as(add.left(), ToDouble.class).field(), Div.class);
+        Div rightAvg = as(as(add.right(), ToDouble.class).field(), Div.class);
+        assertFalse(leftAvg.semanticEquals(rightAvg));
     }
 
     public void testBinaryAcrossSeriesAndLiteral() {
@@ -352,7 +353,7 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));
 
         Eval eval = plan.collect(Eval.class).getFirst();
-        Mul mul = as(eval.fields().getFirst().child(), Mul.class);
+        Mul mul = as(as(eval.fields().getFirst().child(), ToDouble.class).field(), Mul.class);
         assertThat(mul.left().sourceText(), equalTo("max(network.total_bytes_in)"));
         assertThat(as(mul.right(), Literal.class).fold(null), equalTo(8.0));
 

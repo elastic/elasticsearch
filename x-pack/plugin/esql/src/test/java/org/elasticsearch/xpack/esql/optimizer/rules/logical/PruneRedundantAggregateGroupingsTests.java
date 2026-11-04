@@ -11,6 +11,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -173,8 +174,10 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "ip_m2"));
         assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "ip_m2"));
 
+        // ip_m1 is not a key, so it is merged into ip_m2
         var eval = as(aggregate.child(), Eval.class);
-        assertThat(Expressions.names(eval.fields()), contains("ip_m1", "ip_m2"));
+        assertThat(Expressions.names(eval.fields()), contains("ip_m2"));
+        as(as(eval.fields().get(0).child(), Sub.class).left(), Sub.class);
         as(eval.child(), ExternalRelation.class);
     }
 

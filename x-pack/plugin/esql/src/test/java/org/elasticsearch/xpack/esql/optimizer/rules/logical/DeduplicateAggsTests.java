@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -157,19 +156,19 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
 
         var eval = as(project.child(), Eval.class);
         var fields = eval.fields();
-        // avg = Sum/Count
-        assertThat(Expressions.name(fields.get(0)), containsString("AVG"));
-        assertThat(Alias.unwrap(fields.get(0)), instanceOf(Div.class));
-        // avg + max
-        assertThat(Expressions.name(fields.get(1)), is("a"));
-        var add = as(Alias.unwrap(fields.get(1)), Add.class);
+        // the avg alias is merged into a
+        assertThat(fields, hasSize(2));
+        // avg + max, where avg = Sum/Count
+        assertThat(Expressions.name(fields.get(0)), is("a"));
+        var add = as(Alias.unwrap(fields.get(0)), Add.class);
+        assertThat(add.left(), instanceOf(Div.class));
         var max_salary = add.right();
-        assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(refA)));
+        assertThat(Expressions.attribute(fields.get(0)), is(Expressions.attribute(refA)));
 
-        assertThat(Expressions.name(fields.get(2)), is("b"));
-        assertThat(Expressions.attribute(fields.get(2)), is(Expressions.attribute(refB)));
+        assertThat(Expressions.name(fields.get(1)), is("b"));
+        assertThat(Expressions.attribute(fields.get(1)), is(Expressions.attribute(refB)));
 
-        add = as(Alias.unwrap(fields.get(2)), Add.class);
+        add = as(Alias.unwrap(fields.get(1)), Add.class);
         add = as(add.left(), Add.class);
         add = as(add.left(), Add.class);
         assertThat(Expressions.attribute(max_salary), is(Expressions.attribute(add.left())));

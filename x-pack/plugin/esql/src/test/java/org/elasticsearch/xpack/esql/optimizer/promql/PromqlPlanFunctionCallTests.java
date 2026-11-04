@@ -398,7 +398,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
      * Project[[result, step]]
      * \_Limit
      *   \_Filter[ISNOTNULL(result)]
-     *     \_Eval[[CASE(count == 1, TODOUBLE(max), NaN) AS result, TODOUBLE(result) AS result]]
+     *     \_Eval[[TODOUBLE(CASE(count == 1, TODOUBLE(max), NaN)) AS result]]
      *       \_Aggregate[[step],[COUNT(result) AS $$COUNT$result$0, MAX(result) AS $$MAX$result$1, step]]
      *         \_UnpackDims[packed, [cluster]]
      *           \_Aggregate[[step, _$packed_dims AS packed],[SUM(...) AS result, step, packed]]
@@ -419,7 +419,8 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             .orElseThrow();
 
         var eval = as(isNotNullFilter.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(2));
+        // the intermediate result alias is merged into the final one
+        assertThat(eval.fields(), hasSize(1));
 
         var stepRangeFilter = as(eval.child(), Filter.class);
         var scalarAgg = as(stepRangeFilter.child(), Aggregate.class);
@@ -445,7 +446,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
      * Project[[result, step]]
      * \_Limit
      *   \_Filter[ISNOTNULL(result)]
-     *     \_Eval[[CASE(count == 1, TODOUBLE(max), NaN) AS result, TODOUBLE(result) AS result]]
+     *     \_Eval[[TODOUBLE(CASE(count == 1, TODOUBLE(max), NaN)) AS result]]
      *       \_Aggregate[[step],[COUNT(...) AS $$COUNT$result$0, MAX(...) AS $$MAX$result$1, step]]
      *         \_TimeSeriesAggregate[[_tsid, step],[LASTOVERTIME(...) AS LASTOVERTIME_$1, step], BUCKET(@timestamp, PT1H)]
      *           \_Eval[[BUCKET(@timestamp, PT1H) AS step]]
@@ -463,7 +464,8 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             .orElseThrow();
 
         var eval = as(isNotNullFilter.child(), Eval.class);
-        assertThat(eval.fields(), hasSize(2));
+        // the intermediate result alias is merged into the final one
+        assertThat(eval.fields(), hasSize(1));
 
         var stepRangeFilter = as(eval.child(), Filter.class);
         var scalarAgg = as(stepRangeFilter.child(), Aggregate.class);

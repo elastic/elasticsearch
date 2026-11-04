@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
@@ -205,8 +204,9 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
             Aggregate aggregate = as(limit.child(), Aggregate.class);
             Eval eval = as(aggregate.child(), Eval.class);
             List<Alias> fields = eval.fields();
-            assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
-            Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
+            // the alias x is merged into y
+            assertEquals(1, fields.size());
+            Alias a = fields.get(0);
             assertEquals("y", a.name());
             verifySubstitution(a, roundToPointsSize);
             LogicalPlan subPlan = hasWhere ? eval.child() : eval;
@@ -233,8 +233,9 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
             Aggregate aggregate = as(limit.child(), Aggregate.class);
             Eval eval = as(aggregate.child(), Eval.class);
             List<Alias> fields = eval.fields();
-            assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
-            Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
+            // the alias x is merged into y
+            assertEquals(1, fields.size());
+            Alias a = fields.get(0);
             assertEquals("y", a.name());
             verifySubstitution(a, roundToPointsSize);
             LogicalPlan subPlan = hasWhere ? eval.child() : eval;
@@ -264,11 +265,12 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
             assertEquals("hire_date", fa.name());
             assertEquals(DATETIME, fa.dataType());
         } else {
-            // DateTrunc/Bucket applied to a non-field expression so substitution was not possible
+            // DateTrunc/Bucket applied to a non-field expression (a reference to one, or the expression itself once its alias has
+            // been merged) so substitution was not possible
             if (e instanceof DateTrunc dateTrunc) {
-                assertTrue(dateTrunc.field() instanceof ReferenceAttribute);
+                assertFalse(dateTrunc.field() instanceof FieldAttribute);
             } else if (e instanceof Bucket bucket) {
-                assertTrue(bucket.field() instanceof ReferenceAttribute);
+                assertFalse(bucket.field() instanceof FieldAttribute);
             } else {
                 fail(e.getClass() + " is not supported");
             }

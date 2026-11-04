@@ -655,7 +655,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
      * \_TopN[[Order[$$salary$temp_name$25{r}#26,ASC,LAST], Order[$$s1$temp_name$27{r}#28,ASC,LAST]],1000[INTEGER],false]
      *   \_InlineJoin[LEFT,[emp_no{f}#14],[emp_no{r}#14]]
      *     |_Project[[salary{f}#19, emp_no{f}#14, $$salary$temp_name$25{r}#26, $$s1$temp_name$27{r}#28]]
-     *     | \_Eval[[salary{f}#19 + 1[INTEGER] AS s1#7, salary{f}#19 AS $$salary$temp_name$25#26, s1{r}#7 AS $$s1$temp_name$27#28]]
+     *     | \_Eval[[salary{f}#19 AS $$salary$temp_name$25#26, salary{f}#19 + 1[INTEGER] AS $$s1$temp_name$27#28]]
      *     |   \_EsRelation[employees][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
      *     \_Aggregate[[emp_no{f}#14],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS salary#12, emp_no{f}#14]]
      *       \_StubRelation[[salary{f}#19, emp_no{f}#14]]
@@ -699,10 +699,8 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
         // Left side of the join
         var leftProject = as(inlineJoin.left(), Project.class);
         var leftEval = as(leftProject.child(), Eval.class);
-        assertThat(
-            Expressions.names(leftEval.fields()),
-            contains(is("s1"), startsWith("$$salary$temp_name$"), startsWith("$$s1$temp_name$"))
-        );
+        // s1 is only used by its temporary copy, so it is merged into it
+        assertThat(Expressions.names(leftEval.fields()), contains(startsWith("$$salary$temp_name$"), startsWith("$$s1$temp_name$")));
         var relation = as(leftEval.child(), EsRelation.class);
         assertThat(relation.concreteQualifiedIndices(), is(Set.of("employees")));
 

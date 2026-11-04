@@ -4943,11 +4943,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(project.projections()), contains("x"));
         var eval = as(project.child(), Eval.class);
         var fields = eval.fields();
-        assertThat(Expressions.name(fields.get(1)), is("x"));
-        // sum/count to compute avg
-        var div = as(fields.get(0).child(), Div.class);
+        // the avg alias is merged into x
+        assertThat(fields, hasSize(1));
+        assertThat(Expressions.name(fields.get(0)), is("x"));
         // avg + max
-        var add = as(fields.get(1).child(), Add.class);
+        var add = as(fields.get(0).child(), Add.class);
+        // sum/count to compute avg, then / 2
+        var div = as(add.left(), Div.class);
+        as(div.left(), Div.class);
         var limit = as(eval.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
@@ -4989,15 +4992,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(project.projections()), contains("x", "y", "z"));
         var eval = as(project.child(), Eval.class);
         var fields = eval.fields();
-        // avg = Sum/Count
-        assertThat(Expressions.name(fields.get(0)), containsString("AVG"));
-        assertThat(Alias.unwrap(fields.get(0)), instanceOf(Div.class));
-        // avg + max
-        assertThat(Expressions.name(fields.get(1)), containsString("x"));
-        assertThat(Alias.unwrap(fields.get(1)), instanceOf(Add.class));
+        // the avg alias is merged into x
+        assertThat(fields, hasSize(2));
+        // avg + max, where avg = Sum/Count
+        assertThat(Expressions.name(fields.get(0)), containsString("x"));
+        var add = as(Alias.unwrap(fields.get(0)), Add.class);
+        assertThat(add.left(), instanceOf(Div.class));
         // min + 10 - median
-        assertThat(Expressions.name(fields.get(2)), containsString("y"));
-        assertThat(Alias.unwrap(fields.get(2)), instanceOf(Sub.class));
+        assertThat(Expressions.name(fields.get(1)), containsString("y"));
+        assertThat(Alias.unwrap(fields.get(1)), instanceOf(Sub.class));
 
         var limit = as(eval.child(), Limit.class);
 
@@ -5050,17 +5053,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(project.projections()), contains("x", "y", "z"));
         var eval = as(project.child(), Eval.class);
         var fields = eval.fields();
-        // avg = Sum/Count
-        assertThat(Expressions.name(fields.get(0)), containsString("AVG"));
-        assertThat(Alias.unwrap(fields.get(0)), instanceOf(Div.class));
-        // concat(to_string(avg)
-        assertThat(Expressions.name(fields.get(1)), containsString("x"));
-        var concat = as(Alias.unwrap(fields.get(1)), Concat.class);
+        // the avg alias is merged into x
+        assertThat(fields, hasSize(2));
+        // concat(to_string(avg), to_string(max)), where avg = Sum/Count
+        assertThat(Expressions.name(fields.get(0)), containsString("x"));
+        var concat = as(Alias.unwrap(fields.get(0)), Concat.class);
         var toString = as(concat.children().get(0), ToString.class);
+        as(toString.field(), Div.class);
         toString = as(concat.children().get(1), ToString.class);
         // min + 10 - median/e
-        assertThat(Expressions.name(fields.get(2)), containsString("y"));
-        assertThat(Alias.unwrap(fields.get(2)), instanceOf(Div.class));
+        assertThat(Expressions.name(fields.get(1)), containsString("y"));
+        assertThat(Alias.unwrap(fields.get(1)), instanceOf(Div.class));
 
         var limit = as(eval.child(), Limit.class);
 

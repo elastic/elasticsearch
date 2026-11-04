@@ -31,6 +31,21 @@ public record SatelliteFragment(Map<String, Object> request) {
      */
     public static final Set<String> NON_OPTION_KEYS = Set.of("endpoint", "target", "schema_resolution");
 
+    /**
+     * Whether the fragment filters rows before they leave the satellite. How many splits it takes to fill a LIMIT is then unknown,
+     * so the number of drivers cannot be derived from the limit.
+     */
+    public boolean filtersRows() {
+        Object node = request.get("plan");
+        while (node instanceof Map<?, ?> n) {
+            if ("filter".equals(n.get("op"))) {
+                return true;
+            }
+            node = n.get("input");
+        }
+        return false;
+    }
+
     public static boolean isOptionKey(String key) {
         return NON_OPTION_KEYS.contains(key) == false && key.startsWith("_") == false;
     }

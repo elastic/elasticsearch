@@ -138,11 +138,15 @@ public class SatelliteOptionsIT extends ESRestTestCase {
         }
     }
 
-    public void testASourceReadingNoColumnIsRefusedClearlyWhenItHasOptions() throws Exception {
+    /** A read that needs no column, such as COUNT(*), still sends the options: it scans one column inside a fragment. */
+    public void testASourceReadingNoColumnStillSendsItsOptions() throws Exception {
         try (BlockingSatelliteServer satellite = new BlockingSatelliteServer()) {
             register(satellite, "opt_count_ds", "{\"units\": \"fahrenheit\"}");
             try {
-                assertThat(errorOf("FROM opt_count_ds | STATS c = COUNT(*)"), containsString("reads no column of the source"));
+                assertThat(query("FROM opt_count_ds | STATS c = COUNT(*) | LIMIT 5", true).get("values"), equalTo(List.of(List.of(3))));
+                String fragment = satellite.fragments.get(0);
+                assertThat(fragment, containsString("\"options\":{\"units\":\"fahrenheit\"}"));
+                assertThat(fragment, containsString("\"columns\":[{\"name\":\"id\",\"type\":\"integer\"}]"));
             } finally {
                 deleteQuietly("/_query/dataset/opt_count_ds");
                 deleteQuietly("/_query/data_source/opt_src");

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SatelliteFragment;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -42,6 +43,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -135,6 +137,45 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
         );
     }
 
+    /**
+     * A limit over a filter the satellite evaluates is enforced in the fragment. ES must not also size its drivers from it: the
+     * filter may need every split to find the rows, and a single driver would read them one after another.
+     */
+    public void testFilteredFragmentDoesNotLetTheLimitSizeTheDrivers() throws IOException {
+        assumeTrue("EXTERNAL command", org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        var leaf = leaf(
+            "EXTERNAL \"" + PATH + "\" | WHERE salary > 50000 | KEEP emp_no, salary | LIMIT 10",
+            CAPS,
+            QueryPragmas.EMPTY,
+            Map.of()
+        );
+        assertThat(leaf.pushedFilter(), instanceOf(SatelliteFragment.class));
+        assertEquals(FormatReader.NO_LIMIT, leaf.pushedLimit());
+    }
+
+    /** A read without a fragment takes every column of the table off the satellite, so even a bare scan is pushed, pruned. */
+    public void testAggregateOverOneColumnScansOnlyThatColumn() throws IOException {
+        assertEquals(
+            "{\"specVersion\":0,\"format\":\"json\",\"settings\":{\"locale\":\"en-US\",\"timeZone\":\"UTC\"},"
+                + "\"output\":[{\"name\":\"salary\",\"type\":\"integer\"}],"
+                + "\"plan\":{\"op\":\"scan\",\"target\":\"employees\",\"columns\":[{\"name\":\"salary\",\"type\":\"integer\"}]}}",
+            fragment("STATS a = AVG(salary) | LIMIT 5", CAPS)
+        );
+    }
+
+    public void testPragmaOffKeepsTheUnprunedRead() throws IOException {
+        assumeTrue("EXTERNAL command", org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        QueryPragmas off = new QueryPragmas(org.elasticsearch.common.settings.Settings.builder().put("satellite_pushdown", false).build());
+        assertEquals("no fragment", run("EXTERNAL \"" + PATH + "\" | STATS a = AVG(salary) | LIMIT 5", CAPS, off));
+    }
+
+    public void testUnfilteredFragmentKeepsThePushedLimit() throws IOException {
+        assumeTrue("EXTERNAL command", org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        var leaf = leaf("EXTERNAL \"" + PATH + "\" | KEEP emp_no, salary | LIMIT 10", CAPS, QueryPragmas.EMPTY, Map.of());
+        assertThat(leaf.pushedFilter(), instanceOf(SatelliteFragment.class));
+        assertEquals(10, leaf.pushedLimit());
+    }
+
     public void testPragmaTurnsPushdownOff() throws IOException {
         assumeTrue("EXTERNAL command", org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
         QueryPragmas off = new QueryPragmas(org.elasticsearch.common.settings.Settings.builder().put("satellite_pushdown", false).build());
@@ -173,16 +214,49 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
         assertThat(f, containsString("\"plan\":{\"op\":\"scan\""));
     }
 
-    public void testASourceReadByAnOperatorThatReadsNoColumnIsRefusedWithAClearMessageWhenItHasOptions() throws IOException {
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> fragmentWithOption("STATS c = COUNT(*) | LIMIT 5", capsWithOptions(), QueryPragmas.EMPTY)
-        );
-        assertThat(e.getMessage(), containsString("reads no column of the source"));
+    private static final String ONLY_EMP_NO = "\"output\":[{\"name\":\"emp_no\",\"type\":\"integer\"}]";
+
+    /** A query that reads no column still scans one, the cheapest, so that the satellite does not parse and send the whole row. */
+    public void testAnOperatorThatReadsNoColumnScansTheCheapestOne() throws IOException {
+        String f = fragment("STATS c = COUNT(*) | LIMIT 5", CAPS);
+        assertThat(f, containsString(ONLY_EMP_NO));
+        assertThat(f, containsString("\"plan\":{\"op\":\"scan\",\"target\":\"employees\",\"columns\":[{\"name\":\"emp_no\""));
     }
 
-    public void testWithoutOptionsAnOperatorThatReadsNoColumnIsLeftToThePlainScan() throws IOException {
-        assertEquals("no fragment", fragment("STATS c = COUNT(*) | LIMIT 5", CAPS));
+    public void testNoColumnReadWithOptionsIsPushedWithTheOptions() throws IOException {
+        String f = fragmentWithOption("STATS c = COUNT(*) | LIMIT 5", capsWithOptions(), QueryPragmas.EMPTY);
+        assertThat(f, containsString("\"options\":{\"units\":\"fahrenheit\"}"));
+        assertThat(f, containsString(ONLY_EMP_NO));
+    }
+
+    public void testNoColumnReadSkipsAColumnTheSatelliteCannotScanStrictly() throws IOException {
+        Map<String, Object> caps = new java.util.HashMap<>(CAPS);
+        caps.put("strictColumns", List.of("first_name", "salary")); // not emp_no, the first column
+        String f = fragment("STATS c = COUNT(*) | LIMIT 5", caps);
+        assertThat(f, containsString("\"output\":[{\"name\":\"salary\",\"type\":\"integer\"}]"));
+    }
+
+    /** A datetime is text to parse on the satellite, so an integer further down the schema is preferred to it. */
+    public void testNoColumnReadPrefersAnIntegerToADatetimeAndAKeyword() throws IOException {
+        Map<String, Object> caps = new java.util.HashMap<>(CAPS);
+        caps.put("strictColumns", List.of("first_name", "hire_date", "languages", "height"));
+        assertThat(
+            fragment("STATS c = COUNT(*) | LIMIT 5", caps),
+            containsString("\"output\":[{\"name\":\"languages\",\"type\":\"integer\"}]")
+        );
+    }
+
+    public void testNoColumnReadWithNoColumnToScanIsLeftToThePlainScanOrRefusedWithOptions() throws IOException {
+        Map<String, Object> caps = new java.util.HashMap<>(CAPS);
+        caps.put("strictColumns", List.of());
+        assertEquals("no fragment", fragment("STATS c = COUNT(*) | LIMIT 5", caps));
+        Map<String, Object> withOptions = new java.util.HashMap<>(capsWithOptions());
+        withOptions.put("strictColumns", List.of());
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fragmentWithOption("STATS c = COUNT(*) | LIMIT 5", withOptions, QueryPragmas.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("reads no column of the source"));
     }
 
     public void testOptionsThatCannotBeSentFailTheQueryInsteadOfBeingDropped() throws IOException {
@@ -208,7 +282,10 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
     public void testUndeclaredFunctionIsNotPushed() throws IOException {
         Map<String, Object> caps = new java.util.HashMap<>(CAPS);
         caps.put("functions", List.of("and", "or", "not"));
-        assertEquals("no fragment", fragment("WHERE salary > 50000 | LIMIT 10", caps));
+        String f = fragment("WHERE salary > 50000 | LIMIT 10", caps);
+        assertThat(f, containsString("\"plan\":{\"op\":\"scan\""));
+        assertThat(f, not(containsString("\"filter\"")));
+        assertThat(f, not(containsString("\"limit\"")));
     }
 
     public void testUndeclaredOperatorIsNotPushed() throws IOException {
@@ -222,7 +299,9 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
     public void testListColumnIsNeverUsedInAnExpression() throws IOException {
         Map<String, Object> caps = new java.util.HashMap<>(CAPS);
         caps.put("listColumns", List.of("first_name"));
-        assertEquals("no fragment", fragment("WHERE starts_with(first_name, \"A\") | LIMIT 3", caps));
+        String f = fragment("WHERE starts_with(first_name, \"A\") | LIMIT 3", caps);
+        assertThat(f, containsString("\"plan\":{\"op\":\"scan\""));
+        assertThat(f, not(containsString("starts_with")));
     }
 
     public void testColumnOutsideTheStrictArrowTypesIsNeverScannedInAFragment() throws IOException {
@@ -309,6 +388,11 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
     }
 
     static String run(String query, Map<String, Object> caps, QueryPragmas pragmas, Map<String, Object> extraConfig) throws IOException {
+        return leaf(query, caps, pragmas, extraConfig).pushedFilter() instanceof SatelliteFragment f ? json(f.request()) : "no fragment";
+    }
+
+    static ExternalSourceExec leaf(String query, Map<String, Object> caps, QueryPragmas pragmas, Map<String, Object> extraConfig)
+        throws IOException {
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
         List<Attribute> schema = List.of(
             referenceAttribute("emp_no", DataType.INTEGER),
@@ -381,7 +465,7 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
         );
         List<ExternalSourceExec> leaves = local.collect(ExternalSourceExec.class);
         assertThat(leaves.size(), org.hamcrest.Matchers.equalTo(1));
-        return leaves.get(0).pushedFilter() instanceof SatelliteFragment f ? json(f.request()) : "no fragment";
+        return leaves.get(0);
     }
 
     static String json(Map<String, Object> request) throws IOException {

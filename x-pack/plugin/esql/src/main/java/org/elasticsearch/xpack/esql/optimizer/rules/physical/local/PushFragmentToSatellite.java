@@ -84,6 +84,14 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.split
 public class PushFragmentToSatellite extends PhysicalOptimizerRules.ParameterizedOptimizerRule<UnaryExec, LocalPhysicalOptimizerContext> {
 
     private static final int MAX_PLAN_DEPTH = 64;
+    /** The cheapest to parse and send first: a datetime is a text to parse on the satellite, and a keyword is the heaviest to send. */
+    private static final List<DataType> CHEAPEST_COLUMN_TYPES = List.of(
+        DataType.INTEGER,
+        DataType.LONG,
+        DataType.BOOLEAN,
+        DataType.DOUBLE,
+        DataType.DATETIME
+    );
 
     /** What the satellite declared (section 6 of the protocol) plus the columns it sends as lists. */
     record Caps(
@@ -171,7 +179,7 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
         Map<String, Object> options = declaredOptions(ext.config(), caps);
         boolean mustPush = options.isEmpty() == false;
         boolean pushdownOff = ctx.configuration().pragmas().satellitePushdown() == false;
-        if ((pushdownOff || bare) && mustPush == false) {
+        if (pushdownOff && mustPush == false) {
             return top;
         }
         if (defaultSettings(ctx) == false) {
@@ -182,12 +190,17 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
         }
         Translator tr = new Translator(caps);
         if (ext.output().isEmpty() || ext.output().stream().anyMatch(a -> ProjectAwayColumns.ALL_FIELDS_PROJECTED.equals(a.name()))) {
-            // COUNT(*) and the like read no column: ES scans a placeholder attribute, and a fragment cannot scan zero columns
-            return decline(
-                top,
-                mustPush,
-                "the query reads no column of the source (for example COUNT(*)), which a fragment cannot express yet"
-            );
+            // COUNT(*) and the like read no column, and a fragment cannot scan zero columns: scan the cheapest one and let the
+            // operators above ignore it, so that the satellite does not parse and send the whole row
+            Attribute narrow = tr.narrowestColumn(ext);
+            if (narrow == null) {
+                return decline(
+                    top,
+                    mustPush,
+                    "the query reads no column of the source (for example COUNT(*)) and the table has no column to scan instead"
+                );
+            }
+            ext = ext.withAttributes(List.of(narrow));
         }
         Map<String, Object> plan = tr.scan(ext);
         if (plan == null) {
@@ -196,7 +209,6 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
 
         List<UnaryExec> retained = new ArrayList<>(); // pushed Limit/TopN kept in ES too, bottom-up
         List<Attribute> leafOutput = ext.output();
-        boolean pushedNonProject = false;
         boolean afterBreaker = false;
         int depth = 1;
         Expression remainder = null;
@@ -221,7 +233,6 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
                     Translator.E cond = tr.expr(Predicates.combineAnd(pushed));
                     if (cond != null) {
                         next = Translator.node("filter", "condition", cond.node, "input", plan);
-                        pushedNonProject = true;
                     } else {
                         rest.addAll(pushed);
                     }
@@ -234,21 +245,18 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
                 next = caps.plan.contains("eval") ? tr.eval(e, plan, leafOutput) : null;
                 if (next != null) {
                     leafOutput = e.output();
-                    pushedNonProject = true;
                 }
             } else if (op instanceof LimitExec l && caps.plan.contains("limit") && l.limit() instanceof Literal lit) {
                 next = tr.limit(lit, plan);
                 if (next != null) {
                     retained.add(l);
                     afterBreaker = true;
-                    pushedNonProject = true;
                 }
             } else if (op instanceof TopNExec t && caps.plan.contains("topn") && t.limit() instanceof Literal lit) {
                 next = tr.topn(t, lit, plan);
                 if (next != null) {
                     retained.add(t);
                     afterBreaker = true;
-                    pushedNonProject = true;
                 }
             }
             if (next != null) {
@@ -257,9 +265,8 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
                 stop = i;
             }
         }
-        if (pushedNonProject == false && mustPush == false) {
-            return top;
-        }
+        // A scan of only the columns the query reads is pushed even with nothing else to push: a read without a fragment
+        // takes every column of the table off the satellite.
         List<Map<String, Object>> output = tr.columns(leafOutput);
         if (output == null) {
             return decline(top, mustPush, "an output column has a type the protocol cannot carry");
@@ -401,6 +408,32 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
                 cols.add(c);
             }
             return cols.isEmpty() ? null : cols;
+        }
+
+        /**
+         * The column of the table to scan when a query reads none: one the satellite can scan with the strict Arrow types, and the
+         * cheapest to parse and send among them (see {@link #CHEAPEST_COLUMN_TYPES}).
+         */
+        Attribute narrowestColumn(ExternalSourceExec ext) {
+            if (ext.unifiedSchema() == null) {
+                return null;
+            }
+            Attribute best = null;
+            int bestRank = Integer.MAX_VALUE;
+            for (Attribute a : ext.unifiedSchema()) {
+                if (declaredType(a.dataType()) == null
+                    || caps.listColumns.contains(a.name())
+                    || caps.strictColumns.contains(a.name()) == false) {
+                    continue;
+                }
+                int rank = CHEAPEST_COLUMN_TYPES.indexOf(a.dataType());
+                rank = rank < 0 ? CHEAPEST_COLUMN_TYPES.size() : rank;
+                if (rank < bestRank) {
+                    best = a;
+                    bestRank = rank;
+                }
+            }
+            return best;
         }
 
         Map<String, Object> scan(ExternalSourceExec ext) {

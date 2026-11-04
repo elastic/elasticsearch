@@ -131,6 +131,13 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean useLuceneCorruptionException;
 
+    /**
+     * Set by the {@code wrap_write_exceptions} repository setting. When true, any exception from {@code writeBlob} is wrapped in an
+     * {@link IOException}, as the Azure repository does. Tests use it to check that shard snapshots still recognise a pause or an abort
+     * when it arrives wrapped.
+     */
+    private final boolean wrapWriteExceptions;
+
     private volatile long maximumNumberOfFailures;
 
     private final long waitAfterUnblock;
@@ -213,6 +220,7 @@ public class MockRepository extends FsRepository {
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         randomIOExceptionPattern = Pattern.compile(metadata.settings().get("random_io_exception_pattern", ".*")).asMatchPredicate();
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
+        wrapWriteExceptions = metadata.settings().getAsBoolean("wrap_write_exceptions", false);
         maximumNumberOfFailures = metadata.settings().getAsLong("max_failure_number", 100L);
         blockOnAnyFiles = metadata.settings().getAsBoolean("block_on_control", false);
         blockOnDataFiles = metadata.settings().getAsBoolean("block_on_data", false);
@@ -649,7 +657,15 @@ public class MockRepository extends FsRepository {
                 boolean failIfAlreadyExists
             ) throws IOException {
                 beforeWrite(blobName);
-                super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                if (wrapWriteExceptions) {
+                    try {
+                        super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                    } catch (Exception e) {
+                        throw new IOException("Unable to write blob " + blobName, e);
+                    }
+                } else {
+                    super.writeBlob(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+                }
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this

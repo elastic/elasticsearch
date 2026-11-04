@@ -12,6 +12,7 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -597,11 +598,14 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 snapshotStatus.updateStatusDescription("failed with exception '" + e + ": proceeding to notify master of failure");
                 final String failure;
                 final Stage nextStage;
-                if (e instanceof AbortedSnapshotException) {
+                // Some repositories, such as Azure, wrap every exception from a blob write in an IOException, so look for the abort or
+                // pause signal in the cause chain rather than only at the top.
+                final var signal = ExceptionsHelper.unwrap(e, AbortedSnapshotException.class, PausedSnapshotException.class);
+                if (signal instanceof AbortedSnapshotException) {
                     nextStage = Stage.FAILURE;
                     failure = "aborted";
                     logger.debug(() -> format("[%s][%s] aborted shard snapshot", shardId, snapshot), e);
-                } else if (e instanceof PausedSnapshotException) {
+                } else if (signal instanceof PausedSnapshotException) {
                     nextStage = Stage.PAUSED;
                     failure = "paused for removal of node holding primary";
                     logger.debug(() -> format("[%s][%s] pausing shard snapshot", shardId, snapshot), e);

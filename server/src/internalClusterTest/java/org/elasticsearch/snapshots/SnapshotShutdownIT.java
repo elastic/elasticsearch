@@ -167,13 +167,25 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRemoveNodeDuringSnapshot() throws Exception {
+        removeNodeDuringSnapshot(randomRepositorySettings());
+    }
+
+    /**
+     * Some repositories, such as Azure, wrap every exception from a blob write in an {@link java.io.IOException}. A shard snapshot that
+     * pauses in the middle of a data file upload must still pause rather than fail.
+     */
+    public void testRemoveNodeDuringSnapshotWithWrappedWriteExceptions() throws Exception {
+        removeNodeDuringSnapshot(randomRepositorySettings().put("wrap_write_exceptions", true));
+    }
+
+    private void removeNodeDuringSnapshot(Settings.Builder repositorySettings) throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         final var originalNode = internalCluster().startDataOnlyNode();
         final var indexName = randomIdentifier();
         createIndexWithContent(indexName, indexSettings(1, 0).put(REQUIRE_NODE_NAME_SETTING, originalNode).build());
 
         final var repoName = randomIdentifier();
-        createRepository(repoName, "mock");
+        createRepository(repoName, "mock", repositorySettings);
 
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);

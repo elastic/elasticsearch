@@ -118,6 +118,7 @@ The exceptions are operations that need structures only an {{es}} index has, suc
 Relevance scoring works differently for datasets:
 
 - {applies_to}`stack: experimental 9.6+` `MATCH` and `MATCH_PHRASE` contribute to `_score` through runtime search rather than an inverted index, scoring with boolean similarity rather than BM25.
+- {applies_to}`stack: preview 9.6+` `KNN` contributes to `_score` using the same vector similarity scoring as for an indexed `dense_vector` field, but computed by an exact search over every row rather than an approximate one.
 - {applies_to}`stack: experimental =9.5` Dataset rows do not contribute to `_score`.
 
 {{esql}} Data Federation is not currently supported on Windows.

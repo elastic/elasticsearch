@@ -2468,8 +2468,8 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
-     * The implicit {@code _unmapped} sink absorbs the unmapped leaves of a batch through its column group, and what it writes must read
-     * back exactly as the same documents indexed one at a time.
+     * Under root {@code dynamic: flattened}, the {@code _unmapped} sink absorbs the unmapped leaves of a batch through its column group,
+     * and what it writes must read back exactly as the same documents indexed one at a time.
      */
     public void testUnmappedSinkBatchMatchesRowPath() {
         assumeTrue("flattened_unmapped_fields feature flag must be enabled", FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled());
@@ -2561,11 +2561,9 @@ public class BatchBulkIT extends ESIntegTestCase {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 1)
                         .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-                        .put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true)
                         .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
                 )
-                // No root dynamic, so it resolves to flattened and unmapped leaves are absorbed by the sink.
-                .setMapping("host", "type=keyword")
+                .setMapping("{\"dynamic\":\"flattened\",\"properties\":{\"host\":{\"type\":\"keyword\"}}}")
         );
         ensureGreen(index);
     }

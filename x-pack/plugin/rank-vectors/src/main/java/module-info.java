@@ -10,6 +10,7 @@ module org.elasticsearch.rank.vectors {
     requires org.elasticsearch.xcore;
     requires org.elasticsearch.painless.spi;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.simdvec;
     requires org.elasticsearch.logging;
     requires org.apache.lucene.core;
     requires org.elasticsearch.xcontent;

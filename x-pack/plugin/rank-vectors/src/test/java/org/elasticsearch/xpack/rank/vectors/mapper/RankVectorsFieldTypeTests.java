@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.vectors.mapper;
 
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -66,6 +67,7 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
             DenseVectorFieldMapper.ElementType.FLOAT,
             RankVectorsFieldMapper.MUVERA_TOKEN_DIMS,
             true,
+            IndexVersion.current(),
             licenseState,
             Collections.emptyMap()
         );

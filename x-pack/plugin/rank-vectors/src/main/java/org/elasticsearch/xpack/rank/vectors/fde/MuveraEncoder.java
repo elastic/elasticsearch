@@ -157,7 +157,12 @@ public final class MuveraEncoder implements FdeEncoder {
         return encode(tokens, false, checkCancelled);
     }
 
-    private float[] encode(float[][] tokens, boolean document, Runnable checkCancelled) {
+    /** Validates query vectors against this immutable encoding profile without encoding them. */
+    public void validateQueryVectors(float[][] tokens) {
+        validate(tokens, false, NO_CANCELLATION);
+    }
+
+    private void validate(float[][] tokens, boolean document, Runnable checkCancelled) {
         if (tokens == null) {
             throw new IllegalArgumentException("token vectors must not be null");
         }
@@ -210,6 +215,10 @@ public final class MuveraEncoder implements FdeEncoder {
                 );
             }
         }
+    }
+
+    private float[] encode(float[][] tokens, boolean document, Runnable checkCancelled) {
+        validate(tokens, document, checkCancelled);
         float[] raw = new float[rawDims];
         float[][] cells = new float[numCells][tokenDims];
         int[] counts = new int[numCells];

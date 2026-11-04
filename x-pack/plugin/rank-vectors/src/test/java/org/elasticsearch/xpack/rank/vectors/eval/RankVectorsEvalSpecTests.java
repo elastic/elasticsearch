@@ -80,7 +80,7 @@ public class RankVectorsEvalSpecTests extends ESTestCase {
         }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new RankVectorsEvalSpec("vectors", queryVectors, 1, RankVectorsEvalSpec.MAX_NUM_CANDIDATES, true)
+            () -> new RankVectorsEvalSpec("vectors", queryVectors, RankVectorsEvalSpec.MAX_K, RankVectorsEvalSpec.MAX_NUM_CANDIDATES, true)
         );
         assertThat(exception.getMessage(), containsString("exact MaxSim work"));
         assertEquals(Long.MAX_VALUE, TransportRankVectorsEvalAction.saturatingMultiply(Long.MAX_VALUE, 2));

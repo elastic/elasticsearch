@@ -36,12 +36,15 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Selects approximate candidates for an indexed {@code rank_vectors} field and
  * returns them with exact MaxSim scores computed from the original vectors.
- * Candidate selection is implementation-defined and may be approximate.
+ * {@code num_candidates} controls IVF exploration per shard, while the field's
+ * DiskBBQ rescore oversample controls how many approximate hits reach exact
+ * MaxSim, capped by {@code num_candidates}.
  */
 public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQueryBuilder> {
 
@@ -330,13 +333,14 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         if (numCandidates > MAX_CANDIDATES) {
             throw new IllegalArgumentException("[" + NUM_CANDIDATES_FIELD.getPreferredName() + "] cannot exceed [" + MAX_CANDIDATES + "]");
         }
-        validateRescoreWork(queryVectors.length, numCandidates);
+        validateRescoreWork(queryVectors.length, k, numCandidates);
     }
 
     /** Rejects a MaxSim rescore whose worst-case dot-product count exceeds the query safety limit. */
-    public static void validateRescoreWork(int queryVectorCount, int numCandidates) {
+    public static void validateRescoreWork(int queryVectorCount, int k, int numCandidates) {
+        int rescoreCandidates = Math.min(numCandidates, (int) Math.ceil(k * DEFAULT_OVERSAMPLE));
         long exactDotProducts = Math.multiplyExact(
-            Math.multiplyExact((long) numCandidates, RankVectorsFieldMapper.MAX_MUVERA_VECTORS),
+            Math.multiplyExact((long) rescoreCandidates, RankVectorsFieldMapper.MAX_MUVERA_VECTORS),
             queryVectorCount
         );
         if (exactDotProducts > MAX_EXACT_DOT_PRODUCTS) {
@@ -345,7 +349,7 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
                     + exactDotProducts
                     + " dot products] exceeds the maximum of ["
                     + MAX_EXACT_DOT_PRODUCTS
-                    + "]; reduce [num_candidates] or the number of query vectors"
+                    + "]; reduce [k], [num_candidates], or the number of query vectors"
             );
         }
     }

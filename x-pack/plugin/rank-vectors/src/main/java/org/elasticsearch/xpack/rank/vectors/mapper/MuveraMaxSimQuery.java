@@ -12,15 +12,13 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.script.field.vectors.FloatRankVectorsDocValuesField;
+import org.elasticsearch.script.field.vectors.FloatRankVectors;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 import org.elasticsearch.xpack.rank.vectors.fde.MuveraEncoder;
@@ -72,13 +70,14 @@ final class MuveraMaxSimQuery extends Query {
         if (numCandidates > MAX_CANDIDATES) {
             throw new IllegalArgumentException("[num_candidates] cannot exceed [" + MAX_CANDIDATES + "]");
         }
-        RankVectorsQueryBuilder.validateRescoreWork(queryVectors.length, numCandidates);
+        RankVectorsQueryBuilder.validateRescoreWork(queryVectors.length, k, numCandidates);
         this.field = Objects.requireNonNull(field);
         this.queryVectors = deepCopy(queryVectors);
         this.k = k;
         this.numCandidates = numCandidates;
         this.filter = filter;
         this.encoder = Objects.requireNonNull(encoder);
+        this.encoder.validateQueryVectors(this.queryVectors);
     }
 
     @Override
@@ -87,7 +86,10 @@ final class MuveraMaxSimQuery extends Query {
             ? contextSearcher::checkCancelled
             : NO_CANCELLATION;
         float[] queryFde = encoder.encodeQuery(queryVectors, checkCancelled);
-        TopDocs candidates = searcher.search(new KnnFloatVectorQuery(field, queryFde, numCandidates, filter), numCandidates);
+        TopDocs candidates = searcher.search(
+            MuveraCandidateQuery.approximateQuery(field, queryFde, k, numCandidates, filter),
+            numCandidates
+        );
         if (candidates.scoreDocs.length == 0) {
             return new KnnScoreDocQuery(new ScoreDoc[0], searcher.getIndexReader());
         }
@@ -95,7 +97,6 @@ final class MuveraMaxSimQuery extends Query {
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         BinaryDocValues[] values = new BinaryDocValues[leaves.size()];
         List<ScoreDoc> rescored = new ArrayList<>(candidates.scoreDocs.length);
-        float[] maximums = new float[queryVectors.length];
         ScoreDoc[] candidatesByDoc = candidates.scoreDocs.clone();
         Arrays.sort(candidatesByDoc, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
         for (ScoreDoc candidate : candidatesByDoc) {
@@ -109,13 +110,7 @@ final class MuveraMaxSimQuery extends Query {
             }
             int segmentDoc = candidate.doc - leaf.docBase;
             if (binary.advanceExact(segmentDoc)) {
-                float rawMaxSim = exactMaxSim(
-                    queryVectors,
-                    binary.binaryValue(),
-                    RankVectorsFieldMapper.MUVERA_TOKEN_DIMS,
-                    maximums,
-                    checkCancelled
-                );
+                float rawMaxSim = exactMaxSim(queryVectors, binary.binaryValue(), RankVectorsFieldMapper.MUVERA_TOKEN_DIMS, checkCancelled);
                 rescored.add(new ScoreDoc(candidate.doc, score(rawMaxSim)));
             }
         }
@@ -127,10 +122,10 @@ final class MuveraMaxSimQuery extends Query {
     }
 
     static float exactMaxSim(float[][] queryVectors, BytesRef documentVectors, int dimensions) {
-        return exactMaxSim(queryVectors, documentVectors, dimensions, new float[queryVectors.length], NO_CANCELLATION);
+        return exactMaxSim(queryVectors, documentVectors, dimensions, NO_CANCELLATION);
     }
 
-    static float exactMaxSim(float[][] queryVectors, BytesRef documentVectors, int dimensions, float[] maximums, Runnable checkCancelled) {
+    static float exactMaxSim(float[][] queryVectors, BytesRef documentVectors, int dimensions, Runnable checkCancelled) {
         int vectorBytes = Math.multiplyExact(dimensions, Float.BYTES);
         if (documentVectors.length == 0 || documentVectors.length % vectorBytes != 0) {
             throw new IllegalArgumentException("invalid rank_vectors binary doc value length [" + documentVectors.length + "]");
@@ -143,20 +138,10 @@ final class MuveraMaxSimQuery extends Query {
                 );
             }
         }
-        Arrays.fill(maximums, Float.NEGATIVE_INFINITY);
-        var vectors = new FloatRankVectorsDocValuesField.FloatVectorIterator(documentVectors, new float[dimensions], documentVectorCount);
-        while (vectors.hasNext()) {
-            checkCancelled.run();
-            float[] documentVector = vectors.next();
-            for (int query = 0; query < queryVectors.length; query++) {
-                maximums[query] = Math.max(maximums[query], VectorUtil.dotProduct(queryVectors[query], documentVector));
-            }
-        }
-        float result = 0f;
-        for (float maximum : maximums) {
-            result += maximum;
-        }
-        return result;
+        checkCancelled.run();
+        float score = FloatRankVectors.maxSimDotProduct(documentVectors, documentVectorCount, dimensions, queryVectors);
+        checkCancelled.run();
+        return score;
     }
 
     /**

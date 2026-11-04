@@ -66,8 +66,20 @@ public final class ExactRankVectorsQueryBuilder extends LeafQueryBuilder<ExactRa
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) {
-        throw new UnsupportedOperationException("internal exact rank-vectors queries do not support XContent");
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME);
+        builder.field("field", field);
+        builder.startArray("query_vector");
+        for (float[] vector : queryVectors) {
+            builder.startArray();
+            for (float value : vector) {
+                builder.value(value);
+            }
+            builder.endArray();
+        }
+        builder.endArray();
+        boostAndQueryNameToXContent(builder);
+        builder.endObject();
     }
 
     @Override

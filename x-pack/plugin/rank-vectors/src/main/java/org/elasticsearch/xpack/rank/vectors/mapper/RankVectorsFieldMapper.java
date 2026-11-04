@@ -305,18 +305,19 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
             XPackLicenseState licenseState,
             Map<String, String> meta
         ) {
-            this(name, elementType, dims, false, null, licenseState, meta);
+            this(name, elementType, dims, false, (MuveraEncodingProfile) null, licenseState, meta);
         }
 
-        public RankVectorsFieldType(
+        RankVectorsFieldType(
             String name,
             ElementType elementType,
             Integer dims,
             boolean indexed,
+            IndexVersion indexCreatedVersion,
             XPackLicenseState licenseState,
             Map<String, String> meta
         ) {
-            this(name, elementType, dims, indexed, indexed ? MUVERA_V1 : null, licenseState, meta);
+            this(name, elementType, dims, indexed, indexed ? encodingProfileForIndex(indexCreatedVersion) : null, licenseState, meta);
         }
 
         private RankVectorsFieldType(
@@ -424,14 +425,14 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         }
 
         /** Returns the raw per-shard MUVERA candidate query used by the private evaluation action. */
-        public Query muveraCandidateQuery(float[][] queryVectors, int numCandidates) {
+        public Query muveraCandidateQuery(float[][] queryVectors, int k, int numCandidates, @Nullable Query filter) {
             if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException("Rank Vectors");
             }
             if (encodingProfile == null) {
                 throw new IllegalArgumentException("Field [" + name() + "] is not indexed with MUVERA");
             }
-            return new MuveraCandidateQuery(name(), queryVectors, numCandidates, encodingProfile.encoder());
+            return new MuveraCandidateQuery(name(), queryVectors, k, numCandidates, filter, encodingProfile.encoder());
         }
 
         public int getVectorDimensions() {
@@ -453,6 +454,13 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         public int getMuveraEncodingVersion() {
             return encodingProfile == null ? -1 : encodingProfile.version();
         }
+
+        MuveraEncoder muveraEncoder() {
+            if (encodingProfile == null) {
+                throw new IllegalArgumentException("Field [" + name() + "] is not indexed with MUVERA");
+            }
+            return encodingProfile.encoder();
+        }
     }
 
     private final IndexVersion indexCreatedVersion;
@@ -465,14 +473,6 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
     @Nullable
     private final DenseVectorFieldMapper.DenseVectorIndexOptions muveraCandidateIndexOptions;
     private final MuveraEncoder muveraEncoder;
-
-    static float[] encodeMuveraQuery(float[][] queryVectors) {
-        return MUVERA_V1.encoder().encodeQuery(queryVectors);
-    }
-
-    static float[] encodeMuveraQuery(float[][] queryVectors, Runnable checkCancelled) {
-        return MUVERA_V1.encoder().encodeQuery(queryVectors, checkCancelled);
-    }
 
     /** Returns the immutable encoding profile selected for an index creation version. */
     public static String muveraEncodingProfile(IndexVersion indexCreatedVersion) {

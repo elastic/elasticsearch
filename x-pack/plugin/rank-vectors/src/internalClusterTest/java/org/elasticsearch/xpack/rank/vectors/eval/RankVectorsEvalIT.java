@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.vectors.eval;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -67,6 +68,33 @@ public class RankVectorsEvalIT extends ESIntegTestCase {
         assertEquals(Set.of("best-0", "best-1"), response.finalHits().stream().map(RankVectorsEvalResponse.Hit::id).collect(toSet()));
     }
 
+    public void testFilteredAliasAppliesToCandidateSelection() throws Exception {
+        createIndex();
+        for (int i = 0; i < 10; i++) {
+            index("excluded-" + i, i % 2, tokens(0, 1), "excluded");
+        }
+        index("included-best", 0, tokens(0, 1), "included");
+        index("included-other", 1, tokens(3, 4), "included");
+        refresh(INDEX);
+
+        String alias = INDEX + "-included";
+        assertFalse(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias(INDEX, alias, new TermQueryBuilder("category", "included"))
+                .get()
+                .hasErrors()
+        );
+        RankVectorsEvalRequest request = new RankVectorsEvalRequest(
+            new RankVectorsEvalSpec("vectors", tokens(0, 1), 1, 2, true),
+            new String[] { alias }
+        );
+        RankVectorsEvalResponse response = client().execute(RankVectorsPlugin.RANK_VECTORS_EVAL_ACTION, request).actionGet();
+        assertEquals(List.of("included-best"), response.exactHits().stream().map(RankVectorsEvalResponse.Hit::id).toList());
+        assertEquals(List.of("included-best"), response.finalHits().stream().map(RankVectorsEvalResponse.Hit::id).toList());
+        assertEquals(1.0, response.candidateRecall(), 0.0);
+        assertEquals(1.0, response.finalRecall(), 0.0);
+    }
+
     private void createIndex() throws Exception {
         try (
             XContentBuilder mapping = XContentFactory.jsonBuilder()
@@ -86,7 +114,15 @@ public class RankVectorsEvalIT extends ESIntegTestCase {
     }
 
     private void index(String id, int shard, float[][] vectors) throws Exception {
-        try (XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("vectors", vectors).endObject()) {
+        index(id, shard, vectors, null);
+    }
+
+    private void index(String id, int shard, float[][] vectors, String category) throws Exception {
+        try (XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("vectors", vectors)) {
+            if (category != null) {
+                source.field("category", category);
+            }
+            source.endObject();
             prepareIndex(INDEX).setId(id).setRouting(routingKeyForShard(INDEX, shard)).setSource(source).get();
         }
     }

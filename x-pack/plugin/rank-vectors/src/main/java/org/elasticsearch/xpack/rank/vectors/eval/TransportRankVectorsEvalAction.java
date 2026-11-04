@@ -315,7 +315,7 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
     ) {
         int candidateBudget = Math.multiplyExact(spec.numCandidates(), primaryShards);
         SearchSourceBuilder source = commonSource(pit).query(
-            new RankVectorsCandidateQueryBuilder(spec.field(), spec.queryVector(), spec.numCandidates())
+            new RankVectorsCandidateQueryBuilder(spec.field(), spec.queryVector(), spec.k(), spec.numCandidates())
         ).size(candidateBudget);
         SearchRequest candidates = searchRequest(source);
         setParent(task, candidates);
@@ -389,10 +389,7 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
                     documentCount,
                     exactWork,
                     saturatingMultiply(spec.numCandidates(), primaryShards),
-                    saturatingMultiply(
-                        saturatingMultiply(saturatingMultiply(spec.numCandidates(), primaryShards), spec.queryVector().length),
-                        ASSUMED_DOCUMENT_VECTORS
-                    ),
+                    saturatingMultiply(saturatingMultiply(candidateIds.size(), spec.queryVector().length), ASSUMED_DOCUMENT_VECTORS),
                     primaryShards,
                     "muvera",
                     mappingInfo.encodingProfile,

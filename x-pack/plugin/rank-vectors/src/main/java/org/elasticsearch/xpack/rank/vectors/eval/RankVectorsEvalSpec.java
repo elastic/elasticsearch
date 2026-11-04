@@ -93,7 +93,7 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
         if (numCandidates < k || numCandidates > MAX_NUM_CANDIDATES) {
             throw new IllegalArgumentException("[num_candidates] must be between [k] and " + MAX_NUM_CANDIDATES);
         }
-        RankVectorsQueryBuilder.validateRescoreWork(queryVector.length, numCandidates);
+        RankVectorsQueryBuilder.validateRescoreWork(queryVector.length, k, numCandidates);
         if (allowExact == false) {
             throw new IllegalArgumentException(
                 "[allow_exact] must be true because the exact MaxSim baseline can severely slow other searches"

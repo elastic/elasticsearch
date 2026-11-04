@@ -31,6 +31,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
@@ -43,10 +44,13 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
 
@@ -159,22 +163,55 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
         }
     }
 
-    public void testMuveraQueryEncodesQueryVectorsDuringRewrite() throws Exception {
+    public void testMuveraCandidatesUseIvfQueryPath() {
+        assertThat(
+            MuveraCandidateQuery.approximateQuery("field", new float[RankVectorsFieldMapper.MUVERA_FDE_DIMS], 10, 100, null),
+            instanceOf(IVFKnnFloatVectorQuery.class)
+        );
+    }
+
+    public void testIvfCandidatesAreUniqueAndBoundedByRescoreOversample() throws Exception {
+        MapperService mapperService = createMapperService(indexedMuveraMapping());
+        try (
+            TestThreadPool threadPool = new TestThreadPool(getTestName());
+            Directory directory = newDirectory();
+            IndexWriter writer = new IndexWriter(
+                directory,
+                newIndexWriterConfig().setCodec(
+                    new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, threadPool).codec("default")
+                )
+            )
+        ) {
+            for (int i = 0; i < 100; i++) {
+                addDocument(mapperService.documentMapper(), writer, Integer.toString(i), unitTokens(i % 64, (i + 1) % 64));
+            }
+            writer.commit();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                int k = 10;
+                int numCandidates = 50;
+                TopDocs candidates = new IndexSearcher(reader).search(
+                    new MuveraCandidateQuery("field", unitTokens(0, 1), k, numCandidates, null, encoder()),
+                    numCandidates
+                );
+                assertTrue(candidates.scoreDocs.length > 0);
+                assertTrue(candidates.scoreDocs.length <= Math.ceil(k * DEFAULT_OVERSAMPLE));
+                HashSet<Integer> uniqueDocs = new HashSet<>();
+                for (var scoreDoc : candidates.scoreDocs) {
+                    assertTrue("duplicate candidate doc [" + scoreDoc.doc + "]", uniqueDocs.add(scoreDoc.doc));
+                }
+            }
+        }
+    }
+
+    public void testMuveraQueryValidatesVectorsBeforeRewrite() throws Exception {
         MapperService mapperService = createMapperService(indexedMuveraMapping());
         float[][] nonUnitQuery = unitTokens(0, 1);
         nonUnitQuery[0][1] = 1f;
         RankVectorsFieldMapper.RankVectorsFieldType fieldType = (RankVectorsFieldMapper.RankVectorsFieldType) mapperService.fieldType(
             "field"
         );
-        var query = fieldType.maxSimQuery(nonUnitQuery, 1, 1, null);
-
-        try (Directory directory = newDirectory(); IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig())) {
-            writer.commit();
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSearcher(reader).rewrite(query));
-                assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("must have unit magnitude"));
-            }
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fieldType.maxSimQuery(nonUnitQuery, 1, 1, null));
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("must have unit magnitude"));
     }
 
     public void testPublicQueryReturnsNoDocsForUnmappedField() throws Exception {
@@ -232,7 +269,14 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
         Arrays.fill(queryVectors, new float[RankVectorsFieldMapper.MUVERA_TOKEN_DIMS]);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new MuveraMaxSimQuery("field", queryVectors, 1, MuveraMaxSimQuery.MAX_CANDIDATES, null, encoder())
+            () -> new MuveraMaxSimQuery(
+                "field",
+                queryVectors,
+                MuveraMaxSimQuery.MAX_CANDIDATES,
+                MuveraMaxSimQuery.MAX_CANDIDATES,
+                null,
+                encoder()
+            )
         );
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("exact MaxSim work"));
     }
@@ -243,24 +287,18 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
         AtomicInteger checks = new AtomicInteger();
         expectThrows(
             TestCancellationException.class,
-            () -> MuveraMaxSimQuery.exactMaxSim(
-                queryVectors,
-                new BytesRef(bytes),
-                RankVectorsFieldMapper.MUVERA_TOKEN_DIMS,
-                new float[queryVectors.length],
-                () -> {
-                    if (checks.incrementAndGet() == 2) {
-                        throw new TestCancellationException();
-                    }
+            () -> MuveraMaxSimQuery.exactMaxSim(queryVectors, new BytesRef(bytes), RankVectorsFieldMapper.MUVERA_TOKEN_DIMS, () -> {
+                if (checks.incrementAndGet() == 2) {
+                    throw new TestCancellationException();
                 }
-            )
+            })
         );
         assertEquals(2, checks.get());
     }
 
     public void testMuveraQueryEncodingChecksCancellation() {
         AtomicInteger checks = new AtomicInteger();
-        expectThrows(TestCancellationException.class, () -> RankVectorsFieldMapper.encodeMuveraQuery(unitTokens(0, 1), () -> {
+        expectThrows(TestCancellationException.class, () -> encoder().encodeQuery(unitTokens(0, 1), () -> {
             if (checks.incrementAndGet() == 2) {
                 throw new TestCancellationException();
             }

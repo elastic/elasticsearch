@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.rank.vectors.query;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -69,6 +70,15 @@ public class RankVectorsQueryBuilderTests extends ESTestCase {
         assertEquals(1f, builder.getQueryVectors()[0][0], 0f);
     }
 
+    public void testInternalQueryBuildersRenderForTasksAndSlowLogs() {
+        float[][] queryVectors = { { 1f, 0f } };
+        assertThat(Strings.toString(new ExactRankVectorsQueryBuilder("tokens", queryVectors)), containsString("\"_exact_rank_vectors\""));
+        assertThat(
+            Strings.toString(new RankVectorsCandidateQueryBuilder("tokens", queryVectors, 1, 10)),
+            containsString("\"_rank_vectors_muvera_candidates\"")
+        );
+    }
+
     public void testValidation() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -98,7 +108,7 @@ public class RankVectorsQueryBuilderTests extends ESTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> new RankVectorsQueryBuilder("tokens", new float[RankVectorsFieldMapper.MAX_MUVERA_VECTORS][1], 1, 10_000)
+            () -> new RankVectorsQueryBuilder("tokens", new float[RankVectorsFieldMapper.MAX_MUVERA_VECTORS][1], 10_000, 10_000)
         );
         assertThat(e.getMessage(), containsString("exact MaxSim work"));
     }

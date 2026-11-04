@@ -40,6 +40,40 @@ public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
         this.vectorBytes = vectorBytes;
     }
 
+    /**
+     * Scores contiguous little-endian float vector bytes without requiring callers
+     * to construct script-field magnitude state.
+     */
+    public static float maxSimDotProduct(BytesRef vectorBytes, int numVectors, int dims, float[][] query) {
+        MultiFloatVectorsSource source = new MultiFloatVectorsSource() {
+            @Override
+            public BytesRef vectorBytes() {
+                return vectorBytes;
+            }
+
+            @Override
+            public int vectorCount() {
+                return numVectors;
+            }
+
+            @Override
+            public int vectorDims() {
+                return dims;
+            }
+
+            @Override
+            public int vectorByteSize() {
+                return dims * Float.BYTES;
+            }
+
+            @Override
+            public Iterator<float[]> vectorValues() {
+                return new FloatRankVectorsDocValuesField.FloatVectorIterator(vectorBytes, new float[dims], numVectors);
+            }
+        };
+        return ESVectorUtil.maxSimDotProduct(source, query, new float[numVectors]);
+    }
+
     @Override
     public float maxSimDotProduct(float[][] query) {
         float[] scores = ensureScoresScratch();

@@ -25,6 +25,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
@@ -58,6 +59,34 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         IvfQueryConfigResolver queryConfigResolver
     ) {
         this(field, query, k, numCands, filter, visitRatio, queryConfigResolver, false);
+    }
+
+    /**
+     * Creates an IVF query from mapping-level configuration without exposing
+     * codec-internal resolver types to callers outside the server module.
+     */
+    public static IVFKnnFloatVectorQuery fromMappingConfig(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        @Nullable Query filter,
+        float visitRatio,
+        boolean autoCalibrate,
+        boolean usePrecondition,
+        int bits,
+        float mappingOversample,
+        @Nullable Float queryOversample
+    ) {
+        return new IVFKnnFloatVectorQuery(
+            field,
+            query,
+            k,
+            numCands,
+            filter,
+            visitRatio,
+            IvfQueryConfigResolver.from(autoCalibrate, usePrecondition, bits, mappingOversample, queryOversample)
+        );
     }
 
     IVFKnnFloatVectorQuery(

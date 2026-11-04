@@ -18,6 +18,7 @@ esplugin {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly(project(':modules:lang-painless:spi'))
+  compileOnly project(':libs:simdvec')
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))

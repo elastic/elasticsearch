@@ -11,6 +11,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.LeafQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -30,11 +31,13 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
     public static final String NAME = "_rank_vectors_muvera_candidates";
     private final String field;
     private final float[][] queryVectors;
+    private final int k;
     private final int numCandidates;
 
-    public RankVectorsCandidateQueryBuilder(String field, float[][] queryVectors, int numCandidates) {
+    public RankVectorsCandidateQueryBuilder(String field, float[][] queryVectors, int k, int numCandidates) {
         this.field = Objects.requireNonNull(field);
         this.queryVectors = deepCopy(queryVectors);
+        this.k = k;
         this.numCandidates = numCandidates;
     }
 
@@ -42,29 +45,51 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
         super(in);
         field = in.readString();
         queryVectors = in.readArray(StreamInput::readFloatArray, float[][]::new);
+        k = in.readVInt();
         numCandidates = in.readVInt();
     }
 
     @Override
-    protected Query doToQuery(SearchExecutionContext context) {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType mappedFieldType = context.getFieldType(field);
         if (mappedFieldType instanceof RankVectorsFieldMapper.RankVectorsFieldType == false) {
             throw new IllegalArgumentException("field [" + field + "] is not a [rank_vectors] field");
         }
         RankVectorsFieldMapper.RankVectorsFieldType rankVectorsFieldType = (RankVectorsFieldMapper.RankVectorsFieldType) mappedFieldType;
-        return rankVectorsFieldType.muveraCandidateQuery(queryVectors, numCandidates);
+        Query aliasFilter = null;
+        if (context.getAliasFilter() != null) {
+            try (Releasable ignored = context.nestedScope().unwindTo(null)) {
+                aliasFilter = context.getAliasFilter().toQuery(context);
+            }
+        }
+        return rankVectorsFieldType.muveraCandidateQuery(queryVectors, k, numCandidates, aliasFilter);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeArray(StreamOutput::writeFloatArray, queryVectors);
+        out.writeVInt(k);
         out.writeVInt(numCandidates);
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) {
-        throw new UnsupportedOperationException("internal MUVERA candidate queries do not support XContent");
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME);
+        builder.field("field", field);
+        builder.startArray("query_vector");
+        for (float[] vector : queryVectors) {
+            builder.startArray();
+            for (float value : vector) {
+                builder.value(value);
+            }
+            builder.endArray();
+        }
+        builder.endArray();
+        builder.field("k", k);
+        builder.field("num_candidates", numCandidates);
+        boostAndQueryNameToXContent(builder);
+        builder.endObject();
     }
 
     @Override
@@ -80,12 +105,15 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
 
     @Override
     protected boolean doEquals(RankVectorsCandidateQueryBuilder other) {
-        return field.equals(other.field) && Arrays.deepEquals(queryVectors, other.queryVectors) && numCandidates == other.numCandidates;
+        return field.equals(other.field)
+            && Arrays.deepEquals(queryVectors, other.queryVectors)
+            && k == other.k
+            && numCandidates == other.numCandidates;
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field, Arrays.deepHashCode(queryVectors), numCandidates);
+        return Objects.hash(field, Arrays.deepHashCode(queryVectors), k, numCandidates);
     }
 
     private static float[][] deepCopy(float[][] vectors) {

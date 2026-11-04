@@ -72,8 +72,6 @@ final class ExactRankVectorsQuery extends Query {
                     @Override
                     public Scorer get(long leadCost) {
                         return new Scorer() {
-                            private final float[] maximums = new float[queryVectors.length];
-
                             @Override
                             public DocIdSetIterator iterator() {
                                 return values;
@@ -91,7 +89,6 @@ final class ExactRankVectorsQuery extends Query {
                                     queryVectors,
                                     values.binaryValue(),
                                     dimensions,
-                                    maximums,
                                     checkCancelled
                                 );
                                 return MuveraMaxSimQuery.score(rawScore) * boost;

@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
@@ -409,6 +410,38 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         assertFalse(serializedMapping.contains("_muvera"));
         String originalSource = parsedDocument.source().originalBytes().utf8ToString();
         assertFalse(originalSource.contains("_muvera"));
+    }
+
+    public void testProductionMuveraV1EncodingGoldenHash() throws Exception {
+        int tokenDims = RankVectorsFieldMapper.MUVERA_TOKEN_DIMS;
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "rank_vectors");
+            b.field("dims", tokenDims);
+            b.field("index", true);
+        }));
+        float[][] vectors = new float[2][tokenDims];
+        vectors[0][0] = 1f;
+        vectors[1][1] = 1f;
+        ParsedDocument parsedDocument = mapperService.documentMapper().parse(source(b -> b.field("field", vectors)));
+        float[] documentFde = ((KnnFloatVectorField) parsedDocument.rootDoc()
+            .getFields("field")
+            .stream()
+            .filter(KnnFloatVectorField.class::isInstance)
+            .findFirst()
+            .orElseThrow()).vectorValue();
+        float[] queryFde = ((RankVectorsFieldMapper.RankVectorsFieldType) mapperService.fieldType("field")).muveraEncoder()
+            .encodeQuery(vectors);
+        ByteBuffer encoded = ByteBuffer.allocate((documentFde.length + queryFde.length) * Float.BYTES).order(ByteOrder.BIG_ENDIAN);
+        for (float value : documentFde) {
+            encoded.putInt(Float.floatToIntBits(value));
+        }
+        for (float value : queryFde) {
+            encoded.putInt(Float.floatToIntBits(value));
+        }
+        assertEquals(
+            "933580656cd242f203558f723f9b180dfb2117fa45453ebe15f02dd8ff339cb3",
+            MessageDigests.toHexString(MessageDigests.sha256().digest(encoded.array()))
+        );
     }
 
     public void testIndexedMuveraRequiresUnitVectors() throws Exception {

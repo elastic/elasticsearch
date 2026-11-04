@@ -19,6 +19,7 @@ steps:
       diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
 
+  # Release-branch clusters from 9.5 on, at each branch's current tip.
   - label: esql-generative-single-node-bwc
     command: .ci/scripts/run-gradle.sh --continue :x-pack:plugin:esql:qa:server:single-node:bwcGenerativeTests
     timeout_in_minutes: 180

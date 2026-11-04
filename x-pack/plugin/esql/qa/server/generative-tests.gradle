@@ -3,6 +3,8 @@
  * Applied by the single-node and multi-node QA build.gradle files.
  *
  * Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes these by name.
+ * Coverage starts at 9.5. The snapshot checkout task is registered once on the release-branch project, which both
+ * topologies share, so they cannot check that directory out at the same time.
  *
  * Required ext properties (must be set before applying):
  *   - generativeTestsConfig: closure taking a StandaloneRestIntegTestTask, applying the project's test classes,
@@ -18,17 +20,16 @@ import org.gradle.process.ExecOperations
 import java.nio.charset.StandardCharsets
 
 def generativeTestsConfig = ext.generativeTestsConfig
-def execOperations = project.services.get(ExecOperations)
 
 tasks.register('generativeTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
   generativeTestsConfig(it)
 }
 
-// This branch's generator against the current tip of each maintained release branch, so generator fixes never need a
-// backport. branches.json names that tip (9.5.6 and 9.6.0 today; 9.7 once it is a release branch). 9.5.0 is only the
-// floor: 9.4 and older are out. Do not set bwc.checkout.align; that checks out an older commit instead of the tip.
-// GenerativeRestTest skips what the older cluster doesn't support.
+// Coverage starts at 9.5. This branch's generator runs against the current tip of each maintained release branch from
+// then on, so generator fixes never need a backport. branches.json names that tip (9.5.6 and 9.6.0 today; 9.7 once it
+// is a release branch). 9.5.0 is the floor, not a pinned release. Do not set bwc.checkout.align; that checks out an
+// older commit instead of the tip. GenerativeRestTest skips what the older cluster doesn't support.
 buildParams.bwcVersions.unreleasedWireCompatible
   .findAll { it.onOrAfter(Version.fromString("9.5.0")) && it != VersionProperties.elasticsearchVersion }
   .each { bwcVersion ->
@@ -39,54 +40,61 @@ buildParams.bwcVersions.unreleasedWireCompatible
     def draBuildId = bwcProject.plugins.getPlugin(InternalBwcGitPlugin).draBuildId
     // checkoutBwcBranch does not run when a pre-built snapshot is selected, so the checkout it would have
     // populated is missing or left from another commit. Check out the snapshot's own commit first.
-    def prepareCheckout = tasks.register("v${bwcVersion}#prepareEsqlFunctionCheckout") {
-      dependsOn "${bwcProject.path}:checkoutBwcBranch"
-      inputs.property("draBuildId", draBuildId)
-      onlyIf("pre-built snapshot skipped checkoutBwcBranch") { draBuildId.get().isEmpty() == false }
-      def branch = versionInfo.branch()
-      def remoteName = providers.systemProperty("bwc.remote").getOrElse("elastic")
-      def remoteUrl = providers.systemProperty("testRemoteRepo").getOrElse("https://github.com/${remoteName}/${rootProject.name}")
-      def sourceDir = rootProject.layout.projectDirectory.asFile
-      doLast {
-        def buildId = draBuildId.get()
-        def dash = buildId.lastIndexOf('-')
-        if (dash < 0) {
-          throw new GradleException("Cannot read a commit from BWC snapshot build id [${buildId}]")
-        }
-        def hash = buildId.substring(dash + 1)
-        if ((hash ==~ /[0-9a-fA-F]+/) == false) {
-          throw new GradleException("BWC snapshot build id [${buildId}] does not end in a commit hash")
-        }
-        def dir = checkoutDir.get()
-        if (dir.exists() == false) {
-          dir.parentFile.mkdirs()
-          execOperations.exec { spec -> spec.commandLine("git", "clone", sourceDir.absolutePath, dir.absolutePath) }
-        }
-        def listedRemotes = new ByteArrayOutputStream()
-        execOperations.exec { spec ->
-          spec.workingDir(dir)
-          spec.commandLine("git", "remote")
-          spec.standardOutput = listedRemotes
-        }
-        if (listedRemotes.toString(StandardCharsets.UTF_8).readLines().contains(remoteName) == false) {
-          execOperations.exec { spec ->
-            spec.workingDir(dir)
-            spec.commandLine("git", "remote", "add", remoteName, remoteUrl)
+    // One task on the release-branch project: single-node and multi-node both copy from this directory.
+    def prepareTaskName = "prepareEsqlFunctionCheckout"
+    synchronized (bwcProject.tasks) {
+      if (bwcProject.tasks.names.contains(prepareTaskName) == false) {
+        def bwcExecOperations = bwcProject.services.get(ExecOperations)
+        bwcProject.tasks.register(prepareTaskName) {
+          dependsOn "checkoutBwcBranch"
+          inputs.property("draBuildId", draBuildId)
+          onlyIf("pre-built snapshot skipped checkoutBwcBranch") { draBuildId.get().isEmpty() == false }
+          def branch = versionInfo.branch()
+          def remoteName = providers.systemProperty("bwc.remote").getOrElse("elastic")
+          def remoteUrl = providers.systemProperty("testRemoteRepo").getOrElse("https://github.com/${remoteName}/${rootProject.name}")
+          def sourceDir = rootProject.layout.projectDirectory.asFile
+          doLast {
+            def buildId = draBuildId.get()
+            def dash = buildId.lastIndexOf('-')
+            if (dash < 0) {
+              throw new GradleException("Cannot read a commit from BWC snapshot build id [${buildId}]")
+            }
+            def hash = buildId.substring(dash + 1)
+            if ((hash ==~ /[0-9a-fA-F]+/) == false) {
+              throw new GradleException("BWC snapshot build id [${buildId}] does not end in a commit hash")
+            }
+            def dir = checkoutDir.get()
+            if (dir.exists() == false) {
+              dir.parentFile.mkdirs()
+              bwcExecOperations.exec { spec -> spec.commandLine("git", "clone", sourceDir.absolutePath, dir.absolutePath) }
+            }
+            def listedRemotes = new ByteArrayOutputStream()
+            bwcExecOperations.exec { spec ->
+              spec.workingDir(dir)
+              spec.commandLine("git", "remote")
+              spec.standardOutput = listedRemotes
+            }
+            if (listedRemotes.toString(StandardCharsets.UTF_8).readLines().contains(remoteName) == false) {
+              bwcExecOperations.exec { spec ->
+                spec.workingDir(dir)
+                spec.commandLine("git", "remote", "add", remoteName, remoteUrl)
+              }
+            }
+            bwcExecOperations.exec { spec ->
+              spec.workingDir(dir)
+              spec.commandLine("git", "fetch", "--force", remoteName, "+refs/heads/${branch}:refs/remotes/${remoteName}/${branch}")
+            }
+            bwcExecOperations.exec { spec ->
+              spec.workingDir(dir)
+              spec.commandLine("git", "checkout", "--force", hash)
+            }
           }
-        }
-        execOperations.exec { spec ->
-          spec.workingDir(dir)
-          spec.commandLine("git", "fetch", "--force", remoteName, "+refs/heads/${branch}:refs/remotes/${remoteName}/${branch}")
-        }
-        execOperations.exec { spec ->
-          spec.workingDir(dir)
-          spec.commandLine("git", "checkout", "--force", hash)
         }
       }
     }
     def functionDefinitions = tasks.register("v${bwcVersion}#copyEsqlFunctionDefinitions", Sync) {
       dependsOn "${bwcProject.path}:checkoutBwcBranch"
-      dependsOn prepareCheckout
+      dependsOn "${bwcProject.path}:${prepareTaskName}"
       from(checkoutDir.map {
         new File(it, 'docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/functions')
       })

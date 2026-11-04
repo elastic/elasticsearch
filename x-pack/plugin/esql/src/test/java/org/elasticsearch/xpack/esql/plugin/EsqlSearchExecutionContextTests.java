@@ -21,11 +21,12 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlSearchExecutionContextTests extends MapperServiceTestCase {
 
-    private static final Set<String> READ_BY_THE_PLAN = Set.of("mapped", "attrs.bar", "unmapped");
+    private static final Set<String> READ_BY_THE_PLAN = Set.of("mapped", "attrs.bar", "unmapped", "object");
     private static final String MAPPING = """
         { "_doc": { "dynamic": false, "properties": {
           "mapped": { "type": "keyword" },
-          "attrs": { "type": "flattened" }
+          "attrs": { "type": "flattened" },
+          "object": { "properties": { "leaf": { "type": "keyword" } } }
         } } }""";
 
     /**
@@ -45,6 +46,9 @@ public class EsqlSearchExecutionContextTests extends MapperServiceTestCase {
         assertThat(context.getFieldType("unmapped"), instanceOf(KeywordScriptFieldType.class));
         assertTrue("the shard reads the field, so a query on it is not rewritten to match nothing", context.isMappedField("unmapped"));
         assertTrue(context.readsFromSource("unmapped"));
+
+        assertNull("an object holds no value of its own, so the shard reads none", context.getFieldType("object"));
+        assertFalse(context.readsFromSource("object"));
     }
 
     /** A name the plan does not read keeps the resolution of the mapping: the plan reads it as null. */

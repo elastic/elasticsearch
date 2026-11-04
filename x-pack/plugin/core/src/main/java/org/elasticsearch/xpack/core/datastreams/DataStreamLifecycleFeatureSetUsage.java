@@ -30,6 +30,7 @@ import java.util.Objects;
 public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
 
     private static final TransportVersion INCLUDES_FROZEN_AFTER = TransportVersion.fromName("dlm_telemetry_frozen_after");
+    public static final TransportVersion INCLUDES_MINIMUM_LIFECYCLE = TransportVersion.fromName("dlm_telemetry_minimum_lifecycle");
 
     public static final DataStreamLifecycleFeatureSetUsage DISABLED = new DataStreamLifecycleFeatureSetUsage();
     final LifecycleStats lifecycleStats;
@@ -98,7 +99,8 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             TimeThresholdStats.NO_DATA,
             TimeThresholdStats.NO_DATA,
             null,
-            Map.of()
+            Map.of(),
+            null
         );
         public static final String DEFAULT_RETENTION_FIELD_NAME = "default";
         public static final String MAX_RETENTION_FIELD_NAME = "max";
@@ -109,6 +111,8 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
         @Nullable
         final TimeThresholdStats frozenAfterStats;
         final Map<String, GlobalRetentionStats> globalRetentionStats;
+        @Nullable
+        final Long minimumLifecycleEnabledCount;
 
         public LifecycleStats(
             long dataStreamsWithLifecyclesCount,
@@ -116,7 +120,8 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             TimeThresholdStats dataRetentionStats,
             TimeThresholdStats effectiveRetentionStats,
             @Nullable TimeThresholdStats frozenAfterStats,
-            Map<String, GlobalRetentionStats> globalRetentionStats
+            Map<String, GlobalRetentionStats> globalRetentionStats,
+            @Nullable Long minimumLifecycleEnabledCount
         ) {
             this.dataStreamsWithLifecyclesCount = dataStreamsWithLifecyclesCount;
             this.defaultRolloverUsed = defaultRolloverUsed;
@@ -124,6 +129,7 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
             this.effectiveRetentionStats = effectiveRetentionStats;
             this.globalRetentionStats = globalRetentionStats;
             this.frozenAfterStats = frozenAfterStats;
+            this.minimumLifecycleEnabledCount = minimumLifecycleEnabledCount;
         }
 
         public static LifecycleStats read(StreamInput in) throws IOException {
@@ -133,7 +139,8 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                 TimeThresholdStats.read(in),
                 TimeThresholdStats.read(in),
                 in.getTransportVersion().supports(INCLUDES_FROZEN_AFTER) ? in.readOptionalWriteable(TimeThresholdStats::read) : null,
-                in.readMap(GlobalRetentionStats::new)
+                in.readMap(GlobalRetentionStats::new),
+                in.getTransportVersion().supports(INCLUDES_MINIMUM_LIFECYCLE) ? in.readOptionalVLong() : null
             );
         }
 
@@ -147,6 +154,9 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                 out.writeOptionalWriteable(frozenAfterStats);
             }
             out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
+            if (out.getTransportVersion().supports(INCLUDES_MINIMUM_LIFECYCLE)) {
+                out.writeOptionalVLong(minimumLifecycleEnabledCount);
+            }
         }
 
         @Override
@@ -157,7 +167,8 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                 dataRetentionStats,
                 effectiveRetentionStats,
                 frozenAfterStats,
-                globalRetentionStats
+                globalRetentionStats,
+                minimumLifecycleEnabledCount
             );
         }
 
@@ -172,13 +183,17 @@ public class DataStreamLifecycleFeatureSetUsage extends XPackFeatureUsage {
                 && Objects.equals(dataRetentionStats, other.dataRetentionStats)
                 && Objects.equals(effectiveRetentionStats, other.effectiveRetentionStats)
                 && Objects.equals(frozenAfterStats, other.frozenAfterStats)
-                && Objects.equals(globalRetentionStats, other.globalRetentionStats);
+                && Objects.equals(globalRetentionStats, other.globalRetentionStats)
+                && Objects.equals(minimumLifecycleEnabledCount, other.minimumLifecycleEnabledCount);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("count", dataStreamsWithLifecyclesCount);
             builder.field("default_rollover_used", defaultRolloverUsed);
+            if (minimumLifecycleEnabledCount != null) {
+                builder.field("minimum_lifecycle_count", minimumLifecycleEnabledCount);
+            }
 
             TimeThresholdStats.toXContentFragment(builder, dataRetentionStats, TimeThresholdStats.DATA_RETENTION);
             TimeThresholdStats.toXContentFragment(builder, effectiveRetentionStats, TimeThresholdStats.EFFECTIVE_RETENTION);

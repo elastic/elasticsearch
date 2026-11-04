@@ -23,6 +23,7 @@ final class ClassWriterUtil {
     // Standard Java types
     static final ClassDesc CD_void = ClassDesc.ofDescriptor("V");
     static final ClassDesc CD_Object = ClassDesc.of("java.lang.Object");
+    static final ClassDesc CD_Reference = ClassDesc.of("java.lang.ref.Reference");
     static final ClassDesc CD_String = ClassDesc.of("java.lang.String");
     static final ClassDesc CD_long = ClassDesc.ofDescriptor("J");
     static final ClassDesc CD_boolean = ClassDesc.ofDescriptor("Z");

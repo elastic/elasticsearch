@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 163205
+summary: "Fix `doc_values: false` conflicting with the default on `binary`, `text` and `match_only_text` fields"
+type: bug

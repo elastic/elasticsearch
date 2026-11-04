@@ -113,6 +113,7 @@ public class BatchBulkTSDBIT extends ESIntegTestCase {
                             .put("index.number_of_shards", 1)
                             .put("index.number_of_replicas", 0)
                             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                            .put(IndexSettings.BATCH_INDEXING.getKey(), true)
                             .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean())
                             .build(),
                         CompressedXContent.fromJSON(mapping),

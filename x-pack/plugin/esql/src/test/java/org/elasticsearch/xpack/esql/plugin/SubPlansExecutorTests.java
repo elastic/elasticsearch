@@ -548,6 +548,132 @@ public class SubPlansExecutorTests extends ESTestCase {
         assertTrue("root exchange must be deregistered after success", exchangeFullyEmpty());
     }
 
+    /**
+     * LIMIT-style skip via {@code parent.exchange.isFinished()}, not STOP. With {@code twoMergesThreeLeaves()} and
+     * {@code branch_parallel_degree=1}, the first wave starts only the root merge and {@code subplan-0}. Finishing the root exchange
+     * source from that leaf's {@code executePlan} stub (what {@code LimitOperator} does after the first page) must skip the nested
+     * merge's {@code runCompute} and its leaves' {@code executePlan} on refill. {@code execInfo.isStopped()} stays false so this hits the
+     * second half of {@code outputFinished}.
+     */
+    public void testFinishedRootExchangeSkipsUnstartedNestedMerge() throws Exception {
+        List<String> runComputeDescriptions = Collections.synchronizedList(new ArrayList<>());
+        List<String> executePlanPaths = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<ExchangeSource> rootSource = new AtomicReference<>();
+
+        doAnswer(inv -> {
+            ComputeContext context = inv.getArgument(1);
+            ActionListener<DriverCompletionInfo> listener = inv.getArgument(6);
+            runComputeDescriptions.add(context.description());
+            if (context.exchangeSinkSupplier() == null) {
+                rootSource.set(context.exchangeSourceSupplier().get());
+            }
+            listener.onResponse(DriverCompletionInfo.EMPTY);
+            return null;
+        }).when(computeService).runCompute(any(), any(), any(), any(), any(), any(), any());
+
+        doAnswer(inv -> {
+            String path = inv.getArgument(7);
+            executePlanPaths.add(path);
+            if (path.equals("subplan-0")) {
+                assertNotNull("root source must be captured before the first leaf", rootSource.get());
+                rootSource.get().finish();
+            }
+            Supplier<ExchangeSink> sinkSupplier = inv.getArgument(9);
+            sinkSupplier.get().finish();
+            ActionListener<Result> listener = inv.getArgument(8);
+            Configuration cfg = inv.getArgument(4);
+            listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
+            return null;
+        }).when(computeService)
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+
+        StartedQuery started = startQuery(
+            twoMergesThreeLeaves(),
+            new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build())
+        );
+
+        started.future.get();
+        assertThat(runComputeDescriptions, equalTo(List.of("main.final")));
+        assertThat(executePlanPaths, equalTo(List.of("subplan-0")));
+        assertFalse("LIMIT skip is a graceful finish, not a failure", cancelled.get());
+        assertFalse("must skip via parent.exchange.isFinished(), not isStopped", started.execInfo.isStopped());
+        assertTrue("root exchange must be deregistered after LIMIT skip", exchangeFullyEmpty());
+    }
+
+    /**
+     * LIMIT-style skip is parent-scoped. With {@code threeMergesSixLeaves()} and {@code branch_parallel_degree=1}, the first wave starts
+     * root, innerA, and {@code leafA}. Finishing innerA's exchange source while {@code leafA} is still running must skip {@code leafB} on
+     * refill, but all four {@code innerB} leaves must still run because the root exchange is open and {@code execInfo.isStopped()} is
+     * false.
+     */
+    public void testFinishedInnerExchangeSkipsRemainingLeavesNotCousins() throws Exception {
+        List<String> runComputeDescriptions = Collections.synchronizedList(new ArrayList<>());
+        List<String> executePlanPaths = Collections.synchronizedList(new ArrayList<>());
+        AtomicReference<ExchangeSource> innerASource = new AtomicReference<>();
+        AtomicReference<ActionListener<Result>> parkedLeafA = new AtomicReference<>();
+
+        doAnswer(inv -> {
+            ComputeContext context = inv.getArgument(1);
+            ActionListener<DriverCompletionInfo> listener = inv.getArgument(6);
+            runComputeDescriptions.add(context.description());
+            if ("subplan-0.merge".equals(context.description())) {
+                innerASource.set(context.exchangeSourceSupplier().get());
+            }
+            if (context.exchangeSinkSupplier() != null) {
+                context.exchangeSinkSupplier().get().finish();
+            }
+            listener.onResponse(DriverCompletionInfo.EMPTY);
+            return null;
+        }).when(computeService).runCompute(any(), any(), any(), any(), any(), any(), any());
+
+        doAnswer(inv -> {
+            String path = inv.getArgument(7);
+            executePlanPaths.add(path);
+            ActionListener<Result> listener = ActionListener.notifyOnce(inv.getArgument(8));
+            if ("subplan-0.subplan-0".equals(path)) {
+                // Park without opening a real sink. The leaf's placeholder sink (`blocked`) keeps innerA's exchange open until parkedLeafA
+                // is completed later in the test, which closes it.
+                parkedLeafA.set(listener);
+                return null;
+            }
+            Supplier<ExchangeSink> sinkSupplier = inv.getArgument(9);
+            sinkSupplier.get().finish();
+            Configuration cfg = inv.getArgument(4);
+            listener.onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
+            return null;
+        }).when(computeService)
+            .executePlan(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+
+        StartedQuery started = startQuery(
+            threeMergesSixLeaves(),
+            new QueryPragmas(Settings.builder().put("branch_parallel_degree", 1).build())
+        );
+
+        assertThat(
+            "only leafA must be dispatched before the inner exchange is finished",
+            executePlanPaths,
+            equalTo(List.of("subplan-0.subplan-0"))
+        );
+        assertNotNull("innerA source must be captured while leafA is parked", innerASource.get());
+        assertNotNull("leafA must be parked", parkedLeafA.get());
+
+        innerASource.get().finish();
+        Configuration cfg = configuration(new QueryPragmas(Settings.EMPTY));
+        parkedLeafA.get().onResponse(new Result(List.of(), List.of(), null, cfg, DriverCompletionInfo.EMPTY, null, null));
+
+        started.future.get();
+        assertThat(Set.copyOf(runComputeDescriptions), equalTo(Set.of("main.final", "subplan-0.merge", "subplan-1.merge")));
+        assertThat(
+            Set.copyOf(executePlanPaths),
+            equalTo(
+                Set.of("subplan-0.subplan-0", "subplan-1.subplan-0", "subplan-1.subplan-1", "subplan-1.subplan-2", "subplan-1.subplan-3")
+            )
+        );
+        assertFalse("LIMIT skip is a graceful finish, not a failure", cancelled.get());
+        assertFalse("must skip via parent.exchange.isFinished(), not isStopped", started.execInfo.isStopped());
+        assertTrue("root exchange must be deregistered after parent-scoped LIMIT skip", exchangeFullyEmpty());
+    }
+
     // cancel
 
     /**

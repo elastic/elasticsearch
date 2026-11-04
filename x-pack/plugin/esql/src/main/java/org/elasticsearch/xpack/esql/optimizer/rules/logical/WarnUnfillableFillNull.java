@@ -34,7 +34,7 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
  * The one silent form is an explicit {@code NULL} value, which means "do not fill": nothing is unexpectedly left
  * unchanged, so there is nothing to report.
  * <p>
- * This runs before {@link SubstituteSurrogatePlans} in {@code LogicalPlanOptimizer.substitutions()} because that
+ * This runs before {@link SubstituteFillNull} in {@code LogicalPlanOptimizer.substitutions()} because that
  * substitution rewrites the {@link FillNull} node away.
  */
 public final class WarnUnfillableFillNull extends Rule<LogicalPlan, LogicalPlan> {

@@ -75,6 +75,21 @@ public class MockDocumentExtractionServiceIT extends InferenceBaseRestTest {
     }
 
     @SuppressWarnings("unchecked")
+    public void testMockServiceAcceptsHtmlUrlInput() throws IOException {
+        String inferenceEntityId = "test-mock-html";
+        putModel(inferenceEntityId, mockDocumentExtractionServiceModelConfig(), TaskType.DOCUMENT_EXTRACTION);
+
+        var htmlInput = new InferenceString(DataType.HTML, DataFormat.URL, "https://example.com/" + randomAlphanumericOfLength(8));
+        var inference = documentExtractionInfer(inferenceEntityId, List.of(htmlInput));
+
+        var results = (List<Map<String, Object>>) inference.get(DocumentExtractionResults.DOCUMENT_EXTRACTION);
+        assertThat(results, hasSize(1));
+        assertThat((String) results.getFirst().get(DocumentExtractionResults.Result.CONTENT), startsWith("extracted content"));
+        // The mock service only derives a media type from base64 data URIs
+        assertThat(results.getFirst().get(DocumentExtractionResults.Result.METADATA), is(Map.of("media_type", "unknown")));
+    }
+
+    @SuppressWarnings("unchecked")
     public void testMockServiceAppliesRequestTaskSettings() throws IOException {
         String inferenceEntityId = "test-mock-task-settings";
         putModel(inferenceEntityId, mockDocumentExtractionServiceModelConfig(), TaskType.DOCUMENT_EXTRACTION);

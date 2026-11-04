@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -64,6 +65,10 @@ public class ProfileParser {
 
     public record Profile(List<Driver> drivers) {}
 
+    /**
+     * @param driverNanos Wall time the driver held a thread, or {@code null} when the profile only has
+     *                    {@code cpu_nanos} for that measurement.
+     */
     public record Driver(
         @JsonProperty("description") String description,
         @JsonProperty("cluster_name") String clusterName,
@@ -72,6 +77,7 @@ public class ProfileParser {
         @JsonProperty("stop_millis") long stopMillis,
         @JsonProperty("took_nanos") long tookNanos,
         @JsonProperty("cpu_nanos") long cpuNanos,
+        @JsonProperty("driver_nanos") @Nullable Long driverNanos,
         @JsonProperty("iterations") int iterations,
         @JsonProperty("operators") List<Operator> operators,
         @JsonProperty("sleeps") Sleeps sleeps
@@ -146,6 +152,8 @@ public class ProfileParser {
      * https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
      *
      * Associates the driver with a given process and thread id to separate them visually.
+     * The thread duration uses driver wall time, falling back to {@code cpu_nanos} only when
+     * {@code driver_nanos} is absent from the profile.
      */
     @SuppressWarnings("unchecked")
     private static void parseDriverProfile(Driver driver, int pid, int tid, XContentBuilder builder) throws IOException {
@@ -155,7 +163,7 @@ public class ProfileParser {
         emitMetadataForDriver(driverDescription, pid, tid, builder);
 
         builder.startObject();
-        // Represent a driver as a "complete" event, so that the cpu time can be represented visually.
+        // Represent a driver as a "complete" event, so that its busy time can be represented visually.
         builder.field("ph", "X");
         builder.field("name", name);
         builder.field("cat", driverDescription);
@@ -165,12 +173,18 @@ public class ProfileParser {
         builder.field("ts", startMicros);
         double durationMicros = ((double) driver.tookNanos()) / 1000.0;
         builder.field("dur", durationMicros);
-        double cpuDurationMicros = ((double) driver.cpuNanos()) / 1000.0;
-        builder.field("tdur", cpuDurationMicros);
+        // The trace format defines tdur as thread clock time, but here it is driver wall time so traces are comparable
+        // across versions. Profiles without driver_nanos come from versions that report driver wall time in cpu_nanos.
+        long driverNanos = driver.driverNanos() == null ? driver.cpuNanos() : driver.driverNanos();
+        double driverDurationMicros = ((double) driverNanos) / 1000.0;
+        builder.field("tdur", driverDurationMicros);
 
         builder.field("args");
         builder.startObject();
         builder.field("cpu_nanos", driver.cpuNanos());
+        if (driver.driverNanos() != null) {
+            builder.field("driver_nanos", driver.driverNanos());
+        }
         builder.field("took_nanos", driver.tookNanos());
         builder.field("iterations", driver.iterations());
         // TODO: Sleeps have more details that could be added here

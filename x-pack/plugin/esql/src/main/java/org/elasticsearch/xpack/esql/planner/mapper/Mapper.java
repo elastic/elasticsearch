@@ -225,7 +225,7 @@ public class Mapper {
         // TsInfo: same two-phase pattern as MetricsInfo but per time-series granularity.
         if (unary instanceof TsInfo tsInfo) {
             mappedChild = addExchangeForFragment(tsInfo, mappedChild);
-            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL);
+            return new TsInfoExec(tsInfo.source(), mappedChild, tsInfo.output(), tsInfo.output(), TsInfoExec.Mode.FINAL, tsInfo.limit());
         }
 
         //

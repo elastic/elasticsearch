@@ -564,12 +564,7 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
     ],
     'distribution-closure-assignment': [
-      'distribution/build.gradle::7',
-      'distribution/docker/build.gradle::1',
-    ],
-    'distribution-ext-closure-api': [
-      'distribution/build.gradle::2',
-      'distribution/docker/build.gradle::2',
+      'distribution/build.gradle::6',
     ],
   ])
 }

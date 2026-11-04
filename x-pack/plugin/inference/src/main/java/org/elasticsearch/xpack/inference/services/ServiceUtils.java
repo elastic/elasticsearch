@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.apache.hc.core5.net.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -335,12 +336,40 @@ public final class ServiceUtils {
         }
     }
 
+    /**
+     * Creates a {@link URI}, reporting an invalid url with the same field-context message as {@link #convertToUri}. Intended for
+     * {@link org.elasticsearch.xcontent.ObjectParser}-based service settings, which throw directly instead of collecting errors into a
+     * {@link ValidationException} but should still tell the user which service settings field held the unparsable url.
+     *
+     * @param url the url to parse; must not be {@code null}
+     * @param settingName the name of the service settings field the url came from, used in the error message
+     */
+    public static URI createUri(String url, String settingName) throws IllegalArgumentException {
+        try {
+            return createUri(url);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(invalidUrlErrorMsg(url, settingName, SERVICE_SETTINGS, e.getMessage()), e);
+        }
+    }
+
     public static URI createOptionalUri(String url) {
         if (url == null) {
             return null;
         }
 
         return createUri(url);
+    }
+
+    /**
+     * Builds the URI while keeping colons in path segments unencoded. The HttpClient 4.x {@code URIBuilder} never percent-encoded
+     * colons in path segments (they are legal per RFC 3986), but the 5.x builder does, which breaks Google-style method URLs
+     * such as {@code models/gemini-pro:generateContent}.
+     *
+     * TODO (httpclient5 migration): this post-processing also un-encodes a literal ':' contained in user-provided segments
+     * (project/model ids), exactly matching the 4.x behavior. Revisit if the library ever offers per-segment encoding control.
+     */
+    public static URI buildUriPreservingColons(URIBuilder uriBuilder) throws URISyntaxException {
+        return new URI(uriBuilder.build().toString().replace("%3A", ":"));
     }
 
     public static SecureString extractRequiredSecureString(
@@ -1081,6 +1110,10 @@ public final class ServiceUtils {
 
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
+    }
+
+    public static void throwUnsupportedDecisionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "decision");
     }
 
     public static void throwUnsupportedDocumentExtractionOperation(String serviceName) {

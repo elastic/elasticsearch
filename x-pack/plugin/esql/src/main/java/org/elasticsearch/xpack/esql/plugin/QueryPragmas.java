@@ -142,10 +142,28 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> MAX_BRANCH_COUNT = Setting.intSetting("max_branch_count", 20, 1);
 
     /**
+     * Cap on how many commands a statement may have, counting the main query and all its subqueries together. The parser enforces it.
+     * <p>
+     * When this pragma is not set, {@link EsqlFlags#ESQL_MAX_COMMAND_COUNT} supplies the cap. An explicit value overrides the cluster
+     * setting for this query only.
+     * <p>
+     * The main pipeline is also bounded by {@code LogicalPlanBuilder#MAX_QUERY_DEPTH} (500), a fixed recursion guard in the parser, so
+     * values above 500 only apply to subqueries and expanded views.
+     */
+    public static final Setting<Integer> MAX_COMMAND_COUNT = Setting.intSetting("max_command_count", 500, 1);
+
+    /**
      * Inclusive upper bound of {@link #MAX_BRANCH_COUNT_PER_MERGE} and {@link EsqlFlags#ESQL_MAX_BRANCH_COUNT_PER_MERGE}. Parse-time
      * checks use this as the hard ceiling.
      */
     public static final int MAX_BRANCH_COUNT_PER_MERGE_MAX = 20;
+
+    /**
+     * Fixed ceiling on the leaf branches of a parsed plan, so that nested FORKs cannot blow up the plan before analysis. It is well above
+     * the default {@link #MAX_BRANCH_COUNT}, which is enforced after the logical optimizer prunes empty branches. A configured
+     * {@code max_branch_count} above this value has no effect on queries that exceed it at parse time.
+     */
+    public static final int MAX_PARSED_BRANCH_COUNT = 128;
 
     /**
      * Cap on how many direct children one merge may have. Applies to {@code FORK}, dataset rewrite, and a top-level PromQL {@code or}
@@ -259,6 +277,7 @@ public final class QueryPragmas implements Writeable {
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
         MAX_BRANCH_COUNT,
+        MAX_COMMAND_COUNT,
         MAX_BRANCH_COUNT_PER_MERGE,
         MAX_BRANCH_LEVEL,
         PARSING_PARALLELISM,
@@ -433,6 +452,22 @@ public final class QueryPragmas implements Writeable {
      */
     public int maxBranchCount(int clusterDefault) {
         return settings.hasValue(MAX_BRANCH_COUNT.getKey()) ? MAX_BRANCH_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Effective statement size cap: an explicit {@link #MAX_COMMAND_COUNT} pragma overrides {@code clusterDefault}.
+     */
+    public int maxCommandCount(int clusterDefault) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey()) ? MAX_COMMAND_COUNT.get(settings) : clusterDefault;
+    }
+
+    /**
+     * Label for the source of {@link #maxCommandCount(int)}, used in verification messages.
+     */
+    public String maxCommandCountLimitSource(String clusterSettingKey) {
+        return settings.hasValue(MAX_COMMAND_COUNT.getKey())
+            ? "[" + MAX_COMMAND_COUNT.getKey() + "] query pragma"
+            : "[" + clusterSettingKey + "] cluster setting";
     }
 
     /**

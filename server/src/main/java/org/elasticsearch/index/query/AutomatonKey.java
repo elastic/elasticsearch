@@ -37,4 +37,12 @@ public sealed interface AutomatonKey {
             return ChildMemoryCircuitBreaker.CATEGORY_REGEXP;
         }
     }
+
+    /** The automaton {@code value} identifies over the values of {@code key}, a key of a {@code flattened} field. */
+    record Keyed(String key, AutomatonKey value) implements AutomatonKey {
+        @Override
+        public String category() {
+            return value.category();
+        }
+    }
 }

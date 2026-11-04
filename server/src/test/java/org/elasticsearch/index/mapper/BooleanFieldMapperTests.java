@@ -50,6 +50,9 @@ public class BooleanFieldMapperTests extends MapperTestCase {
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
+        checker.registerIgnoredParameter("multi_value");
+        checker.registerIgnoredParameter("nullability");
+        checker.registerIgnoredParameter("on_failure");
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", true));
@@ -370,9 +373,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             }
             b.field("ignore_malformed", ignoreMalformed);
             if (enforceSingleValue) {
-                b.startObject("doc_values");
                 b.field("multi_value", false);
-                b.endObject();
             }
         }
 
@@ -463,5 +464,11 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         boolean v4 = randomBoolean();
         String src = syntheticSource(mapper, b -> b.array("field", v1, v2, v3, v4));
         assertThat(src, containsString("\"field\":[" + v1 + "," + v2 + "," + v3 + "," + v4 + "]"));
+    }
+
+    @Override
+    protected boolean supportsIndexSortRangeTest() {
+        // NOTE: The test needs three distinct ordered values and a boolean has two.
+        return false;
     }
 }

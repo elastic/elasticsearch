@@ -22,6 +22,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     private final CharArraySet articles;
+    private final Object sharingKey;
 
     ElisionTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
@@ -29,6 +30,7 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implem
         if (this.articles == null) {
             throw new IllegalArgumentException("elision filter requires [articles] or [articles_path] setting");
         }
+        this.sharingKey = new Key(new Analysis.StableCharArraySet(articles, settings.getAsBoolean("articles_case", false)));
     }
 
     @Override
@@ -36,4 +38,10 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implem
         return new ElisionFilter(tokenStream, articles);
     }
 
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Analysis.StableCharArraySet articles) {}
 }

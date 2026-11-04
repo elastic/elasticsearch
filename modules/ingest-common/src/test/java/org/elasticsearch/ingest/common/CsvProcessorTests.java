@@ -311,13 +311,13 @@ public class CsvProcessorTests extends ESTestCase {
         assumeTrue("single run only", quote.isEmpty());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "abc,abc");
-        HashMap<String, Object> metadata = new HashMap<>(ingestDocument.getSourceAndMetadata());
+        HashMap<String, Object> source = new HashMap<>(ingestDocument.getSource());
 
         CsvProcessor processor = new CsvProcessor(randomAlphaOfLength(5), null, fieldName, new String[0], false, ',', '"', false, null);
 
         processor.execute(ingestDocument);
 
-        assertEquals(metadata, ingestDocument.getSourceAndMetadata());
+        assertEquals(source, ingestDocument.getSource());
     }
 
     private IngestDocument processDocument(String[] headers, String csv) {

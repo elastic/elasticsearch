@@ -45,7 +45,7 @@ public class FlakinessJsonTests {
             { "mergeBase": "abc123",
               "refs": [
                 { "source": "changed-file", "path": "server/src/test/java/org/elasticsearch/FooTests.java" },
-                { "source": "unmute", "className": "org.foo.BarTests", "method": "test {yaml=x/y}" },
+                { "source": "unmute", "className": "org.foo.BarTests", "method": "test {yaml=x/y}", "excludeTasks": [":server:test"] },
                 { "source": "explicit", "spec": "org.foo.BazTests.testX" } ] }
             """;
 
@@ -55,6 +55,7 @@ public class FlakinessJsonTests {
         assertThat(refs.refs(), hasSize(3));
         assertThat(refs.refs().get(0).path(), equalTo("server/src/test/java/org/elasticsearch/FooTests.java"));
         assertThat(refs.refs().get(1).method(), equalTo("test {yaml=x/y}"));
+        assertThat(refs.refs().get(1).excludeTasks(), contains(":server:test"));
         assertThat(refs.refs().get(2).spec(), equalTo("org.foo.BazTests.testX"));
     }
 
@@ -103,7 +104,7 @@ public class FlakinessJsonTests {
             null,
             null,
             List.of(":libs:dissect:test"),
-            1,
+            List.of(":libs:dissect:test"),
             null
         );
         FlakinessJson.ProjectTargetsFile file = new FlakinessJson.ProjectTargetsFile(

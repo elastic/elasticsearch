@@ -497,14 +497,7 @@ public final class LuceneSliceQueue {
             ) {
                 final List<LeafReaderContext> leaves = searcher.getLeafContexts();
                 final int totalDocCount = searcher.getIndexReader().maxDoc();
-                // Aim for ~taskConcurrency slices, clamped to [minDocsPerSlice, MAX_DOCS_PER_SLICE]. The
-                // MAX_DOCS_PER_SLICE cap keeps a single driver from owning one large contiguous region of a segment
-                // (data clustering in logs/time-series workloads); minDocsPerSlice (overridable per query via the
-                // min_docs_per_slice pragma) avoids over-splitting tiny indices.
-                int desiredSliceSize = Math.min(
-                    MAX_DOCS_PER_SLICE,
-                    Math.max(minDocsPerSlice, Math.ceilDiv(totalDocCount, taskConcurrency))
-                );
+                int desiredSliceSize = desiredDocsPerSlice(totalDocCount, taskConcurrency, minDocsPerSlice);
                 // Cap parallelism so each slice still carries ~minDocsPerSlice docs. Without this,
                 // balancedBinPack would open one bin per segment (up to taskConcurrency) even when
                 // totalDocs ≪ minDocsPerSlice — over-splitting tiny multi-segment indices.
@@ -522,11 +515,15 @@ public final class LuceneSliceQueue {
                 }
                 int maxSegmentsPerSlice = Math.max(MAX_SEGMENTS_PER_SLICE, Math.ceilDiv(leaves.size(), sliceTarget));
                 AdaptivePartitioner partitioner = new AdaptivePartitioner(desiredSliceSize, maxSegmentsPerSlice);
-                return partitioner.partition(
-                    leaves,
-                    keepWhole,
-                    primarySortRangeSlices(leaves, weight, partitioner, keepWhole, taskConcurrency, minDocsPerSlice)
-                );
+                Map<LeafReaderContext, PrimarySortRange.DocRange> ranges = primarySortRanges(leaves, weight, partitioner, keepWhole);
+                if (ranges.isEmpty()) {
+                    return partitioner.partition(leaves, keepWhole);
+                }
+                // A filter on the primary sort field limits a large leaf to a doc range.
+                // The range is cut like a whole leaf would be, but into slices sized for the matching docs, not for all docs.
+                long rangeDocs = ranges.values().stream().mapToLong(PrimarySortRange.DocRange::length).sum();
+                int rangeDesiredDocsPerSlice = desiredDocsPerSlice(rangeDocs, taskConcurrency, minDocsPerSlice);
+                return partitioner.partition(leaves, keepWhole, ranges, rangeDesiredDocsPerSlice);
             }
         },
         /**
@@ -644,18 +641,26 @@ public final class LuceneSliceQueue {
         }
 
         /**
-         * Cuts the large leaves of {@code partitioner} over the doc range that can match a range filter on the
-         * primary index-sort field. A leaf that is not in the result is sliced as usual: it is kept whole, it is small,
-         * the query has no such filter, or the leaf cannot say which range matches. A leaf with no matching docs maps
-         * to no slices.
+         * Aim for ~taskConcurrency slices of the {@code docs} docs, clamped to [minDocsPerSlice, MAX_DOCS_PER_SLICE]. The
+         * MAX_DOCS_PER_SLICE cap keeps a single driver from owning one large contiguous region of a segment
+         * (data clustering in logs/time-series workloads); minDocsPerSlice (overridable per query via the
+         * min_docs_per_slice pragma) avoids over-splitting tiny indices.
          */
-        private static Map<LeafReaderContext, List<List<PartialLeafReaderContext>>> primarySortRangeSlices(
+        private static int desiredDocsPerSlice(long docs, int taskConcurrency, int minDocsPerSlice) {
+            return (int) Math.min(MAX_DOCS_PER_SLICE, Math.max(minDocsPerSlice, Math.ceilDiv(docs, taskConcurrency)));
+        }
+
+        /**
+         * The doc range of each large leaf of {@code partitioner} that can match a range filter on the primary index-sort
+         * field. A leaf that is not in the result is sliced as usual: it is kept whole, it is small, the query has no such
+         * filter, or the leaf cannot say which range matches. A leaf with no matching docs has an empty range and gets no
+         * slices.
+         */
+        private static Map<LeafReaderContext, PrimarySortRange.DocRange> primarySortRanges(
             List<LeafReaderContext> leaves,
             Weight weight,
             AdaptivePartitioner partitioner,
-            Set<LeafReaderContext> keepWhole,
-            int taskConcurrency,
-            int minDocsPerSlice
+            Set<LeafReaderContext> keepWhole
         ) {
             if (weight == null) {
                 return Map.of();
@@ -663,23 +668,7 @@ public final class LuceneSliceQueue {
             List<LeafReaderContext> largeLeaves = leaves.stream()
                 .filter(leaf -> keepWhole.contains(leaf) == false && partitioner.isLarge(leaf))
                 .toList();
-            Map<LeafReaderContext, PrimarySortRange.DocRange> ranges = PrimarySortRange.find(largeLeaves, weight.getQuery());
-            if (ranges.isEmpty()) {
-                return Map.of();
-            }
-            long totalDocs = ranges.values().stream().mapToLong(PrimarySortRange.DocRange::length).sum();
-            // Same rule as the caller, with the matching docs in place of all docs. They are never more, so slices are never larger.
-            int desiredSliceSize = (int) Math.min(MAX_DOCS_PER_SLICE, Math.max(minDocsPerSlice, Math.ceilDiv(totalDocs, taskConcurrency)));
-            AdaptivePartitioner rangePartitioner = new AdaptivePartitioner(desiredSliceSize, partitioner.maxSegmentsPerSlice);
-            Map<LeafReaderContext, List<List<PartialLeafReaderContext>>> slices = new IdentityHashMap<>();
-            for (Map.Entry<LeafReaderContext, PrimarySortRange.DocRange> entry : ranges.entrySet()) {
-                PrimarySortRange.DocRange range = entry.getValue();
-                slices.put(
-                    entry.getKey(),
-                    range.length() == 0 ? List.of() : rangePartitioner.partitionRange(entry.getKey(), range.minDoc(), range.maxDoc())
-                );
-            }
-            return slices;
+            return PrimarySortRange.find(largeLeaves, weight.getQuery());
         }
 
         private static Set<LeafReaderContext> wholeLeaves(List<LeafReaderContext> leaves, Weight weight, LeafSplitGuard guard) {
@@ -773,17 +762,19 @@ public final class LuceneSliceQueue {
          * are split as in {@link #partition(List)}.
          */
         List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves, Set<LeafReaderContext> keepWhole) {
-            return partition(leaves, keepWhole, Map.of());
+            return partition(leaves, keepWhole, Map.of(), desiredDocsPerSlice);
         }
 
         /**
-         * Like {@link #partition(List, Set)}, but a large leaf with an entry in {@code largeLeafSlices} is emitted as
-         * those slices instead of being split by this partitioner.
+         * Like {@link #partition(List, Set)}, but a large leaf with an entry in {@code ranges} is cut only over that
+         * doc range, into slices of about {@code rangeDesiredDocsPerSlice} docs. The range can be empty, then the leaf
+         * gets no slices.
          */
         List<List<PartialLeafReaderContext>> partition(
             List<LeafReaderContext> leaves,
             Set<LeafReaderContext> keepWhole,
-            Map<LeafReaderContext, List<List<PartialLeafReaderContext>>> largeLeafSlices
+            Map<LeafReaderContext, PrimarySortRange.DocRange> ranges,
+            int rangeDesiredDocsPerSlice
         ) {
             List<LeafReaderContext> smallSegments = new ArrayList<>();
             List<LeafReaderContext> largeSegments = new ArrayList<>();
@@ -799,8 +790,12 @@ public final class LuceneSliceQueue {
             }
             largeSegments.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
             for (LeafReaderContext segment : largeSegments) {
-                List<List<PartialLeafReaderContext>> cut = largeLeafSlices.get(segment);
-                results.addAll(cut != null ? cut : partitionOneLargeSegment(segment));
+                PrimarySortRange.DocRange range = ranges.get(segment);
+                if (range == null) {
+                    results.addAll(partitionOneLargeSegment(segment));
+                } else {
+                    results.addAll(partitionRange(segment, range.minDoc(), range.maxDoc(), rangeDesiredDocsPerSlice));
+                }
             }
             results.addAll(partitionSmallSegments(smallSegments));
             return results;
@@ -814,17 +809,18 @@ public final class LuceneSliceQueue {
         }
 
         List<List<PartialLeafReaderContext>> partitionOneLargeSegment(LeafReaderContext leaf) {
-            return partitionRange(leaf, 0, leaf.reader().maxDoc());
+            return partitionRange(leaf, 0, leaf.reader().maxDoc(), desiredDocsPerSlice);
         }
 
         /**
          * Cuts {@code [minDocInRange, maxDocInRange)} of {@code leaf} into equal slices of about
-         * {@link #desiredDocsPerSlice} docs.
+         * {@code desiredDocs} docs.
          */
-        List<List<PartialLeafReaderContext>> partitionRange(LeafReaderContext leaf, int minDocInRange, int maxDocInRange) {
+        List<List<PartialLeafReaderContext>> partitionRange(LeafReaderContext leaf, int minDocInRange, int maxDocInRange, int desiredDocs) {
+            int maxDocs = desiredDocs * 5 / 4;
             int numDocsInRange = maxDocInRange - minDocInRange;
-            int numSlices = Math.max(1, numDocsInRange / desiredDocsPerSlice);
-            while (Math.ceilDiv(numDocsInRange, numSlices) > maxDocsPerSlice) {
+            int numSlices = Math.max(1, numDocsInRange / desiredDocs);
+            while (Math.ceilDiv(numDocsInRange, numSlices) > maxDocs) {
                 numSlices++;
             }
             int docPerSlice = numDocsInRange / numSlices;

@@ -20,10 +20,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,23 +51,40 @@ final class PrimarySortRange {
         }
     }
 
+    /**
+     * The values a doc must have on the primary sort field, both ends inclusive.
+     */
+    private record Bounds(long lower, long upper) {
+        Bounds intersect(Bounds other) {
+            return new Bounds(Math.max(lower, other.lower), Math.min(upper, other.upper));
+        }
+    }
+
     private PrimarySortRange() {}
 
     /**
      * Finds the doc range of each leaf in {@code leaves} that can match the range clauses of {@code query} on the
-     * primary sort field of the leaf. A leaf is missing from the result if it cannot say which range matches,
-     * see {@link #findInLeaf}.
+     * primary sort field. {@code leaves} must all come from one shard, because they share one index sort. A leaf is
+     * missing from the result if it cannot say which range matches, see {@link #findInLeaf}. The result is empty if
+     * the shard has no usable primary sort or the query has no required range on it.
      */
     static Map<LeafReaderContext, DocRange> find(List<LeafReaderContext> leaves, Query query) {
-        List<NumericDocValuesRangeQuery> clauses = new ArrayList<>();
-        collect(query, clauses);
-        if (clauses.isEmpty()) {
+        if (leaves.isEmpty()) {
+            return Map.of();
+        }
+        // Lucene rejects a segment whose sort differs from the rest of the index, so any leaf gives the sort of the shard.
+        SortField primary = supportedPrimarySort(leaves.getFirst());
+        if (primary == null) {
+            return Map.of();
+        }
+        Bounds bounds = requiredBounds(query, primary.getField());
+        if (bounds == null) {
             return Map.of();
         }
         Map<LeafReaderContext, DocRange> ranges = new IdentityHashMap<>();
         try {
             for (LeafReaderContext leaf : leaves) {
-                DocRange range = findInLeaf(leaf, clauses);
+                DocRange range = findInLeaf(leaf, primary, bounds);
                 if (range != null) {
                     ranges.put(leaf, range);
                 }
@@ -79,36 +96,13 @@ final class PrimarySortRange {
     }
 
     /**
-     * Collects the numeric range clauses that every matching doc must satisfy. It only looks
-     * through wrappers that keep that guarantee. For any other query it collects nothing, which
-     * gives a wider range and is always safe.
+     * The first sort field of the leaf's index sort, if it is an {@code INT} or {@code LONG}. These are the types that
+     * Lucene's {@code IndexSortSortedNumericDocValuesRangeQuery} supports. Returns {@code null} if the leaf has no
+     * index sort or the first field has another type.
      */
-    private static void collect(Query query, List<NumericDocValuesRangeQuery> clauses) {
-        if (query instanceof NumericDocValuesRangeQuery range) {
-            clauses.add(range);
-        } else if (query instanceof ConstantScoreQuery constantScore) {
-            collect(constantScore.getQuery(), clauses);
-        } else if (query instanceof BoostQuery boost) {
-            collect(boost.getQuery(), clauses);
-        } else if (query instanceof BooleanQuery bool) {
-            for (BooleanClause clause : bool) {
-                if (clause.occur() == BooleanClause.Occur.MUST || clause.occur() == BooleanClause.Occur.FILTER) {
-                    collect(clause.query(), clauses);
-                }
-            }
-        }
-    }
-
-    /**
-     * Returns the doc range of {@code leaf} that can match the {@code clauses} on the primary sort
-     * field, or {@code null} if it cannot say. It returns {@code null} when the leaf has no index
-     * sort, no clause is on the primary sort field, or the field is not a dense single-valued
-     * {@code INT} or {@code LONG} with a skipper. These are the same conditions under which
-     * Lucene's {@code IndexSortSortedNumericDocValuesRangeQuery} uses the index sort.
-     */
-    private static DocRange findInLeaf(LeafReaderContext leaf, List<NumericDocValuesRangeQuery> clauses) throws IOException {
-        LeafReader reader = leaf.reader();
-        Sort indexSort = reader.getMetaData().sort();
+    @Nullable
+    private static SortField supportedPrimarySort(LeafReaderContext leaf) {
+        Sort indexSort = leaf.reader().getMetaData().sort();
         if (indexSort == null || indexSort.getSort().length == 0) {
             return null;
         }
@@ -117,20 +111,49 @@ final class PrimarySortRange {
         if (type != SortField.Type.INT && type != SortField.Type.LONG) {
             return null;
         }
-        // Clauses are ANDed, so their intersection is the range to look for.
-        long lower = Long.MIN_VALUE;
-        long upper = Long.MAX_VALUE;
-        boolean found = false;
-        for (NumericDocValuesRangeQuery clause : clauses) {
-            if (clause.getField().equals(primary.getField())) {
-                lower = Math.max(lower, clause.lowerValue());
-                upper = Math.min(upper, clause.upperValue());
-                found = true;
+        return primary;
+    }
+
+    /**
+     * The values on {@code field} that every matching doc must have, or {@code null} if the query does not require a range
+     * on it. Several required clauses are intersected as they are found. Only wrappers that keep the guarantee are looked
+     * through. For any other query the result is {@code null}, which gives a wider range and is always safe.
+     */
+    @Nullable
+    private static Bounds requiredBounds(Query query, String field) {
+        if (query instanceof NumericDocValuesRangeQuery range) {
+            return range.getField().equals(field) ? new Bounds(range.lowerValue(), range.upperValue()) : null;
+        }
+        if (query instanceof ConstantScoreQuery constantScore) {
+            return requiredBounds(constantScore.getQuery(), field);
+        }
+        if (query instanceof BoostQuery boost) {
+            return requiredBounds(boost.getQuery(), field);
+        }
+        if (query instanceof BooleanQuery bool) {
+            Bounds bounds = null;
+            for (BooleanClause clause : bool) {
+                if (clause.occur() == BooleanClause.Occur.MUST || clause.occur() == BooleanClause.Occur.FILTER) {
+                    Bounds clauseBounds = requiredBounds(clause.query(), field);
+                    if (clauseBounds != null) {
+                        bounds = bounds == null ? clauseBounds : bounds.intersect(clauseBounds);
+                    }
+                }
             }
+            return bounds;
         }
-        if (found == false) {
-            return null;
-        }
+        return null;
+    }
+
+    /**
+     * Returns the doc range of {@code leaf} that can have values in {@code bounds} on the primary sort field, or
+     * {@code null} if it cannot say. It returns {@code null} when the field is not a dense single-valued field with a
+     * skipper in this leaf. These are the same conditions under which Lucene's
+     * {@code IndexSortSortedNumericDocValuesRangeQuery} uses the index sort.
+     */
+    @Nullable
+    private static DocRange findInLeaf(LeafReaderContext leaf, SortField primary, Bounds bounds) throws IOException {
+        LeafReader reader = leaf.reader();
         DocValuesSkipper skipper = reader.getDocValuesSkipper(primary.getField());
         if (skipper == null || skipper.docCount() != reader.maxDoc()) {
             return null;
@@ -138,7 +161,7 @@ final class PrimarySortRange {
         if (DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, primary.getField())) == null) {
             return null;
         }
-        return findInSkipper(skipper, primary.getReverse(), lower, upper);
+        return findInSkipper(skipper, primary.getReverse(), bounds.lower(), bounds.upper());
     }
 
     private static DocRange findInSkipper(DocValuesSkipper skipper, boolean reverse, long lower, long upper) throws IOException {

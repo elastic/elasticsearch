@@ -366,4 +366,86 @@ public class PrimarySortRangeTests extends ESTestCase {
         assertThat(wholeDocs, equalTo((long) whole.reader().maxDoc()));
         assertThat("the other leaf is cut to the range", otherDocs, lessThan((long) other.reader().maxDoc() / 2));
     }
+
+    /**
+     * Required clauses on the primary sort field are merged into one range. If the merged range is empty, no doc can match.
+     */
+    public void testContradictoryClausesGiveEmptyRange() throws IOException {
+        index(randomBoolean());
+        BooleanQuery query = new BooleanQuery.Builder().add(
+            SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 0, 5),
+            BooleanClause.Occur.FILTER
+        ).add(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 10, 20), BooleanClause.Occur.MUST).build();
+        Map<LeafReaderContext, PrimarySortRange.DocRange> ranges = ranges(query);
+        for (LeafReaderContext leaf : reader.leaves()) {
+            assertThat(ranges.get(leaf), equalTo(new PrimarySortRange.DocRange(0, 0)));
+        }
+    }
+
+    public void testNoLeaves() {
+        assertThat(PrimarySortRange.find(List.of(), SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 1, 2)).keySet(), empty());
+    }
+
+    /**
+     * The range is cut into slices sized for the range, not for the whole leaf. Otherwise a narrow range lands in a few
+     * large slices and most drivers have nothing to do.
+     */
+    public void testNarrowRangeIsCutIntoSmallSlices() throws IOException {
+        index(randomBoolean(), NUM_DOCS);
+        int taskConcurrency = 100;
+        int minDocsPerSlice = 100;
+        IndexSearcher searcher = new IndexSearcher(reader);
+        long lower = between(0, NUM_VALUES - 10);
+        Weight weight = searcher.createWeight(
+            searcher.rewrite(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, lower, lower + between(0, 8))),
+            ScoreMode.COMPLETE_NO_SCORES,
+            1
+        );
+        // The whole leaf would be cut into slices of about 1,000 docs. The range holds at most about 8,000 docs, so slices of at
+        // most 100 docs (the minimum) are expected, plus the 25% the partitioner allows.
+        long sliceDocs = 0;
+        for (List<PartialLeafReaderContext> group : LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            weight,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            minDocsPerSlice
+        )) {
+            for (PartialLeafReaderContext slice : group) {
+                assertThat(slice.maxDoc() - slice.minDoc(), lessThanOrEqualTo(minDocsPerSlice * 5 / 4));
+                sliceDocs += slice.maxDoc() - slice.minDoc();
+            }
+        }
+        assertThat(sliceDocs, greaterThan(0L));
+    }
+
+    /**
+     * The slice size is sized for the matching docs of all ranged leaves together, like the default size is sized for all docs of
+     * the shard. If every leaf were sized on its own, the number of slices would grow with the number of leaves.
+     */
+    public void testSliceCountDoesNotGrowWithTheNumberOfRangedLeaves() throws IOException {
+        // Two leaves of 50,000 docs. With 20 drivers a slice of the whole shard is 5,000 docs, so both leaves are large.
+        index(randomBoolean(), NUM_DOCS / 2);
+        assertThat(reader.leaves().size(), equalTo(2));
+        int taskConcurrency = 20;
+        IndexSearcher searcher = new IndexSearcher(reader);
+        // About half of the docs in each leaf match, so about 50,000 docs in total.
+        Weight weight = searcher.createWeight(
+            searcher.rewrite(SortedNumericDocValuesField.newSlowRangeQuery(SORT_FIELD, 0, NUM_VALUES / 2 - 1)),
+            ScoreMode.COMPLETE_NO_SCORES,
+            1
+        );
+        List<List<PartialLeafReaderContext>> groups = LuceneSliceQueue.PartitioningStrategy.DOC.groups(
+            searcher,
+            taskConcurrency,
+            weight,
+            LuceneSliceQueue.LeafSplitGuard.NEVER,
+            100
+        );
+        long leavesWithSlices = groups.stream().flatMap(List::stream).map(PartialLeafReaderContext::leafReaderContext).distinct().count();
+        assertThat("both leaves are cut by their range", leavesWithSlices, equalTo(2L));
+        // Sized together this is about 20 slices. Sized per leaf it would be about 40.
+        assertThat(groups.size(), greaterThanOrEqualTo(taskConcurrency / 2));
+        assertThat(groups.size(), lessThanOrEqualTo(taskConcurrency * 3 / 2));
+    }
 }

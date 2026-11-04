@@ -49,7 +49,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
 
     protected DefaultShardOperationFailedException() {}
 
-    public DefaultShardOperationFailedException(StreamInput in) throws IOException {
+    protected DefaultShardOperationFailedException(StreamInput in) throws IOException {
         readFrom(in, this);
     }
 
@@ -65,6 +65,10 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
 
     public DefaultShardOperationFailedException(String index, int shardId, Throwable cause) {
         super(index, shardId, ExceptionsHelper.stackTrace(cause), ExceptionsHelper.status(cause), cause);
+    }
+
+    public static DefaultShardOperationFailedException readShardOperationFailed(StreamInput in) throws IOException {
+        return new DefaultShardOperationFailedException(in);
     }
 
     public static void readFrom(StreamInput in, DefaultShardOperationFailedException f) throws IOException {

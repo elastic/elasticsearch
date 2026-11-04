@@ -32,7 +32,7 @@ public class BaseBroadcastResponse extends ActionResponse {
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         failedShards = in.readVInt();
-        shardFailures = in.readCollectionAsImmutableList(DefaultShardOperationFailedException::new);
+        shardFailures = in.readCollectionAsImmutableList(DefaultShardOperationFailedException::readShardOperationFailed);
     }
 
     public BaseBroadcastResponse(

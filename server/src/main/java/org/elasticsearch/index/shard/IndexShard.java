@@ -3993,7 +3993,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ActionListener<Void> actionListener = ActionListener.wrap(
             ignored -> recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange()),
             e -> {
-                final FailureStrategy result = ExceptionsHelper.unwrap(e, IndexShardClosedException.class) != null ? ABORT : FAIL_SEND;
+                // ABORT skips notifying the master, so we only use it only if this shard copy is CLOSED. Whatever closed it
+                // has either already been reflected in a cluster state from the master (e.g. the shard moved or the index
+                // was deleted), or will send its own shard-failed request.
+                final FailureStrategy result = state() == IndexShardState.CLOSED ? ABORT : FAIL_SEND;
                 recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), result);
             }
         );

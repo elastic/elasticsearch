@@ -9,6 +9,8 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -43,4 +45,21 @@ public class CsvProcessorFactoryTests extends ESTestCase {
         assertThat(csv.ignoreMissing, equalTo(true));
         assertThat(properties, is(Map.of()));
     }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testCreateWithMalformedField() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+        config.put("target_fields", List.of("target"));
+        CsvProcessor processor = new CsvProcessor.Factory().create(null, "csv", null, config, null);
+        assertThat(processor.field, hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
+    }
+
 }

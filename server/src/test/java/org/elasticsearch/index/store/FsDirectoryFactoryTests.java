@@ -9,12 +9,16 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileDataHint;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -36,6 +40,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
 
@@ -182,5 +187,16 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                     fail();
             }
         }
+    }
+
+    public void testReadAdviceInsideCompoundFiles() {
+        var readAdvice = FsDirectoryFactory.getReadAdviceFunc();
+        IOContext storedFields = IOContext.DEFAULT.withHints(FileTypeHint.DATA, DataAccessHint.RANDOM);
+        IOContext vectors = IOContext.DEFAULT.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
+
+        assertEquals(Optional.of(ReadAdvice.NORMAL), readAdvice.apply("_0.cfs", storedFields));
+        assertEquals(Optional.of(ReadAdvice.NORMAL), readAdvice.apply("_0.cfs", vectors));
+        assertEquals(Optional.of(ReadAdvice.RANDOM), readAdvice.apply("_0.fdt", storedFields));
+        assertEquals(Optional.of(ReadAdvice.RANDOM), readAdvice.apply("_0.vec", vectors));
     }
 }

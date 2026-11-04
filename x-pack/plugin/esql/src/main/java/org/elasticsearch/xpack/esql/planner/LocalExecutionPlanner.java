@@ -1274,7 +1274,7 @@ public class LocalExecutionPlanner {
     /**
      * Path B pilot: wire {@link SharedMinCompetitive} between engine {@code TopNOperator} and
      * {@code LuceneSourceOperator} for {@code TopN → (Project|Filter|FieldExtract)* → EsQuery}
-     * with a single {@code @timestamp}-like sort key.
+     * with a {@code @timestamp}-like first sort key. The other keys only order the rows that tie on it.
      */
     @Nullable
     private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(
@@ -1284,10 +1284,10 @@ public class LocalExecutionPlanner {
         @Nullable SharedSortBound sortBound
     ) {
         List<Order> orders = topNExec.order();
-        if (orders.size() != 1) {
+        if (orders.isEmpty()) {
             return null;
         }
-        Order order = orders.get(0);
+        Order order = orders.getFirst();
         if (order.child() instanceof FieldAttribute fa == false) {
             return null;
         }

@@ -80,6 +80,14 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
         assertTopN("FROM events-* | WHERE LENGTH(message) > 0 | SORT @timestamp DESC | LIMIT " + LIMIT + " | KEEP @timestamp", expected);
     }
 
+    public void testSecondarySortAfterTheSource() {
+        List<Long> expected = timestamps.stream().sorted(Comparator.reverseOrder()).limit(LIMIT).toList();
+        assertTopN(
+            "FROM events-* | WHERE LENGTH(message) > 0 | SORT @timestamp DESC, message ASC | LIMIT " + LIMIT + " | KEEP @timestamp",
+            expected
+        );
+    }
+
     /**
      * Documents without {@code @timestamp} sort first when descending, so a shard holding some is never skipped, however old.
      */
@@ -132,6 +140,14 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
      * Rows that tie on the first sort key are ordered by the second, so a shard holding such a tie is never skipped.
      */
     public void testTiesOnTheFirstKey() throws Exception {
+        assertTiesOnTheFirstKey("FROM ties-* | SORT t1 DESC, message ASC | LIMIT 1 | KEEP message");
+    }
+
+    public void testTiesOnTheFirstKeyAfterTheSource() throws Exception {
+        assertTiesOnTheFirstKey("FROM ties-* | WHERE LENGTH(message) > 0 | SORT t1 DESC, message ASC | LIMIT 1 | KEEP message");
+    }
+
+    private void assertTiesOnTheFirstKey(String query) throws Exception {
         String node = internalCluster().getRandomDataNodeName();
         // The index holding the winning row is the oldest, so it runs last
         createSingleShardIndex("ties-winning", node, "t1", "type=date", "message", "type=keyword");
@@ -144,7 +160,7 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
         }
         assertFalse(bulk.get().hasFailures());
         EsqlQueryRequest request = new EsqlQueryRequest();
-        request.query("FROM ties-* | SORT t1 DESC, message ASC | LIMIT 1 | KEEP message");
+        request.query(query);
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
         request.acceptedPragmaRisks(true);
         try (EsqlQueryResponse response = run(request)) {

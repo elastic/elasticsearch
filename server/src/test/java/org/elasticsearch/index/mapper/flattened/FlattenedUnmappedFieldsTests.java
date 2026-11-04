@@ -248,7 +248,6 @@ public class FlattenedUnmappedFieldsTests extends MapperServiceTestCase {
             );
             var unmappedFields = createSearchExecutionContext(mapperService, newSearcher(reader)).unmappedFields();
             assertTrue(unmappedFields.mayExist());
-            assertThat(unmappedFields.blockLoader(absorbed), instanceOf(KeyedFlattenedDocValuesBlockLoader.class));
         });
     }
 

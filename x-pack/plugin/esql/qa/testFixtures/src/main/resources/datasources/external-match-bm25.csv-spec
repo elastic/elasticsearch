@@ -1,0 +1,86 @@
+// BM25 scoring of runtime MATCH over an external relation (similarity_function: bm25). Mirrors match-bm25.csv-spec's
+// cases against books_ds instead of books. The statistics come from the dataset's own rows, so a score does not depend
+// on how the files are split. The scores differ slightly from match-bm25.csv-spec: the dataset text keeps the three
+// numbers such as 1,700 in books.csv as two tokens each, so its rows hold three more tokens (a summed length of 6149
+// instead of 6146). The expected scores were computed independently of ES|QL from that text.
+//
+// books collides with its ES|QL index twin, so the dataset is named books_ds.
+
+bm25OnExternalRuntimeText
+required_capability: match_function
+required_capability: metadata_score
+required_capability: dataset_in_from_command
+required_capability: external_source_score_fix
+required_capability: fn_match_similarity_function
+dataset: books_ds: "{{books}}"
+
+// CUJ 1
+FROM books_ds METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+1463            | 2.860827
+9607            | 2.627316
+2301            | 2.607388
+5335            | 2.607388
+5996            | 2.607388
+;
+
+bm25OnExternalRuntimeTextFilterNarrowsStatistics
+required_capability: match_function
+required_capability: metadata_score
+required_capability: dataset_in_from_command
+required_capability: external_source_score_fix
+required_capability: fn_match_similarity_function
+dataset: books_ds: "{{books}}"
+
+// CUJ 3: the statistics count only the rows with year >= 2000
+FROM books_ds METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE year >= 2000 AND MATCH(content, "Tolkien", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+5335            | 3.07761
+7670            | 2.733076
+2130            | 2.673366
+7350            | 2.37962
+2714            | 2.276158
+;
+
+bm25OnExternalRuntimeTextFilterNarrowsStatisticsStacked
+required_capability: match_function
+required_capability: metadata_score
+required_capability: dataset_in_from_command
+required_capability: external_source_score_fix
+required_capability: fn_match_similarity_function
+dataset: books_ds: "{{books}}"
+
+// CUJ 3: the same condition in its own WHERE gives the same scores
+FROM books_ds METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE year >= 2000
+| WHERE MATCH(content, "Tolkien", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+5335            | 3.07761
+7670            | 2.733076
+2130            | 2.673366
+7350            | 2.37962
+2714            | 2.276158
+;

@@ -191,7 +191,7 @@ public class RuntimeBm25RowStats extends EsqlScalarFunction {
     }
 
     /** The term list carried by {@link #terms}, in its order. */
-    List<BytesRef> termList(FoldContext foldContext) {
+    public List<BytesRef> termList(FoldContext foldContext) {
         Object folded = terms.fold(foldContext);
         if (folded == null) {
             return List.of();

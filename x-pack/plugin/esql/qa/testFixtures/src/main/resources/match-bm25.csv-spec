@@ -1,0 +1,252 @@
+###############################################
+# BM25 scoring of MATCH and MATCH_PHRASE on text with no index behind it (similarity_function: bm25).
+# The statistics count the rows that pass the query's other conditions, back to the nearest STATS, INLINE STATS
+# or source command. Expected scores equal those of a single-shard Lucene index of exactly those rows, with the
+# standard analyzer and the default text similarity, rounded to six decimals. They were computed independently of
+# ES|QL, from books.csv: 79 rows have a description, and 51 of those have year >= 2000.
+###############################################
+
+bm25RanksRarerTermsHigher
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+// CUJ 2: rows that mention the rarer "poems" rank above rows that mention only "tolkien"
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien poems", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+4289            | 6.635483
+3254            | 4.395944
+5469            | 3.244665
+1463            | 2.860556
+9607            | 2.627107
+;
+
+bm25SingleTerm
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+// shorter rows score higher for the same term frequency
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+1463            | 2.860556
+9607            | 2.627107
+2301            | 2.60705
+5335            | 2.60705
+5996            | 2.60705
+;
+
+bm25FilterNarrowsStatisticsConjunction
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+// CUJ 3: the statistics count only the rows with year >= 2000
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE year >= 2000 AND MATCH(content, "Tolkien", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+5335            | 3.077184
+7670            | 2.732702
+2130            | 2.672973
+7350            | 2.378997
+2714            | 2.275563
+;
+
+bm25FilterNarrowsStatisticsStacked
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+// CUJ 3: the same condition in its own WHERE gives the same scores
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE year >= 2000
+| WHERE MATCH(content, "Tolkien", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+5335            | 3.077184
+7670            | 2.732702
+2130            | 2.672973
+7350            | 2.378997
+2714            | 2.275563
+;
+
+bm25FilterNarrowsStatisticsReordered
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+// CUJ 3: and so does the condition after the MATCH
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien", {"similarity_function": "bm25"})
+| WHERE year >= 2000
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+5335            | 3.077184
+7670            | 2.732702
+2130            | 2.672973
+7350            | 2.378997
+2714            | 2.275563
+;
+
+bm25RenamedColumn
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+// matching a column renamed with EVAL gives the same scores as matching it directly
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| EVAL renamed = content
+| WHERE MATCH(renamed, "Tolkien", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+1463            | 2.860556
+9607            | 2.627107
+2301            | 2.60705
+5335            | 2.60705
+5996            | 2.60705
+;
+
+bm25OperatorAnd
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings", {"similarity_function": "bm25", "operator": "AND"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+4023            | 5.550825
+1463            | 5.268502
+5335            | 4.701553
+7140            | 4.607726
+2714            | 4.313138
+;
+
+bm25TwoCallsInOneWhere
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+// two BM25 calls on one column share their statistics, and _score adds up their scores
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien", {"similarity_function": "bm25"}) AND MATCH(content, "Rings", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+4023            | 5.550825
+1463            | 5.268502
+5335            | 4.701553
+7140            | 4.607726
+2714            | 4.313138
+;
+
+bm25MatchPhrase
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_phrase_similarity_function
+
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH_PHRASE(content, "The Lord of the Rings", {"similarity_function": "bm25"})
+| EVAL score = ROUND(_score, 6)
+| SORT score DESC, book_no
+| LIMIT 5
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+4023            | 7.033289
+7140            | 6.472557
+8875            | 6.344368
+2714            | 5.369102
+1463            | 5.236694
+;
+
+booleanSimilarityKeepsTodaysScores
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+// an explicit boolean scores as before: one point per matched query term
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| WHERE MATCH(content, "Tolkien Rings", {"similarity_function": "boolean"})
+| STATS max_score = MAX(_score), min_score = MIN(_score)
+;
+
+max_score:double | min_score:double
+2.0              | 1.0
+;
+
+bm25SortBeforeMatchThenLimit
+required_capability: match_function
+required_capability: metadata_score
+required_capability: fn_match_similarity_function
+
+// a SORT before the MATCH keeps every row, so it does not change the statistics; the LIMIT after it keeps the order
+FROM books METADATA _score
+| EVAL content = TO_TEXT(CONCAT(title, " ", description))
+| SORT book_no
+| WHERE MATCH(content, "Tolkien", {"similarity_function": "bm25"})
+| LIMIT 3
+| EVAL score = ROUND(_score, 6)
+| KEEP book_no, score
+;
+
+book_no:keyword | score:double
+1463            | 2.860556
+2130            | 2.257504
+2301            | 2.60705
+;

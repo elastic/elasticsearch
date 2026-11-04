@@ -121,6 +121,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             "to_string_on_indexed_field_fix",
             "stats_where_analyzer_fix"
         )
+        .snapshotCapabilities(RuntimeBm25Options.SIMILARITY_FUNCTION_OPTION)
         .name("match");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         NULL,
@@ -406,20 +407,33 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected Map<String, DataType> getAllowedOptions() {
-        return ALLOWED_OPTIONS;
+        return RuntimeBm25Options.allowedOptions(ALLOWED_OPTIONS);
     }
 
-    private Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
-        if (options() == null) {
-            return Map.of(LENIENT_FIELD.getPreferredName(), true);
-        }
+    @Override
+    protected TypeResolution resolveOptions() {
+        return super.resolveOptions().and(RuntimeBm25Options.resolveValue(options(), sourceText()));
+    }
 
+    /** The options the user gave, including {@code similarity_function}, with {@code lenient} defaulting to true. */
+    private Map<String, Object> userOptions() throws InvalidArgumentException {
         Map<String, Object> matchOptions = new HashMap<>();
         // Match is lenient by default to avoid failing on incompatible types
         matchOptions.put(LENIENT_FIELD.getPreferredName(), true);
-
-        Options.populateMap((MapExpression) options(), matchOptions, source(), SECOND, ALLOWED_OPTIONS);
+        if (options() != null) {
+            Options.populateMap((MapExpression) options(), matchOptions, source(), SECOND, getAllowedOptions());
+        }
         return matchOptions;
+    }
+
+    /** The options a {@link MatchQuery} applies: the user's options without the ES|QL-only {@code similarity_function}. */
+    Map<String, Object> matchQueryOptions() throws InvalidArgumentException {
+        return RuntimeBm25Options.queryBuilderOptions(userOptions());
+    }
+
+    /** The query the runtime evaluators and scorers compile, on {@link RuntimeSearch#CONTENT_FIELD}. */
+    MatchQuery runtimeQuery() {
+        return new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), matchQueryOptions());
     }
 
     private boolean isLenient() {
@@ -515,6 +529,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     ) {
         super.fieldVerifier(plan, function, field, analysisRegistry, failures);
         if (isRuntimeSearch() == false) {
+            RuntimeBm25Support.verifyNotIndexed(this, field, failures);
             return;
         }
 
@@ -542,6 +557,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         if (options() != null) {
             if (field().dataType() == TEXT) {
                 verifyRuntimeOptions(function, field, analysisRegistry, failures);
+                RuntimeBm25Support.verifyBm25Options(this, userOptions(), failures);
             } else {
                 verifyRuntimeNonTextOptions(field, failures);
             }
@@ -591,14 +607,17 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
      * Rejects every option except {@code lenient} on a non-{@code text} runtime match.
      */
     private void verifyRuntimeNonTextOptions(Expression field, Failures failures) {
-        for (String option : matchQueryOptions().keySet()) {
+        for (String option : userOptions().keySet()) {
             if (option.equals(LENIENT_FIELD.getPreferredName()) == false) {
                 failures.add(
                     Failure.fail(
                         field,
-                        "[{}] option is not supported for [MATCH] on non-index-mapped, non-TEXT field [{}]",
+                        "[{}] option is not supported for [MATCH] on non-index-mapped, non-TEXT field [{}]{}",
                         option,
-                        field.sourceText()
+                        field.sourceText(),
+                        option.equals(RuntimeBm25Options.SIMILARITY_FUNCTION_OPTION)
+                            ? "; convert the field with TO_TEXT(" + field.sourceText() + ") to score it with BM25"
+                            : ""
                     )
                 );
             }
@@ -625,17 +644,15 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
 
         // Text fields keep analyzer-based matching; every other type compares the query value against the field block directly.
-        if (field.dataType() == TEXT && options() == null) {
+        // similarity_function only changes scoring, so an option map holding only it takes the no-options path.
+        boolean queryBuilderOptions = RuntimeBm25Options.hasQueryBuilderOptions(options());
+        if (field.dataType() == TEXT && queryBuilderOptions == false) {
             return runtimeTextEvaluator(toEvaluator, terms -> new TokenStreamMatching.AnyTerm(Set.copyOf(terms)));
         }
         // When options are used, we build a Lucene query
-        if (field.dataType() == TEXT && options() != null) {
+        if (field.dataType() == TEXT) {
             Map<String, Object> opts = matchQueryOptions();
-            return textEvaluatorForQueryWithOptions(
-                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
-                opts,
-                toEvaluator
-            );
+            return textEvaluatorForQueryWithOptions(runtimeQuery(), opts, toEvaluator);
         }
 
         Object queryValue;
@@ -679,17 +696,19 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             return super.toScorer(toScorer);
         }
 
-        if (field.dataType() == TEXT && options() == null) {
+        // With similarity_function: bm25, ComputeRuntimeBm25Statistics wraps the field with its statistics.
+        if (field instanceof RuntimeBm25Field bm25Field) {
+            return RuntimeBm25Support.bm25Scorer(this, runtimeQuery(), bm25Field, toScorer.toEvaluator());
+        }
+        RuntimeBm25Support.ensureNotBm25(this);
+        boolean queryBuilderOptions = RuntimeBm25Options.hasQueryBuilderOptions(options());
+        if (field.dataType() == TEXT && queryBuilderOptions == false) {
             return runtimeTextScorer(toScorer);
         }
         // With options, score through the same Lucene query the boolean evaluator runs.
-        if (field.dataType() == TEXT && options() != null) {
+        if (field.dataType() == TEXT) {
             Map<String, Object> opts = matchQueryOptions();
-            return textScoreEvaluatorForQueryWithOptions(
-                new MatchQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
-                opts,
-                toScorer.toEvaluator()
-            );
+            return textScoreEvaluatorForQueryWithOptions(runtimeQuery(), opts, toScorer.toEvaluator());
         }
         // Exact (non-text) matches: 1.0 on match, like a pushed-down term query under boolean similarity.
         return new RuntimeSearchScoreFromBooleanEvaluator.Factory(source(), toEvaluator(toScorer.toEvaluator()));

@@ -762,7 +762,8 @@ public final class EsqlTestUtils {
         FoldContext foldCtx,
         TransportVersion minimumVersion
     ) {
-        return new LogicalOptimizerContext(configuration, foldCtx, minimumVersion, EsqlFlags.DEFAULTS);
+        // The analysis registry lets BM25 scoring of runtime text collect its query terms while optimizing.
+        return new LogicalOptimizerContext(configuration, foldCtx, minimumVersion, EsqlFlags.DEFAULTS, TEST_ANALYSIS_REGISTRY);
     }
 
     public static LogicalOptimizerContext unboundLogicalOptimizerContext() {

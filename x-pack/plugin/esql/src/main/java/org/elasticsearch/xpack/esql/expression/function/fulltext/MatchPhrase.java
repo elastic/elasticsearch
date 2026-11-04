@@ -91,6 +91,7 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             "to_string_on_indexed_field_fix",
             "stats_where_analyzer_fix"
         )
+        .snapshotCapabilities(RuntimeBm25Options.SIMILARITY_FUNCTION_OPTION)
         .name("match_phrase");
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT, NULL);
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
@@ -257,7 +258,12 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
 
     @Override
     protected Map<String, DataType> getAllowedOptions() {
-        return ALLOWED_OPTIONS;
+        return RuntimeBm25Options.allowedOptions(ALLOWED_OPTIONS);
+    }
+
+    @Override
+    protected TypeResolution resolveOptions() {
+        return super.resolveOptions().and(RuntimeBm25Options.resolveValue(options(), sourceText()));
     }
 
     /**
@@ -282,14 +288,24 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
         }
     }
 
-    private Map<String, Object> matchPhraseQueryOptions() throws InvalidArgumentException {
+    /** The options the user gave, including {@code similarity_function}. */
+    private Map<String, Object> userOptions() throws InvalidArgumentException {
         if (options() == null) {
             return Map.of();
         }
-
         Map<String, Object> matchPhraseOptions = new HashMap<>();
-        Options.populateMap((MapExpression) options(), matchPhraseOptions, source(), SECOND, ALLOWED_OPTIONS);
+        Options.populateMap((MapExpression) options(), matchPhraseOptions, source(), SECOND, getAllowedOptions());
         return matchPhraseOptions;
+    }
+
+    /** The options a {@link MatchPhraseQuery} applies: the user's options without the ES|QL-only {@code similarity_function}. */
+    Map<String, Object> matchPhraseQueryOptions() throws InvalidArgumentException {
+        return RuntimeBm25Options.queryBuilderOptions(userOptions());
+    }
+
+    /** The query the runtime evaluators and scorers compile, on {@link RuntimeSearch#CONTENT_FIELD}. */
+    MatchPhraseQuery runtimeQuery() {
+        return new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), matchPhraseQueryOptions());
     }
 
     @Override
@@ -378,10 +394,22 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
     ) {
         super.fieldVerifier(plan, function, field, analysisRegistry, failures);
         if (isRuntimeSearch() == false) {
+            RuntimeBm25Support.verifyNotIndexed(this, field, failures);
             return;
         }
         if (options() != null && field().dataType() == TEXT) {
             verifyRuntimeOptions(function, field, analysisRegistry, failures);
+            RuntimeBm25Support.verifyBm25Options(this, userOptions(), failures);
+        } else if (RuntimeBm25Options.isSet(options())) {
+            failures.add(
+                Failure.fail(
+                    field,
+                    "[MATCH_PHRASE] option [similarity_function] is not supported on non-index-mapped, non-TEXT field [{}]; "
+                        + "convert the field with TO_TEXT({}) to score it with BM25",
+                    field.sourceText(),
+                    field.sourceText()
+                )
+            );
         } else if (options() != null) {
             failures.add(
                 Failure.fail(
@@ -440,17 +468,15 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             return super.toEvaluator(toEvaluator);
         }
 
-        if (field.dataType() == TEXT && options() == null && termsSitOneToAPosition(toEvaluator)) {
+        // similarity_function only changes scoring, so an option map holding only it takes the no-options path.
+        boolean queryBuilderOptions = RuntimeBm25Options.hasQueryBuilderOptions(options());
+        if (field.dataType() == TEXT && queryBuilderOptions == false && termsSitOneToAPosition(toEvaluator)) {
             return runtimeTextEvaluator(toEvaluator, TokenStreamMatching.Phrase::new);
         }
         // When options or a values analyzer are used, we build a Lucene query
         if (field.dataType() == TEXT) {
             Map<String, Object> opts = matchPhraseQueryOptions();
-            return textEvaluatorForQueryWithOptions(
-                new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
-                opts,
-                toEvaluator
-            );
+            return textEvaluatorForQueryWithOptions(runtimeQuery(), opts, toEvaluator);
         }
         // Guard against a field type that resolveField() accepts but this method was not taught to evaluate:
         // falling through to exact matching would silently give it the wrong semantics. NULL fields never get
@@ -486,14 +512,16 @@ public class MatchPhrase extends SingleFieldFullTextFunction implements Optional
             return super.toScorer(toScorer);
         }
 
+        // With similarity_function: bm25, ComputeRuntimeBm25Statistics wraps the field with its statistics.
+        if (field instanceof RuntimeBm25Field bm25Field) {
+            return RuntimeBm25Support.bm25Scorer(this, runtimeQuery(), bm25Field, toScorer.toEvaluator());
+        }
+        RuntimeBm25Support.ensureNotBm25(this);
         // With options or a declared values analyzer, score through the same Lucene query the boolean evaluator runs.
-        if (field.dataType() == TEXT && (options() != null || termsSitOneToAPosition(toScorer.toEvaluator()) == false)) {
+        boolean queryBuilderOptions = RuntimeBm25Options.hasQueryBuilderOptions(options());
+        if (field.dataType() == TEXT && (queryBuilderOptions || termsSitOneToAPosition(toScorer.toEvaluator()) == false)) {
             Map<String, Object> opts = matchPhraseQueryOptions();
-            return textScoreEvaluatorForQueryWithOptions(
-                new MatchPhraseQuery(source(), RuntimeSearch.CONTENT_FIELD, queryAsObject(), opts),
-                opts,
-                toScorer.toEvaluator()
-            );
+            return textScoreEvaluatorForQueryWithOptions(runtimeQuery(), opts, toScorer.toEvaluator());
         }
         // No options, so both the text phrase matcher and the keyword exact matcher both score 1.0 on hits.
         return new RuntimeSearchScoreFromBooleanEvaluator.Factory(source(), toEvaluator(toScorer.toEvaluator()));

@@ -38,6 +38,12 @@ import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.RuntimeBm25Options;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.RuntimeBm25RowStats;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.RuntimeBm25Support;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
@@ -174,6 +180,8 @@ public class Verifier {
         checkTStepIncompatibleWithTRange(plan, failures);
         checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
         checkHighlightSupported(plan, failures, context.minimumVersion());
+        checkRuntimeBm25Supported(plan, failures, context.minimumVersion());
+        RuntimeBm25Support.placementFailures(plan, failures);
         checkHighlightAnalyzersAgree(plan, failures, context.minimumVersion());
         checkDenseVectorSupported(plan, failures, context.minimumVersion());
         checkFillNullFieldCount(plan, failures, context.flags().maxFillNullFields());
@@ -282,6 +290,28 @@ public class Verifier {
                 )
             )
         );
+    }
+
+    /**
+     * BM25 scoring of runtime text adds plan elements an older node cannot read, and an older node rejects the
+     * {@code similarity_function} key even with {@code boolean}. So any {@code MATCH} or {@code MATCH_PHRASE} that sets
+     * the key fails here, before the plan is sent anywhere.
+     */
+    private static void checkRuntimeBm25Supported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(RuntimeBm25RowStats.ESQL_RUNTIME_MATCH_BM25)) {
+            return;
+        }
+        plan.forEachExpressionDown(SingleFieldFullTextFunction.class, function -> {
+            if ((function instanceof Match || function instanceof MatchPhrase) && RuntimeBm25Options.isSet(function.options())) {
+                failures.add(
+                    fail(
+                        function,
+                        "[{}] option [similarity_function] is not supported by every node and remote cluster this query targets",
+                        function.functionName()
+                    )
+                );
+            }
+        });
     }
 
     /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */

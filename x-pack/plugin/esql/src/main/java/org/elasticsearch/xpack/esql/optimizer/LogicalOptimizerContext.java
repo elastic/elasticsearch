@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -19,12 +21,29 @@ public class LogicalOptimizerContext {
     private final FoldContext foldCtx;
     private final TransportVersion minimumVersion;
     private final EsqlFlags flags;
+    @Nullable
+    private final AnalysisRegistry analysisRegistry;
 
     public LogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, TransportVersion minimumVersion, EsqlFlags flags) {
+        this(configuration, foldCtx, minimumVersion, flags, null);
+    }
+
+    /**
+     * @param analysisRegistry the node's analyzers, which BM25 scoring of runtime text needs to collect query terms on
+     *                         the coordinator. A node service, not query state, so it takes no part in equality.
+     */
+    public LogicalOptimizerContext(
+        Configuration configuration,
+        FoldContext foldCtx,
+        TransportVersion minimumVersion,
+        EsqlFlags flags,
+        @Nullable AnalysisRegistry analysisRegistry
+    ) {
         this.configuration = configuration;
         this.foldCtx = foldCtx;
         this.minimumVersion = minimumVersion;
         this.flags = flags;
+        this.analysisRegistry = analysisRegistry;
     }
 
     public Configuration configuration() {
@@ -41,6 +60,11 @@ public class LogicalOptimizerContext {
 
     public EsqlFlags flags() {
         return flags;
+    }
+
+    @Nullable
+    public AnalysisRegistry analysisRegistry() {
+        return analysisRegistry;
     }
 
     @Override

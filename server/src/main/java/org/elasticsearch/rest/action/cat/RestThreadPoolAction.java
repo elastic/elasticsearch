@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.rest.RestRequest;
@@ -55,12 +54,12 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "thread_pool_patterns");
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
-        Sets.union(COMMON_QUERY_PARAMETERS, Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "local"))
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local"
     );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
-        Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("thread_pool_patterns"))
-    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = addToCopy(SUPPORTED_QUERY_PARAMETERS, "thread_pool_patterns");
 
     @Override
     public List<Route> routes() {

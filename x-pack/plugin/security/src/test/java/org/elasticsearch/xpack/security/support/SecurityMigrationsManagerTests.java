@@ -200,6 +200,31 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
         assertThat(executions, hasSize(MAX_SECURITY_MIGRATION_ATTEMPT_COUNT + 1));
     }
 
+    /**
+     * During a rolling upgrade a `security-migration` persistent task created by an older master may still be running. A new run
+     * must not overlap it; once the legacy task is gone, a new run resumes from the version it left.
+     */
+    public void testDoesNotStartWhileLegacyTaskRunning() {
+        final int migrationsVersion = SecurityMigrations.MIGRATIONS_BY_VERSION.firstKey();
+        notifyStateChange(indexState(migrationsVersion, false, true));
+        assertThat(executions, empty());
+
+        notifyStateChange(indexState(migrationsVersion, false, false));
+        assertThat(executions, hasSize(1));
+        assertEquals(migrationsVersion, executions.get(0).request().getMigrationVersion());
+    }
+
+    public void testLegacyTaskRunningDoesNotConsumeAttempts() {
+        final SecurityIndexManager.IndexState legacyRunning = indexState(0, false, true);
+        for (int i = 0; i <= MAX_SECURITY_MIGRATION_ATTEMPT_COUNT; i++) {
+            notifyStateChange(legacyRunning);
+        }
+        assertThat(executions, empty());
+
+        notifyStateChange(indexState(0, false, false));
+        assertThat(executions, hasSize(1));
+    }
+
     public void testDoesNotRunOnNonMasterNode() {
         final ClusterState state = clusterService.state();
         ClusterServiceUtils.setState(
@@ -217,14 +242,22 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
     }
 
     private SecurityIndexManager.IndexState indexState(int migrationsVersion, boolean createdOnLatestVersion) {
+        return indexState(migrationsVersion, createdOnLatestVersion, false);
+    }
+
+    private SecurityIndexManager.IndexState indexState(
+        int migrationsVersion,
+        boolean createdOnLatestVersion,
+        boolean legacyMigrationTaskRunning
+    ) {
         final Set<NodeFeature> allMigrationFeatures = SecurityMigrations.MIGRATIONS_BY_VERSION.values()
             .stream()
             .flatMap(migration -> migration.nodeFeaturesRequired().stream())
             .collect(Collectors.toSet());
         return securityIndexManager.new IndexState(
             projectId, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), true, true, true, true, createdOnLatestVersion,
-            SecurityIndexManager.RoleMappingsCleanupMigrationStatus.READY, false, migrationsVersion, null, Integer.MAX_VALUE, ".security-7",
-            ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, "uuid", allMigrationFeatures
+            SecurityIndexManager.RoleMappingsCleanupMigrationStatus.READY, legacyMigrationTaskRunning, migrationsVersion, null,
+            Integer.MAX_VALUE, ".security-7", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, "uuid", allMigrationFeatures
         );
     }
 }

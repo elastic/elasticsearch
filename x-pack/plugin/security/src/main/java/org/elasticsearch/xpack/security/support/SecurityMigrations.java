@@ -355,6 +355,12 @@ public class SecurityMigrations {
         private void maybeApplyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState state) {
             // Only consider applying migrations if it's the master node and the security index exists
             if (clusterService.state().nodes().isLocalNodeElectedMaster() && state.indexExists()) {
+                if (state.legacyMigrationTaskRunning) {
+                    // A persistent task created by an older master during a rolling upgrade is still running the migrations, so do not
+                    // start an overlapping run. Its removal changes the index state, which notifies us again to pick up from there.
+                    logger.debug("Legacy security migration task still running for project [{}], not starting a new run", projectId);
+                    return;
+                }
                 applyPendingSecurityMigrations(projectId, state);
             }
         }

@@ -58,6 +58,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -66,6 +67,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
+import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
@@ -379,6 +381,41 @@ public class SecurityIndexManagerTests extends ESTestCase {
         listenerCalled.set(false);
         manager.clusterChanged(new ClusterChangedEvent("same index state", newClusterState, newClusterState));
         assertThat(listenerCalled.get(), is(false));
+    }
+
+    /**
+     * While a legacy `security-migration` persistent task exists, pending migrations must not re-notify listeners on every cluster
+     * state update; the task's removal is what notifies them, so that a new run can pick up where the legacy task stopped.
+     */
+    public void testLegacyMigrationTaskSuppressesRepeatedNotifications() {
+        final AtomicBoolean listenerCalled = new AtomicBoolean(false);
+        final AtomicReference<IndexState> currentState = new AtomicReference<>();
+        manager.addStateListener((projId, prevState, state) -> {
+            currentState.set(state);
+            listenerCalled.set(true);
+        });
+
+        final int pendingVersion = randomIntBetween(1, SecurityMigrations.highestMigrationVersion() - 1);
+        final ClusterState withoutTask = markShardsAvailable(
+            setMigrationVersion(
+                createClusterState(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7, SecuritySystemIndices.SECURITY_MAIN_ALIAS).build(),
+                TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+                pendingVersion
+            )
+        );
+        final ClusterState withTask = setLegacyMigrationTask(withoutTask, pendingVersion);
+
+        manager.clusterChanged(event(withTask));
+        assertThat(listenerCalled.get(), is(true));
+        assertThat(currentState.get().legacyMigrationTaskRunning, is(true));
+
+        listenerCalled.set(false);
+        manager.clusterChanged(new ClusterChangedEvent("same index state", withTask, withTask));
+        assertThat(listenerCalled.get(), is(false));
+
+        manager.clusterChanged(new ClusterChangedEvent("legacy task removed", withoutTask, withTask));
+        assertThat(listenerCalled.get(), is(true));
+        assertThat(currentState.get().legacyMigrationTaskRunning, is(false));
     }
 
     public void testIndexHealthChangeListeners() {
@@ -1337,6 +1374,20 @@ public class SecurityIndexManagerTests extends ESTestCase {
             csBuilder.putProjectMetadata(projectBuilder);
         });
         return csBuilder;
+    }
+
+    private ClusterState setLegacyMigrationTask(ClusterState clusterState, int migrationVersion) {
+        final ProjectMetadata project = clusterState.metadata().getProject(projectId);
+        final PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        tasks.addTask(
+            SecurityMigrationTaskParams.TASK_NAME,
+            SecurityMigrationTaskParams.TASK_NAME,
+            new SecurityMigrationTaskParams(migrationVersion, true),
+            PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT
+        );
+        return ClusterState.builder(clusterState)
+            .putProjectMetadata(ProjectMetadata.builder(project).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build()))
+            .build();
     }
 
     private ClusterState markShardsAvailable(ClusterState.Builder clusterStateBuilder) {

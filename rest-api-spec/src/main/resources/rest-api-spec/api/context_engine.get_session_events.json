@@ -28,6 +28,10 @@
       ]
     },
     "params": {
+      "user_id": {
+        "type": "string",
+        "description": "Only return events written for this user"
+      },
       "space": {
         "type": "string",
         "description": "Only return events written for this Kibana space"

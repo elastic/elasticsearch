@@ -66,10 +66,11 @@ public class SessionEventsIndexService {
     }
 
     /**
-     * Returns the newest events for a session, optionally narrowed to a space and an AI index.
+     * Returns the newest events for a session, optionally narrowed to a user, a space, and an AI index.
      */
     public void getBySession(
         String sessionId,
+        String userId,
         String space,
         List<String> aiIndexIds,
         int size,
@@ -78,6 +79,9 @@ public class SessionEventsIndexService {
         try {
             BoolQueryBuilder query = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(SessionEvent.SESSION_ID_FIELD.getPreferredName(), sessionId));
+            if (userId != null) {
+                query.filter(QueryBuilders.termQuery(SessionEvent.USER_ID_FIELD.getPreferredName(), userId));
+            }
             if (space != null) {
                 query.filter(QueryBuilders.termQuery(SessionEvent.SPACE_FIELD.getPreferredName(), space));
             }

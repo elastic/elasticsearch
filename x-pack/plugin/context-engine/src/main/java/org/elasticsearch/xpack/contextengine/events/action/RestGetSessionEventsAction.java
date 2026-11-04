@@ -34,6 +34,7 @@ public class RestGetSessionEventsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         GetSessionEventsAction.Request getRequest = new GetSessionEventsAction.Request(
             request.param("session_id"),
+            request.param("user_id"),
             request.param("space"),
             request.hasParam("ai_index_ids") ? Arrays.asList(request.paramAsStringArray("ai_index_ids", null)) : null,
             request.paramAsInt("size", GetSessionEventsAction.DEFAULT_SIZE)

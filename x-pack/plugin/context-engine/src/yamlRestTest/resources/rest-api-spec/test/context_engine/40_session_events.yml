@@ -51,7 +51,7 @@ teardown:
           id: "event-2"
           session_id: "session-1"
           round_id: "round-2"
-          user_id: "user-1"
+          user_id: "user-2"
           space: "default"
           ai_index_ids: ["ai-index-2"]
           transcript: "user: thanks\nagent: welcome"
@@ -77,6 +77,15 @@ teardown:
   - match: { count: 2 }
   - match: { results.0.id: "event-2" }
   - match: { results.1.id: $first_id }
+
+  - do:
+      context_engine.get_session_events:
+        session_id: "session-1"
+        user_id: "user-1"
+        space: "default"
+
+  - match: { count: 1 }
+  - match: { results.0.id: $first_id }
 
   - do:
       context_engine.get_session_events:

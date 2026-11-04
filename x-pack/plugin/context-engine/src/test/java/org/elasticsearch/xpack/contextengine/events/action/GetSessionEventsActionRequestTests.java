@@ -27,6 +27,7 @@ public class GetSessionEventsActionRequestTests extends AbstractWireSerializingT
         return new GetSessionEventsAction.Request(
             randomAlphaOfLength(12),
             randomBoolean() ? null : randomAlphaOfLength(8),
+            randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomList(1, 3, () -> randomAlphaOfLength(6)),
             randomIntBetween(1, 1000)
         );
@@ -36,6 +37,7 @@ public class GetSessionEventsActionRequestTests extends AbstractWireSerializingT
     protected GetSessionEventsAction.Request mutateInstance(GetSessionEventsAction.Request instance) {
         return new GetSessionEventsAction.Request(
             randomValueOtherThan(instance.sessionId(), () -> randomAlphaOfLength(12)),
+            instance.userId(),
             instance.space(),
             instance.aiIndexIds(),
             instance.size()
@@ -45,7 +47,7 @@ public class GetSessionEventsActionRequestTests extends AbstractWireSerializingT
     public void testValidate() {
         assertThat(createTestInstance().validate(), nullValue());
 
-        ActionRequestValidationException e = new GetSessionEventsAction.Request("", null, null, 0).validate();
+        ActionRequestValidationException e = new GetSessionEventsAction.Request("", null, null, null, 0).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[session_id] cannot be null or empty"));
         assertThat(e.getMessage(), containsString("[size] must be between 1 and 1000"));

@@ -232,11 +232,9 @@ supports targeting `text` and `keyword` expressions in the same way, with the sa
 supports targeting a `dense_vector` expression (such as a column produced by `EVAL` or the `DENSE_VECTOR`
 command) instead of an indexed field. It performs an exact search by comparing the query vector against
 every row rather than using a vector index. The `similarity_function` option sets the similarity metric.
-When used on an expression, `KNN` can appear anywhere in the query (including after `STATS`),
-but it must be followed by a `LIMIT` that sets the number of nearest neighbors to find.
-The `LIMIT` doesn't have to come immediately after `KNN`, but it must be pushed down to `KNN`.
-A `LIMIT` placed after `STATS` is not pushed down, so it doesn't satisfy this requirement
-(see [known issues](/release-notes/known-issues.md)).
+When used on an expression, `KNN` can appear anywhere in the query, but a later `LIMIT` must set the number of
+nearest neighbors to find. In 9.6.0, a `LIMIT` after `STATS` doesn't count, so add a `LIMIT` before `STATS`.
+For details, refer to [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
 To get the k nearest results, sort and limit explicitly, for example `SORT _score DESC | LIMIT 10`.
 
 {applies_to}`stack: preview 9.6` {applies_to}`serverless: preview`

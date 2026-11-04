@@ -1351,10 +1351,14 @@ public final class IndexSettings {
     );
 
     /**
-     * Whether an index was created by a stateful 9.5 node. Index version 9_111 (UPGRADE_TO_LUCENE_10_5_1) was backported to 9.5, but the
-     * changes gated on 9_108 (COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY), 9_109 (ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT) and
-     * 9_110 (DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS) were not, so such an index has a version above those gates without having had the new
-     * behavior. Stateless has all of them, and the 9_111_0_xx versions are the only ones a stateful 9.5 index can have in that range.
+     * Whether an index was created by a stateful 9.5.2 or later node. Index version 9_111 (UPGRADE_TO_LUCENE_10_5_1) was backported to
+     * 9.5.2, but the changes gated on 9_108 (COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY), 9_109
+     * (ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT) and 9_110 (DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS) were not, so such an index has a version above
+     * those gates without having had the new behavior. Stateless has all of them, and the 9_111_0_xx versions are the only ones a stateful
+     * 9.5 index can have in that range.
+     *
+     * <p>Indices created by 9.5.0 and 9.5.1 are not matched on purpose: their versions are below 9_108, so the plain "before the gate"
+     * checks already give them the same legacy behavior.
      */
     public static boolean createdInStateful95(IndexVersion version, boolean stateless) {
         return stateless == false

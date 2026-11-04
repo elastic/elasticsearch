@@ -580,3 +580,8 @@ tests:
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
   issue: https://github.com/elastic/elasticsearch/issues/164724
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesSumOverTimeIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  method: test {csv-spec:k8s-timeseries-sum-over-time.sum_over_time_of_integer}
+  issue: https://github.com/elastic/elasticsearch/issues/164726

@@ -132,7 +132,7 @@ public class RecoveryMetricsCollector extends AbstractLifecycleComponent impleme
             telemetryProvider,
             throttlingRecoveryService::blockedState,
             throttlingRecoveryService::queueLatencyMillis,
-            throttlingRecoveryService::hasPendingRecoveries,
+            () -> throttlingRecoveryService.currentQueueSize() > 0,
             relativeTimeInMillisSupplier,
             clusterSettings,
             nodeSettings,

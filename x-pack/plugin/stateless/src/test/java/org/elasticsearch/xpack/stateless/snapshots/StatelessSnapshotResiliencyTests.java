@@ -551,6 +551,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     new StatelessCommitServiceProvider(testStatelessPlugin.statelessCommitService),
                     mock(IndexShardCacheWarmer.class),
                     HollowShardsMetrics.NOOP,
+                    primaryRelocationMetricsCollectorProvider,
                     client,
                     ByteSizeValue.ofBytes(Long.MAX_VALUE)
                 );

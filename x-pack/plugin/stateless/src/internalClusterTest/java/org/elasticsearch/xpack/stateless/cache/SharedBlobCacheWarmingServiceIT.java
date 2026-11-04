@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.IndexDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.PrewarmWaitOutcome;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -135,6 +136,8 @@ import static org.elasticsearch.xpack.stateless.recovery.StatelessPrimaryRelocat
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.ID_LOOKUP_RECENCY_THRESHOLD_SETTING;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationHandoffAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY;
+import static org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_MILLIS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -1664,6 +1667,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             "source sends the handoff after the prewarm reply (due to the long `PREWARM_WAIT_TIMEOUT_SETTING`)",
             prewarmRepliedAtHandoff.get()
         );
+        assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.COMPLETED);
     }
 
     // verify that the source stops waiting for the prewarm reply once the prewarm wait timeout expires and proceeds with the handoff
@@ -1723,6 +1727,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         // the early prewarming is still held, so the handoff can only arrive once the source has stopped waiting for the prewarm reply
         safeAwait(handoffReceived);
         assertFalse("source sends the handoff without the prewarm reply after the timeout", prewarmRepliedAtHandoff.get());
+        assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.TIMED_OUT);
 
         releaseEarlyPrewarming.countDown();
         ensureGreen(indexName);
@@ -1775,8 +1780,17 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         safeAwait(handoffReceived);
         assertTrue("source sends the handoff after the prewarm failure, without waiting for the timeout", prewarmFailedAtHandoff.get());
+        assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.FAILED);
 
         ensureGreen(indexName);
+    }
+
+    private static void assertPrewarmWaitOutcome(String node, PrewarmWaitOutcome expectedOutcome) {
+        final var telemetry = getTelemetryPlugin(node);
+        telemetry.collect();
+        final var measurements = telemetry.getLongHistogramMeasurement(RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_MILLIS);
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).attributes(), equalTo(Map.of(PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY, expectedOutcome.attributeValue())));
     }
 
     /**

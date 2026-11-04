@@ -1073,6 +1073,7 @@ public class StatelessPlugin extends Plugin
                 commitServiceProvider,
                 indexShardCacheWarmer,
                 hollowShardMetrics.get(),
+                relocationMetricsCollectorProvider,
                 services.client(),
                 JvmInfo.jvmInfo().getMem().getHeapMax()
             )

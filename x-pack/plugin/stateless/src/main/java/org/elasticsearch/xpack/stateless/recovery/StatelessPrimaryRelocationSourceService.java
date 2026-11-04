@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -63,7 +64,9 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessPrimaryRelocationMetricsCollector.PrewarmWaitOutcome;
 import org.elasticsearch.xpack.stateless.utils.StatelessCommitServiceProvider;
+import org.elasticsearch.xpack.stateless.utils.StatelessPrimaryRelocationMetricsCollectorProvider;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -114,6 +117,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
     private final StatelessCommitServiceProvider statelessCommitServiceProvider;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsMetrics hollowShardsMetrics;
+    private final StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider;
     private final Client client;
 
     @Nullable
@@ -133,6 +137,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         StatelessCommitServiceProvider statelessCommitServiceProvider,
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsMetrics hollowShardsMetrics,
+        StatelessPrimaryRelocationMetricsCollectorProvider relocationMetricsCollectorProvider,
         Client client,
         ByteSizeValue maxHeap
     ) {
@@ -145,6 +150,7 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
         this.statelessCommitServiceProvider = statelessCommitServiceProvider;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.hollowShardsMetrics = hollowShardsMetrics;
+        this.relocationMetricsCollectorProvider = relocationMetricsCollectorProvider;
         this.client = client;
         this.throttledPrimaryRelocations = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE)
             ? new ThrottledPrimaryRelocations(clusterService, recoveryExecutor, this::startRelocationWithFreshClusterState, maxHeap)
@@ -346,12 +352,22 @@ public class StatelessPrimaryRelocationSourceService extends AbstractLifecycleCo
 
             // send the "prewarm" after the "preflush" so the prewarmed shard on the target is closer to the one we flush,
             // and hence handoff completes sooner, and we hold the permits for less time
+            final long beforePrewarm = threadPool.relativeTimeInMillis();
             final var prewarmStep = new SubscribableListener<Void>();
             prewarmStep.addTimeout(prewarmWaitTimeout, threadPool, recoveryExecutor);
             initiatePrewarm(parentClient, request, indexShard, prewarmStep);
             // prewarming is best-effort, in case of failures we continue
-            prewarmStep.addListener(ActionListener.wrap(ignored -> l.onResponse(initialFlushDuration), e -> {
+            prewarmStep.addListener(ActionListener.wrap(ignored -> {
+                relocationMetricsCollectorProvider.get()
+                    .recordRelocationSourcePrewarmWait(threadPool.relativeTimeInMillis() - beforePrewarm, PrewarmWaitOutcome.COMPLETED);
+                l.onResponse(initialFlushDuration);
+            }, e -> {
                 logger.debug(format("%s ignoring prewarm failure or timeout", request.shardId()), e);
+                relocationMetricsCollectorProvider.get()
+                    .recordRelocationSourcePrewarmWait(
+                        threadPool.relativeTimeInMillis() - beforePrewarm,
+                        e instanceof ElasticsearchTimeoutException ? PrewarmWaitOutcome.TIMED_OUT : PrewarmWaitOutcome.FAILED
+                    );
                 l.onResponse(initialFlushDuration);
             }));
         }).addListener(listener.delegateFailureAndWrap((listener0, initialFlushDuration) -> {

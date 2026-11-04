@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 163972
+pr: 164526
+summary: Fix knn `inner_hits` failing on `int8_hnsw` segments written before 9.2
+type: bug

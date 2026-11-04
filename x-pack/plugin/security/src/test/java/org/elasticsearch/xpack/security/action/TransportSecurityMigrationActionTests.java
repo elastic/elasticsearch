@@ -15,6 +15,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,12 +37,16 @@ import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -58,6 +65,8 @@ public class TransportSecurityMigrationActionTests extends ESTestCase {
 
     private CancellableTask task;
     private SecurityIndexManager.IndexState projectIndex;
+    private DiscoveryNode localNode;
+    private List<TaskId> childRequestParents;
 
     @Before
     public void setUpMocks() {
@@ -66,6 +75,8 @@ public class TransportSecurityMigrationActionTests extends ESTestCase {
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         updateIndexMigrationVersionActionInvocations = 0;
         refreshActionInvocations = 0;
+        localNode = DiscoveryNodeUtils.create(randomAlphaOfLength(8));
+        childRequestParents = new ArrayList<>();
         task = new CancellableTask(randomNonNegativeLong(), "transport", SecurityMigrationAction.NAME, "", TaskId.EMPTY_TASK_ID, Map.of());
         client = new NoOpClient(threadPool) {
             @Override
@@ -75,6 +86,7 @@ public class TransportSecurityMigrationActionTests extends ESTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
+                childRequestParents.add(request.getParentTask());
                 if (request instanceof RefreshRequest) {
                     if (refreshIndexShouldThrowException) {
                         if (randomBoolean()) {
@@ -240,6 +252,52 @@ public class TransportSecurityMigrationActionTests extends ESTestCase {
         assertEquals(0, migrateInvocations[0]);
     }
 
+    /**
+     * Every request the migration sends, including the ones made by the migrations themselves, must be a child of the action's
+     * task, so that cancelling the action (e.g. via its legacy persistent task parent) also cancels in-flight work such as an
+     * update-by-query.
+     */
+    public void testChildRequestsUseActionTaskAsParent() {
+        final TaskId expectedParent = new TaskId(localNode.getId(), task.getId());
+        final List<Client> migrationClients = new ArrayList<>();
+        final SecurityMigrations.SecurityMigration migration = new SecurityMigrations.SecurityMigration() {
+            @Override
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+                migrationClients.add(client);
+                listener.onResponse(null);
+            }
+
+            @Override
+            public Set<NodeFeature> nodeFeaturesRequired() {
+                return Set.of();
+            }
+
+            @Override
+            public int minMappingVersion() {
+                return 0;
+            }
+        };
+        when(projectIndex.isReadyForSecurityMigration(migration)).thenReturn(true);
+        TransportSecurityMigrationAction action = createAction(new TreeMap<>(Map.of(1, migration)));
+
+        assertCompleted(execute(action, new SecurityMigrationAction.Request(0, true)));
+
+        assertThat(childRequestParents, hasSize(3)); // refresh, update version, refresh
+        assertThat(childRequestParents, everyItem(is(expectedParent)));
+        assertThat(migrationClients, hasSize(1));
+        assertThat(migrationClients.get(0), instanceOf(ParentTaskAssigningClient.class));
+        assertEquals(expectedParent, ((ParentTaskAssigningClient) migrationClients.get(0)).getParentTask());
+    }
+
+    public void testUpdatesVersionWithActionTaskAsParentWhenMigrationNotNeeded() {
+        TransportSecurityMigrationAction action = createAction(new TreeMap<>());
+
+        assertCompleted(execute(action, new SecurityMigrationAction.Request(2, false)));
+
+        assertThat(childRequestParents, hasSize(1));
+        assertEquals(new TaskId(localNode.getId(), task.getId()), childRequestParents.get(0));
+    }
+
     public void testRequestIsLocalOnly() {
         expectThrows(AssertionError.class, () -> new SecurityMigrationAction.Request(0, true).writeTo(null));
     }
@@ -250,6 +308,7 @@ public class TransportSecurityMigrationActionTests extends ESTestCase {
             new ActionFilters(Set.of()),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             client,
+            () -> localNode,
             securityIndexManager,
             migrationByVersion
         );

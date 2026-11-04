@@ -10,9 +10,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -30,10 +33,12 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class SecurityMigrationExecutorTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private ClusterService clusterService;
     private List<SecurityMigrationAction.Request> requests;
     private Exception failure;
     private SecurityMigrationExecutor executor;
@@ -43,12 +48,15 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     @Before
     public void setUpExecutor() {
         threadPool = new TestThreadPool(getTestName());
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
         requests = new ArrayList<>();
         failure = null;
         task = mock(AllocatedPersistentTask.class);
+        when(task.getId()).thenReturn(randomNonNegativeLong());
         executor = new SecurityMigrationExecutor(
             SecurityMigrationTaskParams.TASK_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            clusterService,
             new NoOpClient(threadPool) {
                 @Override
                 @SuppressWarnings("unchecked")
@@ -71,6 +79,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
 
     @After
     public void tearDownThreadPool() {
+        clusterService.close();
         terminate(threadPool);
     }
 
@@ -95,6 +104,17 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         assertEquals(1, requests.size());
         verify(task).markAsFailed(same(failure));
         verify(task, never()).markAsCompleted();
+    }
+
+    /**
+     * The delegated migration must be a child of the legacy persistent task, so that cancelling the persistent task (e.g. on
+     * project deletion) also cancels the migration it started.
+     */
+    public void testUsesPersistentTaskAsParent() {
+        executor.nodeOperation(task, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
+
+        assertEquals(1, requests.size());
+        assertEquals(new TaskId(clusterService.localNode().getId(), task.getId()), requests.get(0).getParentTask());
     }
 
     public void testDoesNotOptIntoAutomaticReassignmentOnShutdown() {

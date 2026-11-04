@@ -15,6 +15,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
@@ -35,6 +38,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -52,6 +56,7 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
     private final Executor executor;
     private final SecurityIndexManager securityIndexManager;
     private final Client client;
+    private final Supplier<DiscoveryNode> localNode;
     private final TreeMap<Integer, SecurityMigrations.SecurityMigration> migrationByVersion;
 
     @Inject
@@ -59,6 +64,7 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
+        ClusterService clusterService,
         Client client,
         SecuritySystemIndices systemIndices
     ) {
@@ -67,6 +73,7 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
             actionFilters,
             threadPool.executor(ThreadPool.Names.MANAGEMENT),
             client,
+            clusterService::localNode,
             systemIndices.getMainIndexManager(),
             SecurityMigrations.MIGRATIONS_BY_VERSION
         );
@@ -78,6 +85,7 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
         ActionFilters actionFilters,
         Executor executor,
         Client client,
+        Supplier<DiscoveryNode> localNode,
         SecurityIndexManager securityIndexManager,
         TreeMap<Integer, SecurityMigrations.SecurityMigration> migrationByVersion
     ) {
@@ -85,12 +93,16 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
         this.executor = executor;
         this.securityIndexManager = securityIndexManager;
         this.client = client;
+        this.localNode = localNode;
         this.migrationByVersion = migrationByVersion;
     }
 
     @Override
     protected void doExecute(Task task, SecurityMigrationAction.Request request, ActionListener<ActionResponse.Empty> listener) {
         final CancellableTask cancellableTask = (CancellableTask) task;
+        // Make every request sent on behalf of this migration a child of its task, so that cancelling the task (for instance through
+        // a legacy persistent task parent) also cancels in-flight work such as an update-by-query
+        final Client parentClient = new ParentTaskAssigningClient(client, localNode.get(), task);
         final ActionListener<Void> migrationsListener = ActionListener.wrap(
             ignored -> listener.onResponse(ActionResponse.Empty.INSTANCE),
             exception -> {
@@ -101,6 +113,7 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
 
         if (request.isMigrationNeeded() == false) {
             updateMigrationVersion(
+                parentClient,
                 request.getMigrationVersion(),
                 securityIndexManager.forCurrentProject().getConcreteIndexName(),
                 migrationsListener.delegateFailureAndWrap((l, response) -> {
@@ -112,16 +125,22 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
         }
 
         refreshSecurityIndex(
+            parentClient,
             new ThreadedActionListener<>(
                 executor,
                 migrationsListener.delegateFailureIgnoreResponseAndWrap(
-                    l -> applyOutstandingMigrations(cancellableTask, request.getMigrationVersion(), l)
+                    l -> applyOutstandingMigrations(cancellableTask, parentClient, request.getMigrationVersion(), l)
                 )
             )
         );
     }
 
-    private void applyOutstandingMigrations(CancellableTask task, int currentMigrationVersion, ActionListener<Void> migrationsListener) {
+    private void applyOutstandingMigrations(
+        CancellableTask task,
+        Client parentClient,
+        int currentMigrationVersion,
+        ActionListener<Void> migrationsListener
+    ) {
         if (task.isCancelled()) {
             migrationsListener.onFailure(new TaskCancelledException("Security migration task cancelled"));
             return;
@@ -134,19 +153,21 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
             migrationEntry.getValue()
                 .migrate(
                     securityIndexManager,
-                    client,
+                    parentClient,
                     migrationsListener.delegateFailureIgnoreResponseAndWrap(
                         updateVersionListener -> updateMigrationVersion(
+                            parentClient,
                             migrationEntry.getKey(),
                             projectSecurityIndex.getConcreteIndexName(),
                             new ThreadedActionListener<>(
                                 executor,
                                 updateVersionListener.delegateFailureIgnoreResponseAndWrap(refreshListener -> {
                                     refreshSecurityIndex(
+                                        parentClient,
                                         new ThreadedActionListener<>(
                                             executor,
                                             refreshListener.delegateFailureIgnoreResponseAndWrap(
-                                                l -> applyOutstandingMigrations(task, migrationEntry.getKey(), l)
+                                                l -> applyOutstandingMigrations(task, parentClient, migrationEntry.getKey(), l)
                                             )
                                         )
                                     );
@@ -165,9 +186,9 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
      * Refresh security index to make sure that docs that were migrated are visible to the next migration and to prevent version conflicts
      * or unexpected behaviour by APIs relying on migrated docs.
      */
-    private void refreshSecurityIndex(ActionListener<Void> listener) {
+    private void refreshSecurityIndex(Client parentClient, ActionListener<Void> listener) {
         RefreshRequest refreshRequest = new RefreshRequest(securityIndexManager.forCurrentProject().getConcreteIndexName());
-        executeAsyncWithOrigin(client, SECURITY_ORIGIN, RefreshAction.INSTANCE, refreshRequest, ActionListener.wrap(response -> {
+        executeAsyncWithOrigin(parentClient, SECURITY_ORIGIN, RefreshAction.INSTANCE, refreshRequest, ActionListener.wrap(response -> {
             if (response.getFailedShards() != 0) {
                 // Log a warning but do not stop migration, since this is not a critical operation
                 logger.warn("Failed to refresh security index during security migration {}", Arrays.toString(response.getShardFailures()));
@@ -180,8 +201,8 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
         }));
     }
 
-    private void updateMigrationVersion(int migrationVersion, String indexName, ActionListener<Void> listener) {
-        client.execute(
+    private void updateMigrationVersion(Client parentClient, int migrationVersion, String indexName, ActionListener<Void> listener) {
+        parentClient.execute(
             UpdateIndexMigrationVersionAction.INSTANCE,
             new UpdateIndexMigrationVersionAction.Request(TimeValue.MAX_VALUE, migrationVersion, indexName),
             listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(null))

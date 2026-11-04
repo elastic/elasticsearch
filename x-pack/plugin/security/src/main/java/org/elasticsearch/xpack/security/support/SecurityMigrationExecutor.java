@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -24,10 +26,12 @@ import java.util.concurrent.Executor;
 /// once no supported version can create a `security-migration` persistent task anymore.
 public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityMigrationTaskParams> {
 
+    private final ClusterService clusterService;
     private final Client client;
 
-    public SecurityMigrationExecutor(String taskName, Executor executor, Client client) {
+    public SecurityMigrationExecutor(String taskName, Executor executor, ClusterService clusterService, Client client) {
         super(taskName, executor);
+        this.clusterService = clusterService;
         this.client = client;
     }
 
@@ -44,7 +48,8 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
 
     @Override
     protected void nodeOperation(AllocatedPersistentTask task, SecurityMigrationTaskParams params, PersistentTaskState state) {
-        client.execute(
+        // Run the migration as a child of the persistent task, so that cancelling the task (e.g. on project deletion) cancels it too
+        new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
             SecurityMigrationAction.INSTANCE,
             new SecurityMigrationAction.Request(params.getMigrationVersion(), params.isMigrationNeeded()),
             ActionListener.wrap(response -> task.markAsCompleted(), task::markAsFailed)

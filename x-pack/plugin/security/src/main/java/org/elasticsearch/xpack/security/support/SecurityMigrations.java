@@ -421,6 +421,7 @@ public class SecurityMigrations {
             return new SecurityMigrationExecutor(
                 SecurityMigrationTaskParams.TASK_NAME,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                clusterService,
                 client
             );
         }

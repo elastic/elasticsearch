@@ -1629,7 +1629,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    failureStrategy.notifyMaster(),
+                    finalStrategy.notifyMaster(),
                     message,
                     failure,
                     clusterService.state(),

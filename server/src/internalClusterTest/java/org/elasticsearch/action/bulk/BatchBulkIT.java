@@ -3542,6 +3542,88 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     /**
+     * Fields with {@code ignore_malformed} are outside what the columnar batch path indexes, so the batch falls back to the row path,
+     * which parses each document in place from its row with {@code SourceRowXContentParser}. That parser must treat a value a mapper
+     * cannot use the way the JSON parser does: the mapper ignores it when it is a scalar, and the document is rejected when it is not.
+     * The wrong answer was to hand the mapper a value left over from an earlier token, or a number wrapped around by a narrowing cast.
+     * Every document is checked through the real bulk API with batch indexing on: what is ignored and indexed, and what {@code _source}
+     * gives back for it.
+     */
+    public void testMalformedValuesOnTheRowPathAreIgnoredAsFromJson() throws IOException {
+        final String index = "test-row-path-malformed";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
+                .setMapping("""
+                    {
+                      "dynamic": "strict",
+                      "properties": {
+                        "name": { "type": "keyword" },
+                        "int_field": { "type": "integer", "ignore_malformed": true },
+                        "short_field": { "type": "short", "ignore_malformed": true },
+                        "double_field": { "type": "double", "ignore_malformed": true },
+                        "bool_field": { "type": "boolean", "ignore_malformed": true }
+                      }
+                    }
+                    """)
+        );
+        ensureGreen(index);
+
+        final Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("valid", """
+            {"name":"a","int_field":5,"short_field":7,"double_field":1.5,"bool_field":true}""");
+        // A boolean where a number is expected.
+        sources.put("bool_for_numbers", """
+            {"name":"b","int_field":false,"double_field":true}""");
+        // Numbers too big for the field, which a plain cast would have wrapped around into a value that is indexed.
+        sources.put("too_big", """
+            {"name":"c","int_field":3000000000,"short_field":70000}""");
+        sources.put("text", """
+            {"name":"d","int_field":"int garbage","bool_field":"bool garbage"}""");
+        sources.put("number_for_bool", """
+            {"name":"e","bool_field":5}""");
+        // An object cannot be ignored. The second element is read while the parser has just left a number.
+        sources.put("object", """
+            {"name":"f","int_field":[7,{"x":1}]}""");
+
+        final BulkResponse response = client(findCoordinatingNode()).bulk(bulkOf(index, sources)).actionGet();
+        final Map<String, BulkItemResponse> items = new LinkedHashMap<>();
+        for (BulkItemResponse item : response.getItems()) {
+            items.put(item.getId(), item);
+        }
+        for (String id : List.of("valid", "bool_for_numbers", "too_big", "text", "number_for_bool")) {
+            assertFalse("[" + id + "] failed: " + items.get(id).getFailureMessage(), items.get(id).isFailed());
+        }
+        assertTrue("an object where a number is expected is rejected", items.get("object").isFailed());
+        assertThat(items.get("object").getFailureMessage(), containsString("failed to parse field [int_field] of type [integer]"));
+
+        refresh(index);
+        // Synthetic source gives back what was ignored as it was sent.
+        assertThat(
+            sourceOf(index, "valid"),
+            equalTo(Map.of("name", "a", "int_field", 5, "short_field", 7, "double_field", 1.5, "bool_field", true))
+        );
+        assertThat(sourceOf(index, "bool_for_numbers"), equalTo(Map.of("name", "b", "int_field", false, "double_field", true)));
+        assertThat(sourceOf(index, "too_big"), equalTo(Map.of("name", "c", "int_field", 3000000000L, "short_field", 70000)));
+        assertThat(sourceOf(index, "text"), equalTo(Map.of("name", "d", "int_field", "int garbage", "bool_field", "bool garbage")));
+        assertThat(sourceOf(index, "number_for_bool"), equalTo(Map.of("name", "e", "bool_field", 5)));
+
+        // The valid document is indexed under its values, and none of the others are indexed under a value they did not have.
+        assertHitIds(index, QueryBuilders.termQuery("int_field", 5), "valid");
+        assertHitIds(index, QueryBuilders.termQuery("short_field", 7), "valid");
+        assertHitIds(index, QueryBuilders.termQuery("bool_field", true), "valid");
+        assertHitIds(index, QueryBuilders.rangeQuery("int_field").gte(Integer.MIN_VALUE).lte(Integer.MAX_VALUE), "valid");
+        assertHitIds(index, QueryBuilders.rangeQuery("double_field").gte(-1e300).lte(1e300), "valid");
+        assertHitIds(index, QueryBuilders.existsQuery("_ignored"), "bool_for_numbers", "too_big", "text", "number_for_bool");
+    }
+
+    /**
      * Without {@code ignore_malformed}, a value a numeric or boolean field cannot hold must reject the document with a parse error
      * (a 400), as it does from JSON. A field that is not mapped for columnar parsing, as every field of an index that is not in a
      * columnar or time series mode is not, is parsed from its row by {@code SourceRowXContentParser}, which used to narrow with a plain
@@ -3628,6 +3710,10 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertHitIds(index, QueryBuilders.termQuery("short_field", 4464));
         assertHitIds(index, QueryBuilders.termQuery("int_field", -1294967296));
         assertHitIds(index, QueryBuilders.termQuery("long_field", Long.MAX_VALUE), "valid");
+    }
+
+    private Map<String, Object> sourceOf(String index, String id) {
+        return client().prepareGet(index, id).get().getSourceAsMap();
     }
 
     private void assertHitIds(String index, QueryBuilder query, String... expectedIds) {

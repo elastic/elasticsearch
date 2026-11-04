@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * Persists failed export batches to disk and replays them once the delegate recovers.
@@ -87,6 +88,18 @@ public class BufferingMetricExporter implements MetricExporter {
         Supplier<MeterProvider> meterProviderSupplier,
         long writeWindowMillis
     ) {
+        this(delegate, settings, bufferPath, meterProviderSupplier, writeWindowMillis, UnaryOperator.identity());
+    }
+
+    // Visible for testing
+    BufferingMetricExporter(
+        MetricExporter delegate,
+        Settings settings,
+        Path bufferPath,
+        Supplier<MeterProvider> meterProviderSupplier,
+        long writeWindowMillis,
+        UnaryOperator<SignalStorage.Metric> metricStorageWrapper
+    ) {
         this.delegate = delegate;
         this.bufferingMetrics = new BufferingMetrics(meterProviderSupplier);
         long maxDiskBytes = OtelSdkSettings.TELEMETRY_METRICS_BUFFER_DISK_SIZE.get(settings).getBytes();
@@ -102,7 +115,7 @@ public class BufferingMetricExporter implements MetricExporter {
             .setDeleteItemsOnIteration(false)
             .setDiscardedFileListener((file, reason) -> bufferingMetrics.fullDrops().add(1))
             .build();
-        this.storage = createStorage(diskDir, config);
+        this.storage = metricStorageWrapper.apply(createStorage(diskDir, config));
         this.diskWriter = MetricToDiskExporter.builder(storage).build();
 
         this.diskExecutor = new Scheduler.SafeScheduledThreadPoolExecutor(
@@ -213,6 +226,12 @@ public class BufferingMetricExporter implements MetricExporter {
             Iterator<Collection<MetricData>> it = storage.iterator();
             while (it.hasNext()) {
                 Collection<MetricData> batch = it.next();
+                if (batch == null) {
+                    // Despite the Iterator contract, the storage iterator returns null when it is closed concurrently (on shutdown)
+                    // between hasNext() and next()
+                    logger.debug("the FileMetricStorage is shut down, stoping drain");
+                    return;
+                }
                 CompletableResultCode result = delegate.export(batch).join(sendTimeout.millis(), TimeUnit.MILLISECONDS);
                 it.remove();
                 if (result.isSuccess()) {

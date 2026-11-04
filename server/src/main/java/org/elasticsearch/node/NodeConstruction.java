@@ -250,6 +250,7 @@ import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTr
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.snapshots.SnapshotGlobalStateTransformer;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -1278,6 +1279,10 @@ class NodeConstruction {
             systemIndices,
             projectResolver.supportsMultipleProjects(),
             snapshotMetrics
+        );
+
+        snapshotsService.setSnapshotGlobalStateTransformer(
+            pluginsService.loadSingletonServiceProvider(SnapshotGlobalStateTransformer.class, () -> SnapshotGlobalStateTransformer.NOOP)
         );
 
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(

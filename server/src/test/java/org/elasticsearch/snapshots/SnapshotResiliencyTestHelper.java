@@ -1098,7 +1098,8 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         snapshotsService,
                         actionFilters,
-                        projectResolver
+                        projectResolver,
+                        featureService
                     )
                 );
                 actions.put(

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -50,7 +49,7 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
         ShardRouting startedShard,
         ShardRouting targetRelocatingShard,
         MoveReason reason,
-        @Nullable ComputedMoveReason computedReason
+        @Nullable MoveReason computedReason
     ) {
         assert startedShard.started() : "expected started shard " + startedShard;
         assert targetRelocatingShard.isRelocationTarget() : "expected relocation target shard " + targetRelocatingShard;

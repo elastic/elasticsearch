@@ -38,7 +38,7 @@ public interface RoutingChangesObserver {
         ShardRouting startedShard,
         ShardRouting targetRelocatingShard,
         MoveReason reason,
-        @Nullable ComputedMoveReason computedReason
+        @Nullable MoveReason computedReason
     ) {}
 
     /**
@@ -105,7 +105,7 @@ public interface RoutingChangesObserver {
             ShardRouting startedShard,
             ShardRouting targetRelocatingShard,
             MoveReason reason,
-            @Nullable ComputedMoveReason computedReason
+            @Nullable MoveReason computedReason
         ) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
                 routingChangesObserver.relocationStarted(startedShard, targetRelocatingShard, reason, computedReason);

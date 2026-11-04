@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.MoveType;
@@ -290,7 +289,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var computedReason = new MoveReason(randomFrom(MoveType.values()), randomBoolean() ? null : randomIdentifier());
         final var computedMoveCount = randomIntBetween(1, 10);
         for (int i = 0; i < computedMoveCount; i++) {
-            observer.relocationStarted(startedShard, targetShard, reason, new ComputedMoveReason(computedReason, 0, 0));
+            observer.relocationStarted(startedShard, targetShard, reason, computedReason);
         }
         final var computedAttributes = assertMovementCount(recorder, moveCount + computedMoveCount).stream()
             .filter(attrs -> attrs.get("es_reason_source").equals("computed"))

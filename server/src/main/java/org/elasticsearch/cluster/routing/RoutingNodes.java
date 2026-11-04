@@ -539,7 +539,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         String nodeId,
         long expectedShardSize,
         MoveReason reason,
-        @Nullable ComputedMoveReason computedReason,
+        @Nullable MoveReason computedReason,
         RoutingChangesObserver changes,
         RecoveryPriority recoveryPriority
     ) {

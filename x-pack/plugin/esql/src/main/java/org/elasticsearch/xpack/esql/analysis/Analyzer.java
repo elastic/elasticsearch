@@ -452,7 +452,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<IndexResolution> resolutions = new ArrayList<>(context.indexResolution().values());
             resolutions.addAll(context.lookupResolution().values());
             Map<NameId, FieldSemantics> semantics = ColumnSemantics.collect(describe.child(), resolutions);
-            return describe.describe(semantics);
+            return describe.describe(semantics, ColumnSemantics.datasetColumns(describe.child()));
         }
 
         @Override

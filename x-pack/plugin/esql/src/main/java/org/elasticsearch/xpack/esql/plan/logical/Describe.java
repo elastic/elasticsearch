@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -102,9 +103,10 @@ public class Describe extends UnaryPlan implements TelemetryAware {
     /**
      * Describes the resolved child as a local table.
      *
-     * @param semantics the semantics of the mapped fields the child's columns read, keyed by attribute id
+     * @param semantics      the semantics of the mapped fields the child's columns read, keyed by attribute id
+     * @param datasetColumns the dataset columns the child's columns read, keyed by attribute id
      */
-    public LocalRelation describe(Map<NameId, FieldSemantics> semantics) {
+    public LocalRelation describe(Map<NameId, FieldSemantics> semantics, Map<NameId, Attribute> datasetColumns) {
         // The output of a STATS is a table of answers, not a time series to aggregate per series again.
         boolean timeSeries = child().anyMatch(p -> p instanceof EsRelation r && r.indexMode().isTsdb())
             && child().anyMatch(p -> p instanceof Aggregate) == false;
@@ -118,16 +120,15 @@ public class Describe extends UnaryPlan implements TelemetryAware {
             }
             for (Attribute column : columns) {
                 FieldSemantics field = semantics.get(column.id());
-                FieldSemantics.Role role = field != null ? field.role()
-                    : column instanceof MetadataAttribute ? FieldSemantics.Role.METADATA
-                    : null;
+                Attribute datasetColumn = datasetColumns.get(column.id());
+                FieldSemantics.Role role = field != null ? field.role() : isMetadata(column) ? FieldSemantics.Role.METADATA : null;
                 String metricType = field == null ? null : field.metricType();
                 Object[] row = new Object[] {
                     column.name(),
                     column.dataType().outputType(),
                     role == null ? null : role.label(),
-                    field == null ? null : field.field(),
-                    origin(column, field),
+                    field != null ? field.field() : datasetColumn != null ? datasetColumn.name() : null,
+                    origin(column, field, datasetColumn),
                     metricType,
                     field == null ? null : field.unit(),
                     field == null ? null : field.description(),
@@ -149,8 +150,8 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         }
     }
 
-    private static String origin(Attribute column, @Nullable FieldSemantics field) {
-        if (column instanceof MetadataAttribute) {
+    private static String origin(Attribute column, @Nullable FieldSemantics field, @Nullable Attribute datasetColumn) {
+        if (isMetadata(column)) {
             return "metadata";
         }
         if (column instanceof UnsupportedAttribute) {
@@ -159,7 +160,14 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         if (column instanceof FieldAttribute) {
             return field == null ? "unmapped" : "mapped";
         }
+        if (datasetColumn != null) {
+            return datasetColumn.id().equals(column.id()) ? "dataset" : "renamed";
+        }
         return field == null ? "computed" : "renamed";
+    }
+
+    private static boolean isMetadata(Attribute column) {
+        return column instanceof MetadataAttribute || column instanceof ExternalMetadataAttribute;
     }
 
     /**

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.FieldSemantics;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Collection;
@@ -24,7 +25,7 @@ import java.util.Map;
  * Links the columns of a plan back to the {@link FieldSemantics} of the mapped fields they read.
  * <p>
  * A column keeps its semantics when it passes through unchanged or is renamed. Computed columns
- * have none.
+ * have none. Columns read from a dataset are linked to their dataset column instead.
  */
 public final class ColumnSemantics {
 
@@ -58,15 +59,36 @@ public final class ColumnSemantics {
                 }
             }
         });
-        // RENAME and pass-through aliases keep the semantics of the field they point at.
+        followAliases(plan, semantics);
+        return semantics;
+    }
+
+    /**
+     * Returns the dataset column that every attribute in {@code plan} reads, keyed by attribute id. A dataset has a
+     * schema but no mapping, so the column is all that is known.
+     */
+    public static Map<NameId, Attribute> datasetColumns(LogicalPlan plan) {
+        Map<NameId, Attribute> columns = new HashMap<>();
+        plan.forEachUp(ExternalRelation.class, relation -> {
+            for (Attribute attribute : relation.output()) {
+                columns.put(attribute.id(), attribute);
+            }
+        });
+        followAliases(plan, columns);
+        return columns;
+    }
+
+    /**
+     * RENAME and pass-through aliases keep what is known about the column they point at.
+     */
+    private static <T> void followAliases(LogicalPlan plan, Map<NameId, T> known) {
         plan.forEachExpressionUp(Alias.class, alias -> {
             if (alias.child() instanceof Attribute source) {
-                FieldSemantics fieldSemantics = semantics.get(source.id());
-                if (fieldSemantics != null) {
-                    semantics.put(alias.id(), fieldSemantics);
+                T value = known.get(source.id());
+                if (value != null) {
+                    known.put(alias.id(), value);
                 }
             }
         });
-        return semantics;
     }
 }

@@ -599,7 +599,9 @@ public final class IndexSettings {
 
     /**
      * This index setting is intentionally undocumented and should be used as an escape hatch to disable BloomFilter of the
-     * _id field of non-data-stream indices, which is enabled by default. This setting doesn't affect data-stream indices.
+     * _id field of non-data-stream indices, which is enabled by default. Unless
+     * {@link #BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME} is enabled, this setting doesn't affect
+     * data-stream indices.
      */
     public static final Setting<Boolean> BLOOM_FILTER_ID_FIELD_ENABLED_SETTING = Setting.boolSetting(
         "index.bloom_filter_for_id_field.enabled",
@@ -608,6 +610,21 @@ public final class IndexSettings {
         Setting.Property.IndexScope,
         Property.DeprecatedWarning
     );
+
+    /**
+     * Name of the internal node setting that extends the BloomFilter of the _id field to non time series indices whose mapping
+     * enables the data stream timestamp field, i.e. data stream backing indices and any index mapped like one. Such indices are
+     * assumed to be append-only, which is not the case when clients provide explicit ids, as every write then needs a version
+     * lookup in all the segments of the shard. The setting is only registered, and enabled, by the stateless plugin, so any other
+     * node rejects it as unknown; {@link #BLOOM_FILTER_ID_FIELD_ENABLED_SETTING} can still disable it per index.
+     */
+    public static final String BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME =
+        "node._internal.bloom_filter_for_id_field.data_stream_timestamp.enabled";
+
+    public static boolean isBloomFilterIdFieldWithDataStreamTimestampEnabled(Settings nodeSettings) {
+        return nodeSettings.getAsBoolean(BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME, false);
+    }
+
     public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
     public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING = Setting.longSetting(
         LIFECYCLE_ORIGINATION_DATE,

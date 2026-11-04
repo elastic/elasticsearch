@@ -311,6 +311,69 @@ public class ObjectMapper extends Mapper {
                 && builder instanceof NestedObjectMapper.Builder == false;
         }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            toXContent(builder, params, null);
+            return builder;
+        }
+
+        void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
+            builder.startObject(leafName());
+            if (mappersBuilders.isEmpty() && custom == null) {
+                // only write the object content type if there are no properties, otherwise, it is automatically detected
+                builder.field("type", CONTENT_TYPE);
+            }
+            if (dynamic != null) {
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
+            }
+            if (enabled.value() != Defaults.ENABLED) {
+                builder.field("enabled", enabled.value());
+            }
+            if (subobjects != null && subobjects.explicit()) {
+                builder.field("subobjects", subobjects.value().printedValue);
+            }
+            if (sourceKeepMode.isPresent()) {
+                builder.field("synthetic_source_keep", sourceKeepMode.get());
+            }
+            if (custom != null) {
+                custom.toXContent(builder, params);
+            }
+
+            doXContent(builder, params);
+            serializeChildren(builder, params);
+            builder.endObject();
+        }
+
+        /**
+         * Writes the children under {@code properties}, sorted by name as {@link ObjectMapper#serializeMappers} sorts
+         * the mappers built from them. A flattened child has a dotted name, which sorts the same way its full path does.
+         */
+        protected final void serializeChildren(XContentBuilder builder, Params params) throws IOException {
+            List<Mapper.Builder> sortedChildren = mappersBuilders.stream()
+                .filter(this::isSerializedAsProperty)
+                .sorted(Comparator.comparing(Mapper.Builder::leafName))
+                .toList();
+            if (sortedChildren.isEmpty() == false) {
+                builder.startObject("properties");
+                for (Mapper.Builder child : sortedChildren) {
+                    child.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+        }
+
+        /**
+         * Whether a child is written under {@code properties}. Metadata fields are written elsewhere, by the mapping.
+         */
+        protected boolean isSerializedAsProperty(Mapper.Builder child) {
+            return child instanceof MetadataFieldMapper.Builder == false;
+        }
+
+        /**
+         * Writes whatever a subclass adds after the settings common to all objects and before the children.
+         */
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
+
         /**
          * Builds the children of this builder. Requires that {@link #normalize} has already been applied to the tree. That is done
          * once, when the root is built.

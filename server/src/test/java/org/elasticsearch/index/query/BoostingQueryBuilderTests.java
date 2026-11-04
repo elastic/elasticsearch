@@ -37,9 +37,9 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
             return new BoostingQueryBuilder(queryBuilder, queryBuilder).negativeBoost(1f);
         }
         if (randomBoolean()) {
-            return new BoostingQueryBuilder(new MatchAllQueryBuilder(), queryBuilder).negativeBoost(1f);
+            return new BoostingQueryBuilder(createInnerQuery(), queryBuilder).negativeBoost(1f);
         }
-        return new BoostingQueryBuilder(queryBuilder, new MatchAllQueryBuilder()).negativeBoost(1f);
+        return new BoostingQueryBuilder(queryBuilder, createInnerQuery()).negativeBoost(1f);
     }
 
     @Override

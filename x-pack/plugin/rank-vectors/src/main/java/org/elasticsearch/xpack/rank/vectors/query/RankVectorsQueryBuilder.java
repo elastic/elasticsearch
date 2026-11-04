@@ -55,7 +55,7 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
     public static final ParseField FILTER_FIELD = new ParseField("filter");
 
     private static final int MAX_CANDIDATES = 10_000;
-    private static final long MAX_EXACT_DOT_PRODUCTS = 10_000_000L;
+    private static final long MAX_EXACT_DOT_PRODUCTS = 250_000_000L;
 
     private static final ConstructingObjectParser<RankVectorsQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,

@@ -440,6 +440,13 @@ public class RankVectorsFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }));
         float[] unitVector = new float[RankVectorsFieldMapper.MUVERA_TOKEN_DIMS];
         unitVector[0] = 1f;
+        mapper.parse(source(b -> {
+            b.startArray("field");
+            for (int i = 0; i < 780; i++) {
+                b.value(unitVector);
+            }
+            b.endArray();
+        }));
         DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("field");
             for (int i = 0; i <= RankVectorsFieldMapper.MAX_MUVERA_VECTORS; i++) {

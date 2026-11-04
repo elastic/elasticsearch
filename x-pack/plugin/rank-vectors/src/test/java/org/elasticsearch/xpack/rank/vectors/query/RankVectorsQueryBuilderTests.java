@@ -94,6 +94,8 @@ public class RankVectorsQueryBuilderTests extends ESTestCase {
         );
         assertThat(e.getMessage(), containsString("vector count"));
 
+        assertNotNull(new RankVectorsQueryBuilder("tokens", new float[92][1], 10, 2_000));
+
         e = expectThrows(
             IllegalArgumentException.class,
             () -> new RankVectorsQueryBuilder("tokens", new float[RankVectorsFieldMapper.MAX_MUVERA_VECTORS][1], 1, 10_000)

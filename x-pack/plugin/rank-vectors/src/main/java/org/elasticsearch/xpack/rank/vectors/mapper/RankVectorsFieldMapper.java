@@ -76,15 +76,20 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
 
     public static final String VECTOR_MAGNITUDES_SUFFIX = "._magnitude";
     public static final String CONTENT_TYPE = "rank_vectors";
-    public static final int MAX_MUVERA_VECTORS = 50;
+    /**
+     * Bounds indexed MUVERA construction and exact MaxSim work. This covers the
+     * raw ColQwen and ColBERTv2 evaluation stores without admitting the full
+     * 8,192-vector limit supported by non-indexed rank vectors.
+     */
+    public static final int MAX_MUVERA_VECTORS = 1024;
 
     static final int MUVERA_ENCODING_VERSION = 1;
     static final String MUVERA_ENCODING_PROFILE = "muvera_v1";
     static final int MUVERA_TOKEN_DIMS = 128;
     static final int MUVERA_FDE_DIMS = 4096;
-    static final int MUVERA_K_SIM = 3;
+    static final int MUVERA_K_SIM = 4;
     static final int MUVERA_D_PROJ = 8;
-    static final int MUVERA_R_REPS = 64;
+    static final int MUVERA_R_REPS = 32;
     static final long MUVERA_SEED = 42L;
     private static final int MUVERA_VECTORS_PER_CLUSTER = 384;
     private static final MuveraEncodingProfile MUVERA_V1 = new MuveraEncodingProfile(

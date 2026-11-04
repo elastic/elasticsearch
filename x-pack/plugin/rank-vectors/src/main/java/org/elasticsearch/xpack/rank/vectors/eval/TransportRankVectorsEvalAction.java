@@ -65,7 +65,7 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
     static final long MAX_EXACT_DOT_PRODUCTS = 100_000_000L;
     static final int MAX_PRIMARY_SHARDS = 128;
     static final int MAX_TOTAL_CANDIDATES = 10_000;
-    private static final int ASSUMED_DOCUMENT_VECTORS = 50;
+    private static final int ASSUMED_DOCUMENT_VECTORS = RankVectorsFieldMapper.MAX_MUVERA_VECTORS;
 
     private final Client client;
     private final ClusterService clusterService;

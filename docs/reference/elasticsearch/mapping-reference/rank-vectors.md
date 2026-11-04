@@ -9,9 +9,9 @@ mapped_pages:
 
 # Rank vectors [rank-vectors]
 
-The `rank_vectors` field type enables late-interaction dense vector scoring in Elasticsearch. The number of vectors per field can vary, but they must all share the same number of dimensions and element type.
+The `rank_vectors` field type stores multiple vectors for one document and enables late-interaction retrieval and scoring. The number of vectors per field can vary, but they must all share the same number of dimensions and element type.
 
-The purpose of vectors stored in this field is second order ranking documents with max-sim similarity.
+By default, rank vectors are stored for second-stage scoring with MaxSim similarity. You can also index `float` rank vectors for approximate candidate retrieval followed by native exact MaxSim scoring.
 
 Here is a simple example of using this field with `float` elements.
 
@@ -127,7 +127,12 @@ $$$rank-vectors-element-type$$$
 `dims`
 :   (Optional, integer) Number of vector dimensions. Can’t exceed `4096`. If `dims` is not specified, it will be set to the length of the first vector added to the field.
 
-A single document can hold at most `8192` vectors in a `rank_vectors` field. Indexing a document with more vectors than that fails with an error. The same limit applies to the query vector of a max-sim function: passing more than `8192` query vectors fails the search request.
+`index`
+:   (Optional, Boolean) Whether to index the field for approximate MaxSim retrieval. Defaults to `false`.
+
+    Indexed rank vectors require `element_type: float`, `dims: 128`, and unit-length vectors. Elasticsearch uses an implementation-defined candidate index and stores the original vectors for exact MaxSim scoring. The indexing strategy is not part of the mapping contract and can change between index versions.
+
+A non-indexed `rank_vectors` field can hold at most `8192` vectors per document. An indexed field can hold at most `1024`. The same `1024`-vector limit applies to an indexed MaxSim query. Requests exceeding these limits fail with an error.
 
 ## Accessing `rank_vectors` fields in search responses
 ```{applies_to}
@@ -205,13 +210,89 @@ When this setting is disabled:
 
 This configuration is appropriate when full source fidelity is required, such as for auditing or round-tripping exact input values.
 
-## Scoring with rank vectors [rank-vectors-scoring]
+## Searching indexed rank vectors [rank-vectors-search]
 
-Rank vectors can be accessed and used in [`script_score` queries](/reference/query-languages/query-dsl/query-dsl-script-score-query.md).
+Set `index` to `true` to retrieve and rank documents directly from a `rank_vectors` field:
 
-`rank_vectors` fields are not searchable on their own: they are stored as doc values only, with no approximate nearest neighbor (ANN) index, and the [`knn` query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) does not accept them. All scoring is brute force, which is why this field type is meant for **second order ranking**: candidates must first be retrieved by another query — the inner `query` of the `script_score` — and the max-sim score is then computed for each of those candidates.
+```console
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "rank_vectors",
+        "element_type": "float",
+        "dims": 128,
+        "index": true
+      }
+    }
+  }
+}
+```
 
-Cost therefore scales with the number of candidates × the number of vectors per document × the number of query vectors. Keep the inner query selective, for example by retrieving a first-pass candidate set with a [`knn` query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) over a separate `dense_vector` field, or by using a [`rescorer` retriever](/reference/elasticsearch/rest-apis/retrievers.md) so that max-sim only runs over the top documents.
+Use the `rank_vectors` query to generate approximate candidates and replace their approximate scores with exact MaxSim scores from the original vectors. The query below abbreviates each 128-dimensional query vector:
+
+```js
+GET my-index/_search
+{
+  "size": 10,
+  "query": {
+    "rank_vectors": {
+      "field": "my_vector",
+      "query_vector": [
+        [<128-dimensional query vector>],
+        [<128-dimensional query vector>]
+      ],
+      "k": 10,
+      "num_candidates": 100
+    }
+  }
+}
+```
+
+`field`
+:   (Required, string) Indexed `rank_vectors` field to search.
+
+`query_vector`
+:   (Required, array of arrays) Query vectors. Every vector must have the same dimensions as the field.
+
+`k`
+:   (Required, integer) Number of exactly scored documents retained from each shard. Must be greater than `0` and no greater than `num_candidates`.
+
+`num_candidates`
+:   (Required, integer) Number of approximate candidates collected and exactly scored on each shard. Larger values generally improve recall at the cost of additional exact MaxSim work. Can’t exceed `10000`.
+
+`filter`
+:   (Optional, array of query objects) Filters applied during approximate candidate retrieval.
+
+The final ranking uses exact MaxSim over the stored vectors. Scores are transformed monotonically into non-negative Lucene scores, so they preserve MaxSim ordering but are not raw MaxSim values.
+
+The `rank_vectors` retriever accepts the same fields and can be composed with other retrievers:
+
+```js
+GET my-index/_search
+{
+  "retriever": {
+    "rank_vectors": {
+      "field": "my_vector",
+      "query_vector": [
+        [<128-dimensional query vector>],
+        [<128-dimensional query vector>]
+      ],
+      "k": 10,
+      "num_candidates": 100
+    }
+  }
+}
+```
+
+Exact scoring cost scales with the number of candidates × the number of stored vectors per document × the number of query vectors. Elasticsearch rejects requests whose conservative worst-case work estimate exceeds the safety limit.
+
+## Scoring non-indexed rank vectors [rank-vectors-scoring]
+
+Non-indexed rank vectors can be accessed and used in [`script_score` queries](/reference/query-languages/query-dsl/query-dsl-script-score-query.md).
+
+Because a non-indexed `rank_vectors` field has no candidate index, scoring is brute force over every document selected by the inner query. Keep that query selective, for example by retrieving a first-pass candidate set with a [`knn` query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) over a separate `dense_vector` field, or by using a [`rescorer` retriever](/reference/elasticsearch/rest-apis/retrievers.md) so that MaxSim only runs over the top documents.
 
 For example, the following query scores documents based on the maxSim similarity between the query vector and the vectors stored in the `my_vector` field:
 

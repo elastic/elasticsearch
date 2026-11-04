@@ -445,8 +445,7 @@ static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* query, const 
     svuint32_t acc1 = svdup_n_u32(0);
     svuint32_t acc2 = svdup_n_u32(0);
     svuint32_t acc3 = svdup_n_u32(0);
-    // full-width steps without a predicate, then at most one predicated tail step
-    const auto step = [&](const svbool_t pg) {
+    for (svbool_t pg = svwhilelt_b8(r, bit_length); svptest_any(svptrue_b8(), pg); pg = svwhilelt_b8(r, bit_length)) {
         const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)(query + r));
         const svuint8_t q1 = svld1_u8(pg, (const uint8_t*)(query + r + bit_length));
         const svuint8_t q2 = svld1_u8(pg, (const uint8_t*)(query + r + 2 * bit_length));
@@ -462,13 +461,7 @@ static inline int64_t dotd2q4_inner(const int8_t* a, const int8_t* query, const 
         acc1 = dot_bit_weighted_sv(acc1, lo, q3, w3);
         acc2 = dot_bit_weighted_sv(acc2, hi, q1, w2);
         acc3 = dot_bit_weighted_sv(acc3, hi, q3, w4);
-    };
-    const int32_t full = bit_length - bit_length % (int32_t)svcntb();
-    for (; r < full; r += svcntb()) {
-        step(svptrue_b8());
-    }
-    if (r < bit_length) {
-        step(svwhilelt_b8(r, bit_length));
+        r += svcntb();
     }
     const svuint32_t acc = svadd_u32_x(svptrue_b32(), svadd_u32_x(svptrue_b32(), acc0, acc1), svadd_u32_x(svptrue_b32(), acc2, acc3));
     return svaddv_u32(svptrue_b32(), acc);
@@ -497,8 +490,7 @@ static inline void dotd2q4_inner_pair(
     svuint32_t hi_acc0 = svdup_n_u32(0);
     svuint32_t lo_acc1 = svdup_n_u32(0);
     svuint32_t hi_acc1 = svdup_n_u32(0);
-    // full-width steps without a predicate, then at most one predicated tail step
-    const auto step = [&](const svbool_t pg) {
+    for (svbool_t pg = svwhilelt_b8(r, bit_length); svptest_any(svptrue_b8(), pg); pg = svwhilelt_b8(r, bit_length)) {
         const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)(query + r));
         const svuint8_t q1 = svld1_u8(pg, (const uint8_t*)(query + r + bit_length));
         const svuint8_t q2 = svld1_u8(pg, (const uint8_t*)(query + r + 2 * bit_length));
@@ -524,13 +516,7 @@ static inline void dotd2q4_inner_pair(
         hi_acc0 = dot_bit_weighted_sv(hi_acc0, hi0, q3, w4);
         lo_acc1 = dot_bit_weighted_sv(lo_acc1, lo1, q3, w3);
         hi_acc1 = dot_bit_weighted_sv(hi_acc1, hi1, q3, w4);
-    };
-    const int32_t full = bit_length - bit_length % (int32_t)svcntb();
-    for (; r < full; r += svcntb()) {
-        step(svptrue_b8());
-    }
-    if (r < bit_length) {
-        step(svwhilelt_b8(r, bit_length));
+        r += svcntb();
     }
     *r0 = svaddv_u32(svptrue_b32(), svadd_u32_x(svptrue_b32(), lo_acc0, hi_acc0));
     *r1 = svaddv_u32(svptrue_b32(), svadd_u32_x(svptrue_b32(), lo_acc1, hi_acc1));
@@ -589,8 +575,7 @@ __attribute__((noinline)) static void dotd2q4_inner_bulk4(
         svuint32_t lo_acc3 = svdup_n_u32(0);
         svuint32_t hi_acc3 = svdup_n_u32(0);
 
-        // full-width steps without a predicate, then at most one predicated tail step
-        const auto step = [&](const svbool_t pg) {
+        for (svbool_t pg = svwhilelt_b8(r, bit_length); svptest_any(svptrue_b8(), pg); pg = svwhilelt_b8(r, bit_length)) {
             const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)(query + r));
             const svuint8_t q1 = svld1_u8(pg, (const uint8_t*)(query + r + bit_length));
             const svuint8_t q2 = svld1_u8(pg, (const uint8_t*)(query + r + 2 * bit_length));
@@ -609,13 +594,7 @@ __attribute__((noinline)) static void dotd2q4_inner_bulk4(
             dot_d2q4_step_sv(lo_acc1, hi_acc1, lo1, hi1, q0, q1, q2, q3, w0, w1, w2, w3, w4);
             dot_d2q4_step_sv(lo_acc2, hi_acc2, lo2, hi2, q0, q1, q2, q3, w0, w1, w2, w3, w4);
             dot_d2q4_step_sv(lo_acc3, hi_acc3, lo3, hi3, q0, q1, q2, q3, w0, w1, w2, w3, w4);
-        };
-        const int32_t full = bit_length - bit_length % (int32_t)svcntb();
-        for (; r < full; r += svcntb()) {
-            step(svptrue_b8());
-        }
-        if (r < bit_length) {
-            step(svwhilelt_b8(r, bit_length));
+            r += svcntb();
         }
 
         results[out_mapper(offsets, c)] = (f32_t)svaddv_u32(svptrue_b32(), svadd_u32_x(svptrue_b32(), lo_acc0, hi_acc0));

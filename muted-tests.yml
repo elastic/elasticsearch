@@ -599,3 +599,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: "testFold {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive long>}"
   issue: https://github.com/elastic/elasticsearch/issues/164556
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: "testFold {TestCase=field: <random mv DEDUPLICATED_UNORDERED doubles>, percentile: <positive long>}"
+  issue: https://github.com/elastic/elasticsearch/issues/164558

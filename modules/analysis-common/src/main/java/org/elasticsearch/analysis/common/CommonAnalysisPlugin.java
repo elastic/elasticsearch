@@ -583,7 +583,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             PreConfiguredTokenFilter.singleton("stop", false, input -> new StopFilter(input, EnglishAnalyzer.ENGLISH_STOP_WORDS_SET))
         );
         filters.add(PreConfiguredTokenFilter.singleton("trim", true, TrimFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("truncate", false, input -> new TruncateTokenFilter(input, 10)));
+        filters.add(PreConfiguredTokenFilter.singleton("truncate", false, input -> TruncateTokenFilter.truncateAfterChars(input, 10)));
         filters.add(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));

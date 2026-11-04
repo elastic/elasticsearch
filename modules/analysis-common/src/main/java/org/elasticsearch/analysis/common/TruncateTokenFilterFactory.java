@@ -33,7 +33,7 @@ public class TruncateTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new TruncateTokenFilter(tokenStream, length);
+        return TruncateTokenFilter.truncateAfterChars(tokenStream, length);
     }
 
     @Override

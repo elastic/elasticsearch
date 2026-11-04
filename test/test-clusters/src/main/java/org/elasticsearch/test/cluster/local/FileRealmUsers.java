@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.cluster.local;
 
+import org.elasticsearch.test.cluster.util.Version;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +18,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -25,10 +29,39 @@ import java.util.stream.Collectors;
  * with dozens of users can spend most of a suite timeout before the node starts. Users that share a password can reuse
  * the hash that {@code useradd} wrote for the first of them, which keeps the hash in the format the node is configured
  * to verify (e.g. PBKDF2 under FIPS).
+ * <p>
+ * Hashes are cached for the life of the test JVM, so later nodes and later test classes in the same Gradle fork reuse them
+ * instead of starting another {@code useradd} JVM for every node of every cluster.
  */
 final class FileRealmUsers {
 
+    private static final Map<HashKey, String> PASSWORD_HASHES = new ConcurrentHashMap<>();
+
+    /**
+     * Identifies a hash that any node can verify: the same password, hashed by the same distribution version with the same
+     * hashing settings. The FIPS provider is configured for the whole test JVM, so it is not part of the key.
+     *
+     * @param hashingAlgorithm the node's {@code xpack.security.authc.password_hashing.algorithm}, or null if unset
+     * @param fipsMode the node's {@code xpack.security.fips_mode.enabled}, or null if unset
+     */
+    record HashKey(Version version, String password, String hashingAlgorithm, String fipsMode) {}
+
     private FileRealmUsers() {}
+
+    /**
+     * Returns a hash that {@code useradd} previously wrote for {@code key} in this JVM, or null if there is none yet.
+     */
+    static String cachedPasswordHash(HashKey key) {
+        return PASSWORD_HASHES.get(key);
+    }
+
+    /**
+     * Remembers a hash written by {@code useradd} so other nodes can reuse it. The first hash stored for a key wins, so
+     * nodes that hash the same password concurrently all end up reusing one value.
+     */
+    static void cachePasswordHash(HashKey key, String passwordHash) {
+        PASSWORD_HASHES.putIfAbsent(key, passwordHash);
+    }
 
     /**
      * Returns the password hash stored for {@code username} in the {@code users} file in {@code configDir}.

@@ -513,10 +513,6 @@ tests:
   - :qa:mixed-cluster:v9.1.9#yamlRestTest
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/163317
-- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
-  tasks:
-  - :server:test
-  issue: https://github.com/elastic/elasticsearch/issues/163327
 - class: org.elasticsearch.xpack.esql.CsvColumnarIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest
@@ -554,21 +550,11 @@ tests:
   - :x-pack:plugin:yamlRestCompatTest
   method: test {yaml=data_streams/10_data_stream_resolvability/Verify data stream resolvability in migrations API}
   issue: https://github.com/elastic/elasticsearch/issues/163653
-- class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityRCS1DeprecationIT
-  tasks:
-  - :x-pack:plugin:security:qa:multi-cluster:javaRestTest
-  method: testUsingRCS1GeneratesDeprecationWarning
-  issue: https://github.com/elastic/elasticsearch/issues/163658
 - class: org.elasticsearch.xpack.encryption.KeyRotationIT
   tasks:
   - :x-pack:plugin:encryption:internalClusterTest
   method: testRotationCycleWithNoHandlers
   issue: https://github.com/elastic/elasticsearch/issues/164186
-- class: org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListenerIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testLastSearcherAcquiredTimeIsSetWhenAddingReplica
-  issue: https://github.com/elastic/elasticsearch/issues/164193
 - class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
@@ -593,3 +579,33 @@ tests:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
   method: test {yaml=search/520_fetch_fields/fetch stored fields}
   issue: https://github.com/elastic/elasticsearch/issues/164385
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: "testFold {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive long>}"
+  issue: https://github.com/elastic/elasticsearch/issues/164552
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: "testFold {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive long>}"
+  issue: https://github.com/elastic/elasticsearch/issues/164554
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: "testFold {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive long>}"
+  issue: https://github.com/elastic/elasticsearch/issues/164556
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
+  tasks:
+  - :x-pack:plugin:esql:test
+  method: "testFold {TestCase=field: <random mv DEDUPLICATED_UNORDERED doubles>, percentile: <positive long>}"
+  issue: https://github.com/elastic/elasticsearch/issues/164558
+- class: org.elasticsearch.xpack.esql.action.EsqlStreamDisruptionIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testSlowConsumerUnderNetworkDelay
+  issue: https://github.com/elastic/elasticsearch/issues/163264
+- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRetryRecoveryCommitRegistrationIfPrimaryMoves
+  issue: https://github.com/elastic/elasticsearch/issues/164016

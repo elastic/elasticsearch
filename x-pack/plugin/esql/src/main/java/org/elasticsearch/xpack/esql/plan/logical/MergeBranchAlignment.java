@@ -148,7 +148,7 @@ public final class MergeBranchAlignment {
      * columns to the output. A user-named {@code KEEP _file.path} upstream of the union still survives via its own {@code Keep}
      * node in the branch's plan.
      */
-    public static LogicalPlan projectToColumns(LogicalPlan branch, List<String> mergeColumns) {
+    private static LogicalPlan projectToColumns(LogicalPlan branch, List<String> mergeColumns) {
         if (branch instanceof Project && Expressions.names(branch.output()).equals(mergeColumns)) {
             return branch;
         }

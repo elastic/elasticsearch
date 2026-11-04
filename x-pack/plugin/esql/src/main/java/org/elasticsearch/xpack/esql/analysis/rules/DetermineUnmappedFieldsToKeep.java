@@ -304,7 +304,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             childrenChanged |= pad;
         }
         UnionAll withChildren = childrenChanged ? unionAll.replaceSubPlans(newChildren) : unionAll;
-        List<Attribute> withoutUnmapped = MergePlan.outputUnion(withChildren.children())
+        List<Attribute> withoutUnmapped = MergePlan.mergeColumns(withChildren.children(), unionAll.output())
             .stream()
             .filter(attr -> attr.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME) == false)
             .toList();

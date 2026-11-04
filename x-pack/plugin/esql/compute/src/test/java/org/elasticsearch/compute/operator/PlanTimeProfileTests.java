@@ -12,10 +12,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class PlanTimeProfileTests extends ESTestCase {
@@ -31,28 +27,4 @@ public class PlanTimeProfileTests extends ESTestCase {
         }
     }
 
-    public void testProfileSchemas() {
-        Map<?, ?> timeProperties = (Map<?, ?>) PlanTimeProfile.PROFILE_SCHEMA.schema().get("properties");
-        assertEquals(
-            List.of("logical_optimization_nanos", "physical_optimization_nanos", "reduction_nanos"),
-            new ArrayList<>(timeProperties.keySet())
-        );
-        assertEquals(List.of(), PlanTimeProfile.PROFILE_SCHEMA.schema().get("required"));
-
-        Map<?, ?> planProperties = (Map<?, ?>) PlanProfile.PROFILE_SCHEMA.schema().get("properties");
-        assertEquals(
-            List.of(
-                "description",
-                "cluster_name",
-                "node_name",
-                "plan",
-                "logical_plan",
-                "logical_optimization_nanos",
-                "physical_optimization_nanos",
-                "reduction_nanos"
-            ),
-            new ArrayList<>(planProperties.keySet())
-        );
-        assertEquals(List.of("description", "cluster_name", "node_name", "plan"), PlanProfile.PROFILE_SCHEMA.schema().get("required"));
-    }
 }

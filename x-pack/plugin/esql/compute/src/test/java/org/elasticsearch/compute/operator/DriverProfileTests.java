@@ -21,70 +21,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverProfile> {
-    public void testProfileSchemas() {
-        Map<?, ?> operatorProperties = (Map<?, ?>) OperatorStatus.PROFILE_SCHEMA.schema().get("properties");
-        assertEquals(List.of("operator", "status"), new ArrayList<>(operatorProperties.keySet()));
-        assertEquals(List.of("operator"), OperatorStatus.PROFILE_SCHEMA.schema().get("required"));
-
-        Map<?, ?> driverProperties = (Map<?, ?>) DriverProfile.PROFILE_SCHEMA.schema().get("properties");
-        assertEquals(
-            List.of(
-                "description",
-                "cluster_name",
-                "node_name",
-                "start",
-                "start_millis",
-                "stop",
-                "stop_millis",
-                "took_nanos",
-                "took_time",
-                "cpu_nanos",
-                "cpu_time",
-                "driver_nanos",
-                "driver_time",
-                "documents_found",
-                "values_loaded",
-                "rows_emitted",
-                "bytes_read",
-                "read_nanos",
-                "read_cpu_nanos",
-                "iterations",
-                "operators",
-                "sleeps"
-            ),
-            new ArrayList<>(driverProperties.keySet())
-        );
-        assertEquals(
-            List.of(
-                "description",
-                "cluster_name",
-                "node_name",
-                "start_millis",
-                "stop_millis",
-                "took_nanos",
-                "cpu_nanos",
-                "driver_nanos",
-                "documents_found",
-                "values_loaded",
-                "rows_emitted",
-                "bytes_read",
-                "read_nanos",
-                "read_cpu_nanos",
-                "iterations",
-                "operators",
-                "sleeps"
-            ),
-            DriverProfile.PROFILE_SCHEMA.schema().get("required")
-        );
-    }
-
     public void testOperatorWithoutStatusOmitsStatusFields() {
         assertEquals("{\"operator\":\"test\"}", Strings.toString(new OperatorStatus("test", null)));
     }

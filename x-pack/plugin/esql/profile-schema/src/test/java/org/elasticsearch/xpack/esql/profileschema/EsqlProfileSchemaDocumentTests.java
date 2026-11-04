@@ -13,6 +13,8 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.PlanProfile;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.test.xcontent.JsonSchemaTestValidator;
 import org.elasticsearch.xcontent.ToXContent;
@@ -99,6 +101,7 @@ public class EsqlProfileSchemaDocumentTests {
     public void testRepresentativeProfileValidates() throws IOException {
         JsonSchemaTestValidator validator = JsonSchemaTestValidator.draft7(EsqlProfileSchemaDocument.create());
 
+        DriverSleeps.Sleep sleep = new DriverSleeps.Sleep("exchange empty", "worker-1", 1, 2);
         DriverProfile driver = new DriverProfile(
             "data",
             "cluster",
@@ -109,11 +112,12 @@ public class EsqlProfileSchemaDocumentTests {
             100,
             200,
             1,
-            List.of(new OperatorStatus("MMR", new MMROperator.Status(1, 1, 1, 1, 1))),
-            DriverSleeps.empty()
+            List.of(new OperatorStatus("MMR", new MMROperator.Status(1, 1, 1, 1, 1)), new OperatorStatus("Limit", null)),
+            new DriverSleeps(Map.of("exchange empty", 1L), List.of(sleep), List.of(sleep))
         );
+        PlanProfile plan = new PlanProfile("data", "cluster", "node", "Limit[10]", "Limit[10]", new PlanTimeProfile(1, 2, 3));
         var value = new EsqlQueryResponse.ProfileValue(
-            new EsqlQueryResponse.Profile(List.of(driver), List.of(), null),
+            new EsqlQueryResponse.Profile(List.of(driver), List.of(plan), null),
             new EsqlQueryProfile()
         );
 

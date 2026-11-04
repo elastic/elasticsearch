@@ -399,8 +399,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    public boolean resolvesColumnGroup() {
-        return true;
+    public ColumnGroup resolvesColumnGroup() {
+        return ColumnGroup.SINGLE_OBJECT;
     }
 
     @Override

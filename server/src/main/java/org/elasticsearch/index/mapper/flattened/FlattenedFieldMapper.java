@@ -2057,8 +2057,8 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
     }
 
     @Override
-    public boolean resolvesColumnGroup() {
-        return true;
+    public ColumnGroup resolvesColumnGroup() {
+        return ColumnGroup.ANY_SHAPE;
     }
 
     /**

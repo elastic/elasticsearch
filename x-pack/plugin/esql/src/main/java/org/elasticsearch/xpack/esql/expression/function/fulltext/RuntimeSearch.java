@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -38,8 +41,11 @@ import org.elasticsearch.xpack.esql.planner.RuntimeSearchExecutionContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
@@ -182,7 +188,7 @@ public final class RuntimeSearch {
      * {@link RuntimeSearchExecutionContext} using the given analyzer, which must be the analyzer the per-row
      * evaluator indexes with so tokenization stays consistent.
      */
-    private static Query compileQuery(org.elasticsearch.xpack.esql.core.querydsl.query.Query query, NamedAnalyzer namedAnalyzer) {
+    static Query compileQuery(org.elasticsearch.xpack.esql.core.querydsl.query.Query query, NamedAnalyzer namedAnalyzer) {
         try {
             return query.toQueryBuilder().toQuery(RuntimeSearchExecutionContext.create(List.of(CONTENT_FIELD), namedAnalyzer));
         } catch (IOException e) {
@@ -220,9 +226,123 @@ public final class RuntimeSearch {
         if (name == null) {
             return null;
         }
-        Analyzer analyzer = toEvaluator.getAnalyzer(name);
-        // Registry lookups return NamedAnalyzer in practice, but the interface only promises Analyzer
+        return toNamedAnalyzer(name, toEvaluator.getAnalyzer(name));
+    }
+
+    /**
+     * Wraps an analyzer resolved by {@code name} as a {@link NamedAnalyzer}. Registry lookups return one in practice,
+     * but the lookup interfaces only promise an {@link Analyzer}.
+     */
+    static NamedAnalyzer toNamedAnalyzer(String name, Analyzer analyzer) {
         return analyzer instanceof NamedAnalyzer namedAnalyzer ? namedAnalyzer : new NamedAnalyzer(name, AnalyzerScope.GLOBAL, analyzer);
+    }
+
+    /**
+     * Indexes all values of one position into {@code memoryIndex} as one document, like an indexed multivalued text
+     * field: query terms may match across values, while the analyzer's position increment gap keeps phrases within
+     * a single value. Returns the scratch buffer to reuse for the next row.
+     */
+    static BytesRef indexRow(MemoryIndex memoryIndex, BytesRefBlock fieldBlock, int position, Analyzer analyzer, BytesRef scratch) {
+        memoryIndex.reset();
+        int first = fieldBlock.getFirstValueIndex(position);
+        int end = first + fieldBlock.getValueCount(position);
+        for (int valueIndex = first; valueIndex < end; valueIndex++) {
+            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
+            memoryIndex.addField(CONTENT_FIELD, scratch.utf8ToString(), analyzer);
+        }
+        return scratch;
+    }
+
+    /**
+     * The distinct terms of a compiled runtime query on {@link #CONTENT_FIELD}, sorted. They are collected with
+     * Lucene's {@link QueryVisitor}, so synonym expansions and phrase terms are included. This is the term list the
+     * BM25 statistics pass counts.
+     */
+    static List<BytesRef> collectTerms(Query query) {
+        Set<Term> terms = new HashSet<>();
+        query.visit(QueryVisitor.termCollector(terms));
+        return terms.stream()
+            .filter(term -> CONTENT_FIELD.equals(term.field()))
+            .map(term -> BytesRef.deepCopyOf(term.bytes()))
+            .distinct()
+            .sorted()
+            .toList();
+    }
+
+    /**
+     * Whether the compiled query expands terms at search time, as fuzzy and prefix queries do. Such terms are not
+     * known when the statistics pass runs, so they cannot have statistics.
+     */
+    static boolean expandsTerms(Query query) {
+        boolean[] expands = new boolean[1];
+        query.visit(new QueryVisitor() {
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+                expands[0] = true;
+            }
+        });
+        return expands[0];
+    }
+
+    /**
+     * Builds the BM25 scorer of a runtime {@code MATCH} or {@code MATCH_PHRASE}; see {@link RuntimeBm25ScoreEvaluator}.
+     * <p>
+     * It runs where the scorer is built, on the data node, and first checks that node's analysis: every term of
+     * {@code compiled} must be in {@code shippedTerms}, the term list the statistics were computed for. Otherwise it
+     * throws {@link Bm25AnalyzerMismatchException}. The list may hold more terms than the query, because several BM25
+     * conditions on the same field share one statistics group.
+     *
+     * @param functionName   {@code MATCH} or {@code MATCH_PHRASE}, for the error message
+     * @param fieldSource    the source text of the field, for the error and warning messages and PROFILE
+     * @param compiled       the query compiled with {@code valuesAnalyzer}, which BM25 also uses to analyze the query
+     * @param valuesAnalyzer the analyzer of the row values; {@code null} selects the standard analyzer
+     * @param shippedTerms   the sorted term list of the statistics group
+     * @param statistics     N, the summed length and one df per term of {@code shippedTerms}, in that order
+     */
+    public static ExpressionEvaluator.Factory bm25ScoreEvaluator(
+        Source source,
+        String functionName,
+        ExpressionEvaluator.Factory fieldEvaluator,
+        String fieldSource,
+        Query compiled,
+        @Nullable NamedAnalyzer valuesAnalyzer,
+        List<BytesRef> shippedTerms,
+        List<ExpressionEvaluator.Factory> statistics
+    ) {
+        if (statistics.size() != shippedTerms.size() + 2) {
+            throw new IllegalArgumentException(
+                "expected [" + (shippedTerms.size() + 2) + "] BM25 statistics but got [" + statistics.size() + "]"
+            );
+        }
+        if (expandsTerms(compiled)) {
+            // The Verifier rejects the options that expand terms; this guards the scorer if one gets through.
+            throw new IllegalArgumentException(
+                "["
+                    + functionName
+                    + "] cannot score ["
+                    + fieldSource
+                    + "] with BM25: fuzzy and other term-expanding queries are not supported with [similarity_function] = [bm25]"
+            );
+        }
+        List<BytesRef> nodeTerms = collectTerms(compiled);
+        if (new HashSet<>(shippedTerms).containsAll(nodeTerms) == false) {
+            throw new Bm25AnalyzerMismatchException(functionName, fieldSource, nodeTerms, shippedTerms);
+        }
+        if (compiled instanceof MatchAllDocsQuery) {
+            return ConstantEvaluators.constantDouble(1.0);
+        }
+        if (compiled instanceof MatchNoDocsQuery) {
+            return ConstantEvaluators.constantDouble(0.0);
+        }
+        return new RuntimeBm25ScoreEvaluator.Factory(
+            source,
+            fieldSource,
+            fieldEvaluator,
+            compiled,
+            withPositionIncrementGap(valuesAnalyzer == null ? Lucene.STANDARD_ANALYZER : valuesAnalyzer),
+            List.copyOf(shippedTerms),
+            List.copyOf(statistics)
+        );
     }
 
     @Evaluator(extraName = "TextWithLuceneQuery", warnExceptions = { IOException.class }, allNullsIsNull = false)
@@ -238,18 +358,11 @@ public final class RuntimeSearch {
             return false;
         }
         final var valueCount = fieldBlock.getValueCount(position);
-        final var startIndex = fieldBlock.getFirstValueIndex(position);
         if (valueCount == 0) {
             return false;
         }
 
-        // All values of the position form one document, like an indexed multivalued text field: query terms may
-        // match across values, while the analyzer's position increment gap keeps phrases within a single value.
-        memoryIndex.reset();
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
-            memoryIndex.addField(CONTENT_FIELD, scratch.utf8ToString(), analyzer);
-        }
+        indexRow(memoryIndex, fieldBlock, position, analyzer, scratch);
         IndexSearcher searcher = memoryIndex.createSearcher();
 
         TopDocs topDocs = searcher.search(query, 1);
@@ -273,16 +386,11 @@ public final class RuntimeSearch {
             return 0.0;
         }
         final var valueCount = fieldBlock.getValueCount(position);
-        final var startIndex = fieldBlock.getFirstValueIndex(position);
         if (valueCount == 0) {
             return 0.0;
         }
 
-        memoryIndex.reset();
-        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
-            scratch = fieldBlock.getBytesRef(valueIndex, scratch);
-            memoryIndex.addField(CONTENT_FIELD, scratch.utf8ToString(), analyzer);
-        }
+        indexRow(memoryIndex, fieldBlock, position, analyzer, scratch);
         IndexSearcher searcher = memoryIndex.createSearcher();
         searcher.setSimilarity(BOOLEAN_SIMILARITY);
 

@@ -118,7 +118,7 @@ public class CacheFileReader {
     /** Whether this reader reads a vector file to which {@link #vectorFillPolicy} applies. */
     private boolean vectorFile;
     /**
-     * Prototype ("cheap shards", phase 4): while it returns {@code true}, a read whose bytes are all in the cache but that the fast path
+     * Prototype (fast activation, phase 4): while it returns {@code true}, a read whose bytes are all in the cache but that the fast path
      * cannot serve (the region is not filled from its start, e.g. open-time bytes written from a commit pointer) is served from the cache
      * without filling the surrounding fill range from the object store. Carried on to copies.
      */

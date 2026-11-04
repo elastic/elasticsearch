@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Prototype ("cheap shards", phase 5, default off, see {@link FastSearchActivationSettings#FAST_ACTIVATION_PREFETCH_SORT_DOC_VALUES_SETTING}):
+ * Fast activation prototype (phase 5, default off: {@link FastSearchActivationSettings#FAST_ACTIVATION_PREFETCH_SORT_DOC_VALUES_SETTING}):
  * before a query sorted by field runs on a search shard that is still in its activation fill window (freshly activated, cold cache),
  * creates the doc values of every sort field on every segment. Creating numeric/binary doc values makes the codec prefetch the first page
  * of their data ({@code Lucene90DocValuesProducer#getNumeric} and friends), so the doc-values reads of all segments go out in one wave.

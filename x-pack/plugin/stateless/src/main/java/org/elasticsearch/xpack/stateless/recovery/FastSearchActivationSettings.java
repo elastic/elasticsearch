@@ -18,7 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import java.util.Locale;
 
 /**
- * Settings of the (prototype) fast cold activation path of a stateless search shard ("cheap shards").
+ * Settings of the (prototype) fast cold activation path of a stateless search shard.
  * <p>
  * When {@link #FAST_ACTIVATION_ENABLED_SETTING} is enabled, a search shard recovering from the object store:
  * <ol>
@@ -43,31 +43,31 @@ public final class FastSearchActivationSettings {
     private FastSearchActivationSettings() {}
 
     /**
-     * Returns the value of a cheap-shards setting, or its default when the node's cluster settings do not register it. Some test
+     * Returns a fast-activation or parking setting, or its default when the node's cluster settings do not register it. Some test
      * harnesses build nodes without the plugin's settings; reading an unregistered setting throws, which would break recovery there
-     * even though every cheap-shards feature is off by default.
+     * even though every one of these features is off by default.
      */
     public static <T> T getOrDefault(ClusterSettings clusterSettings, Setting<T> setting) {
         return clusterSettings.isDynamicSetting(setting.getKey()) ? clusterSettings.get(setting) : setting.getDefault(Settings.EMPTY);
     }
 
     public static final Setting<Boolean> FAST_ACTIVATION_ENABLED_SETTING = Setting.boolSetting(
-        "stateless.cheap_shard.fast_activation.enabled",
+        "stateless.fast_activation.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_RANGE_SIZE_SETTING = new Setting<>(
-        "stateless.cheap_shard.fast_activation.range_size",
+        "stateless.fast_activation.range_size",
         // 1 MiB: the measured best first fill (steps 2-3); 128 KiB multiplied the dependent query fills
         ByteSizeValue.ofMb(1).getStringRep(),
-        s -> ByteSizeValue.parseBytesSizeValue(s, "stateless.cheap_shard.fast_activation.range_size"),
+        s -> ByteSizeValue.parseBytesSizeValue(s, "stateless.fast_activation.range_size"),
         value -> {
             if (value.getBytes() <= 0L || value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
                 throw new SettingsException(
                     "setting [{}] must be greater than zero and must be multiple of {}",
-                    "stateless.cheap_shard.fast_activation.range_size",
+                    "stateless.fast_activation.range_size",
                     SharedBytes.PAGE_SIZE
                 );
             }
@@ -77,7 +77,7 @@ public final class FastSearchActivationSettings {
     );
 
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_WHOLE_BLOB_THRESHOLD_SETTING = Setting.byteSizeSetting(
-        "stateless.cheap_shard.fast_activation.whole_blob_threshold",
+        "stateless.fast_activation.whole_blob_threshold",
         ByteSizeValue.ofMb(4),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -88,7 +88,7 @@ public final class FastSearchActivationSettings {
      * them like the other files with {@link #FAST_ACTIVATION_RANGE_SIZE_SETTING}.
      */
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_VECTOR_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
-        "stateless.cheap_shard.fast_activation.vector_range_size",
+        "stateless.fast_activation.vector_range_size",
         ByteSizeValue.ofMb(16),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -98,7 +98,7 @@ public final class FastSearchActivationSettings {
      * Largest vector file (or slice of one) that the fast activation path prefetches whole on its first cache miss, {@code 0} to disable.
      */
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_VECTOR_WHOLE_FILE_MAX_SETTING = Setting.byteSizeSetting(
-        "stateless.cheap_shard.fast_activation.vector_whole_file_max",
+        "stateless.fast_activation.vector_whole_file_max",
         ByteSizeValue.ofMb(64),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -122,7 +122,7 @@ public final class FastSearchActivationSettings {
     }
 
     public static final Setting<Discovery> FAST_ACTIVATION_DISCOVERY_SETTING = new Setting<>(
-        "stateless.cheap_shard.fast_activation.discovery",
+        "stateless.fast_activation.discovery",
         Discovery.REGISTRATION.name().toLowerCase(Locale.ROOT),
         s -> Discovery.valueOf(s.toUpperCase(Locale.ROOT)),
         Setting.Property.NodeScope,
@@ -134,7 +134,7 @@ public final class FastSearchActivationSettings {
      * compound commit. Read on the index nodes, at each upload.
      */
     public static final Setting<Boolean> COMMIT_POINTER_ENABLED_SETTING = Setting.boolSetting(
-        "stateless.cheap_shard.commit_pointer.enabled",
+        "stateless.commit_pointer.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -147,7 +147,7 @@ public final class FastSearchActivationSettings {
      * index nodes, at each pointer write; the bytes are read from the object store on the index node (only those of new blobs).
      */
     public static final Setting<ByteSizeValue> COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING = Setting.byteSizeSetting(
-        "stateless.cheap_shard.commit_pointer.open_bytes_max_size",
+        "stateless.commit_pointer.open_bytes_max_size",
         ByteSizeValue.ZERO,
         ByteSizeValue.ZERO,
         ByteSizeValue.ofMb(32),
@@ -161,7 +161,7 @@ public final class FastSearchActivationSettings {
      * ({@link #COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING}, off by default); exists to compare both on the same pointer.
      */
     public static final Setting<Boolean> FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING = Setting.boolSetting(
-        "stateless.cheap_shard.fast_activation.use_pointer_open_bytes",
+        "stateless.fast_activation.use_pointer_open_bytes",
         true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -172,16 +172,16 @@ public final class FastSearchActivationSettings {
      * so that reading 1 KiB headers does not pull a whole query fill. Whole small blobs are still fetched with one GET each.
      */
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING = new Setting<>(
-        "stateless.cheap_shard.fast_activation.header_range_size",
+        "stateless.fast_activation.header_range_size",
         // measured (step 2b, d100k): 64 KiB doubles the GETs of the open prefetch (headers of a < 16 MiB BCC are not replicated next
         // to its header, so each one is its own small fill) and was 30-40% slower than 1 MiB on a thread-bound prefetch pool
         ByteSizeValue.ofMb(1).getStringRep(),
-        s -> ByteSizeValue.parseBytesSizeValue(s, "stateless.cheap_shard.fast_activation.header_range_size"),
+        s -> ByteSizeValue.parseBytesSizeValue(s, "stateless.fast_activation.header_range_size"),
         value -> {
             if (value.getBytes() <= 0L || value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
                 throw new SettingsException(
                     "setting [{}] must be greater than zero and must be multiple of {}",
-                    "stateless.cheap_shard.fast_activation.header_range_size",
+                    "stateless.fast_activation.header_range_size",
                     SharedBytes.PAGE_SIZE
                 );
             }
@@ -196,7 +196,7 @@ public final class FastSearchActivationSettings {
      * the small fills for the lifetime of the shard (steps 2-3 behaviour).
      */
     public static final Setting<TimeValue> FAST_ACTIVATION_FILL_WINDOW_SETTING = Setting.timeSetting(
-        "stateless.cheap_shard.fast_activation.fill_window",
+        "stateless.fast_activation.fill_window",
         TimeValue.timeValueSeconds(30),
         TimeValue.ZERO,
         Setting.Property.NodeScope,
@@ -209,7 +209,7 @@ public final class FastSearchActivationSettings {
      * pages are prefetched in one wave instead of one segment after the other. Off by default.
      */
     public static final Setting<Boolean> FAST_ACTIVATION_PREFETCH_SORT_DOC_VALUES_SETTING = Setting.boolSetting(
-        "stateless.cheap_shard.fast_activation.prefetch_sort_doc_values",
+        "stateless.fast_activation.prefetch_sort_doc_values",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -221,7 +221,7 @@ public final class FastSearchActivationSettings {
      * and dictionary, stored fields index, points index, small vector graphs), up to this many bytes in total. {@code 0} (default) is off.
      */
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_PREFETCH_QUERY_RANGES_MAX_SIZE_SETTING = Setting.byteSizeSetting(
-        "stateless.cheap_shard.fast_activation.prefetch_query_ranges_max_size",
+        "stateless.fast_activation.prefetch_query_ranges_max_size",
         ByteSizeValue.ZERO,
         ByteSizeValue.ZERO,
         ByteSizeValue.ofMb(256),
@@ -235,7 +235,7 @@ public final class FastSearchActivationSettings {
      * starts after the pointer GET only. Off by default (the whole small blobs are warmed, phase 4 behaviour).
      */
     public static final Setting<Boolean> FAST_ACTIVATION_SKIP_WHOLE_BLOB_WARMING_WITH_OPEN_BYTES_SETTING = Setting.boolSetting(
-        "stateless.cheap_shard.fast_activation.skip_whole_blob_warming_with_open_bytes",
+        "stateless.fast_activation.skip_whole_blob_warming_with_open_bytes",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

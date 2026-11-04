@@ -1716,7 +1716,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
                 final var chunk = fileRegion.chunk;
                 // the sub-range must be available, not the first subRangeToRead.length() bytes of the region: otherwise a prefetch in a
-                // region whose start is cached (e.g. headers) is reported as cached and dropped (found by the "cheap shards" phase 4 trace)
+                // region whose start is cached (e.g. headers) is reported as cached and dropped (found by the fast-activation trace)
                 if (chunk.tracker.checkAvailable(subRangeToRead.end()) == false) {
                     continue;
                 }
@@ -1729,7 +1729,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         /**
          * Whether all of {@code range} is in the cache: every region it touches is cached and has no missing or pending byte in
-         * {@code range}. Unlike {@link #tryRead}, the regions do not need to be filled from their start (prototype, "cheap shards":
+         * {@code range}. Unlike {@link #tryRead}, the regions do not need to be filled from their start (prototype, fast activation:
          * ranges written in the cache at known positions, see the stateless plugin's commit pointer open bytes).
          */
         public boolean isRangeAvailable(ByteRange range) {

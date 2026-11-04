@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.cheapshard;
+package org.elasticsearch.xpack.stateless.activation;
 
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
@@ -77,9 +77,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.stateless.cheapshard.ActivationLatencyIT.EVENTS;
-import static org.elasticsearch.xpack.stateless.cheapshard.ActivationLatencyIT.REQUESTS;
-import static org.elasticsearch.xpack.stateless.cheapshard.ActivationLatencyIT.ev;
+import static org.elasticsearch.xpack.stateless.activation.ActivationLatencyIT.EVENTS;
+import static org.elasticsearch.xpack.stateless.activation.ActivationLatencyIT.REQUESTS;
+import static org.elasticsearch.xpack.stateless.activation.ActivationLatencyIT.ev;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
@@ -147,7 +147,7 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
         // answered, reads from the indexing node rejected)
         PTR_NOENG("1mb", true, true),
         // phase 4: PTR_NOENG + the pointer's open-time bytes written in the cache (no header/footer/metadata warming from the store);
-        // PTR_NOENG ignores them (stateless.cheap_shard.fast_activation.use_pointer_open_bytes: false) on the same pointer
+        // PTR_NOENG ignores them (stateless.fast_activation.use_pointer_open_bytes: false) on the same pointer
         PTR_META("1mb", true, true),
         // phase 5: PTR_META + one first-query item each (see setFastActivation), and all of them
         P5_SORT("1mb", true, true, P5_ITEM_SORT),

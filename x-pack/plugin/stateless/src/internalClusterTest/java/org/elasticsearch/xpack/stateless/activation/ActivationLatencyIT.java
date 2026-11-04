@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.cheapshard;
+package org.elasticsearch.xpack.stateless.activation;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;

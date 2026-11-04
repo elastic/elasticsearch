@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.cheapshard;
+package org.elasticsearch.xpack.stateless.activation;
 
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.RamUsageEstimator;

@@ -28,7 +28,7 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * Prototype ("cheap shards", default off, see {@link FastSearchActivationSettings#COMMIT_POINTER_ENABLED_SETTING}): publishes the
+ * Prototype (fast activation, default off, see {@link FastSearchActivationSettings#COMMIT_POINTER_ENABLED_SETTING}): publishes the
  * {@link CommitPointer} of an indexing shard after each batched compound commit upload.
  * <p>
  * Ordering and monotonicity: the pointer of a BCC is built in the uploaded-BCC consumer, which {@link StatelessCommitService} invokes

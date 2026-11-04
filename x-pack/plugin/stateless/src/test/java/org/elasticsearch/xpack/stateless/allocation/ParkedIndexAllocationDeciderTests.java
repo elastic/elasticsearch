@@ -19,7 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CheapShardParkedAllocationDeciderTests extends ESTestCase {
+public class ParkedIndexAllocationDeciderTests extends ESTestCase {
 
     public void testOnlyPromotableCopiesOfParkedIndicesAreKeptUnassigned() {
         final IndexMetadata parked = indexMetadata(true);
@@ -40,17 +40,17 @@ public class CheapShardParkedAllocationDeciderTests extends ESTestCase {
             ShardRouting.Role.SEARCH_ONLY
         );
 
-        assertThat(CheapShardParkedAllocationDecider.decide(indexing, parked).type(), equalTo(Decision.Type.NO));
-        assertThat(CheapShardParkedAllocationDecider.decide(search, parked).type(), equalTo(Decision.Type.YES));
-        assertThat(CheapShardParkedAllocationDecider.decide(indexing, unparked).type(), equalTo(Decision.Type.YES));
-        assertThat(CheapShardParkedAllocationDecider.decide(search, unparked).type(), equalTo(Decision.Type.YES));
-        assertThat(CheapShardParkedAllocationDecider.decide(indexing, null).type(), equalTo(Decision.Type.YES));
+        assertThat(ParkedIndexAllocationDecider.decide(indexing, parked).type(), equalTo(Decision.Type.NO));
+        assertThat(ParkedIndexAllocationDecider.decide(search, parked).type(), equalTo(Decision.Type.YES));
+        assertThat(ParkedIndexAllocationDecider.decide(indexing, unparked).type(), equalTo(Decision.Type.YES));
+        assertThat(ParkedIndexAllocationDecider.decide(search, unparked).type(), equalTo(Decision.Type.YES));
+        assertThat(ParkedIndexAllocationDecider.decide(indexing, null).type(), equalTo(Decision.Type.YES));
     }
 
     private static IndexMetadata indexMetadata(Boolean parked) {
         final Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 1);
         if (parked != null) {
-            settings.put(CheapShardParkedAllocationDecider.PARKED_SETTING.getKey(), parked);
+            settings.put(ParkedIndexAllocationDecider.PARKED_SETTING.getKey(), parked);
         }
         return IndexMetadata.builder(randomIdentifier()).settings(settings).build();
     }

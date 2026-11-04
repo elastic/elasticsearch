@@ -133,14 +133,14 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
      */
     private volatile boolean dynamicFillSize = false;
     /**
-     * Prototype ("cheap shards", phase 4): set when the open-time bytes of the commit were written in the cache from its commit pointer,
+     * Prototype (fast activation, phase 4): set when the open-time bytes of the commit were written in the cache from its commit pointer,
      * until {@link #clearActivationFillOverrides()}: reads of bytes already in the cache do not fill their surrounding range (see
      * {@code CacheFileReader#withReadPresentWithoutFill}), so that opening the reader on sparse cached pages reads nothing from the store.
      */
     private volatile boolean readPresentWithoutFill = false;
 
     /**
-     * Prototype ("cheap shards", phase 3 gap 3): notified when a query-time read finds a blob of the commit missing in the object store
+     * Prototype (fast activation, phase 3 gap 3): notified when a query-time read finds a blob of the commit missing in the object store
      * (see {@link #setMissingBlobListener}). {@code null} (the default) keeps the existing behaviour: the read fails, the shard stays.
      */
     @Nullable

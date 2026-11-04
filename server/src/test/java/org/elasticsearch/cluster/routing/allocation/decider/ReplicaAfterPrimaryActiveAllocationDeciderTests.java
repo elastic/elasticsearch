@@ -33,7 +33,7 @@ public class ReplicaAfterPrimaryActiveAllocationDeciderTests extends ESTestCase 
         ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY = false; // set by the watcher, static (prototype)
     }
 
-    /** Cheap shards prototype: only with the setting on, and only unpromotable copies, may be allocated without an active primary. */
+    /** Fast activation prototype: only with the setting on, and only unpromotable copies, may be allocated without an active primary. */
     public void testUnpromotableWithoutPrimarySetting() {
         final ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings();
         final var decider = new ReplicaAfterPrimaryActiveAllocationDecider(clusterSettings);

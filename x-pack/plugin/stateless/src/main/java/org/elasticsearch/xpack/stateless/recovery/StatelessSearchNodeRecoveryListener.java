@@ -29,7 +29,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.stateless.allocation.CheapShardParkedAllocationDecider;
+import org.elasticsearch.xpack.stateless.allocation.ParkedIndexAllocationDecider;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.WarmTarget;
@@ -407,14 +407,14 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
 
     /**
      * The primary term whose commit pointer names the shard's current commit: the cluster state's primary term, except for a parked
-     * index (phase 3, {@code index.cheap_shard.parked}) whose primary is not active. Parking fails the active primary of term T, which
+     * index (phase 3, {@code index.stateless.parked}) whose primary is not active. Parking fails the active primary of term T, which
      * bumps the term to T + 1 (IndexMetadataUpdater#shardFailed) without any primary ever being assigned at T + 1 (the parked decider
      * keeps it unassigned, and assigning it would bump the term again), so the last pointer is the one of term T. Reading it directly
      * avoids a missing-pointer GET and the LIST fallback; the stale-primary check then covers the terms before T as usual.
      */
     private long pointerPrimaryTerm(IndexShard indexShard) {
         final long term = indexShard.getOperationPrimaryTerm();
-        if (CheapShardParkedAllocationDecider.PARKED_SETTING.get(indexShard.indexSettings().getSettings())
+        if (ParkedIndexAllocationDecider.PARKED_SETTING.get(indexShard.indexSettings().getSettings())
             && term > 1
             && isPrimaryActive(clusterService.state(), indexShard.shardId()) == false) {
             logger.debug("{} fast activation: index is parked, reading the commit pointer of term [{}]", indexShard.shardId(), term - 1);
@@ -425,7 +425,7 @@ public class StatelessSearchNodeRecoveryListener extends AbstractStatelessRecove
 
     /**
      * Both tiers to zero (phase 3): background registrations of pointer-activated shards whose indexing shard is not active (parked,
-     * {@code index.cheap_shard.parked}). Sending them would only wait 10 s for a primary and fail; instead they are sent once the
+     * {@code index.stateless.parked}). Sending them would only wait 10 s for a primary and fail; instead they are sent once the
      * cluster state shows an active primary (see {@link #registerDeferred}). Nothing can write while there is no primary, so the pointed
      * commit is current until then, and a primary that recovers while this copy is assigned retains every commit it lists for all
      * assigned search nodes (StatelessCommitService#registerVirtualBccForUnpromotableRecovery is not needed for that).

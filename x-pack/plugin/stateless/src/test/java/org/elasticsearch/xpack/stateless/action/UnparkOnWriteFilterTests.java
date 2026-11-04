@@ -34,7 +34,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.allocation.CheapShardParkedAllocationDecider;
+import org.elasticsearch.xpack.stateless.allocation.ParkedIndexAllocationDecider;
 import org.junit.After;
 import org.junit.Before;
 
@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CheapShardUnparkOnWriteFilterTests extends ESTestCase {
+public class UnparkOnWriteFilterTests extends ESTestCase {
 
     private ThreadPool threadPool;
     private final List<UpdateSettingsRequest> unparks = new ArrayList<>();
@@ -68,7 +68,7 @@ public class CheapShardUnparkOnWriteFilterTests extends ESTestCase {
      * Two projects with an index of the same name, parked only in the other project; then parked in the request's project. Returns a
      * filter whose request project is {@code requestProject}.
      */
-    private CheapShardUnparkOnWriteFilter filter(boolean parkedInRequestProject) {
+    private UnparkOnWriteFilter filter(boolean parkedInRequestProject) {
         final ProjectId requestProject = randomUniqueProjectId();
         final ProjectId otherProject = randomUniqueProjectId();
         final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
@@ -83,8 +83,8 @@ public class CheapShardUnparkOnWriteFilterTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(
-                Settings.builder().put(CheapShardUnparkOnWriteFilter.ENABLED_SETTING.getKey(), true).build(),
-                Set.of(CheapShardUnparkOnWriteFilter.ENABLED_SETTING)
+                Settings.builder().put(UnparkOnWriteFilter.ENABLED_SETTING.getKey(), true).build(),
+                Set.of(UnparkOnWriteFilter.ENABLED_SETTING)
             )
         );
         final var client = new NoOpClient(threadPool) {
@@ -98,23 +98,19 @@ public class CheapShardUnparkOnWriteFilterTests extends ESTestCase {
                 listener.onResponse(null);
             }
         };
-        return new CheapShardUnparkOnWriteFilter(
-            () -> clusterService,
-            () -> client,
-            () -> TestProjectResolvers.singleProject(requestProject)
-        );
+        return new UnparkOnWriteFilter(() -> clusterService, () -> client, () -> TestProjectResolvers.singleProject(requestProject));
     }
 
     private static IndexMetadata index(boolean parked) {
         return IndexMetadata.builder("idx")
             .settings(
                 indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID())
-                    .put(CheapShardParkedAllocationDecider.PARKED_SETTING.getKey(), parked)
+                    .put(ParkedIndexAllocationDecider.PARKED_SETTING.getKey(), parked)
             )
             .build();
     }
 
-    private void apply(CheapShardUnparkOnWriteFilter filter, String action, ActionRequest request) {
+    private void apply(UnparkOnWriteFilter filter, String action, ActionRequest request) {
         final AtomicBoolean proceeded = new AtomicBoolean();
         filter.apply(null, action, request, ActionListener.noop(), (task, a, r, l) -> proceeded.set(true));
         assertTrue("request must always proceed", proceeded.get());

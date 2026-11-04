@@ -12,7 +12,7 @@ import org.apache.lucene.index.IndexFileNames;
 import java.util.Set;
 
 /**
- * How a cold search shard fills the cache for vector files ("cheap shards" prototype, see
+ * How a cold search shard fills the cache for vector files (fast activation prototype, see
  * {@code FastSearchActivationSettings}).
  * <p>
  * Vector search walks a graph (HNSW) or scans centroids: a long chain of dependent random reads inside one file. Small fills, which

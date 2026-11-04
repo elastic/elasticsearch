@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Setting;
 
 /**
- * Cheap shards, phase 3 ("both tiers to zero"): keeps the indexing (promotable) copy of a <em>parked</em> index unassigned, so that no
+ * Parking prototype, phase 3 ("both tiers to zero"): keeps the indexing (promotable) copy of a <em>parked</em> index unassigned, so that no
  * node holds an {@code IndexService}/{@code IndexShard} for it while the index stays open. Search copies are not affected.
  * <p>
  * The decider never unassigns anything by itself ({@code canRemain} is always YES): parking is "set {@link #PARKED_SETTING}, then fail
@@ -25,12 +25,12 @@ import org.elasticsearch.common.settings.Setting;
  * the primary recovers from the object store with primary term + 1, as after a node failure. Default off: an index without the setting
  * is never touched.
  */
-public class CheapShardParkedAllocationDecider extends AllocationDecider {
+public class ParkedIndexAllocationDecider extends AllocationDecider {
 
-    public static final String NAME = "cheap_shard_parked";
+    public static final String NAME = "stateless_parked_index";
 
     public static final Setting<Boolean> PARKED_SETTING = Setting.boolSetting(
-        "index.cheap_shard.parked",
+        "index.stateless.parked",
         false,
         Setting.Property.IndexScope,
         Setting.Property.Dynamic
@@ -44,7 +44,7 @@ public class CheapShardParkedAllocationDecider extends AllocationDecider {
     private static final Decision NO_PARKED = Decision.single(
         Decision.Type.NO,
         NAME,
-        "index is parked ([index.cheap_shard.parked] is true): its indexing shard stays unassigned until the setting is cleared"
+        "index is parked ([index.stateless.parked] is true): its indexing shard stays unassigned until the setting is cleared"
     );
 
     @Override

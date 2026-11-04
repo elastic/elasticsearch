@@ -134,16 +134,16 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
-import org.elasticsearch.xpack.stateless.action.CheapShardUnparkOnWriteFilter;
 import org.elasticsearch.xpack.stateless.action.TransportEnsureDocsSearchableAction;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
+import org.elasticsearch.xpack.stateless.action.UnparkOnWriteFilter;
 import org.elasticsearch.xpack.stateless.allocation.AbstractEstimatedHeapAllocationDecider;
-import org.elasticsearch.xpack.stateless.allocation.CheapShardParkedAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
+import org.elasticsearch.xpack.stateless.allocation.ParkedIndexAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.SharedCacheCapacityMonitor;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
@@ -1466,8 +1466,8 @@ public class StatelessPlugin extends Plugin
             FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING,
             FastSearchActivationSettings.COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_USE_POINTER_OPEN_BYTES_SETTING,
-            CheapShardParkedAllocationDecider.PARKED_SETTING,
-            CheapShardUnparkOnWriteFilter.ENABLED_SETTING,
+            ParkedIndexAllocationDecider.PARKED_SETTING,
+            UnparkOnWriteFilter.ENABLED_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_FILL_WINDOW_SETTING,
             FastSearchActivationSettings.FAST_ACTIVATION_PREFETCH_SORT_DOC_VALUES_SETTING,
@@ -2095,8 +2095,8 @@ public class StatelessPlugin extends Plugin
 
     @Override
     public Collection<ActionFilter> getActionFilters() {
-        // cheap shards, phase 3: a write to a parked index unparks its indexing shard (default off, see the filter's setting)
-        return List.of(new CheapShardUnparkOnWriteFilter(clusterService::get, clientRef::get, projectResolver::get));
+        // parking prototype, phase 3: a write to a parked index unparks its indexing shard (default off, see the filter's setting)
+        return List.of(new UnparkOnWriteFilter(clusterService::get, clientRef::get, projectResolver::get));
     }
 
     @Override
@@ -2108,8 +2108,8 @@ public class StatelessPlugin extends Plugin
             new EstimatedHeapUsageAllocationDecider(estimatedHeapSettings.get(), clusterSettings),
             new SharedCacheCapacityAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings),
-            // cheap shards, phase 3: keeps the indexing copy of an index with index.cheap_shard.parked=true unassigned (default off)
-            new CheapShardParkedAllocationDecider()
+            // parking prototype, phase 3: keeps the indexing copy of an index with index.stateless.parked=true unassigned (default off)
+            new ParkedIndexAllocationDecider()
         );
     }
 

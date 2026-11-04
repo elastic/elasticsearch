@@ -959,7 +959,7 @@ public class SharedBlobCacheWarmingService {
     }
 
     /**
-     * Prototype ("cheap shards", phase 4): writes the open-time bytes carried by a commit pointer (see
+     * Prototype (fast activation, phase 4): writes the open-time bytes carried by a commit pointer (see
      * {@link org.elasticsearch.xpack.stateless.commits.CommitPointerOpenBytes}) in the shared cache, at their blob positions, without any
      * object store read, so that the reader of the pointed commit opens from the cache. The ranges are page aligned, as cache writes must
      * be. Ranges already present in the cache are left as they are; ranges for which the cache has no room are skipped (the reader then

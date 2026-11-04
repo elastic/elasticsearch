@@ -665,7 +665,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
     }
 
     /**
-     * Cheap shards prototype (unpromotable copies without an active primary, setting on): an unparked primary and a search copy that
+     * Fast activation prototype (unpromotable copies without an active primary, setting on): an unparked primary and a search copy that
      * are both initializing and are started in the same batch (one mutable {@link RoutingNodes}) keep the recovery counts consistent.
      */
     public void testStartInitializingPrimaryAndUnpromotableCopyInSameBatch() {

@@ -2543,7 +2543,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
         doTestHollowShardFailsIfSearchShardRegistersNewerCommit(false);
     }
 
-    /// Same scenario with pointer-based activation of the search shard ("cheap shards" prototype, phase 3 gap 1): A's commit pointer
+    /// Same scenario with pointer-based activation of the search shard (fast activation prototype, phase 3 gap 1): A's commit pointer
     /// names the hollow commit, which does not let the search shard see B's newer commits. The search shard must still not serve the
     /// hollow commit: it reads the pointer of B's (older) term, finds B's newer commit there and falls back to discovery and
     /// registration, which fails A as in the default recovery.

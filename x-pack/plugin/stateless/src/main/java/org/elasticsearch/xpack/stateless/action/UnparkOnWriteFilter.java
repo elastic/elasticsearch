@@ -32,7 +32,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.stateless.allocation.CheapShardParkedAllocationDecider;
+import org.elasticsearch.xpack.stateless.allocation.ParkedIndexAllocationDecider;
 import org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings;
 
 import java.util.List;
@@ -40,9 +40,9 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Cheap shards, phase 3 ("both tiers to zero"), default off: a bulk (or single-document index/delete, which runs as a bulk) or an
+ * Parking prototype, phase 3 ("both tiers to zero"), default off: a bulk (or single-document index/delete, which runs as a bulk) or an
  * {@code _update} (which waits for the primary before it issues its bulk) to an index whose indexing shard is parked
- * ({@code index.cheap_shard.parked: true}) unparks it by clearing the setting, then lets the request proceed unchanged. The write
+ * ({@code index.stateless.parked: true}) unparks it by clearing the setting, then lets the request proceed unchanged. The write
  * waits for the primary in {@code TransportReplicationAction.ReroutePhase} (request timeout, default 1m) while the settings update
  * reroutes and the primary recovers from the object store, so the filter never blocks the request path itself.
  * At most one unpark per index is in flight on this node; other writes just proceed and wait in the same way. Only the real bulk and
@@ -53,12 +53,12 @@ import java.util.function.Supplier;
  * update index settings when security is on), and only concrete index names, aliases and data streams with a write index are resolved
  * (no date math, no wildcards).
  */
-public class CheapShardUnparkOnWriteFilter implements ActionFilter {
+public class UnparkOnWriteFilter implements ActionFilter {
 
-    private static final Logger logger = LogManager.getLogger(CheapShardUnparkOnWriteFilter.class);
+    private static final Logger logger = LogManager.getLogger(UnparkOnWriteFilter.class);
 
     public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
-        "stateless.cheap_shard.unpark_on_write.enabled",
+        "stateless.parking.unpark_on_write.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -70,7 +70,7 @@ public class CheapShardUnparkOnWriteFilter implements ActionFilter {
     private final Set<Index> unparking = ConcurrentCollections.newConcurrentSet();
 
     /** Suppliers because action filters are created before the plugin's components. */
-    public CheapShardUnparkOnWriteFilter(
+    public UnparkOnWriteFilter(
         Supplier<ClusterService> clusterService,
         Supplier<Client> client,
         Supplier<ProjectResolver> projectResolver
@@ -117,12 +117,12 @@ public class CheapShardUnparkOnWriteFilter implements ActionFilter {
         for (DocWriteRequest<?> item : writes) {
             final IndexMetadata indexMetadata = writeIndex(project, item.index());
             if (indexMetadata != null
-                && CheapShardParkedAllocationDecider.PARKED_SETTING.get(indexMetadata.getSettings())
+                && ParkedIndexAllocationDecider.PARKED_SETTING.get(indexMetadata.getSettings())
                 && unparking.add(indexMetadata.getIndex())) {
                 final Index index = indexMetadata.getIndex();
                 logger.debug("{} write to a parked index, unparking its indexing shard", index);
                 final var request = new UpdateSettingsRequest(
-                    Settings.builder().put(CheapShardParkedAllocationDecider.PARKED_SETTING.getKey(), false).build(),
+                    Settings.builder().put(ParkedIndexAllocationDecider.PARKED_SETTING.getKey(), false).build(),
                     index.getName()
                 );
                 client.get()

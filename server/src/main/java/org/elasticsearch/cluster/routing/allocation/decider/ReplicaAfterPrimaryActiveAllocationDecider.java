@@ -23,7 +23,7 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
     private static final String NAME = "replica_after_primary_active";
 
     /**
-     * Cheap shards prototype (stateless only, default off): an unpromotable copy (stateless search shard) reads its data from the object
+     * Fast activation prototype (stateless only, default off): an unpromotable copy (stateless search shard) reads its data from the object
      * store and never recovers from the primary, so it may be allocated and recovered while the primary is unassigned (e.g. a parked
      * indexing shard). Also read by {@link ThrottlingAllocationDecider} and {@code IndicesClusterStateService}.
      */

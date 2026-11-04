@@ -32,7 +32,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Cheap shards prototype: the relaxations in {@link RoutingNodes} and {@link IndexShardRoutingTable} for unpromotable copies without an
+ * Fast activation prototype: the relaxations in {@link RoutingNodes} and {@link IndexShardRoutingTable} for unpromotable copies without an
  * active primary apply only while {@link ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING} is on;
  * with it off the original assertions hold.
  */

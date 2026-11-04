@@ -31,11 +31,11 @@ import java.util.Set;
 import java.util.zip.CRC32;
 
 /**
- * Prototype ("cheap shards"): a small blob that the indexing shard (over)writes after each batched compound commit (BCC) upload and
+ * Prototype (fast activation): a small blob that the indexing shard (over)writes after each batched compound commit (BCC) upload and
  * that names the latest uploaded commit of the shard, so that a search shard can find and open that commit with a single object store
  * GET, without listing the shard's blobs, without reading BCC headers and without asking a resident indexing shard.
  * <p>
- * Location: {@code <shard path>/}{@link #blobName(long) cheap_shard_commit_pointer.&lt;primary term&gt;}. There is one pointer per primary term
+ * Location: {@code <shard path>/}{@link #blobName(long) commit_pointer.&lt;primary term&gt;}. There is one pointer per primary term
  * so that only the primary of that term ever writes it: a stale primary of an older term cannot overwrite the pointer of the current term,
  * and a search shard reads the pointer of the primary term it knows from the cluster state (never a newer one).
  * <p>
@@ -59,7 +59,7 @@ public record CommitPointer(
     List<CommitPointerOpenBytes.OpenRange> openRanges
 ) {
 
-    public static final String BLOB_NAME_PREFIX = "cheap_shard_commit_pointer.";
+    public static final String BLOB_NAME_PREFIX = "commit_pointer.";
     private static final int MAGIC = 0x43505452; // "CPTR"
     private static final int FORMAT_VERSION = 1;
     /** Format version of a pointer that carries open ranges (phase 4). */

@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Prototype ("cheap shards", phase 5, item 3, default off, see
+ * Prototype (fast activation, phase 5, item 3, default off, see
  * {@link FastSearchActivationSettings#FAST_ACTIVATION_PREFETCH_QUERY_RANGES_MAX_SIZE_SETTING}): right after a search shard activated from
  * a commit pointer has written the pointer's open-time bytes in the cache, prefetches (asynchronously, through the directory, so the
  * activation does not wait) the files that a first query reads with <em>dependent</em> reads whose byte ranges are only known once an

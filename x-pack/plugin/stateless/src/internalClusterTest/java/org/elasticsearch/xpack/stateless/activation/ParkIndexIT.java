@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.cheapshard;
+package org.elasticsearch.xpack.stateless.activation;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -31,8 +31,8 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
-import org.elasticsearch.xpack.stateless.action.CheapShardUnparkOnWriteFilter;
-import org.elasticsearch.xpack.stateless.allocation.CheapShardParkedAllocationDecider;
+import org.elasticsearch.xpack.stateless.action.UnparkOnWriteFilter;
+import org.elasticsearch.xpack.stateless.allocation.ParkedIndexAllocationDecider;
 import org.elasticsearch.xpack.stateless.commits.CommitPointer;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
@@ -63,9 +63,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Cheap shards, phase 3 ("both tiers to zero"): an open index whose indexing copy is <em>parked</em> (unassigned, kept so by
- * {@link CheapShardParkedAllocationDecider}) and whose search copies are 0 has no {@code IndexService} on any node; it comes back by
- * clearing {@code index.cheap_shard.parked} (primary recovers from the object store with term + 1). See
+ * Parking prototype, phase 3 ("both tiers to zero"): an open index whose indexing copy is <em>parked</em> (unassigned, kept so by
+ * {@link ParkedIndexAllocationDecider}) and whose search copies are 0 has no {@code IndexService} on any node; it comes back by
+ * clearing {@code index.stateless.parked} (primary recovers from the object store with term + 1). See
  * {@code notes/phase3-both-tiers-zero.md}.
  * <p>
  * Parking does not reach "nothing on any node": the former primary's node keeps the shard directory under
@@ -73,9 +73,9 @@ import static org.hamcrest.Matchers.nullValue;
  * parked primary never is), and the data nodes keep the index's shared-cache regions until they are evicted (demoted, not freed; the
  * tests force-evict the search node's). The {@code residue} helper logs both; nothing asserts them to be zero.
  */
-public class CheapShardParkIT extends AbstractStatelessPluginIntegTestCase {
+public class ParkIndexIT extends AbstractStatelessPluginIntegTestCase {
 
-    private static final org.apache.logging.log4j.Logger LOG = org.apache.logging.log4j.LogManager.getLogger(CheapShardParkIT.class);
+    private static final org.apache.logging.log4j.Logger LOG = org.apache.logging.log4j.LogManager.getLogger(ParkIndexIT.class);
 
     @Override
     protected boolean addMockFsRepository() {
@@ -188,7 +188,7 @@ public class CheapShardParkIT extends AbstractStatelessPluginIntegTestCase {
         setReplicaCount(0, f.indexName);
         flush(f.indexName);
         awaitPointerOfLatestUpload(f);
-        updateIndexSettings(Settings.builder().put(CheapShardParkedAllocationDecider.PARKED_SETTING.getKey(), true), f.indexName);
+        updateIndexSettings(Settings.builder().put(ParkedIndexAllocationDecider.PARKED_SETTING.getKey(), true), f.indexName);
         final String primaryNode = clusterState().nodes().get(primary(f).currentNodeId()).getName();
         ClusterRerouteUtils.reroute(client(), new CancelAllocationCommand(f.indexName, 0, primaryNode, true));
         for (int i = 0; i < 3; i++) {
@@ -204,7 +204,7 @@ public class CheapShardParkIT extends AbstractStatelessPluginIntegTestCase {
     }
 
     void unpark(Fixture f) {
-        updateIndexSettings(Settings.builder().put(CheapShardParkedAllocationDecider.PARKED_SETTING.getKey(), false), f.indexName);
+        updateIndexSettings(Settings.builder().put(ParkedIndexAllocationDecider.PARKED_SETTING.getKey(), false), f.indexName);
     }
 
     void assertPrimaryParked(Fixture f) {
@@ -436,7 +436,7 @@ public class CheapShardParkIT extends AbstractStatelessPluginIntegTestCase {
         final Fixture f = setUpIndex();
         park(f);
         enableParkedSearch();
-        updateClusterSettings(Settings.builder().put(CheapShardUnparkOnWriteFilter.ENABLED_SETTING.getKey(), true));
+        updateClusterSettings(Settings.builder().put(UnparkOnWriteFilter.ENABLED_SETTING.getKey(), true));
         final boolean withSearchCopy = randomBoolean();
         if (withSearchCopy) {
             setReplicaCount(1, f.indexName);
@@ -453,7 +453,7 @@ public class CheapShardParkIT extends AbstractStatelessPluginIntegTestCase {
         assertBusy(() -> assertTrue(primary(f).started()));
         assertThat(primaryTerm(f), equalTo(term + 1));
         assertFalse(
-            CheapShardParkedAllocationDecider.PARKED_SETTING.get(clusterState().metadata().getProject().index(f.indexName).getSettings())
+            ParkedIndexAllocationDecider.PARKED_SETTING.get(clusterState().metadata().getProject().index(f.indexName).getSettings())
         );
         if (withSearchCopy == false) {
             setReplicaCount(1, f.indexName);
@@ -470,7 +470,7 @@ public class CheapShardParkIT extends AbstractStatelessPluginIntegTestCase {
     public void testUpdateUnparksIndexingShard() throws Exception {
         final Fixture f = setUpIndex();
         park(f);
-        updateClusterSettings(Settings.builder().put(CheapShardUnparkOnWriteFilter.ENABLED_SETTING.getKey(), true));
+        updateClusterSettings(Settings.builder().put(UnparkOnWriteFilter.ENABLED_SETTING.getKey(), true));
         final long term = primaryTerm(f);
         final var update = client(randomFrom(f.dataNodes())).prepareUpdate(f.indexName, "updated-while-parked")
             .setDoc("field", "v")
@@ -480,7 +480,7 @@ public class CheapShardParkIT extends AbstractStatelessPluginIntegTestCase {
         assertBusy(() -> assertTrue(primary(f).started()));
         assertThat(primaryTerm(f), equalTo(term + 1));
         assertFalse(
-            CheapShardParkedAllocationDecider.PARKED_SETTING.get(clusterState().metadata().getProject().index(f.indexName).getSettings())
+            ParkedIndexAllocationDecider.PARKED_SETTING.get(clusterState().metadata().getProject().index(f.indexName).getSettings())
         );
         setReplicaCount(1, f.indexName);
         ensureGreen(f.indexName);

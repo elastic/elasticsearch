@@ -276,7 +276,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Whether the fetch phase asks every segment to prefetch the stored fields of all the hits before loading the first one, so that a
      * directory backed by a remote store (e.g. a cold stateless search shard) fetches them concurrently instead of one hit after the
-     * other. Off by default ("cheap shards" prototype).
+     * other. Off by default (fast activation prototype).
      */
     public static final Setting<Boolean> FETCH_PHASE_PREFETCH_STORED_FIELDS = Setting.boolSetting(
         "search.fetch_phase.prefetch_stored_fields.enabled",
@@ -288,7 +288,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Whether the fetch phase asks every segment that has hits to prefetch its {@code _id} doc values (indices that load the {@code _id}
      * from doc values) before loading the first hit, so that a directory backed by a remote store (e.g. a cold stateless search shard)
-     * fetches them concurrently instead of one segment after the other. Off by default ("cheap shards" prototype).
+     * fetches them concurrently instead of one segment after the other. Off by default (fast activation prototype).
      */
     public static final Setting<Boolean> FETCH_PHASE_PREFETCH_ID_DOC_VALUES = Setting.boolSetting(
         "search.fetch_phase.prefetch_id_doc_values.enabled",

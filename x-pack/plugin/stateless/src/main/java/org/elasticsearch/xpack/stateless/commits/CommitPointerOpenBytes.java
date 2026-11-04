@@ -31,7 +31,7 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * Prototype ("cheap shards", phase 4, default off, see
+ * Prototype (fast activation, phase 4, default off, see
  * {@link org.elasticsearch.xpack.stateless.recovery.FastSearchActivationSettings#COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING}): the bytes
  * that opening a Lucene reader on a commit reads, carried in the {@link CommitPointer} so that a search shard activated from the pointer
  * can write them in the shared cache and open its reader without any object store read.

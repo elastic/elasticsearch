@@ -193,7 +193,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                 // search for corresponding recovery source (= primary shard) and check number of outgoing recoveries on that node
                 ShardRouting primaryShard = allocation.routingNodes().activePrimary(shardRouting.shardId());
                 if (primaryShard == null && unpromotableWithoutPrimary && shardRouting.isPromotableToPrimary() == false) {
-                    // cheap shards prototype: no recovery source node, the copy recovers from the object store only
+                    // fast activation prototype: no recovery source node, the copy recovers from the object store only
                     return allocation.decision(YES, NAME, "unpromotable copy recovers without a primary, no outgoing recovery to throttle");
                 }
                 if (primaryShard == null) {

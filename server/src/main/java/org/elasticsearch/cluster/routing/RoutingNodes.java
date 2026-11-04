@@ -228,7 +228,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             && routing.isPromotableToPrimary() == false
             && primary != null
             && primary.assignedToNode() == false) {
-            // Cheap shards prototype: the constructor passes the shard table's primary even when it is unassigned; treat that like
+            // Fast activation prototype: the constructor passes the shard table's primary even when it is unassigned; treat that like
             // findAssignedPrimaryIfPeerRecovery (no primary) so that adding and removing the recovery count the same way. An assigned
             // but inactive primary is counted as before (removal finds it too, active or not).
             primary = null;
@@ -245,7 +245,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             if (primary == null
                 && ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY
                 && routing.isPromotableToPrimary() == false) {
-                // Cheap shards prototype: an unpromotable copy allocated without an active primary (only possible with
+                // Fast activation prototype: an unpromotable copy allocated without an active primary (only possible with
                 // ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING) recovers from the object
                 // store: there is no outgoing recovery to count.
                 return;
@@ -513,7 +513,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return true;
         }
         if (ReplicaAfterPrimaryActiveAllocationDecider.UNPROMOTABLE_WITHOUT_PRIMARY && unassignedShard.isPromotableToPrimary() == false) {
-            // Cheap shards prototype: unpromotable copies may be assigned without an active primary when
+            // Fast activation prototype: unpromotable copies may be assigned without an active primary when
             // ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING is on (the deciders enforce it)
             return true;
         }

@@ -179,7 +179,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final TimeValue shardLockRetryInterval;
     private final TimeValue shardLockRetryTimeout;
     private volatile boolean localRecoveryRetryEnabled;
-    // cheap shards prototype, see ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING
+    // fast activation prototype, see ReplicaAfterPrimaryActiveAllocationDecider#UNPROMOTABLE_WITHOUT_PRIMARY_ENABLED_SETTING
     private volatile boolean unpromotableWithoutPrimary;
 
     private final Executor shardCloseExecutor;
@@ -958,7 +958,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     shardRouting
                 );
                 if (peerSourceNode == null && unpromotableWithoutPrimary && shardRouting.isPromotableToPrimary() == false) {
-                    // Cheap shards prototype (default off): an unpromotable (stateless search) copy recovers from the object store and
+                    // Fast activation prototype (default off): an unpromotable (stateless search) copy recovers from the object store and
                     // never from the primary, so it may start while the primary is unassigned. The recovery code requires a source node
                     // (RecoveryState, PeerRecoveryTargetService) but the unpromotable path only uses it for logging: use the local node.
                     sourceNode = state.nodes().getLocalNode();

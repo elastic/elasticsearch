@@ -14,7 +14,7 @@ Known issues are significant defects or limitations that may impact your impleme
 
   Refer to [#163612](https://github.com/elastic/elasticsearch/issues/163612) for further details.
 
-* In ES|QL, when the [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) field argument is an inline `TO_DENSE_VECTOR` over a field, KNN yields incorrect results or a failure.
+* In ES|QL, when the [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) field argument is an inline `TO_DENSE_VECTOR` conversion of a field, `KNN` returns no rows or fails. As a workaround, convert the field with `EVAL` first and pass the new column to `KNN`.
 
   Refer to [#163402](https://github.com/elastic/elasticsearch/issues/163402) for further details.
 

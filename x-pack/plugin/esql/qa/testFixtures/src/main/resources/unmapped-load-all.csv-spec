@@ -63,6 +63,7 @@ FROM partial_mapping_sample_data
 
 evalShadowsUnmappedField
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -82,6 +83,7 @@ FROM partial_mapping_sample_data
 
 evalShadowsUnmappedFieldWithLiteral
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -504,6 +506,7 @@ _unmapped_fields:_source
 
 netZeroProjectionDropAllUnmappedThenEval
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -527,6 +530,7 @@ n:integer | _unmapped_fields:_source
 
 inlineStatsByMappedFieldWithExpansion
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -543,6 +547,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsNoGroupingWithExpansion
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -577,6 +582,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsByUnmappedFieldWithExpansion
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -594,6 +600,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsAggAliasShadowsUnmappedField
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -610,6 +617,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsByAliasShadowsUnmappedField
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -626,6 +634,7 @@ FROM partial_mapping_sample_data
 
 twoInlineStats
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -643,6 +652,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsDoubleShadowing
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -660,6 +670,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsEvalShadowsAgg
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -694,6 +705,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsPrunedByLaterInlineStats
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -745,6 +757,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsByUnmappedAfterRenameOtherUnmapped
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -765,6 +778,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsByRenamedUnmapped
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -785,6 +799,7 @@ FROM partial_mapping_sample_data
 
 inlineStatsAfterSortOnUnmapped
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1542,6 +1557,7 @@ FROM partial_mapping_sample_data
 // and therefore becomes a real query column, and it stays in the _unmapped_fields object.
 lookupJoinExpandsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1559,6 +1575,7 @@ FROM partial_mapping_sample_data
 // Coordinator LOOKUP JOIN: the $unmapped_fields blob crosses the coordinator exchange and expands on the coordinator.
 lookupJoinCoordinatorExpandsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1577,6 +1594,7 @@ FROM partial_mapping_sample_data
 // message_type is added by the join after the KEEP.
 lookupJoinKeepWildcardBeforeJoin
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1594,6 +1612,7 @@ FROM partial_mapping_sample_data
 
 lookupJoinDropWildcardBeforeJoin
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1635,6 +1654,7 @@ FROM partial_mapping_sample_data
 // rather than on the coordinator, exercising the LateMaterializationPlanner code path on data nodes.
 lookupJoinThenSortLimit
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1708,6 +1728,7 @@ FROM partial_mapping_sample_data
 // added language_code column is null for all rows. The unmapped source fields are still in _unmapped_fields.
 lookupJoinMissingMatchField
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -1832,6 +1853,7 @@ loadAllSubqueryMappedKeywordLoadsOnUnmappedSibling
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM message_types), (FROM no_mapping_sample_data)
@@ -1861,6 +1883,7 @@ loadAllSubqueryMappedKeywordLoadsOnUnmappedSiblingReversed
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_subqueries
 required_capability: subquery_in_from_command
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM (FROM no_mapping_sample_data), (FROM message_types)
@@ -4069,6 +4092,7 @@ FROM partial_mapping_sample_data
 
 renameEvalCreatedFieldAndUnmappedField
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5087,6 +5111,7 @@ unmapped_source_synthetic | 7 | s | r | "{""id"":""7"",""objarr"":[{""k"":""r""}
 
 sneakyArraySourceShapeAcrossSourceModes
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_unmapped_fields_last
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5193,6 +5218,7 @@ id:keyword | a.b:keyword | arr:keyword | nest.inner.leaf:keyword | _source:_sour
 explicitReferenceToSourceIgnored_deep_objarr_Fields
 required_capability: optional_fields_load_all_single_source_column
 required_capability: source_field_mapping
+required_capability: optional_fields_load_all_unmapped_fields_last
 skip_columnar: dynamic:false unmapped fields are dropped at ingest in columnar mode (no _ignored_source), so unmapped_fields=load_all has nothing to read
 
 SET unmapped_fields="LOAD_ALL"\;
@@ -5833,6 +5859,7 @@ FROM partial_mapping_sample_data
 grokOutputShadowsUnmappedField
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5885,6 +5912,7 @@ m          | "{""order.items.qty"":[""1"",""2""],""order.items.parts.color"":[""
 dissectOutputShadowsUnmappedField
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -5958,6 +5986,7 @@ FROM partial_mapping_mv_sample_data
 mvExpandMappedFieldRepeatsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_grok_dissect_mv_expand_sample
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data
@@ -6659,6 +6688,7 @@ changePointOutputShadowsUnmappedLeaves
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_change_point
 required_capability: change_point
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM change_point_mapped
@@ -6678,6 +6708,7 @@ changePointAsNamesShadowUnmappedLeaves
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_change_point
 required_capability: change_point
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM change_point_mapped
@@ -6696,6 +6727,7 @@ changePointOnUnmappedKey
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_change_point
 required_capability: change_point
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM change_point_mapped
@@ -6714,6 +6746,7 @@ changePointOnCastUnmappedValueAndKey
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_change_point
 required_capability: change_point
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM change_point_unmapped
@@ -6769,6 +6802,7 @@ changePointByExpressionPromotesUnmappedField
 required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_change_point
 required_capability: change_point_by
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM change_point_mapped
@@ -6944,6 +6978,7 @@ required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
 required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_compound_outputs
@@ -6996,6 +7031,7 @@ required_capability: optional_fields_load_all_single_source_column
 required_capability: optional_fields_load_all_compound_output_limit_by_dedup
 required_capability: dedup_command
 required_capability: optional_fields_load_all_inline_stats
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM unmapped_compound_outputs
@@ -7701,6 +7737,7 @@ required_capability: optional_fields_load_all_fillnull
 required_capability: optional_fields_load_all_inline_stats
 required_capability: fillnull_late_loaded_columns
 required_capability: inline_stats
+required_capability: optional_fields_load_all_unmapped_fields_last
 
 SET unmapped_fields="LOAD_ALL"\;
 FROM partial_mapping_sample_data

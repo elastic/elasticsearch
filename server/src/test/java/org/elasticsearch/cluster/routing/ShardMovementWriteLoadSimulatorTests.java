@@ -82,7 +82,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 randomShard,
                 "node_1",
                 expectedShardSize,
-                "testing",
+                MoveReason.of(MoveType.CANNOT_REMAIN),
                 RoutingChangesObserver.NOOP,
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -139,7 +139,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 movedAndStartedShard,
                 "node_0",
                 expectedShardSize,
-                "testing",
+                MoveReason.of(MoveType.CANNOT_REMAIN),
                 RoutingChangesObserver.NOOP,
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -184,7 +184,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                 randomShard,
                 "node_1",
                 expectedShardSize,
-                "testing",
+                MoveReason.of(MoveType.CANNOT_REMAIN),
                 RoutingChangesObserver.NOOP,
                 RecoveryPriority.RELOCATION_CAN_REMAIN_NO
             );
@@ -209,7 +209,14 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         // Relocate a random shard from node_0 to node_1
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
         final var moveShardTuple = allocation.routingNodes()
-            .relocateShard(randomShard, "node_1", 0, "testing", RoutingChangesObserver.NOOP, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+            .relocateShard(
+                randomShard,
+                "node_1",
+                0,
+                MoveReason.of(MoveType.CANNOT_REMAIN),
+                RoutingChangesObserver.NOOP,
+                RecoveryPriority.RELOCATION_CAN_REMAIN_NO
+            );
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
 
         final var simulated = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();

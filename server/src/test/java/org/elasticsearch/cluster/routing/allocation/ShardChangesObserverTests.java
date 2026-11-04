@@ -10,37 +10,54 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.MetricRecorder;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -105,11 +122,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
                 "Should log shard moving",
                 ShardChangesObserver.class.getCanonicalName(),
                 Level.DEBUG,
-                "["
-                    + indexName
-                    + "][0][P] is relocating ("
-                    + BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason()
-                    + ") from [node-1] to [node-2]"
+                "[" + indexName + "][0][P] is relocating (" + MoveType.CANNOT_REMAIN.reason() + ") from [node-1] to [node-2]"
             ),
             new MockLog.SeenEventExpectation(
                 "Should log shard starting",
@@ -254,57 +267,141 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var primary = randomBoolean();
         final var startedShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.STARTED).build();
         final var targetShard = shardRoutingBuilder(shardId, "node-2", primary, ShardRoutingState.INITIALIZING).build();
-        final var cachedAttributes = primary
-            ? ShardChangesObserver.PRIMARY_RELOCATION_ATTRIBUTES
-            : ShardChangesObserver.REPLICA_RELOCATION_ATTRIBUTES;
 
         assertThat(recorder.getMeasurements(InstrumentType.LONG_COUNTER, ShardChangesObserver.RELOCATION_STARTED_METRIC), hasSize(0));
 
-        // known reasons
-        final var moveCounts = new HashMap<String, Integer>();
-        for (final var reason : cachedAttributes.keySet()) {
-            final int moveCount = randomIntBetween(0, 10);
-            moveCounts.put(reason, moveCount);
-            for (int i = 0; i < moveCount; i++) {
-                observer.relocationStarted(startedShard, targetShard, reason);
-            }
+        final var reason = new MoveReason(randomFrom(MoveType.values()), randomBoolean() ? null : randomIdentifier());
+        final var moveCount = randomIntBetween(1, 10);
+        for (int i = 0; i < moveCount; i++) {
+            observer.relocationStarted(startedShard, targetShard, reason, null);
         }
-        List<Measurement> measurements = recorder.getMeasurements(
-            InstrumentType.LONG_COUNTER,
-            ShardChangesObserver.RELOCATION_STARTED_METRIC
-        );
-        for (final var entry : moveCounts.entrySet()) {
-            assertMovementCountForReason(measurements, entry.getKey(), entry.getValue());
-            final var matchingAttributes = measurements.stream()
-                .map(Measurement::attributes)
-                .filter(attributes -> attributes.get("es_relocation_reason").equals(entry.getKey()))
-                .toList();
-            assertThat(matchingAttributes, everyItem(sameInstance(cachedAttributes.get(entry.getKey()))));
-            assertThat(matchingAttributes, everyItem(hasEntry("es_shard_primary", primary)));
-        }
-
-        // unknown reason: falls back to dynamic Map.of
-        final var unknownReason = randomIdentifier("unknown-");
-        final var movements = randomIntBetween(0, 10);
-        for (int i = 0; i < movements; i++) {
-            observer.relocationStarted(startedShard, targetShard, unknownReason);
-        }
-        measurements = recorder.getMeasurements(InstrumentType.LONG_COUNTER, ShardChangesObserver.RELOCATION_STARTED_METRIC);
-        assertMovementCountForReason(measurements, unknownReason, movements);
+        final var attributes = assertMovementCount(recorder, moveCount);
+        assertThat(attributes, everyItem(hasEntry("es_relocation_reason", reason.type().reason())));
         assertThat(
-            measurements.stream()
-                .map(Measurement::attributes)
-                .filter(attributes -> attributes.get("es_relocation_reason").equals(unknownReason))
-                .toList(),
-            everyItem(hasEntry("es_shard_primary", primary))
+            attributes,
+            everyItem(hasEntry("es_can_remain_decider", Objects.requireNonNullElse(reason.canRemainDecider(), "missing")))
         );
+        assertThat(attributes, everyItem(hasEntry("es_reason_source", "reconciled")));
+        assertThat(attributes, everyItem(hasEntry("es_shard_primary", primary)));
+        // the attribute map is cached
+        assertThat(attributes, everyItem(sameInstance(attributes.getFirst())));
+
+        // the computation's reason wins over the reconciler's
+        final var computedReason = new MoveReason(randomFrom(MoveType.values()), randomBoolean() ? null : randomIdentifier());
+        final var computedMoveCount = randomIntBetween(1, 10);
+        for (int i = 0; i < computedMoveCount; i++) {
+            observer.relocationStarted(startedShard, targetShard, reason, new ComputedMoveReason(computedReason, 0, 0));
+        }
+        final var computedAttributes = assertMovementCount(recorder, moveCount + computedMoveCount).stream()
+            .filter(attrs -> attrs.get("es_reason_source").equals("computed"))
+            .toList();
+        assertThat(computedAttributes, hasSize(computedMoveCount));
+        assertThat(computedAttributes, everyItem(hasEntry("es_relocation_reason", computedReason.type().reason())));
+        assertThat(
+            computedAttributes,
+            everyItem(hasEntry("es_can_remain_decider", Objects.requireNonNullElse(computedReason.canRemainDecider(), "missing")))
+        );
+        assertThat(computedAttributes, everyItem(hasEntry("es_shard_primary", primary)));
     }
 
-    private void assertMovementCountForReason(List<Measurement> measurements, String reason, long expectedCount) {
-        long movementCount = measurements.stream()
-            .filter(m -> m.attributes().get("es_relocation_reason").equals(reason))
-            .mapToLong(Measurement::getLong)
-            .sum();
-        assertThat(movementCount, is(expectedCount));
+    public void testRelocationMetricReportsComputedReason() {
+        final var allocationId = randomUUID();
+        final var indexMetadata = IndexMetadata.builder(randomIdentifier())
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.exclude._id", "node-1"))
+            .putInSyncAllocationIds(0, Set.of(allocationId))
+            .build();
+        final var preserveLabels = randomBoolean();
+        final var desiredBalance = randomBoolean();
+        final var settings = Settings.builder()
+            .put(AllocationService.PRESERVE_DECISION_LABELS_SETTING.getKey(), preserveLabels)
+            .put(
+                ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(),
+                desiredBalance ? ClusterModule.DESIRED_BALANCE_ALLOCATOR : ClusterModule.BALANCED_ALLOCATOR
+            )
+            .build();
+
+        final var attributes = relocationAttributesAfterReroute(indexMetadata, allocationId, settings, List.of());
+        assertThat(attributes, hasEntry("es_relocation_reason", MoveType.CANNOT_REMAIN.reason()));
+        assertThat(attributes, hasEntry("es_can_remain_decider", preserveLabels ? "filter" : "missing"));
+        assertThat(attributes, hasEntry("es_reason_source", desiredBalance ? "computed" : "reconciled"));
+        assertThat(attributes, hasEntry("es_shard_primary", true));
+    }
+
+    public void testRelocationMetricReportsComputedReasonWhenReconcilerDisagrees() {
+        // a decider that only objects to the shard's node while simulating, so the computation decides a cannot-remain move that the
+        // reconciler then makes as a rebalance
+        final var simulationOnlyDecider = new AllocationDecider() {
+            @Override
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
+                return allocation.isSimulating() && node.nodeId().equals("node-1")
+                    ? allocation.decision(Decision.NO, "simulation_only", "no")
+                    : allocation.decision(Decision.YES, "simulation_only", "yes");
+            }
+        };
+        final var allocationId = randomUUID();
+        final var indexMetadata = IndexMetadata.builder(randomIdentifier())
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .putInSyncAllocationIds(0, Set.of(allocationId))
+            .build();
+        final var settings = Settings.builder()
+            .put(AllocationService.PRESERVE_DECISION_LABELS_SETTING.getKey(), true)
+            .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.DESIRED_BALANCE_ALLOCATOR)
+            .build();
+        final var plugins = List.<ClusterPlugin>of(new ClusterPlugin() {
+            @Override
+            public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+                return List.of(simulationOnlyDecider);
+            }
+        });
+
+        final var attributes = relocationAttributesAfterReroute(indexMetadata, allocationId, settings, plugins);
+        assertThat(attributes, hasEntry("es_relocation_reason", MoveType.CANNOT_REMAIN.reason()));
+        assertThat(attributes, hasEntry("es_can_remain_decider", "simulation_only"));
+        assertThat(attributes, hasEntry("es_reason_source", "computed"));
+    }
+
+    /**
+     * Reroutes a one-shard cluster where the shard starts on node-1 and returns the attributes of the single relocation the allocation
+     * service with the given settings and plugins starts
+     */
+    private Map<String, Object> relocationAttributesAfterReroute(
+        IndexMetadata indexMetadata,
+        String allocationId,
+        Settings settings,
+        List<ClusterPlugin> clusterPlugins
+    ) {
+        final var shard = shardRoutingBuilder(new ShardId(indexMetadata.getIndex(), 0), "node-1", true, ShardRoutingState.STARTED)
+            .withAllocationId(AllocationId.newInitializing(allocationId))
+            .build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shard)))
+            .build();
+        final var clusterSettings = createBuiltInClusterSettings(settings);
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var allocationService = new AllocationService(
+            randomAllocationDeciders(settings, clusterSettings, clusterPlugins),
+            createShardsAllocator(settings),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            meterRegistry,
+            clusterSettings
+        );
+        allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
+        applyStartedShardsUntilNoChange(clusterState, allocationService);
+        return assertMovementCount(meterRegistry.getRecorder(), 1).getFirst();
+    }
+
+    private static List<Map<String, Object>> assertMovementCount(MetricRecorder<Instrument> recorder, long expectedCount) {
+        final var measurements = recorder.getMeasurements(InstrumentType.LONG_COUNTER, ShardChangesObserver.RELOCATION_STARTED_METRIC);
+        assertThat(measurements.stream().mapToLong(Measurement::getLong).sum(), is(expectedCount));
+        return measurements.stream().map(Measurement::attributes).toList();
     }
 }

@@ -11,16 +11,20 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.routing.ComputedMoveReason;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -35,25 +39,43 @@ class ShardChangesObserver implements RoutingChangesObserver {
 
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> PRIMARY_ATTRIBUTES = buildAttributesByReason(true);
     private static final Map<UnassignedInfo.Reason, Map<String, Object>> REPLICA_ATTRIBUTES = buildAttributesByReason(false);
-    // Pre-calculate attributes for the most common move reasons
-    static final Map<String, Map<String, Object>> PRIMARY_RELOCATION_ATTRIBUTES = buildRelocationAttributes(true);
-    static final Map<String, Map<String, Object>> REPLICA_RELOCATION_ATTRIBUTES = buildRelocationAttributes(false);
 
     private static Map<UnassignedInfo.Reason, Map<String, Object>> buildAttributesByReason(boolean primary) {
         return Arrays.stream(UnassignedInfo.Reason.values())
             .collect(Collectors.toUnmodifiableMap(r -> r, r -> Map.of("es_shard_primary", primary, "es_shard_reason", r.name())));
     }
 
-    private static Map<String, Map<String, Object>> buildRelocationAttributes(boolean primary) {
-        return Map.of(
-            BalancedShardsAllocator.MoveType.REBALANCE.reason(),
-            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.REBALANCE.reason(), "es_shard_primary", primary),
-            BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason(),
-            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason(), "es_shard_primary", primary),
-            BalancedShardsAllocator.MoveType.NOT_PREFERRED.reason(),
-            Map.of("es_relocation_reason", BalancedShardsAllocator.MoveType.NOT_PREFERRED.reason(), "es_shard_primary", primary)
-        );
+    /**
+     * The attributes of {@link #RELOCATION_STARTED_METRIC}. The reason is the desired balance computation's reason for the move when it
+     * has one, since the reconciler only moves shards the computation wants moved and its own {@code canRemain} decision is made
+     * against a different cluster state; otherwise it is the reason of whoever started the relocation.
+     *
+     * @param computed whether the reason comes from the desired balance computation
+     */
+    record RelocationAttributes(MoveType type, @Nullable String canRemainDecider, boolean computed, boolean primary) {
+
+        static RelocationAttributes of(MoveReason reason, @Nullable ComputedMoveReason computedReason, boolean primary) {
+            return computedReason == null
+                ? new RelocationAttributes(reason.type(), reason.canRemainDecider(), false, primary)
+                : new RelocationAttributes(computedReason.reason().type(), computedReason.reason().canRemainDecider(), true, primary);
+        }
+
+        Map<String, Object> toMap() {
+            return Map.of(
+                "es_relocation_reason",
+                type.reason(),
+                "es_can_remain_decider",
+                canRemainDecider == null ? "missing" : canRemainDecider,
+                "es_reason_source",
+                computed ? "computed" : "reconciled",
+                "es_shard_primary",
+                primary
+            );
+        }
     }
+
+    // Cache the attribute maps: the set of distinct combinations is small (move types x deciders x 2 x 2)
+    private final Map<RelocationAttributes, Map<String, Object>> relocationAttributes = new ConcurrentHashMap<>();
 
     private final LongHistogram unassignedToInitializingDuration;
     private final LongHistogram unassignedToStartedDuration;
@@ -123,23 +145,26 @@ class ShardChangesObserver implements RoutingChangesObserver {
     }
 
     @Override
-    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
+    public void relocationStarted(
+        ShardRouting startedShard,
+        ShardRouting targetRelocatingShard,
+        MoveReason reason,
+        @Nullable ComputedMoveReason computedReason
+    ) {
         logger.debug(
             "{} is relocating ({}) from [{}] to [{}]",
             shardIdentifier(startedShard),
-            reason,
+            reason.type().reason(),
             startedShard.currentNodeId(),
             targetRelocatingShard.currentNodeId()
         );
-        relocationStartedCounter.incrementBy(1, relocationAttributes(reason, startedShard.primary()));
-    }
-
-    private static Map<String, Object> relocationAttributes(String reason, boolean primary) {
-        final var attrs = (primary ? PRIMARY_RELOCATION_ATTRIBUTES : REPLICA_RELOCATION_ATTRIBUTES).get(reason);
-        if (attrs != null) {
-            return attrs;
-        }
-        return Map.of("es_relocation_reason", reason, "es_shard_primary", primary);
+        relocationStartedCounter.incrementBy(
+            1,
+            relocationAttributes.computeIfAbsent(
+                RelocationAttributes.of(reason, computedReason, startedShard.primary()),
+                RelocationAttributes::toMap
+            )
+        );
     }
 
     @Override

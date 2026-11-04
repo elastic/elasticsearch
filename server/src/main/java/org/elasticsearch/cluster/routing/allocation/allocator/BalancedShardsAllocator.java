@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -85,28 +87,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(BalancedShardsAllocator.class);
     private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not_preferred");
-
-    public enum MoveType {
-        CANNOT_REMAIN("move(cannot-remain)", RecoveryPriority.RELOCATION_CAN_REMAIN_NO),
-        NOT_PREFERRED("move(not-preferred)", RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED),
-        REBALANCE("move(rebalance)", RecoveryPriority.RELOCATE_REBALANCING);
-
-        private final String reason;
-        private final RecoveryPriority recoveryPriority;
-
-        MoveType(String reason, RecoveryPriority recoveryPriority) {
-            this.reason = reason;
-            this.recoveryPriority = recoveryPriority;
-        }
-
-        public String reason() {
-            return reason;
-        }
-
-        public RecoveryPriority recoveryPriority() {
-            return recoveryPriority;
-        }
-    }
 
     public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.shard",
@@ -1153,7 +1133,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 shardRouting,
                 targetNode.getNodeId(),
                 allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                type.reason(),
+                new MoveReason(type, moveDecision.getCanRemainDecision().label()),
                 allocation.changes(),
                 type.recoveryPriority()
             );
@@ -1734,7 +1714,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 shard,
                                 minNode.getNodeId(),
                                 shardSize,
-                                MoveType.REBALANCE.reason(),
+                                MoveReason.of(MoveType.REBALANCE),
                                 allocation.changes(),
                                 RecoveryPriority.RELOCATE_REBALANCING
                             ).v1()

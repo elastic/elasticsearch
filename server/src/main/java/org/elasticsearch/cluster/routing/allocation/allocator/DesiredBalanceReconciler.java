@@ -19,6 +19,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ComputedMoveReason;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,6 +34,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
@@ -520,11 +524,11 @@ public class DesiredBalanceReconciler {
 
                     final var routingNode = routingNodes.node(shardRouting.currentNodeId());
                     final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                    final BalancedShardsAllocator.MoveType moveType;
+                    final MoveType moveType;
                     if (canRemainDecision.type() == Decision.Type.NO) {
-                        moveType = BalancedShardsAllocator.MoveType.CANNOT_REMAIN;
+                        moveType = MoveType.CANNOT_REMAIN;
                     } else if (canRemainDecision.type() == Decision.Type.NOT_PREFERRED) {
-                        moveType = BalancedShardsAllocator.MoveType.NOT_PREFERRED;
+                        moveType = MoveType.NOT_PREFERRED;
                     } else {
                         // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
                         continue;
@@ -542,7 +546,8 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             moveTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            moveType.reason(),
+                            new MoveReason(moveType, canRemainDecision.label()),
+                            computedMoveReason(shardRouting),
                             allocation.changes(),
                             moveType.recoveryPriority()
                         );
@@ -638,9 +643,10 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            BalancedShardsAllocator.MoveType.REBALANCE.reason(),
+                            MoveReason.of(MoveType.REBALANCE),
+                            computedMoveReason(shardRouting),
                             allocation.changes(),
-                            BalancedShardsAllocator.MoveType.REBALANCE.recoveryPriority()
+                            MoveType.REBALANCE.recoveryPriority()
                         );
                         iterator.dePrioritizeNode(shardRouting.currentNodeId());
                         moveOrdering.recordAllocation(shardRouting.currentNodeId());
@@ -687,6 +693,12 @@ public class DesiredBalanceReconciler {
                     )
                 );
             }
+        }
+
+        @Nullable
+        private ComputedMoveReason computedMoveReason(ShardRouting shardRouting) {
+            return desiredBalance.computedMoveReasons()
+                .get(new ComputedMoveReason.Key(shardRouting.shardId(), shardRouting.currentNodeId()));
         }
 
         private DiscoveryNode findRelocationTarget(final ShardRouting shardRouting, Set<String> desiredNodeIds) {

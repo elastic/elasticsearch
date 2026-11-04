@@ -13,11 +13,14 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -63,20 +66,12 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         this.routingNodes = routingNodes;
         this.isSimulating = isSimulating;
         this.routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-            isSimulating
-                ? new RoutingChangesObserver[] {
-                    nodesChangedObserver,
-                    indexMetadataUpdater,
-                    restoreInProgressUpdater,
-                    resizeSourceIndexUpdater,
-                    new MaxWriteLoadProportionCacheInvalidator() }
-                : new RoutingChangesObserver[] {
-                    nodesChangedObserver,
-                    indexMetadataUpdater,
-                    restoreInProgressUpdater,
-                    resizeSourceIndexUpdater,
-                    new MaxWriteLoadProportionCacheInvalidator(),
-                    shardChangesObserver }
+            nodesChangedObserver,
+            indexMetadataUpdater,
+            restoreInProgressUpdater,
+            resizeSourceIndexUpdater,
+            new MaxWriteLoadProportionCacheInvalidator(),
+            shardChangesObserver
         );
     }
 
@@ -204,7 +199,12 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         }
 
         @Override
-        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
+        public void relocationStarted(
+            ShardRouting startedShard,
+            ShardRouting targetRelocatingShard,
+            MoveReason reason,
+            @Nullable ComputedMoveReason computedReason
+        ) {
             invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
         }
     }

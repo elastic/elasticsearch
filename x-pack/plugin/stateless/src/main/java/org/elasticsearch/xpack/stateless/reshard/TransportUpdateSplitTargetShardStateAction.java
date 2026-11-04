@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -69,6 +70,9 @@ public class TransportUpdateSplitTargetShardStateAction extends TransportMasterN
     protected ClusterBlockException checkBlock(SplitStateRequest request, ClusterState state) {
         ShardId shardId = request.getShardId();
         final ProjectMetadata project = state.metadata().lookupProject(shardId.getIndex()).get();
-        return state.blocks().indexBlockedException(project.id(), ClusterBlockLevel.METADATA_WRITE, shardId.getIndex().getName());
+        // the shard id may carry a name the index no longer has, so check the blocks of the index itself, found by UUID if need be
+        final IndexMetadata indexMetadata = project.index(shardId.getIndex());
+        final String indexName = indexMetadata != null ? indexMetadata.getIndex().getName() : shardId.getIndex().getName();
+        return state.blocks().indexBlockedException(project.id(), ClusterBlockLevel.METADATA_WRITE, indexName);
     }
 }

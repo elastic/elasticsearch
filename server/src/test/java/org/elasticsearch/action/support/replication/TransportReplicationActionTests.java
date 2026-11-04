@@ -33,6 +33,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataRenameIndexService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -345,6 +348,106 @@ public class TransportReplicationActionTests extends ESTestCase {
             reroutePhase.run();
             assertListenerThrows("should fail with an IndexNotFoundException when no blocks", listener, IndexNotFoundException.class);
         }
+    }
+
+    /**
+     * A request routed before a rename carries the name its index had then. When that name has since been given to another index, the
+     * blocks checked in the reroute phase must be those of the index the request is for, found by UUID, and not those of the index
+     * that now has the name; and the request must still be routed to that index's primary.
+     */
+    public void testBlocksAfterIndexNamesSwapped() {
+        final TestAction action = new TestAction(
+            Settings.EMPTY,
+            "internal:testActionAfterSwap",
+            transportService,
+            clusterService,
+            shardStateAction,
+            threadPool
+        ) {
+            @Override
+            public ClusterBlockLevel indexBlockLevel() {
+                return ClusterBlockLevel.WRITE;
+            }
+        };
+
+        final ProjectId projectId = Metadata.DEFAULT_PROJECT_ID;
+        ClusterState state = withIndexUuids(ClusterStateCreationUtils.state(1, new String[] { "a", "b" }, 1), projectId);
+        final Index originalA = state.metadata().getProject(projectId).index("a").getIndex();
+        // the same renames one aliases request would apply: "a" becomes "c", then "b" takes over "a"
+        state = MetadataRenameIndexService.renameIndex(state.projectState(projectId), "a", "c");
+        state = MetadataRenameIndexService.renameIndex(state.projectState(projectId), "b", "a");
+        assertThat(state.metadata().getProject(projectId).index("c").getIndexUUID(), equalTo(originalA.getUUID()));
+        final ShardId staleShardId = new ShardId(originalA, 0);
+        final String localNodeId = state.nodes().getLocalNodeId();
+
+        {
+            // a write block on the index that now has the old name must not stop a request for the index that had it
+            setState(
+                clusterService,
+                ClusterState.builder(state)
+                    .blocks(ClusterBlocks.builder().addIndexBlock(projectId, "a", IndexMetadata.INDEX_WRITE_BLOCK))
+                    .build()
+            );
+            Request request = new Request(staleShardId);
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+            action.new ReroutePhase(task, request, listener).run();
+            assertFalse("request must not fail on the other index's block", listener.isDone());
+            final List<CapturingTransport.CapturedRequest> captured = transport.getCapturedRequestsByTargetNodeAndClear().get(localNodeId);
+            assertThat(captured, notNullValue());
+            assertThat(captured.size(), equalTo(1));
+            assertThat(captured.get(0).action(), equalTo("internal:testActionAfterSwap[p]"));
+        }
+        {
+            // a write block on the renamed index must stop a request that was routed to it under its old name
+            setState(
+                clusterService,
+                ClusterState.builder(state)
+                    .blocks(ClusterBlocks.builder().addIndexBlock(projectId, "c", IndexMetadata.INDEX_WRITE_BLOCK))
+                    .build()
+            );
+            Request request = new Request(staleShardId);
+            PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+            ReplicationTask task = maybeTask();
+            action.new ReroutePhase(task, request, listener).run();
+            ClusterBlockException exception = assertListenerThrows(
+                "the renamed index's block must apply",
+                listener,
+                ClusterBlockException.class
+            );
+            assertThat(((ClusterBlockException) exception.unwrapCause()).blocks().iterator().next(), is(IndexMetadata.INDEX_WRITE_BLOCK));
+            assertPhase(task, "failed");
+        }
+    }
+
+    /**
+     * The creation utils leave the index UUID at the placeholder, under which an {@link Index} compares by name; a rename test needs
+     * real UUIDs, as every index has in a cluster, so that identity follows the UUID and not the name.
+     */
+    private static ClusterState withIndexUuids(ClusterState state, ProjectId projectId) {
+        final ProjectMetadata.Builder metadata = ProjectMetadata.builder(state.metadata().getProject(projectId));
+        final RoutingTable.Builder routing = RoutingTable.builder();
+        for (IndexMetadata placeholder : state.metadata().getProject(projectId).indices().values()) {
+            final IndexMetadata withUuid = IndexMetadata.builder(placeholder)
+                .settings(Settings.builder().put(placeholder.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
+                .build();
+            metadata.put(withUuid, false);
+            final IndexRoutingTable.Builder table = IndexRoutingTable.builder(withUuid.getIndex());
+            for (int i = 0; i < withUuid.getNumberOfShards(); i++) {
+                final ShardId shardId = new ShardId(withUuid.getIndex(), i);
+                table.addIndexShard(
+                    IndexShardRoutingTable.builder(shardId)
+                        .addShard(
+                            TestShardRouting.newShardRouting(shardId, state.nodes().getLocalNodeId(), true, ShardRoutingState.STARTED)
+                        )
+                );
+            }
+            routing.add(table);
+        }
+        return ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata()).put(metadata))
+            .putRoutingTable(projectId, routing.build())
+            .build();
     }
 
     public void testBlocksInPrimaryAction() {

@@ -18,6 +18,8 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -129,10 +131,12 @@ public abstract class TransportWriteAction<
     }
 
     protected boolean isSystemShard(ShardId shardId) {
-        final IndexAbstraction abstraction = projectResolver.getProjectMetadata(clusterService.state())
-            .getIndicesLookup()
-            .get(shardId.getIndexName());
-        return abstraction != null ? abstraction.isSystem() : systemIndices.isSystemIndex(shardId.getIndexName());
+        final ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        // the shard id may carry a name the index no longer has, so resolve the index before looking its abstraction up by name
+        final IndexMetadata indexMetadata = project.index(shardId.getIndex());
+        final String indexName = indexMetadata != null ? indexMetadata.getIndex().getName() : shardId.getIndexName();
+        final IndexAbstraction abstraction = project.getIndicesLookup().get(indexName);
+        return abstraction != null ? abstraction.isSystem() : systemIndices.isSystemIndex(indexName);
     }
 
     @Override

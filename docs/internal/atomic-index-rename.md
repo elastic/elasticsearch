@@ -170,11 +170,22 @@ Costs:
 ### T2. Lookups by `Index` fall back to the UUID
 
 `ProjectMetadata#index(Index)`, `hasIndex(Index)` and `getIndexSafe(Index)`,
-and `RoutingTable#index(Index)` and `hasIndex(Index)`, resolve by name first
-and, when the name is missing or belongs to an index with a different UUID,
-fall back to the by-UUID map. `Metadata#lookupProject(Index)` and
-`projectFor(Index)` get this for free. The fallback never applies to the
-`_na_` placeholder.
+and `RoutingTable#index(Index)` and `hasIndex(Index)`, look the name up and
+return that index only if its UUID is the one asked for; otherwise, whether
+the name is gone or now belongs to a different index, they fall back to the
+by-UUID map. `Metadata#lookupProject(Index)` and `projectFor(Index)` get this
+for free. The fallback never applies to the `_na_` placeholder.
+
+The UUID check on the name hit is what makes a swap safe: rename `a` to `c`
+and then `b` to `a`, and a request that resolved `Index(a, uuid-of-c)` before
+the swap still reaches the index that is now `c`, never the one that is now
+`a`. A bulk resolves its targets to `Index` objects when it is accepted and
+every lookup on the write path takes an `Index`, so the documents land in the
+index the request was accepted for, under its new name, which is the same
+semantics an alias swap has today
+(`TransportReplicationActionTests#testBlocksAfterIndexNamesSwapped` checks the
+reroute phase directly, and `RenameIndexIT#testBulkIndexingDuringRename` runs
+bulks across a rename).
 
 This is what makes stale `Index` copies acceptable: a component that captured
 an `Index` before a rename keeps finding its metadata and routing, and the
@@ -189,8 +200,17 @@ change is that a stale `Index` whose name was later reused by a different
 index now resolves to the renamed index rather than to nothing
 (`StaleIndexLookupTests`).
 
-Two rules come with the fallback:
+Three rules come with the fallback:
 
+- A name string taken from a shard id must not be fed into a name-keyed
+  lookup. The `Index` lookups check the UUID; a `String` lookup cannot, and
+  after a swap it consults the other index without any error. The replication
+  reroute phase checked index blocks that way, so a write routed before a
+  swap was checked against the blocks of the index that took over the old
+  name and not against those of its own index; shard store deletion read the
+  index settings that way; and the stateless split state updates checked
+  blocks that way. All now resolve the index through its `Index` first and
+  use the current name.
 - Code that detects a rename or a deletion by asking whether an `Index` is
   still in the metadata must look up by name explicitly, because
   `index(Index)` answers yes for a renamed index. `indicesRenamed()` does so.
@@ -448,7 +468,9 @@ handling of its own:
   re-key the entries that `indicesRenamed()` reports.
 - React to `indicesDeleted()`, never to "this name is gone".
 - Look indices up with `index(Index)`, except in authorization code, which
-  must resolve by name and compare the UUID strictly.
+  must resolve by name and compare the UUID strictly. Never pass a shard id's
+  name into a name-keyed lookup (blocks, the indices lookup, settings): a
+  swap makes it find the wrong index with no error.
 - A cluster state component that stores an `Index` must compare names in its
   `equals`, or its diff will not carry a rename.
 - Anything that captures an index name at `IndexModule` creation time
@@ -461,6 +483,14 @@ Direct tests of the rename:
 - `RenameIndexIT`: simple and multiple renames, chains and swaps, recreating
   the original name, mapping changes and blocks across a rename, a metadata
   block refusing a rename, and bulk requests in flight across a rename.
+- `TransportReplicationActionTests#testBlocksAfterIndexNamesSwapped` checks
+  that the reroute phase, after a swap of two names, still routes a request to
+  its own index and applies that index's blocks, not those of the index that
+  took over the name. There is no end-to-end test that holds a bulk in flight
+  across a swap: an attempt to hold one with an action filter or a transport
+  hook never completed after release even without a rename, so the harness,
+  not the rename, was at fault, and it was dropped. A deterministic one would
+  be a worthwhile addition.
 - `RenameIndexSnapshotIT` (rename during a snapshot and during a restore,
   incremental snapshot after rename), `RenameIndexResizeIT` (clone, shrink and split from
   a renamed source, rename of the source while a clone target recovers),
@@ -510,6 +540,10 @@ listed here as the places where names hide:
   index from the matched routing.
 - The `SnapshotsInProgress` entry diff keeping shard keys under the old name
   (T1), which made every other node fail to apply the state.
+- Name-string lookups fed from a shard id (T2): the replication reroute
+  phase's block check, shard store deletion's settings lookup and the
+  stateless split state block checks, found by auditing for the swap case
+  after a review comment pointed at it.
 
 Tests that opt out of the trick, each with a comment saying why, fall into two
 classes: tests that wait for an engine or commit event filtered by index name

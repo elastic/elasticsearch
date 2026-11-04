@@ -1398,7 +1398,8 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public void deleteShardStore(String reasonText, ShardId shardId, ClusterState clusterState, IndexRemovalReason reason)
         throws IOException, ShardLockObtainFailedException {
-        final IndexMetadata metadata = clusterState.getMetadata().getProject().indices().get(shardId.getIndexName());
+        // by Index rather than by name: the shard id may carry the name the index had when this deletion was requested
+        final IndexMetadata metadata = clusterState.getMetadata().getProject().index(shardId.getIndex());
 
         final IndexSettings indexSettings = buildIndexSettings(metadata);
         ShardDeletionCheckResult shardDeletionCheckResult = canDeleteShardContent(shardId, indexSettings);

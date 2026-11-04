@@ -250,7 +250,9 @@ EQL my_remote:logs-endpoint "process where process.name == \"regsvr32.exe\""
   *after* the command with [`EVAL`](/reference/query-languages/esql/commands/eval.md).
 * **The request `filter` is rejected.** A query that combines an enclosing {{esql}} request `filter` with an
   EQL source is rejected rather than silently ignoring the filter, because it is not yet bridged into the EQL
-  source. Narrow the events with the EQL predicate itself, or filter the rows with a downstream `WHERE`.
+  source. Any filter is rejected, even one {{esql}} could apply in full, and also when the EQL command is reached
+  through a subquery or a view: there is no partial mode that applies some filter clauses and skips the rest.
+  Narrow the events with the EQL predicate itself, or filter the rows with a downstream `WHERE`.
 * **A view is not a valid EQL target.** The leading pattern must be indices, data streams or aliases. A
   view whose *body* is an EQL command is supported and read with `FROM <view>`, but a view name in the
   leading pattern is not expanded.

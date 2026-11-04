@@ -15,8 +15,12 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -30,7 +34,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -233,6 +239,25 @@ public class EqlCompositionIT extends AbstractEsqlIntegTestCase {
             assertEquals(100L, rows.get(0).get(1));
             assertThat(Objects.toString(rows.get(1).get(0)), equalTo("powershell.exe"));
             assertEquals(200L, rows.get(1).get(1));
+        }
+    }
+
+    public void testRequestFilterOnEqlViewRejected() {
+        createEqlView();
+        List<QueryBuilder> filters = List.of(
+            new TermQueryBuilder("process.name", "cmd.exe"),
+            new BoolQueryBuilder().should(new TermQueryBuilder("process.name", "cmd.exe"))
+                .should(new TermQueryBuilder("process.pid", 100))
+                .minimumShouldMatch(2)
+        );
+        for (QueryBuilder filter : filters) {
+            for (String query : List.of("FROM " + EQL_VIEW, "FROM (FROM " + EQL_VIEW + " | KEEP process.name)")) {
+                VerificationException e = expectThrows(
+                    VerificationException.class,
+                    () -> run(syncEsqlQueryRequest(query).filter(filter)).close()
+                );
+                assertThat(query + " " + filter, e.getMessage(), containsString("cannot yet be combined with a request filter"));
+            }
         }
     }
 

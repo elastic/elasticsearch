@@ -32,8 +32,10 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.INTERNAL)
 public class RestPendingClusterTasksAction extends AbstractCatAction {
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
-        Sets.union(COMMON_QUERY_PARAMETERS, Set.of(REST_MASTER_TIMEOUT_PARAM, "local"))
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        REST_MASTER_TIMEOUT_PARAM,
+        "local"
     );
 
     @Override

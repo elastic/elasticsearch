@@ -9,10 +9,13 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.column.ColumnBatch;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
@@ -35,6 +38,8 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -42,9 +47,12 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -65,22 +73,23 @@ public class BatchMidBatchFailureIT extends ESIntegTestCase {
      * <li>{@link #failLookup}: the n-th Lucene version lookup from now on throws. Primary planning resolves the ids of a
      * sub-batch that are missing from the version map with one such lookup, so this breaks the planning of a chosen
      * sub-batch while the engine stays healthy.</li>
-     * <li>{@link #failNextWrite}: the next Lucene batch write throws after the sub-batch's sequence numbers were reserved,
-     * while the writer reports a different tragic event. The engine can neither treat that as a document failure nor
-     * match it to the tragic event, so it has to fail itself.</li>
+     * <li>{@link #failWrite}: the n-th Lucene write from now on throws, while the writer reports a different tragic event.
+     * A sub-batch of new documents is one columnar write and a sub-batch with an update writes document by document, so
+     * this breaks a chosen sub-batch after its sequence numbers were reserved. The engine can neither treat the failure as
+     * a document failure nor match it to the tragic event, so it has to fail itself.</li>
      * </ul>
      */
     public static class FailingEnginePlugin extends Plugin implements EnginePlugin {
 
         private static final AtomicInteger lookupsUntilFailure = new AtomicInteger(-1);
-        private static final AtomicBoolean failNextWrite = new AtomicBoolean();
+        private static final AtomicInteger writesUntilFailure = new AtomicInteger(-1);
 
         static void failLookup(int n) {
             lookupsUntilFailure.set(n);
         }
 
-        static void failNextWrite() {
-            failNextWrite.set(true);
+        static void failWrite(int n) {
+            writesUntilFailure.set(n);
         }
 
         @Override
@@ -104,13 +113,30 @@ public class BatchMidBatchFailureIT extends ESIntegTestCase {
                     return new IndexWriter(directory, iwc) {
                         private volatile Throwable tragic;
 
-                        @Override
-                        public long addBatch(ColumnBatch columnBatch) throws IOException {
-                            if (failNextWrite.compareAndSet(true, false)) {
+                        private void maybeFailWrite() throws IOException {
+                            if (writesUntilFailure.decrementAndGet() == 0) {
                                 tragic = new IOException("tragic event recorded by another thread");
                                 throw new IOException(SIMULATED_WRITE_FAILURE);
                             }
+                        }
+
+                        @Override
+                        public long addBatch(ColumnBatch columnBatch) throws IOException {
+                            maybeFailWrite();
                             return super.addBatch(columnBatch);
+                        }
+
+                        @Override
+                        public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                            maybeFailWrite();
+                            return super.addDocuments(docs);
+                        }
+
+                        @Override
+                        public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes)
+                            throws IOException {
+                            maybeFailWrite();
+                            return super.softUpdateDocument(term, doc, softDeletes);
                         }
 
                         @Override
@@ -199,7 +225,7 @@ public class BatchMidBatchFailureIT extends ESIntegTestCase {
         );
         try {
             // This will fail LuceneIndex write
-            FailingEnginePlugin.failNextWrite();
+            FailingEnginePlugin.failWrite(1);
             final BulkResponse response = client().bulk(new BulkRequest().add(doc(index, "c"), doc(index, "d"))).actionGet();
 
             // the engine is gone, so the shard request fails as a whole and every item carries the write failure
@@ -241,6 +267,76 @@ public class BatchMidBatchFailureIT extends ESIntegTestCase {
         assertBothCopies(index, 3L, 4L);
     }
 
+    public void testCompletedSubBatchesOfFailedRequestAreDiscarded() throws Exception {
+        final String index = createColumnarIndex();
+        final BulkResponse first = client().bulk(new BulkRequest().add(doc(index, "a"), doc(index, "b"))).actionGet();
+        assertFalse(first.buildFailureMessage(), first.hasFailures());
+        assertBothCopies(index, 1L, 2L);
+
+        // [c, d, c, e]: the duplicate id splits the request into the sub-batches [c, d] and [c, e].
+
+        // Fail the request after 2 items. This failure is post planning (which reserves the seq nos)
+        // This failure comes from IndexWriter.maybeFailWrite
+
+        // The first sub batch will succeed in indexing and the second sub batch will fail tragically, causing the
+        // primary to fail.
+        // Replication happens at the end of the entire batch request. So, the sub batch that succeeded will also not
+        // recover.
+
+        // failPrimaryMidBatch will assert that the entire batch failed and a replica successfully took over
+        failPrimaryMidBatch(index, 2, doc(index, "c"), doc(index, "d"), doc(index, "c"), doc(index, "e"));
+
+        // the completed sub-batch was never replicated and never acknowledged, so it must not survive the fail-over on either
+        // copy: the promoted primary never had it and the failed copy drops it when it recovers from the promoted primary
+        assertBothCopies(index, 1L, 2L);
+        assertCopiesHoldExactly(index, Set.of("a", "b"));
+
+        // which is why the retry creates all three, with the next sequence numbers
+        final BulkResponse retry = client().bulk(new BulkRequest().add(doc(index, "c"), doc(index, "d"), doc(index, "e"))).actionGet();
+        assertFalse(retry.buildFailureMessage(), retry.hasFailures());
+        for (int i = 0; i < 3; i++) {
+            assertThat(retry.getItems()[i].getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(retry.getItems()[i].getResponse().getSeqNo(), equalTo(2L + i));
+        }
+        assertBothCopies(index, 4L, 5L);
+        assertCopiesHoldExactly(index, Set.of("a", "b", "c", "d", "e"));
+    }
+
+    public void testAcknowledgedDocsSurviveFailOverAndFailBack() throws Exception {
+        final String index = createColumnarIndex();
+        final String originalPrimaryNode = shardTable(index).primaryShard().currentNodeId();
+        final Set<String> acknowledged = new HashSet<>();
+
+        // Create 200 documents
+        indexAcknowledged(acknowledged, bulkOf(index, 0, 200));
+        assertCopiesHoldExactly(index, acknowledged);
+
+        // fail over: the primary dies mid-batch, the replica is promoted and the failed copy recovers from it
+        failPrimaryMidBatch(index, 1, doc(index, "fo-1"), doc(index, "fo-2"));
+        assertThat(shardTable(index).primaryShard().currentNodeId(), not(equalTo(originalPrimaryNode)));
+        assertCopiesHoldExactly(index, acknowledged);
+
+        // the promoted primary accepts new docs and the retry of the failed ids, which were never indexed anywhere
+        final BulkResponse afterFailOver = indexAcknowledged(
+            acknowledged,
+            bulkOf(index, 200, 400).add(doc(index, "fo-1")).add(doc(index, "fo-2"))
+        );
+        assertCreated(afterFailOver, "fo-1", "fo-2");
+        assertCopiesHoldExactly(index, acknowledged);
+
+        // fail back: the promoted primary dies the same way and the original node takes over again
+        failPrimaryMidBatch(index, 1, doc(index, "fb-1"), doc(index, "fb-2"));
+        assertThat(shardTable(index).primaryShard().currentNodeId(), equalTo(originalPrimaryNode));
+        assertCopiesHoldExactly(index, acknowledged);
+
+        final BulkResponse afterFailBack = indexAcknowledged(
+            acknowledged,
+            bulkOf(index, 400, 600).add(doc(index, "fb-1")).add(doc(index, "fb-2"))
+        );
+        assertCreated(afterFailBack, "fb-1", "fb-2");
+        assertCopiesHoldExactly(index, acknowledged);
+    }
+
     private String createColumnarIndex() {
         assumeTrue("batch indexing is behind a feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         final String index = "columnar";
@@ -275,6 +371,87 @@ public class BatchMidBatchFailureIT extends ESIntegTestCase {
                 assertThat(copy, shard.getStats().getDocs().getCount(), equalTo(docCount));
             }
         });
+    }
+
+    /** doc-from .. doc-(to-1), ids never seen before: an append-only bulk that takes the columnar write path. */
+    private static BulkRequest bulkOf(String index, int from, int to) {
+        final BulkRequest bulk = new BulkRequest();
+        for (int i = from; i < to; i++) {
+            bulk.add(doc(index, "doc-" + i));
+        }
+        return bulk;
+    }
+
+    /** Every item must be acknowledged; their ids join the set the copies are compared against. */
+    private static BulkResponse indexAcknowledged(Set<String> acknowledged, BulkRequest bulk) {
+        final BulkResponse response = client().bulk(bulk).actionGet();
+        assertFalse(response.buildFailureMessage(), response.hasFailures());
+        for (BulkItemResponse item : response.getItems()) {
+            acknowledged.add(item.getId());
+        }
+        return response;
+    }
+
+    private static void assertCreated(BulkResponse response, String... ids) {
+        for (String id : ids) {
+            final BulkItemResponse item = Arrays.stream(response.getItems()).filter(i -> i.getId().equals(id)).findFirst().orElseThrow();
+            assertThat(id, item.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        }
+    }
+
+    /**
+     * Sends the operations as one bulk with {@link FailingEnginePlugin#failWrite}.
+     * the primary fails after the sequence numbers of that write's sub-batch were reserved.
+     * Waits until the other copy is promoted, then lets the failed copy recover from it.
+     * Every item comes back failed: nothing of the bulk is acknowledged.
+     */
+    private void failPrimaryMidBatch(String index, int failingWrite, IndexRequest... docs) throws Exception {
+        final String primaryNode = shardTable(index).primaryShard().currentNodeId();
+        updateClusterSettings(
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries")
+        );
+        try {
+            FailingEnginePlugin.failWrite(failingWrite);
+            final BulkResponse response = client().bulk(new BulkRequest().add(docs)).actionGet();
+            assertTrue(response.hasFailures());
+            for (BulkItemResponse item : response.getItems()) {
+                assertTrue(item.isFailed());
+                final Throwable cause = ExceptionsHelper.unwrapCause(item.getFailure().getCause());
+                assertThat(cause.getMessage(), containsString(SIMULATED_WRITE_FAILURE));
+            }
+            assertBusy(() -> {
+                final IndexShardRoutingTable shardTable = shardTable(index);
+                assertTrue(shardTable.primaryShard().toString(), shardTable.primaryShard().started());
+                assertThat(shardTable.primaryShard().currentNodeId(), not(equalTo(primaryNode)));
+                assertTrue(shardTable.replicaShards().get(0).toString(), shardTable.replicaShards().get(0).unassigned());
+            });
+        } finally {
+            updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
+        }
+        ensureGreen(index);
+    }
+
+    /**
+     * Both copies are in sync (same seq# stats; same live docs with the same seq#, term, version and source) and hold
+     * exactly the acknowledged ids, nothing more and nothing less.
+     */
+    private void assertCopiesHoldExactly(String index, Set<String> acknowledged) throws Exception {
+        internalCluster().assertSeqNos();
+        internalCluster().assertSameDocIdsOnShards();
+        final IndexShardRoutingTable shardTable = shardTable(index);
+        for (ShardRouting copy : List.of(shardTable.primaryShard(), shardTable.replicaShards().get(0))) {
+            assertThat(copy.toString(), getShardDocIDs(shardOnNode(index, copy)), equalTo(acknowledged));
+        }
+    }
+
+    private IndexShard shardOnNode(String index, ShardRouting copy) {
+        final String nodeName = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .nodes()
+            .get(copy.currentNodeId())
+            .getName();
+        return internalCluster().getInstance(IndicesService.class, nodeName).indexServiceSafe(resolveIndex(index)).getShard(copy.id());
     }
 
     private static IndexRequest doc(String index, String id) {

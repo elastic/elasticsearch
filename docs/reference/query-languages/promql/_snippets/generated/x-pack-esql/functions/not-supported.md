@@ -9,5 +9,4 @@
 * `holt_winters`
 * `info`
 * `mad_over_time`
-* `predict_linear`
 * `resets`

@@ -10,7 +10,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
-import org.apache.lucene.analysis.synonym.SynonymFilter;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.codecs.TermStats;
 import org.apache.lucene.util.BytesRef;
@@ -90,7 +90,7 @@ final class NoisyChannelSpellChecker {
                     return;
                 }
                 anyUnigram = true;
-                if (posIncAttr.getPositionIncrement() == 0 && typeAttribute.type() == SynonymFilter.TYPE_SYNONYM) {
+                if (posIncAttr.getPositionIncrement() == 0 && typeAttribute.type() == SynonymGraphFilter.TYPE_SYNONYM) {
                     assert currentSet != null;
                     TermStats termStats = generator.termStats(term);
                     if (termStats.docFreq() > 0) {

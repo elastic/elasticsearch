@@ -1,5 +1,9 @@
 setup:
+  - requires:
+      test_runner_features: ["allowed_warnings"]
   - do:
+      allowed_warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       indices.create:
         index: test
         body:
@@ -32,6 +36,8 @@ setup:
                 index_phrases: true
 
   - do:
+      allowed_warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       index:
           index: test
           id: "1"
@@ -85,7 +91,7 @@ setup:
                 query: foo two three
                 analyzer: lower_syns
   - match: { hits.total: 1 }
-  - match: { hits.hits.0._id: "5" }  # incorrect match because we're not using graph synonyms
+  - match: { hits.hits.0._id: "6" }  # correct match: synonym produces a graph on indices created on or after SYNONYM_FILTER_USES_SYNONYM_GRAPH
 
   - do:
       search:
@@ -112,7 +118,7 @@ setup:
                 analyzer: lower_syns
                 operator: and
   - match: { hits.total: 1 }
-  - match: { hits.hits.0._id: "1" }   # non-graph synonyms coincidentally give us the correct answer here
+  - match: { hits.hits.0._id: "1" }   # graph synonyms
 
   - do:
       search:

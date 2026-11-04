@@ -3,6 +3,7 @@
 
   - requires:
       cluster_features: ["gte_v8.10.0"]
+      test_runner_features: ["allowed_warnings"]
       reason:  "synonym sets stats are added for v8.10.0"
 
   - do:
@@ -11,6 +12,8 @@
   - length: { indices.analysis.synonyms: 0 }
 
   - do:
+      allowed_warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       indices.create:
         index: test-index1
         body:
@@ -48,6 +51,8 @@
 
 
   - do:
+      allowed_warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       indices.create:
         index: test-index2
         body:
@@ -74,6 +79,8 @@
 
 
   - do:
+      allowed_warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       indices.create:
         index: test-index3
         body:
@@ -110,6 +117,7 @@
 
   - requires:
       cluster_features: ["cluster.stats.multiple_synonym_graph_filters"]
+      test_runner_features: ["allowed_warnings"]
       reason: "multiple synonym graph filter stats"
 
   # Create synonym sets so that synonyms_set + updateable filters can be instantiated
@@ -129,6 +137,8 @@
 
   # Analyzer with two synonym_graph filters backed by synonyms_set (SHOULD count)
   - do:
+      allowed_warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       indices.create:
         index: test-multiple-synset-graph
         body:
@@ -157,6 +167,8 @@
 
   # Analyzer with two inline synonym_graph filters (SHOULD also count)
   - do:
+      allowed_warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       indices.create:
         index: test-inline-graph
         body:

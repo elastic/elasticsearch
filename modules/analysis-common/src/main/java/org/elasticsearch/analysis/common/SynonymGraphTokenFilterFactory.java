@@ -9,24 +9,21 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
-import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
-import java.util.List;
-import java.util.function.Function;
-
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SynonymGraphTokenFilterFactory.class);
+
+    public static final String DEPRECATION_MESSAGE = "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter "
+        + "instead, which produces the same token graph for indices created on this version or later.";
 
     SynonymGraphTokenFilterFactory(
         IndexSettings indexSettings,
@@ -36,25 +33,10 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         SynonymsManagementAPIService synonymsManagementAPIService,
         CircuitBreaker circuitBreaker
     ) {
-        super(indexSettings, env, name, settings, synonymsManagementAPIService, circuitBreaker);
-    }
-
-    @Override
-    public TokenStream create(TokenStream tokenStream) {
-        throw new IllegalStateException("Call createPerAnalyzerSynonymGraphFactory to specialize this factory for an analysis chain first");
-    }
-
-    @Override
-    public TokenFilterFactory getChainAwareTokenFilterFactory(
-        IndexCreationContext context,
-        TokenizerFactory tokenizer,
-        List<CharFilterFactory> charFilters,
-        List<TokenFilterFactory> previousTokenFilters,
-        Function<String, TokenFilterFactory> allFilters
-    ) {
-        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
-        ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
-        final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
-        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader, ts -> new SynonymGraphFilter(ts, synonyms, false));
+        super(indexSettings, env, name, settings, synonymsManagementAPIService, circuitBreaker, false);
+        // Older indices get no warning: there [synonym] is still the legacy filter, so switching would change their analysis.
+        if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH)) {
+            DEPRECATION_LOGGER.warn(DeprecationCategory.ANALYSIS, "synonym_graph_token_filter", DEPRECATION_MESSAGE);
+        }
     }
 }

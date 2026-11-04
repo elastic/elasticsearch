@@ -1,6 +1,7 @@
 setup:
   - requires:
       cluster_features: ["mapper.analyzer-wrapper.reloadable_search_analyzer"]
+      test_runner_features: ["allowed_warnings"]
       reason: "analyzer wrappers such as search_as_you_type must work with a reloadable analyzer"
 
   - do:
@@ -11,6 +12,8 @@ setup:
             - synonyms: "quick, fast"
 
   - do:
+      allowed_warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       indices.create:
         index: test
         body:

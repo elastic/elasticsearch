@@ -1805,6 +1805,46 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     /**
+     * Indices created before {@link IndexVersions#SYNONYM_FILTER_USES_SYNONYM_GRAPH} keep the legacy {@code synonym} filter output,
+     * while indices created after it get the same output as {@code synonym_graph}.
+     */
+    public void testLegacySynonymFilterBWC() throws Exception {
+        final String oldIndex = "test_legacy_synonym";
+        final String newIndex = "test_legacy_synonym_new";
+        Settings.Builder idxSettings = indexSettings(1, 1).put("index.analysis.filter.syn.type", "synonym")
+            .putList("index.analysis.filter.syn.synonyms", "spider man, spiderman")
+            .put("index.analysis.analyzer.syn.tokenizer", "whitespace")
+            .putList("index.analysis.analyzer.syn.filter", "syn");
+        boolean oldIsLegacy = getOldClusterIndexVersion().before(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH);
+        List<String> legacy = List.of("spider", "spiderman", "man");
+        List<String> graph = List.of("spiderman", "spider", "man");
+
+        if (isRunningAgainstOldCluster()) {
+            createIndex(client(), oldIndex, idxSettings.build());
+            ensureGreen(oldIndex);
+            assertThat(analyzeTokens(oldIndex), equalTo(oldIsLegacy ? legacy : graph));
+        } else {
+            assertThat(analyzeTokens(oldIndex), equalTo(oldIsLegacy ? legacy : graph));
+
+            createIndex(client(), newIndex, idxSettings.build());
+            ensureGreen(newIndex);
+            assertThat(analyzeTokens(newIndex), equalTo(graph));
+        }
+    }
+
+    private static List<String> analyzeTokens(String index) throws IOException {
+        Request request = new Request("POST", "/" + index + "/_analyze");
+        request.setJsonEntity("{\"analyzer\":\"syn\",\"text\":\"spider man\"}");
+        ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
+        int count = ((List<?>) response.evaluate("tokens")).size();
+        List<String> tokens = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            tokens.add(response.evaluate("tokens." + i + ".token"));
+        }
+        return tokens;
+    }
+
+    /**
      * This test ensures that search results on old indices using "romanain" analyzer don't change
      * after we introduce Lucene 10
      */

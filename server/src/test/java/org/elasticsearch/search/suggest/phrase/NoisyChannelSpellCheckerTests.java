@@ -20,7 +20,7 @@ import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
-import org.apache.lucene.analysis.synonym.SynonymFilter;
+import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
@@ -213,7 +213,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
                 try {
                     SolrSynonymParser parser = new SolrSynonymParser(true, false, new WhitespaceAnalyzer());
                     parser.parse(new StringReader("usa => usa, america, american"));
-                    filter = new SynonymFilter(filter, parser.build(), true);
+                    filter = new SynonymGraphFilter(filter, parser.build(), true);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -695,7 +695,7 @@ public class NoisyChannelSpellCheckerTests extends ESTestCase {
                 try {
                     SolrSynonymParser parser = new SolrSynonymParser(true, false, new WhitespaceAnalyzer());
                     parser.parse(new StringReader("usa => usa, america, american"));
-                    filter = new SynonymFilter(filter, parser.build(), true);
+                    filter = new SynonymGraphFilter(filter, parser.build(), true);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

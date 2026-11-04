@@ -302,6 +302,7 @@ module org.elasticsearch.server {
             org.elasticsearch.serverless.buildinfo,
             org.elasticsearch.serverless.constants;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
+    exports org.elasticsearch.lucene.analysis.synonym;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
     exports org.elasticsearch.lucene.search;

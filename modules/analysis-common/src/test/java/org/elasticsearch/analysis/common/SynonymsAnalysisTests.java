@@ -74,7 +74,62 @@ public class SynonymsAnalysisTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testSynonymsAnalysis() throws IOException {
+    private static IndexVersion legacySynonymVersion() {
+        return IndexVersionUtils.randomVersionBetween(
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH)
+        );
+    }
+
+    public void testSynonymFilterOutputDependsOnIndexVersion() throws IOException {
+        for (IndexVersion version : List.of(legacySynonymVersion(), IndexVersion.current())) {
+            Settings settings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                .put("path.home", createTempDir().toString())
+                .put("index.analysis.filter.syn.type", "synonym")
+                .putList("index.analysis.filter.syn.synonyms", "spider man, spiderman")
+                .put("index.analysis.analyzer.a.tokenizer", "whitespace")
+                .putList("index.analysis.analyzer.a.filter", "syn")
+                .build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+
+            boolean legacy = version.before(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH);
+            BaseTokenStreamTestCase.assertAnalyzesTo(
+                indexAnalyzers.get("a"),
+                "spider man",
+                legacy ? new String[] { "spider", "spiderman", "man" } : new String[] { "spiderman", "spider", "man" },
+                null,
+                null,
+                null,
+                new int[] { 1, 0, 1 },
+                legacy ? new int[] { 1, 2, 1 } : new int[] { 2, 1, 1 }
+            );
+        }
+    }
+
+    public void testSynonymGraphDeprecation() throws IOException {
+        buildSynonymGraphFilter(legacySynonymVersion());
+        ensureNoWarnings();
+
+        buildSynonymGraphFilter(IndexVersion.current());
+        assertWarnings(SynonymGraphTokenFilterFactory.DEPRECATION_MESSAGE);
+    }
+
+    private void buildSynonymGraphFilter(IndexVersion version) throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.syn.type", "synonym_graph")
+            .putList("index.analysis.filter.syn.synonyms", "a, b")
+            .put("index.analysis.analyzer.a.tokenizer", "whitespace")
+            .putList("index.analysis.analyzer.a.filter", "syn")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+    }
+
+    private void loadSynonymsJson(IndexVersion version) throws IOException {
         InputStream synonyms = getClass().getResourceAsStream("synonyms.txt");
         InputStream synonymsWordnet = getClass().getResourceAsStream("synonyms_wordnet.txt");
         Path home = createTempDir();
@@ -87,11 +142,15 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .loadFromStream(json, getClass().getResourceAsStream(json), false)
             .put(Environment.PATH_HOME_SETTING.getKey(), home)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+    }
+
+    public void testSynonymsAnalysisLegacy() throws IOException {
+        loadSynonymsJson(legacySynonymVersion());
 
         match("synonymAnalyzer", "kimchy is the dude abides", "shay is the elasticsearch man!");
         match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");
@@ -103,7 +162,21 @@ public class SynonymsAnalysisTests extends ESTestCase {
         match("synonymAnalyzerWithStopSynonymAfterSynonym", "kimchy is the dude abides", "shay is the man!");
         match("synonymAnalyzerExpand", "kimchy is the dude abides", "kimchy shay is the dude elasticsearch abides man!");
         match("synonymAnalyzerExpandWithStopAfterSynonym", "kimchy is the dude abides", "shay is the dude abides man!");
+    }
 
+    public void testSynonymsAnalysis() throws IOException {
+        loadSynonymsJson(IndexVersion.current());
+
+        match("synonymAnalyzer", "kimchy is the dude abides", "shay is the elasticsearch man!");
+        match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");
+        match("synonymAnalyzerWordnet", "abstain", "refrain desist abstain");
+        match("synonymAnalyzerWordnet_file", "abstain", "refrain desist abstain");
+        match("synonymAnalyzerWithsettings", "kimchy", "sha hay");
+        match("synonymAnalyzerWithStopAfterSynonym", "kimchy is the dude abides , stop", "shay is the elasticsearch man! ,");
+        match("synonymAnalyzerWithStopBeforeSynonym", "kimchy is the dude abides , stop", "shay is the elasticsearch man! ,");
+        match("synonymAnalyzerWithStopSynonymAfterSynonym", "kimchy is the dude abides", "shay is the man!");
+        match("synonymAnalyzerExpand", "kimchy is the dude abides", "shay kimchy is the elasticsearch dude man! abides");
+        match("synonymAnalyzerExpandWithStopAfterSynonym", "kimchy is the dude abides", "shay is the dude man! abides");
     }
 
     public void testSynonymWordDeleteByAnalyzer() throws IOException {
@@ -232,7 +305,11 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
             indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
-            match("synonymAnalyzerExpandWithStopBeforeSynonym", "kimchy is the dude abides", "is the dude abides man!");
+            match(
+                "synonymAnalyzerExpandWithStopBeforeSynonym",
+                "kimchy is the dude abides",
+                iv.before(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH) ? "is the dude abides man!" : "is the dude man! abides"
+            );
         };
 
         BiConsumer<IndexVersion, Boolean> assertIsNotLenient = (iv, updateable) -> {
@@ -267,83 +344,95 @@ public class SynonymsAnalysisTests extends ESTestCase {
         assertIsLenient.accept(randomLenientIndexVersion, true);
     }
 
-    public void testSynonymsWrappedByMultiplexer() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+    private void buildAnalyzers(IndexVersion version, Settings.Builder settingsBuilder) throws IOException {
+        Settings settings = settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put("path.home", createTempDir().toString())
-            .put("index.analysis.filter.synonyms.type", "synonym")
-            .putList("index.analysis.filter.synonyms.synonyms", "programmer, developer")
-            .put("index.analysis.filter.my_english.type", "stemmer")
-            .put("index.analysis.filter.my_english.language", "porter2")
-            .put("index.analysis.filter.stem_repeat.type", "multiplexer")
-            .putList("index.analysis.filter.stem_repeat.filters", "my_english, synonyms")
-            .put("index.analysis.analyzer.synonymAnalyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "stem_repeat")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+    }
 
-        BaseTokenStreamTestCase.assertAnalyzesTo(
-            indexAnalyzers.get("synonymAnalyzer"),
-            "Some developers are odd",
-            new String[] { "some", "developers", "develop", "programm", "are", "odd" },
-            new int[] { 1, 1, 0, 0, 1, 1 }
-        );
+    public void testSynonymsWrappedByMultiplexer() throws IOException {
+        for (IndexVersion version : List.of(legacySynonymVersion(), IndexVersion.current())) {
+            buildAnalyzers(
+                version,
+                Settings.builder()
+                    .put("index.analysis.filter.synonyms.type", "synonym")
+                    .putList("index.analysis.filter.synonyms.synonyms", "programmer, developer")
+                    .put("index.analysis.filter.my_english.type", "stemmer")
+                    .put("index.analysis.filter.my_english.language", "porter2")
+                    .put("index.analysis.filter.stem_repeat.type", "multiplexer")
+                    .putList("index.analysis.filter.stem_repeat.filters", "my_english, synonyms")
+                    .put("index.analysis.analyzer.synonymAnalyzer.tokenizer", "standard")
+                    .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "stem_repeat")
+            );
+
+            boolean legacy = version.before(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH);
+            BaseTokenStreamTestCase.assertAnalyzesTo(
+                indexAnalyzers.get("synonymAnalyzer"),
+                "Some developers are odd",
+                legacy
+                    ? new String[] { "some", "developers", "develop", "programm", "are", "odd" }
+                    : new String[] { "some", "developers", "programm", "develop", "are", "odd" },
+                new int[] { 1, 1, 0, 0, 1, 1 }
+            );
+        }
     }
 
     public void testAsciiFoldingFilterForSynonyms() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put("path.home", createTempDir().toString())
-            .put("index.analysis.filter.synonyms.type", "synonym")
-            .putList("index.analysis.filter.synonyms.synonyms", "hoj, height")
-            .put("index.analysis.analyzer.synonymAnalyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "asciifolding", "synonyms")
-            .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+        for (IndexVersion version : List.of(legacySynonymVersion(), IndexVersion.current())) {
+            buildAnalyzers(
+                version,
+                Settings.builder()
+                    .put("index.analysis.filter.synonyms.type", "synonym")
+                    .putList("index.analysis.filter.synonyms.synonyms", "hoj, height")
+                    .put("index.analysis.analyzer.synonymAnalyzer.tokenizer", "standard")
+                    .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "asciifolding", "synonyms")
+            );
 
-        BaseTokenStreamTestCase.assertAnalyzesTo(
-            indexAnalyzers.get("synonymAnalyzer"),
-            "høj",
-            new String[] { "hoj", "height" },
-            new int[] { 1, 0 }
-        );
+            boolean legacy = version.before(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH);
+            BaseTokenStreamTestCase.assertAnalyzesTo(
+                indexAnalyzers.get("synonymAnalyzer"),
+                "høj",
+                legacy ? new String[] { "hoj", "height" } : new String[] { "height", "hoj" },
+                new int[] { 1, 0 }
+            );
+        }
     }
 
     public void testPreconfigured() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put("path.home", createTempDir().toString())
-            .put("index.analysis.filter.synonyms.type", "synonym")
-            .putList("index.analysis.filter.synonyms.synonyms", "würst, sausage")
-            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "asciifolding", "synonyms")
-            .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+        for (IndexVersion version : List.of(legacySynonymVersion(), IndexVersion.current())) {
+            buildAnalyzers(
+                version,
+                Settings.builder()
+                    .put("index.analysis.filter.synonyms.type", "synonym")
+                    .putList("index.analysis.filter.synonyms.synonyms", "würst, sausage")
+                    .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+                    .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "asciifolding", "synonyms")
+            );
 
-        BaseTokenStreamTestCase.assertAnalyzesTo(
-            indexAnalyzers.get("my_analyzer"),
-            "würst",
-            new String[] { "wurst", "sausage" },
-            new int[] { 1, 0 }
-        );
+            boolean legacy = version.before(IndexVersions.SYNONYM_FILTER_USES_SYNONYM_GRAPH);
+            BaseTokenStreamTestCase.assertAnalyzesTo(
+                indexAnalyzers.get("my_analyzer"),
+                "würst",
+                legacy ? new String[] { "wurst", "sausage" } : new String[] { "sausage", "wurst" },
+                new int[] { 1, 0 }
+            );
+        }
     }
 
     public void testChainedSynonymFilters() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put("path.home", createTempDir().toString())
-            .put("index.analysis.filter.synonyms1.type", "synonym")
-            .putList("index.analysis.filter.synonyms1.synonyms", "term1, term2")
-            .put("index.analysis.filter.synonyms2.type", "synonym")
-            .putList("index.analysis.filter.synonyms2.synonyms", "term1, term3")
-            .put("index.analysis.analyzer.syn.tokenizer", "standard")
-            .putList("index.analysis.analyzer.syn.filter", "lowercase", "synonyms1", "synonyms2")
-            .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+        // synonym on current indices == synonym_graph; chained/multiplexed graph output is covered by testChainedSynonymGraphFilters
+        buildAnalyzers(
+            legacySynonymVersion(),
+            Settings.builder()
+                .put("index.analysis.filter.synonyms1.type", "synonym")
+                .putList("index.analysis.filter.synonyms1.synonyms", "term1, term2")
+                .put("index.analysis.filter.synonyms2.type", "synonym")
+                .putList("index.analysis.filter.synonyms2.synonyms", "term1, term3")
+                .put("index.analysis.analyzer.syn.tokenizer", "standard")
+                .putList("index.analysis.analyzer.syn.filter", "lowercase", "synonyms1", "synonyms2")
+        );
 
         BaseTokenStreamTestCase.assertAnalyzesTo(
             indexAnalyzers.get("syn"),
@@ -388,6 +477,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
             new int[] { 3, 3, 7, 7, 13, 13 },  // end offsets
             new int[] { 1, 0, 1, 0, 1, 0 }     // position increments: each synonym pair at same position
         );
+
+        assertWarnings(SynonymGraphTokenFilterFactory.DEPRECATION_MESSAGE);
     }
 
     /**
@@ -416,6 +507,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "animal", new String[] { "animal" });
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "cat", new String[] { "animal" });
         BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "dog", new String[] { "animal" });
+
+        assertWarnings(SynonymGraphTokenFilterFactory.DEPRECATION_MESSAGE);
     }
 
     public void testShingleFilters() {
@@ -565,6 +658,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
             createTestAnalysis(idxSettings, settings, commonAnalysisPlugin);
             mockLog.assertAllExpectationsMatched();
         }
+
+        assertWarnings(SynonymGraphTokenFilterFactory.DEPRECATION_MESSAGE);
     }
 
     public void testTooManySynonymSetsRejected() {
@@ -587,6 +682,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin)
         );
         assertThat(e.getMessage(), containsString("At most " + SynonymTokenFilterFactory.MAX_SYNONYM_SETS_PER_FILTER));
+        assertWarnings(SynonymGraphTokenFilterFactory.DEPRECATION_MESSAGE);
     }
 
     /**
@@ -611,6 +707,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(idxSettings, settings, plugin));
         assertThat(e.getMessage(), containsString("not supported until all nodes in the cluster have been upgraded"));
+        assertWarnings(SynonymGraphTokenFilterFactory.DEPRECATION_MESSAGE);
     }
 
     /**
@@ -646,6 +743,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         assertUsesSynonymsSet("plain_analyzer", "set-a");
         assertUsesSynonymsSet("multiplexed_analyzer", "set-a");
         assertUsesSynonymsSet("chained_multiplexed_analyzer", "set-a");
+        assertWarnings(SynonymGraphTokenFilterFactory.DEPRECATION_MESSAGE);
     }
 
     private void assertUsesSynonymsSet(String analyzerName, String synonymsSet) {

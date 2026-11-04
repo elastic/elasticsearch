@@ -312,9 +312,9 @@
     - length: { tokens: 4 }
     - match:  { tokens.0.token: what }
     - match:  { tokens.0.position: 0 }
-    - match:  { tokens.1.token: car }
+    - match:  { tokens.1.token: auto }
     - match:  { tokens.1.position: 1 }
-    - match:  { tokens.2.token: auto }
+    - match:  { tokens.2.token: car }
     - match:  { tokens.2.position: 1 }
     - match:  { tokens.3.token: magazine }
     - match:  { tokens.3.position: 2 }
@@ -328,14 +328,18 @@
           tokenizer: standard
           filter: [ { type: synonym, synonyms: [ "wibble, quack" ]}]
   - length: { tokens: 2 }
-  - match:  { tokens.0.token: wibble }
+  - match:  { tokens.0.token: quack }
   - match:  { tokens.0.position: 0 }
-  - match:  { tokens.1.token: quack }
+  - match:  { tokens.1.token: wibble }
   - match:  { tokens.1.position: 0 }
 
 ---
 "synonym_graph_without_index":
+  - requires:
+      test_runner_features: [ warnings ]
   - do:
+      warnings:
+        - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
       indices.analyze:
         body:
           text: wibble
@@ -349,7 +353,11 @@
 
 ---
 "synonym_graph":
+    - requires:
+        test_runner_features: ["allowed_warnings"]
     - do:
+        allowed_warnings:
+          - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
         indices.create:
           index: test
           body:
@@ -361,6 +369,8 @@
                     synonyms: [ "guinea pig,cavy" ]
 
     - do:
+        allowed_warnings:
+          - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
         indices.analyze:
           index: test
           body:
@@ -381,7 +391,11 @@
 
 ---
 "synonym_graph and flatten_graph":
+    - requires:
+        test_runner_features: ["allowed_warnings"]
     - do:
+        allowed_warnings:
+          - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
         indices.create:
           index: test
           body:
@@ -393,6 +407,8 @@
                     synonyms: ["automatic teller machine,atm,cash point"]
 
     - do:
+        allowed_warnings:
+          - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
         indices.analyze:
           index: test
           body:
@@ -429,6 +445,8 @@
     - is_false: tokens.8.positionLength
 
     - do:
+        allowed_warnings:
+          - "The [synonym_graph] token filter is deprecated. Use the [synonym] token filter instead, which produces the same token graph for indices created on this version or later."
         indices.analyze:
           index: test
           body:

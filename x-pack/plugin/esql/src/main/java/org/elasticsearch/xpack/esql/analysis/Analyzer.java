@@ -5746,7 +5746,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // build a map of UnionAll output to a list of LogicalPlan that reference this output
             Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
 
-            List<List<Attribute>> outputs = unionAll.children().stream().map(LogicalPlan::output).toList();
+            // Each branch's columns, by position in the UnionAll output, matched by name.
+            List<List<Attribute>> outputs = unionAll.children().stream().map(child -> MergeBranchAlignment.alignedColumns(unionAll.output(), child)).toList();
             // only do implicit casting for date and date_nanos types for now, to be consistent with queries without subqueries
             List<DataType> commonTypes = commonTypes(outputs);
 
@@ -5758,28 +5759,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Cast each branch's output to the common type
             List<LogicalPlan> newChildren = new ArrayList<>(unionAll.children().size());
             boolean outputChanged = false;
-            for (LogicalPlan child : unionAll.children()) {
+            for (int childIndex = 0; childIndex < unionAll.children().size(); childIndex++) {
+                LogicalPlan child = unionAll.children().get(childIndex);
+                List<Attribute> columns = outputs.get(childIndex);
+                List<Attribute> childOutput = child.output();
+                Set<Attribute> produced = new HashSet<>(childOutput);
                 List<Alias> newAliases = new ArrayList<>();
-                List<Attribute> oldChildOutput = child.output();
-                List<Attribute> newChildOutput = new ArrayList<>(oldChildOutput.size());
-                for (int i = 0; i < oldChildOutput.size(); i++) {
-                    Attribute oldOutput = oldChildOutput.get(i);
-                    DataType targetType = commonTypes.get(i);
+                Map<Attribute, Attribute> resolvedColumns = new HashMap<>();
+                for (int i = 0; i < columns.size(); i++) {
+                    Attribute oldOutput = columns.get(i);
+                    // A column the branch lacks is aligned as a null fill typed like the UnionAll output column, which follows
+                    // whatever this rule makes of the output. It takes part in deciding the common type, as the fill does once
+                    // materialized, but there is nothing in the branch to cast.
+                    boolean isProduced = produced.contains(oldOutput);
                     Attribute resolved = resolveAttribute(
                         oldOutput,
-                        targetType,
+                        commonTypes.get(i),
                         i,
                         outputs,
                         unionAll,
                         outputToPlans,
-                        newAliases,
+                        isProduced ? newAliases : new ArrayList<>(),
                         unsupportedAttributes,
                         configuration
                     );
-                    newChildOutput.add(resolved);
+                    if (isProduced) {
+                        resolvedColumns.put(oldOutput, resolved);
+                    }
                     if (resolved != oldOutput) {
                         outputChanged = true;
                     }
+                }
+                List<Attribute> newChildOutput = new ArrayList<>(childOutput.size());
+                for (Attribute attr : childOutput) {
+                    newChildOutput.add(resolvedColumns.getOrDefault(attr, attr));
                 }
                 // create a new eval for the casting expressions, and push it down under the projection
                 newChildren.add(maybePushDownConvertFunctionsToChild(child, newAliases, List.of(), newChildOutput));
@@ -6224,7 +6237,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * {@code true} if a child is missing {@code name}, unresolved, or the children's effective types for that name differ.
+         * {@code true} if a child's attribute named {@code name} is unresolved, or the children's effective types for that name
+         * differ. A child without the column is aligned with a null fill typed like the merge's column, so it never disagrees.
          */
         private static boolean childrenDisagreeOnType(MergePlan merge, String name, Map<NameId, Attribute> idToUpdatedAttr) {
             DataType common = null;
@@ -6236,7 +6250,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         break;
                     }
                 }
-                if (childAttr == null || childAttr.resolved() == false) {
+                if (childAttr == null) {
+                    continue;
+                }
+                if (childAttr.resolved() == false) {
                     return true;
                 }
                 Attribute effective = idToUpdatedAttr.getOrDefault(childAttr.id(), childAttr);

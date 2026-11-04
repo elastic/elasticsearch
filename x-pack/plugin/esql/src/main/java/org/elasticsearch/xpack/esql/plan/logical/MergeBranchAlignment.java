@@ -107,21 +107,25 @@ public final class MergeBranchAlignment {
     }
 
     /**
-     * An alias filling {@code column} with nulls in a branch that lacks it, with the branch's {@code source}.
-     * <p>
-     * The null is typed after {@link #alignmentDataType} of the column, except for types that an {@code EVAL} cannot return:
-     * {@code UNSUPPORTED} is filled as {@code KEYWORD} and a counter type as its non-counter counterpart.
+     * An alias filling {@code column} with nulls in a branch that lacks it, with the branch's {@code source}, typed
+     * {@link #nullFillType}.
      * <p>
      * Preserves {@link Attribute#synthetic()}, so a fill of a synthetic merge column (e.g. a union-type
      * {@code $$field$converted_to$type} cast) stays invisible to the removal of synthetic attributes from the query's output.
      */
     public static Alias nullFill(Source source, Attribute column) {
+        return new Alias(source, column.name(), new Literal(source, null, nullFillType(column)), null, column.synthetic());
+    }
+
+    /**
+     * The type of the nulls filling {@code column} in a branch that lacks it: {@link #alignmentDataType} of the column, except for
+     * types that an {@code EVAL} cannot return. {@code UNSUPPORTED} is filled as {@code KEYWORD} and a counter type as its
+     * non-counter counterpart.
+     */
+    public static DataType nullFillType(Attribute column) {
         DataType type = alignmentDataType(column);
         type = type == UNSUPPORTED ? KEYWORD : type;
-        if (type.isCounter()) {
-            type = type.noCounter();
-        }
-        return new Alias(source, column.name(), new Literal(source, null, type), null, column.synthetic());
+        return type.isCounter() ? type.noCounter() : type;
     }
 
     /**

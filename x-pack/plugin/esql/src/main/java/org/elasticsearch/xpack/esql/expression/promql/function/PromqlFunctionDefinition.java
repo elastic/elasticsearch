@@ -519,9 +519,9 @@ public final class PromqlFunctionDefinition {
         /**
          * Declares the {@code stack} availability rendered into the function's docs {@code applies_to} badge. Use the
          * {@link PromqlFunctionDefinition#STACK_PREVIEW_9_4_GA_9_5} / {@link PromqlFunctionDefinition#STACK_GA_9_5}
-         * presets for the common cases. Serverless availability is intentionally not declared here: implemented PromQL
-         * functions are generally available in serverless, which is stated once at the docs page level rather than
-         * repeated per function. (When a function first ships as a serverless preview, add a serverless entry here.)
+         * presets for the common cases. Serverless availability is not declared separately. A list that includes
+         * {@code ga} leaves serverless to the docs page frontmatter. A preview-only list is also preview on serverless,
+         * and the generated badge says so.
          */
         public PromqlFunctionDefinition.Builder stack(List<StackAvailability> stack) {
             this.stack = stack;

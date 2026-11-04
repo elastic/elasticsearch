@@ -2,12 +2,12 @@
 
 ## `sort_by_label` [promql-fn-sort_by_label]
 
-{applies_to}`stack: preview 9.7`
+{applies_to}`stack: preview 9.7` {applies_to}`serverless: preview`
 
 :::{include} brief-summary/sort_by_label.md
 :::
 
-Ordering is observable only on instant queries. Range queries return the series in their input order, without applying the requested ordering. Label comparison uses natural order, with digit runs compared numerically.
+Ordering is observable only on instant queries. Range queries return the series in their input order, without applying the requested ordering. Label comparison uses natural order, with sequences of digits compared numerically.
 
 **Return type**
 
@@ -29,4 +29,9 @@ sort_by_label(http_requests_total, "job", "instance")
 
 **Differences from Prometheus**
 
-Prometheus hides these functions behind `--enable-feature=promql-experimental-functions`. Elasticsearch has no PromQL feature flag and marks them preview instead. Supported in this version only as the outermost function of the query; Prometheus also applies an ordering requested inside an enclosing function call. When the requested labels are equal, ties are broken by series identity, approximating Prometheus `labels.Compare`; the order can differ in edge cases, such as a series missing a label or labels of non-string types. On a range query the ordering is discarded either way, but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order. Digit runs that are numerically equal but differ in leading zeros, and empty label values, get a stable order rather than Prometheus's unstable natsort. Digit runs longer than about 20 digits are still compared numerically, where Prometheus falls back to text comparison.
+- Prometheus hides these functions behind `--enable-feature=promql-experimental-functions`. Elasticsearch has no PromQL feature flag and marks them preview instead.
+- Supported in this version only as the outermost function of the query. Prometheus also applies an ordering requested inside an enclosing function call.
+- When the requested labels are equal, ties are broken by series identity, approximating Prometheus `labels.Compare`. The order can differ in edge cases, such as a series missing a label or labels of non-string types.
+- On a range query the ordering is discarded either way, but Prometheus returns the series ordered by their labels, where {{es}} returns them in input order.
+- Sequences of digits that are numerically equal but differ in leading zeros (for example, `item1` and `item01`), and empty label values, get a stable order rather than Prometheus's unstable natural sort order.
+- Sequences of digits longer than about 20 digits are still compared numerically, where Prometheus falls back to text comparison.

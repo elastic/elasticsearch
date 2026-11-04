@@ -340,8 +340,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         final String field = "value";
         final int numDocs = randomIntBetween(1, 3 * 4096);
         // Indexed by the position the document was added at; null when the document has no value.
-        final long[][] expected = new long[numDocs][];
-        int present = 0;
+        final long[][] expectedByPosition = new long[numDocs][];
+        int docsWithValue = 0;
         var config = getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             for (int i = 0; i < numDocs; i++) {
@@ -350,7 +350,7 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 if (i == 0 || sparse == false || randomIntBetween(0, 3) != 0) {
                     final int count = switch (shape) {
                         case NUMERIC, SORTED_NUMERIC_SINGLE -> 1;
-                        case SORTED_NUMERIC_MULTI -> present == 0 ? 2 : randomIntBetween(1, 4);
+                        case SORTED_NUMERIC_MULTI -> docsWithValue == 0 ? 2 : randomIntBetween(1, 4);
                     };
                     final long[] values = new long[count];
                     for (int j = 0; j < count; j++) {
@@ -363,8 +363,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                             case SORTED_NUMERIC_SINGLE, SORTED_NUMERIC_MULTI -> d.add(SortedNumericDocValuesField.indexedField(field, v));
                         }
                     }
-                    expected[i] = values;
-                    present++;
+                    expectedByPosition[i] = values;
+                    docsWithValue++;
                 }
                 iw.addDocument(d);
                 // Several segments, so that the merge below has something to merge.
@@ -377,24 +377,24 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             }
 
             try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                var leaf = reader.leaves().getFirst().reader();
+                var leaf = getOnlyLeafReader(reader);
                 assertEquals(numDocs, leaf.maxDoc());
 
                 // The index is sorted on the timestamp, so map each document back to the position it was added at.
-                final long[][] byDoc = new long[numDocs][];
+                final long[][] expectedByDocId = new long[numDocs][];
                 var timestamps = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(TIMESTAMP_FIELD));
                 // Reads a NUMERIC field as sorted-numeric too, so that every shape is checked the same way.
                 var dv = DocValues.getSortedNumeric(leaf, field);
                 for (int doc = timestamps.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = timestamps.nextDoc()) {
-                    final long[] want = expected[Math.toIntExact((timestamps.longValue() - BASE_TIMESTAMP) / 1000L)];
-                    byDoc[doc] = want;
-                    if (want == null) {
+                    final int position = Math.toIntExact((timestamps.longValue() - BASE_TIMESTAMP) / 1000L);
+                    final long[] indexedValues = expectedByPosition[position];
+                    expectedByDocId[doc] = indexedValues;
+                    if (indexedValues == null) {
                         assertFalse(dv.advanceExact(doc));
                     } else {
                         assertTrue(dv.advanceExact(doc));
-                        assertEquals(want.length, dv.docValueCount());
-                        for (long v : want) {
+                        assertEquals(indexedValues.length, dv.docValueCount());
+                        for (long v : indexedValues) {
                             assertEquals(v, dv.nextValue());
                         }
                     }
@@ -402,25 +402,25 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
 
                 var skipper = leaf.getDocValuesSkipper(field);
                 assertNotNull(skipper);
-                assertSkipIntervals(skipper, byDoc, present);
+                assertSkipIntervals(skipper, expectedByDocId, docsWithValue);
             }
         }
     }
 
     /** Checks the global statistics, and each level-0 interval, of a skip index against the values per document. */
-    private static void assertSkipIntervals(DocValuesSkipper skipper, long[][] byDoc, int docsWithValue) throws IOException {
+    private static void assertSkipIntervals(DocValuesSkipper skipper, long[][] expectedByDocId, int docsWithValue) throws IOException {
         assertEquals(docsWithValue, skipper.docCount());
-        assertEquals(minValue(byDoc, 0, byDoc.length - 1), skipper.minValue());
-        assertEquals(maxValue(byDoc, 0, byDoc.length - 1), skipper.maxValue());
+        assertEquals(minValue(expectedByDocId, 0, expectedByDocId.length - 1), skipper.minValue());
+        assertEquals(maxValue(expectedByDocId, 0, expectedByDocId.length - 1), skipper.maxValue());
         int covered = 0;
         for (skipper.advance(0); skipper.minDocID(0) != DocIdSetIterator.NO_MORE_DOCS; skipper.advance(skipper.maxDocID(0) + 1)) {
             final int from = skipper.minDocID(0);
             final int to = skipper.maxDocID(0);
-            assertEquals(minValue(byDoc, from, to), skipper.minValue(0));
-            assertEquals(maxValue(byDoc, from, to), skipper.maxValue(0));
+            assertEquals(minValue(expectedByDocId, from, to), skipper.minValue(0));
+            assertEquals(maxValue(expectedByDocId, from, to), skipper.maxValue(0));
             int docs = 0;
             for (int doc = from; doc <= to; doc++) {
-                docs += byDoc[doc] != null ? 1 : 0;
+                docs += expectedByDocId[doc] != null ? 1 : 0;
             }
             assertEquals(docs, skipper.docCount(0));
             covered += docs;
@@ -428,21 +428,21 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         assertEquals(docsWithValue, covered);
     }
 
-    private static long minValue(long[][] byDoc, int from, int to) {
+    private static long minValue(long[][] expectedByDocId, int from, int to) {
         long min = Long.MAX_VALUE;
         for (int doc = from; doc <= to; doc++) {
-            if (byDoc[doc] != null) {
-                min = Math.min(min, byDoc[doc][0]); // sorted ascending
+            if (expectedByDocId[doc] != null) {
+                min = Math.min(min, expectedByDocId[doc][0]); // sorted ascending
             }
         }
         return min;
     }
 
-    private static long maxValue(long[][] byDoc, int from, int to) {
+    private static long maxValue(long[][] expectedByDocId, int from, int to) {
         long max = Long.MIN_VALUE;
         for (int doc = from; doc <= to; doc++) {
-            if (byDoc[doc] != null) {
-                max = Math.max(max, byDoc[doc][byDoc[doc].length - 1]);
+            if (expectedByDocId[doc] != null) {
+                max = Math.max(max, expectedByDocId[doc][expectedByDocId[doc].length - 1]);
             }
         }
         return max;

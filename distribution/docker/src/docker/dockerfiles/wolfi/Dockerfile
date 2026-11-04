@@ -73,6 +73,8 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 #  9. Make some files writable
 # 10. Move the paths that are copied in layers of their own out of the way, keeping their paths, into a
 #     directory per layer
+# Before that, replace the identical jars that many modules and plugins bundle with hard links, so that each one
+# is stored only once in the image layer.
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
@@ -82,6 +84,10 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} + && \\
+    prev= && \\
+    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do \\
+        if [ "\$sum" = "\$prev" ]; then ln -f "\$first" "\$path" || exit 1; else prev="\$sum"; first="\$path"; fi; \\
+    done && \\
     mkdir /layers && \\
     n=0 && \\
     for pattern in <%= separateLayers.collect { "'" + it + "'" }.join(' ') %>; do \\

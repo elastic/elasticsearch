@@ -14,8 +14,11 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The strict Arrow types of the satellite protocol (section 9.2) and the check of a satellite's answer against what ES asked for
@@ -111,6 +114,41 @@ final class SatelliteSchemaCheck {
                 );
             }
         }
+    }
+
+    /**
+     * The check for a plain Flight server, which promises nothing beyond the schema ES resolved: every column the plan reads must be
+     * in the stream with the ES|QL type the plan was built for. Extra columns are ignored; a missing or retyped one fails the read
+     * before a block is built from a vector of the wrong class (the table may have changed since it was resolved).
+     */
+    static void verifyReadable(Schema schema, List<Attribute> expected, String what, int maxColumns) {
+        if (schema.getFields().size() > maxColumns) {
+            throw unreadable(what, "has [" + schema.getFields().size() + "] fields, the limit is [" + maxColumns + "]");
+        }
+        Map<String, DataType> actual = new HashMap<>();
+        for (Attribute attribute : expected) {
+            actual.put(attribute.name(), null);
+        }
+        // only the columns the plan reads are mapped: a column it never reads may be of a type ES cannot read at all
+        for (org.apache.arrow.vector.types.pojo.Field field : schema.getFields()) {
+            if (actual.containsKey(field.getName())) {
+                var mapping = ArrowToEsql.forField(field);
+                actual.put(field.getName(), mapping == null ? null : mapping.dataType());
+            }
+        }
+        for (Attribute attribute : expected) {
+            DataType type = actual.get(attribute.name());
+            if (type == null) {
+                throw unreadable(what, "has no readable field [" + attribute.name() + "]");
+            }
+            if (type != attribute.dataType()) {
+                throw unreadable(what, "field [" + attribute.name() + "] is [" + type + "], expected [" + attribute.dataType() + "]");
+            }
+        }
+    }
+
+    private static IllegalStateException unreadable(String what, String problem) {
+        return new IllegalStateException("the Flight server's " + what + " does not match what the plan reads: " + problem);
     }
 
     private static IllegalStateException mismatch(String what, String problem) {

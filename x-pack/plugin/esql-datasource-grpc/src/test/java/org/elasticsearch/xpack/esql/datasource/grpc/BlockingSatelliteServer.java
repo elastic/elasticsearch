@@ -72,6 +72,12 @@ public final class BlockingSatelliteServer implements Closeable {
     /** When positive, {@code DoGet} sends a single batch of this many rows (a result far bigger than a small breaker allows). */
     public volatile int oneBatchOfRows;
     public final CountDownLatch inSecondBatchStall = new CountDownLatch(1);
+    /** When positive, the schema of {@code GetSchema} has this many extra columns, like a satellite with a huge table. */
+    public volatile int extraColumns;
+    /** How many results the capability action sends (a satellite is allowed one). */
+    public volatile int capabilityResults = 1;
+    /** How many endpoints {@code GetFlightInfo(path)} lists. */
+    public volatile int endpointCount = 1;
     /** When set, {@code GetFlightInfo(command)} answers with this status, like a satellite that rejects the request. */
     public volatile CallStatus rejectFragmentWith;
 
@@ -149,6 +155,11 @@ public final class BlockingSatelliteServer implements Closeable {
         }
     }
 
+    /** Memory the server still holds: zero once every call it served has ended. */
+    public long allocatedBytes() {
+        return allocator.getAllocatedMemory();
+    }
+
     public int port() {
         return server.getPort();
     }
@@ -157,8 +168,14 @@ public final class BlockingSatelliteServer implements Closeable {
         @Override
         public SchemaResult getSchema(CallContext context, FlightDescriptor descriptor) {
             String id = schemaDeclarationId;
+            List<Field> fields = new java.util.ArrayList<>(SCHEMA.getFields());
+            for (int i = 0; i < extraColumns; i++) {
+                fields.add(new Field("extra" + i, FieldType.nullable(new ArrowType.Int(32, true)), null));
+            }
             return new SchemaResult(
-                id == null ? SCHEMA : new Schema(SCHEMA.getFields(), Map.of(SatelliteDeclarationCache.SCHEMA_METADATA_KEY, id))
+                id == null && extraColumns == 0
+                    ? SCHEMA
+                    : new Schema(fields, id == null ? Map.of() : Map.of(SatelliteDeclarationCache.SCHEMA_METADATA_KEY, id))
             );
         }
 
@@ -172,7 +189,10 @@ public final class BlockingSatelliteServer implements Closeable {
                 return new FlightInfo(
                     SCHEMA,
                     descriptor,
-                    List.of(new FlightEndpoint(new Ticket("t".getBytes(StandardCharsets.UTF_8)), self)),
+                    java.util.Collections.nCopies(
+                        endpointCount,
+                        new FlightEndpoint(new Ticket("t".getBytes(StandardCharsets.UTF_8)), self)
+                    ),
                     -1,
                     recordCount
                 );
@@ -202,7 +222,9 @@ public final class BlockingSatelliteServer implements Closeable {
                     listener.onError(failCapabilitiesWith.toRuntimeException());
                     return;
                 }
-                listener.onNext(new Result(capabilities.getBytes(StandardCharsets.UTF_8)));
+                for (int i = 0; i < capabilityResults; i++) {
+                    listener.onNext(new Result(capabilities.getBytes(StandardCharsets.UTF_8)));
+                }
                 listener.onCompleted();
             } else {
                 super.doAction(context, action, listener);

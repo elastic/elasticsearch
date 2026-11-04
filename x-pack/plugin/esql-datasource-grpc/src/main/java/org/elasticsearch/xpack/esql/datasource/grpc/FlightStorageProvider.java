@@ -12,7 +12,6 @@ import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageChildren;
@@ -48,14 +47,14 @@ public final class FlightStorageProvider implements StorageProvider {
     private final String caCertificate;
     private final String serverName;
     private final String token;
-    private final FlightHostPolicy hosts;
+    private final FlightGuard hosts;
 
     public FlightStorageProvider() {
-        this(null, null, null, FlightHostPolicy.DEFAULT);
+        this(null, null, null, FlightGuard.DEFAULT);
     }
 
     /** The TLS settings and the token of the data source, which apply to {@code +tls} paths, and the hosts it may connect to. */
-    FlightStorageProvider(String caCertificate, String serverName, String token, FlightHostPolicy hosts) {
+    FlightStorageProvider(String caCertificate, String serverName, String token, FlightGuard hosts) {
         this.hosts = hosts;
         this.caCertificate = caCertificate;
         this.serverName = serverName;
@@ -154,7 +153,7 @@ public final class FlightStorageProvider implements StorageProvider {
         }
         int port = path.port() > 0 ? path.port() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
         try (
-            BufferAllocator allocator = new RootAllocator();
+            BufferAllocator allocator = FlightClients.planningAllocator(hosts);
             FlightClient client = FlightClients.build(allocator, path.host(), port, transportOf(path), hosts)
         ) {
             FlightInfo info = client.getInfo(FlightDescriptor.path(target));

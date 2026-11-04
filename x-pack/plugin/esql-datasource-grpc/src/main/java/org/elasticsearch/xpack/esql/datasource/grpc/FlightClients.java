@@ -15,6 +15,7 @@ import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStatusCode;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 
 import java.io.ByteArrayInputStream;
@@ -130,12 +131,13 @@ final class FlightClients {
      * The client for {@code host:port}, on {@code allocator}, which the client keeps and the caller closes. The host is checked
      * against {@code hosts} here, the one place every connection is made, as well as when a dataset is registered.
      */
-    static FlightClient build(BufferAllocator allocator, String host, int port, Transport transport, FlightHostPolicy hosts) {
+    static FlightClient build(BufferAllocator allocator, String host, int port, Transport transport, FlightGuard hosts) {
         hosts.check(host);
+        int maxMessage = hosts.limits().maxMessageBytesInt();
         if (transport.tls() == false) {
-            return FlightClient.builder(allocator, Location.forGrpcInsecure(host, port)).build();
+            return FlightClient.builder(allocator, Location.forGrpcInsecure(host, port)).maxInboundMessageSize(maxMessage).build();
         }
-        FlightClient.Builder builder = FlightClient.builder(allocator, Location.forGrpcTls(host, port));
+        FlightClient.Builder builder = FlightClient.builder(allocator, Location.forGrpcTls(host, port)).maxInboundMessageSize(maxMessage);
         if (transport.token() != null) {
             // a middleware, not a call option: it covers every call of the client, the result stream included
             builder.intercept(bearer(transport.token()));
@@ -167,6 +169,38 @@ final class FlightClients {
             @Override
             public void onCallCompleted(CallStatus status) {}
         };
+    }
+
+    /**
+     * The allocator for the calls that plan a read (schema, declaration, flight info). It has a limit on the Arrow buffers a call
+     * holds; most of what these calls decode lives on the heap, where the message size limit is what bounds it. It is not accounted
+     * by a circuit breaker, which a plan step has no handle on.
+     */
+    static BufferAllocator planningAllocator(FlightGuard guard) {
+        return new RootAllocator(2 * guard.limits().maxMessageBytes());
+    }
+
+    /**
+     * Text a satellite sent, made fit for an error message: control characters removed, at most 256 characters, and marked as the
+     * satellite's, because ES does not vouch for it.
+     */
+    static String satelliteText(String text) {
+        if (text == null || text.isBlank()) {
+            return "(no message from the satellite)";
+        }
+        StringBuilder clean = new StringBuilder();
+        text.codePoints().limit(256).forEach(c -> {
+            int type = Character.getType(c);
+            // control, format (bidi marks), line and paragraph separators and unassigned or surrogate code points become spaces
+            boolean unsafe = type == Character.CONTROL
+                || type == Character.FORMAT
+                || type == Character.LINE_SEPARATOR
+                || type == Character.PARAGRAPH_SEPARATOR
+                || type == Character.SURROGATE
+                || type == Character.UNASSIGNED;
+            clean.appendCodePoint(unsafe ? ' ' : c);
+        });
+        return "(the satellite says: " + clean.toString().strip() + (text.codePointCount(0, text.length()) > 256 ? "...)" : ")");
     }
 
     /** The error for a satellite that did not accept the credentials of the data source, or null for any other failure. */

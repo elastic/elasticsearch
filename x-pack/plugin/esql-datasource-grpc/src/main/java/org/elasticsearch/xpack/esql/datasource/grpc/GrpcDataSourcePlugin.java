@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.grpc;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -69,26 +70,78 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
     );
 
     /**
-     * The hosts the nodes may open Flight connections to (see {@link FlightHostPolicy}). The default is this machine only: a dataset
+     * The hosts the nodes may open Flight connections to (see {@link FlightGuard}). The default is this machine only: a dataset
      * names its host, so a wider default would let whoever can create a dataset reach every host a data node can.
      */
     public static final Setting<List<String>> FLIGHT_ALLOWED_HOSTS = Setting.listSetting(
         "esql.datasource.flight.allowed_hosts",
-        FlightHostPolicy.DEFAULT_ALLOWED,
+        FlightGuard.DEFAULT_ALLOWED,
         entry -> {
-            new FlightHostPolicy(List.of(entry)); // an entry that cannot be read is refused when the node starts
+            new FlightGuard(List.of(entry)); // an entry that cannot be read is refused when the node starts
             return entry;
         },
         Setting.Property.NodeScope
     );
 
+    /** The largest inbound gRPC message a node accepts from a satellite: a record batch, a schema, a flight info, an action result. */
+    public static final Setting<ByteSizeValue> FLIGHT_MAX_MESSAGE_SIZE = Setting.byteSizeSetting(
+        "esql.datasource.flight.max_message_size",
+        ByteSizeValue.ofMb(64),
+        ByteSizeValue.ofMb(1),
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        Setting.Property.NodeScope
+    );
+
+    /** The most endpoints a flight info may list; each becomes a split that is sent to every node. */
+    public static final Setting<Integer> FLIGHT_MAX_ENDPOINTS = Setting.intSetting(
+        "esql.datasource.flight.max_endpoints",
+        FlightGuard.Limits.DEFAULT.maxEndpoints(),
+        1,
+        Setting.Property.NodeScope
+    );
+
+    /** The most columns a satellite's table may have. */
+    public static final Setting<Integer> FLIGHT_MAX_COLUMNS = Setting.intSetting(
+        "esql.datasource.flight.max_columns",
+        FlightGuard.Limits.DEFAULT.maxColumns(),
+        1,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * How long a result stream may send nothing before the read fails; zero for no limit. The wait for the first batch counts, and a
+     * satellite that sorts or aggregates reads all its input before it, so the default is ten minutes.
+     */
+    public static final Setting<TimeValue> FLIGHT_STREAM_IDLE_TIMEOUT = Setting.timeSetting(
+        "esql.datasource.flight.stream_idle_timeout",
+        FlightGuard.Limits.DEFAULT.streamIdleTimeout(),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FLIGHT_CALL_TIMEOUT, FLIGHT_DECLARATION_TTL, FLIGHT_ALLOWED_HOSTS);
+        return List.of(
+            FLIGHT_CALL_TIMEOUT,
+            FLIGHT_DECLARATION_TTL,
+            FLIGHT_ALLOWED_HOSTS,
+            FLIGHT_MAX_MESSAGE_SIZE,
+            FLIGHT_MAX_ENDPOINTS,
+            FLIGHT_MAX_COLUMNS,
+            FLIGHT_STREAM_IDLE_TIMEOUT
+        );
     }
 
-    private static FlightHostPolicy policy(Settings settings) {
-        return new FlightHostPolicy(FLIGHT_ALLOWED_HOSTS.get(settings));
+    private static FlightGuard guard(Settings settings) {
+        return new FlightGuard(
+            FLIGHT_ALLOWED_HOSTS.get(settings),
+            new FlightGuard.Limits(
+                FLIGHT_MAX_MESSAGE_SIZE.get(settings).getBytes(),
+                FLIGHT_MAX_ENDPOINTS.get(settings),
+                FLIGHT_MAX_COLUMNS.get(settings),
+                FLIGHT_STREAM_IDLE_TIMEOUT.get(settings)
+            )
+        );
     }
 
     private static boolean enabled() {
@@ -108,11 +161,11 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        FlightHostPolicy policy = policy(settings);
+        FlightGuard guard = guard(settings);
         // the TLS settings of the data source reach the provider as config keys, so that its existence check trusts the same
         // authority as the connector
         StorageProviderFactory factory = StorageProviderFactory.of(
-            () -> new FlightStorageProvider(null, null, null, policy),
+            () -> new FlightStorageProvider(null, null, null, guard),
             config -> Configured.fromKnownSubset(
                 new FlightClients.Transport(
                     true,
@@ -123,7 +176,7 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
                 config,
                 FlightClients.TLS_SETTINGS
             ),
-            tls -> new FlightStorageProvider(tls.caCertificate(), tls.serverName(), tls.token(), policy)
+            tls -> new FlightStorageProvider(tls.caCertificate(), tls.serverName(), tls.token(), guard)
         );
         return Map.of("flight", factory, "grpc", factory, "flight+tls", factory, "grpc+tls", factory);
     }
@@ -146,7 +199,7 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
             new FlightConnectorFactory(
                 FLIGHT_CALL_TIMEOUT.get(settings),
                 new SatelliteDeclarationCache(FLIGHT_DECLARATION_TTL.get(settings)),
-                policy(settings)
+                guard(settings)
             )
         );
     }
@@ -161,7 +214,7 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        DataSourceValidator flight = new FlightDataSourceValidator(policy(settings));
+        DataSourceValidator flight = new FlightDataSourceValidator(guard(settings));
         return Map.of(flight.type(), flight);
     }
 

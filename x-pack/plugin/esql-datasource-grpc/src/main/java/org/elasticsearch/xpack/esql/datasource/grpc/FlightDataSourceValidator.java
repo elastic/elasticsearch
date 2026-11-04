@@ -28,13 +28,13 @@ import java.util.TreeSet;
  */
 class FlightDataSourceValidator implements DataSourceValidator {
 
-    private final FlightHostPolicy hosts;
+    private final FlightGuard hosts;
 
     FlightDataSourceValidator() {
-        this(FlightHostPolicy.DEFAULT);
+        this(FlightGuard.DEFAULT);
     }
 
-    FlightDataSourceValidator(FlightHostPolicy hosts) {
+    FlightDataSourceValidator(FlightGuard hosts) {
         this.hosts = hosts;
     }
 

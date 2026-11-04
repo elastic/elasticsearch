@@ -51,7 +51,7 @@ class FlightConnector implements Connector {
 
     private final URI endpointURI;
     private final FlightClients.Transport transport;
-    private final FlightHostPolicy hosts;
+    private final FlightGuard hosts;
     private final CallOption callTimeout;
     private final SatelliteDeclarationCache declarations;
     private volatile boolean closed = false;
@@ -69,7 +69,7 @@ class FlightConnector implements Connector {
     }
 
     FlightConnector(String endpoint, FlightClients.Transport transport, TimeValue callTimeout, SatelliteDeclarationCache declarations) {
-        this(endpoint, transport, callTimeout, declarations, FlightHostPolicy.DEFAULT);
+        this(endpoint, transport, callTimeout, declarations, FlightGuard.DEFAULT);
     }
 
     FlightConnector(
@@ -77,7 +77,7 @@ class FlightConnector implements Connector {
         FlightClients.Transport transport,
         TimeValue callTimeout,
         SatelliteDeclarationCache declarations,
-        FlightHostPolicy hosts
+        FlightGuard hosts
     ) {
         this.hosts = hosts;
         this.endpointURI = URI.create(endpoint);
@@ -173,7 +173,10 @@ class FlightConnector implements Connector {
             if (code == FlightStatusCode.INVALID_ARGUMENT || code == FlightStatusCode.NOT_FOUND) {
                 String description = e.status().description();
                 return new IllegalArgumentException(
-                    "the satellite rejected the request [" + code + "]: " + (description == null ? e.getMessage() : description),
+                    "the satellite rejected the request ["
+                        + code
+                        + "]: "
+                        + FlightClients.satelliteText(description == null ? e.getMessage() : description),
                     e
                 );
             }
@@ -266,7 +269,14 @@ class FlightConnector implements Connector {
                     stream = null;
                     return false;
                 }
-                delegate = new FlightResultCursor(stream, request.attributes(), request.blockFactory(), request.fragment() != null);
+                delegate = new FlightResultCursor(
+                    stream,
+                    request.attributes(),
+                    request.blockFactory(),
+                    request.fragment() != null,
+                    hosts.limits().streamIdleTimeout(),
+                    hosts.limits().maxColumns()
+                );
                 return true;
             } catch (Throwable t) {
                 closeQuietly(stream);

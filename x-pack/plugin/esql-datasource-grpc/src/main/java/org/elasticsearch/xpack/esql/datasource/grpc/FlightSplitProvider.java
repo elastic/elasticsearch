@@ -13,7 +13,6 @@ import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightEndpoint;
 import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
@@ -35,17 +34,17 @@ import java.util.concurrent.TimeUnit;
 class FlightSplitProvider implements SplitProvider {
 
     private final TimeValue callTimeout;
-    private final FlightHostPolicy hosts;
+    private final FlightGuard hosts;
 
     FlightSplitProvider() {
         this(GrpcDataSourcePlugin.DEFAULT_CALL_TIMEOUT);
     }
 
     FlightSplitProvider(TimeValue callTimeout) {
-        this(callTimeout, FlightHostPolicy.DEFAULT);
+        this(callTimeout, FlightGuard.DEFAULT);
     }
 
-    FlightSplitProvider(TimeValue callTimeout, FlightHostPolicy hosts) {
+    FlightSplitProvider(TimeValue callTimeout, FlightGuard hosts) {
         this.callTimeout = callTimeout;
         this.hosts = hosts;
     }
@@ -63,7 +62,7 @@ class FlightSplitProvider implements SplitProvider {
         FlightClients.Transport transport = FlightClients.transport(endpoint, context.config());
 
         try (
-            BufferAllocator allocator = new RootAllocator();
+            BufferAllocator allocator = FlightClients.planningAllocator(hosts);
             FlightClient client = FlightClients.build(allocator, uri.getHost(), port, transport, hosts)
         ) {
             FlightInfo info = client.getInfo(
@@ -73,6 +72,20 @@ class FlightSplitProvider implements SplitProvider {
             List<FlightEndpoint> endpoints = info.getEndpoints();
             if (endpoints.isEmpty()) {
                 return SplitDiscoveryResult.EMPTY;
+            }
+            int maxEndpoints = hosts.limits().maxEndpoints();
+            if (endpoints.size() > maxEndpoints) {
+                throw new IllegalArgumentException(
+                    "the satellite returned ["
+                        + endpoints.size()
+                        + "] endpoints for ["
+                        + target
+                        + "], the limit is ["
+                        + maxEndpoints
+                        + "] (setting ["
+                        + GrpcDataSourcePlugin.FLIGHT_MAX_ENDPOINTS.getKey()
+                        + "])"
+                );
             }
 
             long totalRecords = info.getRecords();
@@ -88,6 +101,8 @@ class FlightSplitProvider implements SplitProvider {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted during Flight split discovery for [" + target + "]", e);
+        } catch (IllegalArgumentException e) {
+            throw e; // a satellite that cannot be served: the message says why, and the limit it names is the operator's to change
         } catch (Exception e) {
             IllegalArgumentException rejected = FlightClients.authenticationFailure(e);
             if (rejected != null) {

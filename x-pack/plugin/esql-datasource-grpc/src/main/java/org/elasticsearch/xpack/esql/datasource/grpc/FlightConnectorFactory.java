@@ -15,7 +15,6 @@ import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.flight.FlightStatusCode;
 import org.apache.arrow.flight.Result;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -39,6 +38,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,7 +56,7 @@ class FlightConnectorFactory implements ConnectorFactory {
     private final TimeValue callTimeout;
 
     /** The hosts a connection may be opened to. */
-    private final FlightHostPolicy hosts;
+    private final FlightGuard guard;
 
     /** What the satellites declared, kept for a short time so that a query does not repeat the capability round trip. */
     private final SatelliteDeclarationCache declarations;
@@ -71,13 +71,13 @@ class FlightConnectorFactory implements ConnectorFactory {
     }
 
     FlightConnectorFactory(TimeValue callTimeout, SatelliteDeclarationCache declarations) {
-        this(callTimeout, declarations, FlightHostPolicy.DEFAULT);
+        this(callTimeout, declarations, FlightGuard.DEFAULT);
     }
 
-    FlightConnectorFactory(TimeValue callTimeout, SatelliteDeclarationCache declarations, FlightHostPolicy hosts) {
+    FlightConnectorFactory(TimeValue callTimeout, SatelliteDeclarationCache declarations, FlightGuard hosts) {
         this.callTimeout = callTimeout;
         this.declarations = declarations;
-        this.hosts = hosts;
+        this.guard = hosts;
     }
 
     @Override
@@ -164,13 +164,25 @@ class FlightConnectorFactory implements ConnectorFactory {
         FlightClients.Transport transport = FlightClients.transport(endpoint, config);
 
         try (
-            BufferAllocator allocator = new RootAllocator();
-            FlightClient client = FlightClients.build(allocator, uri.getHost(), port, transport, hosts)
+            BufferAllocator allocator = FlightClients.planningAllocator(guard);
+            FlightClient client = FlightClients.build(allocator, uri.getHost(), port, transport, guard)
         ) {
             Schema arrowSchema = client.getSchema(
                 FlightDescriptor.path(target),
                 CallOptions.timeout(callTimeout.millis(), TimeUnit.MILLISECONDS)
             ).getSchema();
+            int maxColumns = guard.limits().maxColumns();
+            if (arrowSchema.getFields().size() > maxColumns) {
+                throw new IllegalArgumentException(
+                    "the satellite's table has ["
+                        + arrowSchema.getFields().size()
+                        + "] columns, the limit is ["
+                        + maxColumns
+                        + "] (setting ["
+                        + GrpcDataSourcePlugin.FLIGHT_MAX_COLUMNS.getKey()
+                        + "])"
+                );
+            }
             List<Attribute> attributes = FlightTypeMapping.toAttributes(arrowSchema);
             Map<String, Object> resolvedConfig = Map.of("endpoint", endpoint, "target", target);
             // the id the satellite gives in the schema it answered, a call made at every resolution anyway: a kept declaration is
@@ -222,10 +234,17 @@ class FlightConnectorFactory implements ConnectorFactory {
     private static Map<String, Object> fetchDeclaration(FlightClient client, String target, TimeValue callTimeout) {
         List<Result> results = new ArrayList<>();
         try {
-            client.doAction(
+            Iterator<Result> answers = client.doAction(
                 new Action("esql.satellite.capabilities", capabilityRequest(target)),
                 CallOptions.timeout(callTimeout.millis(), TimeUnit.MILLISECONDS)
-            ).forEachRemaining(results::add);
+            );
+            while (answers.hasNext()) {
+                results.add(answers.next());
+                if (results.size() > 1) {
+                    // no need to read what else a satellite sends: one result is all the protocol allows
+                    throw new IllegalStateException("the capability action answered more than one result, expected one");
+                }
+            }
         } catch (FlightRuntimeException e) {
             if (e.status().code() == FlightStatusCode.UNIMPLEMENTED) {
                 return null;
@@ -425,12 +444,12 @@ class FlightConnectorFactory implements ConnectorFactory {
         if (endpoint == null) {
             throw new IllegalArgumentException("Flight connector requires 'endpoint' in config");
         }
-        return new FlightConnector(endpoint, FlightClients.transport(endpoint, config), callTimeout, declarations, hosts);
+        return new FlightConnector(endpoint, FlightClients.transport(endpoint, config), callTimeout, declarations, guard);
     }
 
     @Override
     public SplitProvider splitProvider() {
-        return new FlightSplitProvider(callTimeout, hosts);
+        return new FlightSplitProvider(callTimeout, guard);
     }
 
     private static String extractTarget(URI uri) {

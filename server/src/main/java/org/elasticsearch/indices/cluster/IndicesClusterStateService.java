@@ -1641,7 +1641,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 logger.warn(() -> "retry recovery for shard after failure [" + shardRouting + "]", failure);
                 // Record the retry ticket before scheduling so the next createShard (from this retry path
                 // or the cluster state application) uses the retry context.
-                final var myTicket = recordAwaitingRecoveryRetry(key, inFlightTicket, recoveryState.getLocalRetries() + 1, primaryTerm);
+                int bumpedLocalRetries = recoveryState.getLocalRetries() + 1;
+                final var myRetryTicket = new PendingAllocationState.AwaitingRecoveryRetry(bumpedLocalRetries, primaryTerm);
+                boolean replace = pendingAllocationStates.replace(key, inFlightTicket, myRetryTicket);
+                assert replace : "expected our own InFlight ticket still present for " + key;
 
                 // Fork onto cluster state applier thread to retry attempt to create shard
                 clusterService.getClusterApplierService()
@@ -1653,7 +1656,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 // updatePendingAllocationTracker) runs before this task could ever see that
                                 // state -- so by the time we're here, a superseded ticket is already gone
                                 // from the map, and this identity check catches it.
-                                if (pendingAllocationStates.get(key) != myTicket) {
+                                if (pendingAllocationStates.get(key) != myRetryTicket) {
                                     logger.debug("{} giving up on recovery retry: no longer own retry attempt", key);
                                     return;
                                 }
@@ -1697,22 +1700,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             logger.error(wrappedException.getMessage(), e);
             assert false : e;
         }
-    }
-
-    /// Records that the shard allocation defined by `key` should be retried with `localRecoveryRetries`,
-    /// under the given `primaryTerm`, and returns the ticket that was written. Caller must be the owner
-    /// of the current `inFlightTicket`.
-    private PendingAllocationState.AwaitingRecoveryRetry recordAwaitingRecoveryRetry(
-        ShardAllocationKey key,
-        PendingAllocationState.InFlight inFlightTicket,
-        int localRecoveryRetries,
-        long primaryTerm
-    ) {
-        assert Thread.holdsLock(this);
-        assert pendingAllocationStates.get(key) == inFlightTicket : "expected our own InFlight ticket still present for " + key;
-        var ticket = new PendingAllocationState.AwaitingRecoveryRetry(localRecoveryRetries, primaryTerm);
-        pendingAllocationStates.put(key, ticket);
-        return ticket;
     }
 
     private void failAndRemoveShard(

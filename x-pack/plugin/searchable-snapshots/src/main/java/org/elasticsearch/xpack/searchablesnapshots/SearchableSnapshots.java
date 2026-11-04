@@ -318,7 +318,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final BlobCacheMetrics blobCacheMetrics = new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry());
+            final BlobCacheMetrics blobCacheMetrics = new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry(), threadPool);
             final SharedBlobCacheService<CacheKey> sharedBlobCacheService = createSharedBlobCacheService(
                 settings,
                 threadPool,

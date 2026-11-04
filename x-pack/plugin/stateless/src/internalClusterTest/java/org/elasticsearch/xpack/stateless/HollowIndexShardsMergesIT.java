@@ -12,6 +12,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
@@ -28,7 +29,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
-import org.elasticsearch.xpack.stateless.cache.StatelessCacheEvictionPolicyType;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
@@ -104,7 +104,7 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessPluginIntegTestC
                 clusterService.getClusterSettings(),
                 threadPool,
                 blobCacheMetrics,
-                StatelessCacheEvictionPolicyType.createEvictionPolicy(settings, clusterService, indicesService, threadPool),
+                new DefaultEvictionPolicy<>(),
                 threadPool::relativeTimeInNanos,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 metricHolder

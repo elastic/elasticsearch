@@ -147,6 +147,11 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
     }
 
     @Override
+    public boolean canEmitPartialResultsPeriodically(Page incomingPage) {
+        return next.canEmitPartialResultsPeriodically(incomingPage);
+    }
+
+    @Override
     public int intermediateBlockCount() {
         return next.intermediateBlockCount();
     }

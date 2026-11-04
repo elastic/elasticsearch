@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
 import java.util.List;
@@ -70,7 +73,9 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
         "column_prefix",
         "trim_spaces",
         "schema_sample_size",
-        "skip_rows"
+        "skip_rows",
+        "schema_max_fields",
+        "multiline_fields"
     );
 
     /**
@@ -121,17 +126,22 @@ public class CsvDataSourcePlugin extends Plugin implements DataSourcePlugin {
             "csv",
             (s, blockFactory) -> new CsvFormatReader(blockFactory, "csv", List.of(".csv")).withDirectBlockEnabled(
                 CSV_DIRECT_BLOCK_ENABLED.get(s)
-            ),
+            ).withSchemaMaxFields(ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(s)),
             "tsv",
             (s, blockFactory) -> new CsvFormatReader(blockFactory, CsvFormatOptions.TSV, "tsv", List.of(".tsv")).withDirectBlockEnabled(
                 CSV_DIRECT_BLOCK_ENABLED.get(s)
-            )
+            ).withSchemaMaxFields(ExternalSourceSettings.SCHEMA_MAX_FIELDS.get(s))
         );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         // One entry serves both csv and tsv — the format (csv/tsv) is carried in CsvReaderStatus.format().
-        return List.of(CsvReaderStatus.ENTRY);
+        return formatReaderProfileVariants().stream().map(ProfileSchema.Variant::namedWriteableEntry).toList();
+    }
+
+    @Override
+    public List<ProfileSchema.Variant<FormatReaderStatus>> formatReaderProfileVariants() {
+        return List.of(ProfileSchema.Variant.fromEntry(FormatReaderStatus.class, CsvReaderStatus.ENTRY, CsvReaderStatus.PROFILE_SCHEMA));
     }
 }

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -47,6 +48,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -183,6 +185,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
                 .entry("read_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("read_cpu_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("cpu_nanos", IntOrLongMatcher.isIntOrLong())
+                .entry("driver_nanos", IntOrLongMatcher.isIntOrLong())
                 .entry("completion_time_in_millis", greaterThan(0L))
                 .entry("expiration_time_in_millis", greaterThan(0L))
                 .entry("start_time_in_millis", greaterThan(0L))
@@ -355,6 +358,26 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     /**
+     * A wide ROW followed by many DISSECTs. Planning used to rebuild every node's output on each call,
+     * making it quadratic in the number of DISSECTs.
+     */
+    public void testManyDissectFromRow() throws IOException {
+        int columns = 2500;
+        int dissects = 450;
+        StringBuilder query = startQuery();
+        query.append("ROW s=\\\"a\\\"");
+        for (int c = 0; c < columns; c++) {
+            query.append(", c").append(c).append("=1");
+        }
+        for (int d = 0; d < dissects; d++) {
+            query.append("\n| DISSECT s \\\"%{k").append(d).append("}\\\"");
+        }
+        query.append("\n| LIMIT 1\"}");
+        Map<String, Object> response = responseAsMap(query(query.toString(), "columns"));
+        assertThat((List<?>) response.get("columns"), hasSize(1 + columns + dissects));
+    }
+
+    /**
      * Hits a circuit breaker by building many moderately long strings.
      */
     public void testHugeManyConcatFromRow() throws IOException {
@@ -483,7 +506,13 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testHugeMvConcat() throws IOException {
         // One doc whose f00 holds 300k values; joined with a ~1kb delimiter that is one huge string.
         initMvLongsIndex(1, 1, 300000, false);
-        assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+        // Lower the request breaker so the join trips it well before the node runs out of memory.
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> mvConcat(attempt * 999));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     private Map<String, Object> mvConcat(int delimiterLength) throws IOException {
@@ -500,7 +529,13 @@ public class HeapAttackIT extends HeapAttackTestCase {
      */
     public void testHugeToBase64() throws IOException {
         initGiantTextField(1, false, 5);
-        assertCircuitBreaks(attempt -> toBase64Chain(10 + attempt * 4));
+        // Lower the request breaker so the chain trips it well before the node runs out of memory.
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> toBase64Chain(10 + attempt * 4));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
     }
 
     private Map<String, Object> toBase64Chain(int levels) throws IOException {
@@ -535,13 +570,14 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testTooManyEval_withViewDefined() throws IOException {
+        initManyLongs(10);
+
         // When a view is defined, ViewResolver can do signifcant work with a large stack.
         Request r = new Request("PUT", "/_query/view/my_view");
         r.setJsonEntity("""
             { "query": "FROM manylongs" }""");
         client().performRequest(r);
 
-        initManyLongs(10);
         // 490 is plenty to fail on most nodes
         assertCircuitBreaks(attempt -> manyEval(attempt * 490));
     }
@@ -668,7 +704,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
     public void testFetchMvLongs() throws IOException {
         int fields = 100;
         initMvLongsIndex(100, fields, 1000, false);
-        Map<?, ?> response = fetchMvLongs();
+        Map<?, ?> response = fetchMvLongs(100);
         ListMatcher columns = matchesList();
         for (int f = 0; f < fields; f++) {
             columns = columns.item(matchesMap().entry("name", String.format(Locale.ROOT, "f%02d", f)).entry("type", "long"));
@@ -677,13 +713,14 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     public void testFetchTooManyMvLongs() throws IOException {
-        initMvLongsIndex(500, 100, 1000, false);
-        assertCircuitBreaks(attempt -> fetchMvLongs());
+        int docs = scaleToHeap(500);
+        initMvLongsIndex(docs, 100, 1000, false);
+        assertCircuitBreaks(attempt -> fetchMvLongs(docs));
     }
 
-    private Map<String, Object> fetchMvLongs() throws IOException {
+    private Map<String, Object> fetchMvLongs(int docs) throws IOException {
         StringBuilder query = startQuery();
-        query.append("FROM mv_longs\"}");
+        query.append("FROM mv_longs | LIMIT ").append(docs).append("\"}");
         return responseAsMap(query(query.toString(), "columns"));
     }
 
@@ -868,7 +905,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * generate a large of buckets. All the aforementioned participates in inflating the size of the grouping state.
      */
     public void testFirstAggWithManyLongs() throws IOException {
-        initMvLongsIndex(5000, 2, 3000, true);
+        initMvLongsIndex(scaleToHeap(5000), 2, 3000, true);
         assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("FIRST"));
     }
 
@@ -878,7 +915,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithManyLongs() throws IOException {
-        initMvLongsIndex(5000, 2, 3000, true);
+        initMvLongsIndex(scaleToHeap(5000), 2, 3000, true);
         assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("LAST"));
     }
 
@@ -888,7 +925,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testFirstAggWithGiantText() throws IOException {
-        initGiantTextField(50, true, 3);
+        initGiantTextField(scaleToHeap(50), true, 3);
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("FIRST"));
     }
 
@@ -898,7 +935,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithGiantText() throws IOException {
-        initGiantTextField(50, true, 3);
+        initGiantTextField(scaleToHeap(50), true, 3);
         assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("LAST"));
     }
 
@@ -1119,6 +1156,33 @@ public class HeapAttackIT extends HeapAttackTestCase {
     enum TDigestFieldType {
         TDIGEST,
         HISTOGRAM
+    }
+
+    public void testStreamingApiAvoidsCircuitBreak() throws IOException {
+        assumeTrue("ES|QL streaming is not available in release builds yet", Build.current().isSnapshot());
+        int docs = 256;
+        String esqlQuery = "FROM bigtext | KEEP f";
+        initGiantTextField(docs, false, 1);
+        try {
+            setRequestBreakerLimit("20%");
+            assertCircuitBreaks(attempt -> fetchBigText(esqlQuery));
+
+            var s = streamQuery(esqlQuery, 1);
+            assertThat("streaming must not surface an error", s.errors(), empty());
+            assertThat(s.columns(), hasSize(1));
+            assertMap(s.columns().get(0), matchesMap().entry("name", "f").entry("type", "text"));
+            assertThat(s.rowCount(), equalTo((long) docs));
+            assertMap(s.footer(), matchesMap().extraOk().entry("is_partial", false));
+            assertFalse("footer must not contain an error key", s.footer().containsKey("error"));
+        } finally {
+            setRequestBreakerLimit(null);
+        }
+    }
+
+    private Map<String, Object> fetchBigText(String esqlQuery) throws IOException {
+        StringBuilder query = startQuery();
+        query.append(esqlQuery).append("\"}");
+        return responseAsMap(query(query.toString(), "columns"));
     }
 
     private void initManyTDigests(int numHistograms, int numCentroidsPerHistogram, TDigestFieldType fieldType) throws IOException {

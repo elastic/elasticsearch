@@ -20,6 +20,7 @@ products:
   # Default products when --products not specified
   default:
     - product: elasticsearch
+    - product: cloud-serverless
   #     lifecycle: ga
 
 # Extraction configuration
@@ -83,29 +84,28 @@ pivot:
   areas:
     # Example mappings - customize based on your label naming conventions
     Aggregations: ":Analytics/Aggregations"
-    Allocation: ":Distributed Coordination/Allocation"
+    Allocation: ":Distributed Coordination/Allocation, :Distributed/Allocation"
     Analysis: ":Search Relevance/Analysis"
     Application: ":EnterpriseSearch/Application"
     Audit: ":Security/Audit"
     Authentication: ":Security/Authentication"
     Authorization: ":Security/Authorization"
-    Autoscaling: ":Distributed Coordination/Autoscaling"
-    "CAT APIs": ":Data Management/CAT APIs"
-    CCR: ":Distributed Indexing/CCR"
+    Autoscaling: ":Distributed/Autoscaling"
+    "CAT APIs": ":Core/Infra/CAT APIs"
+    CCR: ":Distributed/CCR"
     CCS: ":Search Foundations/CCS"
     Columnar: ":StorageEngine/Columnar"
-    CRUD: ":Distributed Indexing/CRUD"
+    CRUD: ":Distributed/CRUD"
     Client: ":Security/Client"
-    "Cluster coordination": ":Distributed Coordination/Cluster Coordination"
+    "Cluster coordination": ":Distributed/Cluster Coordination"
     Codec: ":StorageEngine/Codec"
-    "Data streams": ":Data Management/Data streams, :StorageEngine/Data streams"
-    DLM: ":Data Management/DLM"
-    "Discovery-Plugins": ":Distributed Coordination/Discovery-Plugins"
-    Distributed: ":Distributed Indexing/Distributed, :Distributed Coordination/Distributed"
+    "Data streams": ":StorageEngine/Data streams"
+    "Discovery-Plugins": ":Distributed/Discovery-Plugins"
+    Distributed: ":Distributed/Distributed"
     Downsampling: ":StorageEngine/Downsampling"
-    Engine: ":Distributed Indexing/Engine, :Analytics/Compute Engine"
+    Engine: ":Distributed/Engine, :Analytics/Compute Engine"
     "ES|QL": ":Search Relevance/ES|QL, :StorageEngine/ES|QL, :ml/ES|QL, :Analytics/ES|QL"
-    EQL: ":Query Languages/EQL, :Analytics/EQL"
+    EQL: ":Analytics/EQL"
     Experiences: ":SearchOrg/Experiences"
     "Extract and transform": ":SearchOrg/Extract&Transform"
     # Features: TBD
@@ -116,7 +116,7 @@ pivot:
     Highlighting: ":Search Relevance/Highlighting"
     "ILM": ":StorageEngine/ILM, :Data Management/ILM+SLM"
     IdentityProvider: ":Security/IdentityProvider"
-    "Indices APIs": ":Data Management/Indices APIs"
+    "Indices APIs": ":Data Management/Indices APIs, :Distributed/Indices APIs"
     Inference: ":SearchOrg/Inference"
     "Infra/CLI": ":Core/Infra/CLI"
     "Infra/Circuit breakers": ":Core/Infra/Circuit Breakers"
@@ -133,40 +133,40 @@ pivot:
     "Infra/Transport API": ":Core/Infra/Transport API"
     # Ingest: TBD
     "Ingest node": ":Distributed/Ingest Node"
-    "Java High Level REST Client": ":Clients/Java High Level REST Client"
     "Java Low Level REST Client": ":Clients/Java Low Level REST Client"
     License: ":Security/License"
     # Logging: TBD
-    Logs: ":StorageEngine/Logs, StorageEngine/Logs"
+    Logs: ":StorageEngine/Logs"
     "Machine learning": ":ml"
     Mapping: ":StorageEngine/Mapping, :Search Foundations/Mapping"
     Monitoring: ":Core/Infra/Monitoring"
-    Network: ":Distributed Coordination/Network"
+    Network: ":Distributed/Network"
     Packaging: ":Delivery/Packaging"
     Percolator: ":Search Relevance/Percolator"
     Performance: ":Performance"
     PromQL: ":StorageEngine/PromQL"
-    "Query languages": ":Query Languages/EQL, :Query Languages/SQL"
+    "Query languages": ":Analytics/EQL, :Analytics/SQL"
     Ranking: ":Search Relevance/Ranking"
-    Recovery: ":Distributed Indexing/Recovery"
-    Reindex: ":Distributed Indexing/Reindex"
+    Recovery: ":Distributed/Recovery"
+    Reindex: ":Distributed/Reindex"
     Relevance: ":Search Relevance/Search, :SearchOrg/Relevance"
     Rollup: ":StorageEngine/Rollup"
     Search: ":Search Foundations/Search"
-    "Searchable snapshots": ":Distributed Indexing/Searchable Snapshots"
+    "Searchable snapshots": ":Distributed/Searchable Snapshots"
     Security: ":Security/Security"
     SLM: ":Distributed/SLM, :Data Management/ILM+SLM"
-    "Snapshot and restore": ":Distributed Coordination/Snapshot/Restore"
-    SQL: ":Query Languages/SQL, :Analytics/SQL"
-    Stats: ":Data Management/Stats"
-    Store: ":Distributed Indexing/Store"
+    "Snapshot and restore": ":Distributed/Snapshot/Restore"
+    SQL: ":Analytics/SQL"
+    Stats: ":Core/Infra/Stats"
+    Store: ":Distributed/Store"
     Suggesters: ":Search Relevance/Suggesters"
-    "Task management": ":Distributed Coordination/Task Management"
+    "Task management": ":Distributed/Task Management"
+    Templates: ":StorageEngine/Templates"
     TLS: ":Security/TLS"
     Transform: ":ml/Transform"
     TSDB: ":StorageEngine/TSDB"
     "Vector search": ":Search Relevance/Vectors"
-    Watcher: ":Data Management/Watcher"
+    Watcher: ":Distributed/Watcher"
 
   # Product definitions with labels (optional).
   # Keys are product spec strings; values are label strings or lists that trigger that product.
@@ -185,6 +185,19 @@ pivot:
   #   # Specify a target version if known:
   #   # 'elasticsearch 9.2.0':
   #   #   - ":feature/new-in-9.2"
+  products:
+    'elasticsearch':
+      - "stateful"
+    'cloud-serverless':
+      - "serverless"
+
+  # Feature definitions with labels (optional).
+  # Keys are feature IDs; values are label strings or lists that set that feature-id on the entry.
+  # A profile that lists the feature ID under hide_features hides those entries in its rendered
+  # release notes. The entries stay in the bundle, so the stack release notes keep them.
+  features:
+    'data-federation':
+      - "ES|QL|DS"
 
 # Rules configuration — controls which PRs create changelogs and which changelogs are published.
 # All list-like fields (exclude, include, exclude_types) accept BOTH forms:
@@ -209,6 +222,8 @@ rules:
     exclude:
       - ">non-issue"
       - ">test"
+      - ">test-failure"
+      - ">test-mute"
       - ">refactoring"
       - ":Delivery/Build"
       - ":Delivery/Tooling"
@@ -317,7 +332,10 @@ bundle:
   # description: |
   #   Download the release binaries: https://github.com/{owner}/{repo}/releases/tag/v{version}
   #   
-
+  releases:
+    products:                        # product ID: profile
+      elasticsearch: elasticsearch-release
+      cloud-serverless: serverless-release
   # Named bundle profiles for different release scenarios.
   # Profiles can be used with both 'changelog bundle' and 'changelog remove':
   #   docs-builder changelog bundle elasticsearch-release 9.2.0
@@ -328,22 +346,14 @@ bundle:
   profiles:
      # Example: Elasticsearch release profile (filter by changelog fields)
     elasticsearch-release:
-    #   # Filter: which input changelogs to include ({version} and {lifecycle} are substituted at runtime)
-    #   products: "elasticsearch {version} {lifecycle}"
-    #   # Output filename ({version} is substituted at runtime)
-      # output: "elasticsearch/elasticsearch-{version}.yaml"
-    #   # Optional: override the products array written to the bundle output.
-      output_products: "elasticsearch {version}"
-      output_directory: docs/releases/elasticsearch
+      product: elasticsearch
     #   # Optional: profile-specific description (overrides bundle.description)
     #   # description: |
     #   #   Download the release binaries: https://github.com/{owner}/{repo}/releases/tag/v{version}
 
     # Example: Serverless release profile (filter by promotion report, PR, or issue list)
     serverless-release:
-      # output: "cloud-serverless/elasticsearch-{version}.yaml"
-      output_products: "cloud-serverless {version}"
-      output_directory: docs/releases/cloud-serverless
+      product: cloud-serverless
       # Feature IDs to hide when bundling with this profile (accepts string or list)
       hide_features:
         - data-federation

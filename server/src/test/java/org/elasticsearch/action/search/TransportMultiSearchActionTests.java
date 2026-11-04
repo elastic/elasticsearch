@@ -147,7 +147,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 System::nanoTime,
                 client,
                 DefaultProjectResolver.INSTANCE,
-                new NoopCircuitBreaker("test")
+                NoopCircuitBreaker.INSTANCE
             );
 
             PlainActionFuture<MultiSearchResponse> future = new PlainActionFuture<>();
@@ -241,7 +241,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             System::nanoTime,
             client,
             DefaultProjectResolver.INSTANCE,
-            new NoopCircuitBreaker("test")
+            NoopCircuitBreaker.INSTANCE
         );
 
         // Execute the multi search api and fail if we find an error after executing:
@@ -499,6 +499,20 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             );
         } finally {
             withAggs.decRef();
+        }
+    }
+
+    public void testEstimateHitsSkippedWhenCoordinatorFetchChargePresent() throws Exception {
+        SearchHit hit = new SearchHit(0, "id");
+        hit.sourceRef(new BytesArray(new byte[5120]));
+        SearchResponse response = responseWithCoordinatorFetchCharge(hit);
+        try {
+            assertThat(
+                TransportMultiSearchAction.estimateActualBytes(response),
+                equalTo(TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD)
+            );
+        } finally {
+            response.decRef();
         }
     }
 
@@ -808,6 +822,19 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(breaker.totalReserved(), equalTo(incrementalBytes));
     }
 
+    public void testBreakerSkipsHitsHeldByCoordinatorFetchCharge() throws Exception {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1);
+        int numRequests = 3;
+        runMsearchWithBreaker(breaker, numRequests, () -> {
+            SearchHit hit = new SearchHit(0, "id");
+            hit.sourceRef(new BytesArray(new byte[5120]));
+            return responseWithCoordinatorFetchCharge(hit);
+        });
+        // The fetch charge already covers the hits, so only the response overhead is reserved.
+        assertThat(breaker.totalReserved(), equalTo(TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD * numRequests));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     public void testBreakerReleasesHandoffOnCircuitBreak() throws Exception {
         long handoffBytes = 1024L;
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(1); // CBE on the first reservation call
@@ -946,6 +973,29 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         SearchResponse response = SearchResponseUtils.response(searchHits).build();
         searchHits.decRef();
         return response;
+    }
+
+    private static SearchResponse responseWithCoordinatorFetchCharge(SearchHit... hits) {
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 1f);
+        SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1, null);
+        sections.adoptCoordinatorFetchCharge(() -> {});
+        try {
+            return new SearchResponse(
+                sections,
+                null,
+                1,
+                1,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY,
+                null,
+                null,
+                null
+            );
+        } finally {
+            sections.close();
+        }
     }
 
     private void runMsearchWithBreaker(TrackingCircuitBreaker breaker, int numRequests, Supplier<SearchResponse> responseSupplier)

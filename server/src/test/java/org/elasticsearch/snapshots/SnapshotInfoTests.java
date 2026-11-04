@@ -223,7 +223,16 @@ public class SnapshotInfoTests extends ESTestCase {
     }
 
     public void testSuccessSnapshotDataStreamWithFailureStoreIsComplete() {
-        // Failure-store indices are not checked — completeness depends only on backing indices.
+        DataStream ds = DataStreamTestHelper.newInstance(DS_NAME, List.of(index(BACKING_1)), List.of(index(FAILURE_1)));
+        Map<String, SnapshotInfo.IndexSnapshotDetails> details = new HashMap<>();
+        details.put(BACKING_1, successDetails());
+        details.put(FAILURE_1, successDetails());
+        SnapshotInfo snap = snapshotWithDataStream(List.of(DS_NAME), List.of(BACKING_1, FAILURE_1), details, List.of());
+
+        assertTrue(snap.isDataStreamComplete(ds));
+    }
+
+    public void testPartialSnapshotWithFailedFailureStoreIsNotComplete() {
         DataStream ds = DataStreamTestHelper.newInstance(DS_NAME, List.of(index(BACKING_1)), List.of(index(FAILURE_1)));
         Map<String, SnapshotInfo.IndexSnapshotDetails> details = new HashMap<>();
         details.put(BACKING_1, successDetails());
@@ -235,7 +244,7 @@ public class SnapshotInfoTests extends ESTestCase {
             List.of(shardFailure(FAILURE_1))
         );
 
-        assertTrue(snap.isDataStreamComplete(ds));
+        assertFalse(snap.isDataStreamComplete(ds));
     }
 
     public void testPartialSnapshotWithFailedBackingIndexIsNotComplete() {

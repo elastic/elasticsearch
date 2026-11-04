@@ -1,0 +1,6 @@
+area: Search
+issues: []
+pr: 160575
+summary: Reuse pre-flight `MapperService` in `PutMappingExecutor` to avoid redundant
+  merge on master thread
+type: enhancement

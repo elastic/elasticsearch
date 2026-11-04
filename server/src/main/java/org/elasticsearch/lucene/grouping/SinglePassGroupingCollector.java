@@ -19,6 +19,7 @@
  */
 package org.elasticsearch.lucene.grouping;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
@@ -38,7 +39,9 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.GroupSelector;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -108,6 +111,8 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      *
      * @param groupField        The sort field used to group documents.
      * @param groupFieldType    The {@link MappedFieldType} for this sort field.
+     * @param binaryValues      Reads the field's binary doc values with the decoder its framing requires, or
+     *                          {@code null} when the field writes no binary blob.
      * @param groupSort         The {@link Sort} used to sort the groups. The grouping keeps only the top sorted
      *                          document per grouping key.
      *                          This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
@@ -117,11 +122,18 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
     public static SinglePassGroupingCollector<?> createKeyword(
         String groupField,
         MappedFieldType groupFieldType,
+        @Nullable CheckedFunction<LeafReader, SortableBinaryDocValues, IOException> binaryValues,
         Sort groupSort,
         int topN,
         @Nullable FieldDoc after
     ) {
-        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Keyword(groupFieldType), groupField, groupSort, topN, after);
+        return new SinglePassGroupingCollector<>(
+            new GroupingDocValuesSelector.Keyword(groupFieldType, binaryValues),
+            groupField,
+            groupSort,
+            topN,
+            after
+        );
     }
 
     private final String groupField;

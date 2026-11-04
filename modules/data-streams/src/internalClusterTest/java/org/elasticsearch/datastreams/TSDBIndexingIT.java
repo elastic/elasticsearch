@@ -46,6 +46,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -135,6 +136,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             templateSettings.put("index.routing_path", "metricset");
         }
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -342,6 +345,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             settingsBuilder.put("index.routing_path", "metricset");
         }
         settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        settingsBuilder.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
         if (randomBoolean()) {
             settingsBuilder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -394,6 +398,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset");
             templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+            templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+            randomBatchIndexing(templateSettings);
             if (randomBoolean()) {
                 templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
             }
@@ -467,7 +473,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             // This test checks that _id's are pruned, that only applies
             // when regular _id's are used.
             .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
-            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false);
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false)
+            .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
 
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
@@ -598,6 +605,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String reindexedDataStreamName = "my-reindexed-ds";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -657,7 +666,9 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var templateSettings = Settings.builder()
             .put("index.mode", "time_series")
             .put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabled)
-            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+            .put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean())
+            .put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -695,7 +706,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               }
             }
-            """, XContentType.JSON);
+            """);
         assertAcked(client().execute(TransportPutMappingAction.TYPE, putMappingRequest).actionGet());
         if (indexDimensionsTsidStrategyEnabled) {
             assertThat(getSetting(dataStreamName, IndexMetadata.INDEX_DIMENSIONS), containsInAnyOrder("metricset", "k8s.pod.name"));
@@ -721,7 +732,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 }
               ]
             }
-            """, XContentType.JSON);
+            """);
         ActionFuture<AcknowledgedResponse> putMappingFuture = client().execute(TransportPutMappingAction.TYPE, putMappingRequest);
         if (indexDimensionsTsidStrategyEnabled) {
             IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, putMappingFuture::actionGet);
@@ -743,6 +754,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String dataStreamName = "my-ds";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }
@@ -810,6 +823,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String dataStreamName = "my-ds";
         var templateSettings = Settings.builder().put("index.mode", "time_series");
         templateSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
+        templateSettings.put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), randomBoolean());
+        randomBatchIndexing(templateSettings);
         if (randomBoolean()) {
             templateSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
         }

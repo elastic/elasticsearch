@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 159206
+summary: Add `document_extraction` task type
+type: feature

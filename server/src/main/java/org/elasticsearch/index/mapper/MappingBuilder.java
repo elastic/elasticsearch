@@ -9,18 +9,36 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Predicate;
 
 /**
  * Mutable builder for a {@link Mapping}. Holds a {@link RootObjectMapper.Builder} and metadata field builders,
  * allowing merge operations to happen at the builder level before building the final immutable {@link Mapping}.
  */
-public class MappingBuilder {
+public class MappingBuilder implements ToXContentFragment {
+
+    private static final List<Params> PARAMS_TO_CHECK = List.of(
+        ToXContent.EMPTY_PARAMS,
+        new ToXContent.MapParams(Map.of("include_defaults", "true"))
+    );
 
     private final RootObjectMapper.Builder rootBuilder;
     private final Map<String, MetadataFieldMapper.Builder> metadataBuilders;
@@ -68,11 +86,24 @@ public class MappingBuilder {
      * Merges another {@link MappingBuilder} into this one, mutating this builder in place,
      * enforcing all limits in the provided {@link ParseFieldLimits}.
      */
-    public void merge(MappingBuilder incoming, MergeReason reason, ParseFieldLimits fieldLimits) {
+    public void merge(
+        MappingBuilder incoming,
+        MergeReason reason,
+        ParseFieldLimits fieldLimits,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         mergeWith(
             incoming,
             reason,
-            MapperMergeContext.root(isSourceSynthetic(), false, reason, fieldLimits, isStrictColumnar, isSourceColumnarStored())
+            MapperMergeContext.root(
+                isSourceSynthetic(),
+                false,
+                reason,
+                fieldLimits,
+                isStrictColumnar,
+                isSourceColumnarStored(),
+                clusterSupportsFeature
+            )
         );
     }
 
@@ -116,19 +147,116 @@ public class MappingBuilder {
      * @return the built {@link Mapping}
      */
     public Mapping build(MergeReason reason) {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(
-            isSourceSynthetic(),
-            isDataStream(),
-            reason,
-            isStrictColumnar,
-            isSourceColumnarStored()
-        );
-        RootObjectMapper root = rootBuilder.build(rootContext);
+        // Serializing consults state that is not available during recovery, such as the inference model registry
+        boolean checkSerialization = reason != MergeReason.MAPPING_RECOVERY;
+        List<String> serializedBeforeBuild = null;
+        assert checkSerialization == false || (serializedBeforeBuild = serializationsAfterNormalizing(reason)) != null;
+        RootObjectMapper root = rootBuilder.build(rootContext(reason));
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()
             .map(MetadataFieldMapper.Builder::build)
             .toArray(MetadataFieldMapper[]::new);
-        return new Mapping(root, metadataMappers, meta);
+        Mapping mapping = new Mapping(root, metadataMappers, meta);
+        assert checkSerialization == false || serializesLike(mapping);
+        assert checkSerialization == false || serializedBeforeBuild.isEmpty() || serializedBeforeBuild.equals(serializations())
+            : "building changed the serialization of the builder: BEFORE "
+                + serializedBeforeBuild.get(0)
+                + " AFTER "
+                + serializations().get(0);
+        return mapping;
+    }
+
+    // Only assertions call this: the root builder normalizes the tree itself when it is built.
+    // Returns nothing when serializing fails, as a mapping that building rejects can be impossible to serialize, and the
+    // rejection is the error to report.
+    private List<String> serializationsAfterNormalizing(MergeReason reason) {
+        normalize(reason);
+        try {
+            return serializations();
+        } catch (RuntimeException e) {
+            return List.of();
+        }
+    }
+
+    private List<String> serializations() {
+        return PARAMS_TO_CHECK.stream().map(params -> serialize(this, params)).toList();
+    }
+
+    /**
+     * Writes the mapping source this builder produces. A tree that has not been normalized yet is normalized first under
+     * {@link MergeReason#MAPPING_UPDATE}, so a duplicate that only {@link MergeReason#INDEX_TEMPLATE} resolves throws a
+     * conflict instead of being serialized as last-wins. Callers holding a template tree must {@link #normalize} or
+     * {@link #build} it under its own reason first, after which this finds nothing left to normalize.
+     */
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        normalize(MergeReason.MAPPING_UPDATE);
+        rootBuilder.toXContent(builder, params, (b, params1) -> {
+            if (meta != null) {
+                b.field("_meta", meta);
+            }
+            for (MetadataFieldMapper.Builder metadataBuilder : new TreeMap<>(metadataBuilders).values()) {
+                metadataBuilder.toXContent(b, params1);
+            }
+            return b;
+        });
+        return builder;
+    }
+
+    public CompressedXContent toCompressedXContent() {
+        try {
+            return new CompressedXContent(this);
+        } catch (Exception e) {
+            throw new ElasticsearchGenerationException("failed to serialize source for type [" + rootBuilder.leafName() + "]", e);
+        }
+    }
+
+    /**
+     * Checks that this builder writes the same bytes as the mapping built from it, with and without defaults, for every
+     * mapping the tests build. Both serializers exist side by side until the mapping's is removed, and this keeps the
+     * builder's from drifting in the meantime; it goes with the mapper-side serialization.
+     */
+    private boolean serializesLike(Mapping mapping) {
+        for (Params params : PARAMS_TO_CHECK) {
+            String fromMapping = serialize(mapping, params);
+            String fromBuilder = serialize(this, params);
+            assert fromMapping.equals(fromBuilder)
+                : "builder serialization differs from mapping serialization with params "
+                    + params.param("include_defaults", "false")
+                    + ": mapping "
+                    + fromMapping
+                    + " builder "
+                    + fromBuilder;
+        }
+        return true;
+    }
+
+    private static String serialize(ToXContentFragment fragment, Params params) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            fragment.toXContent(builder, params);
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Normalizes the whole builder tree
+     *
+     * @param reason the merge reason, used to configure the {@link MapperBuilderContext} for normalizing
+     */
+    public void normalize(MergeReason reason) {
+        MapperBuilderContext rootContext = rootContext(reason);
+        rootBuilder.normalize(rootContext);
+        for (MetadataFieldMapper.Builder metadataBuilder : metadataBuilders.values()) {
+            metadataBuilder.normalize(rootContext);
+        }
+    }
+
+    private MapperBuilderContext rootContext(MergeReason reason) {
+        return MapperBuilderContext.root(isSourceSynthetic(), isDataStream(), reason, isStrictColumnar, isSourceColumnarStored());
     }
 
     private boolean isSourceSynthetic() {

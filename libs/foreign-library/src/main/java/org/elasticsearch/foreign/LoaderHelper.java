@@ -9,21 +9,26 @@
 
 package org.elasticsearch.foreign;
 
+import org.elasticsearch.core.SuppressForbidden;
+
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 
 /**
- * A utility for loading libraries from Elasticsearch's platform specific lib dir.
+ * A utility for loading libraries from Elasticsearch's platform specific lib dirs.
  */
 public class LoaderHelper {
-    public static final Path platformLibDir = findPlatformLibDir();
+    public static final List<Path> platformLibDirs = findPlatformLibDirs();
 
-    private static Path findPlatformLibDir() {
-        // tests don't have an ES install, so the platform dir must be passed in explicitly
-        String path = System.getProperty("es.nativelibs.path");
-        if (path != null) {
-            return Paths.get(path);
+    private static List<Path> findPlatformLibDirs() {
+        // tests don't have an ES install, so the platform dirs must be passed in explicitly
+        String paths = System.getProperty("es.nativelibs.path");
+        if (paths != null) {
+            return getPathList(paths);
         }
 
         Path homeDir = Paths.get(System.getProperty("es.path.home"));
@@ -49,15 +54,24 @@ public class LoaderHelper {
         } else {
             arch = "unsupported_arch[" + archname + "]";
         }
-        return platformDir.resolve(os + "-" + arch);
+        return List.of(platformDir.resolve(os + "-" + arch));
+    }
+
+    @SuppressForbidden(reason = "pathSeparator")
+    private static List<Path> getPathList(String paths) {
+        return Arrays.stream(paths.split(File.pathSeparator)).filter(path -> path.isEmpty() == false).map(Paths::get).toList();
     }
 
     public static void loadLibrary(String libname) {
-        Path libpath = platformLibDir.resolve(System.mapLibraryName(libname));
-        if (Files.exists(libpath) == false) {
-            throw new UnsatisfiedLinkError("Native library [" + libpath + "] does not exist");
+        String filename = System.mapLibraryName(libname);
+        for (Path platformLibDir : platformLibDirs) {
+            Path libpath = platformLibDir.resolve(filename);
+            if (Files.exists(libpath)) {
+                System.load(libpath.toAbsolutePath().toString());
+                return;
+            }
         }
-        System.load(libpath.toAbsolutePath().toString());
+        throw new UnsatisfiedLinkError("Native library [" + filename + "] does not exist in " + platformLibDirs);
     }
 
     private LoaderHelper() {} // no construction

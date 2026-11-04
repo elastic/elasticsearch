@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -28,6 +29,7 @@ public class InboundAggregator implements Releasable {
 
     private final Supplier<CircuitBreaker> circuitBreaker;
     private final Predicate<String> requestCanTripBreaker;
+    private final LongFunction<TransportResponseHandler<?>> responseHandlerFunction;
 
     private ReleasableBytesReference firstContent;
     private ArrayList<ReleasableBytesReference> contentAggregation;
@@ -35,10 +37,15 @@ public class InboundAggregator implements Releasable {
     private Exception aggregationException;
     private boolean canTripBreaker = true;
     private boolean isClosed = false;
+    private BreakerControl breakerControl;
+    // Handler of the response being aggregated, while it reserves memory for it. Null for a request, a handshake or error response, a
+    // response with no handler, and once the handler returned NO_RESERVATION.
+    private TransportResponseHandler<?> reservingResponseHandler;
 
     public InboundAggregator(
         Supplier<CircuitBreaker> circuitBreaker,
         Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
+        LongFunction<TransportResponseHandler<?>> responseHandlerFunction,
         boolean ignoreDeserializationErrors
     ) {
         this(circuitBreaker, actionName -> {
@@ -49,13 +56,23 @@ public class InboundAggregator implements Releasable {
             } else {
                 return reg.canTripCircuitBreaker();
             }
-        });
+        }, responseHandlerFunction);
     }
 
     // Visible for testing
     InboundAggregator(Supplier<CircuitBreaker> circuitBreaker, Predicate<String> requestCanTripBreaker) {
+        this(circuitBreaker, requestCanTripBreaker, requestId -> null);
+    }
+
+    // Visible for testing
+    InboundAggregator(
+        Supplier<CircuitBreaker> circuitBreaker,
+        Predicate<String> requestCanTripBreaker,
+        LongFunction<TransportResponseHandler<?>> responseHandlerFunction
+    ) {
         this.circuitBreaker = circuitBreaker;
         this.requestCanTripBreaker = requestCanTripBreaker;
+        this.responseHandlerFunction = responseHandlerFunction;
     }
 
     public void headerReceived(Header header) {
@@ -63,8 +80,11 @@ public class InboundAggregator implements Releasable {
         assert isAggregating() == false;
         assert firstContent == null && contentAggregation == null;
         currentHeader = header;
+        breakerControl = new BreakerControl(circuitBreaker);
         if (currentHeader.isRequest() && currentHeader.needsToReadVariableHeader() == false) {
             initializeRequestState();
+        } else if (currentHeader.isResponse()) {
+            initializeResponseState();
         }
     }
 
@@ -79,6 +99,15 @@ public class InboundAggregator implements Releasable {
         ensureOpen();
         assert isAggregating();
         if (isShortCircuited() == false) {
+            if (content.length() > 0 && reserveArrivingBytes(content.length()) == false) {
+                releaseContent();
+                firstContent = null;
+                contentAggregation = null;
+                // Release what was reserved now, the control that goes with the short-circuited message starts empty
+                breakerControl.close();
+                breakerControl = new BreakerControl(circuitBreaker);
+                return;
+            }
             if (isFirstContent()) {
                 firstContent = content.retain();
             } else {
@@ -106,18 +135,18 @@ public class InboundAggregator implements Releasable {
             releasableContent = new ReleasableBytesReference(content, () -> Releasables.close(references));
         }
 
-        final BreakerControl breakerControl = new BreakerControl(circuitBreaker);
         final InboundMessage aggregated = new InboundMessage(currentHeader, releasableContent, breakerControl);
         boolean success = false;
         try {
-            if (aggregated.getHeader().needsToReadVariableHeader()) {
+            final boolean headerParsedWithContent = aggregated.getHeader().needsToReadVariableHeader();
+            if (headerParsedWithContent) {
                 aggregated.getHeader().finishParsingHeader(aggregated.openOrGetStreamInput());
                 if (aggregated.getHeader().isRequest()) {
                     initializeRequestState();
                 }
             }
-            if (isShortCircuited() == false) {
-                checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
+            if (headerParsedWithContent && isShortCircuited() == false) {
+                reserveContentBytes(aggregated.getHeader(), aggregated.getContentLength());
             }
             if (isShortCircuited()) {
                 aggregated.close();
@@ -160,6 +189,7 @@ public class InboundAggregator implements Releasable {
 
     private void closeCurrentAggregation() {
         releaseContent();
+        Releasables.close(breakerControl);
         resetCurrentAggregation();
     }
 
@@ -175,6 +205,8 @@ public class InboundAggregator implements Releasable {
         firstContent = null;
         contentAggregation = null;
         currentHeader = null;
+        breakerControl = null;
+        reservingResponseHandler = null;
         aggregationException = null;
         canTripBreaker = true;
     }
@@ -201,26 +233,74 @@ public class InboundAggregator implements Releasable {
         }
     }
 
+    // A handshake response has no handler in the response handlers. An error response is not reserved, so the failure always reaches its
+    // handler.
+    private void initializeResponseState() {
+        assert currentHeader.isResponse();
+        if (currentHeader.isHandshake() == false && currentHeader.isError() == false) {
+            reservingResponseHandler = responseHandlerFunction.apply(currentHeader.getRequestId());
+        }
+    }
+
     private static boolean uncompressedOrSchemeDefined(Header header) {
         return header.isCompressed() == (header.getCompressionScheme() != null);
     }
 
-    private void checkBreaker(final Header header, final int contentLength, final BreakerControl breakerControl) {
-        if (header.isRequest() == false) {
-            return;
+    // Reserves each piece as it arrives so it is checked against the memory in use at that moment. Requests whose action name isn't known
+    // yet are reserved in reserveContentBytes.
+    private boolean reserveArrivingBytes(int bytes) {
+        if (currentHeader.isRequest()) {
+            return currentHeader.needsToReadVariableHeader() || reserveBreakerBytes(bytes, currentHeader.getActionName());
+        } else {
+            return reserveResponseBytes(bytes);
         }
-        assert header.needsToReadVariableHeader() == false;
+    }
 
+    // Reserves the bytes on the breaker and records them in the breaker control, so they are released with it. Returns false if the breaker
+    // tripped, which short-circuits the aggregation.
+    private boolean reserveBreakerBytes(int bytes, String label) {
         if (canTripBreaker) {
             try {
-                circuitBreaker.get().addEstimateBytesAndMaybeBreak(contentLength, header.getActionName());
-                breakerControl.setReservedBytes(contentLength);
+                circuitBreaker.get().addEstimateBytesAndMaybeBreak(bytes, label);
             } catch (CircuitBreakingException e) {
                 shortCircuit(e);
+                return false;
             }
         } else {
-            circuitBreaker.get().addWithoutBreaking(contentLength);
-            breakerControl.setReservedBytes(contentLength);
+            circuitBreaker.get().addWithoutBreaking(bytes);
+        }
+        breakerControl.addReservedBytes(bytes);
+        return true;
+    }
+
+    // Asks the handler of the response to reserve the bytes and records its reservation in the breaker control, so it is released with it.
+    // A handler that reserves nothing isn't asked again for the rest of the response. Returns false if the handler rejected the bytes,
+    // which short-circuits the aggregation.
+    private boolean reserveResponseBytes(int bytes) {
+        if (reservingResponseHandler == null) {
+            return true;
+        }
+        final Releasable reservation;
+        try {
+            reservation = reservingResponseHandler.reserveResponseBytes(bytes);
+        } catch (CircuitBreakingException e) {
+            shortCircuit(e);
+            return false;
+        }
+        if (reservation == TransportResponseHandler.NO_RESERVATION) {
+            reservingResponseHandler = null;
+        } else {
+            breakerControl.addReservation(reservation);
+        }
+        return true;
+    }
+
+    /**
+     * Reserves the content of a request whose action name was only parsed along with the content, so it couldn't be reserved while read.
+     */
+    private void reserveContentBytes(final Header header, final int contentLength) {
+        if (header.isRequest()) {
+            reserveBreakerBytes(contentLength, header.getActionName());
         }
     }
 
@@ -230,14 +310,23 @@ public class InboundAggregator implements Releasable {
 
         private final Supplier<CircuitBreaker> circuitBreaker;
         private final AtomicInteger bytesToRelease = new AtomicInteger(0);
+        // Filled on the transport worker before the message is handed over, so it needs no synchronization
+        private ArrayList<Releasable> reservations;
 
         private BreakerControl(Supplier<CircuitBreaker> circuitBreaker) {
             this.circuitBreaker = circuitBreaker;
         }
 
-        private void setReservedBytes(int reservedBytes) {
-            final boolean set = bytesToRelease.compareAndSet(0, reservedBytes);
-            assert set : "Expected bytesToRelease to be 0, found " + bytesToRelease.get();
+        private void addReservedBytes(int reservedBytes) {
+            final int updated = bytesToRelease.addAndGet(reservedBytes);
+            assert updated >= 0 : "Expected bytesToRelease to be non-negative, found " + updated;
+        }
+
+        private void addReservation(Releasable reservation) {
+            if (reservations == null) {
+                reservations = new ArrayList<>();
+            }
+            reservations.add(reservation);
         }
 
         @Override
@@ -246,6 +335,9 @@ public class InboundAggregator implements Releasable {
             assert toRelease != CLOSED;
             if (toRelease > 0) {
                 circuitBreaker.get().addWithoutBreaking(-toRelease);
+            }
+            if (reservations != null) {
+                Releasables.close(reservations);
             }
         }
     }

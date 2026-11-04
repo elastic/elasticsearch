@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.activity.QueryLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.injection.guice.Inject;
@@ -323,7 +324,8 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
         TaskId parentTaskId,
         Map<String, String> headers,
         Map<String, String> originHeaders,
-        AsyncExecutionId asyncExecutionId
+        AsyncExecutionId asyncExecutionId,
+        TimeValue keepAlive
     ) {
         return new SqlQueryTask(
             id,
@@ -334,7 +336,7 @@ public final class TransportSqlQueryAction extends HandledTransportAction<SqlQue
             headers,
             originHeaders,
             asyncExecutionId,
-            request.keepAlive(),
+            keepAlive,
             request.mode(),
             request.version(),
             request.columnar()

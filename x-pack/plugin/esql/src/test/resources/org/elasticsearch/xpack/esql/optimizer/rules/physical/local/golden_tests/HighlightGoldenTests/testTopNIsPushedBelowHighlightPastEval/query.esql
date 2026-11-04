@@ -1,0 +1,6 @@
+FROM employees
+| WHERE first_name : "elasticsearch"
+| HIGHLIGHT "elasticsearch" ON first_name
+| EVAL negated = -emp_no
+| SORT negated
+| LIMIT 10

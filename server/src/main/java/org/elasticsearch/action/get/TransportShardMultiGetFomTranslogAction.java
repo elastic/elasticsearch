@@ -16,7 +16,6 @@ import org.elasticsearch.action.UntypedActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -78,7 +77,7 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
                                 item.versionType(),
                                 item.fetchSourceContext(),
                                 multiGetShardRequest.isForceSyntheticSource(),
-                                SplitShardCountSummary.UNSET,
+                                multiGetShardRequest.getSplitShardCountSummary(),
                                 multiGetShardRequest.refresh()
                             );
                         GetResponse getResponse = null;

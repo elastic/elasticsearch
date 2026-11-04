@@ -39,7 +39,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
@@ -1560,7 +1559,7 @@ public class RBACEngineTests extends ESTestCase {
         }
 
         PutMappingRequest request = new PutMappingRequest("*");
-        request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
+        request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }");
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
             getRequestInfo(request, TransportPutMappingAction.TYPE.name()),

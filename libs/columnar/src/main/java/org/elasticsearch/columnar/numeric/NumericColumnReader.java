@@ -13,6 +13,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.columnar.substrate.BlockBytesCodec;
+import org.elasticsearch.columnar.substrate.ColumnInputs;
 import org.elasticsearch.columnar.substrate.ColumnIterator;
 import org.elasticsearch.columnar.substrate.ColumnIteratorReader;
 import org.elasticsearch.columnar.substrate.MonotonicReader;
@@ -46,13 +47,16 @@ public final class NumericColumnReader {
 
     private long cachedBlock = -1;
 
-    public NumericColumnReader(NumericColumnMetadata meta, IndexInput data) throws IOException {
+    public NumericColumnReader(NumericColumnMetadata meta, ColumnInputs inputs) throws IOException {
+        final IndexInput data = inputs.data();
+        final IndexInput addressing = inputs.addressing();
+        final IndexInput navigation = inputs.navigation();
         this.meta = meta;
         assert (meta.blockSize() & (meta.blockSize() - 1)) == 0 : "values per block must be a power of two, got " + meta.blockSize();
         this.blockShift = Integer.numberOfTrailingZeros(meta.blockSize());
         this.blockMask = meta.blockSize() - 1;
         this.blockBytesCodec = BlockBytesCodec.forId(meta.blockBytesCodecId());
-        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), data);
+        this.iteratorReader = new ColumnIteratorReader(meta.iterator(), addressing);
         this.data = data.clone();
         if (meta.numDocsWithField() == 0) {
             this.blockOffsets = null;
@@ -63,7 +67,7 @@ public final class NumericColumnReader {
             return;
         }
         this.blockOffsets = MonotonicReader.open(
-            data,
+            navigation,
             meta.blockOffsetsMeta(),
             meta.numBlocks() + 1L,
             meta.blockOffsetsDataOffset(),
@@ -71,7 +75,7 @@ public final class NumericColumnReader {
         );
         this.valueAddresses = meta.hasValueAddresses()
             ? MonotonicReader.open(
-                data,
+                addressing,
                 meta.valueAddressesMeta(),
                 meta.numDocsWithField() + 1L,
                 meta.valueAddressesDataOffset(),

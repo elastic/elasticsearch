@@ -49,18 +49,26 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
         final GetServiceAccountResponse response = new GetServiceAccountResponse(
             new ServiceAccountInfo[] {
                 new ServiceAccountInfo.BuiltIn("elastic/fleet-server", roleDescriptor),
-                new ServiceAccountInfo.UserManaged("my-team/worker", List.of("role-a", "role-b"), false) }
+                new ServiceAccountInfo.UserManaged("my-team/worker", List.of("role-a", "role-b"), false, "Worker for my-team"),
+                new ServiceAccountInfo.UserManaged("my-team/quiet_worker", List.of(), true, null) }
         );
 
         final Map<String, Object> responseMap = toMap(response);
 
-        assertThat(responseMap.size(), equalTo(2));
+        assertThat(responseMap.size(), equalTo(3));
         final Map<String, Object> builtIn = fragment(responseMap, "elastic/fleet-server");
         assertThat(builtIn.get("type"), equalTo("built_in"));
         assertRoleDescriptorEquals(builtIn, roleDescriptor);
         assertThat(
             fragment(responseMap, "my-team/worker"),
-            equalTo(Map.of("type", "user_managed", "roles", List.of("role-a", "role-b"), "enabled", false))
+            equalTo(
+                Map.of("type", "user_managed", "roles", List.of("role-a", "role-b"), "enabled", false, "description", "Worker for my-team")
+            )
+        );
+        // An account without a description does not report the field at all.
+        assertThat(
+            fragment(responseMap, "my-team/quiet_worker"),
+            equalTo(Map.of("type", "user_managed", "roles", List.of(), "enabled", true))
         );
     }
 
@@ -76,7 +84,12 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
     private ServiceAccountInfo randomServiceAccountInfo(String principal) {
         return randomBoolean()
             ? new ServiceAccountInfo.BuiltIn(principal, getRoleDescriptorFor(principal))
-            : new ServiceAccountInfo.UserManaged(principal, randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)), randomBoolean());
+            : new ServiceAccountInfo.UserManaged(
+                principal,
+                randomList(0, 3, () -> randomAlphaOfLengthBetween(3, 8)),
+                randomBoolean(),
+                randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)
+            );
     }
 
     private static Map<String, Object> toMap(GetServiceAccountResponse response) throws IOException {

@@ -33,7 +33,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -1091,7 +1090,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         ).thenReturn(searchExecutionContext);
         CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
         when(indexService.breakerService()).thenReturn(breakerService);
-        when(breakerService.getBreaker(anyString())).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        when(breakerService.getBreaker(anyString())).thenReturn(NoopCircuitBreaker.INSTANCE);
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings;
         MapperService mapperService;

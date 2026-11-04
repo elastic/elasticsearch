@@ -145,8 +145,9 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
         List<String> validValues = new ArrayList<>();
         List<String> ignoredValues = new ArrayList<>();
+        boolean ignoreAboveIsNoOp = isColumnar;
         values.stream().map(Tuple::v2).forEach(v -> {
-            if (ignoreAbove != null && v.length() > ignoreAbove) {
+            if (ignoreAboveIsNoOp == false && ignoreAbove != null && v.length() > ignoreAbove) {
                 ignoredValues.add(v);
             } else {
                 validValues.add(v);
@@ -203,12 +204,10 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (docValues.enabled() == false) {
             b.field("doc_values", false);
         } else if (docValues.multiValue() == false) {
-            b.startObject("doc_values");
             b.field("multi_value", false);
             if (docValues.onFailure() == FieldMapper.DocValuesParameter.Values.OnFailure.IGNORE) {
                 b.field("on_failure", "ignore");
             }
-            b.endObject();
         } else {
             b.field("doc_values", true);
         }

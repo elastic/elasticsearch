@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.hasItem;
  * every external distribution mode.
  *
  * <p>An ES|QL multivalue cannot hold null, so a list element that is null is dropped on read and the reader announces
- * the loss with one {@code Warning} per affected column (elastic/esql-planning#1799). The notice must travel through
+ * the loss with one {@code Warning} per affected column. The notice must travel through
  * the driver's warning channel: a scan node's own response headers do not reach the client when the scan was shipped
  * away from the coordinator. The existing coverage — {@code ListColumnParityTests} at the decoder and the parquet
  * csv-spec suites on a single-node cluster — exercises neither placement, because on one node the coordinator
@@ -86,10 +86,8 @@ public class ParquetNullListElementWarningIT extends AbstractFromDatasetSubquery
     /** Every external distribution mode {@code QueryPragmas#EXTERNAL_DISTRIBUTION} accepts. */
     private static final List<String> DISTRIBUTION_MODES = List.of("coordinator_only", "round_robin", "adaptive");
 
-    private static final String SUMMARY_WARNING =
-        "Parquet lists with null elements were read with those elements omitted; an ES|QL multivalued field cannot hold null";
-    private static final String COLUMN_WARNING = "Parquet list column [ints] contains lists with null elements; "
-        + "the column returns fewer values than the file holds";
+    private static final String SUMMARY_WARNING = "Lists hold null elements, which a multivalued field cannot; dropping them";
+    private static final String COLUMN_WARNING = "column [ints]: lists with null elements";
 
     /** The benign notice ES|QL adds for a query without an explicit {@code LIMIT}; not the subject here. */
     private static final String DEFAULT_LIMIT_WARNING = "No limit defined, adding default limit of [1000]";

@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -804,6 +805,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
 
         @Override
+        @SuppressForbidden(reason = "TODO: replace with manual depth tracking before the overflow occurs")
         public IntervalsSource getSource(SearchExecutionContext context, TextFamilyFieldType fieldType) {
             checkRegexLength(pattern, NAME, context);
 
@@ -821,7 +823,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             IntervalsSource source;
             try {
                 source = fieldType.regexpIntervals(normalizedPattern, context);
-            } catch (StackOverflowError e) {
+            } catch (StackOverflowError e) { // TODO: unsafe - replace with manual depth tracking
                 throw new QueryShardException(
                     context,
                     "The [{}] rule of the Intervals Query request has a pattern that is too deeply nested",

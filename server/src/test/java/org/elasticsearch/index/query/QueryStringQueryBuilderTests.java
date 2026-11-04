@@ -15,6 +15,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
@@ -40,12 +42,17 @@ import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
+import org.elasticsearch.common.lucene.search.SharedAutomatonQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MapperService;
@@ -67,6 +74,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
@@ -75,7 +83,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBool
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -767,6 +780,68 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             () -> queryStringQuery(queryString).defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
         );
         assertThat(e.getMessage(), containsString("too deeply nested"));
+    }
+
+    /**
+     * A large malformed query must not be copied in full into the error: a shard failure keeps the error of each failed shard.
+     */
+    public void testToQueryLargeMalformedQueryTruncatesError() {
+        int length = randomIntBetween(100_000, 200_000);
+        String queryString = "(" + "a".repeat(length);
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery(queryString).defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        String truncatedQuery = queryString.substring(0, QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR);
+        assertEquals("Failed to parse query [" + truncatedQuery + "]", e.getMessage());
+        assertThat(e.getCause(), instanceOf(ParseException.class));
+        assertThat(e.getCause().getMessage(), startsWith("Cannot parse '" + truncatedQuery + "': Encountered \"<EOF>\""));
+        assertThat(e.getCause().getMessage(), containsString("at line 1, column " + (length + 1) + "."));
+        // The bound allows for the fixed text around the truncated parts
+        assertThat(e.getCause().getMessage().length(), lessThanOrEqualTo(2 * QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR + 20));
+        assertThat(e.getCause().getStackTrace().length, greaterThan(0));
+        assertNull(e.getCause().getCause());
+        // A shard failure keeps the stack trace as its reason, which held the query at least twice without the truncation
+        assertThat(new ShardSearchFailure(e).reason().length(), lessThan(queryString.length()));
+    }
+
+    /**
+     * A lexical error repeats the query in its own message too, so its detail is truncated as well.
+     */
+    public void testToQueryLargeLexicalErrorTruncatesError() {
+        String queryString = "\"" + "a".repeat(randomIntBetween(10_000, 100_000));
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery(queryString).defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        // The bounds allow for the fixed text around the truncated parts
+        assertThat(e.getMessage().length(), lessThanOrEqualTo(QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR + 30));
+        assertThat(e.getCause().getMessage(), containsString("Lexical error at line 1"));
+        assertThat(e.getCause().getMessage().length(), lessThanOrEqualTo(2 * QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR + 20));
+        assertNull(e.getCause().getCause());
+    }
+
+    /**
+     * A short parse error is kept as Lucene built it.
+     */
+    public void testToQueryShortMalformedQueryKeepsError() {
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery("(foo").defaultField(TEXT_FIELD_NAME).toQuery(createSearchExecutionContext())
+        );
+        assertEquals("Failed to parse query [(foo]", e.getMessage());
+        assertThat(e.getCause().getMessage(), startsWith("Cannot parse '(foo': Encountered \"<EOF>\" at line 1, column 4."));
+        assertNotNull(e.getCause().getCause());
+    }
+
+    /**
+     * A long error with no cause falls back to its own message.
+     */
+    public void testTruncateParseExceptionWithoutCause() {
+        ParseException e = new ParseException("x".repeat(10_000));
+        ParseException truncated = QueryStringQueryBuilder.truncateParseException(e, "q");
+        assertEquals("Cannot parse 'q': " + "x".repeat(QueryStringQueryBuilder.MAX_QUERY_LENGTH_IN_ERROR), truncated.getMessage());
+        assertArrayEquals(e.getStackTrace(), truncated.getStackTrace());
     }
 
     /**
@@ -1465,5 +1540,68 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             IntStream.range(0, 100).forEach(i -> joiner.add("/(pattern" + i + "|alternate" + i + "|option" + i + ").*/"));
             return queryStringQuery(joiner.toString()).defaultField(TEXT_FIELD_NAME);
         });
+    }
+
+    /**
+     * The shape behind incident-management#2982: one wildcard expanded over several fields. Every clause resolves to
+     * the same pattern, so the request must compile and charge one automaton plus a shell per clause, not one
+     * automaton per field.
+     */
+    public void testWildcardExpandedOverFieldsChargesOneAutomaton() throws IOException {
+        assertFanOutChargesOneAutomaton(queryStringQuery("*test*pattern*here*"));
+    }
+
+    public void testRegexpExpandedOverFieldsChargesOneAutomaton() throws IOException {
+        assertFanOutChargesOneAutomaton(queryStringQuery("/te.*st.*pattern/"));
+    }
+
+    private void assertFanOutChargesOneAutomaton(QueryStringQueryBuilder builder) throws IOException {
+        CircuitBreaker breaker = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), breaker);
+        try {
+            long before = breaker.getUsed();
+            Query query = builder.field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).toQuery(context);
+            long charged = breaker.getUsed() - before;
+
+            List<SharedAutomatonQuery> clauses = collectSharedAutomatonQueries(query);
+            assertThat(clauses, hasSize(2));
+            SharedAutomaton shared = clauses.get(0).getSharedAutomaton();
+            assertSame("clauses differing only by field must reuse one automaton", shared, clauses.get(1).getSharedAutomaton());
+
+            long shells = clauses.stream().mapToLong(SharedAutomatonQuery::unsharedRamBytesUsed).sum();
+            assertEquals("one automaton plus one shell per clause", shared.ramBytesUsed() + shells, charged);
+            assertThat("a second automaton must not be charged", charged, lessThan(2 * clauses.get(0).ramBytesUsed()));
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    private static List<SharedAutomatonQuery> collectSharedAutomatonQueries(Query query) {
+        List<SharedAutomatonQuery> found = new ArrayList<>();
+        query.visit(new QueryVisitor() {
+            @Override
+            public void consumeTermsMatching(Query leaf, String field, Supplier<ByteRunAutomaton> automaton) {
+                if (leaf instanceof SharedAutomatonQuery shared) {
+                    found.add(shared);
+                }
+            }
+        });
+        return found;
+    }
+
+    /**
+     * A long term on a date field fails in the date parser, which cuts it in the error.
+     */
+    public void testToQueryLongIllegalDateIsTruncatedInShardFailure() {
+        // Much longer than the stack trace the reason holds
+        String value = "x".repeat(100_000);
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> context.toQuery(queryStringQuery(value).defaultField(DATE_FIELD_NAME))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse date field [xxx"));
+        // Without the truncation the reason holds the value five times
+        assertThat(new ShardSearchFailure(e).reason().length(), lessThan(value.length()));
     }
 }

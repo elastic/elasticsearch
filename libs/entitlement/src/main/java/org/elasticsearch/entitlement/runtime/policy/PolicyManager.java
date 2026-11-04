@@ -37,7 +37,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.entitlement.bridge.Util.NO_CLASS;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.APM_AGENT;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.PLUGIN;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.SERVER;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ComponentKind.UNKNOWN;
@@ -75,10 +74,6 @@ public class PolicyManager {
             return new PolicyScope(SERVER, SERVER.componentName, moduleName);
         }
 
-        public static PolicyScope apmAgent(String moduleName) {
-            return new PolicyScope(APM_AGENT, APM_AGENT.componentName, moduleName);
-        }
-
         public static PolicyScope plugin(String componentName, String moduleName) {
             return new PolicyScope(PLUGIN, componentName, moduleName);
         }
@@ -87,7 +82,6 @@ public class PolicyManager {
     public enum ComponentKind {
         UNKNOWN("(unknown)"),
         SERVER("(server)"),
-        APM_AGENT("(APM agent)"),
         PLUGIN(null);
 
         /**
@@ -183,7 +177,6 @@ public class PolicyManager {
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();
 
     private final Map<String, List<Entitlement>> serverEntitlements;
-    private final List<Entitlement> apmAgentEntitlements;
     private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, PolicyScope> scopeResolver;
     private final PathLookup pathLookup;
@@ -242,7 +235,6 @@ public class PolicyManager {
 
     public PolicyManager(
         Policy serverPolicy,
-        List<Entitlement> apmAgentEntitlements,
         Map<String, Policy> pluginPolicies,
         Map<String, String> pluginSyntheticModuleNames,
         Function<Class<?>, PolicyScope> scopeResolver,
@@ -250,7 +242,6 @@ public class PolicyManager {
         PathLookup pathLookup
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy), null);
-        this.apmAgentEntitlements = apmAgentEntitlements;
         this.pluginsEntitlements = requireNonNull(pluginPolicies).entrySet()
             .stream()
             .collect(
@@ -267,7 +258,6 @@ public class PolicyManager {
         for (var e : serverEntitlements.entrySet()) {
             validateEntitlementsPerModule(SERVER.componentName, e.getKey(), e.getValue(), exclusiveFileEntitlements);
         }
-        validateEntitlementsPerModule(APM_AGENT.componentName, ALL_UNNAMED, apmAgentEntitlements, exclusiveFileEntitlements);
         for (var p : pluginsEntitlements.entrySet()) {
             for (var m : p.getValue().entrySet()) {
                 validateEntitlementsPerModule(p.getKey(), m.getKey(), m.getValue(), exclusiveFileEntitlements);
@@ -330,15 +320,6 @@ public class PolicyManager {
                     moduleName,
                     SERVER.componentName,
                     getComponentPathsFromClass(requestingClass)
-                );
-            }
-            case APM_AGENT -> {
-                // The APM agent is the only thing running non-modular in the system classloader
-                return policyEntitlements(
-                    APM_AGENT.componentName,
-                    getComponentPathsFromClass(requestingClass),
-                    ALL_UNNAMED,
-                    apmAgentEntitlements
                 );
             }
             case UNKNOWN -> {

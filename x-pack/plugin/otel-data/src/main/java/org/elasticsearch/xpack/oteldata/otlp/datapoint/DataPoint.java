@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.Exemplar;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
@@ -17,6 +18,7 @@ import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.AbstractOTLPBatchBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.HistogramMapping;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -61,6 +63,13 @@ public interface DataPoint {
      * @return a list of key-value pairs representing the attributes
      */
     List<KeyValue> getAttributes();
+
+    /**
+     * Returns the exemplars associated with the data point.
+     */
+    default List<Exemplar> getExemplars() {
+        return List.of();
+    }
 
     /**
      * Returns the unit of measurement for the data point.
@@ -124,24 +133,27 @@ public interface DataPoint {
     long getDocCount();
 
     /**
-     * Returns {@code true} when this data point can be written into an {@link org.elasticsearch.escf.EscfRowBuffer}
-     * as a scalar long or double field (i.e. via
-     * {@link #writeColumnarValue(org.elasticsearch.escf.EscfRowBuffer, String)}).
+     * Returns {@code true} when this data point can be written into an
+     * {@link AbstractOTLPBatchBuilder} as a scalar long or
+     * double field (i.e. via
+     * {@link #writeColumnarValue(AbstractOTLPBatchBuilder, int)}).
      * Histogram, summary, and exponential-histogram data points return {@code false} because they write
-     * nested objects/arrays that the current ESCF row-buffer API does not yet support.
+     * nested objects/arrays that the current ESCF batch builder does not yet support.
      */
     default boolean supportsColumnarValue() {
         return false;
     }
 
     /**
-     * Writes the metric value as a scalar field into the given {@link org.elasticsearch.escf.EscfRowBuffer}.
-     * Only valid when {@link #supportsColumnarValue()} returns {@code true}.
+     * Writes the metric value as a scalar field at {@code columnIndex} into the given
+     * {@link AbstractOTLPBatchBuilder}. Only valid when
+     * {@link #supportsColumnarValue()} returns {@code true}.
      *
-     * @param row       the row buffer to write into
-     * @param fieldName the field name within the enclosing {@code metrics} object
+     * @param batchBuilder the batch builder to write into
+     * @param columnIndex  the pre-resolved column index for this metric name within {@code metrics}
+     *                     (see {@code OTLPMetricBatchBuilder})
      */
-    default void writeColumnarValue(org.elasticsearch.escf.EscfRowBuffer row, String fieldName) {
+    default void writeColumnarValue(AbstractOTLPBatchBuilder batchBuilder, int columnIndex) {
         throw new UnsupportedOperationException("writeColumnarValue not supported for " + getClass().getSimpleName());
     }
 
@@ -155,6 +167,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override
@@ -236,10 +253,10 @@ public interface DataPoint {
         }
 
         @Override
-        public void writeColumnarValue(org.elasticsearch.escf.EscfRowBuffer row, String fieldName) {
+        public void writeColumnarValue(AbstractOTLPBatchBuilder batchBuilder, int columnIndex) {
             switch (dataPoint.getValueCase()) {
-                case AS_DOUBLE -> row.doubleField(fieldName, dataPoint.getAsDouble());
-                case AS_INT -> row.longField(fieldName, dataPoint.getAsInt());
+                case AS_DOUBLE -> batchBuilder.doubleField(columnIndex, dataPoint.getAsDouble());
+                case AS_INT -> batchBuilder.longField(columnIndex, dataPoint.getAsInt());
                 case VALUE_NOT_SET -> throw new IllegalStateException(
                     "number data point without a value should have been filtered out: " + metric.getName()
                 );
@@ -257,6 +274,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override
@@ -349,6 +371,11 @@ public interface DataPoint {
         @Override
         public List<KeyValue> getAttributes() {
             return dataPoint.getAttributesList();
+        }
+
+        @Override
+        public List<Exemplar> getExemplars() {
+            return dataPoint.getExemplarsList();
         }
 
         @Override

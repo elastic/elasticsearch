@@ -402,20 +402,22 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 IllegalArgumentException.class,
                 () -> vectorFieldType.resolveQueryVector(parsed.queryVector())
             );
-            assertThat(e.getMessage(), containsString("query_vector"));
-            assertThat(e.getMessage(), containsString("base64"));
+            assertThat(e.getMessage(), containsString("must be a valid base64 or hex string"));
         }
     }
 
     public void testQueryVectorBase64WrongDimensions() throws Exception {
         String encoded;
+        int decodedVectorByteLength;
         if (elementType() == DenseVectorFieldMapper.ElementType.BYTE) {
             // For byte vectors, encode as bytes with wrong dimensions
             byte[] vector = randomByteVector(vectorDimensions + 1);
+            decodedVectorByteLength = vectorDimensions + 1;
             encoded = encodeToBase64(vector);
         } else {
             // For float vectors, encode as floats with wrong dimensions
             float[] vector = randomFloatVector(vectorDimensions + 1);
+            decodedVectorByteLength = (vectorDimensions + 1) * Float.BYTES;
             encoded = encodeToBase64(vector);
         }
 
@@ -440,9 +442,11 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             assertThat(
                 e.getMessage(),
                 anyOf(
-                    containsString("different number of dimensions"),
-                    containsString("Base64-encoded byte vector"),
-                    containsString("Base64-encoded float vector")
+                    containsString(
+                        "Base64 decoded vector byte length [" + decodedVectorByteLength + "] does not match the expected length"
+                    ),
+                    // a base64-encoded byte vector is occasionally also valid hex, in which case it is decoded as hex
+                    containsString("hex-decoded vector has a different number of dimensions")
                 )
             );
         }
@@ -603,6 +607,21 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         QueryBuilder deserializedQuery = copyNamedWriteable(newQuery, namedWriteableRegistry(), QueryBuilder.class, version);
         assertEquals(bwcQuery, deserializedQuery);
         assertEquals(bwcQuery.hashCode(), deserializedQuery.hashCode());
+    }
+
+    /**
+     * Reproduces <a href="https://github.com/elastic/elasticsearch/issues/162295">#162295</a>: sibling knn queries wrapped in another query
+     * type in a bool must clause make each knn consume the other as a prefilter. The wrapped prefilter query prevents the recursion break
+     * in {@code applyAutoPrefilteringIfEnabled} from functioning, leading to infinite recursion on the knn query used as a prefilter.
+     */
+    public void testAutoPrefilteringWithWrappedKnnSiblingsInMustDoesNotRecurse() throws IOException {
+        SearchExecutionContext context = createSearchExecutionContext();
+        KnnVectorQueryBuilder knnA = createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 10, null, null, null).setAutoPrefilteringEnabled(true);
+        KnnVectorQueryBuilder knnB = createKnnVectorQueryBuilder(VECTOR_FIELD, 5, 10, null, null, null).setAutoPrefilteringEnabled(true);
+        BoolQueryBuilder bool = QueryBuilders.boolQuery()
+            .must(QueryBuilders.constantScoreQuery(knnA))
+            .must(QueryBuilders.constantScoreQuery(knnB));
+        assertNotNull(bool.toQuery(context));
     }
 
     public void testRewriteForInnerHits() throws IOException {

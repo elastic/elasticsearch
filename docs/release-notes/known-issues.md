@@ -8,6 +8,16 @@ mapped_pages:
 
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.6.0 [elasticsearch-9.6.0-known-issues]
+
+* In ES|QL, a [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) function that is followed by `STATS` fails with `Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find`, even if a `LIMIT` is set after `STATS` or the `k` option is specified. As a workaround, add an explicit `LIMIT` immediately after the `KNN` filter and before `STATS`, for example `WHERE KNN(vector_field, [2.0, 3.0, 1.0]) | LIMIT 10 | STATS COUNT(*)`.
+
+  Refer to [#163612](https://github.com/elastic/elasticsearch/issues/163612) for further details.
+
+* In ES|QL, when the [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) field argument is an inline `TO_DENSE_VECTOR` conversion of a field, `KNN` returns no rows or fails. As a workaround, convert the field with `EVAL` first and pass the new column to `KNN`.
+
+  Refer to [#163402](https://github.com/elastic/elasticsearch/issues/163402) for further details.
+
 ## 9.5.2 [elasticsearch-9.5.2-known-issues]
 
 * A bulk indexing operation which is being processed on the node holding the primary shard exactly when this node crosses the [indexing pressure limit](/reference/elasticsearch/configuration-reference/indexing-pressure-settings.md) can process some of the bulk items on the primary shard without replicating them, causing the contents of any replicas to diverge from those of the primary. The processed items can be intermittently returned by searches while the divergence persists, but these items were not acknowledged writes and may eventually be discarded. The divergence blocks shards from trimming their [translog](/reference/elasticsearch/index-settings/translog.md), consuming excessive disk space, and can also cause very long-running [recoveries](/reference/elasticsearch/configuration-reference/index-recovery-settings.md) that attempt to replay all operations starting from the ones that were not replicated.
@@ -202,3 +212,26 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
     * reducing the grouping key cardinality, by filtering out values before STATS
 
 * Repository analyses of snapshot repositories based on AWS S3 include some checks that the APIs which relate to multipart uploads have linearizable (strongly-consistent) semantics, based on guarantees offered by representatives from AWS on this subject. Further investigation has determined that these guarantees do not hold under all conditions as previously claimed. If you are analyzing a snapshot repository based on AWS S3 using a version of {{es}} prior to 9.3.0 and you encounter a failure related to linearizable register operations, you may work around the issue and suppress these checks by setting the query parameter `?register_operation_count=1` and running the analysis using a one-node cluster. This issue is fixed in {{es}} version 9.3.0 by [#138663](https://github.com/elastic/elasticsearch/pull/138663).
+
+* Vector search performance can degrade on Linux systems running kernel 6.1 or later when Multi-Gen LRU (MGLRU) is enabled.
+  Affected {{es}} versions can experience significant vector search slowdowns and delayed Lucene index merges.
+  MGLRU was introduced in Linux kernel 6.1 and is enabled by default in some Linux distributions, including Ubuntu 24.04.
+  An interaction between MGLRU and Lucene's read advice behavior can result in excessive major page faults and I/O activity during vector operations.
+  To determine whether MGLRU is enabled, run:
+
+  ```bash
+  cat /sys/kernel/mm/lru_gen/enabled
+  ```
+
+  A value of `0x0007` indicates that MGLRU and all its currently supported features are enabled.
+  This issue is fixed in {{es}} 8.17.5 and later, 8.18.1 and later, and 9.0.2 and later.
+  It does not affect {{es}} 8.19.
+  For more information, refer to [elasticsearch#124499](https://github.com/elastic/elasticsearch/issues/124499).
+
+* A `double`, `float`, `half_float`, or `scaled_float` field can be indexed with the wrong value on indices that use stored `_source` with [`index.mapping.total_fields.ignore_dynamic_beyond_limit`](/reference/elasticsearch/index-settings/mapping-limit.md) set to `true`. This happens when the field's value is sent as an integer literal (for example `2` rather than `2.0`) after a floating-point dynamic field in the same document that was dropped for exceeding `index.mapping.total_fields.limit`. The field's doc values and points then hold the dropped field's value instead, while `_source` keeps the original value, so queries, aggregations, and sorting disagree with `_source`. No error or warning is logged. Indices that use synthetic `_source` are not affected.
+
+  The cause is a bug in jackson-core 2.15.0 ([FasterXML/jackson-core#1391](https://github.com/FasterXML/jackson-core/pull/1391)). It affects {{es}} 8.13.0 through 8.19.18, 9.0.0 through 9.2.x, 9.3.0 through 9.3.7, and 9.4.0 through 9.4.3, and is fixed by the Jackson upgrade in [#152163](https://github.com/elastic/elasticsearch/pull/152163), included in 8.19.19, 9.3.8, 9.4.4, and 9.5.0. Documents indexed on an affected version keep the wrong values until they are reindexed.
+
+  To avoid the issue on an affected version, send floating-point values with a decimal point (for example `2.0`), or raise `index.mapping.total_fields.limit` so that dynamic fields are not dropped.
+
+  Refer to [#162209](https://github.com/elastic/elasticsearch/issues/162209) for further details.

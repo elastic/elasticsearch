@@ -27,11 +27,15 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.SharedAutomaton;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -50,8 +54,10 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.UnmappedFields;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -65,6 +71,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceFilter;
@@ -79,6 +86,7 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -89,6 +97,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
 
@@ -128,13 +137,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private Set<String> fieldsInIndex = null;
+    private UnmappedFields unmappedFields = null;
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
     private AutoPrefilteringScope autoPrefilteringScope;
     private QueryBuilder aliasFilter;
-    @Nullable
-    private String sliceRouting;
+    private SliceSelection sliceSelection = SliceSelection.UNSPECIFIED;
     private boolean rewriteToNamedQueries = false;
 
     private final Integer requestSize;
@@ -145,6 +154,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
     private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
     private final Set<Query> preChargedQueries = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
+    private final ConcurrentMap<AutomatonKey, SharedAutomaton> sharedAutomata = new ConcurrentHashMap<>();
+    private final List<Releasable> queryConstructionReleasables = new ArrayList<>();
 
     public SearchExecutionContext(
         int shardId,
@@ -238,6 +249,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardSearchStats,
             circuitBreaker
         );
+        this.sliceSelection = source.sliceSelection;
+        this.fieldVisibilityPredicate = source.fieldVisibilityPredicate;
     }
 
     private SearchExecutionContext(
@@ -320,14 +333,35 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return aliasFilter;
     }
 
-    // Set slice routing, so it can be applied as a shard-level filter in search context.
-    public void setSliceRouting(@Nullable String sliceRouting) {
-        this.sliceRouting = sliceRouting;
+    /**
+     * Sets the slices this request reads from the shard.
+     */
+    public void setSliceSelection(SliceSelection sliceSelection) {
+        this.sliceSelection = Objects.requireNonNull(sliceSelection);
     }
 
+    /**
+     * The slices this request reads from the shard.
+     */
+    public SliceSelection sliceSelection() {
+        return sliceSelection;
+    }
+
+    /**
+     * A filter matching the documents of the selected slices, or {@code null} when the request is not restricted to named
+     * slices. It matches no document on an index without slices.
+     */
     @Nullable
-    public String getSliceRouting() {
-        return sliceRouting;
+    public Query sliceFilter() {
+        if (sliceSelection.isRestricted() == false) {
+            return null;
+        }
+        final MappedFieldType routingFieldType = getIndexSettings().isSliceEnabled() ? getFieldType(RoutingFieldMapper.NAME) : null;
+        if (routingFieldType == null) {
+            return Queries.NO_DOCS_INSTANCE;
+        }
+        final List<String> names = sliceSelection.names();
+        return names.size() == 1 ? routingFieldType.termQuery(names.get(0), this) : routingFieldType.termsQuery(names, this);
     }
 
     /**
@@ -593,8 +627,28 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 )
             ),
             sourceProvider,
-            fieldLookupProvider
+            fieldLookupProvider,
+            // Account decode buffers that script doc-values readers retain (e.g. the uncompressed-block buffer of
+            // the TSDB binary doc-values format) on the request breaker. One such buffer is held per field, leaf
+            // and clause that reads doc values through a script, so an unbounded fan-out (many runtime-field
+            // clauses in a filters aggregation, say) trips the breaker instead of exhausting the heap. When the
+            // request is driven by a ContextIndexSearcher with a breaker, the memory is attributed to the leaf it
+            // was opened against and released as soon as that leaf is done being collected, so sequential execution
+            // does not accumulate charges across leaves. Otherwise (percolator's memory-index searcher, contexts
+            // without a searcher) it accumulates in this context's query construction pool and is drained at
+            // request end by releaseQueryConstructionMemory().
+            this::accountScriptFieldMemory
         );
+    }
+
+    // Package-private for testing.
+    void accountScriptFieldMemory(long bytes, String field, LeafReaderContext ctx) {
+        if (searcher instanceof ContextIndexSearcher contextIndexSearcher
+            && ContextIndexSearcher.circuitBreakerOrNull(contextIndexSearcher) != null) {
+            contextIndexSearcher.chargeLeaf(ctx, bytes, "script_doc_values:" + field);
+        } else {
+            addCircuitBreakerMemory(bytes, "script_doc_values:" + field);
+        }
     }
 
     public NestedScope nestedScope() {
@@ -612,6 +666,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public boolean indexSortedOnField(String field) {
         IndexSortConfig indexSortConfig = indexSettings.getIndexSortConfig();
         return indexSortConfig.hasPrimarySortOnField(field);
+    }
+
+    /**
+     * Whether a range query on the field can use Lucene's {@code IndexSortSortedNumericDocValuesRangeQuery}.
+     */
+    public boolean canUseIndexSortRangeQuery(String field) {
+        // NOTE: Workaround for a Lucene bug, see https://github.com/elastic/elasticsearch/issues/162656.
+        // That query binary searches the values of all documents in a segment and needs them sorted.
+        // The index sort only applies to the root document of a block, so the values of the nested
+        // documents are not in sort order.
+        // Remove this check once Lucene handles segments with document blocks.
+        return nestedLookup() == NestedLookup.EMPTY && indexSortedOnField(field);
     }
 
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {
@@ -756,16 +822,29 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (searcher == null) {
             return false;
         }
-        if (fieldsInIndex == null) {
-            fieldsInIndex = new HashSet<>();
+        Set<String> fields = fieldsInIndex;
+        if (fields == null) {
+            Set<String> names = new HashSet<>();
             for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
                 FieldInfos fis = ctx.reader().getFieldInfos();
                 for (FieldInfo fi : fis) {
-                    fieldsInIndex.add(fi.name);
+                    names.add(fi.name);
                 }
             }
+            // Immutable, so that a thread racing on the unsynchronized field can only see a complete set.
+            fields = fieldsInIndex = Set.copyOf(names);
         }
-        return fieldsInIndex.contains(fieldname);
+        return fields.contains(fieldname);
+    }
+
+    /**
+     * The fields of this shard's documents that its mapping does not declare.
+     */
+    public UnmappedFields unmappedFields() {
+        if (unmappedFields == null) {
+            unmappedFields = new UnmappedFields(indexSettings, mappingLookup, searcher == null ? null : this::fieldExistsInIndex);
+        }
+        return unmappedFields;
     }
 
     /**
@@ -877,6 +956,21 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Returns the automaton {@code key} identifies, building it with {@code builder} on first use and charging its
+     * retained size once. Every later clause of this request that resolves to the same key reuses the instance, so a
+     * pattern expanded over many fields costs one automaton rather than one per field.
+     * <p>
+     * {@code builder} is responsible for guarding its own construction peak.
+     */
+    public SharedAutomaton computeAutomatonIfAbsent(AutomatonKey key, Supplier<SharedAutomaton> builder) {
+        return sharedAutomata.computeIfAbsent(key, k -> {
+            SharedAutomaton built = builder.get();
+            addCircuitBreakerMemory(built.ramBytesUsed(), k.category());
+            return built;
+        });
+    }
+
+    /**
      * Marks that {@code query}'s memory was already charged to the breaker at construction time, so the visitor walk skips it.
      */
     public void markQueryMemoryPreCharged(Query query) {
@@ -893,10 +987,38 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Drops all pre-charge markers.
+     * Registers {@code releasable} to run when this context's query construction memory is released. It is meant for breaker
+     * charges that several contexts share, so a charge can stay held while any context using it is open.
      */
-    protected final void clearPreChargedQueries() {
+    void addQueryConstructionReleasable(Releasable releasable) {
+        synchronized (queryConstructionReleasables) {
+            queryConstructionReleasables.add(releasable);
+        }
+    }
+
+    /**
+     * Whether a query built with this context registered a shared breaker charge that is still held. Lets callers that never
+     * release a context, such as the rewrite copy in {@code SearchService}, assert that no query was built with it.
+     */
+    public boolean hasQueryConstructionReleasables() {
+        synchronized (queryConstructionReleasables) {
+            return queryConstructionReleasables.isEmpty() == false;
+        }
+    }
+
+    /**
+     * Drops all pre-charge markers and shared automata and runs the registered releasables. An override of
+     * {@link #releaseQueryConstructionMemory()} must call this, or it keeps automata alive that the breaker no longer accounts for.
+     */
+    protected final void clearQueryConstructionState() {
         preChargedQueries.clear();
+        sharedAutomata.clear();
+        final List<Releasable> releasables;
+        synchronized (queryConstructionReleasables) {
+            releasables = List.copyOf(queryConstructionReleasables);
+            queryConstructionReleasables.clear();
+        }
+        Releasables.close(releasables);
     }
 
     /**
@@ -904,18 +1026,20 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
-        clearPreChargedQueries();
-        if (circuitBreaker == null) {
-            return;
-        }
-        for (var entry : queryConstructionMemoryByLabel.entrySet()) {
-            long held = entry.getValue().getAndSet(0);
-            if (held > 0) {
-                circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+        try {
+            clearQueryConstructionState();
+        } finally {
+            if (circuitBreaker != null) {
+                for (var entry : queryConstructionMemoryByLabel.entrySet()) {
+                    long held = entry.getValue().getAndSet(0);
+                    if (held > 0) {
+                        circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+                    }
+                }
+                queryConstructionMemoryByLabel.clear();
+                queryConstructionMemoryUsed.set(0);
             }
         }
-        queryConstructionMemoryByLabel.clear();
-        queryConstructionMemoryUsed.set(0);
     }
 
     /**

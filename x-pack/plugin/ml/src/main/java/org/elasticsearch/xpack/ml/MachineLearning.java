@@ -328,6 +328,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeAnalyticsProcessFactor
 import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationProcessFactory;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
+import org.elasticsearch.xpack.ml.inference.DeploymentPathUnsafeIdTelemetry;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
@@ -868,6 +869,14 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Temporary gate on creation and execution of ES|QL-backed anomaly detection datafeeds, enabled automatically in
+     * snapshot builds and via {@code -Des.esql_datafeeds_feature_flag_enabled=true} in release builds. Removed once
+     * ES|QL datafeeds reach GA (see {@link FeatureFlag}). The flag is fixed for the lifetime of the process and cannot be
+     * toggled per-cluster/per-project at runtime.
+     */
+    public static final FeatureFlag ESQL_DATAFEEDS_FEATURE_FLAG = new FeatureFlag("esql_datafeeds");
+
+    /**
      * The time that has to pass after scaling up, before scaling down is allowed.
      * Note that the ML autoscaling has its own cooldown time to release the hardware.
      */
@@ -966,6 +975,7 @@ public class MachineLearning extends Plugin
             MachineLearningField.AUTODETECT_PROCESS,
             PROCESS_CONNECT_TIMEOUT,
             MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED,
+            MachineLearningField.SANDBOX_ENABLED,
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
             MachineLearningField.MAX_LAZY_ML_NODES,
@@ -1248,10 +1258,7 @@ public class MachineLearning extends Plugin
                 pyTorchProcessFactory = new NativePyTorchProcessFactory(environment, nativeController, clusterService);
                 mlController = nativeController;
             } catch (IOException e) {
-                // The low level cause of failure from the named pipe helper's perspective is almost never the real root cause, so
-                // only log this at the lowest level of detail. It's almost always "file not found" on a named pipe we expect to be
-                // able to connect to, but the thing we really need to know is what stopped the native process creating the named pipe.
-                logger.trace("Failed to connect to ML native controller", e);
+                logger.warn("Failed to connect to ML native controller", e);
                 throw new ElasticsearchException(
                     "Failure running machine learning native code. This could be due to running "
                         + "on an unsupported OS or distribution, missing OS libraries, or a problem with the temp directory. To "
@@ -1297,6 +1304,9 @@ public class MachineLearning extends Plugin
         );
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedSearchTelemetry datafeedSearchTelemetry = new DatafeedSearchTelemetry(telemetryProvider.getMeterRegistry());
+        DeploymentPathUnsafeIdTelemetry deploymentPathUnsafeIdTelemetry = new DeploymentPathUnsafeIdTelemetry(
+            telemetryProvider.getMeterRegistry()
+        );
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(
             client,
             xContentRegistry,
@@ -1517,13 +1527,9 @@ public class MachineLearning extends Plugin
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
-            new NodeLoadDetector(memoryTracker),
             nlpEnabled,
             settings
         );
-        // Feed observed-memory data from the 10-second adaptive-allocations stats response back into
-        // TrainedModelAssignmentClusterService so its 60-second loop can skip those deployments.
-        adaptiveAllocationsScalerService.setStatsResponseConsumer(trainedModelAllocationClusterService.get()::processObservedMemoryStats);
 
         MlInitializationService mlInitializationService = new MlInitializationService(
             settings,
@@ -1532,7 +1538,6 @@ public class MachineLearning extends Plugin
             anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
-            trainedModelAllocationClusterService.get(),
             mlAssignmentNotifier,
             indexNameExpressionResolver,
             anomalyDetectionEnabled,
@@ -1593,7 +1598,8 @@ public class MachineLearning extends Plugin
             nodeAvailabilityZoneMapper,
             new MachineLearningExtensionHolder(machineLearningExtension.get()),
             mlMetrics,
-            mlConfigMetrics
+            mlConfigMetrics,
+            deploymentPathUnsafeIdTelemetry
         );
     }
 
@@ -1761,6 +1767,8 @@ public class MachineLearning extends Plugin
         // Included in this section as it's used by MlMemoryAction
         actionHandlers.add(new ActionHandler(TrainedModelCacheInfoAction.INSTANCE, TransportTrainedModelCacheInfoAction.class));
         actionHandlers.add(new ActionHandler(GetMlAutoscalingStats.INSTANCE, TransportGetMlAutoscalingStats.class));
+        // Required by vector query builders regardless of which ML features are enabled
+        actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
         if (anomalyDetectionEnabled) {
             actionHandlers.add(new ActionHandler(GetJobsAction.INSTANCE, TransportGetJobsAction.class));
             actionHandlers.add(new ActionHandler(GetJobsStatsAction.INSTANCE, TransportGetJobsStatsAction.class));
@@ -1885,7 +1893,6 @@ public class MachineLearning extends Plugin
                         TransportUpdateTrainedModelAssignmentStateAction.class
                     )
                 );
-                actionHandlers.add(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
             }
         }
         return actionHandlers;

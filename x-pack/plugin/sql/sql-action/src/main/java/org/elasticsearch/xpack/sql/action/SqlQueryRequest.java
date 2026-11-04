@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
@@ -20,6 +21,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -109,7 +111,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     // Async settings
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
     private boolean keepOnCompletion = DEFAULT_KEEP_ON_COMPLETION;
-    private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
+    @Nullable
+    private TimeValue keepAlive = null;
 
     private Boolean allowPartialSearchResults;
 
@@ -253,7 +256,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return keepOnCompletion;
     }
 
-    public SqlQueryRequest keepAlive(TimeValue keepAlive) {
+    public SqlQueryRequest keepAlive(@Nullable TimeValue keepAlive) {
         if (keepAlive != null && keepAlive.getMillis() < MIN_KEEP_ALIVE.getMillis()) {
             throw new IllegalArgumentException("[" + KEEP_ALIVE_NAME + "] must be greater than " + MIN_KEEP_ALIVE + ", got: " + keepAlive);
         }
@@ -261,6 +264,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         return this;
     }
 
+    @Nullable
     public TimeValue keepAlive() {
         return keepAlive;
     }
@@ -276,6 +280,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        // Sync tasks are never stored. Use DEFAULT_KEEP_ALIVE as fallback so StoredAsyncTask doesn't NPE.
         return new SqlQueryTask(
             id,
             type,
@@ -285,7 +290,7 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             headers,
             null,
             null,
-            keepAlive,
+            keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE,
             mode(),
             version(),
             columnar()
@@ -302,7 +307,11 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         out.writeOptionalBoolean(binaryCommunication);
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeBoolean(keepOnCompletion);
-        out.writeOptionalTimeValue(keepAlive);
+        if (out.getTransportVersion().supports(AsyncTask.ASYNC_DEFAULT_KEEP_ALIVE_SETTING)) {
+            out.writeOptionalTimeValue(keepAlive);
+        } else {
+            out.writeOptionalTimeValue(keepAlive != null ? keepAlive : DEFAULT_KEEP_ALIVE);
+        }
         if (out.getTransportVersion().supports(OPTIONAL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
         } else {

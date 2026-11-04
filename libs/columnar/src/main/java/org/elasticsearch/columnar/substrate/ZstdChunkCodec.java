@@ -14,6 +14,7 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.lucene.store.IndexInputUtils;
+import org.elasticsearch.lucene.store.SegmentBufferScratch;
 import org.elasticsearch.zstd.Zstd;
 
 import java.io.IOException;
@@ -23,11 +24,10 @@ import java.lang.foreign.MemorySegment;
  * Compresses a chunk with Zstd through the native binding.
  *
  * <p>Both directions hand libzstd memory it addresses directly. A chunk is compressed out of, and
- * decompressed into, a heap {@code byte[]} passed as a {@link MemorySegment} through a critical downcall, so
- * neither direction stages the chunk in an off-heap buffer. On the read side the compressed bytes are taken
- * as a slice of the mapped file where the input can provide one, which leaves the decode with no copy on
- * either end; inputs that cannot (a compound file wrapper, an evicted blob-cache region) fall back to
- * reading the chunk into a buffer.
+ * decompressed into, a heap {@code byte[]} passed as a {@link MemorySegment} through a critical downcall.
+ * On the read side the compressed bytes are taken as a slice of the mapped file where the input can provide
+ * one, which leaves the decode with no copy on either end; inputs that cannot (a compound file wrapper, an
+ * evicted blob-cache region) fall back to reading the chunk into an off-heap scratch buffer.
  *
  * <p>The binding itself is thread-safe for decompression and is shared. The buffers are not, so each
  * compressor and decompressor holds its own and belongs to a single writer or reader.
@@ -57,6 +57,7 @@ final class ZstdChunkCodec {
     static final class Decompressor implements ChunkDecompressor {
 
         private byte[] scratch = new byte[0];
+        private final SegmentBufferScratch segmentScratch = new SegmentBufferScratch();
 
         @Override
         public void read(IndexInput in, int storedLength, byte[] dst, int uncompressedLength) throws IOException {
@@ -65,7 +66,7 @@ final class ZstdChunkCodec {
             int decompressed = -1;
             if (IndexInputUtils.canUseSegmentSlices(in)) {
                 try {
-                    decompressed = IndexInputUtils.withSlice(in, storedLength, this::scratch, src -> ZSTD.decompress(target, src));
+                    decompressed = IndexInputUtils.withSlice(in, storedLength, segmentScratch, src -> ZSTD.decompress(target, src));
                 } catch (@SuppressWarnings("unused") AlreadyClosedException e) {
                     // The region backing the slice was evicted mid-read; rewind and take the copying path.
                     in.seek(start);
@@ -79,12 +80,6 @@ final class ZstdChunkCodec {
             if (decompressed != uncompressedLength) {
                 throw new IOException("chunk decompressed to " + decompressed + " bytes, expected " + uncompressedLength);
             }
-        }
-
-        /** Backs {@link IndexInputUtils#withSlice}'s copying path with the buffer this decompressor holds. */
-        private byte[] scratch(int length) {
-            scratch = ArrayUtil.growNoCopy(scratch, length);
-            return scratch;
         }
     }
 }

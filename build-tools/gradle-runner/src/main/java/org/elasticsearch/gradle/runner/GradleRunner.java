@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.runner;
 
+import org.gradle.tooling.BuildException;
 import org.gradle.tooling.BuildLauncher;
 import org.gradle.tooling.CancellationTokenSource;
 import org.gradle.tooling.GradleConnectionException;
@@ -89,6 +90,7 @@ public class GradleRunner {
         canceller.install();
 
         TaskTracker tracker = new TaskTracker(canceller);
+        ProblemsTracker problemsTracker = new ProblemsTracker();
 
         GradleConnector connector = GradleConnector.newConnector().forProjectDirectory(projectDir);
         if (gradleHome != null) {
@@ -104,10 +106,17 @@ public class GradleRunner {
                 .setStandardOutput(System.out)
                 .setStandardError(System.err)
                 .withCancellationToken(tokenSource.token())
-                .addProgressListener(tracker, OperationType.TASK, OperationType.TEST);
+                .addProgressListener(tracker, OperationType.TASK, OperationType.TEST)
+                .addProgressListener(problemsTracker, OperationType.PROBLEMS);
 
             launcher.run();
+        } catch (BuildException e) {
+            // The build itself failed; Gradle already reported the failure on the build output.
+            exitCode = EXIT_BUILD_FAILURE;
         } catch (GradleConnectionException e) {
+            // The build could not be run at all, e.g. because of an argument the Tooling API does not
+            // support (such as --no-daemon). Gradle prints nothing in this case, so report the cause.
+            System.err.println("Gradle runner failed: " + e.getMessage());
             exitCode = EXIT_BUILD_FAILURE;
         } catch (Exception e) {
             System.err.println("Gradle runner failed: " + e.getMessage());
@@ -122,6 +131,7 @@ public class GradleRunner {
         }
 
         writeStatusReport(tracker, projectDir);
+        writeProblemsReport(problemsTracker, projectDir);
 
         if (GcpPreemptionWatchdog.isPreempted()) {
             int preemptionExitCode = getPreemptionExitCode();
@@ -145,6 +155,16 @@ public class GradleRunner {
             report.writeTo(reportFile);
         } catch (Exception e) {
             System.err.println("Failed to write task status report: " + e.getMessage());
+        }
+    }
+
+    private static void writeProblemsReport(ProblemsTracker tracker, File projectDir) {
+        try {
+            File reportFile = new File(projectDir, "build/problems-status.json");
+            ProblemsReport report = tracker.buildReport();
+            report.writeTo(reportFile);
+        } catch (Exception e) {
+            System.err.println("Failed to write problems status report: " + e.getMessage());
         }
     }
 

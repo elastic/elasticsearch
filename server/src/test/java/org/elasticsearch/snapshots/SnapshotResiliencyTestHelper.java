@@ -61,7 +61,7 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycleSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -91,6 +91,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -102,6 +103,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
@@ -144,6 +146,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.RestoreLifecycleListener;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.repositories.LocalPrimarySnapshotShardContextFactory;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -453,6 +456,15 @@ public class SnapshotResiliencyTestHelper {
         }
 
         public class TestClusterNode {
+            private static final FeatureSpecification SUPPORTED_FEATURES = new FeatureSpecification() {
+                @Override
+                public Set<NodeFeature> getFeatures() {
+                    return Set.of(
+                        DataStream.DATA_STREAM_FAILURE_STORE_FEATURE,
+                        RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE
+                    );
+                }
+            };
 
             protected final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
 
@@ -481,6 +493,8 @@ public class SnapshotResiliencyTestHelper {
             private TransportService transportService;
 
             private ClusterService clusterService;
+
+            private FeatureService featureService;
 
             protected SearchService searchService;
 
@@ -577,6 +591,7 @@ public class SnapshotResiliencyTestHelper {
                         }
                     }
                 );
+                featureService = new FeatureService(List.of(SUPPORTED_FEATURES));
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override
@@ -650,8 +665,7 @@ public class SnapshotResiliencyTestHelper {
                     emptyMap(),
                     threadPool,
                     client,
-                    List.of(),
-                    SnapshotMetrics.NOOP
+                    List.of()
                 );
                 snapshotsService = new SnapshotsService(
                     settings,
@@ -695,7 +709,8 @@ public class SnapshotResiliencyTestHelper {
                     projectResolver,
                     clusterService,
                     RecoverySchedulingListener.NOOP,
-                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings())
+                    new RecoveryGateMonitor(List::of, threadPool, clusterService.getClusterSettings()),
+                    ByteSizeValue.ofBytes(Long.MAX_VALUE)
                 );
 
                 indicesService = new IndicesServiceBuilder().settings(settings)
@@ -725,6 +740,7 @@ public class SnapshotResiliencyTestHelper {
                     .bigArrays(bigArrays)
                     .scriptService(scriptService)
                     .clusterService(clusterService)
+                    .featureService(featureService)
                     .projectResolver(projectResolver)
                     .client(client)
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
@@ -743,7 +759,8 @@ public class SnapshotResiliencyTestHelper {
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
                     Tracer.NOOP,
-                    OnlinePrewarmingService.NOOP
+                    OnlinePrewarmingService.NOOP,
+                    transportService.getTaskManager()
                 );
 
                 final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
@@ -907,12 +924,7 @@ public class SnapshotResiliencyTestHelper {
                             IpLocationService.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
-                            new FeatureService(List.of()) {
-                                @Override
-                                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
-                                }
-                            }
+                            featureService
                         ),
                         client,
                         actionFilters,
@@ -922,14 +934,10 @@ public class SnapshotResiliencyTestHelper {
                         projectResolver,
                         FailureStoreMetrics.NOOP,
                         DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-                        new FeatureService(List.of()) {
-                            @Override
-                            public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                                return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
-                            }
-                        },
+                        featureService,
                         new TimeSeriesEligibleWriteWindowLocator(),
-                        DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                        DataStreamLifecycleSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                        bigArrays
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
@@ -957,6 +965,7 @@ public class SnapshotResiliencyTestHelper {
                     new IndexMetadataVerifier(
                         settings,
                         clusterService,
+                        featureService,
                         namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
@@ -970,12 +979,8 @@ public class SnapshotResiliencyTestHelper {
                     threadPool,
                     false,
                     IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance(),
-                    new FeatureService(List.of()) {
-                        @Override
-                        public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-                            return RecoveryFeatures.RESTORE_OVER_OPEN_INDEX_RECREATES_INDEX_SERVICE.equals(feature);
-                        }
-                    }
+                    featureService,
+                    RestoreLifecycleListener.NOOP
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,
@@ -1093,7 +1098,8 @@ public class SnapshotResiliencyTestHelper {
                         threadPool,
                         snapshotsService,
                         actionFilters,
-                        projectResolver
+                        projectResolver,
+                        featureService
                     )
                 );
                 actions.put(
@@ -1357,7 +1363,7 @@ public class SnapshotResiliencyTestHelper {
                     getLeaderHeartbeatService(),
                     createPrevoteCollector(),
                     CompatibilityVersionsUtils.staticCurrent(),
-                    new FeatureService(List.of()),
+                    featureService,
                     this.clusterService
                 );
                 masterService.setClusterStatePublisher(coordinator);

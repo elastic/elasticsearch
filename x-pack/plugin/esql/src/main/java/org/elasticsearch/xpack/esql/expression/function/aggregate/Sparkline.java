@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.Signature;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceSparklineAggregate;
 
@@ -101,12 +102,14 @@ public class Sparkline extends AggregateFunction implements AggregateMetricDoubl
             "nested", // Fix for more SPARKLINE nested in another expression
             "from_partial_null_keys", // Enable group-id tracking when FromPartial merges nullable keys
             "from_partial_empty_input", // Ungrouped FromPartial emits one row when SPARKLINE's companion aggs saw no input
-            "inline_stats_foldable_agg" // Fix INLINE STATS with SPARKLINE and foldable companion agg (e.g. ABSENT(null))
+            "inline_stats_foldable_agg", // Fix INLINE STATS with SPARKLINE and foldable companion agg (e.g. ABSENT(null))
+            "companion_agg_named_timestamp" // Fix SPARKLINE for companion agg named `timestamp`
         )
         .name("sparkline");
 
     @FunctionInfo(
         returnType = { "integer", "long", "double" },
+        signatures = { @Signature(params = { "integer|long|double", "date", "integer", "date|STRING", "date|STRING" }, returnType = "$0") },
         briefSummary = "Computes y-axis values of a sparkline graph for an aggregation over time.",
         description = "The values representing the y-axis values of a sparkline graph for a given aggregation over a period of time.",
         type = FunctionType.AGGREGATE,

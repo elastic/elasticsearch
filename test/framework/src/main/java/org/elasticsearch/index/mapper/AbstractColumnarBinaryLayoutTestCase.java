@@ -18,7 +18,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -62,12 +64,15 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
      * How a field's values are framed on disk, with the mapping that gets them written that way. A columnar index
      * writes {@link BinaryDocValuesFormat#ARRAY_ORDER_INLINE_NULL} for a field that keeps array order and
      * {@link BinaryDocValuesFormat#SEPARATE_COUNT} for one that cannot hold an array to begin with; turning the
-     * ColumNAR codec on replaces both with {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}.
+     * ColumNAR codec on replaces both with {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}, except that a field type
+     * which {@link #writesPlain() writes plain values} writes {@link BinaryDocValuesFormat#PLAIN} for one that cannot
+     * hold an array.
      */
     protected enum Layout {
         SEPARATE_COUNT(BinaryDocValuesFormat.SEPARATE_COUNT, false, false),
         ARRAY_ORDER_INLINE_NULL(BinaryDocValuesFormat.ARRAY_ORDER_INLINE_NULL, true, false),
-        COLUMNAR_PAYLOAD(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, true, true);
+        COLUMNAR_PAYLOAD(BinaryDocValuesFormat.COLUMNAR_PAYLOAD, true, true),
+        PLAIN(BinaryDocValuesFormat.PLAIN, false, true);
 
         private final BinaryDocValuesFormat format;
         private final boolean multiValue;
@@ -80,19 +85,15 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
         }
 
         Settings settings() {
-            final Settings.Builder settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName());
-            if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()) {
-                // Named on every layout rather than left to the default, so that the two layouts the stock codec
-                // writes keep being written once the ColumNAR codec is the default. The setting only exists while
-                // the flag does, and a build without it writes neither the codec's layout nor this setting.
-                settings.put(IndexSettings.COLUMNAR_CODEC_ENABLED_SETTING.getKey(), codec);
-            }
-            return settings.build();
+            return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         }
 
-        /** Whether this build writes this layout at all, which for the ColumNAR codec is its feature flag. */
-        boolean isAvailable() {
-            return codec == false || ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled();
+        /**
+         * Every columnar index created from {@link IndexVersions#COLUMNAR_CODEC_NO_FEATURE_FLAG} uses the ColumNAR codec, so
+         * the two layouts the stock codec writes are reached through an index created just before that version.
+         */
+        IndexVersion indexVersion() {
+            return codec ? IndexVersion.current() : IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_CODEC_NO_FEATURE_FLAG);
         }
     }
 
@@ -158,6 +159,19 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     }
 
     /**
+     * Whether the ColumNAR codec writes this field type's single-valued fields as {@link BinaryDocValuesFormat#PLAIN}
+     * rather than as {@link BinaryDocValuesFormat#COLUMNAR_PAYLOAD}.
+     */
+    protected boolean writesPlain() {
+        return false;
+    }
+
+    /** Whether {@code layout} is written for this field type, so it can be reached and read back here. */
+    private boolean reaches(Layout layout) {
+        return layout != Layout.PLAIN || writesPlain();
+    }
+
+    /**
      * The documents the query tests run over. A layout that keeps array order is given arrays with a null, a
      * repeat and an all-null document in them, since those are what the layouts frame differently; the
      * single-valued layout is given the same values one to a document.
@@ -190,11 +204,11 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     public void testEveryLayoutIsCovered() throws IOException {
         final EnumSet<BinaryDocValuesFormat> covered = EnumSet.noneOf(BinaryDocValuesFormat.class);
         for (Layout layout : Layout.values()) {
-            if (layout.isAvailable()) {
+            if (reaches(layout)) {
                 assertEquals(layout.toString(), layout.format, binaryFormatOf(mapperService(layout, false).fieldType(FIELD)));
             }
-            // A layout this build does not write counts as covered: it cannot be reached here and cannot be written in
-            // production either, so the mapping that would reach it is checked wherever the build does write it.
+            // A layout this build or field type does not write counts as covered: it cannot be reached here and cannot
+            // be written in production either, so the mapping that would reach it is checked wherever it is written.
             covered.add(layout.format);
         }
         assertEquals("every layout needs a mapping that reaches it", EnumSet.allOf(BinaryDocValuesFormat.class), covered);
@@ -228,7 +242,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
         assumeTrue("field type confirms phrases from positions, not from its values", confirmsPhrasesFromValues());
         int ran = 0;
         for (Layout layout : Layout.values()) {
-            if (layout.isAvailable() == false) {
+            if (reaches(layout) == false) {
                 continue;
             }
             final MapperService mapperService = mapperService(layout, true);
@@ -293,7 +307,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     protected void forEachLayoutIndex(boolean indexed, IndexBody body) throws IOException {
         int ran = 0;
         for (Layout layout : Layout.values()) {
-            if (layout.isAvailable() == false) {
+            if (reaches(layout) == false) {
                 continue;
             }
             final MapperService mapperService = mapperService(layout, indexed);
@@ -317,14 +331,22 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
         return values;
     }
 
-    /** Indexes {@code documents} into {@code mapperService}'s index and hands the reader to {@code body}. */
+    /**
+     * Indexes {@code documents} into {@code mapperService}'s index and hands the reader to {@code body}. They are added
+     * as one block so that they land in a single segment, in order, and a document's number is its position.
+     */
     protected void withIndex(MapperService mapperService, List<List<String>> documents, CheckedConsumer<DirectoryReader, IOException> body)
         throws IOException {
         withLuceneIndex(mapperService, iw -> {
+            final List<LuceneDocument> docs = new ArrayList<>();
             for (List<String> values : documents) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> writeValues(b, values))).rootDoc());
+                docs.add(mapperService.documentMapper().parse(source(b -> writeValues(b, values))).rootDoc());
             }
-        }, body::accept);
+            iw.addDocuments(docs);
+        }, reader -> {
+            assertEquals("the documents are in one segment", 1, reader.leaves().size());
+            body.accept(reader);
+        });
     }
 
     /**
@@ -335,7 +357,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
     protected void forEachLayout(LayoutBody body) throws IOException {
         int ran = 0;
         for (Layout layout : Layout.values()) {
-            if (layout.isAvailable() == false) {
+            if (reaches(layout) == false) {
                 continue;
             }
             final MapperService mapperService = mapperService(layout, false);
@@ -353,7 +375,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
 
     /** The mapping that reaches {@code layout}, with or without an inverted index to answer queries from. */
     protected MapperService mapperService(Layout layout, boolean indexed) throws IOException {
-        return createMapperService(layout.settings(), mapping(b -> {
+        return createMapperService(layout.indexVersion(), layout.settings(), mapping(b -> {
             b.startObject(FIELD).field("type", fieldTypeName());
             if (indexed == false) {
                 b.field("index", false);
@@ -361,7 +383,7 @@ public abstract class AbstractColumnarBinaryLayoutTestCase extends MapperService
             if (layout.multiValue) {
                 b.field("doc_values", true);
             } else {
-                b.startObject("doc_values").field("multi_value", false).endObject();
+                b.field("multi_value", false);
             }
             b.endObject();
         }));

@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.function.IntFunction;
 
 /**
  * A test utility that wraps an {@link IndexInput} and implements {@link DirectAccessInput},
@@ -35,7 +36,12 @@ public class DirectAccessIndexInput extends FilterIndexInput implements DirectAc
     }
 
     @Override
-    public boolean withMemorySegmentSlice(long offset, long length, CheckedConsumer<MemorySegment, IOException> action) throws IOException {
+    public boolean withMemorySegmentSlice(
+        long offset,
+        long length,
+        IntFunction<MemorySegment> scratch,
+        CheckedConsumer<MemorySegment, IOException> action
+    ) throws IOException {
         try (Arena arena = Arena.ofConfined()) {
             var seg = arena.allocate((int) length);
             MemorySegment.copy(data, (int) offset, seg, ValueLayout.JAVA_BYTE, 0L, (int) length);

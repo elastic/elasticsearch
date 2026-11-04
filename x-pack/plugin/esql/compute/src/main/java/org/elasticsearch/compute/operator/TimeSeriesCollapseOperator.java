@@ -189,19 +189,7 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
         Function<DriverContext, BlockHash> blockHash,
         DriverContext driverContext
     ) {
-        super(
-            AggregatorMode.SINGLE,
-            aggregators(state),
-            blockHash,
-            Integer.MAX_VALUE,
-            1.0,
-            maxPageSize,
-            null,
-            null,
-            driverContext,
-            null,
-            false
-        );
+        super(AggregatorMode.SINGLE, aggregators(state), blockHash, Integer.MAX_VALUE, 1.0, maxPageSize, null, driverContext, null, false);
         this.groups = groups;
         this.valueChannel = valueChannel;
         this.stepChannel = stepChannel;
@@ -264,7 +252,7 @@ public class TimeSeriesCollapseOperator extends HashAggregationOperator {
     }
 
     @Override
-    protected boolean shouldEmitPartialResultsPeriodically() {
+    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
         return false;
     }
 

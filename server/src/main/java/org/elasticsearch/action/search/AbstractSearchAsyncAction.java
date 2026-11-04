@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
@@ -95,6 +96,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     protected final SearchTask task;
     protected final SearchPhaseResults<Result> results;
+    private final CircuitBreaker circuitBreaker;
     private final long clusterStateVersion;
     protected final Map<String, AliasFilter> aliasFilter;
     protected final Map<String, Float> concreteIndexBoosts;
@@ -121,6 +123,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
+    private final AtomicBoolean coordinatorTripRaised = new AtomicBoolean();
     private final Supplier<DiscoveryNodes> discoveryNodes;
     private final LongAdder phaseResultBytesRead = new LongAdder();
     private final LongAdder phaseRequestBytesWritten = new LongAdder();
@@ -143,6 +146,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         ClusterState clusterState,
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
+        CircuitBreaker circuitBreaker,
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
         SearchResponseMetrics searchResponseMetrics,
@@ -178,6 +182,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         this.discoveryNodes = clusterState::nodes;
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
+        this.circuitBreaker = circuitBreaker;
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         addReleasable(resultConsumer);
@@ -578,6 +583,13 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     }
 
     /**
+     * The {@link CircuitBreaker#REQUEST} breaker to account coordinating-node memory against.
+     */
+    CircuitBreaker circuitBreaker() {
+        return circuitBreaker;
+    }
+
+    /**
      * Adds the wire-format byte count of a shard result to the running total for the current phase.
      * Called once per shard result, from the transport response handler's read path.
      */
@@ -817,6 +829,27 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
      */
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
         raisePhaseFailure(new SearchPhaseExecutionException(phase, msg, cause, buildShardFailures()));
+    }
+
+    /**
+     * Fails the whole search because this node could not hold what a shard sent back. A shard failure would instead
+     * answer with hits missing at ranks the caller cannot see.
+     * <p>
+     * Only the first caller raises: shards in flight when one trips are likely to trip too, and
+     * {@link #raisePhaseFailure} is not idempotent.
+     */
+    void failOnCoordinatorTrip(String phase, Exception cause) {
+        if (coordinatorTripRaised.compareAndSet(false, true)) {
+            onPhaseFailure(phase, "", cause);
+        }
+    }
+
+    /**
+     * Whether a coordinator trip has already failed this search, in which case a phase must not advance: the
+     * results it would work on have been released.
+     */
+    boolean failedOnCoordinatorTrip() {
+        return coordinatorTripRaised.get();
     }
 
     /**

@@ -11,6 +11,7 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 $if(BytesRef)$
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 $endif$
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -65,6 +66,16 @@ $endif$
     }
 
 $if(BytesRef)$
+    @Override
+    public BytesRefBlockBuilder appendBytesReference(BytesReference value) {
+        ensureCapacity();
+        values.append(value);
+        hasNonNullValue = true;
+        valueCount++;
+        updatePosition();
+        return this;
+    }
+
     @Override
     public BytesRefBlockBuilder append(PagedBytesCursor value) {
         ensureCapacity();

@@ -1,0 +1,4 @@
+area: ES|QL
+pr: 161211
+summary: Bound how long facts derived from an external file are reused
+type: bug

@@ -48,6 +48,17 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
             .nestedPath(ArrayUtils.prepend("load_all", variants));
     }
 
+    protected void runInNullifyLoadAndLoadAllModes(String query, String... variants) {
+        runInNullifyAndLoadModes(query, variants);
+        loadAll(query, variants).run();
+    }
+
+    /** Runs the same query and views in the nullify, load and load_all modes. */
+    protected void runInNullifyLoadAndLoadAllModes(String query, Map<String, String> views, String... variants) {
+        runInNullifyAndLoadModes(query, views, variants);
+        loadAll(query, variants).views(views).run();
+    }
+
     /** Runs the same query in the nullify and load modes. */
     protected void runInNullifyAndLoadModes(String query, String... variants) {
         nullify(query, variants).run();
@@ -68,9 +79,7 @@ abstract class AnalyzerUnmappedGoldenTestCase extends GoldenTestCase {
     @Override
     protected List<String> filteredWarnings() {
         var filtered = new ArrayList<>(super.filteredWarnings());
-        filtered.add(
-            "has no implicit conversion from KEYWORD, so it will not be loaded from _source; values will be null in those indices"
-        );
+        filtered.add("no implicit conversion from KEYWORD; ");
         return filtered;
     }
 }

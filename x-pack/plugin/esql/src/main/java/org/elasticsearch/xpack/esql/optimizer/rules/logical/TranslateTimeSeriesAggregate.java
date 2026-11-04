@@ -479,7 +479,13 @@ public final class TranslateTimeSeriesAggregate extends AnalyzerRules.Parameteri
             );
             packPositions[position] = true;
         } else {
-            secondPassGroupings.add(new Alias(group.source(), group.name(), valuesAgg.toAttribute(), group.id()));
+            // VALUES turns TEXT into KEYWORD. Keep the original type on the grouping so that the output type does not drift
+            // from what parent plans (e.g. a Project created by DROP/KEEP) resolved against before this translation.
+            Attribute values = valuesAgg.toAttribute();
+            if (values.dataType() != attribute.dataType() && values.dataType() == attribute.dataType().noText()) {
+                values = values.withDataType(attribute.dataType());
+            }
+            secondPassGroupings.add(new Alias(group.source(), group.name(), values, group.id()));
         }
     }
 

@@ -80,4 +80,9 @@ public class EnrichExecSerializationTests extends AbstractPhysicalPlanSerializat
     protected boolean alwaysEmptySource() {
         return true;
     }
+
+    public void testOutputIsCached() {
+        PhysicalPlan plan = createTestInstance();
+        assertSame(plan.output(), plan.output());
+    }
 }

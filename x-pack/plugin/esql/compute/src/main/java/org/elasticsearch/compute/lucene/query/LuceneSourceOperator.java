@@ -14,10 +14,10 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -46,6 +46,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.lucene.search.CostlyMultiTermQueries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -206,8 +207,11 @@ public class LuceneSourceOperator extends LuceneOperator {
          * <p>
          * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} unless it is a guaranteed full scan:
          * costly-to-build clauses (BKD point ranges, multi-term) keep {@code SHARD} because a single shard-level walk
-         * beats rebuilding scorers per segment when the limit fires early; {@link org.apache.lucene.search.MatchAllDocsQuery}
-         * and {@link org.apache.lucene.search.MatchNoDocsQuery} keep {@code SHARD}; cheap filters (cost below
+         * beats rebuilding scorers per segment when the limit fires early. Indexed spatial filters (geo and cartesian
+         * distance and geometry queries) keep {@code SHARD} for the same reason, but only on this branch: their scorers
+         * walk a BKD tree, and recording them in {@link #isCostlyToBuildScorer} would force a no-limit scan onto
+         * {@link PartitioningStrategy#SEGMENT}. {@link org.apache.lucene.search.MatchAllDocsQuery} and
+         * {@link org.apache.lucene.search.MatchNoDocsQuery} keep {@code SHARD}; cheap filters (cost below
          * {@code minCostForDoc}) keep {@code SHARD}. Only a scan-heavy filter with {@code cost ≥ minCostForDoc} (e.g. a
          * doc-values-only field with no BKD index) is promoted to {@link PartitioningStrategy#DOC}, because those scans
          * visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
@@ -219,7 +223,10 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         private static PartitioningStrategy limitedScanAutoStrategy(ShardContext ctx, Query query, long minCostForDoc) {
-            if (containsCostlyClause(query)) {
+            // Indexed spatial scorers walk the BKD tree inside scorerSupplier.get(). A DOC split repeats that walk
+            // per slice, which is slower when LIMIT matches early. Keep those queries on SHARD without marking them
+            // costly: the no-limit path still parallelizes a large circle with DOC.
+            if (containsCostlyClause(query) || containsIndexedSpatialQuery(query)) {
                 return SHARD;
             }
             Query unwrapped = unwrapQuery(query);
@@ -368,16 +375,68 @@ public class LuceneSourceOperator extends LuceneOperator {
             return found[0];
         }
 
-        // copied from UsageTrackingQueryCachingPolicy
         static boolean isCostlyToBuildScorer(Query query) {
-            if (query instanceof MultiTermQuery || query instanceof PointRangeQuery || query instanceof PointInSetQuery) {
-                return true;
-            }
-            final String clazzName = query.getClass().getSimpleName();
-            if (clazzName.equals("MultiTermQueryConstantScoreBlendedWrapper") || clazzName.equals("MultiTermQueryConstantScoreWrapper")) {
-                return true;
-            }
-            return false;
+            return CostlyMultiTermQueries.isCostlyMultiTermQuery(query)
+                || query instanceof PointRangeQuery
+                || query instanceof PointInSetQuery;
+        }
+
+        /**
+         * {@code true} when {@code query} contains an indexed spatial clause. Same walk as
+         * {@link #containsCostlyClause}, including {@link QueryVisitor#getSubVisitor}, so the check sees through
+         * {@link ConstantScoreQuery}, {@link org.apache.lucene.search.BooleanQuery}, and
+         * {@link org.apache.lucene.search.IndexOrDocValuesQuery} (which visits both the index query and the
+         * doc-values query).
+         */
+        static boolean containsIndexedSpatialQuery(Query query) {
+            boolean[] found = { false };
+            query.visit(new QueryVisitor() {
+                @Override
+                public void consumeTerms(Query q, Term... terms) {
+                    if (isIndexedSpatialQuery(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                    if (isIndexedSpatialQuery(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public void visitLeaf(Query q) {
+                    if (isIndexedSpatialQuery(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                    if (isIndexedSpatialQuery(parent)) {
+                        found[0] = true;
+                    }
+                    return this;
+                }
+            });
+            return found[0];
+        }
+
+        /**
+         * Indexed BKD spatial queries. The Lucene classes are package-private, so this matches
+         * {@link Class#getName()} (see {@code GeoDistanceQueryBuilderTestCase}). Doc-values siblings
+         * ({@code LatLonDocValuesQuery}, {@code LatLonDocValuesBoxQuery}) are excluded so an {@code index: false}
+         * field still follows the cost check, and {@code LatLonPointDistanceFeatureQuery} is a scoring feature
+         * query, not one of these filters.
+         */
+        static boolean isIndexedSpatialQuery(Query query) {
+            return switch (query.getClass().getName()) {
+                case "org.apache.lucene.document.LatLonPointDistanceQuery", "org.apache.lucene.document.LatLonPointQuery",
+                    "org.apache.lucene.document.LatLonShapeQuery", "org.apache.lucene.document.XYPointInGeometryQuery",
+                    "org.apache.lucene.document.XYShapeQuery" -> true;
+                default -> false;
+            };
         }
 
         static Query unwrapQuery(Query query) {
@@ -435,6 +494,14 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
+    /**
+     * Collects doc ids into {@link #docIds} until the limit is exhausted. The unchecked {@code docIds} writes are safe
+     * because {@link LuceneScorer#scoreNextRange} clamps every scored window to {@code maxPageSize - currentPagePos} docs
+     * and bulk scorers only deliver docs within the requested window.
+     *
+     * <p>The bulk methods do not delegate to {@link #collect(int)}; subclasses that override it to do per-document work
+     * must override {@link #collectRange} and {@link #collect(DocIdStream)} too, as {@link ScoringCollector} does.
+     */
     class LimitingCollector implements LeafCollector {
         @Override
         public void setScorer(Scorable scorer) {}
@@ -447,6 +514,44 @@ public class LuceneSourceOperator extends LuceneOperator {
             } else {
                 throw new CollectionTerminatedException();
             }
+        }
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            // Only the limit can cut the range short; the window is already clamped to the docIds capacity.
+            final int len = Math.min(max - min, remainingDocs);
+            final int pos = currentPagePos;
+            for (int i = 0; i < len; i++) {
+                docIds[pos + i] = min + i;
+            }
+            currentPagePos = pos + len;
+            remainingDocs -= len;
+            if (len < max - min) {
+                throw new CollectionTerminatedException();
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream) throws IOException {
+            if (currentPagePos == 0) {
+                // intoArray writes from index 0 and may leave a tail in the stream for the loop below.
+                int n = stream.intoArray(docIds);
+                if (n > remainingDocs) {
+                    currentPagePos = remainingDocs;
+                    remainingDocs = 0;
+                    throw new CollectionTerminatedException();
+                }
+                currentPagePos = n;
+                remainingDocs -= n;
+            }
+            stream.forEach(doc -> {
+                if (remainingDocs > 0) {
+                    --remainingDocs;
+                    docIds[currentPagePos++] = doc;
+                } else {
+                    throw new CollectionTerminatedException();
+                }
+            });
         }
 
         @Override
@@ -467,6 +572,22 @@ public class LuceneSourceOperator extends LuceneOperator {
         public void collect(int doc) throws IOException {
             super.collect(doc);
             scoreBuilder.appendDouble(scorable.score());
+        }
+
+        // The bulk methods must collect per document so that scoreBuilder stays in sync with docIds. Bulk scorers normally
+        // only use them when scores aren't needed, but restoring the per-document loop here keeps this collector correct if
+        // one ever does.
+
+        @Override
+        public void collectRange(int min, int max) throws IOException {
+            for (int doc = min; doc < max; doc++) {
+                collect(doc);
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream) throws IOException {
+            stream.forEach(this::collect);
         }
     }
 

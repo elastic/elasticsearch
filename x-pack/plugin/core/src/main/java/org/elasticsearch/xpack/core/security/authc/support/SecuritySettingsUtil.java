@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authc.support;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpHost;
 import org.elasticsearch.common.settings.Setting;
 
 import java.util.Collection;
@@ -106,7 +106,7 @@ public final class SecuritySettingsUtil {
         final String scheme = (String) settings.get(schemeSetting);
 
         try {
-            new HttpHost(hostValue, port, scheme);
+            new HttpHost(scheme, hostValue, port);
         } catch (Exception e) {
             throw new IllegalArgumentException(
                 "HTTP host for hostname ["

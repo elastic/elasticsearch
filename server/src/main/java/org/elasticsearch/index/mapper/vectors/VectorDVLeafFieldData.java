@@ -236,8 +236,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     @Override
     public FormattedDocValues getFormattedValues(DocValueFormat format) {
         return switch (elementType) {
-            case BYTE -> new ByteDocValues(dims, format == DocValueFormat.BINARY);
-            case BIT -> new ByteDocValues(dims / Byte.SIZE, format == DocValueFormat.BINARY);
+            case BYTE, BIT -> new ByteDocValues(elementType.vectorLength(dims), format == DocValueFormat.BINARY);
             case FLOAT -> new FloatDocValues(format == DocValueFormat.BINARY);
             case BFLOAT16 -> new BFloat16DocValues(format == DocValueFormat.BINARY);
         };

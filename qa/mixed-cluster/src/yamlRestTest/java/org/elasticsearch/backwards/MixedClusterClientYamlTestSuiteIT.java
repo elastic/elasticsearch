@@ -9,6 +9,7 @@
 
 package org.elasticsearch.backwards;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
@@ -27,7 +28,7 @@ public class MixedClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.CLUSTER;
 
-    public MixedClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
+    public MixedClusterClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

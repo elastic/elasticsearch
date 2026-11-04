@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -25,6 +26,9 @@ import java.util.List;
 
 /** {@code true} if any value of {@code field} is greater than {@code bound}. See {@link MvCompare}. */
 public class MvGreater extends MvCompare {
+    /** Pin consulted before this function is synthesized into a request filter; see {@link MvCompare}. */
+    public static final TransportVersion MV_COMPARE_TRANSPORT_VERSION = TransportVersion.fromName("esql_mv_compare");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "MvGreater",

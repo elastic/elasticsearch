@@ -144,7 +144,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         return false;
     }
 
-    private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");
+    private static final Set<String> RESPONSE_PARAMS = Set.of("level", "include_auto_calibration");
 
     @Override
     protected Set<String> responseParams() {

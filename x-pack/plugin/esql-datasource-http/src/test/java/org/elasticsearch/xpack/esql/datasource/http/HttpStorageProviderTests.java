@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -119,6 +120,21 @@ public class HttpStorageProviderTests extends ESTestCase {
             StoragePath prefix = StoragePath.of("https://example.com/data/");
             expectThrows(UnsupportedOperationException.class, () -> provider.listObjects(prefix, false));
             expectThrows(UnsupportedOperationException.class, () -> provider.listObjects(prefix, true));
+        } finally {
+            provider.close();
+        }
+    }
+
+    public void testObjectsCarryTheProviderIdentity() {
+        HttpConfiguration config = HttpConfiguration.builder().customHeaders(Map.of("Authorization", "Bearer alice")).build();
+        HttpStorageProvider provider = new HttpStorageProvider(config, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        try {
+            StoragePath path = StoragePath.of("https://example.com/data/file.parquet");
+            // Every overload shares the one identity the provider computed, and it matches what the
+            // config-only constructors derive, so provider-built and directly built objects share entries.
+            assertEquals(HttpConfigIdentity.of(config), provider.newObject(path).storageIdentity());
+            assertSame(provider.newObject(path).storageIdentity(), provider.newObject(path, 10).storageIdentity());
+            assertSame(provider.newObject(path).storageIdentity(), provider.newObject(path, 10, Instant.EPOCH).storageIdentity());
         } finally {
             provider.close();
         }

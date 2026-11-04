@@ -72,6 +72,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Ins
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
@@ -143,7 +145,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParsingContext context;
 
-    public record ParsingContext(QueryParams params, InferenceSettings inferenceSettings, String viewName) {}
+    /**
+     * @param pragmas the pragmas of the query, which override the cluster limits in {@code flags} for this query
+     * @param flags the cluster-wide ES|QL settings
+     */
+    public record ParsingContext(
+        QueryParams params,
+        InferenceSettings inferenceSettings,
+        String viewName,
+        QueryPragmas pragmas,
+        EsqlFlags flags
+    ) {
+
+        /** Maximum number of commands in a statement, counting the main query and all its subqueries together. */
+        public int maxCommandCount() {
+            return pragmas.maxCommandCount(flags.maxCommandCount());
+        }
+    }
 
     ExpressionBuilder(ParsingContext context) {
         this.context = context;
@@ -407,16 +425,15 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         // check special wildcard case
         if (patterns.size() == 1) {
             var idCtx = patterns.get(0);
-            boolean unresolvedStar = false;
-            if (idCtx.ID_PATTERN() != null && idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
-                unresolvedStar = true;
-            }
-            if (idCtx.parameter() != null || idCtx.doubleParameter() != null) {
+            // Checking the whole pattern's text, not just an ID_PATTERN token, because after ON (e.g. HIGHLIGHT ON *)
+            // the parser stays in EXPRESSION_MODE, where a bare `*` arrives as an identifier/ASTERISK token via
+            // expressionModeIdentifierPattern rather than ID_PATTERN. Quoted identifiers keep their quote characters
+            // in getText(), and parameters render as `?`/`??`-prefixed text, so neither can equal WILDCARD here.
+            boolean unresolvedStar = idCtx.getText().equals(WILDCARD);
+            if (unresolvedStar == false && (idCtx.parameter() != null || idCtx.doubleParameter() != null)) {
                 Expression exp = resolveParamInIdentifierPosition(idCtx, src, unqualifiedCtx.getText());
-                if (exp instanceof UnresolvedNamePattern up) {
-                    if (up.name() != null && up.name().equals(WILDCARD)) {
-                        unresolvedStar = true;
-                    }
+                if (exp instanceof UnresolvedNamePattern up && WILDCARD.equals(up.name())) {
+                    unresolvedStar = true;
                 }
             }
             if (unresolvedStar) {
@@ -442,6 +459,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             EsqlBaseParser.IdentifierPatternContext pattern = patterns.get(i);
             if (pattern.ID_PATTERN() != null) {
                 patternContext = pattern.ID_PATTERN().getText();
+            } else if (pattern.expressionModeIdentifierPattern() != null) {
+                patternContext = pattern.expressionModeIdentifierPattern().getText();
             } else if (pattern.parameter() != null || pattern.doubleParameter() != null) {
                 Expression exp = resolveParamInIdentifierPosition(pattern, src, unqualifiedCtx.getText());
                 if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
@@ -522,8 +541,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (hasPattern) {
             // add . as optional matching
             List<Automaton> list = new ArrayList<>(objects.size());
+            StringBuilder glob = new StringBuilder();
             for (var o : objects) {
-                list.add(o instanceof Automaton a ? a : Automata.makeString(o.toString()));
+                if (o instanceof Automaton a) {
+                    list.add(a);
+                    glob.append('*');
+                } else {
+                    String literal = o.toString();
+                    list.add(Automata.makeString(literal));
+                    appendGlobLiteral(glob, literal);
+                }
             }
             // use the fast run variant
             try {
@@ -533,7 +560,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
                     ),
                     patternString.toString(),
-                    nameString.toString()
+                    nameString.toString(),
+                    glob.toString()
                 );
             } catch (TooComplexToDeterminizeException e) {
                 throw new ParsingException("Pattern was too complex to determinize", e);
@@ -550,6 +578,20 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
         return result;
+    }
+
+    /**
+     * Appends {@code literal} to the glob, escaping {@code *} and {@code \\} so they match literally.
+     * Used by unmapped_fields LOAD_ALL functionality.
+     */
+    private static void appendGlobLiteral(StringBuilder glob, String literal) {
+        for (int i = 0; i < literal.length(); i++) {
+            char c = literal.charAt(i);
+            if (c == '*' || c == '\\') {
+                glob.append('\\');
+            }
+            glob.append(c);
+        }
     }
 
     static List<String> breakIntoFragments(String idPattern) {
@@ -1321,7 +1363,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (value != null && classification != VALUE) {
             if (classification == PATTERN) {
                 // let visitQualifiedNamePattern create a real UnresolvedNamePattern with Automaton
-                return new UnresolvedNamePattern(parameterSource, null, value.toString(), value.toString());
+                return new UnresolvedNamePattern(parameterSource, null, value.toString(), value.toString(), null);
             } else {
                 return new UnresolvedAttribute(parameterSource, value.toString());
             }

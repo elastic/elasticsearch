@@ -261,11 +261,6 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             );
             waitForClientCompletion(client, batchExchangeStatusFuture, TEST_TIMEOUT_SECONDS);
             logger.debug("[TEST] waitForClientCompletion() returned");
-            BidirectionalBatchExchangeClient.Profile profile = client.profile();
-            assertThat(profile.totalSetupNanos(), greaterThan(0L));
-            assertThat(profile.maxSetupNanos(), greaterThan(0L));
-            assertThat(profile.serverProfiles().size(), equalTo(createdWorkerNodeIds.size()));
-            assertTrue(profile.serverProfiles().stream().allMatch(serverProfile -> serverProfile.driverTookNanos() > 0L));
 
             // Verify results and release pages
             verifyResultsAndReleasePages(
@@ -694,7 +689,6 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
                     List.of(addOneOperator),
                     "test-cluster",
                     () -> {},
-                    true,
                     ActionListener.noop()
                 );
                 logger.debug("[TEST] Server created and started for node={}", node.getId());

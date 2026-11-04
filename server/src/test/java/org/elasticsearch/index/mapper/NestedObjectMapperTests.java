@@ -1623,7 +1623,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         MapperException e = expectThrows(
             MapperException.class,
-            () -> firstBuilder.mergeWith(secondBuilder, MapperMergeContext.root(false, false, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE))
+            () -> firstBuilder.mergeWith(secondBuilder, new TestRootMapperMergeContextBuilder(MergeReason.MAPPING_UPDATE).build())
         );
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
@@ -1633,12 +1633,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         NestedObjectMapper.Builder secondBuilder2 = new NestedObjectMapper.Builder("nested1", IndexVersion.current(), query -> {
             throw new UnsupportedOperationException();
         }, null).includeInParent(false).includeInRoot(true);
-        MapperMergeContext templateContext = MapperMergeContext.root(
-            false,
-            false,
-            MapperService.MergeReason.INDEX_TEMPLATE,
-            Long.MAX_VALUE
-        );
+        MapperMergeContext templateContext = new TestRootMapperMergeContextBuilder(MapperService.MergeReason.INDEX_TEMPLATE).build();
         NestedObjectMapper result = (NestedObjectMapper) firstBuilder2.mergeWith(secondBuilder2, templateContext)
             .build(templateContext.getMapperBuilderContext());
         assertFalse(result.isIncludeInParent());
@@ -1989,6 +1984,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             @Override
             public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
                 return incoming;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                throw new UnsupportedOperationException("this builder is only here to observe the context it is built under");
             }
         });
         NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);

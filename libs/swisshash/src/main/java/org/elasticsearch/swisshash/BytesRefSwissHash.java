@@ -986,10 +986,15 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
 
     @Override
     public PartitionedHashKeys splitPartition(CircuitBreaker breaker, PartitionSplitter partitionSplitter) {
+        assert ownsBytesRefs : "splitPartition is only valid when this hash owns its BytesRefArray; ids are non-consecutive when shared";
+        return splitPartition(breaker, bytesRefs, partitionSplitter);
+    }
+
+    public PartitionedHashKeys splitPartition(CircuitBreaker breaker, BytesRefArray bytesRefs, PartitionSplitter partitionSplitter) {
+        final int size = Math.toIntExact(bytesRefs.size());
         final int[] batchPartitionCounts = new int[NUM_PARTITIONS];
         final short[] shiftedIds = new short[PARTITION_WRITE_BATCH * NUM_PARTITIONS];
         int batchStart = 0;
-        assert ownsBytesRefs : "splitPartition is only valid when this hash owns its BytesRefArray; ids are non-consecutive when shared";
         final long totalKeyBytes = bytesRefs.totalBytes();
         final BytesRefPartitionedHashKeys partitionedKeys = totalKeyBytes <= pagedPartitionBytesThreshold
             ? new FlatBytesRefPartitionedHashKeys(breaker, size, totalKeyBytes, bytesRefs.fixedLength())
@@ -1026,6 +1031,13 @@ public final class BytesRefSwissHash extends SwissHash implements Accountable, B
             }
         }
         return partitionedKeys;
+    }
+
+    boolean mergeKeys(BytesRefArray keys, int len, int[] ids) {
+        Objects.checkFromIndexSize(0, len, Math.toIntExact(keys.size()));
+        Objects.checkFromIndexSize(0, len, ids.length);
+        ensureCapacity(Math.addExact(size, len));
+        return smallCore != null ? smallCore.mergeKeys(keys, len, ids) : bigCore.mergeKeys(keys, len, ids);
     }
 
     @Override

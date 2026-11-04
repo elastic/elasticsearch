@@ -14,12 +14,16 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.junit.ClassRule;
 import org.junit.rules.TestRule;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
 
-    // A pre-existing buffer file is sealed on shutdown (or recovered on startup), so it is drainable right after restart.
+    // The buffer file is sealed before the node stops, so it is drainable right after restart.
     private static final int BUFFER_DRAIN_TIMEOUT = 3;
 
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
@@ -50,9 +54,11 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
     }
 
     public void testPreExistingBufferFilesDrainAfterRestart() throws Exception {
+        Path bufferDir = cluster.getNodeDataPath(0).resolve("telemetry-buffer");
         recordingApmServer.setResponseCode(503);
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
-        Thread.sleep(1000);
+
+        assertBusy(() -> assertTrue("expected a completed buffer file before restart", hasWrittenBufferFile(bufferDir)));
 
         cluster.stop(false);
         closeClients();
@@ -76,5 +82,12 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
             BUFFER_DRAIN_TIMEOUT,
             TimeUnit.SECONDS
         );
+    }
+
+    // Files still being written carry a ".tmp" suffix and are renamed once the write is complete.
+    private static boolean hasWrittenBufferFile(Path bufferDir) throws IOException {
+        try (Stream<Path> files = Files.list(bufferDir)) {
+            return files.anyMatch(f -> f.getFileName().toString().endsWith(".tmp") == false);
+        }
     }
 }

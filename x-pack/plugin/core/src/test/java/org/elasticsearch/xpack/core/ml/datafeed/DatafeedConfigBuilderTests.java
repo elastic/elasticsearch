@@ -105,7 +105,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
             builder.setMaxEmptySearches(randomIntBetween(10, 100));
         }
         if (randomBoolean()) {
-            builder.setMaxConsecutiveExtractionFailures(randomBoolean() ? -1 : randomIntBetween(1, 100));
+            builder.setMaxConsecutiveExtractionFailures(randomIntBetween(1, 100));
         }
         builder.setIndicesOptions(
             IndicesOptions.fromParameters(

@@ -846,6 +846,18 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"file": {"raw": "o2"}}""");
 
+        var capsName = EsqlCapabilities.Cap.OBJECTS_ARE_NOT_FIELDS.name().toLowerCase(Locale.ROOT);
+        if (clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false)) {
+            // An object is not a leaf, so the column is the keyword
+            Map<String, Object> result = runEsql("FROM test* | SORT file, file.raw | LIMIT 3");
+            assertResultMap(
+                result,
+                List.of(columnInfo("file", "keyword"), columnInfo("file.raw", "keyword")),
+                List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2"))
+            );
+            return;
+        }
+
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT file, file.raw | LIMIT 3"));
         String err = EntityUtils.toString(e.getResponse().getEntity());
         assertThat(
@@ -1352,7 +1364,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             {"Responses.process": 222,"process.parent.command_line":"run2.bat"}""");
 
         Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
-        // If we're loading from _source we load the nested field.
+        // Nested pid is hidden from field caps; extraction must be null even for STORED/_source.
         assertResultMap(
             result,
             List.of(
@@ -1551,8 +1563,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     protected Matcher<Integer> pidMatcher() {
-        // TODO these should all always return null because the parent is nested
-        return preference == MappedFieldType.FieldExtractPreference.STORED ? equalTo(111) : nullValue(Integer.class);
+        // Nested even under STORED/_source. Mixed-cluster still allows 111 from older nodes.
+        return nullValue(Integer.class);
     }
 
     private void assumeTsIndexOriginalTypesFixed() throws IOException {

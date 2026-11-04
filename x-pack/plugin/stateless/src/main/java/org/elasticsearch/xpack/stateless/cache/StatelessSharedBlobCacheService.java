@@ -371,13 +371,23 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                     lastRegion++;
                 }
                 nextRegion = lastRegion + 1;
+                final long groupRangeStart = Math.max(getRegionStart(firstRegion), byteRange.start());
+                final long groupRangeEnd = Math.min(getRegionEnd(lastRegion), byteRange.end());
+                logger.info(
+                    "fetching group of [{}] region(s) [{}-{}] of [{}] covering bytes [{}-{}] ([{}] bytes)",
+                    lastRegion - firstRegion + 1,
+                    firstRegion,
+                    lastRegion,
+                    cacheKey.fileName(),
+                    groupRangeStart,
+                    groupRangeEnd,
+                    groupRangeEnd - groupRangeStart
+                );
                 if (firstRegion == lastRegion) {
                     // fallback to an old approach
                     regionFetcher.fetch(firstRegion, cacheBlobReader, listeners.acquire());
                     continue;
                 }
-                final long groupRangeStart = Math.max(getRegionStart(firstRegion), byteRange.start());
-                final long groupRangeEnd = Math.min(getRegionEnd(lastRegion), byteRange.end());
                 final long groupEndPosition = cacheBlobReader.getRange(
                     groupRangeStart,
                     Math.toIntExact(groupRangeEnd - groupRangeStart),

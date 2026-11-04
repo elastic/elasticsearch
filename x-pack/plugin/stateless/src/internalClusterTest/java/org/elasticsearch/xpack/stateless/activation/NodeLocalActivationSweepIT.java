@@ -578,7 +578,8 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
                         String tag = String.format(Locale.ROOT, "concurrent mode=%s rep=%d L=%d qps=%d+%d", mode, rep, latency, qps, qps);
                         log(
                             "%s first full cold hit %d ms after activation | cold MATCH full after activation: %s | cold KNN full after "
-                                + "activation: %s | cold partial/failed after activation: %d/%d | hot before: %s | hot after activation: %s",
+                                + "activation: %s | cold partial/failed after activation: %d/%d "
+                                + "| hot before: %s | hot after activation: %s",
                             tag,
                             ms(firstFull - t0),
                             pct(
@@ -616,7 +617,8 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
                             }
                         }
                         log(
-                            "%s search pool (size %d) after activation: max active=%d mean active=%.1f max queue=%d saturated=%.0f%% of %d samples",
+                            "%s search pool (size %d) after activation: max active=%d mean active=%.1f max queue=%d "
+                                + "saturated=%.0f%% of %d samples",
                             tag,
                             poolSize,
                             maxActive,
@@ -1474,7 +1476,8 @@ public class NodeLocalActivationSweepIT extends AbstractStatelessPluginIntegTest
             "NLCSV|"
                 + String.format(
                     Locale.ROOT,
-                    "%s,%d,%d,%d,%d,%d,%s,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%d,%d,%d,%d,%d,%d,%s,%s,%s,%d,%s,%s,%s",
+                    "%s,%d,%d,%d,%d,%d,%s,%d,%d,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,"
+                        + "%d,%d,%d,%d,%d,%d,%s,%s,%s,%d,%s,%s,%s",
                     p.name(),
                     p.docs(),
                     inv.bytes,

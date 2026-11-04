@@ -547,7 +547,8 @@ public class ParkIndexIT extends AbstractStatelessPluginIntegTestCase {
                 ActivationLatencyIT.recording = false;
                 internalCluster().clusterService(f.searchNode).removeListener(seen);
                 log(
-                    "L=%d rep=%d search-activation e2e=%d ms (settings ack %d ms) node-local=%d ms | search node: GET=%d pointerGET=%d LIST=%d"
+                    "L=%d rep=%d search-activation e2e=%d ms (settings ack %d ms) node-local=%d ms "
+                        + "| search node: GET=%d pointerGET=%d LIST=%d"
                         + " bytes=%d | index nodes requests=%d | primary unassigned=%s",
                     latency,
                     rep,

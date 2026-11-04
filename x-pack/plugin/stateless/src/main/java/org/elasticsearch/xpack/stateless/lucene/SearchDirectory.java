@@ -605,7 +605,10 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
         return onMissingBlob == null ? reader : new MissingBlobDetectingCacheBlobReader(reader, onMissingBlob);
     }
 
-    /** Reports a {@link NoSuchFileException} / {@link FileNotFoundException} of the object store read to a listener, then fails as before. */
+    /**
+     * Reports a {@link NoSuchFileException} / {@link FileNotFoundException} of the object store read to a listener, then fails as
+     * before.
+     */
     private record MissingBlobDetectingCacheBlobReader(CacheBlobReader delegate, Consumer<Exception> onMissingBlob)
         implements
             CacheBlobReader {

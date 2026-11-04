@@ -141,7 +141,8 @@ public final class FastSearchActivationSettings {
     );
 
     /**
-     * Phase 4 (prototype): the largest amount of open-time bytes (see {@link org.elasticsearch.xpack.stateless.commits.CommitPointerOpenBytes})
+     * Phase 4 (prototype): the largest amount of open-time bytes
+     * (see {@link org.elasticsearch.xpack.stateless.commits.CommitPointerOpenBytes})
      * that an indexing shard puts in its {@link org.elasticsearch.xpack.stateless.commits.CommitPointer}, {@code 0} (default) for none.
      * Above the bound the pointer carries no open-time bytes and activation warms headers from the object store as before. Read on the
      * index nodes, at each pointer write; the bytes are read from the object store on the index node (only those of new blobs).
@@ -168,7 +169,8 @@ public final class FastSearchActivationSettings {
     );
 
     /**
-     * Fill size of the activation-time header/footer/metadata warming (independent of the query fill {@link #FAST_ACTIVATION_RANGE_SIZE_SETTING}),
+     * Fill size of the activation-time header/footer/metadata warming (independent of the query fill
+     * {@link #FAST_ACTIVATION_RANGE_SIZE_SETTING}),
      * so that reading 1 KiB headers does not pull a whole query fill. Whole small blobs are still fetched with one GET each.
      */
     public static final Setting<ByteSizeValue> FAST_ACTIVATION_HEADER_RANGE_SIZE_SETTING = new Setting<>(

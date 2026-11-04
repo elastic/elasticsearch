@@ -1214,7 +1214,8 @@ public class ActivationLatencyIT extends AbstractStatelessPluginIntegTestCase {
             log(row("TOTAL update -> STARTED", t0, started, t0, shardReqs));
             log(row("after first hit (warming tail)", firstHit, Long.MAX_VALUE, t0, shardReqs));
             log(
-                "%s shard %d recoveryState: timer start=%.1f done=%.1f indexStage=%.1f translogStage(open)=%.1f+%d ms; reg handler %.1f-%.1f",
+                "%s shard %d recoveryState: timer start=%.1f done=%.1f indexStage=%.1f translogStage(open)=%.1f+%d ms; "
+                    + "reg handler %.1f-%.1f",
                 tag,
                 sh,
                 rel(recStart, t0),

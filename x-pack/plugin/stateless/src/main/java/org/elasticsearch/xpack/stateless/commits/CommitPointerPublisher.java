@@ -225,7 +225,8 @@ public class CommitPointerPublisher implements IndexEventListener {
             new HashMap<>();
 
         /**
-         * Adds the open-time bytes of the commit to the pointer if {@link FastSearchActivationSettings#COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING}
+         * Adds the open-time bytes of the commit to the pointer if
+         * {@link FastSearchActivationSettings#COMMIT_POINTER_OPEN_BYTES_MAX_SIZE_SETTING}
          * is set and they fit, otherwise returns the pointer unchanged (today's content). The bytes are read from the object store (the
          * named BCCs are uploaded), one GET per group of close ranges, only for ranges not already read for the previous pointer.
          */

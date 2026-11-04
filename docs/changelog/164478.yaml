@@ -1,7 +1,0 @@
-area: Columnar
-issues:
- - 164408
- - 164392
-pr: 164478
-summary: "Fix(mapper): keep index options for valueless columnar batches"
-type: bug

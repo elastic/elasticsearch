@@ -134,6 +134,25 @@ public class CiPartPlannerTests {
     }
 
     @Test
+    public void testRunFirstListsLongTestTasksLongestFirst() {
+        CiPartPlanner.Config config = new CiPartPlanner.Config(
+            2,
+            4,
+            Map.of(":c:test", new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.CLASS)),
+            List.of(),
+            300
+        );
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":a:test", 400.0, ":b:test", 900.0, ":c:test", 1200.0, ":d:test", 100.0),
+            Map.of(),
+            Map.of(":a", 2000.0)
+        );
+        // :c:test's two shards land in different parts, 600 s each; :d:test is short and project work never runs first
+        assertThat(CiPartPlanner.plan(config, durations).runFirst(), equalTo(List.of(":b:test", ":c:test", ":a:test")));
+        assertThat(CiPartPlanner.plan(new CiPartPlanner.Config(2, 4, Map.of(), List.of()), durations).runFirst(), equalTo(List.of()));
+    }
+
+    @Test
     public void testDeterministic() {
         Map<String, Double> tests = new HashMap<>();
         for (int i = 0; i < 50; i++) {

@@ -94,6 +94,50 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         (names(1) + names(2) + names(3)) == [":lib:test", ":lib:internalClusterTest", ":lib:yamlRestTest", ":lib:precommitThing"] as Set
     }
 
+    def "the other tasks of a requested part should run after its run-first tasks, longest first"() {
+        given:
+        new File(workspace, CiPartsPlugin.ASSIGNMENT_FILE).text = new CiPartAssignment(
+            3,
+            [(":lib:yamlRestTest"): new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.YAML_FILE)],
+            [(":lib:test"): 1, (":lib:internalClusterTest"): 2, (":lib:yamlRestTest#0"): 2, (":lib:yamlRestTest#1"): 3],
+            [(":lib"): 3],
+            // :gone:test no longer exists and is skipped
+            [":lib:yamlRestTest", ":gone:test", ":lib:internalClusterTest"]
+        ).toJson()
+        project.gradle.startParameter.taskNames = ["checkPart2", "checkPart3"]
+        // check can reach tasks of other projects (or, for the root project, of included builds that already ran)
+        def other = buildProject("other", rootProject)
+        def otherThing = other.tasks.register("otherThing") { doLast {} }
+        project.tasks.named("check") { dependsOn otherThing }
+        applyPluginUnderTest(project)
+        // building the graph resolves the part tasks' dependencies, which adds the ordering
+        names(2)
+        names(3)
+        names(1)
+
+        expect:
+        // only the ordering this plugin adds; the java plugin has test tasks run after jar
+        added("yamlRestTest") == [] as Set
+        added("internalClusterTest") == [":lib:yamlRestTest"] as Set
+        added("precommitThing") == [":lib:yamlRestTest"] as Set
+        // part 1 was not requested, so its tasks are not reordered
+        added("test") == [] as Set
+        // the other project's task is left to that project
+        names(3).contains(":other:otherThing")
+        otherThing.get().shouldRunAfter.getDependencies(otherThing.get()).isEmpty()
+    }
+
+    def "parts are not reordered unless part tasks are requested"() {
+        given:
+        new File(workspace, CiPartsPlugin.ASSIGNMENT_FILE).text = new CiPartAssignment(3, [:], [(":lib:test"): 1], [(":lib"): 1], [":lib:test"]).toJson()
+        project.gradle.startParameter.taskNames = ["check"]
+        applyPluginUnderTest(project)
+        names(1)
+
+        expect:
+        added("precommitThing") == [] as Set
+    }
+
     def "requested parts are read from checkPart task requests"() {
         expect:
         CiPartsPlugin.requestedParts(CiPartsPlugin.CHECK, ["checkPart3", ":server:checkPart12", "check", "checkPart", "checkPart2x", "bcUpgradeTestPart1"]) == [3, 12] as Set
@@ -189,6 +233,12 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         names.every { n -> kept.findIndexOf { it.contains("${n}.class".toString()) } == kept.findIndexOf { it.contains("${n}\$Inner.class".toString()) } }
         kept.every { it.contains("org/foo/resource.txt") }
         kept.every { it.size() > 50 }
+    }
+
+    /** The tasks {@code taskName} should run after, other than its project's jar task. */
+    private Set<String> added(String taskName) {
+        def task = project.tasks.getByName(taskName)
+        return (task.shouldRunAfter.getDependencies(task).collect { it.path } as Set) - ":lib:jar"
     }
 
     private Set<String> bcNames(int part) {

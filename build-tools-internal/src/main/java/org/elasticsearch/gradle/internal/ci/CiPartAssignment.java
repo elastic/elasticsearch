@@ -37,14 +37,17 @@ import java.util.TreeSet;
  * @param splits   test tasks that run as several shards, keyed by task path
  * @param tests    test task path (or {@code <task path>#<shard>} for a split task) to part
  * @param projects project path to the part that runs its non-test {@code check} work
+ * @param runFirst test task paths, longest first, that a part should start before its other work, because
+ *                 Gradle otherwise starts tasks in path order and a long test that starts late ends its part late
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonPropertyOrder({ "comment", "parts", "splits", "tests", "projects" })
+@JsonPropertyOrder({ "comment", "parts", "splits", "tests", "projects", "runFirst" })
 public record CiPartAssignment(
     @JsonProperty("parts") int parts,
     @JsonProperty("splits") Map<String, Split> splits,
     @JsonProperty("tests") Map<String, Integer> tests,
-    @JsonProperty("projects") Map<String, Integer> projects
+    @JsonProperty("projects") Map<String, Integer> projects,
+    @JsonProperty("runFirst") List<String> runFirst
 ) {
 
     static final String COMMENT =
@@ -88,6 +91,7 @@ public record CiPartAssignment(
         splits = new TreeMap<>(splits == null ? Map.of() : splits);
         tests = new TreeMap<>(tests == null ? Map.of() : tests);
         projects = new TreeMap<>(projects == null ? Map.of() : projects);
+        runFirst = runFirst == null ? List.of() : List.copyOf(runFirst);
         for (Map<String, Integer> m : List.of(tests, projects)) {
             for (Map.Entry<String, Integer> e : m.entrySet()) {
                 if (e.getValue() == null || e.getValue() < 1 || e.getValue() > parts) {
@@ -95,6 +99,10 @@ public record CiPartAssignment(
                 }
             }
         }
+    }
+
+    public CiPartAssignment(int parts, Map<String, Split> splits, Map<String, Integer> tests, Map<String, Integer> projects) {
+        this(parts, splits, tests, projects, List.of());
     }
 
     @JsonProperty("comment")

@@ -9,12 +9,20 @@
 
 package org.elasticsearch.gradle.internal.ci;
 
+import org.gradle.api.Task;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.TaskProvider;
+
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Parses the checked-in CI part assignment once per build instead of once per project.
+ * Parses the checked-in CI part assignment once per build instead of once per project, and lets a part's tasks in
+ * one project find the part's long-running test tasks in other projects while the task graph is built.
  */
 public abstract class CiPartsBuildService implements BuildService<CiPartsBuildService.Params> {
 
@@ -27,6 +35,7 @@ public abstract class CiPartsBuildService implements BuildService<CiPartsBuildSe
     }
 
     private CiPartAssignment assignment;
+    private final Map<String, TaskContainer> tasksByProject = new ConcurrentHashMap<>();
 
     public synchronized CiPartAssignment assignment() {
         if (assignment == null) {
@@ -36,5 +45,24 @@ public abstract class CiPartsBuildService implements BuildService<CiPartsBuildSe
             assignment = CiPartAssignment.parse(getParameters().getAssignmentJson().get());
         }
         return assignment;
+    }
+
+    /** Makes the tasks of {@code projectPath} findable by {@link #findTask}. */
+    public void registerTasks(String projectPath, TaskContainer tasks) {
+        tasksByProject.put(projectPath, tasks);
+    }
+
+    /**
+     * The task at {@code taskPath}, if its project registered its tasks and has a task of that name. Only call this
+     * once every project is configured, i.e. while the task graph is built.
+     */
+    public Optional<TaskProvider<Task>> findTask(String taskPath) {
+        int colon = taskPath.lastIndexOf(':');
+        TaskContainer tasks = tasksByProject.get(colon <= 0 ? ":" : taskPath.substring(0, colon));
+        String name = taskPath.substring(colon + 1);
+        if (tasks == null || tasks.getNames().contains(name) == false) {
+            return Optional.empty();
+        }
+        return Optional.of(tasks.named(name));
     }
 }

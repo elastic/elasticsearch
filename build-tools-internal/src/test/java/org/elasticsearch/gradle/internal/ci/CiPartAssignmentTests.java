@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.ci;
 
 import org.junit.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -62,6 +63,13 @@ public class CiPartAssignmentTests {
             }
             assertThat(task, total, equalTo(shards));
         }
+    }
+
+    @Test
+    public void testRunFirstRoundTripsAndDefaultsToEmpty() {
+        CiPartAssignment withRunFirst = new CiPartAssignment(2, Map.of(), Map.of(":a:test", 1), Map.of(), List.of(":a:test"));
+        assertThat(CiPartAssignment.parse(withRunFirst.toJson()).runFirst(), equalTo(List.of(":a:test")));
+        assertThat(CiPartAssignment.parse("{\"parts\": 2}").runFirst(), equalTo(List.of()));
     }
 
     @Test

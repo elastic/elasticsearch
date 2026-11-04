@@ -934,6 +934,7 @@ public final class DateFieldMapper extends FieldMapper {
                 }
                 long minValue = Long.MAX_VALUE;
                 long maxValue = Long.MIN_VALUE;
+                boolean foundSkipper = false;
                 List<LeafReaderContext> leaves = reader.leaves();
                 if (leaves.isEmpty()) {
                     // no data, so nothing matches
@@ -942,9 +943,15 @@ public final class DateFieldMapper extends FieldMapper {
                 for (LeafReaderContext ctx : leaves) {
                     DocValuesSkipper skipper = ctx.reader().getDocValuesSkipper(name());
                     if (skipper != null) {
+                        foundSkipper = true;
                         minValue = Long.min(minValue, skipper.minValue());
                         maxValue = Long.max(maxValue, skipper.maxValue());
                     }
+                }
+                if (foundSkipper == false) {
+                    // No segment has a skipper for the field, so there are no bounds to compare with. The empty bounds above would make
+                    // every range look like it contains them, so the check would claim that all documents are within the range.
+                    return Relation.INTERSECTS;
                 }
                 return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context, name());
             }

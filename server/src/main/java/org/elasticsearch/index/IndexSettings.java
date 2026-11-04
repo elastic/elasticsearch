@@ -1211,6 +1211,22 @@ public final class IndexSettings {
     );
 
     /**
+     * Whether the {@code _id} field has an inverted index. When {@code false} the {@code _id} only has doc values, and queries on it scan
+     * the doc values. That fits an index that never writes a document, for example one whose segments reference external files, and it
+     * breaks every engine that looks a document up by its uid in the postings, so it is only supported together with the columnar
+     * {@code _id} mode.
+     *
+     * <p>The default is a function of the index settings so that it can later be derived from the index, for example {@code false} for
+     * an index that is backed by Parquet files, and not only be set explicitly.
+     */
+    public static final Setting<Boolean> ID_FIELD_INDEXED = Setting.boolSetting(
+        "index.mapping.id_field.indexed",
+        settings -> Boolean.TRUE.toString(),
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
      * Controls whether the ES95 TSDB doc values codec is used for a given time series index, allowing opt-out.
      * Defaults to {@code true} for time series indices created on or after
      * {@link IndexVersions#TIME_SERIES_ES95_CODEC_DEFAULT}, and {@code false} otherwise.
@@ -1610,6 +1626,7 @@ public final class IndexSettings {
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
     private final boolean useColumnarIdByDefault;
+    private final boolean idFieldIndexed;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1839,6 +1856,7 @@ public final class IndexSettings {
             : version.onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT) && version.before(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB);
         indexDisabledByDefault = scopedSettings.get(INDEX_DISABLED_BY_DEFAULT);
         useColumnarIdByDefault = scopedSettings.get(USE_COLUMNAR_ID_BY_DEFAULT);
+        idFieldIndexed = scopedSettings.get(ID_FIELD_INDEXED);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
         useTimeSeriesDocValuesFormat = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING);
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
@@ -2743,6 +2761,11 @@ public final class IndexSettings {
 
     public boolean isUseColumnarIdByDefault() {
         return useColumnarIdByDefault;
+    }
+
+    /** Whether the {@code _id} field has an inverted index, see {@link #ID_FIELD_INDEXED}. */
+    public boolean isIdFieldIndexed() {
+        return idFieldIndexed;
     }
 
     /**

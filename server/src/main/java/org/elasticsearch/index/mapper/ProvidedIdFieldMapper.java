@@ -69,6 +69,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     static final ProvidedIdFieldMapper DOCUMENT_ID_DEFAULT_COLUMNAR = new ProvidedIdFieldMapper(Mode.DOCUMENT, true);
     static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR, false);
     static final ProvidedIdFieldMapper COLUMNAR_ID_DEFAULT_COLUMNAR = new ProvidedIdFieldMapper(Mode.COLUMNAR, true);
+    static final ProvidedIdFieldMapper COLUMNAR_ID_NOT_INDEXED = new ProvidedIdFieldMapper(Mode.COLUMNAR, false, false);
+    static final ProvidedIdFieldMapper COLUMNAR_ID_NOT_INDEXED_DEFAULT_COLUMNAR = new ProvidedIdFieldMapper(Mode.COLUMNAR, true, false);
 
     /**
      * Builder for {@link ProvidedIdFieldMapper} that supports the {@code mode} mapping parameter.
@@ -77,8 +79,13 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
         private final Parameter<Mode> mode;
         private final boolean columnarIdByDefault;
+        private final boolean indexed;
 
-        Builder(boolean columnarIdByDefault) {
+        /**
+         * @param indexed whether the {@code _id} has an inverted index, which the index setting
+         *                {@link IndexSettings#ID_FIELD_INDEXED} decides and not the mapping
+         */
+        Builder(boolean columnarIdByDefault, boolean indexed) {
             super(NAME);
             mode = Parameter.enumParam(
                 "mode",
@@ -88,6 +95,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
                 Mode.class
             );
             this.columnarIdByDefault = columnarIdByDefault;
+            this.indexed = indexed;
         }
 
         @Override
@@ -98,8 +106,18 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         @Override
         public MetadataFieldMapper build() {
             var mode = this.mode.getValue();
+            // An _id that is not indexed has doc values and no postings, so it can only be found by scanning. It is only supported
+            // together with the columnar mode, which keeps the _id in doc values.
+            if (indexed == false && mode != Mode.COLUMNAR) {
+                throw new IllegalArgumentException(
+                    "[" + IndexSettings.ID_FIELD_INDEXED.getKey() + "] can only be false when the mode of [" + NAME + "] is [columnar]"
+                );
+            }
             switch (mode) {
                 case COLUMNAR:
+                    if (indexed == false) {
+                        return columnarIdByDefault ? COLUMNAR_ID_NOT_INDEXED_DEFAULT_COLUMNAR : COLUMNAR_ID_NOT_INDEXED;
+                    }
                     return columnarIdByDefault ? COLUMNAR_ID_DEFAULT_COLUMNAR : COLUMNAR_ID;
                 case DOCUMENT:
                     return columnarIdByDefault ? DOCUMENT_ID_DEFAULT_COLUMNAR : DOCUMENT_ID;
@@ -185,8 +203,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     static final class ColumnarIdFieldType extends AbstractIdFieldType {
 
-        ColumnarIdFieldType() {
-            super(true);
+        ColumnarIdFieldType(boolean indexed) {
+            super(indexed ? IndexType.terms(true, true) : IndexType.docValuesOnly());
         }
 
         @Override
@@ -313,9 +331,15 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     private final Mode mode;
     private final boolean columnarIdByDefault;
+    private final boolean indexed;
 
     public ProvidedIdFieldMapper(Mode mode, boolean columnarIdByDefault) {
-        super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType() : new IdFieldType());
+        this(mode, columnarIdByDefault, true);
+    }
+
+    private ProvidedIdFieldMapper(Mode mode, boolean columnarIdByDefault, boolean indexed) {
+        super(mode == Mode.COLUMNAR ? new ColumnarIdFieldType(indexed) : new IdFieldType());
+        this.indexed = indexed;
         this.mode = mode;
         this.columnarIdByDefault = columnarIdByDefault;
     }
@@ -327,7 +351,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     @Override
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
-        return true;
+        return indexed;
     }
 
     @Override
@@ -346,7 +370,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        Builder builder = new Builder(columnarIdByDefault);
+        Builder builder = new Builder(columnarIdByDefault, indexed);
         builder.init(this);
         return builder;
     }
@@ -358,7 +382,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
         context.id(context.sourceToParse().id());
         if (mode == Mode.COLUMNAR) {
-            context.doc().add(columnarIdField(context.id()));
+            context.doc().add(indexed ? columnarIdField(context.id()) : new BinaryDocValuesField(NAME, Uid.encodeId(context.id())));
         } else {
             context.doc().add(standardIdField(context.id()));
         }

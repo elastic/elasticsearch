@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
@@ -18,8 +20,10 @@ import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.ScanningBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.search.cost.TermsQueryCostEstimator;
 
 import java.util.Arrays;
@@ -38,6 +42,15 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(mappingParserContext -> {
         var indexSettings = mappingParserContext.getIndexSettings();
+        if (indexSettings.isIdFieldIndexed() == false && (indexSettings.getMode().isTsdb() || indexSettings.isSliceEnabled())) {
+            throw new MapperParsingException(
+                "["
+                    + IndexSettings.ID_FIELD_INDEXED.getKey()
+                    + "] can only be false for an index that provides its own _id, and not with index mode ["
+                    + indexSettings.getMode().getName()
+                    + "] or slices"
+            );
+        }
         if (indexSettings.getMode().isTsdb()) {
             return new ConstantBuilder(TsidExtractingIdFieldMapper.INSTANCE);
         } else if (indexSettings.isSliceEnabled()) {
@@ -46,7 +59,7 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
             );
         } else {
             boolean useColumnarIdByDefault = mappingParserContext.getIndexSettings().isUseColumnarIdByDefault();
-            return new ProvidedIdFieldMapper.Builder(useColumnarIdByDefault);
+            return new ProvidedIdFieldMapper.Builder(useColumnarIdByDefault, indexSettings.isIdFieldIndexed());
         }
     }) {
 
@@ -184,7 +197,15 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
         }
 
         public AbstractIdFieldType(boolean hasDocValues) {
-            super(NAME, IndexType.terms(true, hasDocValues), true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            this(IndexType.terms(true, hasDocValues));
+        }
+
+        /**
+         * @param indexType how the {@code _id} is stored. An {@link IndexType#docValuesOnly()} field has no postings, so queries on it
+         *                  scan the doc values instead of looking terms up.
+         */
+        protected AbstractIdFieldType(IndexType indexType) {
+            super(NAME, indexType, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         /**
@@ -208,7 +229,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
-            failIfNotIndexed();
             List<BytesRef> bytesRefs = values.stream().map(v -> {
                 Object idObject = v;
                 if (idObject instanceof BytesRef) {
@@ -216,6 +236,10 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
                 }
                 return Uid.encodeId(idObject.toString());
             }).toList();
+            if (indexType().hasTerms() == false && indexType().hasDocValues()) {
+                return scanningTermsQuery(bytesRefs);
+            }
+            failIfNotIndexed();
             TermInSetQuery query = new TermInSetQuery(name(), bytesRefs);
             if (context != null) {
                 context.addCircuitBreakerMemory(
@@ -225,6 +249,24 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
                 context.markQueryMemoryPreCharged(query);
             }
             return query;
+        }
+
+        /**
+         * The query for an {@code _id} that has doc values and no postings: one scan of the binary doc values for each id. Each scan
+         * can use the term-equal shortcut of a doc values producer that knows where an id lives, so it is cheap for a few ids.
+         */
+        private Query scanningTermsQuery(List<BytesRef> encodedIds) {
+            if (encodedIds.size() == 1) {
+                return new ScanningBinaryDocValuesTermQuery(name(), encodedIds.get(0), BinaryDocValuesFormat.SEPARATE_COUNT);
+            }
+            BooleanQuery.Builder disjunction = new BooleanQuery.Builder();
+            for (BytesRef encodedId : encodedIds) {
+                disjunction.add(
+                    new ScanningBinaryDocValuesTermQuery(name(), encodedId, BinaryDocValuesFormat.SEPARATE_COUNT),
+                    BooleanClause.Occur.SHOULD
+                );
+            }
+            return disjunction.build();
         }
 
         @Override

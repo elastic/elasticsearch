@@ -17,18 +17,6 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/145669
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_UNORDERED doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/145886
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/145887
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/145888
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  method: "testEvaluateBlockWithNulls {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive int>}"
-  issue: https://github.com/elastic/elasticsearch/issues/145889
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsIT
   method: testStopLookback_forceTrue_closeJobFalse
   issue: https://github.com/elastic/elasticsearch/issues/146955
@@ -579,26 +567,6 @@ tests:
   - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
   method: test {yaml=search/520_fetch_fields/fetch stored fields}
   issue: https://github.com/elastic/elasticsearch/issues/164385
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: "testFold {TestCase=field: <random mv SORTED_ASCENDING doubles>, percentile: <positive long>}"
-  issue: https://github.com/elastic/elasticsearch/issues/164552
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: "testFold {TestCase=field: <random mv UNORDERED doubles>, percentile: <positive long>}"
-  issue: https://github.com/elastic/elasticsearch/issues/164554
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: "testFold {TestCase=field: <random mv DEDUPLICATED_AND_SORTED_ASCENDING doubles>, percentile: <positive long>}"
-  issue: https://github.com/elastic/elasticsearch/issues/164556
-- class: org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvPercentileTests
-  tasks:
-  - :x-pack:plugin:esql:test
-  method: "testFold {TestCase=field: <random mv DEDUPLICATED_UNORDERED doubles>, percentile: <positive long>}"
-  issue: https://github.com/elastic/elasticsearch/issues/164558
 - class: org.elasticsearch.xpack.esql.action.EsqlStreamDisruptionIT
   tasks:
   - :x-pack:plugin:esql:internalClusterTest

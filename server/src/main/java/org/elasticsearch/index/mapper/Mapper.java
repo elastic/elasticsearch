@@ -144,6 +144,11 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         /**
          * Rewrites the builder into a normalized form - merges duplicate mapper definitions,
          * collapses object mappers with subobjects:false, propagates nested include directives, etc.
+         * <p>
+         * Normalizing is idempotent but cannot be undone: it resolves settings that were declared elsewhere, such as an
+         * {@code include_in_root} that an ancestor suppresses or a dimension inherited from a passthrough parent, so they can
+         * no longer be told apart from explicit ones. Merge into a builder before normalizing it, never after. Building and
+         * serializing a {@code MappingBuilder} both normalize it.
          */
         public void normalize(MapperBuilderContext context) {}
 

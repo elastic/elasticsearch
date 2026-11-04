@@ -657,6 +657,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public void normalize(MapperBuilderContext context) {
+            // super.normalize() sets the inherited dimension, so we need to check it here
+            // before we call the super method.
             if (dimension.get() == false && inheritDimensionParameterFromParentObject(context)) {
                 dimensionInherited = true;
             }

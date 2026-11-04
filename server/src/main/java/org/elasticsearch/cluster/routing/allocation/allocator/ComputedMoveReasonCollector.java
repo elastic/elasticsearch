@@ -47,6 +47,8 @@ final class ComputedMoveReasonCollector implements RoutingChangesObserver {
         final var key = new DesiredBalance.ShardCopy(startedShard.shardId(), startedShard.currentNodeId());
         switch (reason.type()) {
             case INHERITED -> {
+                // null when the previous computation moved the copy for a reason that is not recorded: rebalancing, an allocation
+                // command, or a later hop of a copy that had already moved in the simulation
                 final var previous = previousReasons.get(key);
                 if (previous != null) {
                     reasons.put(key, previous);

@@ -561,3 +561,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
   issue: https://github.com/elastic/elasticsearch/issues/164538
+- class: org.elasticsearch.test.cluster.local.RolledLogReaderTests
+  tasks:
+  - :test:test-clusters:test
+  method: testWaitsForLiveFileRecreatedAfterRename
+  issue: https://github.com/elastic/elasticsearch/issues/164549

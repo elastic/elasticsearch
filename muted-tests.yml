@@ -572,3 +572,7 @@ tests:
   - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
   method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_double_no_grouping}
   issue: https://github.com/elastic/elasticsearch/issues/164720
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesMaxOverTimeIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
+  issue: https://github.com/elastic/elasticsearch/issues/164722

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -31,12 +32,17 @@ import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodeAttrsAction extends AbstractCatAction {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
+        Sets.union(COMMON_QUERY_PARAMETERS, Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "local"))
+    );
 
     @Override
     public List<Route> routes() {
@@ -46,6 +52,11 @@ public class RestNodeAttrsAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_node_attrs_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
     @Override

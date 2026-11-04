@@ -36,7 +36,6 @@ public class SessionEvent implements Writeable, ToXContentObject {
     public static final ParseField SESSION_ID_FIELD = new ParseField("session_id");
     public static final ParseField ROUND_ID_FIELD = new ParseField("round_id");
     public static final ParseField USER_ID_FIELD = new ParseField("user_id");
-    public static final ParseField AGENT_ID_FIELD = new ParseField("agent_id");
     public static final ParseField TRANSCRIPT_FIELD = new ParseField("transcript");
 
     @SuppressWarnings("unchecked")
@@ -50,8 +49,7 @@ public class SessionEvent implements Writeable, ToXContentObject {
             (String) args[4],
             (String) args[5],
             (String) args[6],
-            (String) args[7],
-            (String) args[8]
+            (String) args[7]
         )
     );
 
@@ -63,7 +61,6 @@ public class SessionEvent implements Writeable, ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), SESSION_ID_FIELD);
         PARSER.declareString(optionalConstructorArg(), ROUND_ID_FIELD);
         PARSER.declareString(optionalConstructorArg(), USER_ID_FIELD);
-        PARSER.declareString(optionalConstructorArg(), AGENT_ID_FIELD);
         PARSER.declareString(optionalConstructorArg(), TRANSCRIPT_FIELD);
     }
 
@@ -82,7 +79,6 @@ public class SessionEvent implements Writeable, ToXContentObject {
     @Nullable
     private final String roundId;
     private final String userId;
-    private final String agentId;
     private final String transcript;
 
     public SessionEvent(
@@ -93,7 +89,6 @@ public class SessionEvent implements Writeable, ToXContentObject {
         String sessionId,
         @Nullable String roundId,
         String userId,
-        String agentId,
         String transcript
     ) {
         this.timestamp = timestamp;
@@ -103,7 +98,6 @@ public class SessionEvent implements Writeable, ToXContentObject {
         this.sessionId = sessionId;
         this.roundId = roundId;
         this.userId = userId;
-        this.agentId = agentId;
         this.transcript = transcript;
     }
 
@@ -115,7 +109,6 @@ public class SessionEvent implements Writeable, ToXContentObject {
         this.sessionId = in.readOptionalString();
         this.roundId = in.readOptionalString();
         this.userId = in.readOptionalString();
-        this.agentId = in.readOptionalString();
         this.transcript = in.readOptionalString();
     }
 
@@ -128,7 +121,6 @@ public class SessionEvent implements Writeable, ToXContentObject {
         out.writeOptionalString(sessionId);
         out.writeOptionalString(roundId);
         out.writeOptionalString(userId);
-        out.writeOptionalString(agentId);
         out.writeOptionalString(transcript);
     }
 
@@ -152,7 +144,6 @@ public class SessionEvent implements Writeable, ToXContentObject {
             builder.field(ROUND_ID_FIELD.getPreferredName(), roundId);
         }
         builder.field(USER_ID_FIELD.getPreferredName(), userId);
-        builder.field(AGENT_ID_FIELD.getPreferredName(), agentId);
         builder.field(TRANSCRIPT_FIELD.getPreferredName(), transcript);
         builder.endObject();
         return builder;
@@ -162,7 +153,7 @@ public class SessionEvent implements Writeable, ToXContentObject {
      * Returns a copy with the given id and write time, used when the document is first stored.
      */
     public SessionEvent withIdAndTimestamp(String id, Instant timestamp) {
-        return new SessionEvent(timestamp, id, space, aiIndexIds, sessionId, roundId, userId, agentId, transcript);
+        return new SessionEvent(timestamp, id, space, aiIndexIds, sessionId, roundId, userId, transcript);
     }
 
     @Nullable
@@ -197,10 +188,6 @@ public class SessionEvent implements Writeable, ToXContentObject {
         return userId;
     }
 
-    public String agentId() {
-        return agentId;
-    }
-
     public String transcript() {
         return transcript;
     }
@@ -217,12 +204,11 @@ public class SessionEvent implements Writeable, ToXContentObject {
             && Objects.equals(sessionId, that.sessionId)
             && Objects.equals(roundId, that.roundId)
             && Objects.equals(userId, that.userId)
-            && Objects.equals(agentId, that.agentId)
             && Objects.equals(transcript, that.transcript);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, id, space, aiIndexIds, sessionId, roundId, userId, agentId, transcript);
+        return Objects.hash(timestamp, id, space, aiIndexIds, sessionId, roundId, userId, transcript);
     }
 }

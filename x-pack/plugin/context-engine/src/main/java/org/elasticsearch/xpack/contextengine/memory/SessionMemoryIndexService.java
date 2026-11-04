@@ -76,7 +76,7 @@ public class SessionMemoryIndexService {
     public void list(ListSessionMemoryAction.Request request, ActionListener<List<SessionMemory>> listener) {
         try {
             BoolQueryBuilder query = QueryBuilders.boolQuery();
-            filters(request.sessionId(), request.userId(), request.agentId(), request.space(), request.aiIndexId()).forEach(query::filter);
+            filters(request.sessionId(), request.userId(), request.space(), request.aiIndexId()).forEach(query::filter);
             SearchSourceBuilder source = new SearchSourceBuilder().query(query)
                 .size(request.size())
                 .sort(SessionMemory.TIMESTAMP_FIELD.getPreferredName(), SortOrder.DESC)
@@ -111,13 +111,7 @@ public class SessionMemoryIndexService {
         ActionListener<List<SearchSessionMemoryAction.Hit>> listener
     ) {
         try {
-            List<QueryBuilder> filters = filters(
-                request.sessionId(),
-                request.userId(),
-                request.agentId(),
-                request.space(),
-                request.aiIndexId()
-            );
+            List<QueryBuilder> filters = filters(request.sessionId(), request.userId(), request.space(), request.aiIndexId());
             SearchSourceBuilder source = new SearchSourceBuilder().query(knnQuery(request.query(), inferenceId, request.size(), filters))
                 .size(request.size());
             SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source);
@@ -139,11 +133,10 @@ public class SessionMemoryIndexService {
         }
     }
 
-    private static List<QueryBuilder> filters(String sessionId, String userId, String agentId, String space, String aiIndexId) {
+    private static List<QueryBuilder> filters(String sessionId, String userId, String space, String aiIndexId) {
         List<QueryBuilder> filters = new ArrayList<>();
         addTermFilter(filters, SessionMemory.SESSION_ID_FIELD, sessionId);
         addTermFilter(filters, SessionMemory.USER_ID_FIELD, userId);
-        addTermFilter(filters, SessionMemory.AGENT_ID_FIELD, agentId);
         addTermFilter(filters, SessionMemory.SPACE_FIELD, space);
         addTermFilter(filters, SessionMemory.AI_INDEX_ID_FIELD, aiIndexId);
         return filters;

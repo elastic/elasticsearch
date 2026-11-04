@@ -24,7 +24,6 @@ public final class SessionEventTestUtils {
             ESTestCase.randomAlphaOfLength(12),
             ESTestCase.randomBoolean() ? null : ESTestCase.randomAlphaOfLength(8),
             ESTestCase.randomAlphaOfLength(8),
-            ESTestCase.randomAlphaOfLength(8),
             ESTestCase.randomAlphaOfLengthBetween(1, 200)
         );
     }

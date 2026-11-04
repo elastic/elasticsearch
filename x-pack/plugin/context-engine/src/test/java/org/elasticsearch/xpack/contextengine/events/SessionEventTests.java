@@ -40,7 +40,6 @@ public class SessionEventTests extends AbstractXContentSerializingTestCase<Sessi
             randomValueOtherThan(instance.sessionId(), () -> randomAlphaOfLength(12)),
             instance.roundId(),
             instance.userId(),
-            instance.agentId(),
             instance.transcript()
         );
     }

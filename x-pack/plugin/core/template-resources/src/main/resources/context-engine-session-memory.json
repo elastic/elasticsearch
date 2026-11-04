@@ -39,12 +39,6 @@
         "user_id": {
           "type": "keyword"
         },
-        "agent_id": {
-          "type": "keyword"
-        },
-        "type": {
-          "type": "keyword"
-        },
         "content": {
           "type": "text"
         },

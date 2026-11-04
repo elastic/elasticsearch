@@ -34,7 +34,6 @@ public class RestListSessionMemoryAction extends BaseRestHandler {
         ListSessionMemoryAction.Request listRequest = new ListSessionMemoryAction.Request(
             request.param("session_id"),
             request.param("user_id"),
-            request.param("agent_id"),
             request.param("space"),
             request.param("ai_index_id"),
             request.paramAsInt("size", ListSessionMemoryAction.DEFAULT_SIZE)

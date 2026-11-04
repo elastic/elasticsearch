@@ -26,8 +26,6 @@ public final class SessionMemoryTestUtils {
             randomBoolean() ? null : ESTestCase.randomList(0, 3, () -> ESTestCase.randomAlphaOfLength(6)),
             ESTestCase.randomAlphaOfLength(12),
             ESTestCase.randomAlphaOfLength(8),
-            ESTestCase.randomAlphaOfLength(8),
-            randomBoolean() ? null : ESTestCase.randomFrom("statement", "summary"),
             ESTestCase.randomAlphaOfLengthBetween(1, 50),
             randomBoolean() ? null : randomMedia(),
             randomBoolean() ? null : randomAttributes()

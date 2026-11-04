@@ -43,7 +43,7 @@ public class RememberActionRequestTests extends AbstractWireSerializingTestCase<
     }
 
     public void testValidateMissingRequiredFields() {
-        SessionMemory memory = new SessionMemory(null, null, null, null, "", null, "agent", null, "", null, null);
+        SessionMemory memory = new SessionMemory(null, null, null, null, "", null, "", null, null);
         ActionRequestValidationException e = new RememberAction.Request(memory).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[session_id] cannot be null or empty"));
@@ -52,19 +52,7 @@ public class RememberActionRequestTests extends AbstractWireSerializingTestCase<
     }
 
     public void testValidateMediaOnly() {
-        SessionMemory memory = new SessionMemory(
-            null,
-            null,
-            null,
-            null,
-            "s",
-            "u",
-            "a",
-            null,
-            null,
-            SessionMemoryTestUtils.randomMedia(),
-            null
-        );
+        SessionMemory memory = new SessionMemory(null, null, null, null, "s", "u", null, SessionMemoryTestUtils.randomMedia(), null);
         assertThat(new RememberAction.Request(memory).validate(), nullValue());
     }
 
@@ -76,8 +64,6 @@ public class RememberActionRequestTests extends AbstractWireSerializingTestCase<
             null,
             "s",
             "u",
-            "a",
-            null,
             null,
             List.of(Map.of("value", "data:image/png;base64,abc"), Map.of("type", "image")),
             null
@@ -96,8 +82,6 @@ public class RememberActionRequestTests extends AbstractWireSerializingTestCase<
             null,
             "s",
             "u",
-            "a",
-            null,
             null,
             List.of(Map.of("type", "gif", "value", "abc", "format", "hex")),
             null

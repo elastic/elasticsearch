@@ -72,9 +72,6 @@ public class SaveEventAction {
             if (Strings.isNullOrEmpty(event.userId())) {
                 validationException = addValidationError("[user_id] cannot be null or empty", validationException);
             }
-            if (Strings.isNullOrEmpty(event.agentId())) {
-                validationException = addValidationError("[agent_id] cannot be null or empty", validationException);
-            }
             if (Strings.isNullOrEmpty(event.transcript())) {
                 validationException = addValidationError("[transcript] cannot be null or empty", validationException);
             }

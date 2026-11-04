@@ -73,9 +73,6 @@ public class RememberAction {
             if (Strings.isNullOrEmpty(memory.userId())) {
                 validationException = addValidationError("[user_id] cannot be null or empty", validationException);
             }
-            if (Strings.isNullOrEmpty(memory.agentId())) {
-                validationException = addValidationError("[agent_id] cannot be null or empty", validationException);
-            }
             if (Strings.isNullOrEmpty(memory.content()) && memory.media().isEmpty()) {
                 validationException = addValidationError("one of [content] or [media] must be provided", validationException);
             }

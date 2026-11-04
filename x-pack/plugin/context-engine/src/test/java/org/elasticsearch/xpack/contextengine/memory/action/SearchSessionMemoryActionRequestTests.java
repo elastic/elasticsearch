@@ -31,7 +31,6 @@ public class SearchSessionMemoryActionRequestTests extends AbstractWireSerializi
             randomBoolean() ? null : randomAlphaOfLength(12),
             randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomAlphaOfLength(8),
-            randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomAlphaOfLength(6),
             randomIntBetween(1, 100)
         );
@@ -43,7 +42,6 @@ public class SearchSessionMemoryActionRequestTests extends AbstractWireSerializi
             randomValueOtherThan(instance.query(), SearchSessionMemoryActionRequestTests::randomQuery),
             instance.sessionId(),
             instance.userId(),
-            instance.agentId(),
             instance.space(),
             instance.aiIndexId(),
             instance.size()
@@ -59,29 +57,29 @@ public class SearchSessionMemoryActionRequestTests extends AbstractWireSerializi
     public void testValidate() {
         assertThat(createTestInstance().validate(), nullValue());
 
-        ActionRequestValidationException e = new SearchSessionMemoryAction.Request("", null, null, null, null, null, 0).validate();
+        ActionRequestValidationException e = new SearchSessionMemoryAction.Request("", null, null, null, null, 0).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[query] cannot be empty"));
         assertThat(e.getMessage(), containsString("[size] must be between 1 and 100"));
 
-        e = new SearchSessionMemoryAction.Request("dark mode", null, null, null, null, null, 101).validate();
+        e = new SearchSessionMemoryAction.Request("dark mode", null, null, null, null, 101).validate();
         assertThat(e.getMessage(), containsString("[size] must be between 1 and 100"));
 
-        e = new SearchSessionMemoryAction.Request(Map.of("type", "image"), null, null, null, null, null, 10).validate();
+        e = new SearchSessionMemoryAction.Request(Map.of("type", "image"), null, null, null, null, 10).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[query] objects must have a non-empty [type] and [value]"));
 
-        e = new SearchSessionMemoryAction.Request(42, null, null, null, null, null, 10).validate();
+        e = new SearchSessionMemoryAction.Request(42, null, null, null, null, 10).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[query] must be a string or an object"));
 
-        e = new SearchSessionMemoryAction.Request(Map.of("type", "gif", "value", "abc", "format", "hex"), null, null, null, null, null, 10)
+        e = new SearchSessionMemoryAction.Request(Map.of("type", "gif", "value", "abc", "format", "hex"), null, null, null, null, 10)
             .validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[query] Unrecognized type [gif]"));
         assertThat(e.getMessage(), containsString("[query] Unrecognized format [hex]"));
 
-        e = new SearchSessionMemoryAction.Request(Map.of("type", "image", "value", "abc", "format", 1), null, null, null, null, null, 10)
+        e = new SearchSessionMemoryAction.Request(Map.of("type", "image", "value", "abc", "format", 1), null, null, null, null, 10)
             .validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[query] [format] must be a string"));

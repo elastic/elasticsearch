@@ -40,7 +40,7 @@ public class SaveEventActionRequestTests extends AbstractWireSerializingTestCase
     }
 
     public void testValidateMissingRequiredFields() {
-        SessionEvent event = new SessionEvent(null, null, null, null, "", null, null, "agent", "");
+        SessionEvent event = new SessionEvent(null, null, null, null, "", null, null, "");
         ActionRequestValidationException e = new SaveEventAction.Request(event).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[session_id] cannot be null or empty"));

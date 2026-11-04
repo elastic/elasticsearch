@@ -13,7 +13,7 @@ teardown:
 
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
-  - match: { error.reason: "/.*\\[user_id\\].*\\[agent_id\\].*/" }
+  - match: { error.reason: "/.*\\[user_id\\].*/" }
 
 ---
 "Save event stores the event and get returns it newest first":
@@ -23,7 +23,6 @@ teardown:
           session_id: "session-1"
           round_id: "round-1"
           user_id: "user-1"
-          agent_id: "agent-1"
           space: "default"
           ai_index_id: ["ai-index-1"]
           transcript: "user: hello\nagent: hi"
@@ -42,7 +41,6 @@ teardown:
           session_id: "session-1"
           round_id: "round-2"
           user_id: "user-1"
-          agent_id: "agent-1"
           space: "default"
           ai_index_id: ["ai-index-2"]
           transcript: "user: thanks\nagent: welcome"

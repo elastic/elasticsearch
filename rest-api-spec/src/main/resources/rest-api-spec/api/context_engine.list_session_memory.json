@@ -30,10 +30,6 @@
         "type": "string",
         "description": "Only return memories belonging to this user"
       },
-      "agent_id": {
-        "type": "string",
-        "description": "Only return memories written by this agent"
-      },
       "space": {
         "type": "string",
         "description": "Only return memories written for this Kibana space"

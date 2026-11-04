@@ -42,9 +42,6 @@
         "user_id": {
           "type": "keyword"
         },
-        "agent_id": {
-          "type": "keyword"
-        },
         "transcript": {
           "type": "text",
           "index": false

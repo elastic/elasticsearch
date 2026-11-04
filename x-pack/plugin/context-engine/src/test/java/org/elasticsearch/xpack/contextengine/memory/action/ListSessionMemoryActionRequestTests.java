@@ -28,7 +28,6 @@ public class ListSessionMemoryActionRequestTests extends AbstractWireSerializing
             randomBoolean() ? null : randomAlphaOfLength(12),
             randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomAlphaOfLength(8),
-            randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomAlphaOfLength(6),
             randomIntBetween(1, 1000)
         );
@@ -39,7 +38,6 @@ public class ListSessionMemoryActionRequestTests extends AbstractWireSerializing
         return new ListSessionMemoryAction.Request(
             instance.sessionId(),
             instance.userId(),
-            instance.agentId(),
             instance.space(),
             instance.aiIndexId(),
             randomValueOtherThan(instance.size(), () -> randomIntBetween(1, 1000))
@@ -48,13 +46,13 @@ public class ListSessionMemoryActionRequestTests extends AbstractWireSerializing
 
     public void testValidate() {
         assertThat(createTestInstance().validate(), nullValue());
-        assertThat(new ListSessionMemoryAction.Request(null, null, null, null, null, 10).validate(), nullValue());
+        assertThat(new ListSessionMemoryAction.Request(null, null, null, null, 10).validate(), nullValue());
 
-        ActionRequestValidationException e = new ListSessionMemoryAction.Request(null, null, null, null, null, 0).validate();
+        ActionRequestValidationException e = new ListSessionMemoryAction.Request(null, null, null, null, 0).validate();
         assertThat(e, notNullValue());
         assertThat(e.getMessage(), containsString("[size] must be between 1 and 1000"));
 
-        e = new ListSessionMemoryAction.Request(null, null, null, null, null, 1001).validate();
+        e = new ListSessionMemoryAction.Request(null, null, null, null, 1001).validate();
         assertThat(e.getMessage(), containsString("[size] must be between 1 and 1000"));
     }
 }

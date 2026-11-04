@@ -43,24 +43,14 @@ public class ListSessionMemoryAction {
         @Nullable
         private final String userId;
         @Nullable
-        private final String agentId;
-        @Nullable
         private final String space;
         @Nullable
         private final String aiIndexId;
         private final int size;
 
-        public Request(
-            @Nullable String sessionId,
-            @Nullable String userId,
-            @Nullable String agentId,
-            @Nullable String space,
-            @Nullable String aiIndexId,
-            int size
-        ) {
+        public Request(@Nullable String sessionId, @Nullable String userId, @Nullable String space, @Nullable String aiIndexId, int size) {
             this.sessionId = sessionId;
             this.userId = userId;
-            this.agentId = agentId;
             this.space = space;
             this.aiIndexId = aiIndexId;
             this.size = size;
@@ -70,7 +60,6 @@ public class ListSessionMemoryAction {
             super(in);
             this.sessionId = in.readOptionalString();
             this.userId = in.readOptionalString();
-            this.agentId = in.readOptionalString();
             this.space = in.readOptionalString();
             this.aiIndexId = in.readOptionalString();
             this.size = in.readVInt();
@@ -84,11 +73,6 @@ public class ListSessionMemoryAction {
         @Nullable
         public String userId() {
             return userId;
-        }
-
-        @Nullable
-        public String agentId() {
-            return agentId;
         }
 
         @Nullable
@@ -110,7 +94,6 @@ public class ListSessionMemoryAction {
             super.writeTo(out);
             out.writeOptionalString(sessionId);
             out.writeOptionalString(userId);
-            out.writeOptionalString(agentId);
             out.writeOptionalString(space);
             out.writeOptionalString(aiIndexId);
             out.writeVInt(size);
@@ -133,14 +116,13 @@ public class ListSessionMemoryAction {
             return size == request.size
                 && Objects.equals(sessionId, request.sessionId)
                 && Objects.equals(userId, request.userId)
-                && Objects.equals(agentId, request.agentId)
                 && Objects.equals(space, request.space)
                 && Objects.equals(aiIndexId, request.aiIndexId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(sessionId, userId, agentId, space, aiIndexId, size);
+            return Objects.hash(sessionId, userId, space, aiIndexId, size);
         }
     }
 

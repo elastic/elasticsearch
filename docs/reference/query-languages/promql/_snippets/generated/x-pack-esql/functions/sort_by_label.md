@@ -31,7 +31,6 @@ sort_by_label(http_requests_total, "job", "instance")
 **Differences from {{prom}}**
 
 - A call below the top level of the query, such as `abs(sort_by_label(x, "job"))`, isn't supported yet. {{prom}} applies the ordering there too.
-- {{prom}} hides these functions behind `--enable-feature=promql-experimental-functions`. {{es}} has no {{promql}} feature flag and marks them preview instead.
 - When the requested labels are equal, ties are broken by series identity, approximating {{prom}} `labels.Compare`. The order can differ in edge cases, such as a series missing a label or labels of non-string types.
 - On a range query the ordering is discarded in both, but {{prom}} returns the series ordered by their labels, where {{es}} returns them in input order.
 - Sequences of digits that are numerically equal but differ in leading zeros (for example, `item1` and `item01`), and empty label values, get a stable order rather than {{prom}}'s unstable natural sort order.

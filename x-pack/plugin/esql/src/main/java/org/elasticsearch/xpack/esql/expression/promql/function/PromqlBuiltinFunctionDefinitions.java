@@ -269,8 +269,6 @@ public class PromqlBuiltinFunctionDefinitions {
      */
     private static final String SORT_BY_LABEL_DIFFERENCES = "- A call below the top level of the query, such as "
         + "`abs(sort_by_label(x, \"job\"))`, isn't supported yet. {{prom}} applies the ordering there too.\n"
-        + "- {{prom}} hides these functions behind `--enable-feature=promql-experimental-functions`. {{es}} has no "
-        + "{{promql}} feature flag and marks them preview instead.\n"
         + "- When the requested labels are equal, ties are broken by series identity, approximating {{prom}} "
         + "`labels.Compare`. The order can differ in edge cases, such as a series missing a label or labels of "
         + "non-string types.\n"

@@ -580,7 +580,10 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected void project() {
-            ESVectorUtil.matrixMultiply(centered, w, size, originalDim, nDims, latent, executor);
+            // round the rows up to next multiple of 8 so the matrix multiply doesn't have to deal with row tails
+            // maxBlockSize can vary in tests
+            int roundedSize = Math.min(maxBlockSize, (size + 7) & ~7);
+            ESVectorUtil.matrixMultiply(centered, w, roundedSize, originalDim, nDims, latent, executor);
         }
     }
 
@@ -668,8 +671,9 @@ public final class AsymmetricHashingQuantizer {
 
         @Override
         protected void project() {
-            // As in FloatBlockEncoder, rows past 'size' hold stale data and are never read back
-            ESVectorUtil.matrixMultiplyI8(centeredQ, wq, maxBlockSize, originalDim, nDims, product, executor);
+            // round the rows up to nearest 8, same as floats
+            int roundedSize = Math.min(maxBlockSize, (size + 7) & ~7);
+            ESVectorUtil.matrixMultiplyI8(centeredQ, wq, roundedSize, originalDim, nDims, product, executor);
 
             // scale the multiply results back to floats
             // copy to an array, then iterate through the array for speed

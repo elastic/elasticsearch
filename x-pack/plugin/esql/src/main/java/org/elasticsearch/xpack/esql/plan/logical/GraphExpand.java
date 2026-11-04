@@ -71,10 +71,9 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
     private static final Set<String> DIRECTION_VALUES = Set.of("in", "out", "both");
 
     /**
-     * Edge side of the expand: an {@link UnresolvedRelation} (index pattern form) or a
-     * subquery plan whose leaves are unresolved relations before analysis; an
-     * {@link EsRelation} or a resolved subquery plan after. Not a plan child — resolution
-     * happens in {@code Analyzer.ResolveRefs#resolveGraphExpand}.
+     * Edge-index side of the expand: {@link UnresolvedRelation} before analysis,
+     * {@link EsRelation} after. Not a plan child — resolution happens in
+     * {@code Analyzer.ResolveRefs#resolveGraphExpand}.
      */
     private final LogicalPlan edgeRelation;
     private final Attribute seedColumn;
@@ -162,23 +161,14 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
 
     /**
      * Index pattern written after {@code GRAPH EXPAND}, derived from
-     * {@link #edgeRelation()}. For a subquery edge, the first relation the subquery reads,
-     * or {@code null} when it reads none (a {@code ROW} subquery).
+     * {@link #edgeRelation()}.
      */
     public IndexPattern indexPattern() {
-        Holder<IndexPattern> first = new Holder<>();
-        edgeRelation.forEachUp(p -> {
-            if (first.get() != null) {
-                return;
-            }
-            switch (p) {
-                case UnresolvedRelation ur -> first.set(ur.indexPattern());
-                case EsRelation er -> first.set(new IndexPattern(er.source(), er.indexPattern()));
-                default -> {
-                }
-            }
-        });
-        return first.get();
+        return switch (edgeRelation) {
+            case UnresolvedRelation ur -> ur.indexPattern();
+            case EsRelation er -> new IndexPattern(er.source(), er.indexPattern());
+            default -> throw new IllegalStateException("unexpected edge relation [" + edgeRelation.getClass().getSimpleName() + "]");
+        };
     }
 
     public LogicalPlan edgeRelation() {

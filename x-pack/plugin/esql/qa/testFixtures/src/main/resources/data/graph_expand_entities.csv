@@ -1,0 +1,7 @@
+id:keyword,name:keyword,can_assume:keyword,grants_access_to:keyword
+user:a,User A,[role:x, role:y],
+role:x,Role X,,[bucket:1]
+role:y,Role Y,[role:z],
+role:z,Role Z,,[bucket:2]
+bucket:1,Bucket 1,,
+bucket:2,Bucket 2,,

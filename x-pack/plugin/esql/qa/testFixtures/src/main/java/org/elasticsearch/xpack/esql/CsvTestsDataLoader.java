@@ -480,6 +480,8 @@ public class CsvTestsDataLoader {
         new TestDataset("graph_expand_associates").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("graph_expand_ip_edges").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("graph_expand_ip_stops").withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
+        new TestDataset("graph_expand_entities").withSetting("lookup-settings.json")
+            .withRequiredCapabilities(EsqlCapabilities.Cap.GRAPH_EXPAND),
         new TestDataset("json_logs"),
         new TestDataset("network_direction_networks"),
         new TestDataset("flattened_otel_logs"),

@@ -22,7 +22,7 @@ When a data source includes credentials, {{es}} encrypts them with the [cluster 
 
 ### Credential masking
 
-All credential values are replaced by `::es_redacted::` in GET responses. Credentials are never returned in API responses. Credentials are never written to the [audit log](docs-content://deploy-manage/security/logging-configuration/enabling-audit-logs.md), even when `xpack.security.audit.logfile.events.emit_request_body` is `true`.
+All credential values are replaced by `::es_redacted::` in GET responses. Credentials are never returned in API responses or written to the [audit log](docs-content://deploy-manage/monitor/stack-audit-logging/auditing-http-request-bodies.md), even when `xpack.security.audit.logfile.events.emit_request_body` is `true`.
 
 A data source's credentials are masked when its definition is read back, and at query time the store is accessed using the data source's stored credentials.
 

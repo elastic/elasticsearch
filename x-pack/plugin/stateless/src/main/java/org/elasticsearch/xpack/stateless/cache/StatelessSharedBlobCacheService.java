@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheFileReader;
+import org.elasticsearch.xpack.stateless.cache.reader.GroupedCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.LazyRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.cache.reader.SequentialRangeMissingHandler;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -46,6 +47,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.IntConsumer;
+import java.util.function.IntFunction;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -273,7 +275,20 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     }
 
     /**
+     * Fetches a single cache region of a blob byte range with the given {@link CacheBlobReader}.
+     */
+    @FunctionalInterface
+    private interface RegionFetcher {
+        void fetch(int region, CacheBlobReader cacheBlobReader, ActionListener<Void> listener);
+    }
+
+    /**
      * Fetches and writes in cache a blob byte range, given the {@link CacheBlobReader} and the blob's associated {@link FileCacheKey}.
+     * <p>
+     * If the reader reads from the object store and {@code maxRegionsPerGroup} is more than one, consecutive regions are grouped, and the
+     * regions of a group are filled one after the other from a single object store read (see {@link GroupedCacheBlobReader}). Groups are
+     * fetched in parallel. Regions that are already in the cache are left out and end the group, so that a group does not read regions
+     * that are already cached.
      */
     private void fetchRange(
         FileCacheKey cacheKey,
@@ -285,46 +300,122 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Executor fetchExecutor,
         boolean force,
         long timestampMillis,
+        int maxRegionsPerGroup,
         ActionListener<Void> listener,
         String... threadPools
     ) {
         var startRegion = getRegion(byteRange.start());
         var endRegion = getEndingRegion(byteRange.end());
+        final IntFunction<ByteRange> adjustedRangeOfRegion = region -> {
+            long regionRangeStart = Math.max(getRegionStart(region), byteRange.start());
+            long regionRangeEnd = Math.min(getRegionEnd(region), byteRange.end());
+            return cacheBlobReader.getRange(
+                regionRangeStart,
+                Math.toIntExact(regionRangeEnd - regionRangeStart),
+                byteRange.end() - regionRangeStart
+            );
+        };
+        final RegionFetcher regionFetcher = (region, reader, regionListener) -> {
+            var adjustedByteRange = adjustedRangeOfRegion.apply(region);
+            fetchRange(
+                cacheKey,
+                region,
+                adjustedByteRange,
+                // this is not really used
+                byteRange.length(),
+                new LazyRangeMissingHandler<>(
+                    () -> new SequentialRangeMissingHandler(
+                        initiator,
+                        cacheKey.fileName(),
+                        adjustedByteRange,
+                        reader,
+                        () -> writeBufferSupplier.get().clear(),
+                        bytesCopiedConsumer,
+                        threadPools
+                    )
+                ),
+                fetchExecutor,
+                force,
+                timestampMillis,
+                regionListener.map(populated -> null)
+            );
+        };
+        final int regionsPerGroup = cacheBlobReader.readsFromObjectStore() ? maxRegionsPerGroup : 1;
+        if (regionsPerGroup == 1) {
+            try (RefCountingListener listeners = new RefCountingListener(listener)) {
+                for (int region = startRegion; region <= endRegion; region++) {
+                    regionFetcher.fetch(region, cacheBlobReader, listeners.acquire());
+                }
+            }
+            return;
+        }
+        // The availability check is best-effort: a region can still become available, or be claimed by another thread, after the group
+        // was planned, in which case the group's stream just skips over its data.
+        final Predicate<Integer> isRegionCached = region -> isRegionAvailable(
+            cacheKey,
+            region,
+            Math.min(adjustedRangeOfRegion.apply(region).end(), getRegionEnd(region)) - getRegionStart(region)
+        );
         try (RefCountingListener listeners = new RefCountingListener(listener)) {
-            for (int region = startRegion; region <= endRegion; region++) {
-                long regionRangeStart = Math.max(getRegionStart(region), byteRange.start());
-                long regionRangeEnd = Math.min(getRegionEnd(region), byteRange.end());
-                var adjustedByteRange = cacheBlobReader.getRange(
-                    regionRangeStart,
-                    Math.toIntExact(regionRangeEnd - regionRangeStart),
-                    byteRange.end() - regionRangeStart
-                );
-                fetchRange(
-                    cacheKey,
-                    region,
-                    adjustedByteRange,
-                    // this is not really used
-                    byteRange.length(),
-                    new LazyRangeMissingHandler<>(
-                        () -> new SequentialRangeMissingHandler(
-                            initiator,
-                            cacheKey.fileName(),
-                            adjustedByteRange,
-                            cacheBlobReader,
-                            () -> writeBufferSupplier.get().clear(),
-                            bytesCopiedConsumer,
-                            threadPools
-                        )
-                    ),
-                    fetchExecutor,
-                    force,
-                    timestampMillis,
-                    listeners.acquire().map(populated -> null)
+            int nextRegion = startRegion;
+            while (nextRegion <= endRegion) {
+                final int firstRegion = nextRegion;
+                if (isRegionCached.test(firstRegion)) {
+                    nextRegion++;
+                    continue;
+                }
+                int lastRegion = firstRegion;
+                while (lastRegion < endRegion
+                    && lastRegion - firstRegion + 1 < regionsPerGroup
+                    && isRegionCached.test(lastRegion + 1) == false) {
+                    lastRegion++;
+                }
+                nextRegion = lastRegion + 1;
+                if (firstRegion == lastRegion) {
+                    // fallback to an old approach
+                    regionFetcher.fetch(firstRegion, cacheBlobReader, listeners.acquire());
+                    continue;
+                }
+                final long groupRangeStart = Math.max(getRegionStart(firstRegion), byteRange.start());
+                final long groupRangeEnd = Math.min(getRegionEnd(lastRegion), byteRange.end());
+                final long groupEndPosition = cacheBlobReader.getRange(
+                    groupRangeStart,
+                    Math.toIntExact(groupRangeEnd - groupRangeStart),
+                    byteRange.end() - groupRangeStart
+                ).end();
+                final var groupedReader = new GroupedCacheBlobReader(cacheBlobReader, groupEndPosition);
+                fetchRegionsSequentially(
+                    regionFetcher,
+                    groupedReader,
+                    firstRegion,
+                    lastRegion,
+                    ActionListener.releaseAfter(listeners.acquire(), groupedReader)
                 );
             }
         }
     }
 
+    private static void fetchRegionsSequentially(
+        RegionFetcher regionFetcher,
+        CacheBlobReader groupedReader,
+        int region,
+        int lastRegion,
+        ActionListener<Void> listener
+    ) {
+        regionFetcher.fetch(region, groupedReader, listener.delegateFailureAndWrap((l, ignored) -> {
+            if (region == lastRegion) {
+                l.onResponse(null);
+            } else {
+                fetchRegionsSequentially(regionFetcher, groupedReader, region + 1, lastRegion, l);
+            }
+        }));
+    }
+
+    /**
+     * @param maxRegionsPerGroup the maximum number of consecutive regions to fetch with a single object store read. Regions are not
+     *                           grouped if this is 1. It is also the maximum depth of the recursion that fetches the regions of a group
+     *                           one after the other, so it must be small.
+     */
     void fetchRange(
         FileCacheKey cacheKey,
         ByteRange byteRange,
@@ -335,6 +426,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Executor fetchExecutor,
         boolean force,
         long timestampMillis,
+        int maxRegionsPerGroup,
         ActionListener<Void> listener
     ) {
         fetchRange(
@@ -347,6 +439,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
             fetchExecutor,
             force,
             timestampMillis,
+            maxRegionsPerGroup,
             listener,
             StatelessPlugin.PREWARM_THREAD_POOL,
             StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL

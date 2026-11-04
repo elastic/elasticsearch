@@ -42,6 +42,11 @@ public class MeteringCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
+    public boolean readsFromObjectStore() {
+        return delegate.readsFromObjectStore();
+    }
+
+    @Override
     public String executorName() {
         return delegate.executorName();
     }

@@ -56,6 +56,11 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
     }
 
     @Override
+    public boolean readsFromObjectStore() {
+        return true;
+    }
+
+    @Override
     public String toString() {
         return "ObjectStoreCacheBlobReader{"
             + "blobFile="

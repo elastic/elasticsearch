@@ -599,6 +599,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return regionSize;
     }
 
+    /**
+     * Best-effort, non-blocking check of whether the data of a region is already in the cache, from the start of the region up to the
+     * given position. It does not wait for data that is still being fetched and the answer may be stale as soon as it is returned, so it
+     * can only be used to avoid unnecessary work, not to guarantee that the data can be read.
+     *
+     * @param cacheKey the cache key of the blob
+     * @param region   the region to check
+     * @param upTo     the (exclusive) end position to check, relative to the start of the region
+     * @return {@code true} if the data of the region up to {@code upTo} is present in the cache
+     */
+    public boolean isRegionAvailable(KeyType cacheKey, int region, long upTo) {
+        final var entry = cache.getIfPresent(cacheKey, region);
+        return entry != null && entry.chunk.tracker.checkAvailable(upTo);
+    }
+
     CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
         return cache.get(cacheKey, fileLength, region, timestampMillis).chunk;
     }

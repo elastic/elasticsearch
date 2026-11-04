@@ -859,6 +859,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSizeInBytes))
                     // ratio 0.0 → throttle limit clamped to 1, so at most one populate task can read at a time
                     .put(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING.getKey(), 0.0)
+                    // this test is about one read per region, so do not group regions into a single read
+                    .put(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_MAX_REGIONS_PER_READ_SETTING.getKey(), 1)
                     .put(
                         SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(),
                         ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
@@ -1018,6 +1020,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSizeInBytes))
                     // ratio 0.0 → central throttle limit clamped to 1 (serial reads), making the interleaving order deterministic
                     .put(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING.getKey(), 0.0)
+                    // this test is about one read per region, so do not group regions into a single read
+                    .put(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_MAX_REGIONS_PER_READ_SETTING.getKey(), 1)
                     .put(
                         SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(),
                         ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
@@ -1139,6 +1143,103 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 "per-file runner must interleave: first read of A before last read of B; readOrder=" + readOrder,
                 firstA,
                 lessThan(lastB)
+            );
+        }
+    }
+
+    /**
+     * Verifies that offline warming of a blob read from the object store groups consecutive cache regions into a single object store
+     * read, up to the configured maximum, instead of reading each region separately, and does not read regions that are already cached.
+     */
+    public void testWarmByteRangeGroupsConsecutiveRegionsIntoOneRead() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        final int regionsPerGroup = randomIntBetween(2, 4);
+        final int regionsPerFile = regionsPerGroup * randomIntBetween(2, 3) + randomIntBetween(0, regionsPerGroup - 1);
+        final long blobSize = regionsPerFile * regionSizeInBytes;
+        final long generation = 1L;
+        final String blobName = BatchedCompoundCommit.blobNameFromGeneration(generation);
+        final List<Long> readLengths = Collections.synchronizedList(new ArrayList<>());
+
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    .put(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_MAX_REGIONS_PER_READ_SETTING.getKey(), regionsPerGroup)
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
+                        if (name.equals(blobName)) {
+                            readLengths.add(length);
+                        }
+                        return super.readBlob(purpose, name, position, length);
+                    }
+                };
+            }
+        }) {
+            byte[] data = new byte[Math.toIntExact(blobSize)];
+            random().nextBytes(data);
+            fakeNode.getShardContainer()
+                .writeBlobAtomic(OperationPurpose.INDICES, blobName, new ByteArrayInputStream(data), blobSize, true);
+            // Mark the blob as uploaded so the cache-blob-reader routes reads through the object store.
+            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(
+                fakeNode.searchDirectory,
+                new PrimaryTermAndGeneration(primaryTerm, generation)
+            );
+
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(fakeNode.searchStore);
+            when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+
+            final var blobFile = new BlobFile(blobName, new PrimaryTermAndGeneration(primaryTerm, generation));
+            // Optionally cache the first regions beforehand: they must not be read again, and must not be part of any group
+            final int cachedRegions = randomIntBetween(0, regionsPerFile - 1);
+            if (cachedRegions > 0) {
+                PlainActionFuture<Void> prefixFuture = new PlainActionFuture<>();
+                fakeNode.warmingService.warmBlobOffsets(
+                    indexShard,
+                    fakeNode.searchDirectory,
+                    Map.of(
+                        blobFile,
+                        SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(cachedRegions * regionSizeInBytes, blobSize)
+                    ),
+                    prefixFuture
+                );
+                safeGet(prefixFuture);
+                readLengths.clear();
+            }
+
+            PlainActionFuture<Void> warmFuture = new PlainActionFuture<>();
+            fakeNode.warmingService.warmBlobOffsets(
+                indexShard,
+                fakeNode.searchDirectory,
+                Map.of(blobFile, SharedBlobCacheWarmingService.WarmTarget.withUnknownTimestamp(blobSize, blobSize)),
+                warmFuture
+            );
+            safeGet(warmFuture);
+
+            // every group of regions that were not cached was read with a single request, the last group being possibly smaller
+            final int regionsToRead = regionsPerFile - cachedRegions;
+            final int expectedReads = (regionsToRead + regionsPerGroup - 1) / regionsPerGroup;
+            assertThat(readLengths, hasSize(expectedReads));
+            assertThat(readLengths.stream().mapToLong(Long::longValue).sum(), equalTo(regionsToRead * regionSizeInBytes));
+            assertThat(
+                readLengths.stream().mapToLong(Long::longValue).max().getAsLong(),
+                lessThanOrEqualTo(regionsPerGroup * regionSizeInBytes)
             );
         }
     }
@@ -1817,6 +1918,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
                     .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING.getKey(), false)
+                    // this test is about the memory budget held by one read per region, so do not group regions into a single read
+                    .put(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_MAX_REGIONS_PER_READ_SETTING.getKey(), 1)
                     // We use offline warming to force caching of entire BCC file.
                     .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), true)
                     .build();

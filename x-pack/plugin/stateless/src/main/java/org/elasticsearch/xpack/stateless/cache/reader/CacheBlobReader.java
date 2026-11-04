@@ -53,6 +53,15 @@ public interface CacheBlobReader {
     void getRangeInputStream(long position, int length, ActionListener<InputStream> listener);
 
     /**
+     * Whether this reader currently serves reads from the object store, in which case a single {@link #getRangeInputStream} call can
+     * span many cache regions and be shared by them (see {@link GroupedCacheBlobReader}). Readers that fetch from the indexing shard
+     * must not be asked for more than the range returned by {@link #getRange(long, int, long)}, so they keep the default.
+     */
+    default boolean readsFromObjectStore() {
+        return false;
+    }
+
+    /**
      * Returns the name of the thread pool on which {@link #getRangeInputStream} expects to be invoked, and on which it will
      * complete the supplied listener. Used by callers that want to schedule the fetch on a compatible executor.
      * <p>

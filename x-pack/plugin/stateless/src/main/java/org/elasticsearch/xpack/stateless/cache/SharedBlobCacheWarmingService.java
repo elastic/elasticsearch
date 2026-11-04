@@ -433,6 +433,21 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    /**
+     * The maximum number of consecutive cache regions of the same blob that {@link AbstractWarmer.WarmBlobByteRangeTask} fills from a
+     * single object store read, instead of one read per region. Cache regions are 16MB by default, so the default of 4 means reads of up
+     * to 64MB. Only applies to data read from the object store. A value of 1 disables grouping. The upper bound also limits the depth of
+     * the recursion that fills the regions of a group one after the other.
+     */
+    public static final Setting<Integer> WARM_BYTE_RANGE_MAX_REGIONS_PER_READ_SETTING = Setting.intSetting(
+        "stateless.blob_cache_warming.warm_byte_range_max_regions_per_read",
+        4,
+        1,
+        10,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
@@ -458,6 +473,7 @@ public class SharedBlobCacheWarmingService {
     private volatile boolean prewarmIndexShardForIdLookupsEnabled;
     private volatile long maxUploadPrewarmSize;
     private volatile int warmByteRangePerFileConcurrency;
+    private volatile int warmByteRangeMaxRegionsPerRead;
     private final SearchRecoveryTimeoutCalculationService searchRecoveryTimeoutCalculationService;
 
     public SharedBlobCacheWarmingService(
@@ -590,6 +606,10 @@ public class SharedBlobCacheWarmingService {
         clusterSettings.initializeAndWatch(
             WARM_BYTE_RANGE_PER_FILE_CONCURRENCY_SETTING,
             value -> this.warmByteRangePerFileConcurrency = value
+        );
+        clusterSettings.initializeAndWatch(
+            WARM_BYTE_RANGE_MAX_REGIONS_PER_READ_SETTING,
+            value -> this.warmByteRangeMaxRegionsPerRead = value
         );
     }
 
@@ -2143,6 +2163,7 @@ public class SharedBlobCacheWarmingService {
                     perFileRunner.asExecutor(),
                     true,
                     timestampMillis,
+                    warmByteRangeMaxRegionsPerRead,
                     l
                 );
             }

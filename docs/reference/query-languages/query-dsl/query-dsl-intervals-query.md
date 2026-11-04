@@ -13,6 +13,12 @@ The `intervals` query uses **matching rules**, constructed from a small set of d
 
 The definitions produce sequences of minimal intervals that span terms in a body of text. These intervals can be further combined and filtered by parent sources.
 
+The terms and positions used for matching come from the field's [analyzer](docs-content://manage-data/data-store/text-analysis.md). To compare the intervals query with other ways of matching text, refer to [Full text queries](/reference/query-languages/query-dsl/full-text-queries.md).
+
+:::{tip}
+For a hands-on walkthrough with sample data and example responses, refer to [Search by term proximity and order with the Query DSL intervals query](docs-content://solutions/search/full-text/intervals-query-tutorial.md).
+:::
+
 ## Example request [intervals-query-ex-request]
 
 The following `intervals` search returns documents containing `my favorite food` without any gap, followed by `hot water` or `cold porridge` in the `my_text` field.
@@ -449,7 +455,5 @@ POST _search
 ```
 
 1. The `ordered` parameter is set to `true`, so intervals can appear in any order, even overlap with each other.
-
-
 
 

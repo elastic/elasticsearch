@@ -223,15 +223,20 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
 
-        // norms can be set from true to false, but not vice versa
-        checker.registerConflictCheck("norms", b -> b.field("norms", true));
-        checker.registerUpdateCheck("norms", b -> {
-            minimalMapping(b);
-            b.field("norms", true);
-        }, b -> {
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
             minimalMapping(b);
             b.field("norms", false);
-        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
+        }), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("norms", true);
+        }));
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("norms", true);
+        }), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("norms", false);
+        }));
 
         checker.registerConflictCheck("normalizer_skip_store_original_value", b -> b.field("normalizer_skip_store_original_value", true));
 
@@ -292,7 +297,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testVectordbColumnarIndexingDefaults() throws Exception {
-        assumeTrue("vectordb_columnar index mode requires snapshot build", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createVectordbColumnarModeDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "value")));
         assertThat(doc.rootDoc().getFields("field"), hasSize(1));

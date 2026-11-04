@@ -43,13 +43,6 @@ public class VectorDBColumnarUsageTransportAction extends XPackUsageFeatureTrans
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            // Unusable in this build: IndexMode#availableModes omits the mode, so StatsResponse#stats holds no entry for it
-            // and the fan-out below would have nothing to read. Report the section anyway - disabled, but available, since
-            // no license restricts the mode - so the shape of the usage response does not depend on the build.
-            listener.onResponse(new XPackUsageFeatureResponse(new VectorDBColumnarFeatureSetUsage(true, false, 0, 0)));
-            return;
-        }
         final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
         client.execute(IndexModeStatsActionType.TYPE, statsRequest, listener.map(statsResponse -> {

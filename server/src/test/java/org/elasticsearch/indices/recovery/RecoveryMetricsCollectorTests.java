@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -23,14 +24,15 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.INCOMING_NON_CRITICAL_RECOVERIES_LIMIT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.INCOMING_RECOVERIES_LIMIT_METRIC;
-import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.INCOMING_RELOCATION_RECOVERIES_LIMIT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.OUTGOING_RECOVERIES_LIMIT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_DURATION_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_CURRENT_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_DURATION_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_BLOCKED_TOTAL_METRIC;
 import static org.elasticsearch.indices.recovery.RecoveryMetricsCollector.RECOVERY_GATE_NAME_ATTRIBUTE_KEY;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -45,6 +47,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             () -> 0L,
             () -> 0L,
             ClusterSettings.createBuiltInClusterSettings(),
+            Settings.EMPTY,
             ByteSizeValue.ZERO
         );
         collector.doStart();
@@ -89,6 +92,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 relativeTimeMillis::get,
                 ClusterSettings.createBuiltInClusterSettings(),
+                Settings.EMPTY,
                 ByteSizeValue.ZERO
             )
         ) {
@@ -115,6 +119,15 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
     }
 
     public void testIncomingRecoveryLimitsMetrics() {
+        doTestIncomingRecoveryLimitsMetrics(randomFrom(Settings.EMPTY, onlyRole(DiscoveryNodeRole.INDEX_ROLE)), true);
+    }
+
+    public void testIncomingRecoveryLimitsMetricsOnSearchNode() {
+        // The heap-based limit does not apply to search nodes.
+        doTestIncomingRecoveryLimitsMetrics(onlyRole(DiscoveryNodeRole.SEARCH_ROLE), false);
+    }
+
+    private void doTestIncomingRecoveryLimitsMetrics(Settings nodeSettings, boolean expectHeapBasedLimit) {
         final var telemetryPlugin = new TestTelemetryPlugin();
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.copyOf(DataNodeRecoveryThrottlingSettings.settings()));
         final int heapGb = between(1, 64);
@@ -125,6 +138,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 () -> 0L,
                 clusterSettings,
+                nodeSettings,
                 ByteSizeValue.ofGb(heapGb)
             )
         ) {
@@ -154,7 +168,9 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                         )
                         .build()
                 );
-                final int expectedMaxConcurrentRecoveries = Math.min(maxConcurrent, heapGb * perHeapGb);
+                final int expectedMaxConcurrentRecoveries = expectHeapBasedLimit
+                    ? Math.min(maxConcurrent, heapGb * perHeapGb)
+                    : maxConcurrent;
                 assertIncomingRecoveryLimitsMetrics(
                     telemetryPlugin,
                     expectedMaxConcurrentRecoveries,
@@ -175,6 +191,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 () -> 0L,
                 clusterSettings,
+                Settings.EMPTY,
                 ByteSizeValue.ofGb(heapGb)
             )
         ) {
@@ -212,6 +229,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
                 () -> 0L,
                 () -> 0L,
                 ClusterSettings.createBuiltInClusterSettings(),
+                Settings.EMPTY,
                 ByteSizeValue.ofGb(between(1, 64))
             )
         ) {
@@ -232,7 +250,7 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
     private static void assertIncomingRecoveryLimitsMetrics(
         TestTelemetryPlugin telemetryPlugin,
         long expectedMaxConcurrentRecoveries,
-        long expectedMaxConcurrentRelocationRecoveries
+        long expectedMaxConcurrentNonCriticalRecoveries
     ) {
         telemetryPlugin.collect();
         assertThat(
@@ -240,8 +258,8 @@ public class RecoveryMetricsCollectorTests extends ESTestCase {
             equalTo(expectedMaxConcurrentRecoveries)
         );
         assertThat(
-            telemetryPlugin.getLongAsyncGaugeMeasurement(INCOMING_RELOCATION_RECOVERIES_LIMIT_METRIC).getLast().getLong(),
-            equalTo(expectedMaxConcurrentRelocationRecoveries)
+            telemetryPlugin.getLongAsyncGaugeMeasurement(INCOMING_NON_CRITICAL_RECOVERIES_LIMIT_METRIC).getLast().getLong(),
+            equalTo(expectedMaxConcurrentNonCriticalRecoveries)
         );
     }
 

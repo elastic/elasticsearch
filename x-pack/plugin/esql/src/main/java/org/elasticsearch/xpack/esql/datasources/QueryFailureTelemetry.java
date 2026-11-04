@@ -157,7 +157,9 @@ public final class QueryFailureTelemetry {
             case MALFORMED_DATA -> DataSourceUsageAccumulator.ERROR_TYPE_FORMAT;
             case LOCAL_CAPACITY, SCHEMA_TOO_WIDE -> DataSourceUsageAccumulator.ERROR_TYPE_RESOURCE_LIMIT;
             case METADATA_UNAVAILABLE, LISTING_FAILED -> DataSourceUsageAccumulator.ERROR_TYPE_DISCOVERY;
-            case CLIENT_BUG -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
+            // A worker that declined is routed around and never reaches here; one that could not be is the node's own lag, not
+            // the store's fault, so it is not counted against any storage category.
+            case CLIENT_BUG, WORKER_NOT_READY -> DataSourceUsageAccumulator.ERROR_TYPE_OTHER;
         };
     }
 }

@@ -52,6 +52,15 @@ public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
+    public void testInlineStatsFilterCopyReusesKeyCount() throws Exception {
+        assumeTrue("requires INLINE STATS", EsqlCapabilities.Cap.INLINESTATS.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | INLINE STATS k = COUNT(languages), m = MAX(salary) BY languages
+            | WHERE m > 70000
+            """, STAGES);
+    }
+
     public void testDedupRewritesToLimitByOverAllColumns() throws Exception {
         assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         runGoldenTest("""

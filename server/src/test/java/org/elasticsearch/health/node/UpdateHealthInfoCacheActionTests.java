@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.allocation.shards.LocalRecoveryRetriesHealthInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction.Request;
@@ -34,10 +35,12 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.health.node.HealthInfoTests.randomDataRecoveryHealthInfo;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
@@ -90,7 +93,11 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
 
     public void testAction() throws ExecutionException, InterruptedException {
         DiskHealthInfo diskHealthInfo = new DiskHealthInfo(HealthStatus.GREEN, null);
-        Request request = new Request.Builder().nodeId(localNode.getId()).diskHealthInfo(diskHealthInfo).build();
+        LocalRecoveryRetriesHealthInfo localRecoveryRetriesHealthInfo = HealthInfoTests.randomLocalRecoveryRetriesHealthInfo();
+        Request request = new Request.Builder().nodeId(localNode.getId())
+            .diskHealthInfo(diskHealthInfo)
+            .localRecoveryRetriesHealthInfo(localRecoveryRetriesHealthInfo)
+            .build();
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
@@ -110,6 +117,25 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         AcknowledgedResponse actualResponse = listener.get();
         assertThat(actualResponse, equalTo(expectedResponse));
         assertThat(healthInfoCache.getHealthInfo().diskInfoByNode().get(localNode.getId()), equalTo(diskHealthInfo));
+        assertThat(
+            healthInfoCache.getHealthInfo().localRecoveryRetriesHealthInfoByNode(),
+            equalTo(Map.of(localNode.getId(), localRecoveryRetriesHealthInfo))
+        );
+    }
+
+    public void testOlderTransportVersionOmitsLocalRecoveryRetriesHealthInfo() throws Exception {
+        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10))
+            .dlmFrozenTransitionsHealthInfo(HealthInfoTests.randomDlmFrozenTransitionsHealthInfo())
+            .dataRecoveryHealthInfo(randomDataRecoveryHealthInfo())
+            .build();
+        // Version that supports data_recovery_health_info but not local_recovery_retries_health_info:
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            TransportVersion.fromName("local_recovery_retries_health_info")
+        );
+        Request copy = copyWriteable(request, writableRegistry(), Request::new, oldVersion);
+        assertThat(copy.getLocalRecoveryRetriesHealthInfo(), nullValue());
+        assertThat(copy.getDataRecoveryHealthInfo(), equalTo(request.getDataRecoveryHealthInfo()));
+        assertThat(copy.getNodeId(), equalTo(request.getNodeId()));
     }
 
     public void testOlderTransportVersionOmitsDlmFrozenTransitionsHealthInfo() throws Exception {
@@ -127,7 +153,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
 
     public void testOlderTransportVersionOmitsDataRecoveryHealthInfo() throws Exception {
         Request request = new Request.Builder().nodeId(randomAlphaOfLength(10))
-            .dataRecoveryHealthInfo(HealthInfoTests.randomDataRecoveryHealthInfo())
+            .dataRecoveryHealthInfo(randomDataRecoveryHealthInfo())
             .build();
         // Version that supports dlm_frozen_transitions_health_info but not data_recovery_health_info.
         TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_recovery_health_info"));
@@ -154,7 +180,8 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         var fileSettingsHealthInfo = request.getFileSettingsHealthInfo();
         var dlmFrozenTransitionsHealthInfo = request.getDlmFrozenTransitionsHealthInfo();
         var dataRecoveryHealthInfo = request.getDataRecoveryHealthInfo();
-        switch (randomInt(6)) {
+        var localRecoveryRetriesHealthInfo = request.getLocalRecoveryRetriesHealthInfo();
+        switch (randomInt(7)) {
             case 0 -> nodeId = randomAlphaOfLength(10);
             case 1 -> diskHealthInfo = randomValueOtherThan(diskHealthInfo, HealthInfoTests::randomDiskHealthInfo);
             case 2 -> dslHealthInfo = randomValueOtherThan(dslHealthInfo, HealthInfoTests::randomDslHealthInfo);
@@ -167,6 +194,10 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
                 HealthInfoTests::randomDlmFrozenTransitionsHealthInfo
             );
             case 6 -> dataRecoveryHealthInfo = randomValueOtherThan(dataRecoveryHealthInfo, HealthInfoTests::randomDataRecoveryHealthInfo);
+            case 7 -> localRecoveryRetriesHealthInfo = randomValueOtherThan(
+                localRecoveryRetriesHealthInfo,
+                HealthInfoTests::randomLocalRecoveryRetriesHealthInfo
+            );
             default -> throw new IllegalStateException();
         }
         return new Request.Builder().nodeId(nodeId)
@@ -176,6 +207,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
             .fileSettingsHealthInfo(fileSettingsHealthInfo)
             .dlmFrozenTransitionsHealthInfo(dlmFrozenTransitionsHealthInfo)
             .dataRecoveryHealthInfo(dataRecoveryHealthInfo)
+            .localRecoveryRetriesHealthInfo(localRecoveryRetriesHealthInfo)
             .build();
     }
 }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -20,8 +22,8 @@ final class BooleanVectorBuilder extends AbstractVectorBuilder implements Boolea
     BooleanVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(initialSize);
-        values = new boolean[Math.max(estimatedSize, 2)];
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
+        values = new boolean[initialSize];
     }
 
     @Override

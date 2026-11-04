@@ -32,6 +32,11 @@ public class AutomatonHeapPressureIT extends SearchHeapPressureTestCase {
      */
     private static final String TWELVE_ANY = "????????????";
 
+    private static final String WIDE_INDEX = "wide";
+    private static final int WIDE_FIELDS = 400;
+    /** Fourteen {@code *}-separated runs of a word. It compiles to about 0.8 MB, so one automaton per field would need about 650 MB. */
+    private static final String WIDE_PATTERN = ("asdf".repeat(6) + "*").repeat(14);
+
     @ClassRule
     public static ElasticsearchCluster cluster = heapConstrainedNode("256m").build();
 
@@ -55,6 +60,12 @@ public class AutomatonHeapPressureIT extends SearchHeapPressureTestCase {
             }
             return doc.append('}').toString();
         });
+    }
+
+    /** One document that dynamically maps {@link #WIDE_FIELDS} fields, each a text field with a keyword sub-field. */
+    @Before
+    public void indexWideDocument() throws IOException {
+        indexDocuments(WIDE_INDEX, 1, "{}", 1, i -> "{" + clauses(WIDE_FIELDS, f -> Strings.format("\"a%d\":\"a\"", f)) + "}");
     }
 
     /**
@@ -92,9 +103,39 @@ public class AutomatonHeapPressureIT extends SearchHeapPressureTestCase {
             """, TWELVE_ANY)));
     }
 
+    /**
+     * A {@code query_string} wildcard over all 800 text and keyword fields of a wide index. They resolve to one pattern and share one
+     * automaton. This query is lenient, which turns a breaker trip on a field into a clause that matches nothing, so the breaker
+     * must also not trip.
+     */
+    public void testQueryStringWildcardOnWideIndexSharesAutomaton() throws IOException {
+        long trippedBefore = trippedCount();
+        assertSucceeds(search(WIDE_INDEX, Strings.format("""
+            {"size": 0, "query": {"query_string": {"query": "*:%s"}}}
+            """, WIDE_PATTERN)));
+        assertEquals("a clause tripped the breaker instead of sharing the automaton", trippedBefore, trippedCount());
+    }
+
+    /** Distinct patterns cannot share an automaton, so the breaker must reject them. Not lenient, so the rejection reaches the client. */
+    public void testQueryStringDistinctWildcardsTripBreaker() throws IOException {
+        assertTripsOnlyWhenLarge(n -> search(INDEX, Strings.format("""
+            {"size": 0, "query": {"query_string": {"query": "%s", "lenient": false}}}
+            """, distinctWildcards(n))), 1, 32, "wildcard");
+    }
+
     private static String wildcard(String field, char letter, boolean caseInsensitive) {
         return Strings.format("""
             {"wildcard": {"%s": {"value": "*%c%s", "case_insensitive": %b}}}""", field, letter, TWELVE_ANY, caseInsensitive);
+    }
+
+    /** A {@code query_string} with a wildcard per letter (lower case, then upper case), each on its own field. */
+    private static String distinctWildcards(int count) {
+        StringBuilder query = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            char letter = (char) (i < 26 ? 'a' + i : 'A' + i - 26);
+            query.append(i > 0 ? " " : "").append(Strings.format("f%02d:*%c%s", i, letter, TWELVE_ANY));
+        }
+        return query.toString();
     }
 
     private static String should(int count, IntFunction<String> clause) {

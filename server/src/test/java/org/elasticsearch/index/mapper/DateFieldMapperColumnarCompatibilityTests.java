@@ -9,14 +9,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Parity tests for {@link DateFieldMapper#mapColumnBatch} against the row path.
@@ -30,7 +34,6 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
     private static Settings columnarSettings() {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
             .build();
     }
@@ -211,10 +214,7 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
      * so array values reach the mapper instead of being rejected at parse time.
      */
     private static Settings multiValueColumnarSettings() {
-        return Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
-            .build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
     }
 
     /**
@@ -306,7 +306,6 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
             .put(IndexMetadata.INDEX_DIMENSIONS.getKey(), "dim")
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
-            .put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false)
             .put(IndexSettings.SYNTHETIC_ID.getKey(), false)
             .build();
     }
@@ -420,6 +419,35 @@ public class DateFieldMapperColumnarCompatibilityTests extends AbstractColumnarM
             UnsupportedOperationException.class,
             () -> mapColumnarLeaf(mapperService, FIELD, "{\"f\":\"2024-01-01T00:00:00.000Z\"}", "{\"f\":null}")
         );
+    }
+
+    /**
+     * Date fields only record array offsets in strict columnar mode, where {@code _ignored_source} is not available as a
+     * fallback for oversized offsets. So an array whose encoded offsets exceed {@link IndexWriter#MAX_TERM_LENGTH} is rejected
+     * by the row path with an explicit error, also when some of its values are malformed and ignored via {@code ignore_malformed}.
+     */
+    public void testOversizedOffsetsWithMalformedValuesRejected() throws IOException {
+        final var mapperService = createMapperService(
+            multiValueColumnarSettings(),
+            mapping(b -> b.startObject(FIELD).field("type", "date").field("ignore_malformed", true).endObject())
+        );
+        // One more slot than the limit guarantees the encoded offsets exceed it, since every slot takes at least one byte.
+        final StringBuilder source = new StringBuilder("{\"f\":[\"not-a-date\"");
+        final int numSlots = IndexWriter.MAX_TERM_LENGTH + between(1, 500);
+        for (int i = 0; i < numSlots; i++) {
+            source.append(",\"2024-01-0").append(randomIntBetween(1, 4)).append("T00:00:00.000Z\"");
+            if (randomInt(100) == 1) {
+                source.append(",\"not-a-date\"");
+            }
+        }
+        source.append(",\"not-a-date\"]}");
+
+        final DocumentParsingException ex = expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(new SourceToParse("1", new BytesArray(source.toString()), XContentType.JSON))
+        );
+        assertThat(ex.getCause().getMessage(), containsString("encoded offsets of field [f.offsets] are too large to store"));
+        assertThat(ex.getCause().getMessage(), containsString("cannot be preserved in [_ignored_source]"));
     }
 
     public void testDateParentWithKeywordSubField() throws IOException {

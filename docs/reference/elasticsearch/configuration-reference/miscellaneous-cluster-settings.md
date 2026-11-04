@@ -93,7 +93,7 @@ Shards for closed indices do not count toward this limit. Defaults to `3000`. A 
 
 
 ::::{note}
-These limits only apply to actions which create shards and do not limit the number of shards assigned to each node. To limit the number of shards assigned to each node, use the [`cluster.routing.allocation.total_shards_per_node`](/reference/elasticsearch/index-settings/total-shards-per-node.md#cluster-total-shards-per-node) setting.
+These limits only apply to actions which create shards and do not limit the number of shards assigned to each node. To limit the number of shards assigned to each node, use the [`cluster.routing.allocation.total_shards_per_node`](/reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md#cluster-routing-allocation-total-shards-per-node) setting.
 ::::
 
 

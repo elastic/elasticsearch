@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.stateless.recovery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -81,6 +84,18 @@ public class PointerActivationIT extends AbstractStatelessPluginIntegTestCase {
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             .put(FastSearchActivationSettings.COMMIT_POINTER_ENABLED_SETTING.getKey(), true);
+    }
+
+    /**
+     * The tests assert the object store reads of an activation, and the open bytes of the pointer are written in the shared cache. The
+     * random cache of the test base (down to a single region, or no cache at all) evicts them as they are written, so the reader
+     * refetches them from the object store and the read counts depend on the random cache size, not on the pointer. Only the nodes with
+     * a cache go through here: the setting is not permitted on the master only node.
+     */
+    @Override
+    protected Settings.Builder settingsForRoles(DiscoveryNodeRole... roles) {
+        return super.settingsForRoles(roles).put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(128))
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(8));
     }
 
     /** Counts the LISTs and the reads per blob name of a node. */

@@ -36,12 +36,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -296,7 +296,7 @@ public class FastSearchActivationIT extends AbstractStatelessPluginIntegTestCase
         }
         final Fixture f = new Fixture(null, searchNode, searchStore, indexName, resolveIndex(indexName));
         final float[] queryVector = randomVector(dims);
-        final CheckedSupplier<String, Exception> knn = () -> {
+        final CheckedSupplier<List<KnnHit>, Exception> knn = () -> {
             setReplicaCount(1, indexName);
             ensureGreen(indexName);
             SearchResponse resp = client(searchNode).prepareSearch(indexName)
@@ -304,24 +304,17 @@ public class FastSearchActivationIT extends AbstractStatelessPluginIntegTestCase
                 .get();
             try {
                 assertNoFailures(resp);
-                StringBuilder sb = new StringBuilder();
+                final List<KnnHit> hits = new ArrayList<>();
                 for (SearchHit hit : resp.getHits().getHits()) {
-                    // scores rounded: whether a vector is scored from a direct view of the cache or from a copy depends on what is
-                    // cached, and the two paths can differ in the last float ulp (also with the step-3 settings off)
-                    sb.append(hit.getId())
-                        .append(':')
-                        .append(String.format(Locale.ROOT, "%.5f", hit.getScore()))
-                        .append(':')
-                        .append(hit.getSourceAsMap().get("n"))
-                        .append(',');
+                    hits.add(new KnnHit(hit.getId(), hit.getScore(), hit.getSourceAsMap().get("n")));
                 }
-                return sb.toString();
+                return hits;
             } finally {
                 resp.decRef();
             }
         };
         setFastActivation(false);
-        final String expected = knn.get();
+        final List<KnnHit> expected = knn.get();
         deactivate(f);
         updateClusterSettings(
             Settings.builder()
@@ -333,10 +326,25 @@ public class FastSearchActivationIT extends AbstractStatelessPluginIntegTestCase
         );
         searchStore.reset();
         try {
-            assertThat(knn.get(), equalTo(expected));
+            assertSameKnnHits(expected, knn.get());
             assertThat(f.searchStore.lists.get(), equalTo(0));
         } finally {
             setFastActivation(false);
+        }
+    }
+
+    private record KnnHit(String id, float score, Object n) {}
+
+    /**
+     * The same hits in the same order, and scores equal up to a tolerance: whether a vector is scored from a direct view of the cache
+     * or from a copy depends on what is cached, and the two paths do not always give bit identical scores (the quantized vector types
+     * differ in the fourth decimal), which an exact comparison of the scores, even rounded, turns into a flaky failure.
+     */
+    private static void assertSameKnnHits(List<KnnHit> expected, List<KnnHit> actual) {
+        assertThat(actual.stream().map(KnnHit::id).toList(), equalTo(expected.stream().map(KnnHit::id).toList()));
+        assertThat(actual.stream().map(KnnHit::n).toList(), equalTo(expected.stream().map(KnnHit::n).toList()));
+        for (int i = 0; i < expected.size(); i++) {
+            assertThat("score of hit " + expected.get(i).id(), (double) actual.get(i).score(), closeTo(expected.get(i).score(), 1e-3));
         }
     }
 

@@ -544,6 +544,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         RecoveryPriority recoveryPriority
     ) {
         ensureMutable();
+        assert reason.type().recoveryPriority() == null || reason.type().recoveryPriority() == recoveryPriority
+            : "relocation priority [" + recoveryPriority + "] does not match reason [" + reason + "]";
         relocatingShards++;
         if (isDedicatedFrozenNode(nodeId)) {
             relocatingFrozenShards++;

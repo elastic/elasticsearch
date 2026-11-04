@@ -222,6 +222,13 @@ public class MappingBuilderNormalizeTests extends MapperServiceTestCase {
         String template = parse(duplicateInsideDissolvedObject).build(MergeReason.INDEX_TEMPLATE).toCompressedXContent().string();
         assertThat(template, containsString("\"text\""));
         assertThat(template, not(containsString("keyword")));
+
+        // serializing an unnormalized tree assumes MAPPING_UPDATE, so a template has to be normalized under its own reason first
+        Exception unnormalized = expectThrows(Exception.class, () -> parse(duplicateInsideDissolvedObject).toCompressedXContent());
+        assertThat(unnormalized.getCause().getMessage(), containsString("cannot be changed from type [keyword] to [text]"));
+        MappingBuilder normalizedTemplate = parse(duplicateInsideDissolvedObject);
+        normalizedTemplate.normalize(MergeReason.INDEX_TEMPLATE);
+        assertThat(normalizedTemplate.toCompressedXContent().string(), equalTo(template));
     }
 
     /**

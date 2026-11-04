@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -29,7 +30,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.junit.After;
@@ -145,7 +145,7 @@ public class PlanningCpuMeteringTests extends ESTestCase {
             PlainActionFuture<Boolean> meteredAtCompletion = new PlainActionFuture<>();
             tracker.meteredCpu(
                 () -> resolver.resolveViews(
-                    new EsqlResolveViewAction.Request(TEST_REQUEST_TIMEOUT, false),
+                    new EsqlResolveViewAction.Request(TEST_REQUEST_TIMEOUT, false, false),
                     meteredAtCompletion.map(response -> tracker.isMeteringCurrentThread())
                 )
             );

@@ -27,8 +27,11 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
@@ -56,6 +59,7 @@ import static org.elasticsearch.search.internal.BreakerWeightTestUtils.conjuncti
 import static org.elasticsearch.search.internal.BreakerWeightTestUtils.newContextIndexSearcher;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class PointRangeBreakerWeightTests extends ESTestCase {
 
@@ -609,6 +613,85 @@ public class PointRangeBreakerWeightTests extends ESTestCase {
         assertThat(second.getUsed(), greaterThan(0L));
         searcher.close();
         assertThat(second.getUsed(), equalTo(0L));
+    }
+
+    /** A clause served from the query cache builds nothing, so only the search that fills the cache is charged. */
+    public void testClauseServedFromQueryCacheIsNotCharged() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        LRUQueryCache queryCache = newQueryCache();
+        Query query = conjunction(denseRangeQuery(), new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)));
+        try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, true)) {
+            searcher.setCircuitBreaker(breaker);
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat("filling the cache builds the result set", breaker.charges(), hasSize(1));
+            assertThat(queryCache.getCacheCount(), equalTo(1L));
+
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(queryCache.getHitCount(), equalTo(1L));
+            assertThat("a cached clause must not be charged", breaker.charges(), hasSize(1));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /** Scorers built for a leaf that is already cached, as concurrent readers of one segment do, are not charged. */
+    public void testScorersOfACachedLeafAreNotCharged() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        LRUQueryCache queryCache = newQueryCache();
+        try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, true)) {
+            searcher.setCircuitBreaker(breaker);
+            Weight weight = searcher.createWeight(searcher.rewrite(denseRangeQuery()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+            LeafReaderContext leaf = reader.leaves().get(0);
+
+            LeafExecutionScope first = new LeafExecutionScope();
+            captureCharge(first, weight, leaf);
+            assertThat("filling the cache builds the result set", breaker.getUsed(), greaterThan(0L));
+            assertThat(queryCache.getCacheCount(), equalTo(1L));
+            first.release();
+
+            LeafExecutionScope second = new LeafExecutionScope();
+            LeafExecutionScope third = new LeafExecutionScope();
+            captureCharge(second, weight, leaf);
+            captureCharge(third, weight, leaf);
+            assertThat(queryCache.getHitCount(), equalTo(2L));
+            assertThat("a cached leaf must not be charged", breaker.getUsed(), equalTo(0L));
+            assertThat(breaker.charges(), hasSize(1));
+            second.release();
+            third.release();
+        }
+    }
+
+    /** A clause that the cache does not keep is built by every search, so every search is charged. */
+    public void testClauseTheCacheDoesNotKeepIsChargedEveryTime() throws IOException {
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1L);
+        LRUQueryCache queryCache = newQueryCache();
+        Query query = conjunction(denseRangeQuery(), new TermQuery(new Term(KEYWORD_FIELD, RARE_TERM)));
+        try (ContextIndexSearcher searcher = newCachingSearcher(queryCache, false)) {
+            searcher.setCircuitBreaker(breaker);
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(searcher.search(query, new CountingCollectorManager()), equalTo(RARE_DOCS));
+            assertThat(queryCache.getCacheCount(), equalTo(0L));
+            assertThat(breaker.charges(), hasSize(2));
+            assertThat(breaker.getUsed(), equalTo(0L));
+        }
+    }
+
+    /** A cache that accepts every leaf and never skips caching for being too costly. */
+    private static LRUQueryCache newQueryCache() {
+        return new LRUQueryCache(10, Long.MAX_VALUE, leaf -> true, Float.POSITIVE_INFINITY);
+    }
+
+    /** A searcher that caches point range queries only when {@code cacheRanges} is set, and no other query. */
+    private ContextIndexSearcher newCachingSearcher(LRUQueryCache queryCache, boolean cacheRanges) throws IOException {
+        QueryCachingPolicy policy = new QueryCachingPolicy() {
+            @Override
+            public void onUse(Query query) {}
+
+            @Override
+            public boolean shouldCache(Query query) {
+                return cacheRanges && query instanceof PointRangeQuery;
+            }
+        };
+        return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(), queryCache, policy, false);
     }
 
     /** Builds a scorer for {@code ctx} inside {@code scope}, the way a caller that drives its own scorers does. */

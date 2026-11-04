@@ -34,6 +34,9 @@ final class DirectoryGroupedFileList implements FileList {
     @Nullable
     private final long[] groupMtimes;
     private final String[] leafNames;
+    /** Per-file object version, {@code null} when no file has one. Never grouped: versions are unique per object. */
+    @Nullable
+    private final String[] versions;
     @Nullable
     private final String sharedExtension;
     @Nullable
@@ -59,6 +62,7 @@ final class DirectoryGroupedFileList implements FileList {
         @Nullable long[] mtimesMillis,
         @Nullable long[] groupMtimes,
         String[] leafNames,
+        @Nullable String[] versions,
         @Nullable String sharedExtension,
         @Nullable String originalPattern,
         @Nullable PartitionMetadata partitionMetadata,
@@ -75,6 +79,7 @@ final class DirectoryGroupedFileList implements FileList {
         this.mtimesMillis = mtimesMillis;
         this.groupMtimes = groupMtimes;
         this.leafNames = leafNames;
+        this.versions = versions;
         this.sharedExtension = sharedExtension;
         this.originalPattern = originalPattern;
         this.partitionMetadata = partitionMetadata;
@@ -117,6 +122,12 @@ final class DirectoryGroupedFileList implements FileList {
             return groupMtimes[Short.toUnsignedInt(fileGroups[i])];
         }
         return mtimesMillis[i];
+    }
+
+    @Override
+    @Nullable
+    public String version(int i) {
+        return versions == null ? null : versions[i];
     }
 
     @Override
@@ -174,6 +185,11 @@ final class DirectoryGroupedFileList implements FileList {
         }
         for (String leaf : leafNames) {
             bytes += 40 + leaf.length() * (long) Character.BYTES;
+        }
+        if (versions != null) {
+            for (String version : versions) {
+                bytes += version == null ? 0 : 40 + version.length() * (long) Character.BYTES;
+            }
         }
         if (sharedExtension != null) {
             bytes += 40 + sharedExtension.length() * (long) Character.BYTES;

@@ -430,6 +430,14 @@ To regenerate everything for all functions and operators in a module:
 
 Query settings (see [SET](directives/set.md)) are documented in [`_snippets/generated/x-pack-esql/commands/settings/`](https://github.com/elastic/elasticsearch/tree/main/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql/commands/settings). To regenerate, run `QuerySettingsTests` in the `x-pack/plugin/esql` module. Markdown docs and the table of contents only include non-snapshot settings; Kibana definitions are generated for all settings, with snapshot-only ones carrying `"snapshotOnly": true`.
 
+### Time series implicit conversions
+
+Inside `TS ... | STATS ...`, a bare field is implicitly wrapped in `last_over_time` (or `histogram_merge_over_time` for histograms) before the outer aggregate sees it, so for example `AVG(counter_double)` is type-checked and executed as `AVG(LAST_OVER_TIME(counter_double))`. The mapping from raw field type to the implicit function and its return type is published for Kibana in [`kibana/generated/x-pack-esql/definition/time_series_aggregates.json`](https://github.com/elastic/elasticsearch/blob/main/docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/time_series_aggregates.json); Kibana applies it only in a `TS` context. To regenerate, run:
+
+```
+./gradlew :x-pack:plugin:esql:test --tests org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateKibanaDefinitionTests
+```
+
 ### Reserved keywords
 
 The reserved-keyword list is generated from identifier-shaped literals in `EsqlBaseLexer.VOCABULARY` by `ReservedKeywordsDocsTests`. Tokens whose ANTLR literal is missing (for example `STATS`) are recovered by lexing the symbolic name. To regenerate:
@@ -470,11 +478,11 @@ To help differentiate between the static and generated content, the generated co
 
 PromQL reference documentation is auto-generated and stored in:
 ```
-docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/functions/    # function markdown snippets: per-function pages, per-category lists, and the "Not yet supported" list
-docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/operators/    # operator markdown snippets: per-operator pages, per-category lists, and the "Not yet supported" list
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/functions/    # function markdown snippets: per-function pages, per-category lists, and the "Not supported yet" list
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/operators/    # operator markdown snippets: per-operator pages, per-category lists, and the "Not supported yet" list
 docs/reference/query-languages/promql/kibana/generated/x-pack-esql/                 # Kibana definition JSON files for functions and operators
 ```
-For functions, the descriptions, examples, and "Differences from Prometheus" notes come from each function's `PromqlFunctionDefinition` (see `PromqlBuiltinFunctionDefinitions` and the `PROMQL_DEFINITION` fields on the individual function classes). For operators, the same metadata (plus the documentation category and per-operator stack availability) comes from `OPERATOR_DEFS` in `PromqlDocsSupport`, because operators have no runtime registry. Edit those sources rather than the generated files.
+For functions, the descriptions, examples, and "Differences from Prometheus" notes (`stdDivergence`) come from each function's `PromqlFunctionDefinition` (see `PromqlBuiltinFunctionDefinitions` and the `PROMQL_DEFINITION` fields on the individual function classes). For operators, the same metadata (plus the documentation category and per-operator stack availability) comes from `OPERATOR_DEFS` in `PromqlDocsSupport`, because operators have no runtime registry. Edit those sources rather than the generated files.
 
 The hand-written hub pages (`promql/functions.md`, `promql/operators.md`) and the per-category wrapper pages (`promql/functions/<category>.md`, `promql/operators/<category>.md`) include the generated snippets; update them by hand when adding a category.
 

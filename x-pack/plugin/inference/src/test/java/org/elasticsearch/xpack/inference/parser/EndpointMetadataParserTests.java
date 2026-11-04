@@ -20,6 +20,7 @@ import java.util.Map;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.CAPABILITIES_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.CONTEXT_WINDOW_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.REASONING_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.Capabilities.TEMPLATES_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_INPUT_TOKENS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ContextWindow.MAX_OUTPUT_TOKENS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.DENIED_BY_REGION_POLICY_FIELD_NAME;
@@ -47,6 +48,7 @@ import static org.elasticsearch.inference.metadata.EndpointMetadata.ModelIdentit
 import static org.elasticsearch.inference.metadata.EndpointMetadata.REGIONS_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.DEFAULT_EFFORT_LEVEL_FIELD_NAME;
 import static org.elasticsearch.inference.metadata.EndpointMetadata.ReasoningCapability.SUPPORTED_EFFORT_LEVELS_FIELD_NAME;
+import static org.elasticsearch.inference.metadata.EndpointMetadata.TemplatesCapability.POLICY_FIELD_NAME;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -477,9 +479,13 @@ public class EndpointMetadataParserTests extends ESTestCase {
         contextWindowMap.put(MAX_INPUT_TOKENS_FIELD_NAME, 1050000);
         contextWindowMap.put(MAX_OUTPUT_TOKENS_FIELD_NAME, 128000);
 
+        var templatesMap = new HashMap<String, Object>();
+        templatesMap.put(POLICY_FIELD_NAME, "required");
+
         var map = new HashMap<String, Object>();
         map.put(REASONING_FIELD_NAME, reasoningMap);
         map.put(CONTEXT_WINDOW_FIELD_NAME, contextWindowMap);
+        map.put(TEMPLATES_FIELD_NAME, templatesMap);
 
         var result = EndpointMetadataParser.capabilitiesFromMap(map, ROOT);
 
@@ -490,6 +496,60 @@ public class EndpointMetadataParserTests extends ESTestCase {
         assertThat(result.reasoning().defaultEffortLevel(), equalTo(ReasoningEffort.MEDIUM));
         assertThat(result.contextWindow().maxInputTokens(), equalTo(1050000));
         assertThat(result.contextWindow().maxOutputTokens(), equalTo(128000));
+        assertThat(result.templates().policy(), equalTo(EndpointMetadata.TemplatePolicy.REQUIRED));
+    }
+
+    public void testCapabilitiesFromMap_TemplatesOnly_IsNotCollapsedToEmpty() {
+        var templatesMap = new HashMap<String, Object>();
+        templatesMap.put(POLICY_FIELD_NAME, "required");
+
+        var map = new HashMap<String, Object>();
+        map.put(TEMPLATES_FIELD_NAME, templatesMap);
+
+        var result = EndpointMetadataParser.capabilitiesFromMap(map, ROOT);
+
+        assertThat(result.reasoning(), nullValue());
+        assertThat(result.contextWindow(), nullValue());
+        assertThat(result.templates(), equalTo(new EndpointMetadata.TemplatesCapability(EndpointMetadata.TemplatePolicy.REQUIRED)));
+        assertFalse(result.isEmpty());
+    }
+
+    /**
+     * {@code none} is not a policy value: an endpoint that accepts both request shapes omits the block, so a stored {@code none}
+     * is dropped like any unknown value.
+     */
+    public void testTemplatesCapabilityFromMap_NonePolicy_ReturnsNull() {
+        var map = new HashMap<String, Object>();
+        map.put(POLICY_FIELD_NAME, "none");
+
+        assertThat(EndpointMetadataParser.templatesCapabilityFromMap(map, ROOT), nullValue());
+    }
+
+    public void testTemplatesCapabilityFromMap_ReturnsNull_WhenMapIsNullOrEmpty() {
+        assertThat(EndpointMetadataParser.templatesCapabilityFromMap(null, ROOT), nullValue());
+        assertThat(EndpointMetadataParser.templatesCapabilityFromMap(new HashMap<>(), ROOT), nullValue());
+    }
+
+    public void testTemplatesCapabilityFromMap_UnknownPolicy_ReturnsNull() {
+        var map = new HashMap<String, Object>();
+        map.put(POLICY_FIELD_NAME, "unknown_future_policy");
+
+        assertThat(EndpointMetadataParser.templatesCapabilityFromMap(map, ROOT), nullValue());
+    }
+
+    public void testTemplatesCapabilityFromMap_Throws_WhenPolicyWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(POLICY_FIELD_NAME, 42);
+
+        var e = expectThrows(IllegalArgumentException.class, () -> EndpointMetadataParser.templatesCapabilityFromMap(map, ROOT));
+        assertThat(e.getMessage(), containsString(POLICY_FIELD_NAME));
+    }
+
+    public void testCapabilitiesFromMap_Throws_WhenTemplatesWrongType() {
+        var map = new HashMap<String, Object>();
+        map.put(TEMPLATES_FIELD_NAME, "not-an-object");
+
+        expectThrows(ClassCastException.class, () -> EndpointMetadataParser.capabilitiesFromMap(map, ROOT));
     }
 
     public void testCapabilitiesFromMap_ReasoningOnly() {

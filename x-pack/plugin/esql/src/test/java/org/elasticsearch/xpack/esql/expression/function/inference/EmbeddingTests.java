@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
@@ -31,7 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("embedding")
-public class EmbeddingTests extends AbstractFunctionTestCase {
+public class EmbeddingTests extends AbstractInferenceFunctionTestCase {
 
     @Before
     public void checkCapability() {
@@ -39,7 +38,7 @@ public class EmbeddingTests extends AbstractFunctionTestCase {
     }
 
     public EmbeddingTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        this.testCase = testCaseSupplier.get();
+        super(testCaseSupplier);
     }
 
     @ParametersFactory
@@ -69,16 +68,26 @@ public class EmbeddingTests extends AbstractFunctionTestCase {
             )
         );
 
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(KEYWORD, KEYWORD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "text"),
+                        new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), KEYWORD, "inference_id")
+                    ),
+                    Matchers.blankOrNullString(),
+                    DENSE_VECTOR,
+                    equalTo(true)
+                )
+            )
+        );
+
         return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new Embedding(source, args.get(0), args.get(1), args.get(2));
-    }
-
-    @Override
-    protected boolean canSerialize() {
-        return false;
+    protected Expression buildFunction(Source source, Expression inputValue, Expression inferenceId, Expression options) {
+        return new Embedding(source, inputValue, inferenceId, options);
     }
 }

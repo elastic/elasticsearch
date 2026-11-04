@@ -82,6 +82,11 @@ public final class StatsCapturingIterator implements CloseableIterator<Page>, Co
     }
 
     @Override
+    public boolean isExhausted() {
+        return delegate.isExhausted();
+    }
+
+    @Override
     public void revokeOvershootOnPark() {
         delegate.revokeOvershootOnPark();
     }

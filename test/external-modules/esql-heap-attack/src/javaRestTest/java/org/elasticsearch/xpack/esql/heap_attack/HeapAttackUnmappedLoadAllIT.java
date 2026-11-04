@@ -100,9 +100,9 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     public void testFewDocsWithHugeNumberOfDistinctFields() throws IOException {
         String index = "load_all_huge_docs";
         boolean serverless = isServerless();
-        int docs = serverless ? 50 : 5;
+        int docs = 50;
         int objectsPerDoc = 1_000;
-        int leavesPerObject = serverless ? 100 : 1_000;
+        int leavesPerObject = 100;
         createMostlyUnmappedIndex(index);
         for (int d = 0; d < docs; d++) {
             StringBuilder bulk = new StringBuilder();
@@ -129,21 +129,21 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
 
     /**
      * A single document whose {@code _source} is one array of many tiny objects ({@code "a":[{"x":1},{"x":1},...]}): a few bytes
-     * per element, but it materialises into a {@code Map}/{@code List} graph many times its own size while flattening to a single
+     * per element, but parsed into a {@code Map}/{@code List} graph it takes many times its own size while flattening to a single
      * {@code a.x} leaf - so it is the parse that grows, not the output. This
      * must trip a graceful {@code circuit_breaking_exception} rather than exhaust the heap.
      * <p>
-     * Before materialising {@code _source} the data node reserves {@code SOURCE_RESERVATION_FACTOR} (10x) its length on the request
-     * breaker (in {@code UnmappedFieldsBlockLoader}). That reservation is proportional to the {@code _source} length, so on this
+     * Before reading {@code _source} the data node reserves {@code SOURCE_RESERVATION_FACTOR} (10x) its length on the request
+     * breaker (in {@code UnmappedFields#blockLoader}). That reservation is proportional to the {@code _source} length, so on this
      * small 512MB-heap node a document big enough to cross the default breaker can no longer be indexed. The request breaker is
      * lowered instead, standing in for the headroom a normally provisioned node has: the 10x reservation on a small, easily indexed
-     * document then crosses it and breaks up front, before the object graph is built. The base class resets cluster settings after
+     * document then crosses it and breaks up front, before {@code _source} is read. The base class resets cluster settings after
      * the test.
      */
     public void testArrayOfTinyObjectsCircuitBreaksInSourceLoading() throws IOException {
-        setRequestBreakerLimit("20%");
+        setRequestBreakerLimit("15%");
         assertCircuitBreaksVia(attempt -> {
-            // ~1.5M+ {"x":1} elements is ~12MB+ of _source; the 10x reservation (~120MB+) then crosses the ~102MB (20%) breaker.
+            // ~1.5M+ {"x":1} elements is ~12MB+ of _source; the 10x reservation (~120MB+) then crosses the 15% breaker (~80MB).
             int elements = 1_500_000 * attempt;
             String index = "load_all_array_" + attempt;
             createMostlyUnmappedIndex(index);
@@ -163,7 +163,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
             query.append("SET unmapped_fields=\\\"LOAD_ALL\\\";\n");
             query.append("FROM ").append(index).append("\n| LIMIT 1\"}");
             return responseAsMap(query(query.toString(), "columns"));
-        }, "UnmappedFieldsBlockLoader");
+        }, "UnmappedFields$AllFieldsBlockLoader");
     }
 
     private void createMostlyUnmappedIndex(String index) throws IOException {
@@ -180,7 +180,7 @@ public class HeapAttackUnmappedLoadAllIT extends HeapAttackTestCase {
     /**
      * Runs {@code LOAD_ALL} over all of {@code index} and asserts the response is exactly {@link #MAPPED_FIELD} and the single
      * {@code _unmapped_fields} column, with no warning about dropped fields. Only the columns are fetched: {@code filter_path} drops
-     * the values on the server, after the response has been built, so the flattening is fully exercised without shipping every
+     * the values on the server, after the response has been built, so every row is fully loaded without shipping every
      * row's JSON object to the test.
      */
     private void assertLoadAllSingleColumn(String index, int limit) throws IOException {

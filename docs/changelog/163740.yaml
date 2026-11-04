@@ -1,0 +1,13 @@
+pr: 163740
+summary: "ESQL:DS: Enable federation by default"
+area: ES|QL
+type: enhancement
+issues: []
+highlight:
+  notable: true
+  title: ES|QL Data Federation is enabled by default
+  body: |-
+    [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md)
+    is now enabled by default on non-serverless deployments. To turn it off, set
+    `esql.federation.enabled` to `false`. It requires an Enterprise or trial
+    license.

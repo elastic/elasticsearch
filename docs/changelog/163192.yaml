@@ -1,0 +1,7 @@
+area: Machine Learning
+issues:
+ - 159122
+ - 158071
+pr: 163192
+summary: Fix ingest model memory service
+type: bug

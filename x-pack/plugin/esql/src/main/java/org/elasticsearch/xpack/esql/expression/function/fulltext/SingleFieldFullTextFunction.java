@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.AliasBindings;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -49,8 +50,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
@@ -79,7 +82,6 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
 
     /**
      * These functions take the thing to search as an argument, so it can be an expression rather than a field.
-     * {@code KNN} narrows this to what its configuration allows.
      */
     @Override
     public boolean supportsRuntimeSearch() {
@@ -274,25 +276,48 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             fieldVerifier(plan, this, field, null, failures);
             // Only a search predicate is checked. HIGHLIGHT also holds full-text functions, but it analyzes values
             // row by row through a MemoryIndex whether or not a FORK precedes it, so nothing about it is silently
-            // substituted here - see forkColumnBackedByMappedTextField.
+            // substituted here - see mergedTextColumn.
             if (isRuntimeSearch() && plan instanceof Filter) {
-                ForkTextColumn forkColumn = forkColumnBackedByMappedTextField(plan);
-                if (forkColumn != null) {
+                MergedTextColumn merged = mergedTextColumn(plan);
+                if (merged == null) {
+                    return;
+                }
+                if (merged.branchAnalyzers().size() > 1) {
+                    List<String> analyzers = List.copyOf(merged.branchAnalyzers());
                     failures.add(
                         fail(
                             this,
-                            "[{}] {} cannot search column [{}] after FORK: the merged column is not index-backed, so its "
-                                + "values are analyzed with the [{}] analyzer rather than the analyzer mapped for [{}]. "
-                                + "Search [{}] in the FORK branches instead, or declare an analyzer for the merged column "
-                                + "with TO_TEXT({}, {\"analyzer\": ...}).",
+                            "[{}] {} cannot search column [{}] after {}: the merged column is not index-backed, and its "
+                                + "{} analyze its values with different analyzers [{}] and [{}]. Search [{}] in the {} instead{}.",
                             functionName(),
                             functionType(),
-                            forkColumn.column().name(),
+                            merged.column().name(),
+                            merged.mergeName(),
+                            merged.branchesName(),
+                            analyzers.get(0),
+                            analyzers.get(1),
+                            merged.column().name(),
+                            merged.branchesName(),
+                            merged.analyzerDeclarationHint()
+                        )
+                    );
+                } else if (merged.mappedField() != null) {
+                    failures.add(
+                        fail(
+                            this,
+                            "[{}] {} cannot search column [{}] after {}: the merged column is not index-backed, so its "
+                                + "values are analyzed with the [{}] analyzer rather than the analyzer mapped for [{}]. "
+                                + "Search [{}] in the {} instead{}.",
+                            functionName(),
+                            functionType(),
+                            merged.column().name(),
+                            merged.mergeName(),
                             AnalyzedTextExpression.STANDARD_ANALYZER,
-                            forkColumn.mappedField().name(),
+                            merged.mappedField().name(),
                             // the branches know the field by its own name, which a RENAME above them may have changed
-                            forkColumn.mappedField().name(),
-                            forkColumn.column().name()
+                            merged.mappedField().name(),
+                            merged.branchesName(),
+                            merged.analyzerDeclarationHint()
                         )
                     );
                 }
@@ -301,48 +326,84 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
     }
 
     /**
-     * The column this runtime search reads, paired with the mapped {@code text} field a {@code FORK} branch fills
-     * it from. The two differ when {@code RENAME} or {@code EVAL} sits between them.
+     * The merged column this runtime search reads, with what its branches fill it from.
+     *
+     * @param mergeName what merged the column, for a user-facing message
+     * @param branchesName what that command's branches are called, for a user-facing message
+     * @param mappedField a mapped {@code text} field one of the branches fills the column from, or {@code null} when
+     *                    none does. It differs from {@code column} when {@code RENAME} or {@code EVAL} sits between them.
+     * @param branchAnalyzers the analyzers the branches that have values analyze the column with, sorted
+     * @param canDeclareAnalyzer whether {@code TO_TEXT(column, {"analyzer": ...})} can declare an analyzer for the
+     *                           merged column. It cannot after subqueries that fill the column from a mapped field:
+     *                           union-type resolution pushes the conversion into the subqueries, where declaring an
+     *                           analyzer on the field is rejected.
      */
-    private record ForkTextColumn(Attribute column, FieldAttribute mappedField) {}
+    private record MergedTextColumn(
+        Attribute column,
+        String mergeName,
+        String branchesName,
+        @Nullable FieldAttribute mappedField,
+        Set<String> branchAnalyzers,
+        boolean canDeclareAnalyzer
+    ) {
+        /**
+         * Hint for user-facing error message, if appropriate.
+         */
+        String analyzerDeclarationHint() {
+            return canDeclareAnalyzer
+                ? ", or declare an analyzer for the merged column with TO_TEXT(" + column.name() + ", {\"analyzer\": ...})"
+                : "";
+        }
+    }
 
     /**
-     * Whether this runtime search reads a {@code FORK} output column that at least one branch fills from a mapped
-     * {@code text} field, and if so which field.
+     * Whether this runtime search reads a {@code FORK} or {@code UNION ALL} output column, and if so what the
+     * branches fill it from.
      * <p>
-     * A {@code FORK} output column is merged from every branch, so it is no longer index-backed and its values are
-     * analyzed row by row with the analyzer declared on the column - the standard analyzer when nothing declared
-     * one. When those values come from a mapped {@code text} field, that default silently replaces the analyzer the
-     * field was mapped with, and the search answers a different question than the same search below {@code FORK}
-     * would. The declaration is the only thing that can tell the two cases apart: the merged attribute is a
-     * {@code ReferenceAttribute} of type {@code TEXT} either way, and ES|QL field types carry no analyzer.
+     * A merged column is no longer index-backed, so its values are analyzed row by row with the one analyzer declared
+     * on the merged column - the standard analyzer when nothing declared one. Two things can make that silently wrong:
+     * <ul>
+     *     <li>A branch fills the column from a mapped {@code text} field. The default replaces the analyzer the field
+     *     was mapped with, and the search answers a different question than the same search below the merge would.
+     *     The declaration is the only thing that can tell the two cases apart: the merged attribute is a
+     *     {@code ReferenceAttribute} of type {@code TEXT} either way, and ES|QL field types carry no analyzer.</li>
+     *     <li>The branches analyze the column differently. The merged column carries the analyzer of the branch that
+     *     happened to come first, and the rows of the other branches are analyzed with an analyzer they never
+     *     declared. {@code FORK} rejects this when the plan is analyzed; {@code UNION ALL} still allows the column to
+     *     be used in ways that do not analyze it, like {@code HIGHLIGHT}, which reads each branch's mapping.</li>
+     * </ul>
      * <p>
      * Only reachable when push-down left the search above the merge. {@code PushDownFiltersIntoFork} moves a filter
-     * into the branches whenever at least one of them has no pipeline breaker, which restores an index-backed search
-     * and makes {@link #isRuntimeSearch()} false. {@code MV_EXPAND} substitutes the analyzer the same way but is
-     * deliberately not checked: it did so before a runtime search was allowed above a pipeline breaker at all, so
-     * narrowing it now would break working queries rather than restrict newly opened ground. {@code HIGHLIGHT} is
-     * not checked either, for a different reason: it never searches an index, so there is no index behaviour for a
+     * into the branches whenever at least one of them has no pipeline breaker, and
+     * {@code PushDownFilterAndLimitIntoUnionAll} always does, unless a pipeline breaker sits above the merge. Either
+     * restores a search that each branch runs on its own column. {@code MV_EXPAND} substitutes the analyzer the same
+     * way but is deliberately not checked: it did so before a runtime search was allowed above a pipeline breaker at
+     * all, so narrowing it now would break working queries rather than restrict newly opened ground. {@code HIGHLIGHT}
+     * is not checked either, for a different reason: it never searches an index, so there is no index behaviour for a
      * merged column to diverge from.
      */
     @Nullable
-    private ForkTextColumn forkColumnBackedByMappedTextField(LogicalPlan plan) {
+    private MergedTextColumn mergedTextColumn(LogicalPlan plan) {
         Expression searched = field();
         if (searched instanceof AbstractConvertFunction convertFunction) {
+            // An analyzer declared right here, as in TO_TEXT(column, {"analyzer": ...}), applies to every row
+            // whatever the branches declared, so there is nothing to substitute.
+            if (AnalyzedTextExpression.valuesAnalyzerOf(searched) != null) {
+                return null;
+            }
             searched = convertFunction.field();
         }
         if (searched instanceof Attribute == false) {
             return null;
         }
         Attribute column = (Attribute) searched;
-        // A keyword column is not analyzed, so it has no mapping analyzer to lose. A declared values analyzer - which
-        // Alias propagates along a chain of EVAL/RENAME - means the query already says how to analyze the values.
-        if (column.dataType() != TEXT || AnalyzedTextExpression.valuesAnalyzerOf(column) != null) {
+        // A keyword column is not analyzed, so it has no analyzer to lose.
+        if (column.dataType() != TEXT) {
             return null;
         }
-        // Checked before the bindings are collected so that the far more common FORK-less plan costs one short
+        // Checked before the bindings are collected so that the far more common merge-less plan costs one short
         // circuiting walk rather than a map of every alias in it.
-        if (plan.anyMatch(p -> p instanceof Fork) == false) {
+        if (plan.anyMatch(p -> p instanceof MergePlan) == false) {
             return null;
         }
 
@@ -352,26 +413,83 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
             return null;
         }
         Attribute merged = (Attribute) resolved;
+        MergePlan merge = findDefiningMerge(plan, merged);
+        if (merge == null) {
+            return null;
+        }
 
         Holder<FieldAttribute> mappedField = new Holder<>();
-        plan.forEachDown(Fork.class, fork -> {
-            if (mappedField.get() != null || fork.output().stream().noneMatch(out -> out.id().equals(merged.id()))) {
-                return;
-            }
-            // Branches are name-aligned by the time the merge resolves, so the name is what identifies the same
-            // column across them. The merge gives its output new ids, so no branch column shares the merged column's id.
-            for (LogicalPlan branch : fork.children()) {
-                for (Attribute branchColumn : branch.output()) {
-                    if (branchColumn.name().equals(merged.name())
-                        && aliases.resolve(branchColumn, branchColumn) instanceof FieldAttribute mapped
-                        && mapped.dataType() == TEXT) {
-                        mappedField.set(mapped);
-                        return;
-                    }
-                }
+        Set<String> branchAnalyzers = new TreeSet<>();
+        collectBranchSources(merge, merged.name(), mappedField, branchAnalyzers);
+        return merge instanceof Fork
+            ? new MergedTextColumn(column, "FORK", "FORK branches", mappedField.get(), branchAnalyzers, true)
+            : new MergedTextColumn(
+                column,
+                "subqueries in FROM",
+                "subqueries",
+                mappedField.get(),
+                branchAnalyzers,
+                mappedField.get() == null
+            );
+    }
+
+    /**
+     * Finds the {@code FORK} or subquery union in {@code plan} that combined {@code column} from its branches, or
+     * returns {@code null} when {@code column} is not a merged column.
+     * <p>
+     * A merge gives each of its output columns a new id, and the commands above it pass the column on under that id.
+     * So the merge whose output has {@code column}'s id is the one that created it. An {@code EVAL} or {@code RENAME}
+     * between them binds a new id, so resolve {@code column} through {@link AliasBindings} first.
+     */
+    @Nullable
+    private static MergePlan findDefiningMerge(LogicalPlan plan, Attribute column) {
+        Holder<MergePlan> found = new Holder<>();
+        plan.forEachDown(MergePlan.class, merge -> {
+            if (found.get() == null && merge.output().stream().anyMatch(out -> out.id().equals(column.id()))) {
+                found.set(merge);
             }
         });
-        return mappedField.get() == null ? null : new ForkTextColumn(column, mappedField.get());
+        return found.get();
+    }
+
+    /**
+     * Adds what the branches of {@code merge} fill its column {@code name} from to {@code mappedField} and
+     * {@code branchAnalyzers}. A branch can pass on a column that a merge inside it produced, like a {@code FORK}
+     * inside a subquery. That merged column hides the mapped field behind it and carries only the analyzer of its own
+     * first branch, so the nested merge's branches are collected instead.
+     */
+    private static void collectBranchSources(
+        MergePlan merge,
+        String name,
+        Holder<FieldAttribute> mappedField,
+        Set<String> branchAnalyzers
+    ) {
+        // Branches are name-aligned by the time the merge resolves, so the name is what identifies the same
+        // column across them. The merge gives its output new ids, so no branch column shares the merged column's id.
+        for (LogicalPlan branch : merge.children()) {
+            Predicate<Attribute> onlyNull = Fork.producesOnlyNull(branch);
+            for (Attribute branchColumn : branch.output()) {
+                if (branchColumn.name().equals(name) == false) {
+                    continue;
+                }
+                // bound per branch, since a FORK's branches bind the same ids
+                Expression source = AliasBindings.of(branch).resolve(branchColumn, branchColumn);
+                MergePlan nested = source instanceof Attribute attribute ? findDefiningMerge(branch, attribute) : null;
+                if (nested != null) {
+                    collectBranchSources(nested, ((Attribute) source).name(), mappedField, branchAnalyzers);
+                    break;
+                }
+                if (mappedField.get() == null && source instanceof FieldAttribute mapped && mapped.dataType() == TEXT) {
+                    mappedField.set(mapped);
+                }
+                // A branch that does not produce the column was filled with nulls, which have nothing to analyze.
+                if (onlyNull.test(branchColumn) == false) {
+                    String declared = AnalyzedTextExpression.valuesAnalyzerOf(branchColumn);
+                    branchAnalyzers.add(declared == null ? AnalyzedTextExpression.STANDARD_ANALYZER : declared);
+                }
+                break;
+            }
+        }
     }
 
     @Override

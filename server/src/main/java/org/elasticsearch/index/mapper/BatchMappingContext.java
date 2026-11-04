@@ -162,9 +162,12 @@ public final class BatchMappingContext implements Releasable {
      * view of the batch, for mappers that must read back what the other mappers produced (e.g. {@code columnar_stored} rebuilding
      * {@code _source}). Unlike {@link #columns()} this does not {@link #frozen freeze} the context, so the caller may still
      * attach or {@link #removeColumnsIf remove} columns afterwards; columns attached later are not seen by the returned cursor.
+     *
+     * @param include selects the columns that the cursor reads. The fields of the columns that it rejects are left out of the
+     *                assembled rows, and these columns are not read at all, which saves the cost to build their fields.
      */
-    public MappedColumns.RowCursor rowCursor() {
-        return mappedColumns().rowCursor();
+    public MappedColumns.RowCursor rowCursor(Predicate<? super LuceneColumn> include) {
+        return mappedColumns().rowCursor(include);
     }
 
     /**
@@ -238,19 +241,36 @@ public final class BatchMappingContext implements Releasable {
     }
 
     /**
-     * Returns the size in bytes of document {@code doc}'s source, for accounting rather than storage.
+     * Returns the size in bytes of every document's source, indexed by document, for accounting rather than storage.
      *
      * <p>A document that arrives as a row of a pre-built {@link SourceBatch} carries no source bytes on its request, so
      * {@link #sources()} cannot size it; its size is estimated from the batch row instead, which is what the row-major path does
-     * for row-backed sources (see {@code DocumentSource#estimatedSizeInBytes}). A document with neither has size {@code 0}.
+     * for row-backed sources (see {@code DocumentSource#estimatedSizeInBytes}). The batch sizes all of its rows in one column
+     * sweep ({@link SourceBatch#rowSizesInBytes()}), which is done once and only when at least one document needs it. A document
+     * with neither has size {@code 0}.
      */
-    public int sourceSizeInBytes(int doc) {
-        final BytesReference source = batch.sources()[doc];
-        if (source != null && source.length() > 0) {
-            return source.length();
+    public int[] sourceSizesInBytes() {
+        final int docCount = batch.docCount();
+        final BytesReference[] sources = batch.sources();
+        final int[] sizes = new int[docCount];
+        int[] batchSizes = null;
+        boolean batchSized = false;
+        for (int d = 0; d < docCount; d++) {
+            final BytesReference source = sources[d];
+            if (source != null && source.length() > 0) {
+                sizes[d] = source.length();
+                continue;
+            }
+            if (batchSized == false) {
+                final SourceBatch sourceBatch = batch.sourceBatch();
+                batchSizes = sourceBatch != null ? sourceBatch.rowSizesInBytes() : null;
+                batchSized = true;
+            }
+            if (batchSizes != null) {
+                sizes[d] = batchSizes[d];
+            }
         }
-        final SourceBatch sourceBatch = batch.sourceBatch();
-        return sourceBatch != null ? sourceBatch.row(doc).sizeInBytes() : 0;
+        return sizes;
     }
 
     /**

@@ -11,10 +11,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Mutable builder for a {@link Mapping}. Holds a {@link RootObjectMapper.Builder} and metadata field builders,
@@ -68,11 +70,24 @@ public class MappingBuilder {
      * Merges another {@link MappingBuilder} into this one, mutating this builder in place,
      * enforcing all limits in the provided {@link ParseFieldLimits}.
      */
-    public void merge(MappingBuilder incoming, MergeReason reason, ParseFieldLimits fieldLimits) {
+    public void merge(
+        MappingBuilder incoming,
+        MergeReason reason,
+        ParseFieldLimits fieldLimits,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         mergeWith(
             incoming,
             reason,
-            MapperMergeContext.root(isSourceSynthetic(), false, reason, fieldLimits, isStrictColumnar, isSourceColumnarStored())
+            MapperMergeContext.root(
+                isSourceSynthetic(),
+                false,
+                reason,
+                fieldLimits,
+                isStrictColumnar,
+                isSourceColumnarStored(),
+                clusterSupportsFeature
+            )
         );
     }
 
@@ -116,19 +131,25 @@ public class MappingBuilder {
      * @return the built {@link Mapping}
      */
     public Mapping build(MergeReason reason) {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(
-            isSourceSynthetic(),
-            isDataStream(),
-            reason,
-            isStrictColumnar,
-            isSourceColumnarStored()
-        );
-        RootObjectMapper root = rootBuilder.build(rootContext);
+        RootObjectMapper root = rootBuilder.build(rootContext(reason));
         MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
             .stream()
             .map(MetadataFieldMapper.Builder::build)
             .toArray(MetadataFieldMapper[]::new);
         return new Mapping(root, metadataMappers, meta);
+    }
+
+    /**
+     * Normalizes the whole builder tree
+     *
+     * @param reason the merge reason, used to configure the {@link MapperBuilderContext} for normalizing
+     */
+    public void normalize(MergeReason reason) {
+        rootBuilder.normalize(rootContext(reason));
+    }
+
+    private MapperBuilderContext rootContext(MergeReason reason) {
+        return MapperBuilderContext.root(isSourceSynthetic(), isDataStream(), reason, isStrictColumnar, isSourceColumnarStored());
     }
 
     private boolean isSourceSynthetic() {

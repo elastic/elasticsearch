@@ -74,7 +74,8 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 # 10. Move the paths that are copied in layers of their own out of the way, keeping their paths, into a
 #     directory per layer
 # Before that, replace the identical jars that many modules and plugins bundle with hard links, so that each one
-# is stored only once in the image layer.
+# is stored only once in the image layer. The third-party jars go in a layer of their own, which must hold all
+# the copies of a jar since hard links do not span layers.
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
@@ -97,7 +98,17 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
             mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
         done; \\
         n=\$((n + 1)); \\
-    done
+    done && \\
+    mkdir "/layers/\$n" && \\
+    find lib modules plugins -type f -name '*.jar' ! -name '*-${version}*' | while read -r path; do \\
+        mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
+    done && \\
+    find "/layers/\$n" -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u > /tmp/third-party.sums && \\
+    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u > /tmp/own.sums && \\
+    if [ -n "\$(comm -12 /tmp/third-party.sums /tmp/own.sums)" ]; then \\
+        echo >&2 "Jars with identical content would end up in different layers"; exit 1; \\
+    fi && \\
+    rm /tmp/third-party.sums /tmp/own.sums
 
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
@@ -137,6 +148,8 @@ WORKDIR /usr/share/elasticsearch
 # Layer of its own: ${path}
 COPY --from=builder --chown=0:0 /layers/${i} /usr/share/elasticsearch
 <% } %>
+# Layer of its own: third-party jars, i.e. those whose file name does not carry the Elasticsearch version
+COPY --from=builder --chown=0:0 /layers/${separateLayers.size()} /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH

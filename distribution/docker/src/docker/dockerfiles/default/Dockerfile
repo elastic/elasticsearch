@@ -91,7 +91,20 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
             mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
         done; \\
         n=\$((n + 1)); \\
-    done
+    done && \\
+# The jars built from this repository carry the version in their file name and change with every build, unlike
+# the third-party ones. Copy the latter in a layer of their own, after the layers above.
+    mkdir "/layers/\$n" && \\
+    find lib modules plugins -type f -name '*.jar' ! -name '*-${version}*' | while read -r path; do \\
+        mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
+    done && \\
+# Hard links do not span layers, so no jar may have a copy with identical content in another layer
+    find "/layers/\$n" -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u > /tmp/third-party.sums && \\
+    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u > /tmp/own.sums && \\
+    if [ -n "\$(comm -12 /tmp/third-party.sums /tmp/own.sums)" ]; then \\
+        echo >&2 "Jars with identical content would end up in different layers"; exit 1; \\
+    fi && \\
+    rm /tmp/third-party.sums /tmp/own.sums
 
 # The distribution includes a `config` directory, no need to create it
 COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
@@ -127,6 +140,8 @@ WORKDIR /usr/share/elasticsearch
 # Layer of its own: ${path}
 COPY --from=builder --chown=0:0 /layers/${i} .
 <% } %>
+# Layer of its own: third-party jars
+COPY --from=builder --chown=0:0 /layers/${separateLayers.size()} .
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS

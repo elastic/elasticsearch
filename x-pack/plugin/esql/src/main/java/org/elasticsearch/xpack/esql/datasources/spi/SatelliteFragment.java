@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,8 +40,15 @@ public record SatelliteFragment(Map<String, Object> request) {
         "schema_resolution",
         "ca_certificate",
         "server_name",
-        "token"
+        "token",
+        "credentials"
     );
+
+    /**
+     * The config key under which a connector tells the planner which dataset settings the satellite declared as table parameters
+     * (they travel in call headers, not in a fragment). A framework key: it starts with an underscore.
+     */
+    public static final String TABLE_PARAMETERS_KEY = "_table_parameters";
 
     /**
      * Whether the fragment filters rows before they leave the satellite. How many splits it takes to fill a LIMIT is then unknown,
@@ -55,6 +63,23 @@ public record SatelliteFragment(Map<String, Object> request) {
             node = n.get("input");
         }
         return false;
+    }
+
+    /**
+     * {@code config} with {@link #TABLE_PARAMETERS_KEY} added: the names of the dataset settings the satellite declared as table
+     * parameters, read from the capability stamp of the source metadata (which travels with the plan, unlike a key added to the
+     * config, which a node rebuilds from its registry). The config is returned as it is when the satellite declared none.
+     */
+    public static Map<String, Object> withTableParameters(Map<String, Object> config, Map<String, Object> sourceMetadata) {
+        if (sourceMetadata != null
+            && sourceMetadata.get(CAPABILITY_KEY) instanceof Map<?, ?> declaration
+            && declaration.get("tableParameters") instanceof List<?> parameters
+            && parameters.isEmpty() == false) {
+            Map<String, Object> result = new HashMap<>(config);
+            result.put(TABLE_PARAMETERS_KEY, List.copyOf(parameters));
+            return result;
+        }
+        return config;
     }
 
     public static boolean isOptionKey(String key) {

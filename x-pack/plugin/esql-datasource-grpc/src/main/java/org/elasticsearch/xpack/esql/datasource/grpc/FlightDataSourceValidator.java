@@ -8,9 +8,13 @@
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
@@ -72,6 +76,13 @@ class FlightDataSourceValidator implements DataSourceValidator {
                 if (FlightClients.TOKEN.equals(setting.getKey()) && ((String) setting.getValue()).matches("[!-~]+") == false) {
                     throw error("[token] must be printable ASCII characters without spaces");
                 }
+                if (FlightClients.TOKEN.equals(setting.getKey())
+                    && ((String) setting.getValue()).length() > FlightClients.MAX_TOKEN_CHARS) {
+                    throw error("[token] is longer than " + FlightClients.MAX_TOKEN_CHARS + " characters");
+                }
+                if (FlightClients.CREDENTIALS.equals(setting.getKey())) {
+                    checkCredentials((String) setting.getValue());
+                }
                 validated.put(
                     setting.getKey(),
                     new DataSourceSetting(setting.getValue(), FlightClients.SECRET_SETTINGS.contains(setting.getKey()))
@@ -128,10 +139,35 @@ class FlightDataSourceValidator implements DataSourceValidator {
                 validated.put(name, v);
             }
         }
+        String header = FlightClients.encodeDatasetSettings(validated);
+        if (header != null && header.length() > FlightClients.MAX_HEADER_VALUE_CHARS) {
+            throw error("the dataset settings are too large to be sent to the satellite in a header");
+        }
         int port = uri.getPort() > 0 ? uri.getPort() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
         validated.put("endpoint", uri.getScheme() + "://" + uri.getHost() + ":" + port);
         validated.put("target", path.substring(1));
         return validated;
+    }
+
+    /** The credentials are an opaque JSON object for the satellite; ES only checks that it is one and that it fits in a header. */
+    private static void checkCredentials(String credentials) {
+        if (credentials.getBytes(java.nio.charset.StandardCharsets.UTF_8).length * 4 / 3 + 4 > FlightClients.MAX_HEADER_VALUE_CHARS) {
+            throw error("[credentials] is too long to be sent to the satellite in a header");
+        }
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, credentials)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw error("[credentials] must be a JSON object");
+            }
+            parser.map();
+            if (parser.nextToken() != null) {
+                throw error("[credentials] must be a single JSON object");
+            }
+        } catch (IOException | RuntimeException e) {
+            if (e instanceof ValidationException ve) {
+                throw ve;
+            }
+            throw error("[credentials] must be a JSON object");
+        }
     }
 
     private static ValidationException error(String message) {

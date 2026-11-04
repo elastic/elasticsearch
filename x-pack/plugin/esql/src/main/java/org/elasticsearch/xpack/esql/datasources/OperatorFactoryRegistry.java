@@ -107,7 +107,7 @@ public class OperatorFactoryRegistry {
                     target,
                     projectedColumns,
                     context.attributes(),
-                    context.config(),
+                    SatelliteFragment.withTableParameters(context.config(), context.sourceMetadata()),
                     context.batchSize(),
                     FormatReader.NO_LIMIT,
                     null,

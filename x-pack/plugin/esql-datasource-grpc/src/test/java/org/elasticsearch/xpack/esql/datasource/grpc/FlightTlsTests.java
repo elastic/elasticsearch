@@ -110,9 +110,9 @@ public class FlightTlsTests extends ESTestCase {
     public void testTheTokenIsNotInTheStringFormOfTheTransport() {
         FlightClients.Transport transport = FlightClients.transport("grpc+tls://h:1", Map.of("token", "s3cret"));
         assertThat(transport.toString(), not(containsString("s3cret")));
-        assertEquals("", FlightClients.Transport.PLAIN.credentialScope());
-        assertThat(transport.credentialScope(), not(containsString("s3cret")));
-        assertNotEquals(transport.credentialScope(), FlightClients.transport("grpc+tls://h:1", Map.of("token", "other")).credentialScope());
+        assertEquals("", FlightClients.Transport.PLAIN.cacheScope());
+        assertThat(transport.cacheScope(), not(containsString("s3cret")));
+        assertNotEquals(transport.cacheScope(), FlightClients.transport("grpc+tls://h:1", Map.of("token", "other")).cacheScope());
     }
 
     /** A declaration read with one credential is not handed to another: the cache is keyed by who asked. */

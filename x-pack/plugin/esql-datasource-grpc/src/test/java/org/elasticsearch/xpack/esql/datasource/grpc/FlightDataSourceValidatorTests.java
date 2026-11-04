@@ -73,7 +73,7 @@ public class FlightDataSourceValidatorTests extends ESTestCase {
     public void testTheTokenIsASecret() {
         Map<String, DataSourceSetting> settings = validator.validateDatasource(Map.of("token", "s3cret"));
         assertTrue(settings.get("token").secret());
-        assertThat(new FlightPluginSecrets().names(), equalTo(java.util.Set.of("token")));
+        assertThat(new FlightPluginSecrets().names(), equalTo(java.util.Set.of("token", "credentials")));
     }
 
     public void testATokenIsPrintableAsciiWithoutSpaces() {

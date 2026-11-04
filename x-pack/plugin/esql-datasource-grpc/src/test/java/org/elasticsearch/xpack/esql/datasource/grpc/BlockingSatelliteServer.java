@@ -97,6 +97,11 @@ public final class BlockingSatelliteServer implements Closeable {
 
     private final boolean tls;
 
+    /** What each call carried: the method, the dataset settings header and the credentials header (null when absent). */
+    public record CallHeaders(String method, String datasetSettings, String credentials) {}
+
+    public final List<CallHeaders> headerLog = new CopyOnWriteArrayList<>();
+
     /** When set, a call without {@code authorization: Bearer <this>} is answered UNAUTHENTICATED. */
     public volatile String requiredToken;
     public final AtomicInteger unauthenticatedCalls = new AtomicInteger();
@@ -114,6 +119,7 @@ public final class BlockingSatelliteServer implements Closeable {
             builder.useTls(resource("server.crt"), resource("server.key"));
         }
         builder.middleware(AUTH_KEY, (info, headers, context) -> {
+            headerLog.add(new CallHeaders(info.method().name(), headers.get("x-esql-dataset-settings"), headers.get("x-esql-credentials")));
             String required = requiredToken;
             if (required != null && ("Bearer " + required).equals(headers.get("authorization")) == false) {
                 unauthenticatedCalls.incrementAndGet();

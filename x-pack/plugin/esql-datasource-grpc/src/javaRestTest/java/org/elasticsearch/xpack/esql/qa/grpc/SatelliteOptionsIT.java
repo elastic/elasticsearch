@@ -111,7 +111,7 @@ public class SatelliteOptionsIT extends ESRestTestCase {
             register(satellite, "opt_bad_ds", "{\"color\": \"red\"}");
             try {
                 String error = errorOf("FROM opt_bad_ds | KEEP id | LIMIT 5");
-                assertThat(error, containsString("does not declare the source option [color]"));
+                assertThat(error, containsString("does not declare the dataset setting [color]"));
                 assertThat(error, containsString("declares [units]"));
                 assertThat("nothing was read", satellite.fragments.size(), equalTo(0));
             } finally {

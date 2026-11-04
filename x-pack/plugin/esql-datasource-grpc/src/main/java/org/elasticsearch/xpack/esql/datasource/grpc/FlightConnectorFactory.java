@@ -142,14 +142,22 @@ class FlightConnectorFactory implements ConnectorFactory {
                     + " but this Flight server does not implement the satellite protocol"
             );
         }
-        Object declared = ((Map<?, ?>) stamp.get(SatelliteFragment.CAPABILITY_KEY)).get("options");
+        Map<?, ?> declaration = (Map<?, ?>) stamp.get(SatelliteFragment.CAPABILITY_KEY);
+        // a dataset setting is either a source option (it reaches the satellite inside a fragment and only changes values) or a table
+        // parameter (it reaches it in a header on every call and may change the schema and the partitions): the satellite declares which
+        List<Object> declared = new ArrayList<>();
+        for (String property : List.of("options", "tableParameters")) {
+            if (declaration.get(property) instanceof List<?> list) {
+                declared.addAll(list);
+            }
+        }
         for (String name : options.keySet()) {
-            if (declared instanceof List<?> list == false || ((List<?>) declared).contains(name) == false) {
+            if (declared.contains(name) == false) {
                 throw new IllegalArgumentException(
-                    "the satellite does not declare the source option ["
+                    "the satellite does not declare the dataset setting ["
                         + name
-                        + "]; it declares "
-                        + (declared instanceof List<?> ? declared : List.of())
+                        + "] as a source option or a table parameter; it declares "
+                        + declared
                 );
             }
         }
@@ -184,20 +192,20 @@ class FlightConnectorFactory implements ConnectorFactory {
                 );
             }
             List<Attribute> attributes = FlightTypeMapping.toAttributes(arrowSchema);
-            Map<String, Object> resolvedConfig = Map.of("endpoint", endpoint, "target", target);
             // the id the satellite gives in the schema it answered, a call made at every resolution anyway: a kept declaration is
             // current while the satellite says its id is unchanged (protocol section 5.2)
             String declarationId = SatelliteDeclarationCache.validId(
                 arrowSchema.getCustomMetadata().get(SatelliteDeclarationCache.SCHEMA_METADATA_KEY)
             );
             Map<String, Object> declaration = declarations.resolve(
-                endpoint + transport.credentialScope(),
+                endpoint + transport.cacheScope(),
                 target,
                 declarationId,
                 () -> fetchDeclaration(client, target, callTimeout)
             );
             Map<String, Object> stamp = declaration == null ? null : stamp(client, target, arrowSchema, declaration, callTimeout);
             checkOptions(optionsOf(config), stamp);
+            Map<String, Object> resolvedConfig = Map.of("endpoint", endpoint, "target", target);
             return new SimpleSourceMetadata(attributes, "flight", location, null, null, stamp, resolvedConfig);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -392,6 +400,21 @@ class FlightConnectorFactory implements ConnectorFactory {
                 if (SatelliteFragment.isOptionKey(String.valueOf(option)) == false) {
                     throw new IllegalStateException(
                         "the capability declaration lists the option [" + option + "], a name ES uses for itself"
+                    );
+                }
+            }
+        }
+        if (caps.get("tableParameters") instanceof List<?> parameters) {
+            List<?> options = caps.get("options") instanceof List<?> o ? o : List.of();
+            for (Object parameter : parameters) {
+                if (SatelliteFragment.isOptionKey(String.valueOf(parameter)) == false) {
+                    throw new IllegalStateException(
+                        "the capability declaration lists the table parameter [" + parameter + "], a name ES uses for itself"
+                    );
+                }
+                if (options.contains(parameter)) {
+                    throw new IllegalStateException(
+                        "the capability declaration lists [" + parameter + "] as both a source option and a table parameter"
                     );
                 }
             }

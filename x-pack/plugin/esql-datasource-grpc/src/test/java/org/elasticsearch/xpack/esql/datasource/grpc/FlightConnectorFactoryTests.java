@@ -131,8 +131,10 @@ public class FlightConnectorFactoryTests extends ESTestCase {
             String location = "flight://127.0.0.1:" + satellite.port() + "/t";
             caching.resolveMetadata(location, Map.of("units", "celsius"));
             Exception e = expectThrows(IllegalArgumentException.class, () -> caching.resolveMetadata(location, Map.of("humidity", "high")));
-            assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("does not declare the source option [humidity]"));
-            assertEquals(1, satellite.capabilityCalls.get());
+            assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("does not declare the dataset setting [humidity]"));
+            // the declaration kept for a table is keyed by the dataset settings too, since a table parameter may change what the
+            // satellite declares: another setting reads it again
+            assertEquals(2, satellite.capabilityCalls.get());
         }
     }
 

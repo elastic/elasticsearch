@@ -16,20 +16,26 @@ import org.apache.arrow.flight.FlightStatusCode;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * The one place that builds a Flight client, so that transport security is decided in one place and cannot be forgotten by a call
@@ -42,38 +48,59 @@ final class FlightClients {
     static final String CA_CERTIFICATE = "ca_certificate";
     static final String SERVER_NAME = "server_name";
     static final String TOKEN = "token";
+    static final String CREDENTIALS = "credentials";
 
-    /** The data source settings that only mean something on a TLS connection: a token is never sent in clear. */
-    static final Set<String> TLS_SETTINGS = Set.of(CA_CERTIFICATE, SERVER_NAME, TOKEN);
+    /** The call header that carries the dataset's settings (protocol section 11): base64url, no padding, of a JSON object. */
+    static final String DATASET_SETTINGS_HEADER = "x-esql-dataset-settings";
+    /** The call header that carries the data source's {@code credentials} setting, in the same encoding; only over TLS. */
+    static final String CREDENTIALS_HEADER = "x-esql-credentials";
+
+    /** The most each of the two headers may hold: gRPC allows about 8 KiB of metadata in all, and a bearer token goes with them. */
+    static final int MAX_HEADER_VALUE_CHARS = 2048;
+
+    /** The longest bearer token: with the two headers above it keeps the metadata of a call under the 8 KiB gRPC allows. */
+    static final int MAX_TOKEN_CHARS = 1024;
+
+    /** The data source settings that only mean something on a TLS connection: a credential is never sent in clear. */
+    static final Set<String> TLS_SETTINGS = Set.of(CA_CERTIFICATE, SERVER_NAME, TOKEN, CREDENTIALS);
 
     /** The settings that are credentials: stored encrypted, never shown, never part of a fragment, an option or a log line. */
-    static final Set<String> SECRET_SETTINGS = Set.of(TOKEN);
+    static final Set<String> SECRET_SETTINGS = Set.of(TOKEN, CREDENTIALS);
 
     private static final String TLS_SUFFIX = "+tls";
 
     /**
-     * How to reach an endpoint: plain, or TLS with the given trust, and with a bearer token when the data source has one.
-     * {@code caCertificate}, {@code serverName} and {@code token} may be null. The token is left out of {@code toString}.
+     * How to reach an endpoint: plain, or TLS with the given trust; with a bearer token and the {@code credentials} of the data
+     * source when it has them (TLS only); and with the dataset's settings, which go in a header on every call. Everything but
+     * {@code tls} may be null. The secrets are left out of {@code toString}.
      */
-    record Transport(boolean tls, String caCertificate, String serverName, String token) {
+    record Transport(boolean tls, String caCertificate, String serverName, String token, String credentials, String datasetSettings) {
 
-        static final Transport PLAIN = new Transport(false, null, null, null);
+        static final Transport PLAIN = new Transport(false, null, null, null, null, null);
+
+        Transport(boolean tls, String caCertificate, String serverName, String token) {
+            this(tls, caCertificate, serverName, token, null, null);
+        }
 
         Transport(boolean tls, String caCertificate, String serverName) {
-            this(tls, caCertificate, serverName, null);
+            this(tls, caCertificate, serverName, null, null, null);
         }
 
         /**
-         * What tells one credential from another in a cache keyed by endpoint: a hash, so that the token itself is not kept
-         * there. Empty without a token.
+         * What tells one reader of a satellite from another in a cache keyed by endpoint and table: a hash of the secrets and of
+         * the dataset settings, so that none of them is kept there. Empty without any.
          */
-        String credentialScope() {
-            if (token == null) {
+        String cacheScope() {
+            if (token == null && credentials == null && datasetSettings == null) {
                 return "";
             }
             try {
-                byte[] hash = MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
-                return "#" + HexFormat.of().formatHex(hash, 0, 8);
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                for (String part : new String[] { token, credentials, datasetSettings }) {
+                    // an absent part and a part that is the text "-" must not look alike: a marker and the length come first
+                    digest.update((part == null ? "N" : "S" + part.length() + ":" + part).getBytes(StandardCharsets.UTF_8));
+                }
+                return "#" + HexFormat.of().formatHex(digest.digest(), 0, 8);
             } catch (NoSuchAlgorithmException e) {
                 throw new IllegalStateException(e);
             }
@@ -81,7 +108,15 @@ final class FlightClients {
 
         @Override
         public String toString() {
-            return "Transport[tls=" + tls + ", serverName=" + serverName + ", token=" + (token == null ? "none" : "<redacted>") + "]";
+            return "Transport[tls="
+                + tls
+                + ", serverName="
+                + serverName
+                + ", token="
+                + (token == null ? "none" : "<redacted>")
+                + ", credentials="
+                + (credentials == null ? "none" : "<redacted>")
+                + "]";
         }
     }
 
@@ -103,10 +138,46 @@ final class FlightClients {
      * them under {@code _datasource}; a flat config is read too, for the callers that build one by hand.
      */
     static Transport transport(String endpoint, Map<String, Object> config) {
+        String settings = encodeDatasetSettings(FlightConnectorFactory.optionsOf(config == null ? Map.of() : config));
         if (isTls(URI.create(endpoint).getScheme()) == false) {
-            return Transport.PLAIN;
+            return settings == null ? Transport.PLAIN : new Transport(false, null, null, null, null, settings);
         }
-        return new Transport(true, setting(config, CA_CERTIFICATE), setting(config, SERVER_NAME), setting(config, TOKEN));
+        return new Transport(
+            true,
+            setting(config, CA_CERTIFICATE),
+            setting(config, SERVER_NAME),
+            setting(config, TOKEN),
+            encodeCredentials(setting(config, CREDENTIALS)),
+            settings
+        );
+    }
+
+    /**
+     * The dataset's settings as the value of {@link #DATASET_SETTINGS_HEADER}: a JSON object, base64url without padding; null when
+     * there are none. They are scalars (the validator checks), and all of them are sent: which are table parameters and which are
+     * source options is declared by the satellite, and ES cannot know before it has read the declaration.
+     */
+    static String encodeDatasetSettings(Map<String, Object> settings) {
+        if (settings.isEmpty()) {
+            return null;
+        }
+        return encodeHeaderValue(settings);
+    }
+
+    /** The {@code credentials} setting (a JSON object) as the value of {@link #CREDENTIALS_HEADER}; null when there are none. */
+    private static String encodeCredentials(String credentials) {
+        return credentials == null
+            ? null
+            : Base64.getUrlEncoder().withoutPadding().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+    }
+
+    static String encodeHeaderValue(Map<String, Object> value) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            byte[] json = BytesReference.toBytes(BytesReference.bytes(builder.map(new TreeMap<>(value))));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(json);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     static String setting(Map<String, Object> config, String name) {
@@ -134,13 +205,14 @@ final class FlightClients {
     static FlightClient build(BufferAllocator allocator, String host, int port, Transport transport, FlightGuard hosts) {
         hosts.check(host);
         int maxMessage = hosts.limits().maxMessageBytesInt();
+        FlightClient.Builder builder = FlightClient.builder(
+            allocator,
+            transport.tls() ? Location.forGrpcTls(host, port) : Location.forGrpcInsecure(host, port)
+        ).maxInboundMessageSize(maxMessage);
+        // a middleware, not a call option: it covers every call of the client, the result stream included
+        builder.intercept(headers(transport));
         if (transport.tls() == false) {
-            return FlightClient.builder(allocator, Location.forGrpcInsecure(host, port)).maxInboundMessageSize(maxMessage).build();
-        }
-        FlightClient.Builder builder = FlightClient.builder(allocator, Location.forGrpcTls(host, port)).maxInboundMessageSize(maxMessage);
-        if (transport.token() != null) {
-            // a middleware, not a call option: it covers every call of the client, the result stream included
-            builder.intercept(bearer(transport.token()));
+            return builder.build();
         }
         if (transport.serverName() != null) {
             builder.overrideHostname(transport.serverName());
@@ -155,12 +227,20 @@ final class FlightClients {
         }
     }
 
-    private static FlightClientMiddleware.Factory bearer(String token) {
-        String header = "Bearer " + token;
+    private static FlightClientMiddleware.Factory headers(Transport transport) {
+        String authorization = transport.token() == null ? null : "Bearer " + transport.token();
         return info -> new FlightClientMiddleware() {
             @Override
             public void onBeforeSendingHeaders(CallHeaders outgoingHeaders) {
-                outgoingHeaders.insert("authorization", header);
+                if (authorization != null) {
+                    outgoingHeaders.insert("authorization", authorization);
+                }
+                if (transport.credentials() != null) {
+                    outgoingHeaders.insert(CREDENTIALS_HEADER, transport.credentials());
+                }
+                if (transport.datasetSettings() != null) {
+                    outgoingHeaders.insert(DATASET_SETTINGS_HEADER, transport.datasetSettings());
+                }
             }
 
             @Override

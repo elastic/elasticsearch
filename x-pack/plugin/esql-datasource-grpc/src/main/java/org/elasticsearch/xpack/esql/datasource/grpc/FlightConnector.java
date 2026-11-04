@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
+import org.elasticsearch.xpack.esql.datasources.spi.SatelliteFragment;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
 
 import java.io.IOException;
@@ -108,6 +109,10 @@ class FlightConnector implements Connector {
             // source options only travel inside a fragment (protocol section 11): the planner always sends one for such a dataset,
             // so reaching here means a plan shape it did not see, and reading without the options would change the results
             Map<String, Object> options = FlightConnectorFactory.optionsOf(request.config());
+            // the table parameters reach the satellite in headers, fragment or not
+            if (request.config().get(SatelliteFragment.TABLE_PARAMETERS_KEY) instanceof List<?> parameters) {
+                options.keySet().removeAll(parameters);
+            }
             if (options.isEmpty() == false) {
                 throw new IllegalStateException(
                     "the dataset sets the source options " + options.keySet() + " but this read sends no fragment, so they would be ignored"
@@ -199,6 +204,11 @@ class FlightConnector implements Connector {
             throw new IllegalArgumentException("Invalid Flight endpoint location: missing host");
         }
         // the transport is the endpoint's: a location a satellite names can change the host, never the security of the connection
+        if ((transport.token() != null || transport.credentials() != null)
+            && (host.equalsIgnoreCase(endpointURI.getHost()) && getPort(uri) == getPort(endpointURI)) == false) {
+            // a location a satellite names must not receive the credentials of the endpoint the dataset names
+            throw new IllegalArgumentException("the satellite named another host for a read that needs credentials; it is not sent them");
+        }
         return FlightClients.build(request.blockFactory().arrowAllocator(), host, getPort(uri), transport, hosts);
     }
 
@@ -290,7 +300,7 @@ class FlightConnector implements Connector {
                 if (rejected != null) {
                     if (request.fragment() != null) {
                         // the fragment was built from a declaration this node may have kept: read it again for the next query
-                        declarations.invalidate(endpointURI.toString() + transport.credentialScope(), request.target());
+                        declarations.invalidate(endpointURI.toString() + transport.cacheScope(), request.target());
                     }
                     throw rejected;
                 }

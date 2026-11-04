@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -118,7 +119,35 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             LogicalPlan annotated = annotate(plan, pattern);
             result = ViewUtils.transformUpOutsideViews(annotated, DetermineUnmappedFieldsToKeep::finishUnmappedFields);
         }
-        return result;
+        return unmappedFieldsLast(result);
+    }
+
+    /**
+     * The {@code _unmapped_fields} column is the last one of the output, wherever the commands of the query add their own. It is
+     * stamped on the relation, so it would otherwise sit right after the columns of the relation and before the ones that {@code EVAL},
+     * {@code INLINE STATS} and the like add, while the output of a {@code FORK} or a union has it last, as it unions it at the end. The
+     * same query should not return the columns in another order because a {@code FORK} follows.
+     */
+    private static LogicalPlan unmappedFieldsLast(LogicalPlan plan) {
+        List<Attribute> output = plan.output();
+        int column = -1;
+        for (int i = 0; i < output.size(); i++) {
+            if (output.get(i) instanceof UnmappedFieldsAttribute) {
+                column = i;
+                break;
+            }
+        }
+        if (column < 0 || column == output.size() - 1) {
+            return plan;
+        }
+        // A ResolvingProject computes its projections from the output of its child, and appends the unmapped fields after the others,
+        // which is what moves it. Like a KEEP *, it is also kept up to date when later rules change that output, which a plain Project
+        // would not be, e.g. for the columns that FILLNULL loads late.
+        return new ResolvingProject(
+            Source.EMPTY,
+            plan,
+            new ResolvingProject.Command(ResolvingProject.Kind.KEEP, List.of(new UnresolvedStar(Source.EMPTY, null)), attrs -> attrs)
+        );
     }
 
     /**

@@ -1884,7 +1884,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
      * resumed target must be identical to a downsample that ran uninterrupted, without indexing any document twice.
      */
     public void testDownsampleResumesAfterNonLastBulkFails() throws Exception {
-        DownsampleConfig config = new DownsampleConfig(randomInterval(), randomSamplingMethod());
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
         // One time series per document and one bucket per time series, so consecutive bulk requests hold disjoint _tsid ranges
         // and the shard task has to send at least three of them.
         int numBuckets = 30_000;
@@ -1940,8 +1940,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                     clusterAdmin().prepareListTasks().setActions(DownsampleShardTask.TASK_NAME + "[c]").get().getTasks(),
                     Matchers.empty()
                 );
-                PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(
-                    clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID)
+                PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+                    clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState()
                 );
                 assertThat(
                     tasks.tasks().stream().filter(t -> DownsampleShardTask.TASK_NAME.equals(t.getTaskName())).toList(),
@@ -1951,7 +1951,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(
                 IndexMetadata.DownsampleTaskStatus.STARTED,
                 IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
-                    indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, downsampleIndex).get().getIndexToSettings().get(downsampleIndex)
+                    indicesAdmin().prepareGetSettings(downsampleIndex).get().getIndexToSettings().get(downsampleIndex)
                 )
             );
             long indexedByInterruptedRun = numBuckets - parkedActions;

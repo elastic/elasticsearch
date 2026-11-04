@@ -37,7 +37,8 @@ import javax.inject.Inject;
  *
  * <p>{@code checkPartN} depends on the subset of {@code check}'s dependencies that belongs to part N: the test
  * tasks assigned to N, and, when N is the project's home part, everything else {@code check} runs (precommit
- * and other non-test verification). Lifecycle tasks are flattened so that test tasks behind them (for example
+ * and other non-test verification), except work that depends on test tasks, which runs in the parts of those
+ * tests. Lifecycle tasks are flattened so that test tasks behind them (for example
  * an aggregate of several test tasks) are still placed individually. Because the selection is derived from
  * {@code check} itself, running every part runs exactly what {@code check} runs.
  *
@@ -210,7 +211,7 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
         // most projects have no bcUpgradeTest; their bcUpgradeTestPartN tasks are empty (but for assemble below)
         Task root = project.getTasks().findByName(suite.rootTask());
         if (root != null) {
-            select(root, assignment, part, home, new HashSet<>(), selected);
+            select(project, root, assignment, part, home, new HashSet<>(), selected);
         }
         if (home && extension.getIncludeAssemble().get()) {
             selected.add(project.getTasks().getByName(LifecycleBasePlugin.ASSEMBLE_TASK_NAME));
@@ -218,7 +219,15 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
         return selected;
     }
 
-    private static void select(Task task, CiPartAssignment assignment, int part, boolean home, Set<Task> visited, List<Task> selected) {
+    private static void select(
+        Project project,
+        Task task,
+        CiPartAssignment assignment,
+        int part,
+        boolean home,
+        Set<Task> visited,
+        List<Task> selected
+    ) {
         if (visited.add(task) == false) {
             return;
         }
@@ -228,10 +237,18 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
             }
         } else if (task.getActions().isEmpty()) {
             for (Task dependency : task.getTaskDependencies().getDependencies(task)) {
-                select(dependency, assignment, part, home, visited, selected);
+                select(project, dependency, assignment, part, home, visited, selected);
             }
-        } else if (home) {
-            selected.add(task);
+        } else {
+            // work that needs test results (a coverage report, say) runs where those tests run; in the home part it
+            // would pull the whole test task in again. Only this project's tasks are inspected: the root project's
+            // check also reaches tasks of included builds, whose dependencies cannot be resolved from here.
+            List<? extends Task> tests = task.getProject() != project
+                ? List.of()
+                : task.getTaskDependencies().getDependencies(task).stream().filter(dependency -> dependency instanceof Test).toList();
+            if (tests.isEmpty() ? home : tests.stream().anyMatch(test -> assignment.runsInPart(test.getPath(), part))) {
+                selected.add(task);
+            }
         }
     }
 }

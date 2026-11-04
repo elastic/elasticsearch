@@ -75,6 +75,22 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         names(3) == [":lib:yamlRestTest", ":lib:precommitThing"] as Set
     }
 
+    def "work that depends on a test task runs with that test, not in the home part"() {
+        given:
+        def report = project.tasks.register("testReport") {
+            dependsOn "internalClusterTest"
+            doLast {}
+        }
+        project.tasks.named("check") { dependsOn report }
+        applyPluginUnderTest(project)
+
+        expect:
+        // :lib's home is part 3, but internalClusterTest runs in part 2
+        names(2).contains(":lib:testReport")
+        names(3).contains(":lib:testReport") == false
+        names(1).contains(":lib:testReport") == false
+    }
+
     def "home part runs assemble when requested"() {
         given:
         applyPluginUnderTest(project)

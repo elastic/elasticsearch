@@ -62,6 +62,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -429,6 +430,40 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
         verify(client).execute(eq(TransportBulkAction.TYPE), any(), any());
         assertThat(ex.getMessage(), containsString("experienced failure that cannot be automatically retried."));
+    }
+
+    /**
+     * Only items rejected as invalid documents (400) are reported as permanently rejected. An item failing irrecoverably for another
+     * reason (here 404) fails the bulk too but can heal later, so its document stays eligible for resubmission by the caller.
+     */
+    public void testIrrecoverableFailureReportsOnlyRejectedDocuments() {
+        BulkItemResponse rejected = BulkItemResponse.failure(
+            0,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure("my-index", "rejected", new ElasticsearchStatusException("bad doc", RestStatus.BAD_REQUEST))
+        );
+        BulkItemResponse notFound = BulkItemResponse.failure(
+            1,
+            DocWriteRequest.OpType.INDEX,
+            new BulkItemResponse.Failure("my-index", "missing", new ElasticsearchStatusException("no index", RestStatus.NOT_FOUND))
+        );
+        doAnswerWithResponses(
+            new BulkResponse(new BulkItemResponse[] { notFound, rejected, BULK_ITEM_RESPONSE_SUCCESS }, 0L),
+            new BulkResponse(new BulkItemResponse[0], 0L)
+        ).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
+
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new IndexRequest("my-index").id("missing").source(Collections.singletonMap("data", "x")));
+        bulkRequest.add(new IndexRequest("my-index").id("rejected").source(Collections.singletonMap("data", "x")));
+        bulkRequest.add(INDEX_REQUEST_SUCCESS);
+
+        ResultsPersisterService.IrrecoverableException ex = expectThrows(
+            ResultsPersisterService.IrrecoverableException.class,
+            () -> resultsPersisterService.bulkIndexWithRetry(bulkRequest, JOB_ID, () -> true, (s) -> {})
+        );
+
+        verify(client).execute(eq(TransportBulkAction.TYPE), any(), any());
+        assertThat(ex.rejectedDocIds(), containsInAnyOrder("rejected"));
     }
 
     public void testBulkRequestDoesNotRetryWhenSupplierIsFalse() {

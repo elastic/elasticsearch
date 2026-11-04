@@ -178,6 +178,9 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         /** Context of the driver that consumes the buffer. The producer's CPU time is metered into it. */
         final DriverContext driverContext;
 
+        /** The children of the coalesced split being read, not yet started. */
+        final java.util.ArrayDeque<ExternalSplit> pending = new java.util.ArrayDeque<>();
+
         /** True iff single-shot mode has already opened its one cursor (subsequent advances return EOF). */
         boolean singleShotStarted;
         /** Currently active cursor, or {@code null} if between units or before the first open. */
@@ -353,9 +356,18 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             return false;
         }
         if (state.queue != null) {
-            ExternalSplit split = state.queue.nextSplit();
-            if (split == null) {
-                return false;
+            ExternalSplit split = state.pending.poll();
+            while (split == null) {
+                split = state.queue.nextSplit();
+                if (split == null) {
+                    return false;
+                }
+                if (split instanceof CoalescedSplit coalesced) {
+                    // a group of small splits the planner put together to save drivers: a connector reads the splits it knows, one
+                    // cursor each, never the group
+                    state.pending.addAll(coalesced.children());
+                    split = state.pending.poll();
+                }
             }
             state.cursor = connector.execute(state.request, split);
             return true;

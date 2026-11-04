@@ -482,7 +482,7 @@ public class SecurityMigrations {
             } else {
                 var retryCount = getNumberOfAttempts(projectId);
                 if (retryCount > MAX_SECURITY_MIGRATION_ATTEMPT_COUNT) {
-                    logger.warn("Security migration attempted [" + retryCount + "] times, restart node to retry again.");
+                    logger.warn("Security migration attempted [{}] times, restart node to retry again.", retryCount);
                 } else if (newState.isReadyForSecurityMigration(nextMigration.getValue())) {
                     startMigration(projectId, newState.migrationsVersion, true);
                 }

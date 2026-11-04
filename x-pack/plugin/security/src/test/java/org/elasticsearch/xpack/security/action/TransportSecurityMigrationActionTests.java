@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.action;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -28,6 +29,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
@@ -296,6 +298,54 @@ public class TransportSecurityMigrationActionTests extends ESTestCase {
 
         assertThat(childRequestParents, hasSize(1));
         assertEquals(new TaskId(localNode.getId(), task.getId()), childRequestParents.get(0));
+    }
+
+    public void testLogsFailureAtWarn() {
+        final TransportSecurityMigrationAction action = createAction(
+            new TreeMap<>(Map.of(1, generateMigration(new int[1], true), 2, generateMigration(new int[1], true)))
+        );
+        updateVersionShouldThrowException = true;
+
+        try (var mockLog = MockLog.capture(TransportSecurityMigrationAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "failure warning",
+                    TransportSecurityMigrationAction.class.getName(),
+                    Level.WARN,
+                    "Security migration failed"
+                )
+            );
+            assertFailed(execute(action, new SecurityMigrationAction.Request(0, true)));
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * A run is cancelled when its node stops being the elected master, which is routine during a master failover: the new master
+     * resumes the migrations, so this must not be logged as a failure.
+     */
+    public void testLogsCancellationBelowWarn() {
+        final TransportSecurityMigrationAction action = createAction(new TreeMap<>(Map.of(1, generateMigration(new int[1], true))));
+        TaskCancelHelper.cancel(task, "node is no longer the elected master");
+
+        try (var mockLog = MockLog.capture(TransportSecurityMigrationAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no failure warning", TransportSecurityMigrationAction.class.getName(), Level.WARN, "*")
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "cancellation info",
+                    TransportSecurityMigrationAction.class.getName(),
+                    Level.INFO,
+                    "Security migration cancelled*"
+                )
+            );
+            assertThat(
+                assertFailed(execute(action, new SecurityMigrationAction.Request(0, true))),
+                instanceOf(TaskCancelledException.class)
+            );
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testRequestIsLocalOnly() {

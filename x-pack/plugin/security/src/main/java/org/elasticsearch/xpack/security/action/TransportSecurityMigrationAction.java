@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -106,7 +107,12 @@ public class TransportSecurityMigrationAction extends TransportAction<SecurityMi
         final ActionListener<Void> migrationsListener = ActionListener.wrap(
             ignored -> listener.onResponse(ActionResponse.Empty.INSTANCE),
             exception -> {
-                logger.warn("Security migration failed", exception);
+                if (ExceptionsHelper.unwrapCause(exception) instanceof TaskCancelledException) {
+                    // Routine when this node stops being the elected master: the new master resumes the migrations
+                    logger.info("Security migration cancelled: [{}]", exception.getMessage());
+                } else {
+                    logger.warn("Security migration failed", exception);
+                }
                 listener.onFailure(exception);
             }
         );

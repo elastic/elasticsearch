@@ -1409,10 +1409,9 @@ public final class CostBasedOptimizer {
             if (byScore != 0) {
                 return byScore < 0;
             }
-            boolean leftIncumbent = incumbent(left);
-            boolean rightIncumbent = incumbent(right);
-            if (leftIncumbent != rightIncumbent) {
-                return leftIncumbent;
+            int byPreference = Integer.compare(subtreePreference(left), subtreePreference(right));
+            if (byPreference != 0) {
+                return byPreference < 0;
             }
             if (left.cost().peakLaneBytes() != right.cost().peakLaneBytes()) {
                 return left.cost().peakLaneBytes() < right.cost().peakLaneBytes();
@@ -1431,6 +1430,40 @@ public final class CostBasedOptimizer {
                 return JoinStrategySelector.JoinStrategy.LOOKUP;
             }
             return JoinStrategySelector.JoinStrategy.LOCAL;
+        }
+
+        /**
+         * Sums {@link #tiePreference} over every operator in {@code winner}'s plan. Plans that differ in a join or aggregate below
+         * the root are compared above it, where that operator's own rank is no longer in view, so the rank has to travel with
+         * the plan.
+         */
+        int subtreePreference(Winner winner) {
+            int preference = tiePreference(winner);
+            for (Winner child : winner.children()) {
+                preference += subtreePreference(child);
+            }
+            return preference;
+        }
+
+        /**
+         * Ranks {@code winner} for breaking a score tie; the lower rank wins. A subquery join ranks broadcast first: like
+         * materializing, it ships one copy of the build side to every node, but it streams that copy from the producers
+         * instead of collecting it on the coordinator and planning the query a second time. Materializing ranks next because
+         * it is the incumbent. Every other join or aggregate ranks the incumbent first, and operators without a decision rank 0.
+         */
+        int tiePreference(Winner winner) {
+            Alternative alternative = winner.alternative();
+            if (alternative.kind() == OperatorKind.JOIN && winner.group().plan instanceof SubqueryLookupJoin) {
+                return switch (alternative.joinStrategy()) {
+                    case BROADCAST -> 0;
+                    case MATERIALIZED -> 1;
+                    case PARTITIONED, LOOKUP, LOCAL -> 2;
+                };
+            }
+            if (alternative.kind() == OperatorKind.JOIN || alternative.kind() == OperatorKind.AGGREGATE) {
+                return incumbent(winner) ? 0 : 1;
+            }
+            return 0;
         }
 
         /** Returns whether {@code winner} uses the strategy that rule-based planning would pick for its group. */

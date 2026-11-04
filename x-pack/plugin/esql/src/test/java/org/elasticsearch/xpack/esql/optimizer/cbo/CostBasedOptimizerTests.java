@@ -35,19 +35,6 @@ import java.util.Map;
 import java.util.Optional;
 
 public class CostBasedOptimizerTests extends ESTestCase {
-    public void testSmallBuildPrefersMaterializedForLargeProbe() {
-        Attribute leftKey = attribute("probe_key");
-        Attribute rightKey = attribute("build_key");
-        SubqueryLookupJoin join = subqueryJoin(relation("probe", leftKey), relation("build", rightKey), leftKey, rightKey);
-        Map<LogicalPlan, PlanStats> statistics = new IdentityHashMap<>();
-        statistics.put(join.left(), stats(100_000_000, 8_000_000_000d, 80));
-        statistics.put(join.right(), stats(100, 1_024, 16));
-
-        PlanDecisions decisions = optimize(join, statistics, 1_000_000_000L);
-
-        assertEquals(JoinStrategy.MATERIALIZED, decisions.join(join).orElseThrow());
-    }
-
     public void testLargeBuildUsesPartitionedJoin() {
         Attribute leftKey = attribute("probe_key");
         Attribute rightKey = attribute("build_key");

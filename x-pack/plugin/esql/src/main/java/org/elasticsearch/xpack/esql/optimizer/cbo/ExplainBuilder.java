@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.optimizer.cbo.stats.Provenance;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.SubqueryLookupJoin;
 import org.elasticsearch.xpack.esql.planner.mapper.JoinStrategySelector;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 
@@ -364,10 +365,14 @@ final class ExplainBuilder {
         }
     }
 
-    /** Mirrors {@link Search}'s tie-break order: the incumbent of the decision first, then the plan-level rules. */
+    /** Mirrors {@link Search}'s tie-break order: the tie preference summed over each plan first, then the plan-level rules. */
     private TieBreakRule tieBreakRule(Point point, @Nullable Winner atPoint, Winner root) {
-        if (atPoint != null && search.incumbent(point.winner()) != search.incumbent(atPoint)) {
-            return TieBreakRule.INCUMBENT;
+        if (search.subtreePreference(best) != search.subtreePreference(root)) {
+            boolean broadcast = atPoint != null
+                && point.plan() instanceof SubqueryLookupJoin
+                && (point.winner().alternative().joinStrategy() == JoinStrategySelector.JoinStrategy.BROADCAST
+                    || atPoint.alternative().joinStrategy() == JoinStrategySelector.JoinStrategy.BROADCAST);
+            return broadcast ? TieBreakRule.BROADCAST_PREFERRED : TieBreakRule.INCUMBENT;
         }
         if (best.cost().peakLaneBytes() != root.cost().peakLaneBytes()) {
             return TieBreakRule.PEAK_LANE_BYTES;

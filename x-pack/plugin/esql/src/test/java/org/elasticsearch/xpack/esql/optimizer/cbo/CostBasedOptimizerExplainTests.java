@@ -310,6 +310,38 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         assertThat(aggregate.summary(), endsWith(", tie broken by incumbent."));
     }
 
+    /**
+     * Materializing folds the join into the scan fragment while broadcasting does not, so the search keeps both plans and
+     * settles the tie above the join, at the aggregate.
+     */
+    public void testSmallBuildTieBreaksTowardBroadcastBelowAggregate() {
+        Attribute leftKey = attribute("probe_key");
+        Attribute rightKey = attribute("build_key");
+        SubqueryLookupJoin join = subqueryJoin(relation("probe", leftKey), relation("build", rightKey), leftKey, rightKey);
+        Aggregate aggregate = new Aggregate(Source.EMPTY, join, List.of(leftKey), List.of(leftKey));
+        Map<LogicalPlan, PlanStats> statistics = new IdentityHashMap<>();
+        statistics.put(join.left(), stats(100_000_000, 8_000_000_000d, 80));
+        statistics.put(join.right(), stats(100, 1_024, 16));
+
+        PlanDecisions decisions = explain(aggregate, statistics, Settings.EMPTY);
+
+        assertEquals(JoinStrategy.BROADCAST, decisions.join(join).orElseThrow());
+        DecisionReport decision = decisions.report()
+            .decisions()
+            .stream()
+            .filter(report -> report.kind().equals(JoinStrategyDecisionKind.NAME))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("BROADCAST", decision.chosen().name());
+        AlternativeReport materialized = decision.alternatives()
+            .stream()
+            .filter(alternative -> alternative.name().equals("MATERIALIZED"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals(AlternativeStatus.LOST_ON_TIE, materialized.status());
+        assertEquals(TieBreakRule.BROADCAST_PREFERRED, materialized.tieBreak().rule());
+    }
+
     public void testCouplingShowsOtherDecisions() {
         LookupUnderAggregate shape = lookupUnderAggregate(Source.EMPTY, 10_000_000, 1_000, 100_000, false);
 
@@ -460,8 +492,8 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
 
         PlanDecisions decisions = explain(join, statistics, Settings.EMPTY);
 
-        assertEquals(JoinStrategy.PARTITIONED, decisions.join(join).orElseThrow());
-        assertEquals(JoinStrategy.PARTITIONED, decisions.join(lookupJoin).orElseThrow());
+        assertEquals(JoinStrategy.BROADCAST, decisions.join(join).orElseThrow());
+        assertEquals(JoinStrategy.LOOKUP, decisions.join(lookupJoin).orElseThrow());
         for (DecisionReport decision : decisions.report().decisions()) {
             assertFalse(decision.id(), decision.searchAnomaly());
         }

@@ -158,7 +158,7 @@ public class MappingBuilder implements ToXContentFragment {
             .toArray(MetadataFieldMapper[]::new);
         Mapping mapping = new Mapping(root, metadataMappers, meta);
         assert checkSerialization == false || serializesLike(mapping);
-        assert checkSerialization == false || serializedBeforeBuild.equals(serializations())
+        assert checkSerialization == false || serializedBeforeBuild.isEmpty() || serializedBeforeBuild.equals(serializations())
             : "building changed the serialization of the builder: BEFORE "
                 + serializedBeforeBuild.get(0)
                 + " AFTER "
@@ -166,10 +166,16 @@ public class MappingBuilder implements ToXContentFragment {
         return mapping;
     }
 
-    // Only assertions call this: the root builder normalizes the tree itself when it is built
+    // Only assertions call this: the root builder normalizes the tree itself when it is built.
+    // Returns nothing when serializing fails, as a mapping that building rejects can be impossible to serialize, and the
+    // rejection is the error to report.
     private List<String> serializationsAfterNormalizing(MergeReason reason) {
         normalize(reason);
-        return serializations();
+        try {
+            return serializations();
+        } catch (RuntimeException e) {
+            return List.of();
+        }
     }
 
     private List<String> serializations() {

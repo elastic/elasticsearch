@@ -49,9 +49,12 @@ public class SearchSessionMemoryActionRequestTests extends AbstractWireSerializi
     }
 
     private static Object randomQuery() {
-        return randomBoolean()
-            ? randomAlphaOfLengthBetween(1, 30)
-            : Map.of("type", "image", "value", "data:image/png;base64," + randomAlphaOfLength(16));
+        return switch (between(0, 2)) {
+            case 0 -> randomAlphaOfLengthBetween(1, 30);
+            case 1 -> Map.of("type", "image", "value", "data:image/png;base64," + randomAlphaOfLength(16));
+            case 2 -> Map.of("type", "pdf", "value", "data:application/pdf;base64," + randomAlphaOfLength(16));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        };
     }
 
     public void testValidate() {

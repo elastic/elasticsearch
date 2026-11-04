@@ -20,6 +20,17 @@ teardown:
   - do:
       context_engine.save_event:
         body:
+          id: "event-other-space"
+          session_id: "session-1"
+          round_id: "round-0"
+          user_id: "user-1"
+          space: "other"
+          ai_index_ids: ["ai-index-1"]
+          transcript: "user: hello from another space"
+
+  - do:
+      context_engine.save_event:
+        body:
           session_id: "session-1"
           round_id: "round-1"
           user_id: "user-1"
@@ -51,15 +62,26 @@ teardown:
       context_engine.get_session_events:
         session_id: "session-1"
 
-  - match: { count: 2 }
+  - match: { count: 3 }
   - match: { results.0.id: "event-2" }
   - match: { results.0.round_id: "round-2" }
   - match: { results.1.id: $first_id }
   - match: { results.1.round_id: "round-1" }
+  - match: { results.2.id: "event-other-space" }
 
   - do:
       context_engine.get_session_events:
         session_id: "session-1"
+        space: "default"
+
+  - match: { count: 2 }
+  - match: { results.0.id: "event-2" }
+  - match: { results.1.id: $first_id }
+
+  - do:
+      context_engine.get_session_events:
+        session_id: "session-1"
+        space: "default"
         ai_index_ids: "ai-index-1"
 
   - match: { count: 1 }

@@ -26,7 +26,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -288,7 +287,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                     indexSettings,
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.HIGH,
-                    IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
+                    IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(indexSettings.getNodeSettings())
                 ),
                 m -> toType(m).docValuesParams(),
                 indexSettings

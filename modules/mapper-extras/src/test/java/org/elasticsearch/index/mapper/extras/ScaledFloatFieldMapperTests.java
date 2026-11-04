@@ -731,7 +731,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             .build();
 
         MapperService onOrAfter = createMapperService(
-            IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS,
+            IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(Settings.EMPTY),
             settings,
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0))
         );
@@ -739,7 +739,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         assertThat(honored.docValuesParameters().multiValue(), equalTo(false));
 
         MapperService before = createMapperService(
-            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS),
+            IndexVersionUtils.getPreviousVersion(IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(Settings.EMPTY)),
             settings,
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0))
         );

@@ -211,7 +211,10 @@ public class PerFieldFormatSupplier {
             if (mapper instanceof IdFieldMapper
                 && mapperService.getIndexSettings()
                     .getIndexVersionCreated()
-                    .between(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT, IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)) {
+                    .between(
+                        IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT,
+                        IndexSettings.getIdFieldDefaultPostingsFormatIndexVersion(mapperService.getIndexSettings().getNodeSettings())
+                    )) {
                 // The default posting format doesn't handle randomly generated IDs well during merging. Several cases have been reported
                 // where a single merge thread uses disproportionate jvm heap memory just for Lucene103BlockTreeTermsWriter.TermsWriter.
                 return es812PostingsFormat;

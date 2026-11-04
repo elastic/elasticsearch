@@ -217,7 +217,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
             .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
             .build();
         MapperService mapperService = createMapperService(
-            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS),
+            IndexVersionUtils.getPreviousVersion(IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(Settings.EMPTY)),
             settings,
             fieldMapping(b -> b.field("type", "keyword"))
         );

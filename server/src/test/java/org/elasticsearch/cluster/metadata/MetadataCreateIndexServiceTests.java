@@ -1346,7 +1346,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         // is where the columnar disable-by-default begins.
         IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
             IndexVersions.DISABLE_SEQUENCE_NUMBERS,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)
+            IndexVersionUtils.getPreviousVersion(IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(Settings.EMPTY))
         );
         assertTrue(
             "a standalone columnar index below the gating version disables sequence numbers",

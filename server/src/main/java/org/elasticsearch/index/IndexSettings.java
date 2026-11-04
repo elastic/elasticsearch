@@ -1401,6 +1401,32 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    /*
+     * Index version 9_111 (UPGRADE_TO_LUCENE_10_5_1) was backported to 9.5, but the changes gated on the three versions below
+     * (COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY 9_108, ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT 9_109 and
+     * DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS 9_110) were not. A stateful index created on 9.5 can therefore have a version above those gates
+     * without having had the new behavior, so stateful gates on COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG (9_112), the first version after
+     * the backported ones. Stateless keeps the original gates.
+     */
+
+    public static IndexVersion getColumnarDisableSeqNoDataStreamIndexVersion(Settings nodeSettings) {
+        return DiscoveryNode.isStateless(nodeSettings)
+            ? IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY
+            : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+    }
+
+    public static IndexVersion getIdFieldDefaultPostingsFormatIndexVersion(Settings nodeSettings) {
+        return DiscoveryNode.isStateless(nodeSettings)
+            ? IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT
+            : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+    }
+
+    public static IndexVersion getDocValuesDefaultsForAllMappersIndexVersion(Settings nodeSettings) {
+        return DiscoveryNode.isStateless(nodeSettings)
+            ? IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
+            : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+    }
+
     public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting("index.disable_sequence_numbers", settings -> {
         if (settings == null) {
             return Boolean.FALSE.toString();
@@ -1411,7 +1437,7 @@ public final class IndexSettings {
             // BWC only: columnar indices created before the gate disabled sequence numbers for all columnar indices. From the gate this
             // is done per index at creation, for data-stream backing indices only (see IndexMode.IndexModeSettingsProvider).
             if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)
-                && indexVersion.before(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)) {
+                && indexVersion.before(getColumnarDisableSeqNoDataStreamIndexVersion(settings))) {
                 return Boolean.TRUE.toString();
             }
         }

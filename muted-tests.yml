@@ -78,9 +78,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:UNMAPPED_FIELDS_LOAD}
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:k8s-timeseries-increase.increase_of_double_no_grouping_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/150045
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
@@ -212,9 +209,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/159710
-- class: org.elasticsearch.xpack.esql.CsvIT
-  method: test {csv-spec:prometheus-k8s-increase.increase_of_double_no_grouping_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/159814
 - class: org.elasticsearch.xpack.stateless.engine.StatelessLiveVersionMapTests
   method: testLiveVersionMapMemoryUsed
   issue: https://github.com/elastic/elasticsearch/issues/159839
@@ -324,9 +318,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162517
 - class: org.elasticsearch.search.heappressure.TopHitsLeafCollectorHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/162932
-- class: org.elasticsearch.painless.heappressure.RuntimeFieldHighlightHeapPressureIT
-  method: testDoubleRuntimeFieldFromFreeTextSearch
-  issue: https://github.com/elastic/elasticsearch/issues/162593
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichDistinctKeysHeapPressureIT
   issue: https://github.com/elastic/incident-management/issues/2018
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichRepeatedKeyColdHeapPressureIT
@@ -517,26 +508,11 @@ tests:
   - :x-pack:plugin:logsdb:javaRestTest
   method: testHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/164408
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sIncreaseIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
-  method: test {csv-spec:prometheus-k8s-increase.increase_of_long_no_grouping_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/164421
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesIncreaseIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
   issue: https://github.com/elastic/elasticsearch/issues/164423
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesPromqlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
-  method: test {csv-spec:k8s-timeseries-promql.increase_on_plain_numeric_long}
-  issue: https://github.com/elastic/elasticsearch/issues/164425
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesPromqlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
-  method: test {csv-spec:k8s-timeseries-promql.rate_small_window_no_set_operator}
-  issue: https://github.com/elastic/elasticsearch/issues/164427
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationUnmappedNullifyIT
   tasks:
   - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
@@ -547,11 +523,6 @@ tests:
   - :server:internalClusterTest
   method: testMetadataVersion
   issue: https://github.com/elastic/elasticsearch/issues/164246
-- class: org.elasticsearch.xpack.stateless.reshard.SnapshotsWithReshardingIT
-  tasks:
-  - :x-pack:plugin:stateless:internalClusterTest
-  method: testRestoreOverOpenIndexWhileResharding_onSeparateNodes_handoffInFlight
-  issue: https://github.com/elastic/elasticsearch/issues/164466
 - class: org.elasticsearch.system_indices.action.SystemDataStreamMigrationIT
   tasks:
   - :x-pack:plugin:migrate:internalClusterTest
@@ -581,3 +552,13 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testFallbackWhoseExchangeCannotBeOpenedFailsTheQuery
   issue: https://github.com/elastic/elasticsearch/issues/164583
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  tasks:
+  - :modules:repository-azure:test
+  method: testContentsChangeWhileStreaming
+  issue: https://github.com/elastic/elasticsearch/issues/164636
+- class: org.elasticsearch.xpack.inference.external.http.ByteArrayFlowPublisherTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testCompletionIsWithheldUntilDemandIsAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/164701

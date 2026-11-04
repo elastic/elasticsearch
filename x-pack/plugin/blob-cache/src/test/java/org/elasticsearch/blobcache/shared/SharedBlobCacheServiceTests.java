@@ -48,6 +48,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.foreign.MemorySegment;
@@ -4320,7 +4321,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -4393,7 +4394,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -4470,7 +4471,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -4584,7 +4585,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -4655,7 +4656,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -4725,7 +4726,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -4799,7 +4800,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -4862,7 +4863,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -4920,7 +4921,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -4986,7 +4987,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -5060,6 +5061,75 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * {@code tryPrefetch} must only report success when the whole requested range is present. Only the first
+     * {@code size(3)} bytes of the region are populated, so a prefetch of a range further into the region
+     * must fail rather than be satisfied by the length of the populated prefix.
+     */
+    public void testTryPrefetchOfAbsentRangeBeyondPopulatedPrefix() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = regionSize;
+        final long prefixLength = size(3);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), randomBoolean())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheFile = cacheService.getCacheFile(
+                generateCacheKey(),
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP,
+                irrelevantTimestamp()
+            );
+
+            final byte[] testData = randomByteArrayOfLength((int) prefixLength);
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, prefixLength),
+                ByteRange.of(0L, prefixLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            assertTrue(cacheFile.tryPrefetch(0L, prefixLength));
+            // entirely within the populated prefix but not starting at zero
+            assertTrue(cacheFile.tryPrefetch(size(1), size(2)));
+            // same length as the populated prefix, but entirely absent
+            assertFalse(cacheFile.tryPrefetch(size(5), prefixLength));
+            // shorter than the populated prefix, but entirely absent
+            assertFalse(cacheFile.tryPrefetch(size(5), size(1)));
+            // straddles the end of the populated prefix
+            assertFalse(cacheFile.tryPrefetch(size(2), size(2)));
+            // begins exactly at the end of the populated prefix
+            assertFalse(cacheFile.tryPrefetch(prefixLength, size(1)));
+        }
+    }
+
     public void testGetIfPresentFindsPopulatedEntry() throws Exception {
         final long regionSize = size(10);
         final long fileLength = size(randomIntBetween(5, 19));
@@ -5099,7 +5169,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,
@@ -5193,7 +5263,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
                     SharedBytes.copyToCacheFileAligned(
                         channel,
-                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        new ByteArrayInputStream(testData, relativePos, len),
                         channelPos,
                         relativePos,
                         len,

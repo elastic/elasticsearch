@@ -157,6 +157,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
                 return Optional.of(ReadAdvice.NORMAL);
             }
+            // Searches and merges read the files inside a compound file through the same mapping
+            if (name.endsWith(".cfs")) {
+                return Optional.of(ReadAdvice.NORMAL);
+            }
             return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
         };
     }

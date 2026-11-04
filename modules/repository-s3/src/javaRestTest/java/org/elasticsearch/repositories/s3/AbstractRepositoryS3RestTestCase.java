@@ -56,6 +56,7 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
                     .put(randomFrom(Settings.EMPTY, Settings.builder().put("disable_chunked_encoding", randomBoolean()).build()))
                     .put(randomFrom(Settings.EMPTY, Settings.builder().put("always_sign_requests", randomBoolean()).build()))
                     .put(randomFrom(Settings.EMPTY, Settings.builder().put("add_purpose_custom_query_parameter", randomBoolean()).build()))
+                    .put(randomFrom(Settings.EMPTY, Settings.builder().put("request_checksum_when_required", randomBoolean()).build()))
                     .put(extraRepositorySettings)
                     .build()
             );
@@ -79,6 +80,11 @@ public abstract class AbstractRepositoryS3RestTestCase extends ESRestTestCase {
             if (settings.keySet().contains("legacy_content_md5")) {
                 expectedWarnings.add("""
                     [s3.client.placeholder.legacy_content_md5] setting was deprecated in Elasticsearch and will be removed \
+                    in a future release. See the breaking changes documentation for the next major version.""");
+            }
+            if (settings.keySet().contains("request_checksum_when_required")) {
+                expectedWarnings.add("""
+                    [s3.client.placeholder.request_checksum_when_required] setting was deprecated in Elasticsearch and will be removed \
                     in a future release. See the breaking changes documentation for the next major version.""");
             }
             if (expectedWarnings.isEmpty() == false) {

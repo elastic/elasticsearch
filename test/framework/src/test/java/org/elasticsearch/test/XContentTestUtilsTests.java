@@ -300,6 +300,12 @@ public class XContentTestUtilsTests extends ESTestCase {
             assertLongValueEquals(map.get("small"), 7L);
             assertLongValueEquals(map.get("big"), 9876543210L);
             assertLongValueEquals(map.get("missing"), null);
+
+            expectThrows(AssertionError.class, () -> assertLongValueEquals(map.get("small"), 8L));
+            expectThrows(AssertionError.class, () -> assertLongValueEquals(map.get("big"), 7L));
+            expectThrows(AssertionError.class, () -> assertLongValueEquals(map.get("missing"), 7L));
+            expectThrows(AssertionError.class, () -> assertLongValueEquals(map.get("small"), null));
+            expectThrows(AssertionError.class, () -> assertLongValueEquals("not-a-number", 7L));
         }
     }
 }

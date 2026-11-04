@@ -225,6 +225,23 @@ public class IngestDocumentTests extends ESTestCase {
         doWithAccessPattern(CLASSIC, (doc) -> assertPathValid(doc, flexibleFirst));
     }
 
+    /**
+     * A path is parsed once whatever the access pattern is, so it is the very same parsed path that is handed out for each of them,
+     * whichever of them happens to be used with it first.
+     */
+    public void testPathIsParsedOnceWhateverTheAccessPattern() {
+        // a different path for each order, as the second would otherwise find that the first has already put it in the cache
+        String classicFirst = "same_instance_classic_first_" + randomAlphaOfLength(8) + ".foo";
+        IngestDocument.FieldPath parsed = IngestDocument.FieldPath.of(classicFirst, CLASSIC);
+        assertSame(parsed, IngestDocument.FieldPath.of(classicFirst, FLEXIBLE));
+        assertSame(parsed, IngestDocument.FieldPath.of(classicFirst, CLASSIC));
+
+        String flexibleFirst = "same_instance_flexible_first_" + randomAlphaOfLength(8) + ".foo";
+        parsed = IngestDocument.FieldPath.of(flexibleFirst, FLEXIBLE);
+        assertSame(parsed, IngestDocument.FieldPath.of(flexibleFirst, CLASSIC));
+        assertSame(parsed, IngestDocument.FieldPath.of(flexibleFirst, FLEXIBLE));
+    }
+
     public void testPathParsingLogic() throws Exception {
         // Force a blank document for this test
         document = new IngestDocument("index", "id", 1, null, null, new HashMap<>());

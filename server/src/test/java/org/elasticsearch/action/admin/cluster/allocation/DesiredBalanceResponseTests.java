@@ -32,6 +32,7 @@ import java.util.stream.IntStream;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
+import static org.elasticsearch.test.XContentTestUtils.assertLongValueEquals;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase<DesiredBalanceResponse> {
@@ -354,18 +355,5 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                 .mapToInt(indexEntry -> 2 + indexEntry.values().stream().mapToInt(shardEntry -> 3 + shardEntry.current().size()).sum())
                 .sum()
         );
-    }
-
-    /**
-     * {@code XContentParser#map()} boxes a JSON number that fits in 32 bits as an {@link Integer} and a larger number as a
-     * {@link Long}. Compare {@code actual} to {@code expected} without depending on that boxing. A null {@code expected} value
-     * requires {@code actual} to be null.
-     */
-    private static void assertLongValueEquals(Object actual, Long expected) {
-        if (expected == null) {
-            assertNull(actual);
-        } else {
-            assertEquals(expected.longValue(), asInstanceOf(Number.class, actual).longValue());
-        }
     }
 }

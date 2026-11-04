@@ -1,0 +1,4 @@
+ROW a = 1
+| STATS a = COUNT(*), b = COUNT(*)
+| MV_EXPAND a
+| MV_EXPAND b

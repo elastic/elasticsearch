@@ -80,7 +80,10 @@ public class PredictLinearBenchmark {
             List.of(
                 new PredictLinearDoubleAggregatorFunctionSupplier(3600).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(2, 3))
             ),
-            Integer.MAX_VALUE
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            TimeSeriesAggregationOperator.DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD,
+            null
         );
         for (int start = 0; start < rows; start += 4096) {
             int size = Math.min(4096, rows - start);

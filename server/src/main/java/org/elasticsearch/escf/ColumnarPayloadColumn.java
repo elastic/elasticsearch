@@ -11,8 +11,10 @@ package org.elasticsearch.escf;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.ColumnarBinaryDocValuesField;
 import org.elasticsearch.sourcebatch.LuceneColumn;
 
@@ -60,6 +62,24 @@ public final class ColumnarPayloadColumn extends LuceneBinaryColumn {
     ) {
         final EscfColumn column = EscfColumn.from(data);
         return new ColumnarPayloadColumn(column, name, fieldType, densityOf(column), null, valuelessDocs, typeWhenValueless);
+    }
+
+    /**
+     * Whether to emit the terms column for a batch. Even when empty, the column must be emitted if the batch contains valueless
+     * documents, so Lucene sees the field's index options during schema validation. The empty column produces no postings.
+     *
+     * @param terms          the terms column being built, or {@code null} if the field indexes no terms
+     * @param valuelessDocs  the documents whose payload holds no value, or {@code null} if the field does not track them
+     */
+    public static boolean shouldEmitTermsColumn(@Nullable EscfColumnBuilder terms, @Nullable FixedBitSet valuelessDocs) {
+        if (terms == null) {
+            return false;
+        }
+        return terms.isEmpty() == false || hasValuelessDocs(valuelessDocs);
+    }
+
+    private static boolean hasValuelessDocs(@Nullable FixedBitSet valuelessDocs) {
+        return valuelessDocs != null && valuelessDocs.nextSetBit(0) != DocIdSetIterator.NO_MORE_DOCS;
     }
 
     /** The type the {@link #rowFieldCursor() row cursor} gives {@code doc}, which is {@link #fieldType()} for all but the valueless. */

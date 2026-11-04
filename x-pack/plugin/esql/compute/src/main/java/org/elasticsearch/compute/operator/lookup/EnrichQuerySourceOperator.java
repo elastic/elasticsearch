@@ -31,6 +31,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -323,6 +324,10 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             "enrich_query_source",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        ).required("bytes_read", ProfileSchema.integer()).build();
 
         public static final TransportVersion ESQL_ENRICH_BYTES_READ = TransportVersion.fromName("esql_enrich_bytes_read");
 
@@ -358,11 +363,15 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             return bytesRead;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("bytes_read", bytesRead);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

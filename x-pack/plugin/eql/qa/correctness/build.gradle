@@ -16,12 +16,6 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
-  clusterModules project(':x-pack:plugin:eql')
-  // x-pack-eql extends x-pack-ql (-> mapper-version); stage that chain so the @ClassRule cluster can load eql.
-  clusterModules project(':x-pack:plugin:ql')
-  clusterModules project(':x-pack:plugin:mapper-version')
-  clusterModules project(':x-pack:plugin:security')
-  clusterModules project(':modules:repository-gcs')
 }
 
 File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
@@ -55,6 +49,7 @@ tasks.named('javaRestTest').configure {
   onlyIf("FIPS mode disabled and service account file available") {
       serviceAccountFile && inFipsJvm == false
   }
+  usesDefaultDistribution("the ES|QL EQL command check needs x-pack-esql and its extended-plugin chain")
   if (serviceAccountFile) {
     // Bridge the configuration-time `eql_test_credentials_file` env var (or `eql.test.credentials.file` sysprop)
     // through to the test JVM as a system property; the @ClassRule in EsEQLCorrectnessIT reads it from there.

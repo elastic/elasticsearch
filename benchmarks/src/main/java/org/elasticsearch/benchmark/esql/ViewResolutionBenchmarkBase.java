@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -164,7 +165,8 @@ public abstract class ViewResolutionBenchmarkBase {
             new QueryParams(),
             inferenceSettings,
             viewName,
-            EsqlParser.DEFAULT_MAX_COMMAND_COUNT
+            QueryPragmas.EMPTY,
+            EsqlFlags.DEFAULTS
         );
 
         LinkedHashMap<String, EsField> mapping = new LinkedHashMap<>();

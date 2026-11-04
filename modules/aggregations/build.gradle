@@ -55,4 +55,6 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("aggregations/time_series/Configure with no synthetic source", "temporary until backport")
   task.skipTest("aggregations/percentiles_hdr_metric/Negative values test", "returned exception has changed")
   task.skipTest("aggregations/moving_fn/linearWeightedAvg", "math was wrong in previous versions")
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("The \\[time_series\\] aggregation, and the aggregations that rely on it .*")
 })

@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 156822
-pr: 157442
-summary: Pin in-use storage provider pool
-type: bug

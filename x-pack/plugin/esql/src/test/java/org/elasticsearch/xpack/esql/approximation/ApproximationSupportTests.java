@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PredictLinear;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PromqlHistogramFraction;
@@ -302,6 +303,7 @@ public class ApproximationSupportTests extends ESTestCase {
         MaxOverTime.class,
         MinOverTime.class,
         PercentileOverTime.class,
+        PredictLinear.class,
         PresentOverTime.class,
         Rate.class,
         StddevOverTime.class,

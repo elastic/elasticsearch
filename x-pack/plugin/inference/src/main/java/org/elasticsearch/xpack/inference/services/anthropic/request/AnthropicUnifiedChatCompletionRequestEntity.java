@@ -8,24 +8,18 @@
 package org.elasticsearch.xpack.inference.services.anthropic.request;
 
 import org.elasticsearch.inference.UnifiedCompletionRequestBody;
-import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.anthropic.completion.AnthropicChatCompletionTaskSettings;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEXT_FIELD;
 import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
-import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TYPE_FIELD;
-import static org.elasticsearch.xpack.inference.services.anthropic.request.AnthropicToolUtils.extractText;
 
 /**
  * Builds the request body for the Anthropic Messages API
@@ -41,11 +35,8 @@ import static org.elasticsearch.xpack.inference.services.anthropic.request.Anthr
 public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentObject {
 
     private static final String STREAM_FIELD = "stream";
-    private static final String SYSTEM_FIELD = "system";
     private static final String STOP_SEQUENCES_FIELD = "stop_sequences";
     private static final String TOP_K_FIELD = "top_k";
-    private static final String TEXT_TYPE = "text";
-    private static final String SYSTEM_ROLE = "system";
 
     private final UnifiedCompletionRequestBody unifiedRequest;
     private final boolean stream;
@@ -84,28 +75,8 @@ public class AnthropicUnifiedChatCompletionRequestEntity implements ToXContentOb
         builder.field(MODEL_FIELD, modelId);
 
         // Anthropic requires system prompts as a top-level "system" field, not inside the messages array.
-        List<Message> systemMessages = new ArrayList<>();
-        List<Message> nonSystemMessages = new ArrayList<>();
-        unifiedRequest.messages().forEach(m -> {
-            if (SYSTEM_ROLE.equals(m.role())) {
-                systemMessages.add(m);
-            } else {
-                nonSystemMessages.add(m);
-            }
-        });
-
-        if (systemMessages.isEmpty() == false) {
-            builder.startArray(SYSTEM_FIELD);
-            for (var msg : systemMessages) {
-                builder.startObject();
-                builder.field(TYPE_FIELD, TEXT_TYPE);
-                builder.field(TEXT_FIELD, extractText(msg.content()));
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-
-        AnthropicToolUtils.writeMessages(builder, nonSystemMessages);
+        AnthropicToolUtils.writeSystemMessages(builder, unifiedRequest.messages());
+        AnthropicToolUtils.writeMessages(builder, AnthropicToolUtils.excludeSystemMessages(unifiedRequest.messages()));
 
         var stop = unifiedRequest.stop();
         if (stop != null && stop.isEmpty() == false) {

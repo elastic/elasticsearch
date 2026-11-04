@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 153780
-pr: 158468
-summary: "ESQL:DS: Hive warnings through completion info"
-type: bug

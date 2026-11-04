@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -192,13 +193,13 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ),
             null
         );
-        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+        // The plan reads resource.attributes.host.name as a field some shards may not map, and this shard resolves it
+        var unmappedCtx = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
-            searchExecutionContext,
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("resource.attributes.host.name")),
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "resource.attributes.host.name");
 
         MappedFieldType fieldType = unmappedCtx.fieldType("resource.attributes.host.name");
         assertThat(
@@ -388,13 +389,13 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ),
             null
         );
-        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+        // The plan reads item.value as a field some shards may not map, and this shard resolves it
+        var unmappedCtx = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
-            searchExecutionContext,
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("item.value")),
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "item.value");
         BlockLoader blockLoader = unmappedCtx.blockLoader(
             "item.value",
             false,
@@ -409,20 +410,20 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
     /**
      * A leaf that is not declared anywhere in the mapping behaves like any other unmapped field even when its parent is
-     * a nested object: the wrap loads it from {@code _source}.
+     * a nested object: the shard loads it from {@code _source}.
      */
     public void testUnmappedLeafUnderNestedParentLoadsFromSource() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(mapping(b -> b.startObject("item").field("type", "nested").endObject())),
             null
         );
-        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+        // The plan reads item.extra as a field some shards may not map, and this shard resolves it
+        var unmappedCtx = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
-            searchExecutionContext,
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("item.extra")),
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "item.extra");
         BlockLoader blockLoader = unmappedCtx.blockLoader(
             "item.extra",
             false,
@@ -444,13 +445,13 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             createMapperService(mapping(b -> b.startObject("mapped_kw").field("type", "keyword").endObject())),
             null
         );
-        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+        // The plan reads unmapped_kw as a field some shards may not map, and this shard resolves it
+        var unmappedCtx = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
-            searchExecutionContext,
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("unmapped_kw")),
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "unmapped_kw");
 
         BlockLoader blockLoader = unmappedCtx.blockLoader(
             "unmapped_kw",
@@ -478,10 +479,11 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             createMapperService(mapping(b -> b.startObject("mapped_kw").field("type", "keyword").endObject())),
             null
         );
+        // The plan reads first and second.leaf as fields some shards may not map, and this shard reads them from _source
         var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
-            searchExecutionContext,
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("first", "second.leaf")),
             AliasFilter.EMPTY
         );
         var provider = new EsPhysicalOperationProviders(

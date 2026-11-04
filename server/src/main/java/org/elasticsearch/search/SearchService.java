@@ -1699,9 +1699,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Returns the reader context that {@code request} names, or registers a new one for its shard. A new context serves a
-     * single search: {@link #findReaderContext} finds it, the reaper frees it once it was unused for its keep-alive, and
-     * removing the index or stopping the node frees it. Its keep-alive is the one of the request, or
-     * {@code search.default_keep_alive}. Callers outside the search phases free it with {@link #freeReaderContext}.
+     * single search: {@link #findReaderContext} finds it, and completing the search, removing the index, or stopping the node frees it.
+     * <p>
+     * The reaper will clean it up if none of those things happen in time, which is needed in the case of a client executing a scroll search
+     * which crashes before it reaches the last page. The reaper also defends against bugs within Elasticsearch which prevent a search from
+     * completing, but such bugs should still be reported and fixed.
+     * <p>
+     * Its keep-alive is the one of the request, or {@code search.default_keep_alive}.
+     * <p>
+     * Callers outside the search phases free it with {@link #freeReaderContext}.
      *
      * @param task the task that opens the context, logged when the context opens and closes. May be {@code null}.
      */
@@ -1887,8 +1893,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Opens the reader context for given shardId. The newly opened reader context will be keep
-     * until the {@code keepAlive} elapsed unless it is manually released.
+     * Opens the reader context for given shardId. The newly opened reader context is expected to be explicitly closed by the caller (which
+     * may ultimately be an external REST client) but we also impose a {@code keepAlive} timeout to defend against client crashes, network
+     * failures which prevent delivering the context ID to the caller, and caller bugs.
      */
     public void openReaderContext(
         ShardId shardId,
@@ -1899,6 +1906,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         openReaderContext(shardId, keepAlive, null, splitShardCountSummary, listener);
     }
 
+    /**
+     * Opens the reader context for given shardId. The newly opened reader context is expected to be explicitly closed by the caller (which
+     * may ultimately be an external REST client) but we also impose a {@code keepAlive} timeout to defend against client crashes, network
+     * failures which prevent delivering the context ID to the caller, and caller bugs.
+     */
     public void openReaderContext(
         ShardId shardId,
         TimeValue keepAlive,

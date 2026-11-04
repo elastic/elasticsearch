@@ -24,3 +24,9 @@
 ```
 histogram_quantile(0.9, rate(http_request_duration_seconds_bucket[5m]))
 ```
+
+:::{note}
+**Differences from {{prom}}**
+
+A quantile that isn't a number literal, such as `histogram_quantile(scalar(a), b)`, isn't supported yet. {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` An argument computed by `topk`, `bottomk`, `limitk`, `limit_ratio`, or `without(...)`, such as `histogram_quantile(0.9, topk(5, a))`, isn't supported yet. Aggregate with `by(...)` first, such as `histogram_quantile(0.9, topk(5, sum by (job, le) (a)))`.
+:::

@@ -25,6 +25,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Factory for Arrow Flight connectors.
@@ -44,10 +45,10 @@ class FlightConnectorFactory implements ConnectorFactory {
 
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
-        // Flight claims no per-query configuration keys today. Delegate to the generic validator
-        // with an empty claimed-set so any non-empty config map is rejected with "unknown option"
-        // — preserving the strict-validation contract until per-query options are wired in.
-        ConfigKeyValidator.check(config, List.of());
+        // A registered dataset's config holds the endpoint and target the validator derived from the resource, plus the
+        // schema_resolution the dataset layer always adds. There are no source options yet: the validator refuses dataset settings,
+        // and anything else is an unknown option here.
+        ConfigKeyValidator.check(config, List.of(Set.of("endpoint", "target", "schema_resolution")));
     }
 
     static final int DEFAULT_FLIGHT_PORT = 47470;

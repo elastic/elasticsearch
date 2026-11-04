@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.util.List;
@@ -125,5 +126,26 @@ public class FlightSplitTests extends ESTestCase {
             FlightSplit read = new FlightSplit(out.bytes().streamInput());
             assertEquals(split, read);
         }
+    }
+
+    public void testIsWithinTheDatasetResource() {
+        StoragePath resource = StoragePath.of("flight://127.0.0.1:47490/employees");
+        assertTrue("no location means the dataset's own endpoint", new FlightSplit(new byte[] { 1 }, null, 0).isWithin(resource));
+        assertTrue(new FlightSplit(new byte[] { 1 }, "grpc://127.0.0.1:47490", 0).isWithin(resource));
+        assertFalse("other port", new FlightSplit(new byte[] { 1 }, "grpc://127.0.0.1:47491", 0).isWithin(resource));
+        assertFalse("other host", new FlightSplit(new byte[] { 1 }, "grpc://10.0.0.2:47490", 0).isWithin(resource));
+        assertFalse("localhost is not 127.0.0.1", new FlightSplit(new byte[] { 1 }, "grpc://localhost:47490", 0).isWithin(resource));
+    }
+
+    public void testMalformedLocationIsOutsideTheResourceNotAnError() {
+        StoragePath resource = StoragePath.of("flight://127.0.0.1:47490/employees");
+        assertFalse(new FlightSplit(new byte[] { 1 }, "grpc://bad host:1", 0).isWithin(resource));
+        assertFalse(new FlightSplit(new byte[] { 1 }, "::not a uri::", 0).isWithin(resource));
+    }
+
+    public void testDefaultPortIsCompared() {
+        StoragePath resource = StoragePath.of("flight://127.0.0.1/employees");
+        assertTrue(new FlightSplit(new byte[] { 1 }, "grpc://127.0.0.1:47470", 0).isWithin(resource));
+        assertFalse(new FlightSplit(new byte[] { 1 }, "grpc://127.0.0.1:1", 0).isWithin(resource));
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.List;
@@ -72,6 +73,15 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
             return Map.of();
         }
         return Map.of("flight", new FlightConnectorFactory());
+    }
+
+    @Override
+    public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        if (enabled() == false) {
+            return Map.of();
+        }
+        DataSourceValidator flight = new FlightDataSourceValidator();
+        return Map.of(flight.type(), flight);
     }
 
     @Override

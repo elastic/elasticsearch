@@ -143,6 +143,11 @@ public class OperatorFactoryRegistry {
         return sourceType != null && sourceFactories.get(sourceType) instanceof FileSourceFactory;
     }
 
+    /** Whether a source type resolves to a connector (a remote engine), which may also back a registered dataset. */
+    public boolean isConnectorFactory(String sourceType) {
+        return sourceType != null && sourceFactories.get(sourceType) instanceof ConnectorFactory;
+    }
+
     public Map<String, ExternalSourceFactory> sourceFactories() {
         return sourceFactories;
     }

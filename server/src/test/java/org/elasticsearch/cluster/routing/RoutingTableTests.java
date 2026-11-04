@@ -446,6 +446,58 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
+    public void testValidateReshardSplitRecoverySource() {
+        final int numSourceShards = randomIntBetween(2, 4);
+        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(numSourceShards, 2);
+        final var split = reshardingMetadata.getSplit();
+        final IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(reshardingMetadata.shardCountAfter())
+            .numberOfReplicas(1)
+            .reshardingMetadata(reshardingMetadata)
+            .build();
+        final var projectId = randomUniqueProjectId();
+        final IndexRoutingTable indexRoutingTable = new RoutingTable.Builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsRecovery(indexMetadata)
+            .build()
+            .index(indexMetadata.getIndex());
+
+        assertTrue(indexRoutingTable.validate(ProjectMetadata.builder(projectId).put(indexMetadata, false).build()));
+
+        // resharding metadata is missing
+        final var metadataWithoutResharding = ProjectMetadata.builder(projectId)
+            .put(IndexMetadata.builder(indexMetadata).reshardingMetadata(null).build(), false)
+            .build();
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadataWithoutResharding)).getMessage(),
+            containsString("has a reshard split recovery source but is not a split target")
+        );
+
+        final var metadata = ProjectMetadata.builder(projectId).put(indexMetadata, false).build();
+        final int targetShard = randomIntBetween(numSourceShards, reshardingMetadata.shardCountAfter() - 1);
+        final var targetPrimary = indexRoutingTable.shard(targetShard).primaryShard();
+
+        // primary recovers from the wrong source shard
+        final int wrongSourceShard = (split.sourceShard(targetShard) + 1) % numSourceShards;
+        final var wrongSourcePrimary = ShardRouting.newUnassigned(
+            targetPrimary.shardId(),
+            true,
+            new RecoverySource.ReshardSplitRecoverySource(new ShardId(indexMetadata.getIndex(), wrongSourceShard)),
+            targetPrimary.unassignedInfo(),
+            targetPrimary.role(),
+            targetPrimary.recoveryPriority()
+        );
+        final var builder = new IndexRoutingTable.Builder(ShardRoutingRoleStrategy.NO_SHARD_CREATION, indexRoutingTable.getIndex());
+        indexRoutingTable.allShards()
+            .flatMap(IndexShardRoutingTable::allShards)
+            .forEach(shardRouting -> builder.addShard(shardRouting == targetPrimary ? wrongSourcePrimary : shardRouting));
+        final var wrongSourceRoutingTable = builder.build();
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> wrongSourceRoutingTable.validate(metadata)).getMessage(),
+            containsString("has a reshard split recovery source with source shard [" + wrongSourceShard + "]")
+        );
+    }
+
     public void testRemoveReplicasInRightOrder() {
         final List<ShardRoutingState> rightRemoveOrder = List.of(UNASSIGNED, INITIALIZING, STARTED);
         Index index = new Index("index", "uuid");

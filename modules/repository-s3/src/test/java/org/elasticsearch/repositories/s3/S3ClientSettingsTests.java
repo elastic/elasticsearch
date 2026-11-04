@@ -15,7 +15,9 @@ import software.amazon.awssdk.regions.Region;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -202,6 +204,122 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertWarnings("""
             [s3.client.placeholder.legacy_content_md5] setting was deprecated in Elasticsearch and will be removed in a future release. \
             See the breaking changes documentation for the next major version.""");
+    }
+
+    private static final String REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT = """
+        [%s] setting was deprecated in Elasticsearch and will be removed in a future release. \
+        See the breaking changes documentation for the next major version.""";
+
+    public void testRequestChecksumWhenRequiredIsOffByDefaultAndWarnsNothing() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.EMPTY);
+        assertFalse(settings.get("default").requestChecksumWhenRequired);
+        // a client that exists but never mentions the setting must not warn either
+        final Map<String, S3ClientSettings> withOther = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.max_retries", 10).build()
+        );
+        assertFalse(withOther.get("other").requestChecksumWhenRequired);
+        ensureNoWarnings();
+    }
+
+    public void testRequestChecksumWhenRequiredCanBeSetPerClient() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.on.request_checksum_when_required", true).build()
+        );
+        assertFalse(settings.get("default").requestChecksumWhenRequired);
+        assertTrue(settings.get("on").requestChecksumWhenRequired);
+        assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.on.request_checksum_when_required"));
+    }
+
+    public void testRequestChecksumWhenRequiredCanBeExplicitlyFalse() {
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.off.request_checksum_when_required", false).build()
+        );
+        assertFalse(settings.get("off").requestChecksumWhenRequired);
+        // an explicit value warns even when it's the default, so the operator knows to remove it
+        assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.off.request_checksum_when_required"));
+    }
+
+    public void testRequestChecksumWhenRequiredCanBeEnabledPerRepository() {
+        final S3ClientSettings defaults = S3ClientSettings.load(Settings.EMPTY).get("default");
+        assertFalse(defaults.requestChecksumWhenRequired);
+        final S3ClientSettings refined = defaults.refine(Settings.builder().put("request_checksum_when_required", true).build());
+        assertTrue(refined.requestChecksumWhenRequired);
+        assertNotSame(defaults, refined);
+        assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.placeholder.request_checksum_when_required"));
+    }
+
+    public void testRequestChecksumWhenRequiredCanBeDisabledPerRepository() {
+        final S3ClientSettings clientOn = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.request_checksum_when_required", true).build()
+        ).get("default");
+        assertTrue(clientOn.requestChecksumWhenRequired);
+        final S3ClientSettings refined = clientOn.refine(Settings.builder().put("request_checksum_when_required", false).build());
+        assertFalse(refined.requestChecksumWhenRequired);
+        assertNotSame(clientOn, refined);
+        assertWarnings(
+            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.default.request_checksum_when_required"),
+            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.placeholder.request_checksum_when_required")
+        );
+    }
+
+    public void testRefineWithoutRequestChecksumWhenRequiredKeepsTheSameInstanceAndValue() {
+        final boolean clientValue = randomBoolean();
+        final S3ClientSettings client = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.request_checksum_when_required", clientValue).build()
+        ).get("default");
+        // an unrelated key must neither change the value nor force a new instance
+        assertSame(client, client.refine(Settings.EMPTY));
+        assertSame(client, client.refine(Settings.builder().put("max_retries", client.maxRetries).build()));
+        assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.default.request_checksum_when_required"));
+    }
+
+    public void testRefineWithTheSameRequestChecksumWhenRequiredValueKeepsTheSameInstance() {
+        final boolean clientValue = randomBoolean();
+        final S3ClientSettings client = S3ClientSettings.load(
+            Settings.builder().put("s3.client.default.request_checksum_when_required", clientValue).build()
+        ).get("default");
+        assertSame(client, client.refine(Settings.builder().put("request_checksum_when_required", clientValue).build()));
+        assertWarnings(
+            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.default.request_checksum_when_required"),
+            Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.placeholder.request_checksum_when_required")
+        );
+    }
+
+    /**
+     * The client cache is keyed on the settings, so two settings that differ only in this field must not be equal, or a repository
+     * could be handed a client that was built without the setting.
+     */
+    public void testSettingsDifferingOnlyInRequestChecksumWhenRequiredAreNotEqual() {
+        final S3ClientSettings off = S3ClientSettings.load(Settings.EMPTY).get("default");
+        final S3ClientSettings on = off.refine(Settings.builder().put("request_checksum_when_required", true).build());
+
+        assertNotEquals(off, on);
+        assertNotEquals(on, off);
+        assertNotEquals(off.hashCode(), on.hashCode());
+        // and flipping it back gives something equal to where we started
+        final S3ClientSettings offAgain = on.refine(Settings.builder().put("request_checksum_when_required", false).build());
+        assertEquals(off, offAgain);
+        assertEquals(off.hashCode(), offAgain.hashCode());
+        assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.placeholder.request_checksum_when_required"));
+    }
+
+    public void testInvalidRequestChecksumWhenRequiredValueIsRejected() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> S3ClientSettings.load(Settings.builder().put("s3.client.other.request_checksum_when_required", "sometimes").build())
+        );
+        assertThat(e.getMessage(), is("Failed to parse value [sometimes] as only [true] or [false] are allowed."));
+        // the deprecation is logged when the key is read, which happens before the value is parsed
+        assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.other.request_checksum_when_required"));
+    }
+
+    /** The setting is deprecated at critical level from the start, so it must also be flagged as a breaking change. */
+    public void testRequestChecksumWhenRequiredIsADeprecatedCriticalSetting() {
+        final Setting<Boolean> setting = S3ClientSettings.REQUEST_CHECKSUM_WHEN_REQUIRED.getConcreteSettingForNamespace("other");
+        assertTrue(setting.getProperties().contains(Setting.Property.Deprecated));
+        assertFalse(setting.getProperties().contains(Setting.Property.DeprecatedWarning));
+        assertTrue(setting.get(Settings.builder().put(setting.getKey(), true).build()));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { setting });
     }
 
     public void testRegionCanBeSet() {

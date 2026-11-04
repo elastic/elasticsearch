@@ -17,6 +17,7 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.http.SdkHttpClient;
@@ -218,6 +219,12 @@ class S3Service extends AbstractLifecycleComponent {
 
         if (clientSettings.legacyContentMd5) {
             s3clientBuilder.addPlugin(LegacyMd5Plugin.create());
+        }
+
+        if (clientSettings.requestChecksumWhenRequired) {
+            // Only set when asked. A builder-level value beats the env var, system property and profile file, so setting it
+            // unconditionally would override operators who already use AWS_REQUEST_CHECKSUM_CALCULATION as a workaround.
+            s3clientBuilder.requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED);
         }
 
         return s3clientBuilder;

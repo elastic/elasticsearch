@@ -46,7 +46,8 @@ final class S3RepositorySettings {
         S3Repository.SECRET_KEY_SETTING,
         S3ClientSettings.S3_TENACIOUS_RETRIES_ENABLED_SETTING,
         S3ClientSettings.ALWAYS_SIGN_REQUESTS,
-        S3ClientSettings.LEGACY_CONTENT_MD5
+        S3ClientSettings.LEGACY_CONTENT_MD5,
+        S3ClientSettings.REQUEST_CHECKSUM_WHEN_REQUIRED
     );
 
     static final List<Setting.AffixSetting<?>> DEPRECATED_CLIENT_SETTINGS = deprecatedClientSettings();

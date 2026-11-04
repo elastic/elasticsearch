@@ -168,6 +168,8 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         "disable_chunked_encoding",
         "true",
         "legacy_content_md5",
+        "true",
+        "request_checksum_when_required",
         "true"
     );
 

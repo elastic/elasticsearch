@@ -9,7 +9,7 @@ This release contains security fixes.
 Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
 ====
 
-[[known-issues-8.19.17]]
+[[known-issues-8.19.24]]
 [float]
 === Known issues
 

@@ -9,6 +9,12 @@ This release contains security fixes.
 Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
 ====
 
+[[known-issues-8.19.17]]
+[float]
+=== Known issues
+
+* When a downsample shard task resumes on a partially populated target index, it searches for the single highest _tsid present and resumes indexing from that point. Because bulk items can complete out of order, previous _tsids below the highest recorded one may not have finished downsampling, potentially resulting in missing data or data loss. Fixed in: Elasticsearch v8.19.25, which disables resuming from the last _tsid.
+
 [[bug-8.19.24]]
 [float]
 === Bug fixes

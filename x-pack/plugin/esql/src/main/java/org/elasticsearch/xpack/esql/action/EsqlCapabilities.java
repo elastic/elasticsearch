@@ -602,6 +602,12 @@ public class EsqlCapabilities {
         ST_CENTROID_AGG_OPTIMIZED,
 
         /**
+         * Where one index maps a name as an object and another as a field, the column has the type of the field and is {@code null}
+         * in the index of the object.
+         */
+        OBJECTS_ARE_NOT_FIELDS,
+
+        /**
          * Support for requesting the "_ignored" metadata field.
          */
         METADATA_IGNORED_FIELD,

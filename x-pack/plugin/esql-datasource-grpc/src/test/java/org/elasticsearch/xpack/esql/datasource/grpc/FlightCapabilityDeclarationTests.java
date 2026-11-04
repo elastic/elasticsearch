@@ -56,6 +56,11 @@ public class FlightCapabilityDeclarationTests extends ESTestCase {
             caps.put("limits", Map.of("maxExpressionDepth", depth));
             expectThrows(IllegalStateException.class, () -> FlightConnectorFactory.validateDeclaration(caps));
         }
+        for (int bytes : new int[] { 100, 2 * 1024 * 1024 + 1 }) {
+            Map<String, Object> c = valid();
+            c.put("limits", Map.of("maxFragmentBytes", bytes));
+            expectThrows(IllegalStateException.class, () -> FlightConnectorFactory.validateDeclaration(c));
+        }
         Map<String, Object> caps = valid();
         caps.put("limits", Map.of("maxInListSize", 0));
         expectThrows(IllegalStateException.class, () -> FlightConnectorFactory.validateDeclaration(caps));

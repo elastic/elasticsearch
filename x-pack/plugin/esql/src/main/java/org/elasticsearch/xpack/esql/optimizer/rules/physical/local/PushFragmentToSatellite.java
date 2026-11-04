@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -153,22 +154,44 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
             chain.add((UnaryExec) current);
             current = ((UnaryExec) current).child();
         }
-        if (chain.isEmpty() || current instanceof ExternalSourceExec == false) {
+        // a source with no operator above it is only visited as the child of its parent
+        boolean bare = chain.isEmpty();
+        PhysicalPlan leaf = bare ? top.child() : current;
+        if (leaf instanceof ExternalSourceExec == false) {
             return top;
         }
-        ExternalSourceExec ext = (ExternalSourceExec) current;
+        ExternalSourceExec ext = (ExternalSourceExec) leaf;
         Caps caps = caps(ext);
-        if (caps == null
-            || ext.pushedFilter() != null
-            || ctx.configuration().pragmas().satellitePushdown() == false
-            || defaultSettings(ctx) == false
-            || caps.plan.contains("scan") == false) {
+        if (caps == null || ext.pushedFilter() != null) {
             return top;
+        }
+        // Source options (protocol section 11) reach a satellite only inside a fragment. A dataset that sets options is therefore
+        // always read through one, even with nothing to push or with the pushdown switched off (then the fragment is the scan
+        // alone), and a read that cannot send a fragment fails instead of silently ignoring the options.
+        Map<String, Object> options = declaredOptions(ext.config(), caps);
+        boolean mustPush = options.isEmpty() == false;
+        boolean pushdownOff = ctx.configuration().pragmas().satellitePushdown() == false;
+        if ((pushdownOff || bare) && mustPush == false) {
+            return top;
+        }
+        if (defaultSettings(ctx) == false) {
+            return decline(top, mustPush, "the query's locale or time zone is not the default (en-US, UTC)");
+        }
+        if (caps.plan.contains("scan") == false) {
+            return decline(top, mustPush, "the satellite does not declare the scan operator");
         }
         Translator tr = new Translator(caps);
+        if (ext.output().isEmpty() || ext.output().stream().anyMatch(a -> ProjectAwayColumns.ALL_FIELDS_PROJECTED.equals(a.name()))) {
+            // COUNT(*) and the like read no column: ES scans a placeholder attribute, and a fragment cannot scan zero columns
+            return decline(
+                top,
+                mustPush,
+                "the query reads no column of the source (for example COUNT(*)), which a fragment cannot express yet"
+            );
+        }
         Map<String, Object> plan = tr.scan(ext);
         if (plan == null) {
-            return top;
+            return decline(top, mustPush, "a scanned column has a type the protocol cannot carry");
         }
 
         List<UnaryExec> retained = new ArrayList<>(); // pushed Limit/TopN kept in ES too, bottom-up
@@ -181,7 +204,7 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
         for (int i = chain.size() - 1; i >= 0 && stop < 0; i--) {
             UnaryExec op = chain.get(i);
             Map<String, Object> next = null;
-            if (afterBreaker || ++depth > MAX_PLAN_DEPTH) {
+            if (pushdownOff || afterBreaker || ++depth > MAX_PLAN_DEPTH) {
                 stop = i;
             } else if (op instanceof ProjectExec p) {
                 next = caps.plan.contains("project") ? tr.project(p, plan) : null;
@@ -234,12 +257,12 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
                 stop = i;
             }
         }
-        if (pushedNonProject == false) {
+        if (pushedNonProject == false && mustPush == false) {
             return top;
         }
         List<Map<String, Object>> output = tr.columns(leafOutput);
         if (output == null) {
-            return top;
+            return decline(top, mustPush, "an output column has a type the protocol cannot carry");
         }
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("specVersion", 0);
@@ -248,23 +271,20 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
         settings.put("locale", "en-US");
         settings.put("timeZone", "UTC");
         request.put("settings", settings);
-        Map<String, Object> options = new LinkedHashMap<>();
-        new TreeMap<>(ext.config()).forEach((k, v) -> {
-            if (caps.options.contains(k) && (v instanceof String || v instanceof Number || v instanceof Boolean)) {
-                options.put(k, v);
-            }
-        });
-        if (options.isEmpty() == false) {
+        if (mustPush) {
             request.put("options", options);
         }
         request.put("output", output);
         request.put("plan", plan);
 
         if (fits(request, caps.maxFragmentBytes) == false) {
-            return top;
+            return decline(top, mustPush, "the fragment is larger than the satellite accepts");
         }
 
         PhysicalPlan rebuilt = ext.withAttributes(leafOutput).withPushedFilter(new SatelliteFragment(request));
+        if (bare) {
+            return top.replaceChild(rebuilt);
+        }
         for (UnaryExec r : retained) {
             rebuilt = r.replaceChild(rebuilt);
         }
@@ -277,6 +297,27 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
             }
         }
         return rebuilt;
+    }
+
+    /** The dataset's source options the satellite declared: scalars, in a stable order. */
+    private static Map<String, Object> declaredOptions(Map<String, Object> config, Caps caps) {
+        Map<String, Object> options = new TreeMap<>();
+        config.forEach((k, v) -> {
+            if (caps.options.contains(k) && (v instanceof String || v instanceof Number || v instanceof Boolean)) {
+                options.put(k, v);
+            }
+        });
+        return options;
+    }
+
+    /** Not pushing is always allowed, unless source options need the fragment: then the query fails and says why. */
+    private static PhysicalPlan decline(PhysicalPlan top, boolean mustPush, String reason) {
+        if (mustPush) {
+            throw new IllegalArgumentException(
+                "the dataset sets source options, which reach the satellite only inside a fragment, but no fragment can be sent: " + reason
+            );
+        }
+        return top;
     }
 
     /** Room kept for the {@code partitions} entry the connector adds: the base64 of a ticket of up to 16 KiB. */

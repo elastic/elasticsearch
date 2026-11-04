@@ -141,6 +141,66 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
         assertEquals("no fragment", run("EXTERNAL \"" + PATH + "\" | WHERE salary > 50000 | LIMIT 10", CAPS, off));
     }
 
+    private static Map<String, Object> capsWithOptions() {
+        Map<String, Object> caps = new java.util.HashMap<>(CAPS);
+        caps.put("options", List.of("units"));
+        return caps;
+    }
+
+    private static String fragmentWithOption(String query, Map<String, Object> caps, QueryPragmas pragmas) throws IOException {
+        assumeTrue("EXTERNAL command", org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        return run("EXTERNAL \"" + PATH + "\" | " + query, caps, pragmas, Map.of("units", "fahrenheit"));
+    }
+
+    public void testDeclaredOptionsTravelInTheFragment() throws IOException {
+        String f = fragmentWithOption("WHERE salary > 50000 | KEEP emp_no, salary | LIMIT 10", capsWithOptions(), QueryPragmas.EMPTY);
+        assertThat(f, containsString("\"options\":{\"units\":\"fahrenheit\"}"));
+        assertThat("the chain is still pushed", f, containsString("\"op\":\"filter\""));
+    }
+
+    public void testASourceWithOptionsIsReadThroughAFragmentEvenWithThePushdownOff() throws IOException {
+        QueryPragmas off = new QueryPragmas(org.elasticsearch.common.settings.Settings.builder().put("satellite_pushdown", false).build());
+        String f = fragmentWithOption("WHERE salary > 50000 | LIMIT 10", capsWithOptions(), off);
+        assertThat("options need the fragment", f, containsString("\"options\":{\"units\":\"fahrenheit\"}"));
+        assertThat("but nothing else is pushed", f, containsString("\"plan\":{\"op\":\"scan\""));
+        assertThat(f, not(containsString("\"filter\"")));
+        assertThat(f, not(containsString("\"limit\"")));
+    }
+
+    public void testASourceWithOptionsIsReadThroughAScanOnlyFragmentWhenNothingIsPushable() throws IOException {
+        String f = fragmentWithOption("WHERE MV_COUNT(first_name) > 0 | LIMIT 10", capsWithOptions(), QueryPragmas.EMPTY);
+        assertThat(f, containsString("\"options\":{\"units\":\"fahrenheit\"}"));
+        assertThat(f, containsString("\"plan\":{\"op\":\"scan\""));
+    }
+
+    public void testASourceReadByAnOperatorThatReadsNoColumnIsRefusedWithAClearMessageWhenItHasOptions() throws IOException {
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fragmentWithOption("STATS c = COUNT(*) | LIMIT 5", capsWithOptions(), QueryPragmas.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("reads no column of the source"));
+    }
+
+    public void testWithoutOptionsAnOperatorThatReadsNoColumnIsLeftToThePlainScan() throws IOException {
+        assertEquals("no fragment", fragment("STATS c = COUNT(*) | LIMIT 5", CAPS));
+    }
+
+    public void testOptionsThatCannotBeSentFailTheQueryInsteadOfBeingDropped() throws IOException {
+        Map<String, Object> caps = capsWithOptions();
+        caps.put("strictColumns", List.of("emp_no", "first_name", "languages", "height", "hire_date", "still_hired")); // not salary
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fragmentWithOption("WHERE salary > 50000 | KEEP emp_no, salary | LIMIT 10", caps, QueryPragmas.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString("source options"));
+        assertThat(e.getMessage(), containsString("type the protocol cannot carry"));
+    }
+
+    public void testAnOptionTheSatelliteDidNotDeclareIsNotForwarded() throws IOException {
+        String f = fragmentWithOption("WHERE salary > 50000 | KEEP emp_no, salary | LIMIT 10", CAPS, QueryPragmas.EMPTY);
+        assertThat(f, not(containsString("options")));
+    }
+
     public void testNothingIsPushedWithoutTheCapabilityStamp() throws IOException {
         assertEquals("no fragment", fragment("WHERE salary > 50000 | LIMIT 10", null));
     }
@@ -237,6 +297,10 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
     }
 
     static String run(String query, Map<String, Object> caps, QueryPragmas pragmas) throws IOException {
+        return run(query, caps, pragmas, Map.of());
+    }
+
+    static String run(String query, Map<String, Object> caps, QueryPragmas pragmas, Map<String, Object> extraConfig) throws IOException {
         var statement = EsqlTestUtils.TEST_PARSER.createStatement(query);
         List<Attribute> schema = List.of(
             referenceAttribute("emp_no", DataType.INTEGER),
@@ -247,6 +311,8 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
             referenceAttribute("hire_date", DataType.DATETIME),
             referenceAttribute("still_hired", DataType.BOOLEAN)
         );
+        Map<String, Object> config = new java.util.HashMap<>(Map.of("endpoint", "flight://localhost:1", "target", "employees"));
+        config.putAll(extraConfig);
         var sm = new SimpleSourceMetadata(
             schema,
             "flight",
@@ -254,7 +320,7 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
             null,
             null,
             caps == null ? null : Map.of(SatelliteFragment.CAPABILITY_KEY, caps),
-            Map.of("endpoint", "flight://localhost:1", "target", "employees")
+            config
         );
         ExternalSourceMetadata esm = new ExternalSourceMetadata() {
             @Override

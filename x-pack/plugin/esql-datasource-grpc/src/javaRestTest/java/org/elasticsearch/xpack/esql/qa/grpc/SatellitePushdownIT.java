@@ -152,10 +152,51 @@ public class SatellitePushdownIT extends ESRestTestCase {
             "KEEP id, w | SORT w DESC, id | LIMIT 3",
             "WHERE n > 0 | KEEP id, n, m | SORT n DESC, id | LIMIT 3"
         );
+        differential("edge", queries);
+    }
+
+    /**
+     * NaN, the infinities, null and the two zeros in a double column. ES's own evaluation is the oracle again, and these are the
+     * cases where it is not what one would guess: the comparisons are the primitive IEEE operators (a NaN equals nothing, itself
+     * included), but {@code IN} uses {@code Double.compare} (NaN equals NaN, and 0.0 and -0.0 differ); an arithmetic result that is
+     * not finite is null, while {@code -} and {@code ABS} pass non-finite values through.
+     */
+    public void testNonFiniteDoublesDifferential() throws IOException {
+        assumeTrue("set -Dtests.satellite.endpoint=host:port to run against a satellite", ENDPOINT != null);
+        differential(
+            "nonfinite",
+            List.of(
+                "KEEP id, d | SORT id",
+                "WHERE d > 0 | KEEP id | SORT id",
+                "WHERE d < 0 | KEEP id | SORT id",
+                "WHERE d >= 0 | KEEP id | SORT id",
+                "WHERE d <= 0 | KEEP id | SORT id",
+                "WHERE d == 0 | KEEP id | SORT id",
+                "WHERE d != 0 | KEEP id | SORT id",
+                "WHERE d == d | KEEP id | SORT id",
+                "WHERE d != d | KEEP id | SORT id",
+                "WHERE NOT (d > 0) | KEEP id | SORT id",
+                "WHERE d IS NULL | KEEP id | SORT id",
+                "WHERE d IS NOT NULL | KEEP id | SORT id",
+                "WHERE d IN (0.0) | KEEP id | SORT id",
+                "WHERE d IN (1.5, 0.0) | KEEP id | SORT id",
+                "WHERE d IN (d) | KEEP id | SORT id",
+                "EVAL x = d + 1.0 | KEEP id, x | SORT id",
+                "EVAL x = d - 1.0 | KEEP id, x | SORT id",
+                "EVAL x = d * 0.0 | KEEP id, x | SORT id",
+                "EVAL x = -d | KEEP id, x | SORT id",
+                "EVAL x = ABS(d) | KEEP id, x | SORT id",
+                "EVAL x = COALESCE(d, 9.5) | KEEP id, x | SORT id"
+            )
+        );
+    }
+
+    /** Runs each query over {@code table} with ES's own evaluation (the oracle) and with the pushdown, and compares. */
+    private void differential(String table, List<String> queries) throws IOException {
         StringBuilder mismatches = new StringBuilder();
         StringBuilder notPushed = new StringBuilder();
         for (String q : queries) {
-            String esql = "EXTERNAL \"flight://" + ENDPOINT + "/edge\" | " + q;
+            String esql = "EXTERNAL \"flight://" + ENDPOINT + "/" + table + "\" | " + q;
             Map<String, Object> off = query(esql, false);
             Map<String, Object> on = profiled(esql);
             if (on.get("columns").equals(off.get("columns")) == false || on.get("values").equals(off.get("values")) == false) {
@@ -192,6 +233,15 @@ public class SatellitePushdownIT extends ESRestTestCase {
         req.setJsonEntity("{\"query\": \"" + esql.replace("\\", "\\\\").replace("\"", "\\\"") + "\", \"profile\": true}");
         req.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         return entityAsMap(client().performRequest(req));
+    }
+
+    public void testCountStarReadsNoColumns() throws IOException {
+        assumeTrue("set -Dtests.satellite.endpoint=host:port to run against a satellite", ENDPOINT != null);
+        String esql = "EXTERNAL \"flight://" + ENDPOINT + "/employees\" | STATS c = COUNT(*)";
+        Map<String, Object> off = query(esql, false);
+        Map<String, Object> on = query(esql, true);
+        assertThat(on.get("values"), equalTo(off.get("values")));
+        assertThat(off.get("values"), equalTo(List.of(List.of(100))));
     }
 
     /** The same rows spread over four files, so four splits (partitions), which every distribution strategy places differently. */

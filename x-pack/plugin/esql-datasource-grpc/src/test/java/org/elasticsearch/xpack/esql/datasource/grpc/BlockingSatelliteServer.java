@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
 import org.apache.arrow.flight.Action;
+import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightEndpoint;
 import org.apache.arrow.flight.FlightInfo;
@@ -45,7 +46,7 @@ public final class BlockingSatelliteServer implements Closeable {
     static final Schema SCHEMA = new Schema(List.of(new Field("id", FieldType.nullable(new ArrowType.Int(32, true)), null)));
 
     private static final String CAPABILITIES = "{\"specVersions\":[0],\"fragmentFormats\":[\"json\"],\"plan\":[\"scan\",\"limit\"],"
-        + "\"functions\":[],\"types\":[\"integer\"]}";
+        + "\"functions\":[],\"types\":[\"integer\"],\"options\":[\"units\"]}";
 
     /** The schema of the stream and of the flight info it answers a fragment with. Tests change it to make the satellite wrong. */
     public volatile Schema answerSchema = SCHEMA;
@@ -53,6 +54,8 @@ public final class BlockingSatelliteServer implements Closeable {
     public volatile boolean blockInFlightInfo;
     /** When set, {@code DoGet} does not send the first batch until released or cancelled by the client. */
     public volatile boolean blockInDoGet;
+    /** When set, {@code GetFlightInfo(command)} answers with this status, like a satellite that rejects the request. */
+    public volatile CallStatus rejectFragmentWith;
 
     public final CountDownLatch inFlightInfo = new CountDownLatch(1);
     public final CountDownLatch inDoGet = new CountDownLatch(1);
@@ -96,6 +99,9 @@ public final class BlockingSatelliteServer implements Closeable {
                 );
             }
             fragments.add(new String(descriptor.getCommand(), StandardCharsets.UTF_8));
+            if (rejectFragmentWith != null) {
+                throw rejectFragmentWith.toRuntimeException();
+            }
             if (blockInFlightInfo) {
                 inFlightInfo.countDown();
                 await(release);

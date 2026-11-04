@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import org.apache.arrow.flight.CallStatus;
 import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -179,6 +180,28 @@ public class FlightCancellationTests extends ESTestCase {
             ResultCursor cursor = connector.execute(request(), Split.SINGLE)
         ) {
             expectThrows(IllegalStateException.class, cursor::hasNext);
+        }
+    }
+
+    public void testARejectedRequestIsAClientErrorWithTheSatellitesMessage() throws Exception {
+        server.rejectFragmentWith = CallStatus.INVALID_ARGUMENT.withDescription("option units must be one of celsius, fahrenheit");
+        try (
+            FlightConnector connector = connector(TimeValue.timeValueSeconds(30));
+            ResultCursor cursor = connector.execute(request(), Split.SINGLE)
+        ) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, cursor::hasNext);
+            assertThat(e.getMessage(), containsString("option units must be one of celsius, fahrenheit"));
+            assertThat(e.getMessage(), containsString("INVALID_ARGUMENT"));
+        }
+    }
+
+    public void testAnInternalFailureOfTheSatelliteIsNotMadeAClientError() throws Exception {
+        server.rejectFragmentWith = CallStatus.INTERNAL.withDescription("boom");
+        try (
+            FlightConnector connector = connector(TimeValue.timeValueSeconds(30));
+            ResultCursor cursor = connector.execute(request(), Split.SINGLE)
+        ) {
+            expectThrows(FlightRuntimeException.class, cursor::hasNext);
         }
     }
 }

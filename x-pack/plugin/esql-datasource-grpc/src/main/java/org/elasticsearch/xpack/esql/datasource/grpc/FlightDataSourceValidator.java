@@ -19,8 +19,9 @@ import java.util.Set;
 /**
  * Registers {@code flight} data sources and datasets, so that a satellite (or any Flight server) can be queried as
  * {@code FROM <dataset>}. A data source carries no settings in v0 (no credentials, no TLS). A dataset's resource is
- * {@code flight://host:port/table}; the validator derives the {@code endpoint} and {@code target} the connector needs. Dataset
- * settings are refused: source options have no way to reach a plain scan yet.
+ * {@code flight://host:port/table}; the validator derives the {@code endpoint} and {@code target} the connector needs. The dataset's
+ * settings are source options for the satellite: scalars only, and checked against the satellite's declaration when a query is
+ * resolved. Options only change values, never the schema or the partitions (protocol section 11).
  */
 class FlightDataSourceValidator implements DataSourceValidator {
 
@@ -58,12 +59,20 @@ class FlightDataSourceValidator implements DataSourceValidator {
         if (path == null || path.length() < 2 || path.indexOf('/', 1) >= 0) {
             throw error("a flight resource names exactly one table, got [" + resource + "]");
         }
-        if (datasetSettings != null && datasetSettings.isEmpty() == false) {
-            // source options reach a satellite only inside a fragment, which a plain scan never sends, so they would silently
-            // change results depending on whether a query is pushed; they are refused until that is designed
-            throw error("a flight dataset takes no settings yet, got " + datasetSettings.keySet());
-        }
         Map<String, Object> validated = new HashMap<>();
+        if (datasetSettings != null) {
+            for (Map.Entry<String, Object> setting : datasetSettings.entrySet()) {
+                String name = setting.getKey();
+                Object v = setting.getValue();
+                if (FlightConnectorFactory.NON_OPTION_KEYS.contains(name) || name.startsWith("_")) {
+                    throw error("[" + name + "] is not a source option: it is set by ES");
+                }
+                if (v instanceof String == false && v instanceof Number == false && v instanceof Boolean == false) {
+                    throw error("the source option [" + name + "] must be a string, a number or a boolean");
+                }
+                validated.put(name, v);
+            }
+        }
         int port = uri.getPort() > 0 ? uri.getPort() : FlightConnectorFactory.DEFAULT_FLIGHT_PORT;
         validated.put("endpoint", uri.getScheme() + "://" + uri.getHost() + ":" + port);
         validated.put("target", path.substring(1));

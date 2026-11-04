@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SatelliteFragment;
@@ -45,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -76,13 +76,65 @@ class FlightConnectorFactory implements ConnectorFactory {
 
     @Override
     public void validateConfig(String location, Map<String, Object> config) {
-        // A registered dataset's config holds the endpoint and target the validator derived from the resource, plus the
-        // schema_resolution the dataset layer always adds. There are no source options yet: the validator refuses dataset settings,
-        // and anything else is an unknown option here.
-        ConfigKeyValidator.check(config, List.of(Set.of("endpoint", "target", "schema_resolution")));
+        // A registered dataset's config holds the endpoint and target the validator derived from the resource, the
+        // schema_resolution the dataset layer always adds, and the dataset's own settings, which are source options. Whether the
+        // satellite understands an option is only known once its declaration has been read, so that is checked in resolveMetadata.
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            if (NON_OPTION_KEYS.contains(entry.getKey()) == false
+                && entry.getKey().startsWith("_") == false
+                && isScalar(entry.getValue()) == false) {
+                throw new IllegalArgumentException("the source option [" + entry.getKey() + "] must be a string, a number or a boolean");
+            }
+        }
     }
 
     static final int DEFAULT_FLIGHT_PORT = 47470;
+
+    /** Config keys that are not source options: what the validator derives from the resource and what the dataset layer adds. */
+    static final Set<String> NON_OPTION_KEYS = Set.of("endpoint", "target", "schema_resolution");
+
+    private static boolean isScalar(Object value) {
+        return value instanceof String || value instanceof Number || value instanceof Boolean;
+    }
+
+    /** The source options of a config: every key that is neither one of ours nor a framework key (those start with an underscore). */
+    static Map<String, Object> optionsOf(Map<String, Object> config) {
+        Map<String, Object> options = new TreeMap<>();
+        for (Map.Entry<String, Object> entry : config.entrySet()) {
+            if (NON_OPTION_KEYS.contains(entry.getKey()) == false && entry.getKey().startsWith("_") == false) {
+                options.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return options;
+    }
+
+    /**
+     * Options travel only inside a fragment, so they need a satellite that declared them (protocol section 11). A plain Flight
+     * server cannot take them, and an option the satellite did not declare would be silently ignored: both fail the query.
+     */
+    static void checkOptions(Map<String, Object> options, Map<String, Object> stamp) {
+        if (options.isEmpty()) {
+            return;
+        }
+        if (stamp == null) {
+            throw new IllegalArgumentException(
+                "the dataset sets the source options "
+                    + options.keySet()
+                    + " but this Flight server does not implement the satellite protocol"
+            );
+        }
+        Object declared = ((Map<?, ?>) stamp.get(SatelliteFragment.CAPABILITY_KEY)).get("options");
+        for (String name : options.keySet()) {
+            if (declared instanceof List<?> list == false || ((List<?>) declared).contains(name) == false) {
+                throw new IllegalArgumentException(
+                    "the satellite does not declare the source option ["
+                        + name
+                        + "]; it declares "
+                        + (declared instanceof List<?> ? declared : List.of())
+                );
+            }
+        }
+    }
 
     @Override
     public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
@@ -103,10 +155,13 @@ class FlightConnectorFactory implements ConnectorFactory {
             List<Attribute> attributes = FlightTypeMapping.toAttributes(arrowSchema);
             Map<String, Object> resolvedConfig = Map.of("endpoint", endpoint, "target", target);
             Map<String, Object> stamp = fetchSatelliteCapabilities(client, target, arrowSchema, callTimeout);
+            checkOptions(optionsOf(config), stamp);
             return new SimpleSourceMetadata(attributes, "flight", location, null, null, stamp, resolvedConfig);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while resolving Flight schema for [" + target + "]", e);
+        } catch (IllegalArgumentException e) {
+            throw e; // a dataset that cannot be served: the message says why, and it is the user's to fix
         } catch (Exception e) {
             throw new IllegalStateException("Failed to resolve Flight schema for [" + target + "]", e);
         }
@@ -213,7 +268,11 @@ class FlightConnectorFactory implements ConnectorFactory {
             if (depth instanceof Number n && (n.intValue() < 1 || n.intValue() > 128)) {
                 throw new IllegalStateException("maxExpressionDepth [" + depth + "] is outside 1 to 128");
             }
-            for (String name : List.of("maxFragmentBytes", "maxInListSize", "maxPatternBytes")) {
+            // so that a fragment, its echoed descriptor and a self-contained ticket fit a 4 MiB gRPC message (protocol section 6)
+            if (limits.get("maxFragmentBytes") instanceof Number n && (n.longValue() < 1024 || n.longValue() > 2 * 1024 * 1024)) {
+                throw new IllegalStateException("maxFragmentBytes [" + n + "] is outside 1024 to 2097152");
+            }
+            for (String name : List.of("maxInListSize", "maxPatternBytes")) {
                 if (limits.get(name) instanceof Number n && n.longValue() < 1) {
                     throw new IllegalStateException(name + " [" + n + "] must be at least 1");
                 }

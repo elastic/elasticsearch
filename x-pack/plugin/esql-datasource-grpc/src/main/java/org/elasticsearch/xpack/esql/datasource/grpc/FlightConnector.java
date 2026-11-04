@@ -12,6 +12,8 @@ import org.apache.arrow.flight.CallOptions;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightInfo;
+import org.apache.arrow.flight.FlightRuntimeException;
+import org.apache.arrow.flight.FlightStatusCode;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Ticket;
@@ -112,6 +114,25 @@ class FlightConnector implements Connector {
         return info.getEndpoints().get(0).getTicket();
     }
 
+    /**
+     * A satellite that answers {@code INVALID_ARGUMENT} or {@code NOT_FOUND} is saying the request is wrong (a bad option value, a
+     * table that is gone): that is the caller's to fix, so it surfaces as a client error carrying the satellite's message and not as
+     * an unexpected server failure. Anything else is not a rejection and is rethrown as it is (null here).
+     */
+    private static IllegalArgumentException rejection(Throwable t) {
+        if (t instanceof FlightRuntimeException e) {
+            FlightStatusCode code = e.status().code();
+            if (code == FlightStatusCode.INVALID_ARGUMENT || code == FlightStatusCode.NOT_FOUND) {
+                String description = e.status().description();
+                return new IllegalArgumentException(
+                    "the satellite rejected the request [" + code + "]: " + (description == null ? e.getMessage() : description),
+                    e
+                );
+            }
+        }
+        return null;
+    }
+
     private static byte[] toJsonBytes(Map<String, Object> fragment) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             return BytesReference.toBytes(BytesReference.bytes(builder.map(fragment)));
@@ -202,6 +223,10 @@ class FlightConnector implements Connector {
                 stream = null;
                 if (cancelled) {
                     return false; // the call failed because it was cancelled: that is the end of the rows, not a failure
+                }
+                IllegalArgumentException rejected = rejection(t);
+                if (rejected != null) {
+                    throw rejected;
                 }
                 throw t;
             }

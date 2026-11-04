@@ -101,6 +101,10 @@ public class RenameIndexSwapIT extends ESIntegTestCase {
     public void testHeldBulkAcrossSwapLandsInRenamedIndex() throws Exception {
         final BulkResponse response = bulkHeldAcrossSwap(false);
         assertFalse(response.buildFailureMessage(), response.hasFailures());
+        for (BulkItemResponse item : response.getItems()) {
+            // not "a", which now names the other index
+            assertEquals("c", item.getIndex());
+        }
         refresh("c", "a");
         assertHitCount(prepareSearch("c").setSize(0), DOCS);
         assertHitCount(prepareSearch("a").setSize(0), 0);

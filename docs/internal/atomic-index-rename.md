@@ -189,13 +189,17 @@ that the renamed index's blocks apply;
 reroute phase directly; `RenameIndexIT#testBulkIndexingDuringRename` runs
 bulks across a plain rename).
 
-One thing is not right yet, and it is user-visible only in a swap: a bulk
-reports each item's `_index` as the name the index had when the bulk was
-routed. The primary builds its `BulkShardResponse` with the request's shard id
-and the items are deserialized with that shard id rather than their own, so
-after `a` becomes `c` and `b` becomes `a`, a bulk accepted for the first `a`
-reports `_index: a`, which now names a different index, while its documents
-are in `c`. Building the response from the primary's own shard id fixes it.
+A bulk reports each item's `_index` as the name the index has when the
+documents are written, not the name it had when the bulk was routed. The items
+are written without a shard id of their own and read back with the one of the
+`BulkShardResponse` they travel in, so that response is built from the
+primary's own shard id (`BulkPrimaryExecutionContext#buildShardResponse`). Built
+from the request's shard id it reported the old name, which in a swap is the
+name of a different index: after `a` becomes `c` and `b` becomes `a`, a bulk
+accepted for the first `a` would report `_index: a` while its documents are in
+`c`. The reshard split helper still builds its merged response from the
+original request's shard id, so a bulk that is split by a reshard while its
+index is renamed reports the old name; that is cosmetic and not yet fixed.
 
 This is what makes stale `Index` copies acceptable: a component that captured
 an `Index` before a rename keeps finding its metadata and routing, and the
@@ -495,8 +499,8 @@ Direct tests of the rename:
   block refusing a rename, and bulk requests in flight across a rename.
 - `RenameIndexSwapIT`: a bulk held by an action filter on the coordinating node
   while one aliases request swaps two names through a temporary one. The
-  documents land in the renamed index and none in the index that took over the
-  name, and a write block put on the renamed index afterwards refuses the held
+  documents land in the renamed index, the items report its new name, none
+  land in the index that took over the old name, and a write block put on the renamed index afterwards refuses the held
   bulk (without the reroute-phase fix this test fails: the block is looked up
   by the old name and missed). A control holds and releases a bulk with no
   rename. `TransportReplicationActionTests#testBlocksAfterIndexNamesSwapped`
@@ -550,6 +554,8 @@ listed here as the places where names hide:
   index from the matched routing.
 - The `SnapshotsInProgress` entry diff keeping shard keys under the old name
   (T1), which made every other node fail to apply the state.
+- Bulk item responses reporting the name the index had when the bulk was
+  routed, because the shard response was built from the request's shard id.
 - Name-string lookups fed from a shard id (T2): the replication reroute
   phase's block check, shard store deletion's settings lookup and the
   stateless split state block checks, found by auditing for the swap case

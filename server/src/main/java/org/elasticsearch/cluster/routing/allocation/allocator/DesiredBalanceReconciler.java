@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -696,9 +695,9 @@ public class DesiredBalanceReconciler {
         }
 
         @Nullable
-        private ComputedMoveReason computedMoveReason(ShardRouting shardRouting) {
+        private MoveReason computedMoveReason(ShardRouting shardRouting) {
             return desiredBalance.computedMoveReasons()
-                .get(new ComputedMoveReason.Key(shardRouting.shardId(), shardRouting.currentNodeId()));
+                .get(new DesiredBalance.ShardCopy(shardRouting.shardId(), shardRouting.currentNodeId()));
         }
 
         private DiscoveryNode findRelocationTarget(final ShardRouting shardRouting, Set<String> desiredNodeIds) {

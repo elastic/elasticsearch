@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -203,7 +202,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
             ShardRouting startedShard,
             ShardRouting targetRelocatingShard,
             MoveReason reason,
-            @Nullable ComputedMoveReason computedReason
+            @Nullable MoveReason computedReason
         ) {
             invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
         }

@@ -517,7 +517,8 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
 
     @Override
     public String text() {
-        if (currentToken == null || currentToken.isValue() == false) {
+        // With no current token, before the first token or after the last, this throws NullPointerException, as the JSON parser does.
+        if (currentToken.isValue() == false) {
             throw new IllegalArgumentException("Expected text at " + getTokenLocation() + " but found " + currentToken);
         }
         return switch (currentToken) {

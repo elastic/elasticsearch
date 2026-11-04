@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 /**
  * Tests {@link SourceRowXContentParser} against rows produced by the production batch encoder
  * ({@link EscfEncoder}). The encoder widens scalar numbers (int → long, float → double), so
@@ -174,6 +176,52 @@ public class SourceRowXContentParserTests extends ESTestCase {
             }
         }
         assertAccessorsMatch(XContentType.CBOR, sources);
+    }
+
+    /**
+     * With no current token, before the first token or after the last, reading a value is a programming error. The JSON parser throws a
+     * {@link NullPointerException} for it, and so does the row parser, rather than an {@link IllegalArgumentException} that a caller
+     * handling malformed values could mistake for bad input.
+     */
+    public void testTextAccessorsWithoutACurrentTokenThrowNullPointerException() throws IOException {
+        final BytesReference source = new BytesArray("{\"a\":1}");
+        try (EscfBatch batch = EscfEncoder.encode(List.of(source), XContentType.JSON)) {
+            final SourceRowXContentParser.SchemaNode tree = SourceRowXContentParser.buildSchemaTree(batch.schema());
+            for (String name : List.of("text", "optimizedText", "charBuffer", "objectText", "objectBytes")) {
+                for (boolean afterTheLastToken : new boolean[] { false, true }) {
+                    try (
+                        XContentParser json = XContentHelper.createParserNotCompressed(
+                            XContentParserConfiguration.EMPTY,
+                            source,
+                            XContentType.JSON
+                        );
+                        SourceRowXContentParser row = new SourceRowXContentParser(tree, batch.row(0))
+                    ) {
+                        if (afterTheLastToken) {
+                            while (json.nextToken() != null) {
+                                // read to the end
+                            }
+                            while (row.nextToken() != null) {
+                                // read to the end
+                            }
+                        }
+                        final String where = name + (afterTheLastToken ? " after the last token" : " before the first token");
+                        assertNull(where, json.currentToken());
+                        assertNull(where, row.currentToken());
+                        assertThat(
+                            where + " on the JSON parser",
+                            Outcome.of(json, ACCESSORS.get(name)).error(),
+                            instanceOf(NullPointerException.class)
+                        );
+                        assertThat(
+                            where + " on the row parser",
+                            Outcome.of(row, ACCESSORS.get(name)).error(),
+                            instanceOf(NullPointerException.class)
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /**

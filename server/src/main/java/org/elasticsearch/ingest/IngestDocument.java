@@ -1294,8 +1294,7 @@ public final class IngestDocument {
         }
     }
 
-    // not private, so that the tests can look at the parsed paths that it hands out
-    static final class FieldPath {
+    private static final class FieldPath {
 
         private static final int MAX_SIZE = 512;
         private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();

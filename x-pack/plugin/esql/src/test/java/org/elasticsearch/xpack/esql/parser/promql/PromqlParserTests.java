@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
@@ -647,6 +648,75 @@ public class PromqlParserTests extends ESTestCase {
         // @ end()
         promql = parse("PROMQL index=test step=5m start=\"2026-01-01T00:00:00Z\" end=\"2026-01-01T01:00:00Z\" foo @ END()");
         assertThat(as(promql.promqlPlan(), InstantSelector.class).evaluation().at().value(), equalTo(promql.end().value()));
+    }
+
+    /**
+     * Prometheus: {@code offset} and {@code @} bind to their selector before any binary operator, so the operator
+     * applies to the modified selector; arithmetic over the offset duration itself needs parentheses.
+     */
+    public void testModifiersBindBeforeBinaryOperators() {
+        // `@ 100` is 100 seconds since the epoch, held as milliseconds
+        Long at = 100_000L;
+        for (String query : List.of("foo offset 5m > 120", "(foo offset 5m) > 120")) {
+            VectorBinaryComparison comparison = as(parse("PROMQL index=test step=5m " + query).promqlPlan(), VectorBinaryComparison.class);
+            assertThat(comparison.op(), equalTo(VectorBinaryComparison.ComparisonOp.GT));
+            assertModifiers(comparison.left(), Duration.ofMinutes(5), null);
+            assertThat(as(comparison.right(), LiteralSelector.class).literal().value(), equalTo(120));
+        }
+
+        VectorBinaryComparison comparison = as(
+            parse("PROMQL index=test step=5m foo offset -5m > 1").promqlPlan(),
+            VectorBinaryComparison.class
+        );
+        assertModifiers(comparison.left(), Duration.ofMinutes(-5), null);
+
+        VectorBinaryArithmetic arithmetic = as(
+            parse("PROMQL index=test step=5m foo offset 5m + bar").promqlPlan(),
+            VectorBinaryArithmetic.class
+        );
+        assertThat(arithmetic.op(), equalTo(VectorBinaryArithmetic.ArithmeticOp.ADD));
+        assertModifiers(arithmetic.left(), Duration.ofMinutes(5), null);
+        assertModifiers(arithmetic.right(), Duration.ZERO, null);
+
+        VectorBinarySet set = as(parse("PROMQL index=test step=5m foo offset 5m and bar").promqlPlan(), VectorBinarySet.class);
+        assertThat(set.op(), equalTo(VectorBinarySet.SetOp.INTERSECT));
+        assertModifiers(set.left(), Duration.ofMinutes(5), null);
+
+        set = as(parse("PROMQL index=test step=5m foo unless (foo offset 5m > 120)").promqlPlan(), VectorBinarySet.class);
+        assertThat(set.op(), equalTo(VectorBinarySet.SetOp.SUBTRACT));
+        assertModifiers(as(set.right(), VectorBinaryComparison.class).left(), Duration.ofMinutes(5), null);
+
+        // the offset is a single literal: `5s - 8` subtracts 8 from the offset selector
+        arithmetic = as(parse("PROMQL index=test step=5m foo offset 5s - 8").promqlPlan(), VectorBinaryArithmetic.class);
+        assertThat(arithmetic.op(), equalTo(VectorBinaryArithmetic.ArithmeticOp.SUB));
+        assertModifiers(arithmetic.left(), Duration.ofSeconds(5), null);
+
+        // parenthesized duration arithmetic is still the offset
+        comparison = as(parse("PROMQL index=test step=5m foo offset (5m - 1m) > 1").promqlPlan(), VectorBinaryComparison.class);
+        assertModifiers(comparison.left(), Duration.ofMinutes(4), null);
+        comparison = as(parse("PROMQL index=test step=5m foo offset -(1m * 2) > 1").promqlPlan(), VectorBinaryComparison.class);
+        assertModifiers(comparison.left(), Duration.ofMinutes(-2), null);
+
+        for (String query : List.of("foo @ 100 > 120", "(foo @ 100) > 120")) {
+            comparison = as(parse("PROMQL index=test step=5m " + query).promqlPlan(), VectorBinaryComparison.class);
+            assertModifiers(comparison.left(), Duration.ZERO, at);
+        }
+        for (String query : List.of("foo @ 100 offset 5m > 120", "foo offset 5m @ 100 > 120")) {
+            comparison = as(parse("PROMQL index=test step=5m " + query).promqlPlan(), VectorBinaryComparison.class);
+            assertModifiers(comparison.left(), Duration.ofMinutes(5), at);
+        }
+        comparison = as(parse("PROMQL index=test step=5m foo offset -5m @ 100 > 1").promqlPlan(), VectorBinaryComparison.class);
+        assertModifiers(comparison.left(), Duration.ofMinutes(-5), at);
+        arithmetic = as(parse("PROMQL index=test step=5m foo @ 100 offset 5m + bar").promqlPlan(), VectorBinaryArithmetic.class);
+        assertModifiers(arithmetic.left(), Duration.ofMinutes(5), at);
+        set = as(parse("PROMQL index=test step=5m foo offset 5m @ 100 and bar").promqlPlan(), VectorBinarySet.class);
+        assertModifiers(set.left(), Duration.ofMinutes(5), at);
+    }
+
+    private static void assertModifiers(LogicalPlan plan, Duration offset, Long at) {
+        InstantSelector selector = as(plan, InstantSelector.class);
+        assertThat(selector.evaluation().offsetDuration(), equalTo(offset));
+        assertThat(selector.evaluation().at().value(), equalTo(at));
     }
 
     public void testCaseInsensitivityScalars() {

@@ -494,26 +494,6 @@ tests:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/164383
-- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
-  tasks:
-  - :x-pack:plugin:security:test
-  method: testVerifiesHostnameOfIpLiteralUrl
-  issue: https://github.com/elastic/elasticsearch/issues/164387
-- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
-  tasks:
-  - :x-pack:plugin:security:test
-  method: testPinnedFingerprintVerifiesHostnameOfIpLiteralUrl
-  issue: https://github.com/elastic/elasticsearch/issues/164389
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  tasks:
-  - :x-pack:plugin:logsdb:javaRestTest
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/164392
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  tasks:
-  - :x-pack:plugin:logsdb:javaRestTest
-  method: testHistogramAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/164408
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sIncreaseIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator

@@ -80,7 +80,9 @@ RUNNER_JAR="$WORKSPACE/build-tools/gradle-runner/build/libs/gradle-runner.jar"
 if [[ ! -f "$RUNNER_JAR" ]]; then
   echo "--- Building gradle-runner"
   cd "$WORKSPACE"
-  ./gradlew --no-scan --no-daemon --console=plain :build-tools:gradle-runner:jar
+  # Build from the standalone build-tools build: going through the root build would configure every project just to
+  # produce this jar
+  ./gradlew --no-scan --no-daemon --console=plain -p build-tools :gradle-runner:jar
   cd -
 fi
 

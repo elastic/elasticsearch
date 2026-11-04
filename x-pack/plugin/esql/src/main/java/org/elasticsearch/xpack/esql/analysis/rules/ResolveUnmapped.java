@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -338,11 +337,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     ) {
         List<Alias> aliases = new ArrayList<>();
         var outputNames = viewBranch.outputSet().names();
-        LogicalPlan body = withoutMergeAlignment(viewBranch);
         for (UnresolvedAttribute ua : unresolved) {
             if (outputNames.contains(ua.name()) == false) {
                 aliases.add(load ? new Alias(ua.source(), ua.name(), new Literal(ua.source(), null, DataType.KEYWORD)) : nullAlias(ua));
-                if (load && viewBodyCanSurfaceLoadedField(body, ua.name())) {
+                if (load && viewBodyCanSurfaceLoadedField(viewBranch, ua.name())) {
                     onViewNullFill.accept(identity, ua.name());
                 }
             }
@@ -353,14 +351,14 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
 
     /**
      * Whether the view body {@code body} would surface a field {@code name} loaded at its sources. A merge retained in the body
-     * surfaces it when any branch does, judged below that branch's alignment layers. A view branch of a nested {@link BranchPlan}
-     * is skipped: that view's own boundary stops the mode whether or not the enclosing view applies it.
+     * surfaces it when any branch does. A view branch of a nested {@link BranchPlan} is skipped: that view's own boundary stops the
+     * mode whether or not the enclosing view applies it. The fill Evals that earlier passes of this rule put atop the view branch
+     * do not hide anything the body surfaces.
      */
     private static boolean viewBodyCanSurfaceLoadedField(LogicalPlan body, String name) {
         return branchCanSurfaceLoadedField(body, name, merge -> {
             for (int i = 0; i < merge.children().size(); i++) {
-                if (ViewUtils.isViewBody(merge, i) == false
-                    && viewBodyCanSurfaceLoadedField(withoutMergeAlignment(merge.children().get(i)), name)) {
+                if (ViewUtils.isViewBody(merge, i) == false && viewBodyCanSurfaceLoadedField(merge.children().get(i), name)) {
                     return true;
                 }
             }
@@ -369,25 +367,9 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     }
 
     /**
-     * {@code branch} without the nodes stacked atop the view body to align branch outputs, whose Projects would otherwise hide
-     * every field the body could surface. Each analyzer pass that fills a field adds a fill Eval, and the outer merge then
-     * realigns with its own missing-column Eval and Project, so a field referenced only by a later command sees several such
-     * layers. All of them are plain Projects or Evals reusing their child's source. A view body without a {@code SET} resolves
-     * a user's KEEP, DROP or RENAME to a plain Project too, but one with the source of its own command, so peeling stops there.
-     */
-    private static LogicalPlan withoutMergeAlignment(LogicalPlan branch) {
-        LogicalPlan plan = branch;
-        // TODO: This use of source() for decision making is not ideal and can lead to problems. Source is for logging only.
-        while ((plan.getClass() == Project.class || plan instanceof Eval) && plan.source().equals(((UnaryPlan) plan).child().source())) {
-            plan = ((UnaryPlan) plan).child();
-        }
-        return plan;
-    }
-
-    /**
      * Adds {@code _source} keyword loaders for {@code toLoad} to every non-LOOKUP {@link EsRelation} reachable from {@code plan}
-     * outside view bodies; Row/LocalRelation sources can't load from {@code _source} and are left for
-     * {@code ResolveRefs#resolveMergePlan} to null-fill.
+     * outside view bodies; Row/LocalRelation sources can't load from {@code _source}, so in a merge they contribute nulls to the
+     * column (see {@code ResolveRefs#resolveMergePlan}).
      */
     private static LogicalPlan loadIntoSources(LogicalPlan plan, Set<UnresolvedAttribute> toLoad) {
         return ViewUtils.transformUpOutsideViews(plan, p -> {

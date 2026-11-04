@@ -2598,10 +2598,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Adds {@code fields} to the output of {@code esr}, which is how a field is loaded from {@code _source} (or nullified) at the
-         * relation: {@code ResolveUnmapped} and the alignment of union branches both do it, so both use this. Not for a lookup index,
-         * which has no unmapped fields to load; and a field that the relation already has is not added again. With
-         * {@code replaceNoFieldsMarker}, the no-fields marker of an empty-mapping relation does not remain in its output once real
-         * fields are added; the merge alignment keeps it, as the marker is part of the branch output it aligns.
+         * relation: {@code ResolveUnmapped} and {@link #resolveMergePlan}, loading a column a merge branch lacks, both do it, so both
+         * use this. Not for a lookup index, which has no unmapped fields to load; and a field that the relation already has is not
+         * added again. With {@code replaceNoFieldsMarker}, the no-fields marker of an empty-mapping relation does not remain in its
+         * output once real fields are added; {@link #resolveMergePlan} keeps it, as it is never a merge column anyway.
          */
         public static EsRelation withAdditionalAttributesUnlessLookup(
             EsRelation esr,
@@ -5358,7 +5358,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Expression pushedDownConvert = convert.replaceChildren(Collections.singletonList(oldAttr));
                             // If this branch's input to the convert is itself a multi-typed field, ResolveUnionTypes would resolve the
                             // pushed-down convert into a synthetic field named exactly like the alias we would create here. Having both
-                            // in the same branch scope makes the alignment Project's by-name reference ambiguous and it never resolves.
+                            // in the same branch scope makes the merge's by-name reference ambiguous and it never resolves.
                             // Resolve it once, up front, and expose that field directly so there is no double conversion / name clash.
                             Expression resolved = ResolveUnionTypes.resolveConvertFunction(
                                 (ConvertFunction) pushedDownConvert,
@@ -5497,33 +5497,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Places the pushed-down conversions <em>above</em> a user-written top {@code Project} that mints one of their
-         * inputs (e.g. a trailing RENAME), where every input is available by construction, and re-aligns with a plain
-         * {@code Project} over {@code output} on top. Synthetic multi-typed union fields still have to live in the
-         * branch's {@link EsRelation}s, so they are injected below the user Project, which is widened to pass them
-         * through.
-         */
-        private static LogicalPlan convertAboveUserProject(
-            Project project,
-            List<Alias> aliases,
-            List<FieldAttribute> resolvedUnionFields,
-            List<Attribute> output
-        ) {
-            LogicalPlan branch = project;
-            if (resolvedUnionFields.isEmpty() == false) {
-                LogicalPlan injected = ResolveUnionTypes.addGeneratedFieldsToEsRelations(project.child(), resolvedUnionFields);
-                List<NamedExpression> widened = new ArrayList<>(project.projections());
-                widened.addAll(resolvedUnionFields);
-                branch = new Project(project.source(), injected, widened);
-            }
-            if (aliases.isEmpty() == false) {
-                branch = new Eval(branch.source(), branch, aliases);
-            }
-            // The user's Project stays intact below, so every output column has a producer and can be projected bare.
-            return new Project(project.source(), branch, new ArrayList<>(output));
-        }
-
-        /**
          * Rebuild the UnionAll with the new children and the new output after pushing down the conversion functions,
          * and populate convertFunctionsToAttributes with the mapping between conversion functions and the
          * new ReferenceAttributes in the new UnionAll output.
@@ -5584,8 +5557,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *    | EVAL client_ip = client_ip::ip),
          *   (ROW client_ip = TO_IP("172.21.2.162"))
          * }</pre>
-         * The inner {@code ::ip} produces {@code $$client_ip$converted_to$ip} on the inner {@link UnionAll}. The outer merge's alignment
-         * {@link Project} must not append that column: the outer output is only {@code client_ip}.
+         * The inner {@code ::ip} produces {@code $$client_ip$converted_to$ip} on the inner {@link UnionAll}. A {@link Project} that is a
+         * direct child of the outer merge must not append that column: the outer output is only {@code client_ip}.
          * <p>
          * Conversion above nested unions must still pass through {@code KEEP}:
          * <pre>{@code
@@ -5595,8 +5568,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * | EVAL client_ip = client_ip::ip
          * }</pre>
          * {@link #rebuildUnionAll} adds {@code $$client_ip$converted_to$ip} to the outer {@link UnionAll}. The {@code KEEP}
-         * {@link Project} is not a direct merge child, so the synthetic is appended there. The outer alignment {@link Project} is a
-         * direct merge child, but the name is already in the merge output, so it is allowed through.
+         * {@link Project} is a direct child of the outer merge, but the name is already in that merge's output, so it is allowed
+         * through.
          * <p>
          * When {@code preserveResolvingProject} is true ({@code LOAD_ALL}), appended synthetics use {@link Project#withProjections} so a
          * {@link ResolvingProject} keeps its original KEEP/DROP/RENAME command.
@@ -5960,9 +5933,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <p>
          * A {@link MergePlan} caches its output outside its branch expressions and assigns that output its own {@link NameId NameIds}.
          * Consequently, neither the inner union output map nor the first expression walk can update it directly.
-         * {@link #alignMergeOutputTypes} first rewrites FORK {@code datetime} null-fillers whose sibling was widened to {@code date_nanos},
-         * then installs a reconciled type on the merge output only when every child already has that type for the name, preserving the
-         * merge output id.
+         * {@link #alignMergeOutputTypes} installs a reconciled type on the merge output only when every child that has the name already
+         * has that type for it, preserving the merge output id. A child without it contributes nulls of the merge output's type.
          * <p>
          * Finally, cascade the newly registered output ids through aliases above the merge and run a second expression walk. This updates
          * downstream consumers, including the final projection and response metadata, to the same reconciled types seen by the branches.
@@ -5984,9 +5956,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Walks the plan and, for each resolved {@link MergePlan}, aligns cached output types with the children. On a {@link Fork},
-         * datetime null-fillers are rewritten to {@code date_nanos} first when a sibling id in {@code idToUpdatedAttr} was widened by
-         * UnionAll implicit casting.
+         * Walks the plan and, for each resolved {@link MergePlan}, aligns cached output types with the children.
          */
         private static LogicalPlan alignMergeOutputTypes(LogicalPlan plan, Map<NameId, Attribute> idToUpdatedAttr) {
             List<LogicalPlan> children = plan.children();
@@ -6001,111 +5971,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             LogicalPlan current = newChildren == null ? plan : plan.replaceChildren(newChildren);
-            if (current instanceof Fork fork && fork.resolved()) {
-                return alignMergeOutputToChildren(rewriteForkDatetimeNullFillers(fork, idToUpdatedAttr), idToUpdatedAttr);
-            }
             if (current instanceof MergePlan merge && merge.resolved()) {
                 return alignMergeOutputToChildren(merge, idToUpdatedAttr);
             }
             return current;
-        }
-
-        /**
-         * Retarget FORK {@code datetime} null-fillers to {@code date_nanos} when a sibling was widened by UnionAll implicit casting. A
-         * sibling that is {@code date_nanos} only from an explicit {@code ::date_nanos} is not a target (those ids are not in the map).
-         * FORK-only queries never reach this method because {@code updatedUnionAllOutput} is empty.
-         * <p>
-         * Columns to promote are chosen by name from sibling output ids in {@code idToUpdatedAttr}. Nodes to edit are this child's
-         * output {@link NameId NameIds} (the FORK alignment aliases). Same-named {@code Eval}s deeper in the cloned branch are left
-         * alone; nested FORKs are handled by the bottom-up {@link #alignMergeOutputTypes} walk.
-         */
-        private static Fork rewriteForkDatetimeNullFillers(Fork fork, Map<NameId, Attribute> idToUpdatedAttr) {
-            Set<String> targetNames = dateNanosTargetNames(fork, idToUpdatedAttr);
-            if (targetNames.isEmpty()) {
-                return fork;
-            }
-            boolean changed = false;
-            List<LogicalPlan> newChildren = new ArrayList<>(fork.children().size());
-            for (LogicalPlan child : fork.children()) {
-                Set<NameId> fillerIds = datetimeNullFillerOutputIds(child, targetNames, idToUpdatedAttr);
-                LogicalPlan rewritten = fillerIds.isEmpty() ? child : rewriteDatetimeNullFillers(child, fillerIds, idToUpdatedAttr);
-                if (rewritten != child) {
-                    changed = true;
-                }
-                newChildren.add(rewritten);
-            }
-            return changed ? fork.replaceSubPlans(newChildren) : fork;
-        }
-
-        /**
-         * Column names whose sibling is {@code date_nanos} because that attribute's id was recorded by UnionAll implicit casting or a
-         * cascade from it.
-         */
-        private static Set<String> dateNanosTargetNames(Fork fork, Map<NameId, Attribute> idToUpdatedAttr) {
-            Set<String> names = new HashSet<>();
-            for (LogicalPlan child : fork.children()) {
-                for (Attribute attr : child.output()) {
-                    Attribute updated = idToUpdatedAttr.get(attr.id());
-                    if (updated != null && updated.dataType() == DATE_NANOS) {
-                        names.add(attr.name());
-                    }
-                }
-            }
-            return names;
-        }
-
-        /**
-         * This branch's output ids for {@code targetNames} that are still {@code datetime}. Those are the FORK alignment fillers;
-         * the widened sibling is already {@code date_nanos} in {@code idToUpdatedAttr} and is excluded.
-         */
-        private static Set<NameId> datetimeNullFillerOutputIds(
-            LogicalPlan child,
-            Set<String> targetNames,
-            Map<NameId, Attribute> idToUpdatedAttr
-        ) {
-            Set<NameId> fillerIds = new HashSet<>();
-            for (Attribute attr : child.output()) {
-                if (targetNames.contains(attr.name()) == false) {
-                    continue;
-                }
-                Attribute effective = idToUpdatedAttr.getOrDefault(attr.id(), attr);
-                if (effective.dataType() == DATETIME) {
-                    fillerIds.add(attr.id());
-                }
-            }
-            return fillerIds;
-        }
-
-        /**
-         * Rewrite this branch's alignment {@code null[datetime]} aliases whose {@link NameId} is in {@code fillerIds} to
-         * {@code null[date_nanos]}, preserving the alias id. Does not rewrite other same-named {@code Eval}s in the subtree.
-         */
-        private static LogicalPlan rewriteDatetimeNullFillers(
-            LogicalPlan branch,
-            Set<NameId> fillerIds,
-            Map<NameId, Attribute> idToUpdatedAttr
-        ) {
-            return branch.transformUp(Eval.class, eval -> {
-                boolean changed = false;
-                List<Alias> newFields = new ArrayList<>(eval.fields().size());
-                for (Alias alias : eval.fields()) {
-                    if (fillerIds.contains(alias.id()) && alias.dataType() == DATETIME && Expressions.isGuaranteedNull(alias.child())) {
-                        Alias rewritten = new Alias(
-                            alias.source(),
-                            alias.name(),
-                            new Literal(alias.source(), null, DATE_NANOS),
-                            alias.id(),
-                            alias.synthetic()
-                        );
-                        idToUpdatedAttr.put(rewritten.id(), rewritten.toAttribute());
-                        newFields.add(rewritten);
-                        changed = true;
-                    } else {
-                        newFields.add(alias);
-                    }
-                }
-                return changed ? new Eval(eval.source(), eval.child(), newFields) : eval;
-            });
         }
 
         /**

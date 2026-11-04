@@ -199,7 +199,8 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
      */
     protected List<Attribute> refreshedOutput() {
         List<Attribute> converted = toReferenceAttributesPreservingIds(mergeColumns(children(), output()), this.output());
-        // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that alignment Eval-null'd in children.
+        // LOAD_ALL stamps _unmapped_fields; preserve type-conflict UnsupportedAttributes that union-type resolution Eval-null'd in
+        // children.
         if (unmappedFieldsAttributeFromChildren() != null) {
             converted = keepExistingUnsupportedAttributes(converted, this.output());
         }
@@ -265,7 +266,7 @@ public abstract class MergePlan extends LogicalPlan implements PostAnalysisPlanV
                 }
 
                 // Keep union-type cast synthetics ($$field$converted_to$type): a conversion above the merge still references them. Drop
-                // only IN-subquery marks/consts, which are local to the rewrite and leak if FORK alignment null-fills them.
+                // only IN-subquery marks/consts, which are local to the rewrite and leak if they become merge columns.
                 if (names.contains(attr.name()) == false
                     && attr != NO_FIELDS.getFirst()
                     && InSubqueryResolver.isInSubquerySynthetic(attr) == false) {

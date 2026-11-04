@@ -16,10 +16,24 @@
 <% /*
   Paths in the Elasticsearch home that are copied to the final image in layers of their own, so that
   the layers that do not change between builds can be reused. List them from the least to the most
-  frequently changing. Wildcards are allowed: the distribution only contains the machine learning
-  libraries of the architecture being built.
+  frequently changing.
+
+  `paths` is a command that prints the paths of the layer, which may be none: the distribution only
+  contains the machine learning libraries of the architecture being built.
+
+  The third-party jars go in a layer of their own because, unlike the jars built from this repository
+  (which carry the version in their file name), they rarely change from one build to the next.
+
+  Many modules and plugins bundle identical copies of the same jar. The build replaces them with hard
+  links, i.e. several paths to a single file, so that the file is stored only once. A hard link cannot
+  span two layers: if the copies of a jar were split between layers, each layer would store its own
+  copy. So a layer must never take only some of the paths of a jar, which the build verifies.
 */
-def separateLayers = ['jdk', 'modules/x-pack-ml/platform/*/lib'] %>
+def separateLayers = [
+    [name: 'jdk', paths: 'echo jdk'],
+    [name: 'modules/x-pack-ml/platform/*/lib', paths: 'ls -d modules/x-pack-ml/platform/*/lib 2>/dev/null'],
+    [name: 'third-party jars', paths: "find lib modules plugins -type f -name '*.jar' ! -name '*-${version}*'"]
+] %>
 
 
 ################################################################################
@@ -81,30 +95,18 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
     find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do \\
         if [ "\$sum" = "\$prev" ]; then ln -f "\$first" "\$path" || exit 1; else prev="\$sum"; first="\$path"; fi; \\
     done && \\
-# Move the paths that are copied in layers of their own out of the way, keeping their paths, into a directory per layer
-    mkdir /layers && \\
-    n=0 && \\
-    for pattern in <%= separateLayers.collect { "'" + it + "'" }.join(' ') %>; do \\
-        mkdir "/layers/\$n" || exit 1; \\
-        for path in \$pattern; do \\
-            [ -d "\$path" ] || continue; \\
-            mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
-        done; \\
-        n=\$((n + 1)); \\
-    done && \\
-# The jars built from this repository carry the version in their file name and change with every build, unlike
-# the third-party ones. Copy the latter in a layer of their own, after the layers above.
-    mkdir "/layers/\$n" && \\
-    find lib modules plugins -type f -name '*.jar' ! -name '*-${version}*' | while read -r path; do \\
-        mkdir -p "/layers/\$n/\$(dirname "\$path")" && mv "\$path" "/layers/\$n/\$path" || exit 1; \\
-    done && \\
-# Hard links do not span layers, so no jar may have a copy with identical content in another layer
-    find "/layers/\$n" -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u > /tmp/third-party.sums && \\
-    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u > /tmp/own.sums && \\
-    if [ -n "\$(comm -12 /tmp/third-party.sums /tmp/own.sums)" ]; then \\
-        echo >&2 "Jars with identical content would end up in different layers"; exit 1; \\
-    fi && \\
-    rm /tmp/third-party.sums /tmp/own.sums
+# Move the paths that are copied in layers of their own out of the way, keeping their paths, into a directory per layer.
+# The template tags below end the previous line so that the rendered `RUN` has no blank continuation lines.
+    mkdir /layers && \\<% separateLayers.eachWithIndex { layer, i -> %>
+    mkdir "/layers/${i}" && \\
+    ${layer.paths} | while IFS= read -r path; do \\
+        mkdir -p "/layers/${i}/\$(dirname "\$path")" && mv "\$path" "/layers/${i}/\$path" || exit 1; \\
+    done && \\<% } %>
+# No jar may have a copy with identical content in another layer, since hard links do not span layers
+    dups=\$( { for dir in /layers/*; do \\
+        find "\$dir" -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u; done; \\
+        find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u; } | sort | uniq -d ) && \\
+    [ -z "\$dups" ] || { echo >&2 "Jars with identical content would end up in different layers"; exit 1; }
 
 # The distribution includes a `config` directory, no need to create it
 COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
@@ -136,12 +138,10 @@ COPY --from=builder /bin/tini /bin/tini
 
 WORKDIR /usr/share/elasticsearch
 
-<% separateLayers.eachWithIndex { path, i -> %>
-# Layer of its own: ${path}
+<% separateLayers.eachWithIndex { layer, i -> %>
+# Layer of its own: ${layer.name}
 COPY --from=builder --chown=0:0 /layers/${i} .
 <% } %>
-# Layer of its own: third-party jars
-COPY --from=builder --chown=0:0 /layers/${separateLayers.size()} .
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS

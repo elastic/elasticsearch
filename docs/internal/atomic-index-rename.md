@@ -154,7 +154,12 @@ Costs:
   `SnapshotsInProgress` entry diffs its shard map by `ShardId`, so the diff of
   a renamed entry carries the index map change but keeps the shard keys under
   the old name; applying the diff re-keys them through the repository id the
-  two names share (`EntryDiff#reKeyRenamedShards`, with a round-trip test).
+  two names share (`EntryDiff#reKeyRenamedShards`). A key counts as current
+  only if its name denotes the same repository id before and after, not merely
+  if the name is still in the entry: after `a` becomes `c` and `b` becomes `a`
+  the name `a` is still there but denotes the other index. Wire round-trip
+  tests cover that, and a three-way exchange that leaves the set of names
+  unchanged.
   Every future cluster state component that stores an `Index` needs the same
   care.
 - A `HashMap#put` whose key is equal to an existing key refreshes the value and

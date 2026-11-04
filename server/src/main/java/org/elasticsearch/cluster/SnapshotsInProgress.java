@@ -1975,28 +1975,29 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * renamed carries the change of the index map but not of the shard keys, because {@link ShardId} compares by UUID, so the
          * keys applied from the diff still carry the previous name. The rename keeps the repository id, which links the previous
          * name in {@code previousIndices} to the current one in {@code currentIndices}.
+         * <p>
+         * A key is current only if its name still denotes the same {@link IndexId}, id included, in both maps. Finding the name in
+         * {@code currentIndices} is not enough: renaming one index away and giving its name to another leaves the name in the map
+         * with a different repository id, and a key that kept it would belong to the wrong index.
          */
         private static Map<ShardId, ShardSnapshotStatus> reKeyRenamedShards(
             Map<String, IndexId> previousIndices,
             Map<String, IndexId> currentIndices,
             Map<ShardId, ShardSnapshotStatus> shards
         ) {
-            if (previousIndices == currentIndices || previousIndices.keySet().equals(currentIndices.keySet())) {
+            // the whole maps, not their key sets: names can be exchanged among indices without the set of names changing
+            if (previousIndices == currentIndices || previousIndices.equals(currentIndices)) {
                 return shards;
             }
             Map<ShardId, ShardSnapshotStatus> reKeyed = null;
             Map<String, String> currentNameByRepositoryId = null;
             for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
                 final ShardId shardId = entry.getKey();
-                if (currentIndices.containsKey(shardId.getIndexName())) {
-                    if (reKeyed != null) {
-                        reKeyed.put(shardId, entry.getValue());
-                    }
-                    continue;
-                }
                 final IndexId previousIndexId = previousIndices.get(shardId.getIndexName());
-                if (previousIndexId == null) {
-                    assert false : "shard [" + shardId + "] belongs to neither " + previousIndices + " nor " + currentIndices;
+                if (previousIndexId == null || previousIndexId.equals(currentIndices.get(shardId.getIndexName()))) {
+                    // the name is not one of the previous names, so the key was not taken from the previous state and is already
+                    // current, or it still denotes the same repository index; the entry's consistency check reports a shard that
+                    // belongs to neither
                     if (reKeyed != null) {
                         reKeyed.put(shardId, entry.getValue());
                     }

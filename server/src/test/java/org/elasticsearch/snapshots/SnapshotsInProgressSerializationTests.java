@@ -591,6 +591,75 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         }
     }
 
+    public void testReviewDiffAfterRenameReusesPreviousName() throws IOException {
+        final Entry entry = randomSnapshotWithAtLeastTwoIndices();
+        final List<String> names = new ArrayList<>(entry.indices().keySet());
+        final Index first = entry.indexByName(names.get(0));
+        final Index second = entry.indexByName(names.get(1));
+        final Index firstRenamed = new Index(first.getName() + "-review-renamed", first.getUUID());
+        final Index secondRenamed = new Index(first.getName(), second.getUUID());
+        final SnapshotsInProgress before = SnapshotsInProgress.EMPTY.withAddedEntry(entry);
+        final SnapshotsInProgress after = before.withRenamedIndex(entry.projectId(), first, firstRenamed)
+            .withRenamedIndex(entry.projectId(), second, secondRenamed);
+        assertWireDiffReproducesRenamedEntry(entry, before, after);
+    }
+
+    /**
+     * Two indices exchange names through a third, so the set of names in the entry is the same before and after while every name
+     * denotes a different repository id. A diff that is skipped because the names did not change would leave both keys stale.
+     */
+    public void testDiffAfterTwoIndicesExchangeNames() throws IOException {
+        final Entry entry = randomSnapshotWithAtLeastTwoIndices();
+        final List<String> names = new ArrayList<>(entry.indices().keySet());
+        final Index first = entry.indexByName(names.get(0));
+        final Index second = entry.indexByName(names.get(1));
+        final Index firstAsTemporary = new Index(first.getName() + "-temporary", first.getUUID());
+        final Index secondAsFirst = new Index(first.getName(), second.getUUID());
+        final Index firstAsSecond = new Index(second.getName(), first.getUUID());
+        final SnapshotsInProgress before = SnapshotsInProgress.EMPTY.withAddedEntry(entry);
+        final SnapshotsInProgress after = before.withRenamedIndex(entry.projectId(), first, firstAsTemporary)
+            .withRenamedIndex(entry.projectId(), second, secondAsFirst)
+            .withRenamedIndex(entry.projectId(), firstAsTemporary, firstAsSecond);
+        assertThat(after.forRepo(entry.projectId(), entry.repository()).get(0).indices().keySet(), equalTo(entry.indices().keySet()));
+        assertWireDiffReproducesRenamedEntry(entry, before, after);
+    }
+
+    private Entry randomSnapshotWithAtLeastTwoIndices() {
+        Entry entry;
+        do {
+            entry = randomSnapshot();
+        } while (entry.indices().size() < 2);
+        return entry;
+    }
+
+    /**
+     * Applies the diff from {@code before} to {@code after} in memory and after a round trip through the wire, and checks that the
+     * result is the {@code after} entry with every shard key carrying the name its index has now.
+     */
+    private void assertWireDiffReproducesRenamedEntry(Entry entry, SnapshotsInProgress before, SnapshotsInProgress after)
+        throws IOException {
+        final Diff<Custom> diff = after.diff(before);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        diff.writeTo(out);
+        final NamedDiff<Custom> fromWire = SnapshotsInProgress.readDiffFrom(out.bytes().streamInput());
+        final Entry expected = after.forRepo(entry.projectId(), entry.repository()).get(0);
+        for (Diff<Custom> applied : List.of(diff, fromWire)) {
+            final SnapshotsInProgress result = (SnapshotsInProgress) applied.apply(before);
+            final Entry actual = result.forRepo(entry.projectId(), entry.repository()).get(0);
+            assertThat(actual.shardSnapshotStatusByRepoShardId(), equalTo(expected.shardSnapshotStatusByRepoShardId()));
+            assertThat(actual.indices(), equalTo(expected.indices()));
+            assertThat(actual.shards().size(), equalTo(expected.shards().size()));
+            for (ShardId shardId : expected.shards().keySet()) {
+                assertThat(actual.indexByName(shardId.getIndexName()), equalTo(shardId.getIndex()));
+                // the key carries the current name, not only an equal UUID
+                assertTrue(
+                    "shard key for [" + shardId + "] has a stale name",
+                    actual.shards().keySet().stream().anyMatch(k -> k.equals(shardId) && k.getIndexName().equals(shardId.getIndexName()))
+                );
+            }
+        }
+    }
+
     public void testXContent() throws IOException {
         final IndexId indexId = new IndexId("index", "uuid");
         final ProjectId projectId = ProjectId.fromId("some-project");

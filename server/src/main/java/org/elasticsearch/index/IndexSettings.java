@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -937,56 +936,6 @@ public final class IndexSettings {
     }, Property.IndexScope, Property.Final);
 
     /**
-     * Internal, feature-flagged setting that turns on the implicit flattened {@code _unmapped} sink absorbing unmapped fields.
-     * Only permitted in strict columnar index modes; rejected (as an unknown setting) when the feature flag is off.
-     * Temporary scaffolding: to be removed once all sink read paths land, when enablement becomes feature flag + strict columnar mode
-     * with no per-index opt-out. Do not document or expose this setting.
-     */
-    public static final Setting<Boolean> FLATTENED_UNMAPPED_FIELDS_ENABLED = Setting.boolSetting(
-        "index.mapping.flattened_unmapped_fields.enabled",
-        false,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean enabled) {
-                if (enabled && FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled() == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "unknown setting [%s] please check that any required plugins are installed, "
-                                + "or check the breaking changes documentation for removed settings",
-                            FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey()
-                        )
-                    );
-                }
-            }
-
-            @Override
-            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
-                if (enabled) {
-                    var indexMode = (IndexMode) settings.get(MODE);
-                    if (indexMode.isStrictColumnar() == false) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] is only permitted in strict columnar index modes. Current mode: [%s].",
-                                FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(),
-                                indexMode.getName()
-                            )
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(MODE).iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final
-    );
-
-    /**
      * Whether a mapping this index has, or had, can keep a field it does not declare: see
      * {@link RootObjectMapper#canRetainUnmappedFields()}. It is set with the mapping that makes it true and never cleared, as
      * the documents indexed under that mapping stay. Only set on an index created on or after
@@ -1541,7 +1490,6 @@ public final class IndexSettings {
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
     private final boolean sliceEnabled;
-    private final boolean flattenedUnmappedFieldsEnabled;
     private volatile long retentionLeaseMillis;
 
     /**
@@ -1700,10 +1648,6 @@ public final class IndexSettings {
         return retainsUnmappedFields(version, settings);
     }
 
-    public boolean isFlattenedUnmappedFieldsEnabled() {
-        return flattenedUnmappedFieldsEnabled;
-    }
-
     /**
      * Returns <code>true</code> if the index is in logsdb mode and needs a [host.name] keyword field. The default is <code>false</code>
      */
@@ -1799,7 +1743,6 @@ public final class IndexSettings {
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         sliceEnabled = scopedSettings.get(SLICE_ENABLED);
-        flattenedUnmappedFieldsEnabled = scopedSettings.get(FLATTENED_UNMAPPED_FIELDS_ENABLED);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);

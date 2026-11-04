@@ -2046,7 +2046,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             // Without the codec, all-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled;
             // a columnar field writes a payload for every shape and emits no counts column at all.
             // Each builder owns its buffers, so every finished column is registered for release with the batch.
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 addOwnedBinaryColumn(ctx, terms, docCount, fieldType().name(), fieldType);
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {

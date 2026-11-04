@@ -93,6 +93,8 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     private long bytesDecoded;
     private long processNanos;
 
+    private String detail;
+
     public AsyncExternalSourceOperator(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
         this(buffer, driverContext, ExternalSourceMetrics.NOOP, null, null, null, null);
     }
@@ -273,7 +275,13 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         // Profile display name. The class keeps the implementation-detail `Async` prefix to mirror
         // the AsyncOperator inheritance, but the public-facing profile output drops it so the
         // observable operator name reads cleanly to users.
-        return "ExternalDataSourceOperator";
+        return detail == null ? "ExternalDataSourceOperator" : "ExternalDataSourceOperator[" + detail + "]";
+    }
+
+    /** Adds a detail to the profile name of this operator, for example the fragment pushed to a satellite. */
+    public AsyncExternalSourceOperator describedAs(String detail) {
+        this.detail = detail;
+        return this;
     }
 
     @Override

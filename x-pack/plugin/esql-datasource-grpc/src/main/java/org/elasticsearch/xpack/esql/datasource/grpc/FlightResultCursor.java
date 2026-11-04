@@ -31,9 +31,18 @@ class FlightResultCursor implements ResultCursor {
     private boolean hasNextBatch;
 
     FlightResultCursor(FlightStream stream, List<Attribute> attributes, BlockFactory blockFactory) {
+        this(stream, attributes, blockFactory, false);
+    }
+
+    FlightResultCursor(FlightStream stream, List<Attribute> attributes, BlockFactory blockFactory, boolean strictLayout) {
         this.stream = stream;
         this.attributes = attributes;
         this.blockFactory = blockFactory;
+        if (strictLayout) {
+            // the fragment promised exactly these columns with the strict Arrow types of the protocol, even for an empty result
+            // (the schema message always comes first); fail rather than guess before any block is built from a vector
+            SatelliteSchemaCheck.verify(stream.getSchema(), attributes, "stream schema");
+        }
         this.hasNextBatch = advance();
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -17,6 +18,8 @@ import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -169,7 +172,32 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         } catch (Exception e) {
             completionListener.onFailure(e);
         }
-        return new AsyncExternalSourceOperator(buffer, driverContext);
+        AsyncExternalSourceOperator operator = new AsyncExternalSourceOperator(buffer, driverContext);
+        return request.fragment() == null ? operator : operator.describedAs(fragmentDescription());
+    }
+
+    /** The most of a pushed fragment shown in a profile: a fragment can be megabytes, and the profile of every driver carries it. */
+    private static final int MAX_PROFILED_FRAGMENT_CHARS = 4096;
+
+    private volatile String fragmentDescription;
+
+    /** What the profile says about the fragment pushed to the remote engine, computed once per factory and cut to a readable size. */
+    private String fragmentDescription() {
+        String description = fragmentDescription;
+        if (description == null) {
+            String json;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                json = Strings.toString(builder.map(baseRequest.fragment()));
+            } catch (IOException | RuntimeException e) {
+                json = String.valueOf(baseRequest.fragment());
+            }
+            description = "fragment="
+                + (json.length() <= MAX_PROFILED_FRAGMENT_CHARS
+                    ? json
+                    : json.substring(0, MAX_PROFILED_FRAGMENT_CHARS) + "...[" + json.length() + " chars]");
+            fragmentDescription = description;
+        }
+        return description;
     }
 
     /**

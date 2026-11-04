@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
@@ -37,6 +39,24 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
      * release with {@code -Des.esql_external_datasources_grpc_feature_flag_enabled=true}.
      */
     public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_GRPC_FEATURE_FLAG = new FeatureFlag("esql_external_datasources_grpc");
+
+    static final TimeValue DEFAULT_CALL_TIMEOUT = TimeValue.timeValueSeconds(60);
+
+    /**
+     * Deadline of the Flight calls that only plan a read: schema, capabilities, split discovery and the flight info of a fragment.
+     * The result stream has no fixed deadline; it ends with the query, by completion, timeout or cancellation.
+     */
+    public static final Setting<TimeValue> FLIGHT_CALL_TIMEOUT = Setting.timeSetting(
+        "esql.datasource.flight.call_timeout",
+        DEFAULT_CALL_TIMEOUT,
+        TimeValue.timeValueMillis(100),
+        Setting.Property.NodeScope
+    );
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(FLIGHT_CALL_TIMEOUT);
+    }
 
     private static boolean enabled() {
         return ESQL_EXTERNAL_DATASOURCES_GRPC_FEATURE_FLAG.isEnabled();
@@ -72,7 +92,7 @@ public class GrpcDataSourcePlugin extends Plugin implements DataSourcePlugin {
         if (enabled() == false) {
             return Map.of();
         }
-        return Map.of("flight", new FlightConnectorFactory());
+        return Map.of("flight", new FlightConnectorFactory(FLIGHT_CALL_TIMEOUT.get(settings)));
     }
 
     @Override

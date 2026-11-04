@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 import org.elasticsearch.xpack.esql.datasources.spi.NodeByteBudget;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -811,6 +812,13 @@ public final class DataSourceModule implements Closeable {
         @Override
         public SourceOperatorFactoryProvider operatorFactory() {
             return resolveDelegate().operatorFactory();
+        }
+
+        @Override
+        public SplitProvider splitProvider() {
+            // without this the lazy wrapper hides the connector's SplitProvider and a multi-endpoint Flight source silently reads
+            // only endpoint 0
+            return resolveDelegate().splitProvider();
         }
 
         private ConnectorFactory resolveDelegate() {

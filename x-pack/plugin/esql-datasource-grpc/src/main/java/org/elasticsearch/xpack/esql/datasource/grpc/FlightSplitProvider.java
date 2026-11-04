@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import org.apache.arrow.flight.CallOptions;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightEndpoint;
@@ -14,6 +15,7 @@ import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryResult;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Discovers splits for an Arrow Flight source by calling {@code getInfo()} and
@@ -31,6 +34,16 @@ import java.util.List;
  * produce one split per endpoint, enabling parallel reads across drivers.
  */
 class FlightSplitProvider implements SplitProvider {
+
+    private final TimeValue callTimeout;
+
+    FlightSplitProvider() {
+        this(GrpcDataSourcePlugin.DEFAULT_CALL_TIMEOUT);
+    }
+
+    FlightSplitProvider(TimeValue callTimeout) {
+        this.callTimeout = callTimeout;
+    }
 
     @Override
     public SplitDiscoveryResult discoverSplits(SplitDiscoveryContext context) {
@@ -45,7 +58,10 @@ class FlightSplitProvider implements SplitProvider {
         Location location = Location.forGrpcInsecure(uri.getHost(), port);
 
         try (BufferAllocator allocator = new RootAllocator(); FlightClient client = FlightClient.builder(allocator, location).build()) {
-            FlightInfo info = client.getInfo(FlightDescriptor.path(target));
+            FlightInfo info = client.getInfo(
+                FlightDescriptor.path(target),
+                CallOptions.timeout(callTimeout.millis(), TimeUnit.MILLISECONDS)
+            );
             List<FlightEndpoint> endpoints = info.getEndpoints();
             if (endpoints.isEmpty()) {
                 return SplitDiscoveryResult.EMPTY;

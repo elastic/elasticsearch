@@ -7,54 +7,56 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
+import org.apache.arrow.flight.CallOption;
+import org.apache.arrow.flight.CallOptions;
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.FlightDescriptor;
 import org.apache.arrow.flight.FlightInfo;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Ticket;
-import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
 import org.elasticsearch.xpack.esql.datasources.spi.ResultCursor;
 import org.elasticsearch.xpack.esql.datasources.spi.Split;
 
-import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
-import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Connector for Apache Arrow Flight endpoints.
- * Maintains a default {@link FlightClient} for the configured endpoint and
- * creates additional clients on demand when a {@link FlightSplit} specifies
- * a different location (as returned by multi-endpoint {@code getFlightInfo}).
+ * <p>
+ * Every {@code execute} opens its own {@link FlightClient} on the allocator of the calling driver and closes it with the cursor
+ * (or at once if opening the stream fails). Clients cannot be shared between drivers: a client keeps the allocator it was built
+ * with, which belongs to the first driver and is closed with it, so the other drivers would read into a closed allocator.
+ * A {@link FlightSplit} that names a location is read from that location, otherwise from the configured endpoint.
  */
 class FlightConnector implements Connector {
 
-    private FlightClient defaultClient;
-    private final String defaultEndpoint;
     private final URI endpointURI;
-    private final Map<String, FlightClient> locationClients = new ConcurrentHashMap<>();
+    private final CallOption callTimeout;
     private volatile boolean closed = false;
 
     FlightConnector(String endpoint) {
-        URI uri = URI.create(endpoint);
-        this.endpointURI = uri;
-        this.defaultEndpoint = uri.getHost() + ":" + getPort(uri);
+        this(endpoint, GrpcDataSourcePlugin.DEFAULT_CALL_TIMEOUT);
     }
 
-    private FlightClient defaultClient(QueryRequest request) {
-        if (defaultClient == null) {
-            Location location = Location.forGrpcInsecure(endpointURI.getHost(), getPort(endpointURI));
-            var allocator = request.blockFactory().arrowAllocator();
-            this.defaultClient = FlightClient.builder(allocator, location).build();
-        }
-        return defaultClient;
+    FlightConnector(String endpoint, TimeValue callTimeout) {
+        this.endpointURI = URI.create(endpoint);
+        this.callTimeout = CallOptions.timeout(callTimeout.millis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -67,70 +69,81 @@ class FlightConnector implements Connector {
         return doExecute(request, split instanceof FlightSplit fs ? fs : null);
     }
 
+    /**
+     * Returns at once: no call is made until the first {@code hasNext}, so the cursor already exists, and can be cancelled, while
+     * the satellite plans, sorts or reads. A satellite whose fragment is a {@code topn} reads all its input before the first batch.
+     */
     private ResultCursor doExecute(QueryRequest request, FlightSplit flightSplit) {
-        Ticket ticket;
-        FlightClient client;
-        if (flightSplit != null) {
-            ticket = new Ticket(flightSplit.ticketBytes());
-            client = clientForSplit(flightSplit, request);
-        } else {
-            client = defaultClient(request);
-            FlightInfo info = client.getInfo(FlightDescriptor.path(request.target()));
-            if (info.getEndpoints().isEmpty()) {
-                throw new IllegalStateException("Flight server returned no endpoints for target: " + request.target());
-            }
-            ticket = info.getEndpoints().get(0).getTicket();
-        }
-        FlightStream stream = client.getStream(ticket);
-        return new FlightResultCursor(stream, request.attributes(), request.blockFactory());
-    }
-
-    private FlightClient clientForSplit(FlightSplit split, QueryRequest request) {
         if (closed) {
             throw new IllegalStateException("Connector is closed");
         }
-        String loc = split.location();
-        if (loc == null) {
-            return defaultClient(request);
+        return new LazyCursor(request, flightSplit);
+    }
+
+    /** The ticket of a plain read: the split's own, or the first endpoint of the table when there is no split. */
+    private Ticket readTicket(FlightClient client, QueryRequest request, FlightSplit flightSplit) {
+        if (flightSplit != null) {
+            return new Ticket(flightSplit.ticketBytes());
         }
-        URI uri = URI.create(loc);
+        FlightInfo info = client.getInfo(FlightDescriptor.path(request.target()), callTimeout);
+        if (info.getEndpoints().isEmpty()) {
+            throw new IllegalStateException("Flight server returned no endpoints for target: " + request.target());
+        }
+        return info.getEndpoints().get(0).getTicket();
+    }
+
+    /**
+     * Flight tickets are opaque and issued by the server, so the fragment travels in a command descriptor, together with the
+     * partition reference (the split's own ticket); the satellite answers with the ticket of the real result stream (protocol
+     * section 5.3). The cost is one extra round trip per split. Without a split the satellite reads the whole table.
+     */
+    private Ticket fragmentTicket(FlightClient client, QueryRequest request, FlightSplit flightSplit) {
+        Map<String, Object> fragment = new LinkedHashMap<>(request.fragment());
+        if (flightSplit != null) {
+            fragment.put("partitions", List.of(Base64.getEncoder().encodeToString(flightSplit.ticketBytes())));
+        }
+        FlightInfo info = client.getInfo(FlightDescriptor.command(toJsonBytes(fragment)), callTimeout);
+        if (info.getEndpoints().size() != 1) {
+            throw new IllegalStateException(
+                "satellite answered a fragment with [" + info.getEndpoints().size() + "] endpoints, expected one"
+            );
+        }
+        SatelliteSchemaCheck.verify(info.getSchema(), request.attributes(), "flight info schema");
+        return info.getEndpoints().get(0).getTicket();
+    }
+
+    private static byte[] toJsonBytes(Map<String, Object> fragment) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            return BytesReference.toBytes(BytesReference.bytes(builder.map(fragment)));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private FlightClient openClient(FlightSplit split, QueryRequest request) {
+        URI uri = split != null && split.location() != null ? URI.create(split.location()) : endpointURI;
         String host = uri.getHost();
         if (host == null || host.isBlank()) {
             throw new IllegalArgumentException("Invalid Flight endpoint location: missing host");
         }
-        int port = getPort(uri);
-        String key = host + ":" + port;
-        if (key.equals(defaultEndpoint)) {
-            return defaultClient(request);
+        return FlightClient.builder(request.blockFactory().arrowAllocator(), Location.forGrpcInsecure(host, getPort(uri))).build();
+    }
+
+    private static void closeQuietly(AutoCloseable closeable) {
+        if (closeable != null) {
+            try {
+                closeable.close();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception ignored) {
+                // the original failure is the one to report
+            }
         }
-        return locationClients.computeIfAbsent(key, k -> {
-            Location location = Location.forGrpcInsecure(host, port);
-            var allocator = request.blockFactory().arrowAllocator();
-            return FlightClient.builder(allocator, location).build();
-        });
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         closed = true;
-        List<Closeable> toClose = new ArrayList<>(locationClients.size() + 1);
-        for (FlightClient client : locationClients.values()) {
-            toClose.add(asCloseable(client));
-        }
-        locationClients.clear();
-        toClose.add(asCloseable(defaultClient));
-        IOUtils.close(toClose);
-    }
-
-    private static Closeable asCloseable(FlightClient client) {
-        return () -> {
-            try {
-                client.close();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Interrupted while closing FlightClient", e);
-            }
-        };
     }
 
     private static int getPort(URI uri) {
@@ -140,5 +153,91 @@ class FlightConnector implements Connector {
     @Override
     public String toString() {
         return "FlightConnector";
+    }
+
+    /**
+     * The read of one split. It opens its own client on the allocator of the calling driver (a client keeps the allocator it was
+     * built with, so one cannot be shared between drivers), makes the calls on the first {@code hasNext} and closes the client with
+     * the cursor, or at once when a call fails. {@link #cancel} may come from any thread at any point: it cancels the stream when
+     * there is one, which wakes a read blocked on the first batch, and otherwise is applied as soon as the stream exists. A
+     * cancelled cursor has no more rows.
+     */
+    private final class LazyCursor implements ResultCursor {
+        private final QueryRequest request;
+        private final FlightSplit split;
+        private volatile boolean cancelled;
+        private volatile FlightStream stream;
+        private FlightClient client;
+        private ResultCursor delegate;
+
+        LazyCursor(QueryRequest request, FlightSplit split) {
+            this.request = request;
+            this.split = split;
+        }
+
+        private boolean started() {
+            if (delegate != null) {
+                return true;
+            }
+            if (cancelled) {
+                return false;
+            }
+            try {
+                client = openClient(split, request);
+                Ticket ticket = request.fragment() != null ? fragmentTicket(client, request, split) : readTicket(client, request, split);
+                if (cancelled) {
+                    return false;
+                }
+                stream = client.getStream(ticket);
+                if (cancelled) {
+                    stream.cancel("query cancelled", null);
+                    return false;
+                }
+                delegate = new FlightResultCursor(stream, request.attributes(), request.blockFactory(), request.fragment() != null);
+                return true;
+            } catch (Throwable t) {
+                closeQuietly(stream);
+                closeQuietly(client);
+                client = null;
+                stream = null;
+                if (cancelled) {
+                    return false; // the call failed because it was cancelled: that is the end of the rows, not a failure
+                }
+                throw t;
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return started() && delegate.hasNext();
+        }
+
+        @Override
+        public Page next() {
+            if (started() == false) {
+                throw new NoSuchElementException();
+            }
+            return delegate.next();
+        }
+
+        @Override
+        public void cancel() {
+            cancelled = true;
+            FlightStream active = stream;
+            if (active != null) {
+                active.cancel("query cancelled", null);
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                if (delegate != null) {
+                    delegate.close();
+                }
+            } finally {
+                closeQuietly(client);
+            }
+        }
     }
 }

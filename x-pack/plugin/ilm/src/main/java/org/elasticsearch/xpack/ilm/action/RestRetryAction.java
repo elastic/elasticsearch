@@ -37,7 +37,7 @@ public class RestRetryAction extends BaseRestHandler {
         IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
         IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
     );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("index")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
 
     @Override
     public List<Route> routes() {

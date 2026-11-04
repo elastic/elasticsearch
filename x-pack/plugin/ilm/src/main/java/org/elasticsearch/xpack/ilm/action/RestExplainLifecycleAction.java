@@ -36,7 +36,7 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
         "only_managed",
         "only_errors"
     );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("index")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
 
     @Override
     public List<Route> routes() {

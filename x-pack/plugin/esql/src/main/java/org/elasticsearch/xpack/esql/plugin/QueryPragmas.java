@@ -114,6 +114,9 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
+    /** Dev-only switch: when false, a satellite source is read as a plain scan and no fragment is pushed to it. */
+    public static final Setting<Boolean> SATELLITE_PUSHDOWN = Setting.boolSetting("satellite_pushdown", true);
+
     /**
      * Query-level override for the IN subquery hash join threshold.
      * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
@@ -274,6 +277,7 @@ public final class QueryPragmas implements Writeable {
         ROUNDTO_PUSHDOWN_THRESHOLD,
         MAX_KEYWORD_SORT_FIELDS,
         EXTERNAL_DISTRIBUTION,
+        SATELLITE_PUSHDOWN,
         IN_SUBQUERY_HASH_JOIN_THRESHOLD,
         BRANCH_PARALLEL_DEGREE,
         MAX_BRANCH_COUNT,
@@ -429,6 +433,10 @@ public final class QueryPragmas implements Writeable {
 
     public String externalDistribution() {
         return EXTERNAL_DISTRIBUTION.get(settings);
+    }
+
+    public boolean satellitePushdown() {
+        return SATELLITE_PUSHDOWN.get(settings);
     }
 
     public int parsingParallelism() {

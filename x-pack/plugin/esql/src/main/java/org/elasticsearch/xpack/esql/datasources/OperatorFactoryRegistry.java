@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.QueryRequest;
+import org.elasticsearch.xpack.esql.datasources.spi.SatelliteFragment;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 
@@ -107,7 +109,10 @@ public class OperatorFactoryRegistry {
                     context.attributes(),
                     context.config(),
                     context.batchSize(),
-                    null
+                    FormatReader.NO_LIMIT,
+                    null,
+                    // the satellite pushdown rule parks the fragment in the (opaque, non-serialized) pushedFilter slot
+                    context.pushedFilter() instanceof SatelliteFragment frag ? frag.request() : null
                 );
                 return new AsyncConnectorSourceOperatorFactory(
                     connector,

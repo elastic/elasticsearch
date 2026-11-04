@@ -1,0 +1,26 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasources.spi;
+
+import java.util.Map;
+
+/**
+ * A plan fragment that a satellite engine executes instead of ES|QL (see the satellite protocol spec, section 7). It rides in
+ * {@code ExternalSourceExec#pushedFilter()}: opaque, never serialized, rebuilt on each node by the local physical optimizer.
+ *
+ * @param request the fragment request as a JSON-compatible tree (specVersion, format, settings, output, plan), without the
+ *                {@code partitions} entry, which the connector adds per split
+ */
+public record SatelliteFragment(Map<String, Object> request) {
+
+    /**
+     * Key in {@code ExternalSourceExec#sourceMetadata()} (which is serialized, so it reaches every worker) under which the
+     * capability declaration of the satellite travels, plus {@code listColumns}: the columns the satellite sends as Arrow lists.
+     */
+    public static final String CAPABILITY_KEY = "_satellite";
+}

@@ -16,6 +16,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectDeletedListener;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -29,6 +31,11 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequestBuilder;
@@ -326,8 +333,11 @@ public class SecurityMigrations {
         // Visible for testing
         static final int MAX_SECURITY_MIGRATION_ATTEMPT_COUNT = 1000;
 
+        private static final String MIGRATION_TASK_ACTION = SecurityMigrationAction.NAME + "[manager]";
+
         private final ClusterService clusterService;
         private final Client client;
+        private final TaskManager taskManager;
         private final ProjectResolver projectResolver;
         private final SecuritySystemIndices systemIndices;
 
@@ -338,18 +348,58 @@ public class SecurityMigrations {
         // It just tracks attempts to start jobs (not whether they completed successfully)
         private final Map<ProjectId, AtomicInteger> taskSubmissionAttemptCounter;
 
-        private final Set<ProjectId> migrationsInProgress;
+        // The task of the run in progress for each project, on this node only. Each run executes as a child of its task, so that
+        // cancelling the task when this node stops being the elected master also cancels any in-flight work.
+        private final Map<ProjectId, CancellableTask> migrationsInProgress;
 
-        public Manager(ClusterService clusterService, Client client, ProjectResolver projectResolver, SecuritySystemIndices systemIndices) {
+        public Manager(
+            ClusterService clusterService,
+            Client client,
+            TaskManager taskManager,
+            ProjectResolver projectResolver,
+            SecuritySystemIndices systemIndices
+        ) {
             this.clusterService = clusterService;
             this.client = client;
+            this.taskManager = taskManager;
             this.projectResolver = projectResolver;
             this.systemIndices = systemIndices;
             this.taskSubmissionAttemptCounter = new ConcurrentHashMap<>();
-            this.migrationsInProgress = ConcurrentHashMap.newKeySet();
+            this.migrationsInProgress = new ConcurrentHashMap<>();
             new ProjectDeletedListener(this::projectDeleted).attach(clusterService);
             systemIndices.getMainIndexManager()
                 .addStateListener((projectId, oldState, newState) -> maybeApplyPendingSecurityMigrations(projectId, newState));
+            // Added after the security index manager's own cluster state listener, so the index states it holds are already up to
+            // date for the cluster state this listener is notified of
+            clusterService.addListener(this::onMasterChange);
+        }
+
+        private void onMasterChange(ClusterChangedEvent event) {
+            final boolean wasMaster = event.previousState().nodes().isLocalNodeElectedMaster();
+            if (event.localNodeMaster() && wasMaster == false) {
+                // A master change alone does not change the index state, so the index state listener may not fire (e.g. for an
+                // index that was never migrated). Re-check every project so that pending migrations are picked up by the new master.
+                for (ProjectId projectId : event.state().metadata().projects().keySet()) {
+                    maybeApplyPendingSecurityMigrations(projectId, systemIndices.getMainIndexManager().getProject(projectId));
+                }
+            } else if (event.localNodeMaster() == false && wasMaster) {
+                // The new master starts its own runs, so cancel ours rather than let them overlap
+                cancelMigrationsInProgress();
+            }
+        }
+
+        private void cancelMigrationsInProgress() {
+            for (Map.Entry<ProjectId, CancellableTask> entry : migrationsInProgress.entrySet()) {
+                if (migrationsInProgress.remove(entry.getKey(), entry.getValue())) {
+                    logger.debug("Cancelling security migration for project [{}], node is no longer the elected master", entry.getKey());
+                    taskManager.cancelTaskAndDescendants(
+                        entry.getValue(),
+                        "node is no longer the elected master",
+                        false,
+                        ActionListener.noop()
+                    );
+                }
+            }
         }
 
         private void maybeApplyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState state) {
@@ -391,14 +441,19 @@ public class SecurityMigrations {
         }
 
         private void startMigration(ProjectId projectId, int migrationsVersion, boolean securityMigrationNeeded) {
-            if (migrationsInProgress.add(projectId) == false) {
+            if (migrationsInProgress.containsKey(projectId)) {
+                logger.debug("Security migration already in progress for project [{}]", projectId);
+                return;
+            }
+            final CancellableTask task = registerMigrationTask(projectId);
+            if (migrationsInProgress.putIfAbsent(projectId, task) != null) {
+                taskManager.unregister(task);
                 logger.debug("Security migration already in progress for project [{}]", projectId);
                 return;
             }
             incrementAttemptCount(projectId);
-            final ActionListener<ActionResponse.Empty> listener = ActionListener.wrap(response -> {
+            final ActionListener<ActionResponse.Empty> listener = ActionListener.runBefore(ActionListener.wrap(response -> {
                 logger.debug("Security migration completed for project [{}]", projectId);
-                migrationsInProgress.remove(projectId);
                 // State changes received while this run was in flight were ignored, so re-check the latest state
                 maybeApplyPendingSecurityMigrations(projectId, systemIndices.getMainIndexManager().getProject(projectId));
             }, exception -> {
@@ -406,13 +461,16 @@ public class SecurityMigrations {
                 logger.debug("Security migration failed for project [{}]", projectId);
                 // Do not re-check here: the index state is unchanged, so an immediate retry would loop and exhaust the attempt
                 // budget. As with the former persistent task, the next attempt is driven by the next index state change.
-                migrationsInProgress.remove(projectId);
+            }), () -> {
+                // Only remove our own entry: if this run was cancelled, a newer run may already be in progress
+                migrationsInProgress.remove(projectId, task);
+                taskManager.unregister(task);
             });
             // Drop any authentication or origin from the calling context, so that the internal action runs as the system user
             try (var ignored = client.threadPool().getThreadContext().stashContext()) {
                 projectResolver.executeOnProject(
                     projectId,
-                    () -> client.execute(
+                    () -> new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
                         SecurityMigrationAction.INSTANCE,
                         new SecurityMigrationAction.Request(migrationsVersion, securityMigrationNeeded),
                         listener
@@ -421,6 +479,33 @@ public class SecurityMigrations {
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+
+        private CancellableTask registerMigrationTask(ProjectId projectId) {
+            return (CancellableTask) taskManager.register("security", MIGRATION_TASK_ACTION, new TaskAwareRequest() {
+                @Override
+                public void setParentTask(TaskId taskId) {}
+
+                @Override
+                public void setRequestId(long requestId) {}
+
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
+
+                @Override
+                public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                    return new CancellableTask(
+                        id,
+                        type,
+                        action,
+                        "security migrations for project [" + projectId + "]",
+                        parentTaskId,
+                        headers
+                    );
+                }
+            });
         }
 
         public PersistentTasksExecutor<?> getPersistentTasksExecutor(Client client, ThreadPool threadPool) {

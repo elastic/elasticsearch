@@ -90,7 +90,6 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
@@ -114,6 +113,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -790,7 +790,7 @@ public class Security extends Plugin
                 services.environment(),
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
-                new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
+                services.taskManager(),
                 services.linkedProjectConfigService(),
                 services.projectResolver(),
                 services.crossProjectModeDecider(),
@@ -868,7 +868,7 @@ public class Security extends Plugin
         Environment environment,
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
-        PersistentTasksService persistentTasksService,
+        TaskManager taskManager,
         LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver,
         CrossProjectModeDecider crossProjectModeDecider,
@@ -889,7 +889,7 @@ public class Security extends Plugin
 
         systemIndices.init(client, featureService, clusterService, projectResolver);
 
-        this.migrationManager.set(new SecurityMigrations.Manager(clusterService, client, projectResolver, systemIndices));
+        this.migrationManager.set(new SecurityMigrations.Manager(clusterService, client, taskManager, projectResolver, systemIndices));
 
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.

@@ -14,13 +14,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -38,9 +43,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.support.SecurityMigrations.Manager.MAX_SECURITY_MIGRATION_ATTEMPT_COUNT;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,6 +67,8 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
     private TriConsumer<ProjectId, SecurityIndexManager.IndexState, SecurityIndexManager.IndexState> stateListener;
     private List<Execution> executions;
     private ProjectId projectId;
+    private TaskManager taskManager;
+    private List<CancellableTask> cancelledTasks;
 
     @Before
     public void setUpManager() {
@@ -67,6 +76,16 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         executions = new ArrayList<>();
         projectId = randomUniqueProjectId();
+        cancelledTasks = new ArrayList<>();
+        // Real task manager, except for cancelTaskAndDescendants: the real one needs a TaskCancellationService backed by a
+        // TransportService. Propagating the cancellation to descendants is covered by the task manager's own tests.
+        taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of()) {
+            @Override
+            public void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> l) {
+                cancelledTasks.add(task);
+                cancel(task, reason, () -> l.onResponse(null));
+            }
+        };
 
         final ThreadContext threadContext = threadPool.getThreadContext();
         final ProjectResolver projectResolver = TestProjectResolvers.usingRequestHeader(threadContext);
@@ -94,8 +113,11 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
         securityIndexManager = mock(SecurityIndexManager.class);
         final SecuritySystemIndices systemIndices = mock(SecuritySystemIndices.class);
         when(systemIndices.getMainIndexManager()).thenReturn(securityIndexManager);
+        // Like the real manager, never return null: projects without a stubbed state (e.g. the default project in the cluster state)
+        // have no security index. Mocked because building an unavailable IndexState requires the real manager's internals.
+        when(securityIndexManager.getProject(any())).thenReturn(mock(SecurityIndexManager.IndexState.class));
 
-        new SecurityMigrations.Manager(clusterService, client, projectResolver, systemIndices);
+        new SecurityMigrations.Manager(clusterService, client, taskManager, projectResolver, systemIndices);
 
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<TriConsumer<ProjectId, SecurityIndexManager.IndexState, SecurityIndexManager.IndexState>> captor =
@@ -225,6 +247,62 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
         assertThat(executions, hasSize(1));
     }
 
+    public void testRunsAsChildOfRegisteredTaskAndUnregistersOnCompletion() {
+        notifyStateChange(indexState(0, false));
+        assertThat(executions, hasSize(1));
+        final CancellableTask task = taskManager.getCancellableTask(executions.get(0).request().getParentTask().getId());
+        assertNotNull(task);
+        assertEquals(clusterService.localNode().getId(), executions.get(0).request().getParentTask().getNodeId());
+
+        when(securityIndexManager.getProject(projectId)).thenReturn(indexState(SecurityMigrations.highestMigrationVersion(), false));
+        if (randomBoolean()) {
+            executions.get(0).listener().onResponse(ActionResponse.Empty.INSTANCE);
+        } else {
+            executions.get(0).listener().onFailure(new IllegalStateException("migration failed"));
+        }
+        assertNull(taskManager.getCancellableTask(task.getId()));
+    }
+
+    /**
+     * A change of master alone does not change the index state, so the index state listener may not fire (for instance on an
+     * index that has never been migrated). The new master must still pick up pending migrations.
+     */
+    public void testRechecksPendingMigrationsWhenBecomingMaster() {
+        when(securityIndexManager.getProject(projectId)).thenReturn(indexState(0, false));
+        setMaster(false);
+        assertThat(executions, empty());
+
+        setMaster(true);
+        assertThat(executions, hasSize(1));
+        assertEquals(projectId, executions.get(0).projectId());
+        assertEquals(0, executions.get(0).request().getMigrationVersion());
+    }
+
+    /**
+     * A run in flight on a node that is no longer the elected master must be cancelled, so that it does not overlap the run the
+     * new master starts. Its late completion must not affect a newer run.
+     */
+    public void testCancelsMigrationInProgressWhenNoLongerMaster() {
+        final SecurityIndexManager.IndexState state = indexState(0, false);
+        when(securityIndexManager.getProject(projectId)).thenReturn(state);
+        notifyStateChange(state);
+        assertThat(executions, hasSize(1));
+        final CancellableTask task = taskManager.getCancellableTask(executions.get(0).request().getParentTask().getId());
+
+        setMaster(false);
+        assertThat(cancelledTasks, contains(task));
+        assertTrue(task.isCancelled());
+
+        // Regaining mastership starts a new run even though the cancelled one has not completed yet
+        setMaster(true);
+        assertThat(executions, hasSize(2));
+
+        executions.get(0).listener().onFailure(new TaskCancelledException("cancelled"));
+        notifyStateChange(state);
+        assertThat(executions, hasSize(2));
+        assertNotNull(taskManager.getCancellableTask(executions.get(1).request().getParentTask().getId()));
+    }
+
     public void testDoesNotRunOnNonMasterNode() {
         final ClusterState state = clusterService.state();
         ClusterServiceUtils.setState(
@@ -235,6 +313,16 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
         notifyStateChange(indexState(0, false));
 
         assertThat(executions, empty());
+    }
+
+    private void setMaster(boolean localNodeIsMaster) {
+        final ClusterState state = clusterService.state();
+        final ClusterState.Builder builder = ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(localNodeIsMaster ? state.nodes().getLocalNodeId() : null));
+        if (state.metadata().hasProject(projectId) == false) {
+            builder.putProjectMetadata(ProjectMetadata.builder(projectId));
+        }
+        ClusterServiceUtils.setState(clusterService, builder);
     }
 
     private void notifyStateChange(SecurityIndexManager.IndexState newState) {

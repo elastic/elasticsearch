@@ -332,6 +332,30 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         );
     }
 
+    public void testRecoveryRetryGivesUpWhenNodeShuttingDown() {
+        ShardRouting shardRouting = applyInitializingPrimary();
+        int createsBefore = indicesService.createShardCalls.get();
+
+        handleRecoveryFailureWithRetry(shardRouting);
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
+        assertThat(pendingApplierTasks.size(), equalTo(1));
+
+        // The node starts shutting down while the recovery-retry fork is still pending.
+        indicesClusterStateService.stop();
+
+        final var retryTask = pendingApplierTasks.remove();
+        retryTask.consumer().accept(state);
+        retryTask.listener().onResponse(null);
+
+        // Must give up quietly rather than attempt to create a shard after the service has stopped;
+        // doApplyClusterState (and hence the sweep) no longer runs once stopped, so the ticket is left
+        // untouched rather than cleaned up -- shutdown means nothing further will act on it anyway.
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBefore));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
+    }
+
     public void testUpdateRetryContextClearsWhenShardNotOnLocalNode() {
         ShardRouting shardRouting = applyInitializingPrimary();
         handleRecoveryFailureWithRetry(shardRouting);
@@ -952,6 +976,31 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         MockIndexShard shard = indicesService.getShardOrNull(replica.shardId());
         assertNotNull(shard);
         assertThat(shard.recoveryState().getSourceNode(), equalTo(newPrimaryNode));
+    }
+
+    public void testLockWaitGivesUpWhenNodeShuttingDown() throws Exception {
+        // Creation hits the lock exception, so we land directly in the shard-lock-retry continuation
+        ClusterState initial = ClusterStateCreationUtils.state(randomIndexName(), true, ShardRoutingState.INITIALIZING);
+        ShardRouting shardRouting = initial.getRoutingNodes().node(initial.nodes().getLocalNodeId()).iterator().next();
+        indicesService.failNextCreateShard = new ShardLockObtainFailedException(shardRouting.shardId(), "test lock held");
+
+        applyState(initial);
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
+        assertBusy(() -> assertFalse(pendingApplierTasks.isEmpty()));
+
+        // The node starts shutting down while the shard-lock-retry continuation is pending.
+        indicesClusterStateService.stop();
+        int createsBeforeShutdownRetry = indicesService.createShardCalls.get();
+
+        final var lockRetry = pendingApplierTasks.remove();
+        lockRetry.consumer().accept(state);
+        lockRetry.listener().onResponse(null);
+
+        // Must give up quietly rather than attempt to create a shard after the service has stopped;
+        // doApplyClusterState (and hence the sweep) no longer runs once stopped, so pendingAllocationStates
+        // can no longer be trusted to reflect currentState's routing/term.
+        assertThat(indicesService.createShardCalls.get(), equalTo(createsBeforeShutdownRetry));
+        assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
     }
 
     // --- helpers ---

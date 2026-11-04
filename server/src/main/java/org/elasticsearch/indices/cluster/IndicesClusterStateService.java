@@ -1250,6 +1250,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         // does.
                         synchronized (this) {
                             assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+                            if (lifecycle.started() == false) {
+                                logger.debug("{} giving up on shard lock retry: node is shutting down", key);
+                                listener.onResponse(false);
+                                return;
+                            }
                             if (pendingAllocationStates.get(key) != inFlightTicket) {
                                 // Not my claim anymore. Either the allocation went stale and was removed
                                 // when new cluster state applied or the shard has been failed and master has been notified.
@@ -1651,6 +1656,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     .runOnApplierThread("retry recovery " + shardRouting.shardId(), Priority.NORMAL, currentState -> {
                         synchronized (this) {
                             try {
+                                if (lifecycle.started() == false) {
+                                    logger.debug("{} giving up on recovery retry: node is shutting down", key);
+                                    return;
+                                }
                                 // Any routing/term change that would make this ticket stale is only ever
                                 // observed through a cluster-state apply, whose own sweep (
                                 // updatePendingAllocationTracker) runs before this task could ever see that

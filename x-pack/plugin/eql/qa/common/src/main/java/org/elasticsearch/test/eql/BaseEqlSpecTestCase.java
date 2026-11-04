@@ -58,6 +58,8 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     private final Boolean allowPartialSearchResults;
     private final Boolean allowPartialSequenceResults;
     private final Boolean expectShardFailures;
+    private Integer fetchSize;
+    private String resultPosition;
 
     @Before
     public void setup() throws Exception {
@@ -180,9 +182,9 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (tiebreaker != null) {
             builder.field("tiebreaker_field", tiebreaker);
         }
-        builder.field("size", this.size < 0 ? requestSize() : this.size);
-        builder.field("fetch_size", requestFetchSize());
-        builder.field("result_position", requestResultPosition());
+        builder.field("size", size());
+        builder.field("fetch_size", fetchSize());
+        builder.field("result_position", resultPosition());
         if (maxSamplesPerKey > 0) {
             builder.field("max_samples_per_key", maxSamplesPerKey);
         }
@@ -420,6 +422,32 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
 
     protected String requestResultPosition() {
         return randomBoolean() ? "head" : "tail";
+    }
+
+    protected final int size() {
+        return size < 0 ? requestSize() : size;
+    }
+
+    protected final int fetchSize() {
+        if (fetchSize == null) {
+            fetchSize = requestFetchSize();
+        }
+        return fetchSize;
+    }
+
+    protected final String resultPosition() {
+        if (resultPosition == null) {
+            resultPosition = requestResultPosition();
+        }
+        return resultPosition;
+    }
+
+    protected final int maxSamplesPerKey() {
+        return maxSamplesPerKey;
+    }
+
+    protected final Boolean allowPartialSequenceResults() {
+        return allowPartialSequenceResults;
     }
 
     // strip any qualification from the received index string

@@ -26,6 +26,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -55,15 +56,14 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
     private static final String QUERIES_FILENAME = "queries.toml";
+    private static final int ESQL_ROW_LIMIT = 10_000;
 
     @ClassRule
     public static ElasticsearchCluster cluster = buildCluster();
 
     private static ElasticsearchCluster buildCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> builder = ElasticsearchCluster.local()
-            .module("x-pack-eql")
-            .module("x-pack-security")
-            .module("repository-gcs")
+            .distribution(DistributionType.DEFAULT)
             .setting("xpack.license.self_generated.type", "basic")
             .setting("xpack.security.enabled", "true")
             .jvmArg("-Xmx4g")
@@ -230,5 +230,53 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
                 );
             }
         }
+    }
+
+    public void testEsqlEqlCommand() throws Exception {
+        assumeTrue(
+            "requires the ES|QL EQL command",
+            clusterHasCapability("POST", "/_query", List.of(), List.of("eql_command")).orElse(false)
+        );
+        int queryNo = spec.queryNo();
+        String esql = "EQL \""
+            + CFG.getProperty("index_name")
+            + "\" ?q WITH {\"size\": "
+            + CFG.getProperty("size")
+            + ", \"fetch_size\": "
+            + CFG.getProperty("fetch_size")
+            + ", \"result_position\": \""
+            + CFG.getProperty("result_position")
+            + "\", \"event_category_field\": \"event_type\", \"tiebreaker_field\": \"serial_id\"} | KEEP _sequence, serial_id | LIMIT "
+            + ESQL_ROW_LIMIT;
+        XContentBuilder builder = JsonXContent.contentBuilder()
+            .startObject()
+            .field("query", esql)
+            .startArray("params")
+            .startObject()
+            .field("q", spec.query())
+            .endObject()
+            .endArray()
+            .endObject();
+
+        Request request = new Request("POST", "/_query");
+        request.setOptions(RequestOptions.DEFAULT);
+        request.setJsonEntity(Strings.toString(builder));
+
+        ObjectPath response = ObjectPath.createFromResponse(client().performRequest(request));
+
+        int responseTime = response.evaluate("took");
+        LOGGER.info("ES|QL QueryNo: {}, took: {}ms", queryNo, responseTime);
+
+        List<List<Object>> rows = response.evaluate("values");
+        assertEquals(
+            "Failed to match sequence count for ES|QL query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
+            spec.seqCount(),
+            rows.stream().map(row -> row.get(0)).distinct().count()
+        );
+        assertArrayEquals(
+            "Failed to match event ids for ES|QL query No: " + queryNo + " : " + spec.query() + System.lineSeparator(),
+            spec.expectedEventIds(),
+            rows.stream().mapToLong(row -> ((Number) row.get(1)).longValue()).toArray()
+        );
     }
 }

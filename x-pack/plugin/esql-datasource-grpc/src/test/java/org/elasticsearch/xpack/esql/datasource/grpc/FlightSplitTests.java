@@ -116,4 +116,14 @@ public class FlightSplitTests extends ESTestCase {
         assertTrue(str.contains("grpc://host:1234"));
         assertTrue(str.contains("5000"));
     }
+
+    public void testUnknownRowEstimateSerializes() throws IOException {
+        FlightSplit split = new FlightSplit(new byte[] { 1, 2, 3 }, null, -1);
+        assertEquals(0, split.estimatedRows());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            split.writeTo(out);
+            FlightSplit read = new FlightSplit(out.bytes().streamInput());
+            assertEquals(split, read);
+        }
+    }
 }

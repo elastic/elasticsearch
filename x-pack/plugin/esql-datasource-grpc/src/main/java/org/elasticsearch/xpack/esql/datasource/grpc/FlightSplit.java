@@ -50,7 +50,8 @@ public class FlightSplit implements ExternalSplit {
         }
         this.ticketBytes = ticketBytes;
         this.location = location;
-        this.estimatedRows = estimatedRows;
+        // Flight reports -1 when the server does not know the total; that cannot be written as a VLong, so unknown is 0
+        this.estimatedRows = Math.max(0, estimatedRows);
     }
 
     public FlightSplit(StreamInput in) throws IOException {

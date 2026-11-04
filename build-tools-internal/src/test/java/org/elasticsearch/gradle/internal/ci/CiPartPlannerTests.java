@@ -12,8 +12,10 @@ package org.elasticsearch.gradle.internal.ci;
 import org.junit.Test;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -131,6 +133,29 @@ public class CiPartPlannerTests {
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
         assertThat(assignment.partOfTest(":y:test"), equalTo(assignment.partOfShard(":x:javaRestTest", 1)));
+    }
+
+    @Test
+    public void testShardsOfOneTaskGoToDifferentPartsWhileThereAreParts() {
+        // the two short shards would fit next to each other behind the long task's part, but they are split to run in parallel
+        CiPartPlanner.Config config = new CiPartPlanner.Config(
+            3,
+            8,
+            Map.of(":heap:test", new CiPartAssignment.Split(4, CiPartAssignment.SplitBy.CLASS)),
+            List.of()
+        );
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":big:test", 1000.0, ":heap:test", 800.0),
+            Map.of(),
+            Map.of()
+        );
+        CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
+        Set<Integer> parts = new HashSet<>();
+        for (int shard = 0; shard < 3; shard++) {
+            parts.add(assignment.partOfShard(":heap:test", shard));
+        }
+        // the first three shards take a part each; the fourth has to share
+        assertThat(parts.size(), equalTo(3));
     }
 
     @Test

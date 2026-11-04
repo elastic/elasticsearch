@@ -34,7 +34,8 @@ import java.util.TreeSet;
  * in parallel too), but one test task is a single execution, however many of its shards the part runs. A part's
  * estimated finish time is therefore {@code max(total / workers, longest test task)}. A project's non-test work
  * is many short tasks (precommit and the like), so it only adds to the total. {@link Config#antiAffinity()}
- * keeps test tasks that must not share a part apart regardless of durations.
+ * keeps test tasks that must not share a part apart regardless of durations, and the shards of a split test
+ * task go to different parts while there are parts left, since a task is split so that its shards run in parallel.
  *
  * <p>The result depends only on the inputs: units are visited in a fixed order and ties broken by part number.
  */
@@ -131,6 +132,7 @@ public final class CiPartPlanner {
         }
         Map<String, Set<String>> antiAffinity = antiAffinityIndex(config.antiAffinity());
         Map<String, Integer> placedTasks = new HashMap<>();
+        Map<String, Set<Integer>> shardParts = new HashMap<>();
         Map<String, Integer> tests = new TreeMap<>();
         // the part holding each project's heaviest test unit; its non-test work goes there too when that is free
         Map<String, Integer> heaviestTestPart = new HashMap<>();
@@ -144,10 +146,16 @@ public final class CiPartPlanner {
                     forbidden.add(otherPart);
                 }
             }
+            if (unit.shard() >= 0) {
+                forbidden.addAll(shardParts.getOrDefault(taskPath, Set.of()));
+            }
             int part = bestPart(unit, load, chains, config.workers(), forbidden);
             place(unit, part, load, chains);
             tests.put(unit.key(), part + 1);
             placedTasks.putIfAbsent(taskPath, part);
+            if (unit.shard() >= 0) {
+                shardParts.computeIfAbsent(taskPath, k -> new HashSet<>()).add(part);
+            }
             heaviestTestPart.putIfAbsent(unit.project(), part);
         }
 

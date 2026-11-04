@@ -37,6 +37,9 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -257,14 +260,34 @@ public class EqlPageConverterTests extends ESTestCase {
         }
     }
 
-    public void testNullJoinKeyBecomesNullNotString() {
+    public void testNullJoinKeyRendersAsNullString() {
         List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
         Sequence s0 = new Sequence(Collections.singletonList(null), List.of(fieldEvent("p0")));
 
         Page page = convert(sequenceResponse(List.of(s0)), EqlRelation.Mode.SEQUENCE, schema);
         try {
             BytesRefBlock joinKeys = page.getBlock(2);
-            assertTrue("a null join key must render as null, not the string \"null\"", joinKeys.isNull(0));
+            assertFalse(joinKeys.isNull(0));
+            assertEquals(1, joinKeys.getValueCount(0));
+            assertBytesRefColumn(page, 2, "null");
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testNullJoinKeysKeepTheirPositions() {
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
+        Sequence s0 = new Sequence(Arrays.asList(null, 1235L, null), List.of(fieldEvent("p0")));
+
+        Page page = convert(sequenceResponse(List.of(s0)), EqlRelation.Mode.SEQUENCE, schema);
+        try {
+            BytesRefBlock joinKeys = page.getBlock(2);
+            assertEquals(3, joinKeys.getValueCount(0));
+            BytesRef scratch = new BytesRef();
+            int first = joinKeys.getFirstValueIndex(0);
+            assertEquals(new BytesRef("null"), joinKeys.getBytesRef(first, scratch));
+            assertEquals(new BytesRef("1235"), joinKeys.getBytesRef(first + 1, scratch));
+            assertEquals(new BytesRef("null"), joinKeys.getBytesRef(first + 2, scratch));
         } finally {
             page.releaseBlocks();
         }
@@ -528,6 +551,19 @@ public class EqlPageConverterTests extends ESTestCase {
             int first = joinKeys.getFirstValueIndex(0);
             assertEquals(new BytesRef("host-a"), joinKeys.getBytesRef(first, scratch));
             assertEquals(new BytesRef("user-b"), joinKeys.getBytesRef(first + 1, scratch));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    public void testDateJoinKeyRendersAsIsoString() {
+        List<Attribute> schema = concat(SEQUENCE_SYNTHETICS, fieldAttribute("process.name", KEYWORD));
+        ZonedDateTime date = ZonedDateTime.ofInstant(Instant.ofEpochMilli(86_400_000L), ZoneOffset.UTC);
+        Sequence s0 = new Sequence(List.of(date), List.of(fieldEvent("p0")));
+
+        Page page = convert(sequenceResponse(List.of(s0)), EqlRelation.Mode.SEQUENCE, schema);
+        try {
+            assertBytesRefColumn(page, 2, "1970-01-02T00:00:00.000Z");
         } finally {
             page.releaseBlocks();
         }

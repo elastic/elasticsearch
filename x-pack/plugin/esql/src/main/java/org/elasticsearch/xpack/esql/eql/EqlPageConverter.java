@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.eql;
 
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EqlRelation;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -201,19 +203,21 @@ public final class EqlPageConverter {
         return extractor.apply(event);
     }
 
-    /** Join keys as a single keyword value: {@code null} when empty, one value, or a multivalue entry. Nulls are dropped. */
+    /**
+     * Join keys as a single keyword value: {@code null} when empty, one value, or a multivalue entry. A null key renders as
+     * {@code "null"} so the remaining keys keep their positions.
+     */
     private static Object joinKeysValue(List<Object> joinKeys) {
         if (joinKeys == null || joinKeys.isEmpty()) {
             return null;
         }
         List<Object> out = new ArrayList<>(joinKeys.size());
         for (Object key : joinKeys) {
-            if (key != null) {
+            if (key instanceof ZonedDateTime date) {
+                out.add(XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date));
+            } else {
                 out.add(String.valueOf(key));
             }
-        }
-        if (out.isEmpty()) {
-            return null;
         }
         return out.size() == 1 ? out.get(0) : out;
     }

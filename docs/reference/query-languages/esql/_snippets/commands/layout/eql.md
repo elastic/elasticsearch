@@ -54,7 +54,11 @@ mapped fields to identify the match each row belongs to:
 | --- | --- | --- |
 | `_sequence` | `long` | Which match this event belongs to (`0`, `1`, …). |
 | `_sequence_stage` | `integer` | The stage index of this event within the match (`0`-based). |
-| `join_keys` | `keyword` | The join-key values shared by the match (multivalued). |
+| `join_keys` | `keyword` | The join-key values shared by the match, one per `by` field (multivalued). A `null` [optional field](/reference/query-languages/eql/eql-syntax.md#eql-syntax-optional-fields) value is the string `null`. |
+
+A `null` join key is the string `null` because a multivalued column cannot hold a `null` entry. It therefore does
+not match `IS NULL`, and it cannot be told apart from a key whose actual value is the string `null`. `join_keys`
+itself is `null` only when the query has no `by` fields.
 
 Use `STATS ... BY _sequence` to aggregate or reconstruct whole matches. A mapped field literally named
 `_sequence`, `_sequence_stage` or `join_keys` is rejected for a `sequence`/`sample` query, because it would

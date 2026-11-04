@@ -11,7 +11,7 @@ mapped_pages:
 
 This document describes operations available to connectors using the UI.
 
-In the Kibana or Serverless UI, find **{{connectors-app}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
+In the Kibana or Serverless UI, find **{{content-crawlers-app}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
 
 ::::{note}
 :applies_to: serverless: ga
@@ -31,7 +31,7 @@ In 8.12 we introduced a set of [connector APIs]({{es-apis}}group/endpoint-connec
 You connector writes data to an {{es}} index.
 
 To create [self-managed connectors](/reference/search-connectors/self-managed-connectors.md):
-1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors, then select **Build / Connectors** from the results.
+1. Use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Content crawlers, then select it from the results.
 2. On the **Elasticsearch connectors** page, select **New Connector**.
 Once you’ve chosen the data source type you’d like to sync, you’ll be prompted to create an {{es}} index.
 
@@ -39,7 +39,7 @@ Once you’ve chosen the data source type you’d like to sync, you’ll be prom
 
 View and manage all Elasticsearch indices managed by connectors.
 
-In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors, then select **Build / Connectors** from the results.
+In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Content crawlers, then select it from the results.
 Here, you can view a list of connector indices and their attributes, including connector type health and ingestion status.
 
 Within this interface, you can choose to view the details for each existing index or delete an index. Or, you can [create a new connector index](#es-connectors-usage-index-create).
@@ -96,7 +96,7 @@ The workflow for these updates is as follows:
 
 After creating an index to be managed by a connector, you can configure automatic, recurring syncs.
 
-In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors, then select **Build / Connectors** from the results.
+In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Content crawlers, then select it from the results.
 Choose the connector and then the **Scheduling** tab.
 
 Within this interface, you can enable or disable scheduled:
@@ -118,7 +118,7 @@ After you enable recurring syncs or sync once, the first sync will begin. (There
 
 After creating the index to be managed by a connector, you can request a single sync at any time.
 
-In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors, then select **Build / Connectors** from the results.
+In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Content crawlers, then select it from the results.
 Then choose the connector to sync.
 
 Regardless of which tab is active, the **Sync** button is always visible in the top right. Choose this button to reveal sync options:
@@ -136,7 +136,7 @@ This operation requires access to Kibana and the `write` [indices privilege^](/r
 
 After a sync has started, you can cancel the sync before it completes.
 
-In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors, then select **Build / Connectors** from the results.
+In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Content crawlers, then select it from the results.
 Then choose the connector with the running sync.
 
 Regardless of which tab is active, the **Sync** button is always visible in the top right. Choose this button to reveal sync options, and choose **Cancel Syncs** to cancel active syncs. This will cancel the running job, and marks all *pending* and *suspended* jobs as canceled as well. (There may be a short delay before the connector service cancels the syncs.)
@@ -148,7 +148,7 @@ This operation requires access to Kibana and the `write` [indices privilege^](/r
 
 View the index details to see a variety of information that communicate the status of the index and connector.
 
-In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors, then select **Build / Connectors** from the results.
+In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Content crawlers, then select it from the results.
 Then choose the connector to view.
 
 The **Overview** tab presents a variety of information, including:
@@ -194,7 +194,7 @@ This operation requires access to Kibana and the `read` [indices privilege^](/re
 
 View the documents the connector has synced from the data. Additionally, view the index mappings to determine the current document schema.
 
-In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors, then select **Build / Connectors** from the results.
+In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Content crawlers, then select it from the results.
 Select the connector then the **Documents** tab to view the synced documents. Choose the **Mappings** tab to view the index mappings that were created by the connector.
 
 When setting up a new connector, ensure you are getting the documents and fields you were expecting from the data source. If not, see [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md) for help.
@@ -211,7 +211,7 @@ Use [sync rules](/reference/search-connectors/es-sync-rules.md) to limit which d
 ::::{applies-switch}
 
 :::{applies-item} stack: ga
-In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors, then select **Build / Connectors** from the results.
+In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Content crawlers, then select it from the results.
 Then choose the index to manage and choose the **Sync rules** tab.
 :::
 
@@ -226,5 +226,5 @@ Use the [update connector filtering API]({{es-apis}}operation/operation-connecto
 
 Use [ingest pipelines](docs-content://solutions/search/ingest-for-search.md) to transform fetched data before it is stored in Elastic.
 
-In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Connectors, then select **Build / Connectors** from the results.
+In the {{kib}} UI, use the [global search field](docs-content:///explore-analyze/find-and-organize/find-apps-and-objects.md) to find Content crawlers, then select it from the results.
 Then choose the connector and view its **Pipelines** tab.

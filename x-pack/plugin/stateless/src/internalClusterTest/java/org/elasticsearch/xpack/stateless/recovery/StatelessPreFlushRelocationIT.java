@@ -345,14 +345,14 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
 
     /// verify prewarm is sent after the preflush and asks to prewarm the BCC the preflush uploaded
     public void testPreFlushPrecedesPrewarms() {
-        final var indexNodeA = startMasterAndIndexNode(
+        final var sourceNode = startMasterAndIndexNode(
             // disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
             Settings.builder().put(HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build()
         );
         final var indexName = createTestIndex();
 
         final var uploadedBccNames = new CopyOnWriteArrayList<String>();
-        setNodeRepositoryStrategy(indexNodeA, new StatelessMockRepositoryStrategy() {
+        setNodeRepositoryStrategy(sourceNode, new StatelessMockRepositoryStrategy() {
             @Override
             public void blobContainerWriteBlobAtomic(
                 CheckedRunnable<IOException> originalRunnable,
@@ -377,11 +377,11 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
         // the target node will prewarm
         indexDocs(indexName, randomIntBetween(10, 20));
 
-        final var preFlush = installPreFlushObserver(indexNodeA, indexName);
+        final var preFlush = installPreFlushObserver(sourceNode, indexName);
         final var preFlushDoneAtPrewarmSend = new AtomicBoolean();
         final var uploadedBccNamesAtPrewarmSend = new AtomicReference<List<String>>();
         final var prewarmedBccName = new AtomicReference<String>();
-        final var sourceTransportService = MockTransportService.getInstance(indexNodeA);
+        final var sourceTransportService = MockTransportService.getInstance(sourceNode);
 
         sourceTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (TransportStatelessPrimaryRelocationPrewarmAction.PREWARM_RELOCATION_ACTION_NAME.equals(action)) {
@@ -394,7 +394,7 @@ public class StatelessPreFlushRelocationIT extends AbstractStatelessPluginIntegT
             connection.sendRequest(requestId, action, request, options);
         });
 
-        safeGet(triggerRelocationAndTrackCompletionOnSource(indexNodeA, indexName));
+        safeGet(triggerRelocationAndTrackCompletionOnSource(sourceNode, indexName));
         ensureGreen(indexName);
 
         assertTrue("prewarm is sent after the preflush", preFlushDoneAtPrewarmSend.get());

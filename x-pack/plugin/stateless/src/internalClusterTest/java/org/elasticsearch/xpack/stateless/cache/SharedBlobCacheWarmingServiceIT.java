@@ -1604,20 +1604,20 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
             .build();
 
-        final var indexNodeA = startIndexNode(nodeSettings);
+        final var sourceNode = startIndexNode(nodeSettings);
         final var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
         indexDocs(indexName, randomIntBetween(100, 1000));
         flush(indexName);
 
-        final var indexNodeB = startIndexNode(nodeSettings);
+        final var targetNode = startIndexNode(nodeSettings);
         ensureStableCluster(3);
 
         // hold the early prewarming on the target before it starts
         final var earlyPrewarmingBlocked = new CountDownLatch(1);
         final var releaseEarlyPrewarming = new CountDownLatch(1);
-        getSharedBlobCacheWarmingService(indexNodeB).addBeforeWarmingStartsListener(type -> {
+        getSharedBlobCacheWarmingService(targetNode).addBeforeWarmingStartsListener(type -> {
             if (type == Type.INDEXING_EARLY) {
                 earlyPrewarmingBlocked.countDown();
                 safeAwait(releaseEarlyPrewarming);
@@ -1626,12 +1626,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         // completed when the early prewarming has finished
         final var earlyPrewarmingDone = new PlainActionFuture<CompletedWarmingDetails>();
-        runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, earlyPrewarmingDone);
+        runOnWarmingComplete(targetNode, Type.INDEXING_EARLY, earlyPrewarmingDone);
 
         final var prewarmReplied = new AtomicBoolean();
         final var earlyPrewarmingDoneAtPrewarmReply = new AtomicBoolean();
         final var prewarmRepliedAtHandoff = new AtomicBoolean();
-        final var targetTransportService = MockTransportService.getInstance(indexNodeB);
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
         targetTransportService.addRequestHandlingBehavior(
             PREWARM_RELOCATION_ACTION_NAME,
             (handler, request, channel, task) -> handler.messageReceived(
@@ -1651,8 +1651,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             handler.messageReceived(request, channel, task);
         });
 
-        // trigger a relocation (note we only have 2 index nodes, so index has to move to `indexNodeB`)
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `targetNode`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
 
         // the source is now waiting for the prewarm reply, which the target cannot send until the early prewarming is released
         safeAwait(earlyPrewarmingBlocked);
@@ -1665,6 +1665,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             prewarmRepliedAtHandoff.get()
         );
     }
+
     // verify that the source stops waiting for the prewarm reply once the prewarm wait timeout expires and proceeds with the handoff
     public void testRelocationSourceProceedsWithHandoffAfterPrewarmWaitTimeout() {
         startMasterOnlyNode();
@@ -1678,19 +1679,19 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMillis(10))
             .build();
 
-        final var indexNodeA = startIndexNode(nodeSettings);
+        final var sourceNode = startIndexNode(nodeSettings);
         final var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
         indexDocs(indexName, randomIntBetween(100, 1000));
         flush(indexName);
 
-        final var indexNodeB = startIndexNode(nodeSettings);
+        final var targetNode = startIndexNode(nodeSettings);
         ensureStableCluster(3);
 
         // hold the early prewarming on the target, so that it cannot reply to the prewarm on time
         final var releaseEarlyPrewarming = new CountDownLatch(1);
-        getSharedBlobCacheWarmingService(indexNodeB).addBeforeWarmingStartsListener(type -> {
+        getSharedBlobCacheWarmingService(targetNode).addBeforeWarmingStartsListener(type -> {
             if (type == Type.INDEXING_EARLY) {
                 safeAwait(releaseEarlyPrewarming);
             }
@@ -1699,7 +1700,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         final var prewarmReplied = new CountDownLatch(1);
         final var prewarmRepliedAtHandoff = new AtomicBoolean();
         final var handoffReceived = new CountDownLatch(1);
-        final var targetTransportService = MockTransportService.getInstance(indexNodeB);
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
         targetTransportService.addRequestHandlingBehavior(
             PREWARM_RELOCATION_ACTION_NAME,
             (handler, request, channel, task) -> handler.messageReceived(
@@ -1716,8 +1717,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             handler.messageReceived(request, channel, task);
         });
 
-        // trigger a relocation (note we only have 2 index nodes, so index has to move to `indexNodeB`)
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `targetNode`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
 
         // the early prewarming is still held, so the handoff can only arrive once the source has stopped waiting for the prewarm reply
         safeAwait(handoffReceived);
@@ -1742,20 +1743,20 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
             .build();
 
-        final var indexNodeA = startIndexNode(nodeSettings);
+        final var sourceNode = startIndexNode(nodeSettings);
         final var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
         indexDocs(indexName, randomIntBetween(100, 1000));
         flush(indexName);
 
-        final var indexNodeB = startIndexNode(nodeSettings);
+        final var targetNode = startIndexNode(nodeSettings);
         ensureStableCluster(3);
 
         final var prewarmFailed = new AtomicBoolean();
         final var prewarmFailedAtHandoff = new AtomicBoolean();
         final var handoffReceived = new CountDownLatch(1);
-        final var targetTransportService = MockTransportService.getInstance(indexNodeB);
+        final var targetTransportService = MockTransportService.getInstance(targetNode);
         targetTransportService.addRequestHandlingBehavior(PREWARM_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
             // the target responds to the `prewarm` request with a failure
             prewarmFailed.set(true);
@@ -1769,8 +1770,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             handler.messageReceived(request, channel, task);
         });
 
-        // trigger a relocation (note we only have 2 index nodes, so index has to move to `indexNodeB`)
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `targetNode`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", sourceNode), indexName);
 
         safeAwait(handoffReceived);
         assertTrue("source sends the handoff after the prewarm failure, without waiting for the timeout", prewarmFailedAtHandoff.get());

@@ -246,9 +246,9 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
 
     /**
      * Resolves {@code sort}/{@code sort_desc} into {@link SortFunction} and {@code sort_by_label}/{@code sort_by_label_desc}
-     * into {@link SortByLabelFunction}. Every sort-by-label argument after the vector is a label name: invalid names are
-     * rejected here, and each name is minted as an {@link UnresolvedAttribute} so later PromQL ref-resolution binds it
-     * to a stored dimension (or nullifies it when the label is absent).
+     * into {@link SortByLabelFunction}. Every sort-by-label argument after the vector is a label name: an empty name is
+     * skipped, other invalid names are rejected here, and each remaining name is minted as an {@link UnresolvedAttribute}
+     * so later PromQL ref-resolution binds it to a stored dimension (or nullifies it when the label is absent).
      */
     private static LogicalPlan resolveResultOrdering(
         UnresolvedPromqlFunction unresolved,
@@ -268,6 +268,10 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         List<Attribute> sortLabels = new ArrayList<>(extraParams.size());
         for (Expression extraParam : extraParams) {
             String label = literalString(extraParam);
+            if (label != null && label.isEmpty()) {
+                // No series carries a label named "", so like Prometheus it compares equal everywhere and cannot affect the order.
+                continue;
+            }
             if (PromqlLabels.isValidLabelName(label) == false) {
                 throw new VerificationException(
                     List.of(Failure.fail(unresolved, "invalid label name [{}] in call to function [{}]", label, name))

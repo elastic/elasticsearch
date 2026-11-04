@@ -547,3 +547,19 @@ result:double | step:datetime            | zone:keyword
 10.0          | 2024-05-10T01:00:00.000Z | eu
 2.0           | 2024-05-10T01:00:00.000Z | null
 ;
+
+instant_sort_by_label_desc_empty_label_name
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_sort_by_label
+required_capability: promql_label_functions
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_ts_block_loader_passthrough_aliasing
+// Like Prometheus, an empty label name is accepted and is equal on every series, so only the tie-break orders the result.
+PROMQL index=prom-metrics-name time="2024-05-10T01:00:00.000Z" result=(sort_by_label_desc(sum by (zone) (last_over_time(metrics.requests[5m])), ""));
+
+result:double | step:datetime            | zone:keyword
+20.0          | 2024-05-10T01:00:00.000Z | us
+10.0          | 2024-05-10T01:00:00.000Z | eu
+2.0           | 2024-05-10T01:00:00.000Z | null
+;

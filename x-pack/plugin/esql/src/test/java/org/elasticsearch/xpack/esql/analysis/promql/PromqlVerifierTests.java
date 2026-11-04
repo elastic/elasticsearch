@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.MetadataManipulationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.SortByLabelFunction;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -699,11 +700,23 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    public void testSortByLabelRejectsEmptyLabelName() {
-        tsdb.error(
-            "PROMQL index=test step=5m sort_by_label(network.bytes_in, \"\")",
-            containsString("invalid label name [] in call to function [sort_by_label]")
-        );
+    /** Like Prometheus, an empty label name is accepted: it is equal on every series, so it is dropped from the sort labels. */
+    public void testSortByLabelSkipsEmptyLabelName() {
+        assertSortLabels("sort_by_label(network.bytes_in, \"pod\", \"\")", List.of("pod"));
+        assertSortLabels("sort_by_label_desc(network.bytes_in, \"\", \"pod\")", List.of("pod"));
+    }
+
+    public void testSortByLabelWithOnlyEmptyLabelNameResolves() {
+        assertSortLabels("sort_by_label(network.bytes_in, \"\")", List.of());
+        assertTrue(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" sort_by_label(network.bytes_in, \"\")").resolved());
+    }
+
+    private void assertSortLabels(String promql, List<String> expected) {
+        PromqlCommand command = resolvePromqlWithoutTranslation("PROMQL index=test time=\"2025-10-31T00:00:00Z\" " + promql).collect(
+            PromqlCommand.class
+        ).getFirst();
+        SortByLabelFunction sort = command.promqlPlan().collect(SortByLabelFunction.class).getFirst();
+        assertEquals(expected, sort.sortLabels().stream().map(Attribute::name).toList());
     }
 
     public void testInstantVectorExpectedWithGrouping() {

@@ -92,6 +92,8 @@ PUT my-index/_doc/2
 Unlike most other data types, dense vectors are always single-valued. It is not possible to store multiple values in one `dense_vector` field.
 ::::
 
+After you index embeddings, [confirm that your vectors are searchable](docs-content://solutions/search/vector/knn.md#verify-embeddings).
+
 ## Index vectors for kNN search [index-vectors-knn-search]
 
 A *k-nearest neighbor* (kNN) search finds the *k* nearest vectors to a query vector, as measured by a similarity metric.

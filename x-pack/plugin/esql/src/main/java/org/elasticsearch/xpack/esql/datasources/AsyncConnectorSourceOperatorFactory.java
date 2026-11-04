@@ -67,6 +67,11 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
     @Nullable
     private volatile Limiter observedLimiter;
     private final AtomicBoolean started = new AtomicBoolean();
+    /**
+     * The producers of this factory that have not completed. The drivers of a query share the one connector, so it is closed by the
+     * last of them to finish, not by the first: a driver that has more splits to read must still find it open.
+     */
+    private final java.util.concurrent.atomic.AtomicInteger liveProducers = new java.util.concurrent.atomic.AtomicInteger();
 
     /**
      * Factory the connector allocates blocks from. The connector runs on producer threads, so production wires the node-level (root)
@@ -148,12 +153,15 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         long maxBufferBytes = (long) maxBufferSize * Operator.TARGET_PAGE_SIZE;
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(maxBufferBytes);
         driverContext.addAsyncAction();
+        liveProducers.incrementAndGet();
 
         // Single completion listener: exactly one of {finish(false), onFailure(e)} fires, and
-        // driverContext.removeAsyncAction() plus connector.close() run exactly once via runAfter.
+        // driverContext.removeAsyncAction() and the release of the shared connector run exactly once via runAfter.
         ActionListener<Void> completionListener = ActionListener.assertOnce(
             ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), buffer::onFailure), () -> {
-                closeConnectorQuietly();
+                if (liveProducers.decrementAndGet() == 0) {
+                    closeConnectorQuietly();
+                }
                 driverContext.removeAsyncAction();
             })
         );

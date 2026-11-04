@@ -86,6 +86,8 @@ public final class BlockingSatelliteServer implements Closeable {
     public final CountDownLatch release = new CountDownLatch(1);
     /** Counted down when the satellite noticed that the client cancelled the {@code DoGet} call. */
     public final CountDownLatch doGetCancelled = new CountDownLatch(1);
+    /** How many result streams were opened. */
+    public final AtomicInteger doGetCalls = new AtomicInteger();
     /** How many times the capability action was called. */
     public final AtomicInteger capabilityCalls = new AtomicInteger();
     public final List<String> fragments = new CopyOnWriteArrayList<>();
@@ -239,6 +241,7 @@ public final class BlockingSatelliteServer implements Closeable {
 
         @Override
         public void getStream(CallContext context, Ticket ticket, ServerStreamListener listener) {
+            doGetCalls.incrementAndGet();
             if (blockInDoGet) {
                 inDoGet.countDown();
                 // like a satellite that sorts: it checks for a cancellation as it works instead of waiting for a callback

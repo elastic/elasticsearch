@@ -55,7 +55,6 @@ class FlightConnector implements Connector {
     private final FlightGuard hosts;
     private final CallOption callTimeout;
     private final SatelliteDeclarationCache declarations;
-    private volatile boolean closed = false;
 
     FlightConnector(String endpoint) {
         this(endpoint, GrpcDataSourcePlugin.DEFAULT_CALL_TIMEOUT);
@@ -94,7 +93,13 @@ class FlightConnector implements Connector {
 
     @Override
     public ResultCursor execute(QueryRequest request, ExternalSplit split) {
-        return doExecute(request, split instanceof FlightSplit fs ? fs : null);
+        if (split != null && split instanceof FlightSplit == false) {
+            // reading the whole table instead of a split it does not understand would be a silently wrong answer
+            throw new IllegalArgumentException(
+                "the Flight connector cannot read a split of type [" + split.getClass().getSimpleName() + "]"
+            );
+        }
+        return doExecute(request, (FlightSplit) split);
     }
 
     /**
@@ -102,9 +107,8 @@ class FlightConnector implements Connector {
      * the satellite plans, sorts or reads. A satellite whose fragment is a {@code topn} reads all its input before the first batch.
      */
     private ResultCursor doExecute(QueryRequest request, FlightSplit flightSplit) {
-        if (closed) {
-            throw new IllegalStateException("Connector is closed");
-        }
+        // no closed check: the connector keeps nothing between executes (each cursor owns its client), and the drivers of one query
+        // share it, so a driver that has more splits to read must not be refused because another one finished
         if (request.fragment() == null && request.config() != null) {
             // source options only travel inside a fragment (protocol section 11): the planner always sends one for such a dataset,
             // so reaching here means a plan shape it did not see, and reading without the options would change the results
@@ -226,7 +230,7 @@ class FlightConnector implements Connector {
 
     @Override
     public void close() {
-        closed = true;
+        // nothing is held between executes: every cursor opens and closes its own client
     }
 
     private static int getPort(URI uri) {

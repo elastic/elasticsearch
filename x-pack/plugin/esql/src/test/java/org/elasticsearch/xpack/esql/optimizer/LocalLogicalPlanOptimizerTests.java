@@ -822,6 +822,18 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
     }
 
+    public void testLocalPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimit() {
+        StringBuilder query = new StringBuilder("FROM test | WHERE TO_LOWER(TO_UPPER(first_name)) LIKE \"VALÜ*\"");
+        for (int i = 0; i < 150; i++) {
+            query.append(" | EVAL language_code = languages + ").append(i).append(" | LOOKUP JOIN languages_lookup ON language_code");
+        }
+
+        var plan = localPlan(query.toString());
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+    }
+
     /**
      * {@snippet lang="text":
      * \_Aggregate[[first_name{r}#7, $$first_name$temp_name$17{r}#18],[SUM(salary{f}#11,true[BOOLEAN]) AS SUM(salary)#5, first_nam

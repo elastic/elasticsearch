@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.tasks.CancellableTask;
@@ -42,6 +43,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.security.support.SecurityMigrations.Manager.INITIAL_RETRY_DELAY;
+import static org.elasticsearch.xpack.security.support.SecurityMigrations.Manager.MAX_RETRY_DELAY;
 import static org.elasticsearch.xpack.security.support.SecurityMigrations.Manager.MAX_SECURITY_MIGRATION_ATTEMPT_COUNT;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -62,6 +65,8 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
     ) {}
 
     private ThreadPool threadPool;
+    // Drives the Manager's scheduled retries, so that tests control time instead of waiting for real delays
+    private DeterministicTaskQueue taskQueue;
     private ClusterService clusterService;
     private SecurityIndexManager securityIndexManager;
     private TriConsumer<ProjectId, SecurityIndexManager.IndexState, SecurityIndexManager.IndexState> stateListener;
@@ -87,9 +92,10 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
             }
         };
 
-        final ThreadContext threadContext = threadPool.getThreadContext();
+        taskQueue = new DeterministicTaskQueue();
+        final ThreadContext threadContext = taskQueue.getThreadPool().getThreadContext();
         final ProjectResolver projectResolver = TestProjectResolvers.usingRequestHeader(threadContext);
-        final NoOpClient client = new NoOpClient(threadPool) {
+        final NoOpClient client = new NoOpClient(taskQueue.getThreadPool()) {
             @Override
             @SuppressWarnings("unchecked")
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -151,7 +157,7 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
     }
 
     public void testRunsAsSystemUserRegardlessOfCallerContext() {
-        try (var ignored = threadPool.getThreadContext().stashWithOrigin(randomAlphaOfLength(8))) {
+        try (var ignored = taskQueue.getThreadPool().getThreadContext().stashWithOrigin(randomAlphaOfLength(8))) {
             notifyStateChange(indexState(0, false));
         }
 
@@ -207,6 +213,70 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
         when(securityIndexManager.getProject(projectId)).thenReturn(indexState(SecurityMigrations.highestMigrationVersion(), false));
         executions.get(1).listener().onResponse(ActionResponse.Empty.INSTANCE);
         assertThat(executions, hasSize(2));
+    }
+
+    /**
+     * The index state may not change after a failure (e.g. for an index that was never migrated), so a failed run is retried
+     * after a delay that doubles on every consecutive failure, up to a maximum.
+     */
+    public void testRetriesFailedMigrationWithBackoff() {
+        when(securityIndexManager.getProject(projectId)).thenReturn(indexState(0, false));
+        notifyStateChange(indexState(0, false));
+        assertThat(executions, hasSize(1));
+
+        long expectedDelay = INITIAL_RETRY_DELAY.millis();
+        for (int failures = 1; failures <= 12; failures++) {
+            final long failedAt = taskQueue.getCurrentTimeMillis();
+            executions.get(failures - 1).listener().onFailure(new IllegalStateException("index temporarily unavailable"));
+            taskQueue.runAllRunnableTasks();
+            assertThat(executions, hasSize(failures));
+
+            runNextScheduledRetry();
+            assertThat(executions, hasSize(failures + 1));
+            assertEquals(expectedDelay, taskQueue.getCurrentTimeMillis() - failedAt);
+            expectedDelay = Math.min(expectedDelay * 2, MAX_RETRY_DELAY.millis());
+        }
+        assertEquals(MAX_RETRY_DELAY.millis(), expectedDelay);
+    }
+
+    public void testSuccessfulRunResetsRetryDelay() {
+        final int pendingVersion = SecurityMigrations.MIGRATIONS_BY_VERSION.firstKey();
+        when(securityIndexManager.getProject(projectId)).thenReturn(indexState(0, false));
+        notifyStateChange(indexState(0, false));
+        executions.get(0).listener().onFailure(new IllegalStateException("migration failed"));
+        runNextScheduledRetry();
+        executions.get(1).listener().onFailure(new IllegalStateException("migration failed"));
+        runNextScheduledRetry();
+        assertThat(executions, hasSize(3));
+
+        // A successful run that leaves migrations pending starts the next run straight away
+        when(securityIndexManager.getProject(projectId)).thenReturn(indexState(pendingVersion, false));
+        executions.get(2).listener().onResponse(ActionResponse.Empty.INSTANCE);
+        assertThat(executions, hasSize(4));
+
+        final long failedAt = taskQueue.getCurrentTimeMillis();
+        executions.get(3).listener().onFailure(new IllegalStateException("migration failed"));
+        runNextScheduledRetry();
+        assertThat(executions, hasSize(5));
+        assertEquals(INITIAL_RETRY_DELAY.millis(), taskQueue.getCurrentTimeMillis() - failedAt);
+    }
+
+    public void testScheduledRetryIsCancelledWhenNoLongerMaster() {
+        when(securityIndexManager.getProject(projectId)).thenReturn(indexState(0, false));
+        notifyStateChange(indexState(0, false));
+        executions.get(0).listener().onFailure(new IllegalStateException("migration failed"));
+        assertTrue(taskQueue.hasDeferredTasks());
+
+        // Lose and regain mastership while the index is briefly unavailable, so that regaining it does not start a run itself
+        when(securityIndexManager.getProject(projectId)).thenReturn(mock(SecurityIndexManager.IndexState.class));
+        setMaster(false);
+        setMaster(true);
+        assertThat(executions, hasSize(1));
+
+        // The retry scheduled by the former mastership must not fire
+        when(securityIndexManager.getProject(projectId)).thenReturn(indexState(0, false));
+        taskQueue.runAllTasks();
+        assertThat(executions, hasSize(1));
     }
 
     public void testStopsRetryingAfterMaxAttempts() {
@@ -313,6 +383,12 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
         notifyStateChange(indexState(0, false));
 
         assertThat(executions, empty());
+    }
+
+    private void runNextScheduledRetry() {
+        assertTrue("expected a scheduled retry", taskQueue.hasDeferredTasks());
+        taskQueue.advanceTime();
+        taskQueue.runAllRunnableTasks();
     }
 
     private void setMaster(boolean localNodeIsMaster) {

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectDeletedListener;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -36,6 +37,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequestBuilder;
@@ -333,6 +335,11 @@ public class SecurityMigrations {
         // Visible for testing
         static final int MAX_SECURITY_MIGRATION_ATTEMPT_COUNT = 1000;
 
+        // Visible for testing
+        static final TimeValue INITIAL_RETRY_DELAY = TimeValue.timeValueSeconds(1);
+        // Visible for testing
+        static final TimeValue MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
+
         private static final String MIGRATION_TASK_ACTION = SecurityMigrationAction.NAME + "[manager]";
 
         private final ClusterService clusterService;
@@ -352,6 +359,12 @@ public class SecurityMigrations {
         // cancelling the task when this node stops being the elected master also cancels any in-flight work.
         private final Map<ProjectId, CancellableTask> migrationsInProgress;
 
+        // Retries of failed runs, on this node only. The index state may not change after a failure (e.g. for an index that was never
+        // migrated), so without these a transient failure could leave migrations pending until some unrelated index state change.
+        private final Map<ProjectId, Scheduler.Cancellable> scheduledRetries;
+        // Delay before the next retry of each project, doubled on every consecutive failure and cleared by a successful run
+        private final Map<ProjectId, TimeValue> retryDelays;
+
         public Manager(
             ClusterService clusterService,
             Client client,
@@ -366,6 +379,8 @@ public class SecurityMigrations {
             this.systemIndices = systemIndices;
             this.taskSubmissionAttemptCounter = new ConcurrentHashMap<>();
             this.migrationsInProgress = new ConcurrentHashMap<>();
+            this.scheduledRetries = new ConcurrentHashMap<>();
+            this.retryDelays = new ConcurrentHashMap<>();
             new ProjectDeletedListener(this::projectDeleted).attach(clusterService);
             systemIndices.getMainIndexManager()
                 .addStateListener((projectId, oldState, newState) -> maybeApplyPendingSecurityMigrations(projectId, newState));
@@ -383,8 +398,42 @@ public class SecurityMigrations {
                     maybeApplyPendingSecurityMigrations(projectId, systemIndices.getMainIndexManager().getProject(projectId));
                 }
             } else if (event.localNodeMaster() == false && wasMaster) {
-                // The new master starts its own runs, so cancel ours rather than let them overlap
+                // The new master starts its own runs, so cancel ours and our pending retries rather than let them overlap
                 cancelMigrationsInProgress();
+                for (ProjectId projectId : scheduledRetries.keySet()) {
+                    cancelScheduledRetry(projectId);
+                }
+                retryDelays.clear();
+            }
+        }
+
+        private void scheduleRetry(ProjectId projectId) {
+            if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+                return;
+            }
+            final TimeValue delay = retryDelays.merge(
+                projectId,
+                INITIAL_RETRY_DELAY,
+                (previous, ignored) -> TimeValue.timeValueMillis(Math.min(previous.millis() * 2, MAX_RETRY_DELAY.millis()))
+            );
+            logger.debug("Retrying security migration for project [{}] in [{}]", projectId, delay);
+            final ThreadPool threadPool = client.threadPool();
+            final Scheduler.Cancellable retry = threadPool.schedule(() -> {
+                // A newer retry replaces and cancels this one before it is scheduled, so the entry is ours unless both race, in which
+                // case the newer retry just loses its cancellation handle; it is still a no-op once this node is no longer the master
+                scheduledRetries.remove(projectId);
+                maybeApplyPendingSecurityMigrations(projectId, systemIndices.getMainIndexManager().getProject(projectId));
+            }, delay, threadPool.generic());
+            final Scheduler.Cancellable previous = scheduledRetries.put(projectId, retry);
+            if (previous != null) {
+                previous.cancel();
+            }
+        }
+
+        private void cancelScheduledRetry(ProjectId projectId) {
+            final Scheduler.Cancellable retry = scheduledRetries.remove(projectId);
+            if (retry != null) {
+                retry.cancel();
             }
         }
 
@@ -454,13 +503,16 @@ public class SecurityMigrations {
             incrementAttemptCount(projectId);
             final ActionListener<ActionResponse.Empty> listener = ActionListener.runBefore(ActionListener.wrap(response -> {
                 logger.debug("Security migration completed for project [{}]", projectId);
+                retryDelays.remove(projectId);
+                cancelScheduledRetry(projectId);
                 // State changes received while this run was in flight were ignored, so re-check the latest state
                 maybeApplyPendingSecurityMigrations(projectId, systemIndices.getMainIndexManager().getProject(projectId));
             }, exception -> {
                 // the failure itself is already logged by the action
                 logger.debug("Security migration failed for project [{}]", projectId);
-                // Do not re-check here: the index state is unchanged, so an immediate retry would loop and exhaust the attempt
-                // budget. As with the former persistent task, the next attempt is driven by the next index state change.
+                // Do not re-check straight away: the index state is unchanged, so an immediate retry would loop and exhaust the attempt
+                // budget. Retry after a backoff instead, or earlier if an index state change triggers a new run.
+                scheduleRetry(projectId);
             }), () -> {
                 // Only remove our own entry: if this run was cancelled, a newer run may already be in progress
                 migrationsInProgress.remove(projectId, task);
@@ -527,6 +579,8 @@ public class SecurityMigrations {
 
         private void projectDeleted(ProjectId projectId) {
             resetNumberOfAttempts(projectId);
+            cancelScheduledRetry(projectId);
+            retryDelays.remove(projectId);
         }
 
         private void resetNumberOfAttempts(ProjectId project) {

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -24,25 +23,18 @@ import java.util.Map;
  * Observes the relocations made during one desired balance computation and records, per shard copy, why the computation wanted the copy
  * to leave the node it is really on. Only moves triggered by a non-YES {@code canRemain} decision are recorded, and only when the copy
  * was on the move's source node in the computation's input (later hops of the same copy inside the simulation are not interesting).
- * Reasons recorded by the previous computation are carried forward while the move is still pending: when the computation starts by
- * relocating a copy to its previous target ({@link MoveReason#INHERITED}), or when the allocator re-decides the same move with the same
- * decider.
+ * Reasons recorded by the previous computation are kept while the move is still pending: when the computation starts by relocating a
+ * copy to its previous target ({@link MoveReason#INHERITED}), or when the allocator re-decides the same move with the same decider.
  */
 final class ComputedMoveReasonCollector implements RoutingChangesObserver {
 
     private final RoutingNodes inputRoutingNodes;
-    private final Map<ComputedMoveReason.Key, ComputedMoveReason> previousReasons;
-    private final long inputIndex;
-    private final Map<ComputedMoveReason.Key, ComputedMoveReason> reasons = new HashMap<>();
+    private final Map<DesiredBalance.ShardCopy, MoveReason> previousReasons;
+    private final Map<DesiredBalance.ShardCopy, MoveReason> reasons = new HashMap<>();
 
-    ComputedMoveReasonCollector(
-        RoutingNodes inputRoutingNodes,
-        Map<ComputedMoveReason.Key, ComputedMoveReason> previousReasons,
-        long inputIndex
-    ) {
+    ComputedMoveReasonCollector(RoutingNodes inputRoutingNodes, Map<DesiredBalance.ShardCopy, MoveReason> previousReasons) {
         this.inputRoutingNodes = inputRoutingNodes;
         this.previousReasons = previousReasons;
-        this.inputIndex = inputIndex;
     }
 
     @Override
@@ -50,24 +42,19 @@ final class ComputedMoveReasonCollector implements RoutingChangesObserver {
         ShardRouting startedShard,
         ShardRouting targetRelocatingShard,
         MoveReason reason,
-        @Nullable ComputedMoveReason computedReason
+        @Nullable MoveReason computedReason
     ) {
-        final var key = new ComputedMoveReason.Key(startedShard.shardId(), startedShard.currentNodeId());
-        final var previous = previousReasons.get(key);
+        final var key = new DesiredBalance.ShardCopy(startedShard.shardId(), startedShard.currentNodeId());
         switch (reason.type()) {
             case INHERITED -> {
+                final var previous = previousReasons.get(key);
                 if (previous != null) {
-                    reasons.put(key, previous.carried());
+                    reasons.put(key, previous);
                 }
             }
             case CANNOT_REMAIN, NOT_PREFERRED -> {
-                if (wasOnSourceNodeInInput(startedShard) == false) {
-                    return;
-                }
-                if (previous != null && previous.reason().equals(reason)) {
-                    reasons.put(key, previous.carried());
-                } else {
-                    reasons.put(key, new ComputedMoveReason(reason, inputIndex, 0));
+                if (wasOnSourceNodeInInput(startedShard)) {
+                    reasons.put(key, reason);
                 }
             }
             case REBALANCE, COMMAND, RESTARTED -> {
@@ -85,7 +72,7 @@ final class ComputedMoveReasonCollector implements RoutingChangesObserver {
      * @return the recorded reasons, minus those for copies the final assignment leaves where they are (the reconciler never looks
      *         those up)
      */
-    Map<ComputedMoveReason.Key, ComputedMoveReason> finish(Map<ShardId, ShardAssignment> assignments) {
+    Map<DesiredBalance.ShardCopy, MoveReason> finish(Map<ShardId, ShardAssignment> assignments) {
         reasons.keySet().removeIf(key -> {
             final var assignment = assignments.get(key.shardId());
             return assignment != null && assignment.nodeIds().contains(key.nodeId());

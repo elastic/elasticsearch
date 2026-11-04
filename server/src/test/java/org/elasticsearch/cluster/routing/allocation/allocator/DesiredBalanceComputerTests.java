@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
-import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -925,7 +924,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.exclude._id", "node-1"))
             .build();
         final var shardId = new ShardId(indexMetadata.getIndex(), 0);
-        final var key = new ComputedMoveReason.Key(shardId, "node-1");
+        final var key = new DesiredBalance.ShardCopy(shardId, "node-1");
         final var cannotRemain = new MoveReason(MoveType.CANNOT_REMAIN, "filter");
         final var computer = createDesiredBalanceComputer(new BalancedShardsAllocator(settings));
 
@@ -938,7 +937,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             ignored -> true
         );
         assertThat(balance1.getAssignment(shardId).nodeIds(), equalTo(Set.of("node-0")));
-        assertThat(balance1.computedMoveReasons(), equalTo(Map.of(key, new ComputedMoveReason(cannotRemain, 1, 0))));
+        assertThat(balance1.computedMoveReasons(), equalTo(Map.of(key, cannotRemain)));
 
         // the move is still pending: the next computation inherits the target and carries the reason forward
         final var balance2 = computer.compute(
@@ -947,7 +946,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             queue(),
             ignored -> true
         );
-        assertThat(balance2.computedMoveReasons(), equalTo(Map.of(key, new ComputedMoveReason(cannotRemain, 1, 1))));
+        assertThat(balance2.computedMoveReasons(), equalTo(Map.of(key, cannotRemain)));
 
         // once the shard has moved there is nothing to carry
         final var onNode0 = twoNodeClusterState(indexMetadata, newShardRouting(shardId, "node-0", null, true, STARTED));

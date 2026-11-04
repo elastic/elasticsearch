@@ -143,8 +143,7 @@ public class DesiredBalanceComputer {
 
         final var computedMoveReasons = new ComputedMoveReasonCollector(
             desiredBalanceInput.routingAllocation().routingNodes(),
-            previousDesiredBalance.computedMoveReasons(),
-            desiredBalanceInput.index()
+            previousDesiredBalance.computedMoveReasons()
         );
         final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation(computedMoveReasons);
         final var routingNodes = routingAllocation.routingNodes();

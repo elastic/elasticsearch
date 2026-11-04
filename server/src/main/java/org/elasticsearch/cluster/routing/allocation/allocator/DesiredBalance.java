@@ -10,7 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.ComputedMoveReason;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -35,8 +35,13 @@ public record DesiredBalance(
     Map<ShardId, ShardAssignment> assignments,
     Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
     ComputationFinishReason finishReason,
-    Map<ComputedMoveReason.Key, ComputedMoveReason> computedMoveReasons
+    Map<ShardCopy, MoveReason> computedMoveReasons
 ) {
+
+    /**
+     * Identifies a shard copy by its shard id and the node it is on.
+     */
+    public record ShardCopy(ShardId shardId, String nodeId) {}
 
     public DesiredBalance(
         long lastConvergedIndex,

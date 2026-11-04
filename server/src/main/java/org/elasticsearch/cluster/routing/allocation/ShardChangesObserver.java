@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -54,10 +53,10 @@ class ShardChangesObserver implements RoutingChangesObserver {
      */
     record RelocationAttributes(MoveType type, @Nullable String canRemainDecider, boolean computed, boolean primary) {
 
-        static RelocationAttributes of(MoveReason reason, @Nullable ComputedMoveReason computedReason, boolean primary) {
+        static RelocationAttributes of(MoveReason reason, @Nullable MoveReason computedReason, boolean primary) {
             return computedReason == null
                 ? new RelocationAttributes(reason.type(), reason.canRemainDecider(), false, primary)
-                : new RelocationAttributes(computedReason.reason().type(), computedReason.reason().canRemainDecider(), true, primary);
+                : new RelocationAttributes(computedReason.type(), computedReason.canRemainDecider(), true, primary);
         }
 
         Map<String, Object> toMap() {
@@ -149,7 +148,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
         ShardRouting startedShard,
         ShardRouting targetRelocatingShard,
         MoveReason reason,
-        @Nullable ComputedMoveReason computedReason
+        @Nullable MoveReason computedReason
     ) {
         logger.debug(
             "{} is relocating ({}) from [{}] to [{}]",

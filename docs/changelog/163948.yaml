@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 163948
+summary: Send system messages as top-level system field for Google Model Garden Anthropic chat completion
+type: bug

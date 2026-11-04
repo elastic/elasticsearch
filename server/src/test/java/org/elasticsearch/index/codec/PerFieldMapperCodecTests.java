@@ -13,14 +13,12 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
@@ -44,7 +42,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
@@ -285,50 +282,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
     }
 
-    /**
-     * 9_111_0_xx index versions were backported to 9.5 without the default _id postings format change, so on stateful they still use
-     * the ES812 postings format, while stateless uses the default from the original gate.
-     */
-    public void testIdFieldPostingsFormatForBackportedVersionsDependsOnStateless() throws IOException {
-        Settings statelessNode = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
-        for (IndexVersion backported : List.of(
-            IndexVersions.UPGRADE_TO_LUCENE_10_5_1,
-            IndexVersions.UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5
-        )) {
-            assertThat(idPostingsFormat(backported, Settings.EMPTY), instanceOf(ES812PostingsFormat.class));
-        }
-        assertThat(
-            idPostingsFormat(IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT, statelessNode),
-            instanceOf(Lucene104PostingsFormat.class)
-        );
-        assertThat(
-            idPostingsFormat(IndexVersionUtils.getPreviousVersion(IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT), statelessNode),
-            instanceOf(ES812PostingsFormat.class)
-        );
-        assertThat(
-            idPostingsFormat(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, Settings.EMPTY),
-            instanceOf(Lucene104PostingsFormat.class)
-        );
-    }
-
-    private PostingsFormat idPostingsFormat(IndexVersion indexVersion, Settings nodeSettings) throws IOException {
-        PerFieldFormatSupplier supplier = createFormatSupplier(
-            null,
-            null,
-            false,
-            indexVersion,
-            IndexMode.STANDARD,
-            randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING),
-            false,
-            nodeSettings
-        );
-        var result = supplier.getPostingsFormatForField("_id");
-        if (result instanceof ES87BloomFilterPostingsFormat bloomFilterPostingsFormat) {
-            result = bloomFilterPostingsFormat.getPostingsFormats().apply("_id");
-        }
-        return result;
-    }
-
     public void testUseDefaultPostingsFormatForIdFieldAfterLucene105() throws IOException {
         String mapping = randomFrom(METRIC_MAPPING, MULTI_METRIC_MAPPING, LOGS_MAPPING);
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(
@@ -511,28 +464,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         String mapping,
         Boolean syntheticId
     ) throws IOException {
-        return createFormatSupplier(
-            useTimeSeriesDocValuesFormatSetting,
-            enableES87TSDBCodec,
-            useEs812PostingsFormat,
-            indexVersion,
-            mode,
-            mapping,
-            syntheticId,
-            Settings.EMPTY
-        );
-    }
-
-    private PerFieldFormatSupplier createFormatSupplier(
-        Boolean useTimeSeriesDocValuesFormatSetting,
-        Boolean enableES87TSDBCodec,
-        Boolean useEs812PostingsFormat,
-        IndexVersion indexVersion,
-        IndexMode mode,
-        String mapping,
-        Boolean syntheticId,
-        Settings nodeSettings
-    ) throws IOException {
         Settings.Builder settings = Settings.builder();
         settings.put(IndexSettings.MODE.getKey(), mode);
         if (mode == IndexMode.TIME_SERIES) {
@@ -553,15 +484,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (indexVersion != null) {
             settings.put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion);
         }
-        MapperService mapperService = MapperTestUtils.newMapperService(
-            xContentRegistry(),
-            createTempDir(),
-            settings.build(),
-            nodeSettings,
-            new IndicesModule(List.of()),
-            "test",
-            new Setting<?>[0]
-        );
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }

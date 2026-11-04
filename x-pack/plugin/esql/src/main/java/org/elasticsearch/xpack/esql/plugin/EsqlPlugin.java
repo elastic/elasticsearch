@@ -46,6 +46,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperatorStatus;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.core.IOUtils;
@@ -691,7 +692,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new DatasetService(services.clusterService(), crudValidators, dataSourceModule.externalSourceMetrics()),
             inventoryCounters,
             inventoryMetrics,
-            new PluginComponentBinding<>(QueryMetricsListener.class, collector)
+            new PluginComponentBinding<>(QueryMetricsListener.class, collector),
+            // Without federation no external split is ever dispatched, so there is nothing to hold a joining node back from.
+            new ExternalWorkerReadiness(
+                services.clusterService(),
+                services.client(),
+                services.threadPool(),
+                Federation.isAvailable(settings)
+            )
         );
     }
 
@@ -743,6 +751,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsqlFlags.ESQL_MAX_BRANCH_LEVEL,
                 EsqlFlags.ESQL_MAX_BRANCH_COUNT_PER_MERGE,
                 EsqlFlags.ESQL_MAX_FILLNULL_FIELDS,
+                EsqlFlags.ESQL_METRICS_INFO_MAX_TIME_RANGE,
                 ViewService.MAX_VIEWS_COUNT_SETTING,
                 ViewService.MAX_VIEW_LENGTH_SETTING,
                 ViewResolver.MAX_VIEW_DEPTH_SETTING,
@@ -864,6 +873,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichQuerySourceOperator.Status.ENTRY);
+        entries.add(LookupQueryOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(StreamingLookupFromIndexOperator.StreamingLookupStatus.ENTRY);

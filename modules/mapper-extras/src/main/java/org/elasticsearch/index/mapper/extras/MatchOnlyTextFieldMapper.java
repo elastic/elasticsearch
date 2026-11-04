@@ -1347,7 +1347,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
             // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
             // Each builder owns its buffers, so every finished column is registered for release with the batch.
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }

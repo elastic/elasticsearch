@@ -2747,4 +2747,25 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         assertEquals("double", mapperService.fieldType("a.b.b").typeName());
     }
+
+    /**
+     * A template can declare an object twice, through object notation and through a dotted key. The mapper built for the dynamic
+     * object has to hold both declarations, or the fields of the dropped one are rejected by {@code dynamic: strict}.
+     */
+    public void testTemplateObjectDeclaringTheSameObjectTwice() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates").startObject().startObject("objects");
+            b.field("match", "obj*").field("match_mapping_type", "object");
+            b.startObject("mapping").field("type", "object").field("dynamic", "strict");
+            b.startObject("properties");
+            b.startObject("a").startObject("properties").startObject("x").field("type", "keyword").endObject().endObject().endObject();
+            b.startObject("a.y").field("type", "keyword").endObject();
+            b.endObject().endObject().endObject().endObject().endArray();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(source(b -> b.startObject("obj").startObject("a").field("x", "v").field("y", "w").endObject().endObject()));
+
+        assertNotNull(doc.dynamicMappingsUpdate());
+    }
 }

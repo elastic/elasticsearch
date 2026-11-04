@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -460,13 +461,27 @@ public abstract class AbstractPhysicalOperationProviders {
                 channel,
                 elementType(),
                 Alias.unwrap(expression) instanceof Categorize categorize ? categorize.categorizeDef() : null,
-                topNDef
+                topNDef,
+                isNonNull(attribute)
             );
         }
 
         ElementType elementType() {
             return PlannerUtils.toElementType(attribute.dataType());
         }
+    }
+
+    /**
+     * Whether a group on {@code attribute} has no null for sure. That holds for a field that is non-nullable in the mapping of every
+     * index that the query reads. The decision is made from the attribute alone, which both the partial and the final aggregation of
+     * a query have, because the final stage combines the keys of the partial one and so both must lay them out the same way.
+     * <p>
+     * This is safe because only the resolution of the indices that the query reads from sets the flag of a field. It is not set for
+     * a lookup index, whose fields are null for the rows of a left join that do not match, and any other attribute, such as a
+     * reference to an {@code EVAL}, is not a field.
+     */
+    static boolean isNonNull(Attribute attribute) {
+        return attribute instanceof FieldAttribute field && field.field().isStaticallyNonNullable();
     }
 
     /**

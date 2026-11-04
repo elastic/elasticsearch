@@ -2835,6 +2835,14 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean guaranteesNonNull() {
+        return isNullable() == false
+            && hasScript() == false
+            && ignoreMalformed() == false
+            && onFailureBehavior() == DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValue != null;
     }

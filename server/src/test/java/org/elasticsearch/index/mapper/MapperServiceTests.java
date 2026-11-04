@@ -128,6 +128,97 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertNull(lookup.isPassthrough("unknown"));
     }
 
+    private static final List<String> NON_NULLABLE_TYPES = List.of("long", "integer", "short", "double", "date", "boolean");
+
+    /**
+     * A field with {@code nullability=false} is reported as non-nullable only when the mapping also rules out the ways a document can
+     * still end up without a value: {@code on_failure=ignore}, {@code ignore_malformed} and a {@code null_value}, which exempts the field
+     * from the requirement.
+     */
+    public void testIsStaticallyNonNullable() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            for (String type : NON_NULLABLE_TYPES) {
+                b.startObject(type + "_required").field("type", type).field("nullability", false).endObject();
+                b.startObject(type + "_default").field("type", type).endObject();
+                b.startObject(type + "_ignore").field("type", type).field("nullability", false).field("on_failure", "ignore").endObject();
+                b.startObject(type + "_malformed").field("type", type).field("nullability", false).field("ignore_malformed", true);
+                b.endObject();
+            }
+            b.startObject("long_null_value").field("type", "long").field("nullability", false).field("null_value", 1).endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        for (String type : NON_NULLABLE_TYPES) {
+            assertTrue(type, lookup.isStaticallyNonNullable(type + "_required"));
+            assertFalse(type, lookup.isStaticallyNonNullable(type + "_default"));
+            // The document is kept without the field, so the field is null for it.
+            assertFalse(type, lookup.isStaticallyNonNullable(type + "_ignore"));
+            // The requirement is marked satisfied before the value is parsed, so a malformed value leaves the field without a value.
+            assertFalse(type, lookup.isStaticallyNonNullable(type + "_malformed"));
+        }
+        assertFalse(lookup.isStaticallyNonNullable("long_null_value"));
+        assertFalse(lookup.isStaticallyNonNullable("unknown"));
+    }
+
+    /**
+     * Documents what {@code nullability=false} with {@code on_failure=ignore} and with {@code ignore_malformed} allow: a document
+     * without a value for the field. This is why {@link MappingLookup#isStaticallyNonNullable} does not report those fields.
+     */
+    public void testNonNullableFieldCanStillLackAValue() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper ignore = createMapperService(
+            columnar,
+            mapping(b -> b.startObject("field").field("type", "long").field("nullability", false).field("on_failure", "ignore").endObject())
+        ).documentMapper();
+        ignore.parse(source(b -> b.field("other", "value")));
+
+        DocumentMapper fail = createMapperService(
+            columnar,
+            mapping(b -> b.startObject("field").field("type", "long").field("nullability", false).endObject())
+        ).documentMapper();
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> fail.parse(source(b -> b.field("other", "value"))));
+        assertThat(e.getCause().getMessage(), containsString("are configured with [nullability=false] but no value was provided"));
+    }
+
+    public void testIsStaticallyNonNullableFromIndexSetting() throws IOException {
+        Settings columnarRequired = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_NULLABILITY_SETTING.getKey(), false)
+            .build();
+        MapperService mapperService = createMapperService(columnarRequired, mapping(b -> {
+            b.startObject("plain").field("type", "long").endObject();
+            b.startObject("override").field("type", "long").field("nullability", true).endObject();
+        }));
+        assertTrue(mapperService.mappingLookup().isStaticallyNonNullable("plain"));
+        assertFalse(mapperService.mappingLookup().isStaticallyNonNullable("override"));
+
+        MapperService standard = createMapperService(mapping(b -> b.startObject("field").field("type", "long").endObject()));
+        assertFalse(standard.mappingLookup().isStaticallyNonNullable("field"));
+    }
+
+    /**
+     * An alias has the guarantee of its target, and a field type that is not the mapper's own, such as a runtime field shadowing a
+     * mapped field, has none.
+     */
+    public void testStaticallyNonNullableThroughAliasAndRuntimeField() throws IOException {
+        Settings columnar = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        MapperService mapperService = createMapperService(columnar, mapping(b -> {
+            b.startObject("required").field("type", "long").field("nullability", false).endObject();
+            b.startObject("optional").field("type", "long").endObject();
+            b.startObject("required_alias").field("type", "alias").field("path", "required").endObject();
+            b.startObject("optional_alias").field("type", "alias").field("path", "optional").endObject();
+        }));
+        MappingLookup lookup = mapperService.mappingLookup();
+        assertTrue(lookup.isStaticallyNonNullable("required_alias"));
+        assertFalse(lookup.isStaticallyNonNullable("optional_alias"));
+
+        MappedFieldType mapped = lookup.getFieldType("required");
+        assertTrue(lookup.isStaticallyNonNullable(mapped));
+        MappedFieldType shadowing = new NumberFieldMapper.NumberFieldType("required", NumberFieldMapper.NumberType.LONG);
+        assertNotSame(mapped, shadowing);
+        assertFalse(lookup.isStaticallyNonNullable(shadowing));
+    }
+
     public void testMappingLookupAutoFlattenedPassthroughStatus() throws IOException {
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();

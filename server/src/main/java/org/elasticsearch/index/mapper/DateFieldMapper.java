@@ -1257,6 +1257,14 @@ public final class DateFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected boolean guaranteesNonNull() {
+        return isNullable() == false
+            && hasScript() == false
+            && ignoreMalformed() == false
+            && onFailureBehavior() == DocValuesParameter.Values.OnFailure.FAIL;
+    }
+
+    @Override
     public boolean isNullable() {
         return docValuesParameters.nullability() || nullValueAsString != null;
     }

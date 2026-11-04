@@ -47,6 +47,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     static final TransportVersion FIELD_CAPS_INFERENCE_FIELD = TransportVersion.fromName("field_caps_inference_field");
     public static final TransportVersion FIELD_CAPS_INDEX_ANALYZER = TransportVersion.fromName("field_caps_index_analyzer");
     static final TransportVersion FIELD_CAPS_PASSTHROUGH = TransportVersion.fromName("field_caps_passthrough");
+    static final TransportVersion FIELD_CAPS_NON_NULLABLE = TransportVersion.fromName("field_caps_non_nullable");
 
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField IS_METADATA_FIELD = new ParseField("metadata_field");

@@ -7,10 +7,12 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongLongHashTable;
+import org.elasticsearch.common.util.PartitionedHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -23,26 +25,69 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.LongLongBlockAdd;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.swisshash.LongLongSwissHash;
 
 /**
  * Maps two {@link LongBlock} columns to group ids.
+ * <p>
+ *     This hash does not handle nulls: the key has no room for a flag, and a null position gets a null group id, which the
+ *     aggregations skip. That is wrong for a {@code GROUP BY}, which is why {@link BlockHash#build} only picks it in production
+ *     for groups that the planner proved to have no null, see {@link GroupSpec#nonNull()}. For those, a null means that the proof
+ *     was wrong, so it throws, and the vectors are added in batches, like {@link LongIntBlockHash} does.
+ * </p>
  */
-final class LongLongBlockHash extends BlockHash {
+final class LongLongBlockHash extends PartitionedBlockHash {
     private final int channel1;
     private final int channel2;
     private final int emitBatchSize;
     private final LongLongHashTable hash;
+    private final boolean nonNull;
+
+    // Only for groups with no null, which add the vectors in batches.
+    private final long batchUsedBytes;
+    private final long[] batchKeys1;
+    private final long[] batchKeys2;
+    private final int[] batchIds;
 
     LongLongBlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize) {
+        this(blockFactory, channel1, channel2, emitBatchSize, false);
+    }
+
+    LongLongBlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize, boolean nonNull) {
         super(blockFactory);
         this.channel1 = channel1;
         this.channel2 = channel2;
         this.emitBatchSize = emitBatchSize;
-        this.hash = HashImplFactory.newLongLongHash(blockFactory);
+        this.nonNull = nonNull;
+        if (nonNull) {
+            // The emit size should be at least 256 so that prefetch takes effect.
+            final int batchSize = Math.max(emitBatchSize, 256);
+            this.batchUsedBytes = (Integer.BYTES + Long.BYTES * 2) * (long) batchSize;
+            blockFactory.adjustBreaker(batchUsedBytes);
+            boolean success = false;
+            try {
+                this.batchKeys1 = new long[batchSize];
+                this.batchKeys2 = new long[batchSize];
+                this.batchIds = new int[batchSize];
+                this.hash = HashImplFactory.newLongLongHash(blockFactory);
+                success = true;
+            } finally {
+                if (success == false) {
+                    blockFactory.adjustBreaker(-batchUsedBytes);
+                }
+            }
+        } else {
+            this.batchUsedBytes = 0;
+            this.batchKeys1 = null;
+            this.batchKeys2 = null;
+            this.batchIds = null;
+            this.hash = HashImplFactory.newLongLongHash(blockFactory);
+        }
     }
 
     @Override
     public void close() {
+        blockFactory.adjustBreaker(-batchUsedBytes);
         Releasables.close(hash);
     }
 
@@ -53,12 +98,42 @@ final class LongLongBlockHash extends BlockHash {
         LongVector vector1 = block1.asVector();
         LongVector vector2 = block2.asVector();
         if (vector1 != null && vector2 != null) {
+            if (nonNull && hash.supportBulkAdd()) {
+                addBatch(vector1, vector2, addInput);
+                return;
+            }
             try (IntBlock groupIds = add(vector1, vector2).asBlock()) {
                 addInput.add(0, groupIds.asVector());
             }
         } else {
+            if (nonNull) {
+                requireNoNull(block1, block2);
+            }
             try (var addBlock = new LongLongBlockAdd(blockFactory, emitBatchSize, addInput, hash, block1, block2)) {
                 addBlock.add();
+            }
+        }
+    }
+
+    private void addBatch(LongVector vector1, LongVector vector2, GroupingAggregatorFunction.AddInput addInput) {
+        final int positions = vector1.getPositionCount();
+        int offset = 0;
+        while (offset < positions) {
+            final int batchSize = Math.min(batchIds.length, positions - offset);
+            vector1.copyTo(offset, batchKeys1, 0, batchSize);
+            vector2.copyTo(offset, batchKeys2, 0, batchSize);
+            hash.bulkAdd(batchKeys1, batchKeys2, batchIds, batchSize);
+            try (var groupIds = blockFactory.newIntArrayVector(batchIds, batchSize)) {
+                addInput.add(offset, groupIds);
+            }
+            offset += batchSize;
+        }
+    }
+
+    private static void requireNoNull(LongBlock block1, LongBlock block2) {
+        for (int p = 0; p < block1.getPositionCount(); p++) {
+            if (block1.getValueCount(p) == 0 || block2.getValueCount(p) == 0) {
+                throw new IllegalStateException("a group has a null, but the planner said that no group does");
             }
         }
     }
@@ -115,6 +190,42 @@ final class LongLongBlockHash extends BlockHash {
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(0, Math.toIntExact(hash.size())).seenGroupIds(bigArrays);
+    }
+
+    @Override
+    public long estimatedBytesForPartitioning() {
+        return hash.size() * (Long.BYTES * 2);
+    }
+
+    @Override
+    public PartitionedHashTable.PartitionedHashKeys splitPartition(
+        CircuitBreaker breaker,
+        PartitionedHashTable.PartitionSplitter partitionSplitter
+    ) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            return swiss.splitPartition(breaker, partitionSplitter);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public boolean combinePartition(PartitionedHashTable.PartitionedHashKeys keys, int partitionIndex, int[] resultIds) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            return swiss.combinePartition(keys, partitionIndex, resultIds);
+        }
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " doesn't support partitioning");
+    }
+
+    @Override
+    public void ensureCapacity(int size) {
+        if (hash instanceof LongLongSwissHash swiss) {
+            swiss.ensureCapacity(size);
+        }
+    }
+
+    @Override
+    public void clear() {
+        hash.clear();
     }
 
     @Override

@@ -97,7 +97,10 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         super(blockFactory);
         this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.nullTrackingBytes = (specs.size() + 7) / 8;
+        // A key keeps one bit for each group to tell a null from a value. That is not needed when the planner proved that no group has a
+        // null. Only for keys of fixed width, which the rest of this class reads without the null bytes too.
+        boolean noNulls = specs.isEmpty() == false && specs.stream().allMatch(s -> s.nonNull() && elementSize(s.elementType()) > 0);
+        this.nullTrackingBytes = noNulls ? 0 : (specs.size() + 7) / 8;
         final int[] columnOffsets = new int[specs.size()];
         int keyLength = nullTrackingBytes;
         boolean allFixedWidth = true;
@@ -123,7 +126,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
         this.bytesRefHash = HashImplFactory.newBytesRefHash(blockFactory);
         boolean success = false;
         try {
-            this.bytes = new BreakingBytesRefBuilder(circuitBreaker, "PackedValuesBlockHash", this.nullTrackingBytes);
+            this.bytes = new BreakingBytesRefBuilder(circuitBreaker, "PackedValuesBlockHash", Math.max(this.nullTrackingBytes, 1));
             if (allFixedWidth && bytesRefHash instanceof BytesRefSwissHash swiss) {
                 this.batchWork = new FixedWidthBatchWork(swiss, columnOffsets, keyLength, emitBatchSize, blockFactory, specs);
             } else if (variableWidthSupported && bytesRefHash instanceof BytesRefSwissHash swiss) {
@@ -414,6 +417,9 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
             assert group.writtenValues == 0;
             assert group.valueCount == 1;
             if (group.encoder.read(group.valueOffset++, bytes) == 0) {
+                if (nullTrackingBytes == 0) {
+                    throw new IllegalStateException("group [" + g + "] has a null, but the planner said that no group does");
+                }
                 seenNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
@@ -429,6 +435,9 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
             group.bytesStart = bytes.length();
             if (group.encoder.read(group.valueOffset + group.writtenValues, bytes) == 0) {
                 assert group.valueCount == 1 : "null value in non-singleton list";
+                if (nullTrackingBytes == 0) {
+                    throw new IllegalStateException("group [" + g + "] has a null, but the planner said that no group does");
+                }
                 seenNull = true;
                 int nullByte = g / 8;
                 int nullShift = g % 8;
@@ -529,7 +538,7 @@ final class PackedValuesBlockHash extends PartitionedBlockHash {
             int nullByte = g / 8;
             int nullShift = g % 8;
             byte nullTest = (byte) (1 << nullShift);
-            BatchEncoder.IsNull isNull = offset -> {
+            BatchEncoder.IsNull isNull = nullTrackingBytes == 0 ? offset -> false : offset -> {
                 BytesRef n = nulls[offset];
                 return (n.bytes[n.offset + nullByte] & nullTest) != 0;
             };

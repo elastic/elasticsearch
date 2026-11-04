@@ -566,6 +566,29 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertFalse(FieldCapabilitiesFetcher.analyzerNamesDigest(Set.of()).isEmpty());
     }
 
+    /**
+     * Two indices with the same mapping can differ in the index-level defaults that decide whether a field is reported as non-nullable,
+     * so those defaults must change the hash that lets the coordinator share the field caps of equal mappings.
+     */
+    public void testNonNullabilityDefaultsGoIntoTheMappingHash() {
+        Settings none = Settings.EMPTY;
+        assertEquals(
+            FieldCapabilitiesFetcher.nonNullabilityDefaults(none),
+            FieldCapabilitiesFetcher.nonNullabilityDefaults(Settings.builder().put("index.mapping.doc_values.nullability", true).build())
+        );
+        for (Settings other : List.of(
+            Settings.builder().put("index.mapping.doc_values.nullability", false).build(),
+            Settings.builder().put("index.mapping.doc_values.on_failure", "ignore").build(),
+            Settings.builder().put("index.mapping.ignore_malformed", true).build()
+        )) {
+            assertNotEquals(
+                other.toString(),
+                FieldCapabilitiesFetcher.nonNullabilityDefaults(none),
+                FieldCapabilitiesFetcher.nonNullabilityDefaults(other)
+            );
+        }
+    }
+
     private IndexShard getMockIndexShard() {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.getFieldInfos()).thenReturn(FieldInfos.EMPTY);

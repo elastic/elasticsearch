@@ -82,7 +82,15 @@ public class EsFieldTestUtils {
         boolean aggregatable = randomBoolean();
         boolean isAlias = randomBoolean();
         EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
-        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType);
+        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType, false, randomNonNullable(supportedOn));
+    }
+
+    /**
+     * A random value for {@link EsField#isStaticallyNonNullable()}. A node that cannot read the flag drops it, so it is only set
+     * when {@code supportedOn} serializes it.
+     */
+    private static boolean randomNonNullable(TransportVersion supportedOn) {
+        return (supportedOn == null || supportedOn.supports(EsField.ESQL_SERIALIZE_NON_NULLABLE_FIELD)) && randomBoolean();
     }
 
     /**
@@ -101,7 +109,8 @@ public class EsFieldTestUtils {
             randomAlphaOfLength(5),
             randomProperties(maxPropertiesDepth, supportedOn),
             randomBoolean(),
-            randomFrom(EsField.TimeSeriesFieldType.values())
+            randomFrom(EsField.TimeSeriesFieldType.values()),
+            randomNonNullable(supportedOn)
         );
     }
 

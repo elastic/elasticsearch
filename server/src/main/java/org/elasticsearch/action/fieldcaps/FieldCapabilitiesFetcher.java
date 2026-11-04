@@ -15,12 +15,14 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -145,9 +147,11 @@ class FieldCapabilitiesFetcher {
         final MappingMetadata mapping = indexMetadata.mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
-            // The mapping hash omits index.analysis, which decides whether an analyzer name is withheld as index-local.
+            // The mapping hash omits index.analysis, which decides whether an analyzer name is withheld as index-local. It also omits
+            // the index-level defaults of mapping parameters that decide whether a field is reported as non-nullable.
             indexMappingHash = mapping != null
                 ? mapping.getSha256() + indexMode + analyzerNamesDigest(configuredAnalyzerNames(searchExecutionContext))
+                    + nonNullabilityDefaults(searchExecutionContext.getIndexSettings().getSettings())
                 : null;
         } else {
             // even if the mapping is the same if we return only fields with values we need
@@ -252,7 +256,9 @@ class FieldCapabilitiesFetcher {
                     ft.meta(),
                     reported == null ? null : reported.name(),
                     reported == null ? TextFieldMapper.Defaults.POSITION_INCREMENT_GAP : reported.getPositionIncrementGap(ft.name()),
-                    indexLocalAnalyzer
+                    indexLocalAnalyzer,
+                    // An alias has the guarantee of its target, and a runtime field shadowing a mapped field has none.
+                    context.getMappingLookup().isStaticallyNonNullable(ft)
                 );
                 responseMap.put(field, fieldCap);
             } else {
@@ -295,6 +301,7 @@ class FieldCapabilitiesFetcher {
                             Map.of(),
                             null,
                             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
+                            false,
                             false
                         );
                         responseMap.put(parentField, fieldCap);
@@ -309,6 +316,17 @@ class FieldCapabilitiesFetcher {
     /** Names under {@code index.analysis.analyzer}. */
     private static Set<String> configuredAnalyzerNames(SearchExecutionContext context) {
         return context.getIndexSettings().getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_ANALYZER).keySet();
+    }
+
+    /**
+     * The index-level defaults that decide whether a field is reported as non-nullable, in a form that goes into the mapping hash.
+     * Two indices with the same mapping can differ in them, so they must not share a hash.
+     */
+    static String nonNullabilityDefaults(Settings indexSettings) {
+        return "|"
+            + FieldMapper.DOC_VALUES_NULLABILITY_SETTING.get(indexSettings)
+            + FieldMapper.DOC_VALUES_ON_FAILURE_SETTING.get(indexSettings)
+            + FieldMapper.IGNORE_MALFORMED_SETTING.get(indexSettings);
     }
 
     /**

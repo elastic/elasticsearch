@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.EsField.TimeSeriesFieldType;
@@ -75,6 +76,26 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         assertThat(copyInstance(field, EsField.ESQL_SERIALIZE_PASSTHROUGH_FIELD).isPassthrough(), is(true));
     }
 
+    public void testNonNullableSerialization() throws Exception {
+        EsField field = new EsField("age", DataType.LONG, Map.of(), true, false, TimeSeriesFieldType.NONE, false, true);
+        assertThat(copyInstance(field, EsField.ESQL_SERIALIZE_NON_NULLABLE_FIELD).isStaticallyNonNullable(), is(true));
+        // A node that cannot read the flag sees "unknown".
+        assertThat(
+            copyInstance(field, TransportVersionUtils.getPreviousVersion(EsField.ESQL_SERIALIZE_NON_NULLABLE_FIELD))
+                .isStaticallyNonNullable(),
+            is(false)
+        );
+    }
+
+    /** Widening a small number type, as ES|QL does for short and byte fields, must not drop the guarantee. */
+    public void testWidenedSmallNumericKeepsNonNullable() {
+        EsField field = new EsField("age", DataType.SHORT, Map.of(), true, false, TimeSeriesFieldType.NONE, false, true);
+        EsField widened = field.withWidenedSmallNumeric();
+        assertThat(widened.getDataType(), equalTo(DataType.INTEGER));
+        assertThat(widened.isStaticallyNonNullable(), is(true));
+        assertThat(field.withProperties(Map.of()).isStaticallyNonNullable(), is(true));
+    }
+
     @Override
     protected EsField mutateInstance(EsField instance) {
         String name = instance.getName();
@@ -84,7 +105,8 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
         boolean isAlias = instance.isAlias();
         EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
         boolean isPassthrough = instance.isPassthrough();
-        switch (between(0, 6)) {
+        boolean isStaticallyNonNullable = instance.isStaticallyNonNullable();
+        switch (between(0, 7)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> esDataType = randomValueOtherThan(esDataType, () -> randomFrom(DataType.types()));
             case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
@@ -92,8 +114,9 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
             case 4 -> isAlias = false == isAlias;
             case 5 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             case 6 -> isPassthrough = false == isPassthrough;
+            case 7 -> isStaticallyNonNullable = false == isStaticallyNonNullable;
             default -> throw new IllegalArgumentException();
         }
-        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType, isPassthrough);
+        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType, isPassthrough, isStaticallyNonNullable);
     }
 }

@@ -2030,19 +2030,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 right = new Project(join.source(), right, right.output());
             }
 
-            // Coordinator execution preserves mixed-version compatibility for the INNER join marker filter.
-            ExecuteLocation mode;
-            if (config.type() == JoinTypes.INNER) {
-                mode = ExecuteLocation.COORDINATOR;
-            } else {
-                mode = newSubqueryLookupJoinMode(context.minimumVersion(), join.left());
-            }
             return new SubqueryLookupJoin(
                 join.source(),
                 join.left(),
                 right,
                 new JoinConfig(config.type(), leftKeys, rightFields, config.joinOnConditions()),
-                mode
+                newSubqueryLookupJoinMode(context.minimumVersion(), join.left())
             );
         }
 

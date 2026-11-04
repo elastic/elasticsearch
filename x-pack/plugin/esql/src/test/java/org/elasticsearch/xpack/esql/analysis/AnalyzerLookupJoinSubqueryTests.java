@@ -67,11 +67,12 @@ public class AnalyzerLookupJoinSubqueryTests extends AnalyzerTestCase {
         assertThat(join.config().rightFields().getFirst().dataType(), equalTo(DataType.DOUBLE));
     }
 
-    public void testInnerJoinSubqueryExecutesOnCoordinator() {
+    public void testInnerJoinSubqueryUsesLeftJoinExecutionMode() {
         assumeTrue("JOIN on a subquery required", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
-        LogicalPlan plan = analyzer().query("ROW key = 1 | INNER JOIN (ROW key = 1, value = 2) ON key | LIMIT 10");
+        LogicalPlan inner = analyzer().query("ROW key = 1 | INNER JOIN (ROW key = 1, value = 2) ON key | LIMIT 10");
+        LogicalPlan left = analyzer().query("ROW key = 1 | LEFT OUTER JOIN (ROW key = 1, value = 2) ON key | LIMIT 10");
 
-        assertThat(findSubqueryLookupJoin(plan).executesOn(), equalTo(ExecuteLocation.COORDINATOR));
+        assertThat(findSubqueryLookupJoin(inner).executesOn(), equalTo(findSubqueryLookupJoin(left).executesOn()));
     }
 
     public void testDateAndDateNanosJoinKeysAreIncompatible() {

@@ -3733,6 +3733,13 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_LOAD_ALL_FORK,
 
         /**
+         * Under {@code unmapped_fields="LOAD_ALL"}, a {@code FORK} after a union of subqueries returns the {@code _unmapped_fields}
+         * column: it used to be dropped. Only meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_FORK} is available. See
+         * https://github.com/elastic/elasticsearch/issues/162506.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_FORK_OVER_UNION(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
+        /**
          * Support for {@code GROK}, {@code DISSECT}, {@code MV_EXPAND} and {@code SAMPLE} under {@code unmapped_fields="LOAD_ALL"}.
          * {@code GROK} and {@code DISSECT} read an input field (mapped or unmapped) and add named columns, which shadow an unmapped
          * field of the same name. Expanding a mapped multivalued field with {@code MV_EXPAND} repeats the {@code _unmapped_fields}

@@ -1,0 +1,5 @@
+area: Analysis
+issues: []
+pr: 164515
+summary: Fork legacy `SynonymFilter;` synonym uses `SynonymGraphFilter` on new indices
+type: upgrade

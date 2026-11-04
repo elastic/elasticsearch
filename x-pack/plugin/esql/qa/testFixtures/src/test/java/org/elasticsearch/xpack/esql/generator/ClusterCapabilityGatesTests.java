@@ -35,17 +35,12 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- * Generators run against clusters older than the test code, so each must leave out syntax the cluster doesn't advertise.
- */
+/** Generators omit syntax the cluster does not advertise. */
 public class ClusterCapabilityGatesTests extends ESTestCase {
 
     private static final int ITERATIONS = 500;
 
-    /**
-     * {@code agg} picks a four-argument {@code TOP} with a bare field for both arguments in roughly one call in 200, so
-     * {@link #ITERATIONS} misses it often enough to fail CI.
-     */
+    /** Extra iterations for four-argument {@code TOP}. */
     private static final int TOP_ITERATIONS = 10_000;
 
     private static final QuerySchema SCHEMA = new QuerySchema(
@@ -83,10 +78,7 @@ public class ClusterCapabilityGatesTests extends ESTestCase {
         assertSkipped(HighlightGenerator.INSTANCE, Cap.HIGHLIGHT_V6);
     }
 
-    /**
-     * {@code ON *} and a missing {@code ON} clause need their own capability. A cluster that has {@code HIGHLIGHT}
-     * but not that capability must still get an explicit field list.
-     */
+    /** {@code ON *} and a missing {@code ON} require {@code HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS}. */
     public void testHighlightImplicitOnNeedsClusterSupport() {
         List<Column> previousOutput = List.of(column("message", "text"));
         Function<GenerationContext, String> highlight = context -> generate(HighlightGenerator.INSTANCE, previousOutput, context);
@@ -140,10 +132,7 @@ public class ClusterCapabilityGatesTests extends ESTestCase {
         assertThat(count(agg, without(EsqlQueryGenerator.TOP_OUTPUT_FIELD_STRING_CAPABILITY), keywordOutputField, TOP_ITERATIONS), is(0));
     }
 
-    /**
-     * The generator gates on this capability by name, which the compiler can't check, so a rename would silently stop
-     * {@code main} from generating keyword and text output fields for {@code TOP}.
-     */
+    /** The {@code TOP} string-output capability name. */
     public void testTopStringOutputFieldCapabilityExists() {
         Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), true).capabilities();
         assertThat(capabilities, hasItem(EsqlQueryGenerator.TOP_OUTPUT_FIELD_STRING_CAPABILITY));

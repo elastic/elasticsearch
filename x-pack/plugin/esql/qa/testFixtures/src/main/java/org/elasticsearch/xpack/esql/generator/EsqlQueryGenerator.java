@@ -95,9 +95,7 @@ public class EsqlQueryGenerator {
     public static final String COLUMN_TYPE = "type";
     public static final String COLUMN_ORIGINAL_TYPES = "original_types";
 
-    /**
-     * Advertised by clusters whose {@code TOP} accepts keyword and text output fields (#151767).
-     */
+    /** {@code TOP} output field of type keyword or text. */
     static final String TOP_OUTPUT_FIELD_STRING_CAPABILITY = "fn_top_output_field_string";
 
     /**
@@ -545,7 +543,7 @@ public class EsqlQueryGenerator {
                 yield "top(" + topField + ", " + limit + ", " + order + ")";
             }
             case 7 -> {
-                // top(..., outputField) accepts: double, integer, long, date, and keyword and text since #151767
+                // top(..., outputField): double, integer, long, date; keyword and text when the cluster allows them.
                 Set<String> topOutputFieldTypes = context.clusterSupports(TOP_OUTPUT_FIELD_STRING_CAPABILITY)
                     ? Set.of("double", "integer", "long", "date", "datetime", "keyword", "text")
                     : Set.of("double", "integer", "long", "date", "datetime");

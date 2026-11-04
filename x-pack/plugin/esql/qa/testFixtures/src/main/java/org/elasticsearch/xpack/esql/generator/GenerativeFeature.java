@@ -37,7 +37,7 @@ public enum GenerativeFeature {
 
     /**
      * Always prepend {@code SET unmapped_fields="load_all"}, loading every source field absent from the index mapping as its own
-     * {@code keyword} column without requiring each to be referenced. Snapshot-only, so it is skipped on clusters that don't advertise it.
+     * {@code keyword} column without requiring each to be referenced. Snapshot-only.
      */
     UNMAPPED_FIELDS_LOAD_ALL(Cap.OPTIONAL_FIELDS_LOAD_ALL_V2),
 
@@ -63,10 +63,7 @@ public enum GenerativeFeature {
         this.requiredCapabilities = List.of(requiredCapabilities);
     }
 
-    /**
-     * Capabilities the cluster under test must support for this feature to run. The cluster may be older than the
-     * test code, so a feature it lacks is skipped rather than reported as a failure.
-     */
+    /** Capabilities the cluster must advertise. */
     public List<Cap> requiredCapabilities() {
         return requiredCapabilities;
     }

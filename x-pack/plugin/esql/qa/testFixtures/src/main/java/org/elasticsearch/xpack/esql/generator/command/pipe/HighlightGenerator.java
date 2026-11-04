@@ -29,12 +29,8 @@ import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 import static org.elasticsearch.xpack.esql.generator.function.FullTextFunctionGenerator.randomQueryWord;
 
 /**
- * Generates {@code HIGHLIGHT} commands with string and full-text queries.
- * <p>
- * When the cluster under test supports {@link EsqlCapabilities.Cap#HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS}, the {@code ON}
- * clause may be omitted (fields are derived from a MATCH-style query, or every text/keyword column for a string/QSTR/KQL
- * query) or written as {@code ON *} (every text/keyword column). Otherwise the command lists explicit {@code ON} fields,
- * and queries only reference those fields.
+ * Generates {@code HIGHLIGHT} commands.
+ * A missing {@code ON} or {@code ON *} requires {@link EsqlCapabilities.Cap#HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS}.
  */
 public class HighlightGenerator implements CommandGenerator {
 
@@ -68,7 +64,6 @@ public class HighlightGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        // Not an earlier HIGHLIGHT_V*: the prefix (#153125) and analyzer (#154185) options and full-text queries (#153313) came later.
         if (context.clusterSupports(EsqlCapabilities.Cap.HIGHLIGHT_V6) == false) {
             return EMPTY_DESCRIPTION;
         }

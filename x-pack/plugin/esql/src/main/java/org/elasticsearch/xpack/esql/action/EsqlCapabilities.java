@@ -4683,7 +4683,7 @@ public class EsqlCapabilities {
         METRICS_INFO_FIELD_PRESENCE,
 
         /**
-         * {@code LOOKUP JOIN _coordinator:<index>}, which runs the join on the coordinating node. Added in #153804.
+         * {@code LOOKUP JOIN _coordinator:<index>}, on the coordinating node.
          */
         LOOKUP_JOIN_ON_COORDINATOR,
 

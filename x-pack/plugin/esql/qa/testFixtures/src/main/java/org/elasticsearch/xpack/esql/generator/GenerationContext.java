@@ -58,18 +58,12 @@ public final class GenerationContext {
         return features.contains(feature);
     }
 
-    /**
-     * Returns {@code true} if the cluster under test supports {@code cap}. Use this rather than
-     * {@link EsqlCapabilities.Cap#isEnabled()}, which describes the test's own build: the cluster may run an older version.
-     */
+    /** Whether the cluster under test supports {@code cap}. */
     public boolean clusterSupports(EsqlCapabilities.Cap cap) {
         return clusterSupports(cap.capabilityName());
     }
 
-    /**
-     * Returns {@code true} if the cluster under test advertises {@code capability}, for capabilities that aren't
-     * {@link EsqlCapabilities.Cap}s, like the {@code fn_<name>_<capability>} ones functions declare.
-     */
+    /** Whether the cluster under test advertises {@code capability}. */
     public boolean clusterSupports(String capability) {
         return clusterCapabilities.test(capability);
     }

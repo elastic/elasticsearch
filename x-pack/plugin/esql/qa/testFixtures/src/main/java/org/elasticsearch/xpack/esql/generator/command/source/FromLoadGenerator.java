@@ -21,9 +21,8 @@ import java.util.function.Predicate;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 
 /**
- * Source command generator that prepends a {@code SET unmapped_fields="load"|"load_all";} prefix, forcing unmapped fields to load from
- * {@code _source}. {@code load_all} is snapshot-only, so {@link #LOAD_ALL_INSTANCE} degrades to a plain FROM when the cluster under test
- * doesn't advertise its capability.
+ * Prepends {@code SET unmapped_fields="load"|"load_all";}.
+ * {@code load_all} falls back to {@code FROM} when the cluster lacks it.
  */
 public class FromLoadGenerator extends FromGenerator {
 

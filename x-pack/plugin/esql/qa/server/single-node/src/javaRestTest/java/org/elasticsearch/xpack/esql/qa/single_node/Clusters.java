@@ -52,10 +52,8 @@ public class Clusters {
     }
 
     /**
-     * The cluster {@link GenerativeIT} runs against: the current build, or the version in {@value #OLD_CLUSTER_VERSION_PROPERTY}.
-     * The {@code v<version>#generativeTests} tasks set that property to test a release branch, from 9.5 on, with this
-     * branch's query generator. A node refuses to start on a setting it doesn't know, so an older node gets only the
-     * settings its version has, and {@code currentVersionConfig} applies only to the current build.
+     * {@link GenerativeIT} cluster: this build, or a 9.5+ release branch named by {@value #OLD_CLUSTER_VERSION_PROPERTY}.
+     * An older node receives only settings its version has.
      */
     public static ElasticsearchCluster generativeCluster(LocalClusterConfigProvider currentVersionConfig) {
         String oldVersionString = System.getProperty(OLD_CLUSTER_VERSION_PROPERTY);

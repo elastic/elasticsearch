@@ -72,10 +72,7 @@ public class GenerativeFunctionCatalogTests extends ESTestCase {
         assertThat("expected at least one satisfiable signature for datetime columns", satisfiable, not(equalTo(0L)));
     }
 
-    /**
-     * {@link GenerativeFunctionCatalog#restrictToCluster} keeps a function only if the cluster advertises its capability,
-     * so a name that doesn't match the registry would silently drop that function from every run.
-     */
+    /** Each catalog function has an {@code fn_<name>} capability. */
     public void testEveryFunctionHasClusterCapability() {
         Set<String> capabilities = EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), true).capabilities();
         for (GenerativeFunctionDefinition fn : GenerativeFunctionCatalog.all()) {
@@ -83,10 +80,7 @@ public class GenerativeFunctionCatalogTests extends ESTestCase {
         }
     }
 
-    /**
-     * A release-branch run loads that branch's definitions, which may have fewer signatures than this build's, and the
-     * catalog must offer exactly those, with the same filtering as the definitions on the classpath.
-     */
+    /** A directory load keeps that directory's scalar signatures. */
     public void testLoadFromDefinitionsDir() throws IOException {
         Path dir = createTempDir();
         Files.writeString(dir.resolve("to_range.json"), """
@@ -109,9 +103,7 @@ public class GenerativeFunctionCatalogTests extends ESTestCase {
         assertThat(signatures.getFirst().returnType(), equalTo("date_range"));
     }
 
-    /**
-     * A wrong or empty directory must fail the run instead of leaving the generator without functions.
-     */
+    /** An empty or missing directory fails. */
     public void testLoadFromDefinitionsDirWithoutDefinitions() {
         Path empty = createTempDir();
         expectThrows(IllegalStateException.class, () -> GenerativeFunctionCatalog.loadFromDefinitionsDir(empty.toString()));

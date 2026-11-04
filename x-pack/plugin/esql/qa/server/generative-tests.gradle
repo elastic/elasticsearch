@@ -1,14 +1,9 @@
 /*
- * Shared Gradle snippet registering the generative test tasks.
- * Applied by the single-node and multi-node QA build.gradle files.
+ * Generative test tasks for the single-node and multi-node QA projects.
+ * Not part of 'check'. Release-branch runs start at 9.5.
  *
- * Not wired into 'check': .buildkite/pipelines/periodic-esql-generative.yml invokes these by name.
- * Coverage starts at 9.5. The snapshot checkout task is registered once on the release-branch project, which both
- * topologies share, so they cannot check that directory out at the same time.
- *
- * Required ext properties (must be set before applying):
- *   - generativeTestsConfig: closure taking a StandaloneRestIntegTestTask, applying the project's test classes,
- *     test filter and any project-specific settings
+ * Set before applying:
+ *   - generativeTestsConfig: configures a StandaloneRestIntegTestTask
  */
 
 import org.elasticsearch.gradle.Version
@@ -26,21 +21,16 @@ tasks.register('generativeTests', StandaloneRestIntegTestTask) {
   generativeTestsConfig(it)
 }
 
-// Coverage starts at 9.5. This branch's generator runs against the current tip of each maintained release branch from
-// then on, so generator fixes never need a backport. branches.json names that tip (9.5.6 and 9.6.0 today; 9.7 once it
-// is a release branch). 9.5.0 is the floor, not a pinned release. Do not set bwc.checkout.align; that checks out an
-// older commit instead of the tip. GenerativeRestTest skips what the older cluster doesn't support.
+// Release branches from 9.5, at the branch tip.
 buildParams.bwcVersions.unreleasedWireCompatible
   .findAll { it.onOrAfter(Version.fromString("9.5.0")) && it != VersionProperties.elasticsearchVersion }
   .each { bwcVersion ->
-    // The release branch's own function definitions, so the generator only uses signatures that branch supports.
+    // Function definitions from that checkout.
     def versionInfo = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
     def bwcProject = project(versionInfo.gradleProjectPath)
     def checkoutDir = bwcProject.extensions.getByName('bwcGitConfig').checkoutDir
     def draBuildId = bwcProject.plugins.getPlugin(InternalBwcGitPlugin).draBuildId
-    // checkoutBwcBranch does not run when a pre-built snapshot is selected, so the checkout it would have
-    // populated is missing or left from another commit. Check out the snapshot's own commit first.
-    // One task on the release-branch project: single-node and multi-node both copy from this directory.
+    // Snapshot commit in the shared release-branch checkout.
     def prepareTaskName = "prepareEsqlFunctionCheckout"
     synchronized (bwcProject.tasks) {
       if (bwcProject.tasks.names.contains(prepareTaskName) == false) {

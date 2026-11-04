@@ -336,10 +336,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
-    /**
-     * Capabilities added after the syntax they describe had already shipped, mapped to the first version with that syntax.
-     * A release branch cut in between has the syntax but never advertises the capability, so the node version stands in.
-     */
+    /** Capability name to the version that has its syntax. */
     private static final Map<String, Version> CAPABILITIES_ADDED_AFTER_THEIR_FEATURE = Map.of(
         EsqlCapabilities.Cap.LOOKUP_JOIN_ON_COORDINATOR.capabilityName(),
         Version.V_9_6_0
@@ -363,10 +360,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             || featureShippedBeforeItsCapability(capability, getCachedNodesVersions());
     }
 
-    /**
-     * Whether {@code capability} is one of the {@link #CAPABILITIES_ADDED_AFTER_THEIR_FEATURE} and every node runs a version
-     * that has its syntax. A node whose version isn't semantic, like a serverless one, doesn't count.
-     */
+    /** Whether every node version has the syntax for {@code capability}. */
     static boolean featureShippedBeforeItsCapability(String capability, Set<String> nodeVersions) {
         Version shippedIn = CAPABILITIES_ADDED_AFTER_THEIR_FEATURE.get(capability);
         if (shippedIn == null || nodeVersions.isEmpty()) {

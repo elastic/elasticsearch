@@ -106,10 +106,7 @@ public final class GenerativeFunctionCatalog {
 
     private static final String RESOURCE_DIR = "esql-functions";
 
-    /**
-     * Directory of function definitions to load instead of {@link #RESOURCE_DIR}. Set when the cluster under test runs an
-     * older version, whose functions may lack signatures the test's own build added.
-     */
+    /** Function-definition directory for the cluster under test. Falls back to {@link #RESOURCE_DIR}. */
     static final String DEFINITIONS_DIR_PROPERTY = "tests.esql.function_definitions";
 
     private static final List<GenerativeFunctionDefinition> ALL = loadAll();
@@ -139,11 +136,9 @@ public final class GenerativeFunctionCatalog {
     }
 
     /**
-     * Limits the catalog to functions the cluster under test registers, which it advertises as {@code fn_<name>}
-     * capabilities. The definitions are already the release branch's when {@link #DEFINITIONS_DIR_PROPERTY} is set,
-     * and the test build's otherwise. This still drops a function the cluster does not advertise.
+     * Keeps functions the cluster advertises as {@code fn_<name>}.
      *
-     * @param clusterCapabilities tests whether the cluster under test supports an ES|QL capability, by name
+     * @param clusterCapabilities whether the cluster supports a capability, by name
      */
     public static void restrictToCluster(Predicate<String> clusterCapabilities) {
         instance = new GenerativeFunctionCatalog(ALL.stream().filter(fn -> clusterCapabilities.test(capabilityName(fn))).toList());
@@ -263,10 +258,7 @@ public final class GenerativeFunctionCatalog {
         return result;
     }
 
-    /**
-     * Loads the definitions in {@code definitionsDir}, the value of {@link #DEFINITIONS_DIR_PROPERTY}. Fails rather than
-     * returning nothing, because an empty catalog would quietly stop the generator from calling any function.
-     */
+    /** Function definitions from {@code definitionsDir}. Empty input fails. */
     static List<GenerativeFunctionDefinition> loadFromDefinitionsDir(String definitionsDir) {
         List<GenerativeFunctionDefinition> result = new ArrayList<>();
         try {

@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
@@ -3149,6 +3150,32 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
     }
 
+    public void testPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimit() {
+        var plan = optimizedPlan(emptyRelationBelowDeepLookupJoinChain());
+
+        var local = as(plan, LocalRelation.class);
+        assertThat(local.supplier(), is(EmptyLocalSupplier.EMPTY));
+    }
+
+    public void testPropagateEmptyRelationThroughPlanDeeperThanRuleExecutionLimitWithUngroupedStats() {
+        var plan = optimizedPlan(emptyRelationBelowDeepLookupJoinChain() + " | STATS c = COUNT(*)");
+
+        var limit = as(plan, Limit.class);
+        var local = as(limit.child(), LocalRelation.class);
+        assertThat(local.supplier(), not(is(EmptyLocalSupplier.EMPTY)));
+        Page page = local.supplier().get();
+        assertEquals(1, page.getPositionCount());
+        assertEquals(0L, ((LongBlock) page.getBlock(0)).getLong(0));
+    }
+
+    private static String emptyRelationBelowDeepLookupJoinChain() {
+        StringBuilder query = new StringBuilder("FROM test | WHERE false");
+        for (int i = 0; i < 150; i++) {
+            query.append(" | EVAL language_code = languages + ").append(i).append(" | LOOKUP JOIN languages_lookup ON language_code");
+        }
+        return query.toString();
+    }
+
     /**
      * Expected:
      * <pre>{@code
@@ -3229,7 +3256,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * \_LocalRelation[[count{r}#7],Page{blocks=[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]}]
      * }</pre>
      *
-     * Same final plan as testPropagateEmptyRelationWithUngroupedStats but requires two fixed-point iterations:
+     * Same final plan as testPropagateEmptyRelationWithUngroupedStats but with an intervening Eval:
      * first the Eval over empty LocalRelation is collapsed, then the Aggregate over empty LocalRelation is folded.
      */
     public void testPropagateEmptyRelationWithInterveningEvalAndStats() {

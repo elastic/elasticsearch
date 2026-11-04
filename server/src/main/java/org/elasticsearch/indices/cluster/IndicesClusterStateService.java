@@ -1059,7 +1059,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 retentionLeaseSyncer,
                 originalState.nodes().getLocalNode(),
                 sourceNode,
-                originalState.version()
+                originalState.version(),
+                // No local recovery retry exists yet; a future retry mechanism will supply the real count here.
+                0
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
@@ -1682,6 +1684,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param targetNode             the node where this shard will be recovered
          * @param sourceNode             the source node to recover this shard from (it might be null)
          * @param clusterStateVersion    the cluster state version in which the shard was created
+         * @param localRecoveryRetries   how many times this shard's recovery has already failed and been retried locally
          * @throws IOException if an I/O exception occurs when creating the shard
          */
         void createShard(
@@ -1695,7 +1698,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode,
-            long clusterStateVersion
+            long clusterStateVersion,
+            int localRecoveryRetries
         ) throws IOException;
 
         /**

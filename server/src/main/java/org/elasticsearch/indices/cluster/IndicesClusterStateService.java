@@ -1599,7 +1599,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final Shard shard = indicesService.getShardOrNull(shardRouting.shardId());
         // A still-live inFlightTicket (checked above) guarantees any local shard for this shardId
         // is this allocation's: every path that replaces it with a different allocation's shard also
-        // invalidates this exact ticket first, inside the same synchronized section.
+        // invalidates this exact ticket first, inside the same synchronized section. The same should
+        // hold for the shard's primary term (any update to it goes through the same synchronized
+        // path), but Shard doesn't currently expose it, so that part isn't asserted here.
         assert shard == null || shard.routingEntry().isSameAllocation(shardRouting)
             : "found shard for different allocation despite live ticket: " + shard.routingEntry() + " vs " + shardRouting;
         final IndexShardState shardState = shard != null ? shard.state() : null;

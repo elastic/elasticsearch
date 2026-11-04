@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.MoveReason;
-import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -250,7 +249,7 @@ public class DesiredBalanceComputer {
                             shardRouting,
                             targetNodeId,
                             0L,
-                            MoveReason.of(MoveType.INHERITED),
+                            MoveReason.INHERITED,
                             changes,
                             recoveryPriority
                         ).v2();

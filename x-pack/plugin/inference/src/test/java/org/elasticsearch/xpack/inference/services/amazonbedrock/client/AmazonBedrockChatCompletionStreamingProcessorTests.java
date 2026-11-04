@@ -53,7 +53,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicChatCompletionStreamingProcessor.ANTHROPIC_CLAUDE_V1_FORMAT;
+import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.ANTHROPIC_CLAUDE_V1_FORMAT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isA;
@@ -371,6 +371,115 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
                     List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 1L, null, "sig-b"))
                 )
             )
+        );
+    }
+
+    /**
+     * Claude sends a redacted thinking block whole and without a signature, so the next reasoning delta starts a new block even within
+     * the same content block.
+     */
+    public void testRedactedReasoningEndsAReasoningBlock() {
+        processor = createProcessor(AmazonBedrockProvider.ANTHROPIC);
+        var redactedA = SdkBytes.fromUtf8String("redacted-a");
+        var redactedB = SdkBytes.fromUtf8String("redacted-b");
+
+        var messages = messagesFrom(
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromRedactedContent(redactedA)), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromRedactedContent(redactedB)), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromText("thinking")), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromSignature("sig")), 0)
+        );
+
+        assertThat(
+            messages.stream().map(ChatCompletionMessageResponse::reasoningDetails).toList(),
+            equalTo(
+                List.of(
+                    List.of(
+                        new ReasoningDetail.EncryptedReasoningDetail(
+                            ANTHROPIC_CLAUDE_V1_FORMAT,
+                            null,
+                            0L,
+                            Base64.getEncoder().encodeToString(redactedA.asByteArray())
+                        )
+                    ),
+                    List.of(
+                        new ReasoningDetail.EncryptedReasoningDetail(
+                            ANTHROPIC_CLAUDE_V1_FORMAT,
+                            null,
+                            1L,
+                            Base64.getEncoder().encodeToString(redactedB.asByteArray())
+                        )
+                    ),
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 2L, "thinking", null)),
+                    List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 2L, null, "sig"))
+                )
+            )
+        );
+    }
+
+    /**
+     * A reasoning delta the SDK does not recognize is skipped, so it must not take a reasoning index from the blocks that are sent.
+     */
+    public void testUnknownReasoningDeltaDoesNotTakeAReasoningIndex() {
+        processor = createProcessor(AmazonBedrockProvider.ANTHROPIC);
+
+        var messages = messagesFrom(
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.builder().build()), 0),
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromText("thinking")), 1)
+        );
+
+        assertThat(
+            messages.stream().map(ChatCompletionMessageResponse::reasoningDetails).toList(),
+            equalTo(List.of(List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, "thinking", null))))
+        );
+    }
+
+    /**
+     * Events are sent downstream on the multi-threaded utility pool, where the tasks for consecutive events can run concurrently or out
+     * of order when the downstream requests several items. Tool call and reasoning indices must follow the order the SDK delivered the
+     * events in, so a tool use delta whose task runs before its start's task still keeps its arguments.
+     */
+    public void testIndicesFollowDeliveryOrderWhenSendingRunsOutOfOrder() {
+        var queued = new ArrayList<Runnable>();
+        ExecutorService executorService = mock();
+        doAnswer(ans -> {
+            queued.add(ans.getArgument(0));
+            return null;
+        }).when(executorService).execute(any());
+        ThreadPool threadPool = mock();
+        when(threadPool.executor(UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
+        processor = new AmazonBedrockChatCompletionStreamingProcessor(threadPool, "model", AmazonBedrockProvider.ANTHROPIC);
+        processor.onSubscribe(mock());
+        Flow.Subscriber<StreamingUnifiedChatCompletionResults.Results> downstream = mock();
+        processor.subscribe(downstream);
+
+        processor.onNext(
+            contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromSignature("sig")), 0)
+        );
+        processor.onNext(contentBlockDeltaOutput(ContentBlockDelta.fromReasoningContent(ReasoningContentBlockDelta.fromText("more")), 0));
+        processor.onNext(toolUseStartOutput("call-a", "first", 1));
+        processor.onNext(toolUseDeltaOutput("{\"a\":1}", 1));
+        assertThat(queued.size(), is(4));
+        queued.reversed().forEach(Runnable::run);
+
+        verify(downstream, never()).onError(any());
+        ArgumentCaptor<StreamingUnifiedChatCompletionResults.Results> argument = ArgumentCaptor.forClass(
+            StreamingUnifiedChatCompletionResults.Results.class
+        );
+        verify(downstream, times(4)).onNext(argument.capture());
+        var messages = argument.getAllValues().stream().map(results -> results.chunks().getFirst().choices().getFirst().message()).toList();
+
+        var toolUseDelta = messages.get(0).toolCalls().getFirst();
+        assertThat(toolUseDelta.index(), is(0));
+        assertThat(toolUseDelta.function().arguments(), equalTo("{\"a\":1}"));
+        assertThat(messages.get(1).toolCalls().getFirst().id(), equalTo("call-a"));
+        assertThat(
+            messages.get(2).reasoningDetails(),
+            equalTo(List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 1L, "more", null)))
+        );
+        assertThat(
+            messages.get(3).reasoningDetails(),
+            equalTo(List.of(new ReasoningDetail.TextReasoningDetail(ANTHROPIC_CLAUDE_V1_FORMAT, null, 0L, null, "sig")))
         );
     }
 

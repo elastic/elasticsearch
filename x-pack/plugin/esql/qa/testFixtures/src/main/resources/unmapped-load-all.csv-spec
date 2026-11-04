@@ -7966,3 +7966,26 @@ mapped-1       | William Faulkner | text_state_mapped      | null
 nonexistent-1  | none             | text_state_nonexistent | null
 unmapped-1     | none             | text_state_unmapped    | null
 ;
+
+// A FORK after a union of subqueries still returns the unmapped fields: the alignment Project of each FORK branch sits on top of the
+// union, so it only gets _unmapped_fields once the union has.
+forkOverSubqueryUnionKeepsUnmappedFields
+required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_subqueries
+required_capability: optional_fields_load_all_fork
+required_capability: subquery_in_from_command
+required_capability: fork_v9
+
+SET unmapped_fields="LOAD_ALL"\;
+FROM (FROM partial_mapping_sample_data | WHERE message == "42"),
+     (FROM partial_mapping_sample_data | WHERE message == "Connected to 10.1.0.1!")
+| FORK (WHERE true | LIMIT 300) (WHERE true)
+| WHERE _fork == "fork1"
+| DROP _fork
+| SORT message
+;
+
+@timestamp:datetime | client_ip:ip | event_duration:long | message:keyword | _unmapped_fields:_source
+2024-10-23T13:33:34.937Z | 173.21.0.5 | 1232381 | 42 | "{""unmapped_message"":""43"",""unmapped_event_duration"":""1232383"",""unmapped.nested"":""e"",""language_code"":""2""}"
+2024-10-23T13:55:01.543Z | 173.21.3.15 | 1756466 | Connected to 10.1.0.1! | "{""unmapped_message"":""Disconnected from 10.1.0.1"",""unmapped_event_duration"":""1756468"",""unmapped.nested"":""a"",""language_code"":""1""}"
+;

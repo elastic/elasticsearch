@@ -111,12 +111,12 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
             // Projects snapshot before this rule, and replaceChild on a ResolvingProject would re-append it.
             return plan;
         } else {
-            // Project pass before merge finish keeps _unmapped_fields on branch Projects. The pass after
-            // picks it up on Projects above the merge, whose child output only includes the column after refresh.
+            // One bottom-up pass over Projects and merges, so each node sees the column of its children: a branch Project gets it
+            // before its merge looks for it, and a Project above a merge gets it once the merge has refreshed its output. Separate
+            // passes got this wrong where a merge sits under another one, e.g. a FORK after a union of subqueries: the alignment
+            // Project of each FORK branch sits on the union, so it only got the column after the FORK had looked for it.
             LogicalPlan annotated = annotate(plan, pattern);
-            result = ViewUtils.transformUpOutsideViews(annotated, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
-            result = ViewUtils.transformUpOutsideViews(result, MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields);
-            result = ViewUtils.transformUpOutsideViews(result, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            result = ViewUtils.transformUpOutsideViews(annotated, DetermineUnmappedFieldsToKeep::finishUnmappedFields);
         }
         return result;
     }
@@ -223,6 +223,16 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         return pattern.isNone() || esr.indexMode() == IndexMode.LOOKUP
             ? esr
             : esr.withAdditionalAttribute(new UnmappedFieldsAttribute(Source.EMPTY, pattern));
+    }
+
+    private static LogicalPlan finishUnmappedFields(LogicalPlan plan) {
+        if (plan instanceof Project project) {
+            return passThroughUnmappedFields(project);
+        }
+        if (plan instanceof MergePlan merge) {
+            return finishMergeUnmappedFields(merge);
+        }
+        return plan;
     }
 
     /**

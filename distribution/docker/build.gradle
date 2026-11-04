@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.internal.DockerBase
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.docker.DockerImagePullSupport
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin
 import org.elasticsearch.gradle.internal.docker.DockerSupportService
 import org.elasticsearch.gradle.internal.docker.ShellRetry
@@ -18,6 +19,8 @@ apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.dra-artifacts'
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.repositories'
+// Pre-cache Docker base images when baking CI agent images
+apply plugin: 'elasticsearch.docker-image-cache'
 
 String buildId = providers.systemProperty('build.id').getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false && useDra == false
@@ -245,7 +248,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
   DockerVariant variant = new DockerVariant(architecture, base)
 
   final TaskProvider<Tar> buildDockerContextTask =
-    tasks.register(variant.taskName('build', taskSuffix), Tar) {
+    tasks.register(variant.camelName('build', taskSuffix), Tar) {
       archiveExtension = 'tar.gz'
       compression = Compression.GZIP
       archiveClassifier = "${classifier}${variant.architectureSuffix()}"
@@ -306,8 +309,8 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base, Strin
 
 void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
   DockerVariant variant = new DockerVariant(architecture, base)
-  def transformTask = tasks.register(variant.taskName("transform", "DockerContext"), Sync) {
-    TaskProvider<Tar> buildContextTask = tasks.named(variant.taskName("build", "DockerContext"))
+  def transformTask = tasks.register(variant.camelName("transform", "DockerContext"), Sync) {
+    TaskProvider<Tar> buildContextTask = tasks.named(variant.camelName("build", "DockerContext"))
     dependsOn(buildContextTask)
 
     String archiveName = variant.buildContextName(VersionProperties.elasticsearch)
@@ -360,7 +363,7 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
   }
 
   // Register transformed context as a project artifact
-  def contextConfig = configurations.create(variant.taskName("docker", "Context")) {
+  def contextConfig = configurations.create(variant.camelName("docker", "Context")) {
     canBeResolved = false
     attributes {
       attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
@@ -377,9 +380,9 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
   DockerVariant variant = new DockerVariant(architecture, base)
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
-    tasks.register(variant.taskName("build", "DockerImage"), DockerBuildTask) {
+    tasks.register(variant.camelName("build", "DockerImage"), DockerBuildTask) {
 
-      TaskProvider<Sync> transformTask = tasks.named(variant.taskName("transform", "DockerContext"))
+      TaskProvider<Sync> transformTask = tasks.named(variant.camelName("transform", "DockerContext"))
       dependsOn(transformTask)
 
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
@@ -410,7 +413,8 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       } else if(base.image != null) {
         baseImages = [base.image]
       } else {
-        baseImages = []
+        // Declare the digest-pinned base images referenced by the Dockerfile, so they are pre-cached on CI agents
+        baseImages = DockerImagePullSupport.digestPinnedBaseImages(file("src/docker/${base.dockerfile}")) as String[]
       }
 
       if (base == DockerBase.WOLFI) {
@@ -437,7 +441,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
   String contextDir = "${project.buildDir}/docker-context/${variant.buildContextName(VersionProperties.elasticsearch)}"
 
   final TaskProvider<Sync> buildContextTask =
-    tasks.register(variant.taskName('build', 'DockerContext'), Sync) {
+    tasks.register(variant.camelName('build', 'DockerContext'), Sync) {
       into contextDir
 
       final Path projectDir = project.projectDir.toPath()
@@ -463,7 +467,7 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
         expand(
           [
             base_image : baseVariant.localImageReference(),
-            docker_base: "${variant.base().name().toLowerCase()}",
+            docker_base: variant.dockerBaseName(),
             version    : "${VersionProperties.elasticsearch}",
             retry      : ShellRetry
           ]
@@ -474,9 +478,9 @@ void addBuildCloudDockerImageTasks(Architecture architecture) {
     }
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
-    tasks.register(variant.taskName("build", "DockerImage"), DockerBuildTask) {
+    tasks.register(variant.camelName("build", "DockerImage"), DockerBuildTask) {
 
-      TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(baseVariant.taskName("build", "DockerImage"))
+      TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(baseVariant.camelName("build", "DockerImage"))
       inputs.files(buildBaseTask).withPathSensitivity(PathSensitivity.RELATIVE)
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
@@ -537,8 +541,8 @@ subprojects { Project subProject ->
     final Architecture architecture = variant.architecture()
     final String artifactName = variant.exportArtifactName()
 
-    final String exportTaskName = variant.taskName("export", 'DockerImage')
-    final String buildTaskName = variant.taskName('build', 'DockerImage')
+    final String exportTaskName = variant.camelName("export", 'DockerImage')
+    final String buildTaskName = variant.camelName('build', 'DockerImage')
     final String tarFile = "${parent.projectDir}/build/${variant.exportFileName(VersionProperties.elasticsearch)}"
 
     def exportTask = tasks.register(exportTaskName, LoggedExec) {
@@ -562,7 +566,7 @@ subprojects { Project subProject ->
       dependsOn exportTask
     }
 
-    def compressExportTask = tasks.register(variant.taskName("compress", 'DockerImageExport'), Tar) {
+    def compressExportTask = tasks.register(variant.camelName("compress", 'DockerImageExport'), Tar) {
       it.from(project.tarTree(tarFile))
       archiveExtension = 'tar.gz'
       it.setCompression(Compression.GZIP)

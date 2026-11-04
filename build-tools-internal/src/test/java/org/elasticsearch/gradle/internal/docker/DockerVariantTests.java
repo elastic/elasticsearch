@@ -35,21 +35,21 @@ public class DockerVariantTests {
     }
 
     @Test
-    public void taskNames() {
-        assertEquals("buildDockerImage", new DockerVariant(Architecture.X64, DockerBase.DEFAULT).taskName("build", "DockerImage"));
+    public void camelNames() {
+        assertEquals("buildDockerImage", new DockerVariant(Architecture.X64, DockerBase.DEFAULT).camelName("build", "DockerImage"));
         assertEquals(
             "buildAarch64DockerContext",
-            new DockerVariant(Architecture.AARCH64, DockerBase.DEFAULT).taskName("build", "DockerContext")
+            new DockerVariant(Architecture.AARCH64, DockerBase.DEFAULT).camelName("build", "DockerContext")
         );
         assertEquals(
             "transformIronBankDockerContext",
-            new DockerVariant(Architecture.X64, DockerBase.IRON_BANK).taskName("transform", "DockerContext")
+            new DockerVariant(Architecture.X64, DockerBase.IRON_BANK).camelName("transform", "DockerContext")
         );
         assertEquals(
             "buildAarch64CloudEssFipsDockerImage",
-            new DockerVariant(Architecture.AARCH64, DockerBase.CLOUD_ESS_FIPS).taskName("build", "DockerImage")
+            new DockerVariant(Architecture.AARCH64, DockerBase.CLOUD_ESS_FIPS).camelName("build", "DockerImage")
         );
-        assertEquals("dockerWolfiContext", new DockerVariant(Architecture.X64, DockerBase.WOLFI).taskName("docker", "Context"));
+        assertEquals("dockerWolfiContext", new DockerVariant(Architecture.X64, DockerBase.WOLFI).camelName("docker", "Context"));
     }
 
     @Test
@@ -152,6 +152,7 @@ public class DockerVariantTests {
         assertEquals("Elastic-License-2.0", expansions.get("license"));
         assertEquals("bin", expansions.get("bin_dir"));
         assertEquals("wolfi", expansions.get("docker_base"));
+        assertEquals("cloud_ess", new DockerVariant(Architecture.X64, DockerBase.CLOUD_ESS).dockerBaseName());
     }
 
     @Test

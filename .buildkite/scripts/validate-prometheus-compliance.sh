@@ -11,12 +11,16 @@
 #   PROMCHECK_TEST_INSTANCE_TIMEOUT  Elasticsearch startup timeout in seconds.
 #   GITHUB_PR_TARGET_BRANCH          PR target branch used to find the merge base.
 #   GH_TOKEN or GITHUB_TOKEN         GitHub token for release asset downloads.
+#   GRADLEW                          CI Gradle command from the pre-command hook; its options are reused.
 # Optional environment:
+#   PROMCHECK_CONCURRENCY            Cases and seeding writes promcheck keeps in flight (default: the CPU count).
 #   PROMETHEUS_COMPLIANCE_TMPDIR     Scratch/artifact parent directory (default /tmp).
 #   BUILDKITE_BUILD_URL              Build link included in the report.
 #   BUILDKITE_JOB_ID                 Job anchor added to the build link.
 # When buildkite-agent is available, the report is annotated and saved as PR-comment
 # metadata for the build bot (the pipeline enables ELASTIC_PR_COMMENTS_ENABLED).
+# With the argument notify, it only posts the running note as an early PR comment and exits;
+# that needs PROMCHECK_VER alone.
 
 # Requires Bash 4.4+ (the Buildkite agent runs Linux).
 set -euo pipefail
@@ -31,14 +35,30 @@ die() {
   exit 1
 }
 
+# What reporting needs: the annotation and PR comment, and the links in them. The build link points at this job when
+# the argument is true.
+configure_report() {
+  local link_job="$1" build_url
+  [[ -n "${PROMCHECK_VER:-}" ]] || die "PROMCHECK_VER must be set"
+  declare -gr RELEASE_URL="https://github.com/elastic/promcheck/releases/tag/v$PROMCHECK_VER"
+  declare -gr ANNOTATION_CONTEXT="ctx-validate-prometheus-compliance"
+  declare -gr PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
+  build_url="${BUILDKITE_BUILD_URL:-}"
+  if [[ "$link_job" == true && -n "$build_url" && -n "${BUILDKITE_JOB_ID:-}" ]]; then
+    build_url+="#$BUILDKITE_JOB_ID"
+  fi
+  declare -gr BUILD_URL="$build_url"
+}
+
 configure() {
+  configure_report true
   declare -gr CORPUS=grafanalabs-top100
 
-  local var cmd build_url
-  for var in PROMCHECK_VER PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH; do
+  local var cmd
+  for var in PROMCHECK_TEST_INSTANCE_TIMEOUT GITHUB_PR_TARGET_BRANCH GRADLEW; do
     [[ -n "${!var:-}" ]] || die "$var must be set"
   done
-  for cmd in curl git jq tee sort mkfifo; do
+  for cmd in curl getconf git jq tee sort mkfifo; do
     command -v "$cmd" >/dev/null 2>&1 || die "$cmd must be on the PATH"
   done
   if [[ ! "$PROMCHECK_TEST_INSTANCE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
@@ -50,12 +70,28 @@ configure() {
   fi
 
   declare -gr GITHUB_API_TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-  declare -gr RELEASE_URL="https://github.com/elastic/promcheck/releases/tag/v$PROMCHECK_VER"
-  declare -gr ANNOTATION_CONTEXT="ctx-validate-prometheus-compliance"
-  declare -gr PR_COMMENT_KEY="pr_comment:validate-prometheus-compliance:body"
   # Changed queries listed per section; the full list is the changes artifact.
   declare -gr MAX_ROWS=50
   declare -gr MAX_QUERY_CHARS=200
+  # Size the node for the agent: every CPU (test clusters default to node.processors=2, which also caps the JVM at
+  # two) and a quarter of the memory as heap; the rest is for the Gradle daemon, promcheck's in-process Prometheus,
+  # the page cache, and the checkouts on the ramdisk. promcheck keeps one case or seeding write in flight per CPU by
+  # default, which gives the same results as a sequential run, only sooner; 100 was no faster on n1-standard-8, since
+  # the node is CPU-bound.
+  local cpus pages page_size
+  cpus=$(getconf _NPROCESSORS_ONLN)
+  pages=$(getconf _PHYS_PAGES)
+  page_size=$(getconf PAGESIZE)
+  declare -gr AGENT_CPUS="$cpus"
+  declare -gr ES_HEAP="$(( pages * page_size / 4 / 1024 / 1024 ))m"
+  declare -gr PROMCHECK_CONCURRENCY="${PROMCHECK_CONCURRENCY:-$cpus}"
+  if [[ ! "$PROMCHECK_CONCURRENCY" =~ ^[1-9][0-9]*$ ]]; then
+    die "PROMCHECK_CONCURRENCY must be a positive integer: $PROMCHECK_CONCURRENCY"
+  fi
+  # The options of the Gradle command every CI job uses (build cache, its URL, build scans), without ./gradlew itself.
+  local -a gradlew_words
+  read -ra gradlew_words <<< "$GRADLEW"
+  declare -gra GRADLEW_OPTIONS=("${gradlew_words[@]:1}")
 
   # The pipeline uploads OUTPUT_DIR as artifacts. Tests point TMP_ROOT at a scratch directory.
   declare -gr TMP_ROOT="${PROMETHEUS_COMPLIANCE_TMPDIR:-/tmp}"
@@ -69,13 +105,6 @@ configure() {
   declare -gr REPORT_FILE="$OUTPUT_DIR/@$CORPUS-report.md"
   # Artifacts keep their absolute path without the leading slash.
   declare -gr CHANGES_LINK="<a href=\"artifact://${CHANGES_FILE#/}\">${CHANGES_FILE##*/}</a>"
-
-  # The exact job this comparison ran in.
-  build_url="${BUILDKITE_BUILD_URL:-}"
-  if [[ -n "$build_url" && -n "${BUILDKITE_JOB_ID:-}" ]]; then
-    build_url+="#$BUILDKITE_JOB_ID"
-  fi
-  declare -gr BUILD_URL="$build_url"
 }
 
 # Shows the report on the build and sets it as pr_comment meta-data, which the Buildkite build bot posts in its PR
@@ -100,6 +129,24 @@ report() {
     printf '[Buildkite run](%s) | ' "$BUILD_URL"
   fi
   printf '[promcheck v%s](%s)\n' "$PROMCHECK_VER" "$RELEASE_URL"
+}
+
+# The note shown while the comparison runs. The final report reuses the same annotation context and comment key, so
+# it replaces this note instead of adding a second one.
+announce_running() {
+  annotate info "$(printf '**Promcheck running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
+}
+
+# The pipeline's first step: posts the running note as the PR comment right away. The build bot comments early once
+# the job named by pr_comment:early_comment_job_id finishes, as the performance benchmark pipeline does, instead of
+# when the whole build ends.
+notify() {
+  configure_report false
+  announce_running
+  if command -v buildkite-agent >/dev/null 2>&1; then
+    buildkite-agent meta-data set pr_comment:early_comment_job_id "${BUILDKITE_JOB_ID:-}" \
+      || log "Failed to request an early PR comment"
+  fi
 }
 
 # The comparison could not run. It is reported like a result rather than failing the PR.
@@ -141,21 +188,37 @@ download_asset() {
 
 # Runs promcheck against Elasticsearch built from the given checkout. promcheck exits 1 when queries fail, which
 # is a result; any other exit code means the run itself failed.
+# Arguments after -- go to promcheck's ./gradlew run: the CI Gradle options from GRADLEW, which pull task outputs from
+# the remote build cache that main CI pushes to and publish a build scan for each run, and .ci/init.gradle, which
+# configures that cache. promcheck fixes only what every run needs; the node's size and settings are this job's.
 run_promcheck() {
   local workspace="$1" log_file="$2"
   local stderr_log="${2%.log}.stderr.log" fifo="$WORK_DIR/promcheck-stderr.fifo"
   local stderr_pid stderr_status=0
-  local -a statuses
+  local -a statuses gradle_args=(
+    "${GRADLEW_OPTIONS[@]}"
+    --configuration-cache
+    -I "$workspace/.ci/init.gradle"
+    "-Dtests.es.node.processors=$AGENT_CPUS"
+    "-Dtests.heap.size=$ES_HEAP"
+    -Drun.license_type=trial
+    -Dtests.es.xpack.ml.enabled=false
+  )
   mkfifo -- "$fifo" || return
   tee -- "$stderr_log" < "$fifo" >&2 &
   stderr_pid=$!
   NO_COLOR=1 "$PROMCHECK_BIN" \
     --elasticsearch "$workspace" \
     --elasticsearch-timeout "${PROMCHECK_TEST_INSTANCE_TIMEOUT}s" \
-    --output json < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
+    --output json \
+    --concurrency "$PROMCHECK_CONCURRENCY" \
+    -- "${gradle_args[@]}" \
+    < "$BUNDLE" 2> "$fifo" | tee -- "$log_file"
   statuses=("${PIPESTATUS[@]}")
   wait "$stderr_pid" || stderr_status=$?
   rm -f -- "$fifo"
+  # The node log times the build, startup, and seeding of each run; the merge-base worktree is gone after the job.
+  cp -- "$workspace/build/testclusters/runTask-0/logs/runTask.log" "${log_file%.log}.elasticsearch.log" 2>/dev/null || true
   (( (statuses[0] == 0 || statuses[0] == 1) && statuses[1] == 0 && stderr_status == 0 ))
 }
 
@@ -368,10 +431,8 @@ main() (
   rm -rf -- "$WORK_DIR" "$OUTPUT_DIR"
   mkdir -p -- "$WORK_DIR" "$OUTPUT_DIR"
 
-  # Show up on the build as soon as the comparison starts. The final
-  # report reuses the same annotation context and comment key, so it
-  # replaces this note instead of adding a second one.
-  annotate info "$(printf '**Promcheck running**\n\nChecking Prometheus/Elasticsearch mismatches on the merge base and this PR with promcheck v%s. The verdict replaces this note when both runs finish.\n\n' "$PROMCHECK_VER" | report)"
+  # Show up on the build as soon as the comparison starts.
+  announce_running
 
   log "--- Downloading promcheck v$PROMCHECK_VER"
   release=$(
@@ -426,4 +487,8 @@ main() (
   exit "$status"
 )
 
-main "$@"
+if [[ "${1:-}" == notify ]]; then
+  notify
+else
+  main
+fi

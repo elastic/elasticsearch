@@ -12,6 +12,7 @@ package org.elasticsearch.plugin.analysis.smartcn;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AnalysisSmartChineseFactoryTests extends AnalysisFactoryTestCase {
@@ -26,4 +27,23 @@ public class AnalysisSmartChineseFactoryTests extends AnalysisFactoryTestCase {
         return tokenizers;
     }
 
+    @Override
+    protected Map<String, FactorySettings> tokenFilterSettings() {
+        return Map.of(
+            "smartcn_stop",
+            settings().affects("stopwords", List.of("foo")).affects("ignore_case", "true").affects("remove_trailing", "false"),
+            "smartcn_word",
+            alwaysShares()
+        );
+    }
+
+    @Override
+    protected Map<String, FactorySettings> tokenizerSettings() {
+        return Map.of("smartcn_tokenizer", alwaysShares(), "smartcn_sentence", alwaysShares());
+    }
+
+    @Override
+    protected Map<String, FactorySettings> analyzerSettings() {
+        return Map.of("smartcn", alwaysShares());
+    }
 }

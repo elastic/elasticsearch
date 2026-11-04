@@ -31,6 +31,8 @@ import org.gradle.initialization.layout.BuildLayout;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -64,9 +66,16 @@ public abstract class NoticeTask extends DefaultTask {
 
     private final FileOperations fileOperations;
 
+    /**
+     * The root of the build, which source files are made relative to when ordering them, so that the order does not
+     * depend on the checkout location or the platform's path separator.
+     */
+    private final File rootDirectory;
+
     @Inject
     public NoticeTask(BuildLayout buildLayout, ProjectLayout projectLayout, FileOperations fileOperations) {
         this.fileOperations = fileOperations;
+        this.rootDirectory = buildLayout.getRootDirectory();
         setDescription("Create a notice file from dependencies");
         // Default licenses directory is ${projectDir}/licenses (if it exists)
         getLicenseDirs().add(projectLayout.getProjectDirectory().dir("licenses").getAsFile());
@@ -132,7 +141,7 @@ public abstract class NoticeTask extends DefaultTask {
 
         // Find any source files with "@notice" annotated license header. The file tree's iteration order is not stable
         // between builds, so sort the files to make the generated notice reproducible.
-        for (File sourceFile : sortedSourceFiles(sources)) {
+        for (File sourceFile : sortedSourceFiles(sources, rootDirectory)) {
             boolean isPackageInfo = sourceFile.getName().equals("package-info.java");
             boolean foundNotice = false;
             boolean inNotice = false;
@@ -190,11 +199,31 @@ public abstract class NoticeTask extends DefaultTask {
     }
 
     /**
-     * Orders source files by file name, which is what their notices are listed under, and then by path to
-     * disambiguate files with the same name in different directories.
+     * Orders source files by file name, which is what their notices are listed under, and then by their path relative to
+     * the given base directory to disambiguate files with the same name in different directories.
      */
-    static List<File> sortedSourceFiles(FileCollection sources) {
-        return sources.getFiles().stream().sorted(Comparator.comparing(File::getName).thenComparing(File::getPath)).toList();
+    static List<File> sortedSourceFiles(FileCollection sources, File baseDirectory) {
+        return sources.getFiles()
+            .stream()
+            .sorted(Comparator.comparing(File::getName).thenComparing(file -> portablePath(baseDirectory, file)))
+            .toList();
+    }
+
+    /**
+     * The path of the given file relative to the base directory with {@code /} as separator, so that comparing such
+     * paths yields the same order on every platform. Falls back to the absolute path if the file cannot be made
+     * relative to the base directory, e.g. because it is located on a different Windows drive.
+     */
+    static String portablePath(File baseDirectory, File file) {
+        Path path = file.toPath().toAbsolutePath().normalize();
+        try {
+            path = baseDirectory.toPath().toAbsolutePath().normalize().relativize(path);
+        } catch (IllegalArgumentException e) {
+            // not relativizable, compare the absolute path instead
+        }
+        List<String> segments = new ArrayList<>();
+        path.forEach(segment -> segments.add(segment.toString()));
+        return String.join("/", segments);
     }
 
     @InputFiles

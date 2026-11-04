@@ -75,10 +75,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         var model = ElasticInferenceServiceDocumentExtractionModelTests.createModel(
             "http://eis-gateway.com",
             modelId,
-            new ElasticInferenceServiceDocumentExtractionTaskSettings(
-                "markdown",
-                new ElasticInferenceServiceDocumentExtractionTaskSettings.CssSettings(List.of(".main-content"), null)
-            )
+            new ElasticInferenceServiceDocumentExtractionTaskSettings("markdown", Map.of("preset", "ocr", "page", 2))
         );
 
         var request = new ElasticInferenceServiceDocumentExtractionRequest(
@@ -97,7 +94,7 @@ public class ElasticInferenceServiceDocumentExtractionRequestTests extends ESTes
         assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("model"), is(modelId));
         assertThat(requestMap.get("output_format"), is("markdown"));
-        assertThat(requestMap.get("css"), is(Map.of("extract_only", List.of(".main-content"))));
+        assertThat(requestMap.get("parameters"), is(Map.of("preset", "ocr", "page", 2)));
         assertThat(
             requestMap.get("input"),
             is(documents.stream().map(document -> Map.of("content", InferenceStringTests.inferenceStringToMap(document))).toList())

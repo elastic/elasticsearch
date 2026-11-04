@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.ToChildBlockJoinQueryBuilder;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.AutoPrefilteringScope.ScopedPrefilter;
 import org.elasticsearch.index.query.support.AutoPrefilteringUtils;
@@ -497,10 +496,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
                 BoolQueryBuilder boolQuery = new BoolQueryBuilder();
                 boolQuery.must(exactKnnQuery);
                 for (QueryBuilder filter : this.filterQueries) {
-                    // filter can be both over parents or nested docs, so add them as should clauses to a filter
-                    BoolQueryBuilder adjustedFilter = new BoolQueryBuilder().should(filter)
-                        .should(new ToChildBlockJoinQueryBuilder(filter));
-                    boolQuery.filter(adjustedFilter);
+                    boolQuery.filter(new NestedLevelJoinQueryBuilder(filter, fieldName));
                 }
                 return boolQuery;
             }
@@ -533,47 +529,41 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
 
         List<Query> filtersInitial = doFiltersToQuery(context);
+        Query aliasFilter = buildAliasFilterQuery(context);
 
-        String parentPath = context.nestedLookup().getNestedParent(fieldName);
+        String vectorPath = context.nestedLookup().getNestedParent(fieldName);
         BitSetProducer parentBitSet = null;
         Query filterQuery;
-        if (parentPath == null) {
+        if (vectorPath == null) {
+            if (aliasFilter != null) {
+                filtersInitial.add(aliasFilter);
+            }
             filterQuery = buildFilterQuery(filtersInitial);
         } else {
-            final Query parentFilter;
-            NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
-            if (originalObjectMapper != null) {
-                try {
-                    // we are in a nested context, to get the parent filter we need to go up one level
-                    context.nestedScope().previousLevel();
-                    NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
-                    parentFilter = objectMapper == null
-                        ? Queries.newNonNestedFilter(context.indexVersionCreated())
-                        : objectMapper.nestedTypeFilter();
-                } finally {
-                    context.nestedScope().nextLevel(originalObjectMapper);
-                }
-            } else {
-                // we are NOT in a nested context, coming from the top level knn search
-                parentFilter = Queries.newNonNestedFilter(context.indexVersionCreated());
-            }
+            // The parent of the enclosing nested level, or the root for a top level knn search. Results are diversified by it and
+            // filters of unknown level are joined from it.
+            NestedObjectMapper parentLevel = context.nestedScope().parentLevel();
+            final Query parentFilter = parentLevel == null
+                ? Queries.newNonNestedFilter(context.indexVersionCreated())
+                : parentLevel.nestedTypeFilter();
+            final String parentPath = parentLevel == null ? null : parentLevel.fullPath();
             parentBitSet = context.bitsetFilter(parentFilter);
             List<Query> filterAdjusted = new ArrayList<>(filtersInitial.size());
             for (Query f : filtersInitial) {
-                // If filter matches non-nested docs, we assume this is a filter over parents docs,
-                // so we will modify it accordingly: matching parents docs with join to its child docs
-                if (NestedHelper.mightMatchNonNestedDocs(f, parentPath, context)) {
-                    // Ensure that the query only returns parent documents matching filter
-                    f = Queries.filtered(f, parentFilter);
-                    f = new ToChildBlockJoinQuery(f, parentBitSet);
-                }
-                filterAdjusted.add(f);
+                // evaluate each filter at the level of the fields it reads and join it down to the vector's documents
+                filterAdjusted.add(NestedHelper.joinToNestedLevel(f, vectorPath, parentPath, context));
+            }
+            if (aliasFilter != null) {
+                // Alias filters match root documents, so join them from the root level, not the immediate parent.
+                Query nonNested = Queries.newNonNestedFilter(context.indexVersionCreated());
+                filterAdjusted.add(new ToChildBlockJoinQuery(Queries.filtered(aliasFilter, nonNested), context.bitsetFilter(nonNested)));
             }
             filterQuery = buildFilterQuery(filterAdjusted);
         }
 
         DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
         boolean hnswEarlyTermination = context.getIndexSettings().getHnswEarlyTermination();
+        float postFilterSelectivityThreshold = context.getIndexSettings().getPostFilterSelectivityThreshold();
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
         // Filter caching now happens inside the mapper so that PostFilterKnnQuery receives the raw filter:
         // it evaluates the filter against a small candidate set and must avoid an eager full-index bitset build.
@@ -588,6 +578,7 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             parentBitSet,
             heuristic,
             hnswEarlyTermination,
+            postFilterSelectivityThreshold,
             context
         );
     }
@@ -597,17 +588,23 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
         final List<Query> allFilters = new ArrayList<>(
             filterQueries.size() + autoPrefilters.size() + (context.getAliasFilter() == null ? 0 : 1)
         );
+
         allFilters.addAll(autoPrefilters);
         for (QueryBuilder queryBuilder : filterQueries) {
             allFilters.add(queryBuilder.toQuery(context));
         }
-        if (context.getAliasFilter() != null) {
-            // Alias filters target root documents, so they must not be built in this knn query's nested scope.
-            try (Releasable ignored = context.nestedScope().unwindTo(null)) {
-                allFilters.add(context.getAliasFilter().toQuery(context));
-            }
-        }
         return allFilters;
+    }
+
+    private static Query buildAliasFilterQuery(SearchExecutionContext context) throws IOException {
+        if (context.getAliasFilter() == null) {
+            return null;
+        }
+
+        // Alias filters target root documents, so they must not be built in this knn query's nested scope.
+        try (Releasable ignored = context.nestedScope().unwindTo(null)) {
+            return context.getAliasFilter().toQuery(context);
+        }
     }
 
     private List<Query> applyAutoPrefilteringIfEnabled(SearchExecutionContext context) throws IOException {

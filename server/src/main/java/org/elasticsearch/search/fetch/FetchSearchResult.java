@@ -286,6 +286,14 @@ public final class FetchSearchResult extends SearchPhaseResult {
     }
 
     /**
+     * Drops the last chunk when its hits are not needed, releasing the bytes now rather than when this result is released.
+     */
+    public void clearLastChunkBytes() {
+        releaseLastChunkBytes();
+        lastChunkSequenceStart = -1;
+    }
+
+    /**
      * Gets the raw bytes of the last chunk.
      * Used by the coordinator to deserialize and merge with other accumulated chunks.
      *

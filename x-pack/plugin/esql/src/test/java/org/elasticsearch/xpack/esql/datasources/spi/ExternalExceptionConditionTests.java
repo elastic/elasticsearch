@@ -89,6 +89,15 @@ public class ExternalExceptionConditionTests extends ESTestCase {
         );
         assertEquals("Unexpected internal failure reading external source", Condition.CLIENT_BUG.render("x.csv", "", ""));
         assertEquals("Unexpected internal failure reading external source: boom", Condition.CLIENT_BUG.render("", "boom", ""));
+        // Names no object: the node, not any store object, is what cannot serve the read yet.
+        assertEquals(
+            "Node has not yet applied the cluster state this query was planned from",
+            Condition.WORKER_NOT_READY.render("x.csv", "", "ignored")
+        );
+        assertEquals(
+            "Node has not yet applied the cluster state this query was planned from (waited [10s])",
+            Condition.WORKER_NOT_READY.render("", "waited [10s]", "")
+        );
     }
 
     public void testObjectNameIsInsertedLiterally() {

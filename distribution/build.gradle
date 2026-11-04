@@ -15,12 +15,10 @@ import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
+import org.elasticsearch.gradle.internal.distribution.ModulePlatforms
 import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 import org.elasticsearch.gradle.transform.FilteringJarTransform
-
-import java.nio.file.Files
-import java.nio.file.Path
 
 import static org.elasticsearch.gradle.internal.toolchain.EarlyAccessCatalogJdkToolchainResolver.findLatestPreReleaseBuild
 
@@ -437,7 +435,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             it.permissions.unix(0644)
           }
         }
-        List<String> excludePlatforms = BundledJdkPlatforms.excludedModulePlatformDirectories(os, architecture)
+        List<String> excludePlatforms = ModulePlatforms.excludedDirectories(os, architecture)
         from(defaultModulesFiles) {
           // geo registers the geo_shape mapper that is overridden by
           // the geo_shape mapper registered in the x-pack-spatial plugin
@@ -551,20 +549,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           }
         }
       }
-    }
-  }
-}
-
-subprojects {
-  ext.assertLinesInFile = { Path path, List<String> expectedLines ->
-    final List<String> actualLines = Files.readAllLines(path)
-    int line = 0
-    for (final String expectedLine : expectedLines) {
-      final String actualLine = actualLines.get(line)
-      if (expectedLine != actualLine) {
-        throw new GradleException("expected line [${line + 1}] in [${path}] to be [${expectedLine}] but was [${actualLine}]")
-      }
-      line++
     }
   }
 }

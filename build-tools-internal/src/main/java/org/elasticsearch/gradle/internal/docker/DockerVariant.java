@@ -56,19 +56,33 @@ public record DockerVariant(Architecture architecture, DockerBase base) {
     }
 
     /**
-     * The name of a task operating on this variant, e.g. {@code buildAarch64IronBankDockerImage} for prefix
-     * {@code build} and suffix {@code DockerImage}.
+     * A camel case name qualified with this variant, as used for the tasks and configurations operating on it, e.g.
+     * {@code buildAarch64IronBankDockerImage} for prefix {@code build} and suffix {@code DockerImage}.
      */
-    public String taskName(String prefix, String suffix) {
-        return prefix + (architecture == Architecture.AARCH64 ? "Aarch64" : "") + (base == DockerBase.DEFAULT ? "" : toCamel(base.name()))
-            + suffix;
+    public String camelName(String prefix, String suffix) {
+        String architectureName = switch (architecture) {
+            case X64 -> "";
+            case AARCH64 -> "Aarch64";
+        };
+        return prefix + architectureName + (base == DockerBase.DEFAULT ? "" : toCamel(base.name())) + suffix;
     }
 
     /**
      * The architecture suffix used in file names, {@code -aarch64} or empty for x64.
      */
     public String architectureSuffix() {
-        return architecture == Architecture.AARCH64 ? "-aarch64" : "";
+        return switch (architecture) {
+            case X64 -> "";
+            case AARCH64 -> "-aarch64";
+        };
+    }
+
+    /**
+     * The lower case name of the base, e.g. {@code cloud_ess}, as expanded into {@code docker_base} in the
+     * Dockerfile templates.
+     */
+    public String dockerBaseName() {
+        return base.name().toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -157,7 +171,7 @@ public record DockerVariant(Architecture architecture, DockerBase base) {
         expansions.put("git_revision", gitRevision);
         expansions.put("license", base == DockerBase.IRON_BANK ? "Elastic License 2.0" : "Elastic-License-2.0");
         expansions.put("package_manager", base.getPackageManager());
-        expansions.put("docker_base", base.name().toLowerCase(Locale.ROOT));
+        expansions.put("docker_base", dockerBaseName());
         expansions.put("docker_context", publicationContext);
         expansions.put("version", version);
         expansions.put("major_minor_version", versionParts[0] + "." + versionParts[1]);

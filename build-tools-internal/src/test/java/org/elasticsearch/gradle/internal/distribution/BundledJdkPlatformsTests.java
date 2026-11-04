@@ -53,31 +53,4 @@ public class BundledJdkPlatformsTests {
         assertEquals("bundled_linux_x64", BundledJdkPlatforms.jdkName("linux", "x64"));
         assertEquals("bundled_darwin_aarch64", BundledJdkPlatforms.jdkName("darwin", "aarch64"));
     }
-
-    @Test
-    public void modulePlatformDirectoryUsesX86_64Nomenclature() {
-        assertEquals("linux-x86_64", BundledJdkPlatforms.modulePlatformDirectory("linux", "x64"));
-        assertEquals("linux-aarch64", BundledJdkPlatforms.modulePlatformDirectory("linux", "aarch64"));
-        assertEquals("windows-x86_64", BundledJdkPlatforms.modulePlatformDirectory("windows", "x64"));
-        assertEquals("darwin-x86_64", BundledJdkPlatforms.modulePlatformDirectory("darwin", "x64"));
-        assertEquals("darwin-aarch64", BundledJdkPlatforms.modulePlatformDirectory("darwin", "aarch64"));
-        assertThrows(IllegalArgumentException.class, () -> BundledJdkPlatforms.modulePlatformDirectory("windows", "aarch64"));
-    }
-
-    @Test
-    public void excludedModulePlatformDirectoriesKeepOnlyTargetPlatform() {
-        assertEquals(
-            List.of("linux-aarch64", "windows-x86_64", "darwin-x86_64", "darwin-aarch64"),
-            BundledJdkPlatforms.excludedModulePlatformDirectories("linux", "x64")
-        );
-        assertEquals(
-            List.of("linux-x86_64", "linux-aarch64", "windows-x86_64", "darwin-x86_64"),
-            BundledJdkPlatforms.excludedModulePlatformDirectories("darwin", "aarch64")
-        );
-    }
-
-    @Test
-    public void platformIndependentDistributionKeepsAllModulePlatformDirectories() {
-        assertEquals(List.of(), BundledJdkPlatforms.excludedModulePlatformDirectories(null, null));
-    }
 }

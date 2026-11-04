@@ -832,10 +832,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             makeAnalyzer("mapping-all-types.json")
         );
         assertThat(dbl.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(
-            pushedQuery(dbl).toString(),
-            equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true))).toString())
-        );
+        assertThat(pushedQuery(dbl).toString(), equalTo(unscore(rangeQuery("double").from(-0.0, true).to(1.0, true)).toString()));
 
         // Keyword is YES: exclusive endpoints push exactly and the FilterExec drops.
         var kw = plannerOptimizer.plan(
@@ -1060,7 +1057,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvGreaterDoubleRecheckInclusiveSuperset() {
         var plan = plannerOptimizer.plan("from test | where mv_greater(double, 0.0)", IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(pushedQuery(plan).toString(), equalTo(boolQuery().filter(unscore(rangeQuery("double").from(-0.0, true))).toString()));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("double").from(-0.0, true)).toString()));
     }
 
     /**
@@ -1070,7 +1067,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testMvLessDoubleRecheckInclusiveSuperset() {
         var plan = plannerOptimizer.plan("from test | where mv_less(double, 0.0)", IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
         assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
-        assertThat(pushedQuery(plan).toString(), equalTo(boolQuery().filter(unscore(rangeQuery("double").to(0.0, true))).toString()));
+        assertThat(pushedQuery(plan).toString(), equalTo(unscore(rangeQuery("double").to(0.0, true)).toString()));
     }
 
     /**
@@ -1484,10 +1481,17 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                         QueryBuilder expectedInnerQuery = unscore(termQuery(testCase.fieldName, Double.parseDouble(value)));
                         assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
                     } else if (predicate.equals(NEQ)) {
-                        QueryBuilder expectedInnerQuery = unscore(
-                            boolQuery().mustNot(unscore(termQuery(testCase.fieldName, Double.parseDouble(value))))
-                        );
-                        assertThat(actualInnerLuceneQuery, equalTo(expectedInnerQuery));
+                        double parsed = Double.parseDouble(value);
+                        var bool = as(actualInnerLuceneQuery, BoolQueryBuilder.class);
+                        assertThat(bool.should(), hasSize(2));
+                        var lt = as(bool.should().get(0), RangeQueryBuilder.class);
+                        assertThat(lt.fieldName(), equalTo(testCase.fieldName));
+                        assertThat(lt.to(), equalTo(parsed));
+                        assertThat(lt.includeUpper(), equalTo(false));
+                        var gt = as(bool.should().get(1), RangeQueryBuilder.class);
+                        assertThat(gt.fieldName(), equalTo(testCase.fieldName));
+                        assertThat(gt.from(), equalTo(parsed));
+                        assertThat(gt.includeLower(), equalTo(false));
                     } else { // one of LT, LTE, GT, GTE
                         assertTrue(actualInnerLuceneQuery instanceof RangeQueryBuilder);
                         assertThat(((RangeQueryBuilder) actualInnerLuceneQuery).fieldName(), equalTo(testCase.fieldName));
@@ -1606,17 +1610,16 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      * Expects
      * {@snippet lang="text":
      * LimitExec[1000[INTEGER],12]
-     * \_AggregateExec[[language_code{r}#8],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#8],FINAL,[l
-     * anguage_code{r}#8, $$c$count{r}#33, $$c$seen{r}#34],12]
-     *   \_ExchangeExec[[language_code{r}#8, $$c$count{r}#33, $$c$seen{r}#34],true]
-     *     \_AggregateExec[[language_code{r}#8],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#8],INITIAL,
-     * [language_code{r}#8, $$c$count{r}#35, $$c$seen{r}#36],12]
+     * \_AggregateExec[[languages{f}#22],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, languages{f}#22 AS language_c
+     * ode#8],FINAL,[languages{f}#22, $$c$count{r}#33, $$c$seen{r}#34],12]
+     *   \_ExchangeExec[[languages{f}#22, $$c$count{r}#33, $$c$seen{r}#34],true]
+     *     \_AggregateExec[[languages{r}#22],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, languages{r}#22 AS language_c
+     * ode#8],INITIAL,[languages{r}#22, $$c$count{r}#35, $$c$seen{r}#36],12]
      *       \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
-     *         \_ProjectExec[[emp_no{f}#19, languages{r}#22 AS language_code#8]]
-     *           \_FieldExtractExec[emp_no{f}#19]<[],[]>
-     *             \_EvalExec[[null[INTEGER] AS languages#22]]
-     *               \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags
-     *               [[QueryBuilderAndTags[query=null, tags=[]]]]
+     *         \_FieldExtractExec[emp_no{f}#19]<[],[]>
+     *           \_EvalExec[[null[INTEGER] AS languages#22]]
+     *             \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[12] queryBuilderAndTags
+     *             [[QueryBuilderAndTags[query=null, tags=[]]]]
      * }
      */
     public void testMissingFieldsPurgesTheJoinLocallyThroughCommands() {
@@ -1638,14 +1641,15 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
         var exchange = as(agg.child(), ExchangeExec.class);
         agg = as(exchange.child(), AggregateExec.class);
-        var mvexpand = as(agg.child(), MvExpandExec.class);
-        var project = as(mvexpand.child(), ProjectExec.class);
-        var extract = as(project.child(), FieldExtractExec.class);
-        var eval = as(extract.child(), EvalExec.class);
+        var mvExpand = as(agg.child(), MvExpandExec.class);
+        var fieldExtract = as(mvExpand.child(), FieldExtractExec.class);
+        var eval = as(fieldExtract.child(), EvalExec.class);
         var source = as(eval.child(), EsQueryExec.class);
     }
 
-    /*
+    /**
+     * Expects
+     * {@snippet lang="text":
      * LimitExec[1000[INTEGER],12]
      * \_AggregateExec[[language_code{r}#13],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#13],FINAL,
      * [language_code{r}#13, $$c$count{r}#33, $$c$seen{r}#34],12]
@@ -1653,15 +1657,16 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      *     \_AggregateExec[[language_code{r}#13],[COUNT(emp_no{r}#32,true[BOOLEAN],PT0S[TIME_DURATION]) AS c#18, language_code{r}#13],INITI
      * AL,[language_code{r}#13, $$c$count{r}#35, $$c$seen{r}#36],12]
      *       \_LookupJoinExec[[language_code{r}#13],[language_code{f}#30],[],null]
-     *         |_GrokExec[first_name{f}#20,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@33b1c803],[languag
+     *         |_GrokExec[first_name{f}#20,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@271441f4],[languag
      * e_code{r}#13]]
-     *         | \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
-     *         |   \_ProjectExec[[emp_no{f}#19, first_name{f}#20]]
-     *         |     \_FieldExtractExec[emp_no{f}#19, first_name{f}#20]<[],[]>
+     *         | \_FieldExtractExec[first_name{f}#20]<[],[]>
+     *         |   \_MvExpandExec[emp_no{f}#19,emp_no{r}#32]
+     *         |     \_FieldExtractExec[emp_no{f}#19]<[],[]>
      *         |       \_EsQueryExec[test], indexMode[standard], [_doc{f}#37], limit[], sort[] estimatedRowSize[62] queryBuilderAndTags
-     *  [[QueryBuilderAndTags[query=null, tags=[]]]]
+     *                  [[QueryBuilderAndTags[query=null, tags=[]]]]
      *         \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
      * EsRelation[languages_lookup][LOOKUP][language_code{f}#30]<>]]
+     * }
      */
     public void testMissingFieldsNotPurgingTheJoinLocally() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -1684,10 +1689,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         agg = as(exchange.child(), AggregateExec.class);
         var join = as(agg.child(), LookupJoinExec.class);
         var grok = as(join.left(), GrokExec.class);
-        var mvexpand = as(grok.child(), MvExpandExec.class);
-        var project = as(mvexpand.child(), ProjectExec.class);
-        var extract = as(project.child(), FieldExtractExec.class);
-        var source = as(extract.child(), EsQueryExec.class);
+        var extract1 = as(grok.child(), FieldExtractExec.class);
+        var mvExpand = as(extract1.child(), MvExpandExec.class);
+        var extract2 = as(mvExpand.child(), FieldExtractExec.class);
+        var source = as(extract2.child(), EsQueryExec.class);
         var right = as(join.right(), FragmentExec.class);
         var relation = as(right.fragment(), EsRelation.class);
     }
@@ -3753,14 +3758,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        // PushFiltersToSource runs at fixed-point; on the second pass the initial range query is wrapped in a bool filter.
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("within")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("within")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3783,12 +3785,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-            )
+        var expected = unscore(
+            rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3811,13 +3811,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("intersects")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("intersects")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3840,13 +3838,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
-                    .to("1970-01-01T00:00:00.000Z", false)
-                    .format("strict_date_optional_time")
-                    .relation("intersects")
-            )
+        var expected = unscore(
+            rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                .to("1970-01-01T00:00:00.000Z", false)
+                .format("strict_date_optional_time")
+                .relation("intersects")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
@@ -3869,13 +3865,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             .filter(EsQueryExec.class::isInstance)
             .findFirst()
             .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
-        var expected = boolQuery().filter(
-            unscore(
-                rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
-                    .to("1965-06-01T00:00:00.000Z", true)
-                    .format("strict_date_optional_time")
-                    .relation("contains")
-            )
+        var expected = unscore(
+            rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
+                .to("1965-06-01T00:00:00.000Z", true)
+                .format("strict_date_optional_time")
+                .relation("contains")
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }

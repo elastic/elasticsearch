@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 162675
+summary: Warn when `unmapped_fields`, `wildcards_match_views` or `wildcards_match_datasets` stops at a view
+type: enhancement

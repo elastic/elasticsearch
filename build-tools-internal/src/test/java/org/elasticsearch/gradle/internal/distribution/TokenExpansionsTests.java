@@ -10,8 +10,17 @@
 package org.elasticsearch.gradle.internal.distribution;
 
 import org.elasticsearch.gradle.Version;
+import org.gradle.api.Project;
+import org.gradle.testfixtures.ProjectBuilder;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -21,10 +30,13 @@ import static org.junit.Assert.assertThrows;
 
 public class TokenExpansionsTests {
 
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
     private static final Version VERSION = Version.fromString("9.3.1");
 
     private static Map<String, String> expansions(String type) {
-        return TokenExpansions.forDistribution(type, "packages", "9.3.1-SNAPSHOT", VERSION, "line one\nline two");
+        return TokenExpansions.forDistribution(DistributionType.fromId(type), "packages", "9.3.1-SNAPSHOT", VERSION, "line one\nline two");
     }
 
     @Test
@@ -47,6 +59,7 @@ public class TokenExpansionsTests {
             assertEquals("#path.logs: /path/to/logs", expansions.get("path.logs"));
             assertEquals("if [ -z \"$ES_PATH_CONF\" ]; then ES_PATH_CONF=\"$ES_HOME\"/config; fi", expansions.get("source.path.env"));
             assertEquals("# Built for packages-9.3.1-SNAPSHOT (" + type + ")", expansions.get("scripts.footer"));
+            assertFalse(expansions.containsKey("path.env"));
             assertFalse(expansions.containsKey("license.name"));
             assertFalse(expansions.containsKey("license.text"));
         }
@@ -101,7 +114,26 @@ public class TokenExpansionsTests {
 
     @Test
     public void unknownDistributionTypeIsRejected() {
-        assertThrows(IllegalArgumentException.class, () -> expansions("docker"));
+        assertThrows(IllegalArgumentException.class, () -> DistributionType.fromId("docker"));
+    }
+
+    @Test
+    public void forProjectReadsLicenseOfDistributionFlavour() throws IOException {
+        File projectDir = temporaryFolder.newFolder("project");
+        Path licenses = Files.createDirectories(projectDir.toPath().resolve("licenses"));
+        Files.writeString(licenses.resolve(TokenExpansions.DEFAULT_LICENSE_FILE), "default", StandardCharsets.UTF_8);
+        Files.writeString(licenses.resolve(TokenExpansions.TEST_DISTRIBUTION_LICENSE_FILE), "test", StandardCharsets.UTF_8);
+        Project project = ProjectBuilder.builder().withName("packages").withProjectDir(projectDir).build();
+
+        assertEquals(" default", TokenExpansions.forProject(project, "deb", false).get("license.text"));
+        assertEquals(" test", TokenExpansions.forProject(project, "deb", true).get("license.text"));
+        assertEquals("packages", TokenExpansions.forProject(project, "rpm", false).get("project.name"));
+    }
+
+    @Test
+    public void forProjectFailsOnMissingLicenseFile() throws IOException {
+        Project project = ProjectBuilder.builder().withProjectDir(temporaryFolder.newFolder("empty")).build();
+        assertThrows(IllegalStateException.class, () -> TokenExpansions.forProject(project, "deb", false));
     }
 
     @Test

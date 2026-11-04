@@ -7,8 +7,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value: false for index sort; columnar index mode required"
 
   - do:
       indices.create:
@@ -17,6 +17,10 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # The _doc order checks need every copy merged, but force merge fails on copies that are still recovering.
+            # 0-1 replicas lets the green health check below wait for the replica, still pass on a single node, and
+            # keep a replica for stateless searches.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: rank
             # ensure no relocation as tests rely on segments.
@@ -25,12 +29,12 @@
             properties:
               rank:
                 type: integer
-                doc_values:
-                  multi_value: false
+                multi_value: false
   - do:
       cluster.health:
         index: test
         # ensure that all shards are ready before indexing/refresh as tests rely on segments.
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -40,7 +44,7 @@
         index: test
 
   - match: { test.mappings.properties.rank.type: integer }
-  - match: { test.mappings.properties.rank.doc_values.multi_value: false }
+  - match: { test.mappings.properties.rank.multi_value: false }
 
   - do:
       index:
@@ -150,8 +154,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value: false for index sort; columnar index mode required"
 
   - do:
       indices.create:
@@ -160,6 +164,8 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: tag
             routing.rebalance.enable: "none"
@@ -167,12 +173,12 @@
             properties:
               tag:
                 type: keyword
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       cluster.health:
         index: test_kw
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -181,7 +187,7 @@
         index: test_kw
 
   - match: { test_kw.mappings.properties.tag.type: keyword }
-  - match: { test_kw.mappings.properties.tag.doc_values.multi_value: false }
+  - match: { test_kw.mappings.properties.tag.multi_value: false }
 
   # Segment 1: tags c, a, d, b
   - do:
@@ -285,8 +291,8 @@
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      cluster_features: ["mapper.doc_values.multi_value_false_alias"]
-      reason: "doc_values.multi_value: false for index sort requires the false alias to be supported on all nodes; columnar index mode required"
+      cluster_features: ["mapper.doc_values.multi_value_false_alias", "mapper.doc_values.top_level_attributes"]
+      reason: "multi_value: false for index sort; columnar index mode required"
 
   - do:
       indices.create:
@@ -295,6 +301,8 @@
           settings:
             index.mode: columnar
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: ["category", "rank"]
             index.sort.order: ["asc", "asc"]
@@ -305,12 +313,12 @@
                 type: keyword
               rank:
                 type: integer
-                doc_values:
-                  multi_value: false
+                multi_value: false
 
   - do:
       cluster.health:
         index: test_secondary
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 
@@ -428,6 +436,8 @@
             index.mode: columnar
             index.mapping.doc_values.multi_value: false
             number_of_shards: 1
+            # 0-1 replicas and the green health check below: see the first test in this file.
+            auto_expand_replicas: 0-1
             refresh_interval: -1
             index.sort.field: tag
             index.sort.order: desc
@@ -441,6 +451,7 @@
   - do:
       cluster.health:
         index: test_index_level
+        wait_for_status: green
         wait_for_events: languid
         wait_for_no_initializing_shards: true
 

@@ -58,6 +58,12 @@ public class PackageMetadataTests {
     }
 
     @Test
+    public void envFile() {
+        assertEquals("/etc/default/elasticsearch", Type.DEB.envFile());
+        assertEquals("/etc/sysconfig/elasticsearch", Type.RPM.envFile());
+    }
+
+    @Test
     public void packageArchitecture() {
         assertEquals("amd64", DEB.packageArchitecture());
         assertEquals("arm64", AARCH64_DEB.packageArchitecture());

@@ -2,9 +2,13 @@
 # a 'buildkite run promcheck' PR comment triggers it (see .buildkite/pull-requests.json), and the build
 # bot posts the report as a PR comment when this build ends.
 env:
-  PROMCHECK_VER: "0.9.7+prometheus-3.13.1"
+  PROMCHECK_VER: "0.11.0+prometheus-3.13.1"
   PROMCHECK_TEST_INSTANCE_TIMEOUT: "900"
 steps:
+  # Comments on the PR as soon as the build starts; the report replaces the comment when the build ends.
+  - label: notify
+    key: notify
+    command: .buildkite/scripts/validate-prometheus-compliance.sh notify
   - label: validate-prometheus-compliance
     key: validate-prometheus-compliance
     command: .buildkite/scripts/validate-prometheus-compliance.sh

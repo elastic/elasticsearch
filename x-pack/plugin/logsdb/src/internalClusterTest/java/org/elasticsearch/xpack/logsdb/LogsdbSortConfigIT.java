@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -39,7 +40,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -496,7 +496,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
     private int segmentCount(Index backingIndex) {
         final IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
-        try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+        try (Engine.Searcher searcher = indexService.getShard(0).acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             return searcher.getLeafContexts().size();
         }
     }
@@ -691,7 +691,6 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
      * timestamp, whatever framing the hostname was written with.
      */
     public void testMatchTailWithMultipleSingleValuedColumnarHostnames() throws Exception {
-        assumeTrue("columnar_codec feature flag must be enabled", ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled());
         assumeTrue("only meaningful in logsdb_columnar, which this test always uses", "logsdb_columnar".equals(indexMode));
         final String dataStreamName = "test-logsdb-match-tail-with-multiple-single-valued-columnar-hostnames";
 
@@ -704,7 +703,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                   },
                   "host.name": {
                     "type": "keyword",
-                    "doc_values": { "multi_value": false }
+                    "multi_value": false
                   },
                   "test_id": {
                     "type": "text"
@@ -831,7 +830,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
         assertThat(indexService.numberOfShards(), equalTo(1));
         IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
             DirectoryReader directoryReader = searcher.getDirectoryReader();
 
             assertThat(directoryReader.numDocs(), equalTo(orderedDocs.length));
@@ -867,7 +866,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
         assertThat(indexService.numberOfShards(), equalTo(1));
         IndexShard shard = indexService.getShard(0);
-        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
 
             MappedFieldType timestampField = shard.mapperService().fieldType("@timestamp");
             SortField sf = timestampField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))

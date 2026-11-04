@@ -197,6 +197,76 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
+        protected MapperBuilderContext childContext(MapperBuilderContext context) {
+            return context.createChildContext(null, dynamic);
+        }
+
+        /**
+         * Writes the root-only settings as {@link RootObjectMapper#doXContent} does, statement for statement.
+         */
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            final boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
+            if (dynamicDateTimeFormatters.explicit() || includeDefaults) {
+                builder.startArray("dynamic_date_formats");
+                for (DateFormatter dateTimeFormatter : dynamicDateTimeFormatters.value()) {
+                    builder.value(dateTimeFormatter.pattern());
+                }
+                builder.endArray();
+            }
+
+            if (dynamicTemplates.explicit() || includeDefaults) {
+                builder.startArray("dynamic_templates");
+                for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
+                    builder.startObject();
+                    builder.field(dynamicTemplate.name(), dynamicTemplate);
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
+
+            if (dateDetection.explicit() || includeDefaults) {
+                builder.field("date_detection", dateDetection.value());
+            }
+            if (numericDetection.explicit() || includeDefaults) {
+                builder.field("numeric_detection", numericDetection.value());
+            }
+
+            if (runtimeFields.isEmpty() == false) {
+                builder.startObject("runtime");
+                List<RuntimeField> sortedRuntimeFields = runtimeFields.values()
+                    .stream()
+                    .sorted(Comparator.comparing(RuntimeField::name))
+                    .toList();
+                for (RuntimeField fieldType : sortedRuntimeFields) {
+                    fieldType.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+
+            if (prefixProperties.isEmpty() == false) {
+                // Sorted by key, because the mapping source is byte-compared across nodes: see the mapper's own comment.
+                builder.startObject("prefix_properties");
+                for (Map.Entry<String, PrefixProperties> entry : new TreeMap<>(prefixProperties).entrySet()) {
+                    PrefixProperties pp = entry.getValue();
+                    builder.startObject(entry.getKey());
+                    if (pp.dynamic() != null) {
+                        builder.field("dynamic", pp.dynamic().name().toLowerCase(Locale.ROOT));
+                    }
+                    if (pp.passthrough() != null) {
+                        builder.field("passthrough", pp.passthrough());
+                    }
+                    if (pp.enabled() != null) {
+                        builder.field("enabled", pp.enabled());
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+        }
+
+        @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             if (context.isStrictColumnar() && enabled.explicit() && enabled.value() == false) {
                 throw new MapperParsingException(
@@ -204,9 +274,10 @@ public class RootObjectMapper extends ObjectMapper {
                         + " this would prevent all fields from being indexed"
                 );
             }
-            // Build child mappers first so that flattenBuildersIfNeeded has a chance to populate
-            // prefixProperties before we pass them to the RootObjectMapper constructor.
-            Map<String, Mapper> mappers = buildMappers(context.createChildContext(null, dynamic));
+            // Normalize first so that flattening has a chance to populate prefixProperties before we pass them to the
+            // RootObjectMapper constructor.
+            normalize(context);
+            Map<String, Mapper> mappers = buildMappers(childContext(context));
             return new RootObjectMapper(
                 leafName(),
                 enabled,
@@ -539,11 +610,12 @@ public class RootObjectMapper extends ObjectMapper {
                     if (typeParser == null) {
                         throw new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
                     }
-                    validate(
-                        template,
-                        dynamicType,
-                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.root(false, false))
-                    );
+                    validate(template, dynamicType, (name, mapping) -> {
+                        Mapper.Builder builder = typeParser.parse(name, mapping, parserContext);
+                        MapperBuilderContext builderContext = MapperBuilderContext.root(false, false);
+                        builder.normalize(builderContext);
+                        builder.build(builderContext);
+                    });
                 }
                 lastError = null; // ok, the template is valid for at least one type
                 break;

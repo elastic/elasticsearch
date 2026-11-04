@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -30,7 +31,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
@@ -698,12 +698,39 @@ public final class IndexSettings {
      * the OTLP metrics ingest path may write documents as an {@link org.elasticsearch.escf.EscfBatch}
      * rather than individual XContent blobs, provided the cluster-level {@code indices.batch_indexing}
      * setting and its feature flag are also active.
+     *
+     * @deprecated use {@link #BATCH_INDEXING}. This setting is only kept registered as a fallback for {@link #BATCH_INDEXING}'s default.
      */
+    @Deprecated
     public static final Setting<Boolean> TIME_SERIES_BATCH_INDEXING = Setting.boolSetting(
         "index.time_series.batch_indexing",
         false,
         Property.Final,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.DeprecatedWarning
+    );
+
+    /**
+     * Patterns of the dimensions that are hashed into the second and third bytes of the tsid of time series indices created on or
+     * after {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}: full dimension paths, or wildcard patterns like those of
+     * {@link IndexMetadata#INDEX_ROUTING_PATH}, e.g. {@code resource.attributes.*} for OTel metrics and
+     * {@code labels.job,labels.instance} for Prometheus metrics. Since the tsid is the primary index sort key and its first byte is
+     * derived from the metric name, this clusters the time series of one metric by the resource or target they come from. Empty by
+     * default, which keeps those bytes from the hash over all dimensions; the OTel and Prometheus index templates set it. Final
+     * because changing it would change the tsids of existing time series. See {@link org.elasticsearch.cluster.routing.TsidBuilder}.
+     */
+    public static final Setting<List<String>> TIME_SERIES_TSID_PREFIXED_DIMENSIONS = Setting.stringListSetting(
+        "index.time_series.tsid_prefixed_dimensions",
+        patterns -> {
+            for (String pattern : patterns) {
+                if (pattern.isBlank()) {
+                    throw new IllegalArgumentException("[index.time_series.tsid_prefixed_dimensions] must not contain empty patterns");
+                }
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     /**
@@ -711,6 +738,14 @@ public final class IndexSettings {
      */
     public boolean isES87TSDBCodecEnabled() {
         return es87TSDBCodecEnabled;
+    }
+
+    /**
+     * Returns {@code true} if this index opted in to batch indexing. Always {@code false} when the
+     * {@code batch_indexing} feature flag is off, because the setting cannot be enabled then.
+     */
+    public boolean isBatchIndexingEnabled() {
+        return batchIndexingEnabled;
     }
 
     public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
@@ -1114,6 +1149,39 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Per-index switch for batch indexing. Defaults to the value of the deprecated
+     * {@link #TIME_SERIES_BATCH_INDEXING} when that is explicitly set, otherwise to whether the index mode is strictly columnar.
+     * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
+     * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
+     * explicit {@code true} when the feature flag is off.
+     */
+    public static final Setting<Boolean> BATCH_INDEXING = Setting.boolSetting("index.batch_indexing", settings -> {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+            return Boolean.FALSE.toString();
+        }
+        if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
+            return Boolean.toString(TIME_SERIES_BATCH_INDEXING.get(settings));
+        }
+        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
+    }, value -> {
+        if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException(
+                "[index.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
+            );
+        }
+    }, Property.Final, Property.IndexScope);
+
+    /**
+     * Whether an index with the given settings is eligible for batch indexing: the feature flag is on and
+     * {@link #BATCH_INDEXING} resolves to {@code true}. Coordinators use this to decide whether to build a batch, so that their
+     * decision matches {@link #isBatchIndexingEnabled()} on the shard. The cluster-level kill switch is not included because it
+     * is node-local and dynamic; callers check it via {@link BatchIndexingEnabled}.
+     */
+    public static boolean isBatchIndexingEnabled(Settings indexSettings) {
+        return BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BATCH_INDEXING.get(indexSettings);
+    }
+
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
         settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),
@@ -1160,22 +1228,6 @@ public final class IndexSettings {
         }
         return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
-
-    /**
-     * Controls whether the ColumNAR doc values codec is used for a given index.
-     * Defaults to {@code true} for indices created at or after
-     * {@link IndexVersions#COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF}; {@code false} for older indices,
-     * preserving backward compatibility with segments written before the codec was the default.
-     * This setting is only registered while the {@code columnar_codec} feature flag is enabled,
-     * so a release build without the flag does not expose it; the full gating is enforced in
-     * {@code ColumnarDocValuesFormatSelector}.
-     */
-    public static final Setting<Boolean> COLUMNAR_CODEC_ENABLED_SETTING = Setting.boolSetting("index.columnar_codec.enabled", settings -> {
-        if (settings == null) {
-            return Boolean.FALSE.toString();
-        }
-        return Boolean.toString(SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF));
-    }, Property.IndexScope, Property.Final);
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
@@ -1484,6 +1536,7 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
+    private final boolean batchIndexingEnabled;
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
@@ -1553,7 +1606,6 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
-    private final boolean columnarCodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
@@ -1765,6 +1817,7 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        batchIndexingEnabled = BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && scopedSettings.get(BATCH_INDEXING);
         requestCacheEnabled = scopedSettings.get(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
@@ -1791,8 +1844,6 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
-        columnarCodecEnabled = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            && scopedSettings.get(COLUMNAR_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -1932,6 +1983,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
+        scopedSettings.addSettingsUpdateConsumer(
+            DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
+            this::setPostFilterSelectivityThreshold
+        );
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
         scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
         scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD, this::setDynamicStringsAutoKeywordSubfield);
@@ -2673,16 +2728,6 @@ public final class IndexSettings {
      */
     public boolean isTimeSeriesEs95CodecEnabled() {
         return timeSeriesEs95CodecEnabled;
-    }
-
-    /**
-     * Checks if this index opts into the ColumNAR doc values codec, as resolved from
-     * {@link #COLUMNAR_CODEC_ENABLED_SETTING}.
-     *
-     * @return {@code true} if the index opts into ColumNAR; {@code false} otherwise.
-     */
-    public boolean isColumnarCodecEnabled() {
-        return columnarCodecEnabled;
     }
 
     /**

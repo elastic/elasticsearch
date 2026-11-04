@@ -135,7 +135,11 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
             failure.getCause().addSuppressed(randomException());
         }
         int originalSuppressedCount = failure.getCause().getSuppressed().length;
-        TransportVersion version = TransportVersionUtils.randomVersionNotSupporting(Failure.FAILURE_STORE_CAUSE);
+        // incompatible versions would wrap unregistered exception types, which production never does
+        TransportVersion version = randomValueOtherThanMany(
+            v -> TransportVersion.isCompatible(v) == false,
+            () -> TransportVersionUtils.randomVersionNotSupporting(Failure.FAILURE_STORE_CAUSE)
+        );
 
         Failure copy = copyInstance(new FailureWrapper(failure), version).failure();
 

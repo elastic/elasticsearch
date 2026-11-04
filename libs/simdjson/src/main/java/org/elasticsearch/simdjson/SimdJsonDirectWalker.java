@@ -11,6 +11,7 @@ package org.elasticsearch.simdjson;
 
 import org.elasticsearch.simdjson.internal.fieldnames.FieldNameHash;
 import org.elasticsearch.simdjson.internal.fieldnames.FieldNameLookup;
+import org.elasticsearch.simdjson.internal.fieldnames.FieldNamePredictor;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 import org.elasticsearch.simdjson.internal.parsers.DoubleParser;
 import org.elasticsearch.simdjson.internal.parsers.StringParser;
@@ -60,7 +61,15 @@ public final class SimdJsonDirectWalker {
     private static final int DEFAULT_MAX_DEPTH = 64;
 
     private final FieldNameLookup nameCache;
+    private final FieldNamePredictor namePredictor = new FieldNamePredictor();
     private final StringParser stringParser = new StringParser();
+    /**
+     * Once the explicit exponent has this many or more accumulated, further digits are ignored: any exponent of
+     * this magnitude overflows or underflows binary64 whatever the mantissa is, and stopping here keeps the
+     * accumulator from wrapping {@code long}, which would turn {@code 1e18446744073709551617} into {@code 10.0}.
+     */
+    private static final long MAX_EXPONENT_ACCUMULATOR = 1_000_000_000_000_000L;
+
     private final DoubleParser doubleParser = new DoubleParser();
     private final int maxDepth;
     private byte[] stringBuf = new byte[4096];
@@ -119,6 +128,7 @@ public final class SimdJsonDirectWalker {
     }
 
     private void walkDocumentBody(byte[] buffer, BitIndexes bitIndexes, JsonDocumentHandler handler) {
+        namePredictor.beginDocument();
         if (bitIndexes.isEnd()) {
             throw new JsonParsingException("No structural element found.");
         }
@@ -162,6 +172,7 @@ public final class SimdJsonDirectWalker {
      */
     public void releaseNames() {
         nameCache.release();
+        namePredictor.clear();
     }
 
     private void walkObject(byte[] buffer, BitIndexes bi, JsonDocumentHandler handler) {
@@ -205,15 +216,17 @@ public final class SimdJsonDirectWalker {
                         handler.endArray();
                     }
                     case '"' -> {
+                        // One stringField call site on purpose. With a call in each branch, C2 inlines the handler twice,
+                        // which doubles the compiled size of this method and slows the field loop.
+                        byte[] strBuf = buffer;
+                        int strOff = valIdx + 1;
                         int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                        if (len >= 0) {
-                            handler.stringField(fieldName, buffer, valIdx + 1, len);
-                        } else {
-                            int rawLen = scalarStringLength(buffer, valIdx + 1);
-                            byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                            int parsed = stringParser.parseString(buffer, valIdx, unescaped);
-                            handler.stringField(fieldName, unescaped, 0, parsed);
+                        if (len < 0) {
+                            strBuf = unescapeString(buffer, valIdx);
+                            len = unescapedLength;
+                            strOff = 0;
                         }
+                        handler.stringField(fieldName, strBuf, strOff, len);
                     }
                     case 't' -> {
                         validateTrue(buffer, valIdx);
@@ -342,15 +355,15 @@ public final class SimdJsonDirectWalker {
 
             switch (valByte) {
                 case '"' -> {
+                    byte[] strBuf = buffer;
+                    int strOff = valIdx + 1;
                     int len = stringParser.scanUnescapedLength(buffer, valIdx);
-                    if (len >= 0) {
-                        handler.stringField(fieldName, buffer, valIdx + 1, len);
-                    } else {
-                        int rawLen = scalarStringLength(buffer, valIdx + 1);
-                        byte[] unescaped = new byte[rawLen + StringParser.DESTINATION_PADDING];
-                        int parsed = stringParser.parseString(buffer, valIdx, unescaped);
-                        handler.stringField(fieldName, unescaped, 0, parsed);
+                    if (len < 0) {
+                        strBuf = unescapeString(buffer, valIdx);
+                        len = unescapedLength;
+                        strOff = 0;
                     }
+                    handler.stringField(fieldName, strBuf, strOff, len);
                 }
                 case 't' -> {
                     validateTrue(buffer, valIdx);
@@ -430,7 +443,7 @@ public final class SimdJsonDirectWalker {
         // path above adds no extra cost for them.
         long word = (long) LONG_LE.get(buffer, pos);
         long t = word - 0x3030303030303030L;
-        long mask = t & 0xF0F0F0F0F0F0F0F0L;
+        long mask = nonDigitBytes(t);
 
         if ((mask & 0xFFL) == 0) { // byte 0 (c0) is a digit, as it must be for a valid number
             if ((mask & 0xFF00L) != 0) { // byte 1 (c1) is not a digit
@@ -469,7 +482,7 @@ public final class SimdJsonDirectWalker {
             while (pos <= loopBound) {
                 long word2 = (long) LONG_LE.get(buffer, pos);
                 long t2 = word2 - 0x3030303030303030L;
-                if ((t2 & 0xF0F0F0F0F0F0F0F0L) != 0) {
+                if (nonDigitBytes(t2) != 0) {
                     break;
                 }
                 digits = digits * 100_000_000L + parse8Digits(t2);
@@ -591,7 +604,7 @@ public final class SimdJsonDirectWalker {
         while (pos <= loopBound) {
             long word = (long) LONG_LE.get(buffer, pos);
             long t = word - 0x3030303030303030L;
-            if ((t & 0xF0F0F0F0F0F0F0F0L) != 0) {
+            if (nonDigitBytes(t) != 0) {
                 // Not all 8 bytes are digits — parse the leading digits from this word scalar
                 break;
             }
@@ -653,6 +666,14 @@ public final class SimdJsonDirectWalker {
         long val = negative ? -digits : digits;
         boolean fitsInt = val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE;
         handler.longField(fieldName, val, fitsInt, buffer, idx, len);
+    }
+
+    /**
+     * Sets the high bit of each byte of {@code t} (8 input bytes minus {@code 0x30}) that is not a digit.
+     * Only the lowest set byte is reliable. Unlike {@code t & 0xF0F0...}, this rejects {@code ':'}..{@code '?'}.
+     */
+    private static long nonDigitBytes(long t) {
+        return ((t + 0x7676767676767676L) | t) & 0x8080808080808080L;
     }
 
     /**
@@ -719,7 +740,9 @@ public final class SimdJsonDirectWalker {
             long exp = 0;
             byte ch = buffer[pos];
             while (ch >= '0' && ch <= '9') {
-                exp = exp * 10 + (ch - '0');
+                if (exp < MAX_EXPONENT_ACCUMULATOR) {
+                    exp = exp * 10 + (ch - '0');
+                }
                 ch = buffer[++pos];
             }
             if (pos == expStart) {
@@ -752,7 +775,7 @@ public final class SimdJsonDirectWalker {
         // load; see the comment there.
         long word = (long) LONG_LE.get(buffer, pos);
         long t = word - 0x3030303030303030L;
-        long mask = t & 0xF0F0F0F0F0F0F0F0L;
+        long mask = nonDigitBytes(t);
 
         if ((mask & 0xFFL) == 0) { // byte 0 (c0) is a digit, as it must be for a valid number
             if ((mask & 0xFF00L) != 0) { // byte 1 (c1) is not a digit
@@ -790,7 +813,7 @@ public final class SimdJsonDirectWalker {
             while (pos <= loopBound) {
                 long word2 = (long) LONG_LE.get(buffer, pos);
                 long t2 = word2 - 0x3030303030303030L;
-                if ((t2 & 0xF0F0F0F0F0F0F0F0L) != 0) {
+                if (nonDigitBytes(t2) != 0) {
                     break;
                 }
                 digits = digits * 100_000_000L + parse8Digits(t2);
@@ -831,7 +854,7 @@ public final class SimdJsonDirectWalker {
         while (pos <= loopBound) {
             long word = (long) LONG_LE.get(buffer, pos);
             long t = word - 0x3030303030303030L;
-            if ((t & 0xF0F0F0F0F0F0F0F0L) != 0) {
+            if (nonDigitBytes(t) != 0) {
                 break;
             }
             digits = digits * 100_000_000L + parse8Digits(t);
@@ -904,7 +927,9 @@ public final class SimdJsonDirectWalker {
             long exp = 0;
             byte ch = buffer[pos];
             while (ch >= '0' && ch <= '9') {
-                exp = exp * 10 + (ch - '0');
+                if (exp < MAX_EXPONENT_ACCUMULATOR) {
+                    exp = exp * 10 + (ch - '0');
+                }
                 ch = buffer[++pos];
             }
             if (pos == expStart) {
@@ -955,7 +980,28 @@ public final class SimdJsonDirectWalker {
     private static final long HI_BITS = 0x8080808080808080L;
     private static final VarHandle LONG_LE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
+    /**
+     * Resolves the object key whose opening quote is at {@code quoteIdx}, from {@link #namePredictor}
+     * if it anticipates the key, otherwise by scan, hash and table lookup.
+     */
     private String resolveFieldName(byte[] buffer, int quoteIdx) {
+        String predicted = namePredictor.predict(buffer, quoteIdx + 1);
+        if (predicted != null) {
+            return predicted;
+        }
+        return resolveFieldNameUncached(buffer, quoteIdx);
+    }
+
+    /**
+     * Hands a name just resolved from the plain bytes {@code buffer[start, start + len)} to the predictor.
+     * Names with escapes never get here, so what is remembered is always exactly the bytes in the buffer.
+     */
+    private String remember(String name, byte[] buffer, int start, int len) {
+        namePredictor.learn(name, buffer, start, len);
+        return name;
+    }
+
+    private String resolveFieldNameUncached(byte[] buffer, int quoteIdx) {
         int start = quoteIdx + 1;
         int pos = start;
         int loopBound = buffer.length - 8;
@@ -975,7 +1021,7 @@ public final class SimdJsonDirectWalker {
                 int h = FieldNameHash.hashWord(word, len);
                 long pfx = FieldNameHash.maskWord(word, len);
                 String s = nameCache.lookup(buffer, start, len, h, pfx);
-                return s != null ? s : nameCache.insert(buffer, start, len, h);
+                return remember(s != null ? s : nameCache.insert(buffer, start, len, h), buffer, start, len);
             }
             pos = start + 8;
             while (pos <= loopBound) {
@@ -992,7 +1038,7 @@ public final class SimdJsonDirectWalker {
                     int len = (pos - start) + (Long.numberOfTrailingZeros(qh) >>> 3);
                     int h = FieldNameHash.hashName(buffer, start, len);
                     String s = nameCache.lookup(buffer, start, len, h);
-                    return s != null ? s : nameCache.insert(buffer, start, len, h);
+                    return remember(s != null ? s : nameCache.insert(buffer, start, len, h), buffer, start, len);
                 }
                 pos += 8;
             }
@@ -1021,7 +1067,7 @@ public final class SimdJsonDirectWalker {
                 int len = pos - start;
                 int h = FieldNameHash.hashName(buffer, start, len);
                 String s = nameCache.lookup(buffer, start, len, h);
-                return s != null ? s : nameCache.insert(buffer, start, len, h);
+                return remember(s != null ? s : nameCache.insert(buffer, start, len, h), buffer, start, len);
             }
             if (b == '\\') {
                 return resolveEscapedFieldName(buffer, quoteIdx, start);
@@ -1033,6 +1079,16 @@ public final class SimdJsonDirectWalker {
     // ------------------------------------------------------------------
     // String helpers
     // ------------------------------------------------------------------
+
+    private int unescapedLength;
+
+    /** Unescapes a string value into a new buffer, leaving the length in {@link #unescapedLength}. Kept out of the field loop. */
+    private byte[] unescapeString(byte[] buffer, int valIdx) {
+        int rawLen = scalarStringLength(buffer, valIdx + 1);
+        byte[] out = new byte[rawLen + StringParser.DESTINATION_PADDING];
+        unescapedLength = stringParser.parseString(buffer, valIdx, out);
+        return out;
+    }
 
     private static int scalarStringLength(byte[] buffer, int start) {
         int i = start;

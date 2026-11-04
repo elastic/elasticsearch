@@ -2118,7 +2118,7 @@ result:double | step:datetime | _timeseries:keyword
 
 // k far larger than any reasonable series count: still returns every series, still ranked. Note: k values near
 // Integer.MAX_VALUE trip ES|QL's circuit breaker (TopNBy's execution pre-sizes a buffer proportional to k, not
-// to the actual row count) - unlike Prometheus, which has no such ceiling. See TOPK's differenceFromPrometheus.
+// to the actual row count) - unlike Prometheus, which has no such ceiling. See TOPK's stdDivergence.
 topk_k_very_large
 required_capability: promql_command_v0
 required_capability: promql_topk

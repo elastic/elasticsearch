@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -68,14 +69,17 @@ public final class UnmappedFields {
      * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
      * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
      * has an {@code _ignored} field. When the segments cannot be inspected it returns {@code true} unless the index mode
-     * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still
-     * hold no unmapped field.
+     * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still hold
+     * no unmapped field. It returns {@code true} when a segment has the keyed field of the {@code _unmapped} sink, whatever the source.
      */
     public boolean mayExist() {
         if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
             return false;
         }
         if (existsInSegments == null) {
+            return true;
+        }
+        if (existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX)) {
             return true;
         }
         if (mappingLookup.isSourceSynthetic()) {
@@ -88,10 +92,15 @@ public final class UnmappedFields {
 
     /**
      * Whether {@code name}, which this shard does not map, may be an unmapped field of one of its documents. It decides as
-     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}.
+     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}, except at an
+     * object the mapping parses: a document with a value there is rejected, so the mapping alone rules it out.
      */
     public boolean mayExist(String name) {
-        return skipped("", name) == false && mayExist();
+        return isParsedObject(name) == false && skipped("", name) == false && mayExist();
+    }
+
+    private boolean isParsedObject(String name) {
+        return mappingLookup.objectMappers().get(name) instanceof ObjectMapper object && object.isEnabled();
     }
 
     /**
@@ -175,6 +184,11 @@ public final class UnmappedFields {
 
         private boolean mayIncludeBelow(String path) {
             return aboveNames.contains(path) || (filter != null && filter.mayIncludeBelow(path));
+        }
+
+        /** Whether this walk reads the unmapped field {@code name}. */
+        public boolean reads(String name) {
+            return names.contains(name);
         }
     }
 
@@ -601,6 +615,7 @@ public final class UnmappedFields {
         if (mayExist(name) == false) {
             return ConstantNull.INSTANCE;
         }
+
         // Naming the paths restricts the read to them; without any, the whole of _source is loaded.
         Set<String> sourcePaths = mappingLookup.isSourceEnabled() ? mappingLookup.sourcePaths(name) : Set.of();
         return new NamedFieldBlockLoader(

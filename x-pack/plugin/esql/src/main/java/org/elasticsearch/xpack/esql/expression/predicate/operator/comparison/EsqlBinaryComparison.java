@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -585,7 +586,14 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         }
         if (this instanceof Equals || this instanceof NotEquals) {
             name = LucenePushdownPredicates.pushableAttributeName(attribute);
-
+            if (this instanceof NotEquals && attribute.dataType().isNumeric()) {
+                return new BoolQuery(
+                    source(),
+                    false,
+                    new RangeQuery(source(), name, null, false, value, false, format, zoneId),
+                    new RangeQuery(source(), name, value, false, null, false, format, zoneId)
+                );
+            }
             Query query;
             if (isDateLiteralComparison) {
                 // dates equality uses a range query because it's the one that has a "format" parameter

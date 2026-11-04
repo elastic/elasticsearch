@@ -90,6 +90,7 @@ setup:
   # index the view presents has no _source to load from, so the view answers the reference with null at its output —
   # unlike a plain multi-index pattern (FROM idx1, idx2), which would load it from _source.
   - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
       capabilities:
         - method: POST
           path: /_query
@@ -102,6 +103,8 @@ setup:
         body:
           query: 'FROM idx1, (FROM idx2)'
   - do:
+      allowed_warnings:
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_union], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
       esql.query:
         body:
           query: 'SET unmapped_fields="load"; FROM v_union | KEEP id, color, note | SORT id | LIMIT 10'
@@ -115,6 +118,32 @@ setup:
   - match: { values.0: [1, "red", null] }
   - match: { values.1: [2, "blue", null] }
   - match: { values.2: [3, "green", null] }
+
+---
+"load warns when a view's output null-fills a field the view would have loaded":
+  # Had the caller's setting reached inside the pass-through view, note would have been loaded from idx1's _source.
+  - requires:
+      test_runner_features: [ capabilities, warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ warn_unmapped_fields_stopped_at_view ]
+      reason: "warns when the caller's unmapped_fields stops at a view boundary"
+  - do:
+      esql.put_view:
+        name: v_pass_through
+        body:
+          query: 'FROM idx1'
+  - do:
+      warnings:
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_pass_through], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_pass_through | KEEP id, note | SORT id | LIMIT 10'
+  - length: { values: 2 }
+  - match: { values.0: [1, null] }
+  - match: { values.1: [2, null] }
 
 ---
 "in-view reference fails even when a sibling branch maps the column":
@@ -208,3 +237,101 @@ setup:
   - match: { values.0: [1, "abc", "idx1"] }
   - match: { values.1: [2, "abc", "idx1"] }
   - match: { values.2: [3, "n3", "idx2"] }
+
+---
+"FILLNULL inside a view without SET fills the view's columns under a load caller":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fillnull, settings_scoped_at_view_boundaries ]
+      reason: "FILLNULL under unmapped_fields load and view-scoped settings require these capabilities"
+  - do:
+      esql.put_view:
+        name: v_fill_color
+        body:
+          query: 'FROM idx1 | EVAL color = CASE(id == 1, null, color) | KEEP id, color | FILLNULL "filled" ON color'
+  - do:
+      allowed_warnings:
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_fill_color], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_fill_color | KEEP id, color, note | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: color }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: note }
+  - match: { values: [ [ 1, "filled", null ], [ 2, "blue", null ] ] }
+
+---
+"FILLNULL ON * inside a view without SET fills the view's columns under a load caller":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fillnull, settings_scoped_at_view_boundaries ]
+      reason: "FILLNULL under unmapped_fields load and view-scoped settings require these capabilities"
+  - do:
+      esql.put_view:
+        name: v_fill_all
+        body:
+          query: 'FROM idx1 | EVAL color = CASE(id == 1, null, color) | KEEP color | FILLNULL "filled" ON *'
+  - do:
+      allowed_warnings:
+        - 'SET unmapped_fields="load" does not affect the contents of view [v_fill_all], so field [note] is null in its rows; to load such fields, the view definition must SET unmapped_fields="load" and reference them itself'
+      esql.query:
+        body:
+          query: 'SET unmapped_fields="load"; FROM v_fill_all | KEEP color, note | SORT color | LIMIT 10'
+  - length: { columns: 2 }
+  - match: { columns.0.name: color }
+  - match: { columns.1.name: note }
+  - match: { values: [ [ "blue", null ], [ "filled", null ] ] }
+
+---
+"FILLNULL inside a view that sets load fills a column computed from a loaded field":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fillnull, set_in_view_definitions ]
+      reason: "FILLNULL under unmapped_fields load and SET inside view definitions require these capabilities"
+  - do:
+      esql.put_view:
+        name: v_fill_note
+        body:
+          query: 'SET unmapped_fields="load"; FROM idx1 | EVAL note = CASE(id == 1, null, note) | KEEP id, note | FILLNULL "filled" ON note'
+  - do:
+      esql.query:
+        body:
+          query: 'FROM v_fill_note | SORT id | LIMIT 10'
+  - match: { columns.0.name: id }
+  - match: { columns.1.name: note }
+  - match: { columns.1.type: keyword }
+  - match: { values: [ [ 1, "filled" ], [ 2, "n2" ] ] }
+
+---
+"FILLNULL ON * inside a view that sets load fills a column computed from a loaded field":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ optional_fields_load_all_fillnull, set_in_view_definitions ]
+      reason: "FILLNULL under unmapped_fields load and SET inside view definitions require these capabilities"
+  - do:
+      esql.put_view:
+        name: v_fill_note_all
+        body:
+          query: 'SET unmapped_fields="load"; FROM idx1 | EVAL note = CASE(id == 1, null, note) | KEEP note | FILLNULL "filled" ON *'
+  - do:
+      esql.query:
+        body:
+          query: 'FROM v_fill_note_all | SORT note | LIMIT 10'
+  - length: { columns: 1 }
+  - match: { columns.0.name: note }
+  - match: { values: [ [ "filled" ], [ "n2" ] ] }

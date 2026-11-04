@@ -463,7 +463,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                 (subCollector, d, o, bytes) -> {
                     collectAnalyzed.start();
                     try {
-                        consumer.accept(subCollector, d, o, bytes);
+                        return consumer.accept(subCollector, d, o, bytes);
                     } finally {
                         collectAnalyzed.stop();
                     }

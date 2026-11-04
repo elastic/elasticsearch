@@ -602,6 +602,12 @@ public class EsqlCapabilities {
         ST_CENTROID_AGG_OPTIMIZED,
 
         /**
+         * Where one index maps a name as an object and another as a field, the column has the type of the field and is {@code null}
+         * in the index of the object.
+         */
+        OBJECTS_ARE_NOT_FIELDS,
+
+        /**
          * Support for requesting the "_ignored" metadata field.
          */
         METADATA_IGNORED_FIELD,
@@ -2797,6 +2803,11 @@ public class EsqlCapabilities {
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
+
+        /**
+         * Support for pushing down MV_EXPAND past PROJECT with complex queries.
+         */
+        PUSH_DOWN_MV_EXPAND_PAST_PROJECT,
 
         /**
          * Enables automatically grouping by all dimension fields in TS mode queries and outputs the _timeseries column

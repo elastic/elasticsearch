@@ -195,10 +195,11 @@ public final class ExchangeSourceHandler {
                 loopControl.exiting();
                 // finish other sinks if one of them failed or source no longer need pages.
                 boolean toFinishSinks = buffer.noMoreInputs() || aborted;
+                // fetchPageAsync never throws and always completes its listener
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();
                     if (page != null) {
-                        onPageFetched.run();
+                        onPageFetched.run(); // does not throw
                         buffer.addPage(page);
                     }
                     if (resp.finished()) {
@@ -229,6 +230,7 @@ public final class ExchangeSourceHandler {
             buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
             if (finished == false) {
                 finished = true;
+                // RemoteSink#close never throws and always completes its listener
                 remoteSink.close(ActionListener.running(() -> {
                     outstandingSinks.finishInstance();
                     completionListener.onFailure(e);
@@ -317,6 +319,7 @@ public final class ExchangeSourceHandler {
         buffer.finish(drainingPages);
         try (EsqlRefCountingListener refs = new EsqlRefCountingListener(listener)) {
             for (RemoteSink remoteSink : remoteSinks.values()) {
+                // RemoteSink#close never throws and always completes its listener
                 remoteSink.close(refs.acquire());
             }
         }

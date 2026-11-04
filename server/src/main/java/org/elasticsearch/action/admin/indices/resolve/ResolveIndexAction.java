@@ -42,7 +42,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -74,6 +73,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -601,6 +601,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
         private static final Logger logger = LogManager.getLogger(TransportAction.class);
 
+        private final Executor searchCoordinationExecutor;
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final ProjectResolver projectResolver;
@@ -624,6 +625,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 Request::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
             );
+            this.searchCoordinationExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.projectResolver = projectResolver;
@@ -689,7 +691,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     OriginalIndices originalIndices = remoteIndices.getValue();
                     var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                         clusterAlias,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        searchCoordinationExecutor,
                         RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
@@ -829,6 +831,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             List<ResolvedDataStream> dataStreams,
             Set<IndexMode> indexModes
         ) {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
             for (Map.Entry<String, Response> responseEntry : remoteResponses.entrySet()) {
                 String clusterAlias = responseEntry.getKey();
                 Response response = responseEntry.getValue();

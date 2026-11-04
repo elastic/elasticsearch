@@ -90,6 +90,16 @@ public class BatchModeRouterTests extends ESTestCase {
         return IndexMetadata.builder(name).settings(indexSettings(name).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)).build();
     }
 
+    /** Like {@link #plainMetadata} but with {@code index.batch_indexing} explicitly set, as x-content batch encoding is per-index. */
+    private static IndexMetadata plainMetadata(String name, int shards, boolean batchIndexing) {
+        return IndexMetadata.builder(name)
+            .settings(
+                indexSettings(name).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+                    .put(IndexSettings.BATCH_INDEXING.getKey(), batchIndexing)
+            )
+            .build();
+    }
+
     /**
      * Builds a TSDB backing index whose routing strategy is
      * {@link IndexRouting.ExtractFromSource.ForIndexDimensions}: time_series mode plus a non-empty
@@ -431,12 +441,13 @@ public class BatchModeRouterTests extends ESTestCase {
      * {@code BulkOperationTests}), and a silent empty result would hide a caller that does.
      */
     public void testSecondShardBatchesCallFailsForInlineEncoders() {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
         int numDocs = randomIntBetween(3, 20);
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
             bulkRequest.add(new IndexRequest("myindex").source("{\"dim\":\"d" + i + "\",\"val\":" + i + "}", XContentType.JSON));
         }
-        ProjectMetadata project = project(plainMetadata("myindex", randomIntBetween(1, 3)));
+        ProjectMetadata project = project(plainMetadata("myindex", randomIntBetween(1, 3), true));
 
         BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
         assertThat(router, notNullValue());
@@ -451,6 +462,53 @@ public class BatchModeRouterTests extends ESTestCase {
 
         var e = expectThrows(IllegalStateException.class, router::shardBatches);
         assertThat(e.getMessage(), containsString("already finalized"));
+        router.close();
+    }
+
+    /**
+     * With x-content batch encoding only indices that enable {@code index.batch_indexing} are encoded; items of a disabled index in
+     * the same bulk keep their inline source and no batch is created for their shards.
+     */
+    public void testInlineEncodersOnlyBatchEnabledIndices() {
+        assumeTrue("batch indexing requires the batch_indexing feature flag", BatchIndexingEnabled.FEATURE_FLAG.isEnabled());
+        ProjectMetadata project = project(plainMetadata("enabled", 2, true), plainMetadata("disabled", 2, false));
+        int numDocs = randomIntBetween(4, 20);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            String index = i % 2 == 0 ? "enabled" : "disabled";
+            bulkRequest.add(new IndexRequest(index).source("{\"dim\":\"d" + i + "\",\"val\":" + i + "}", XContentType.JSON));
+        }
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
+        assertThat(router, notNullValue());
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> batches = takeShardBatches(router);
+
+        assertFalse(batches.isEmpty());
+        assertTrue(batches.keySet().stream().allMatch(shardId -> shardId.getIndexName().equals("enabled")));
+        assertThat(batches.values().stream().mapToInt(SourceBatch::docCount).sum(), equalTo((numDocs + 1) / 2));
+        for (DocWriteRequest<?> request : bulkRequest.requests) {
+            IndexRequest indexRequest = (IndexRequest) request;
+            assertThat(indexRequest.index(), indexRequest.indexSource().hasSourceRow(), equalTo(indexRequest.index().equals("enabled")));
+        }
+        BatchModeRouter.validateBatchAlignment(requestsByShard, batches);
+        router.close();
+    }
+
+    public void testInlineEncodersAllIndicesDisabledProducesNoBatches() {
+        ProjectMetadata project = project(plainMetadata("disabled", 2, false));
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < 5; i++) {
+            bulkRequest.add(new IndexRequest("disabled").source("{\"val\":" + i + "}", XContentType.JSON));
+        }
+
+        BatchModeRouter router = BatchModeRouter.create(bulkRequest, true, recycler);
+        assertThat(router, notNullValue());
+        var requestsByShard = routeAll(router, bulkRequest, project);
+        Map<ShardId, SourceBatch> batches = takeShardBatches(router);
+
+        assertTrue(batches.isEmpty());
+        BatchModeRouter.validateBatchAlignment(requestsByShard, batches);
         router.close();
     }
 

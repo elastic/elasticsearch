@@ -542,8 +542,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
 
             final String fullName = context.buildFullName(leafName());
             if (context.isInNestedContext()) {
-                // If we ever support inference fields in nested contexts, RootScopedQueryBuilder usage (and intercepted query rewriting in
-                // general) will have to be adjusted accordingly.
+                // If we ever support inference fields in nested contexts, intercepted query rewriting will have to be adjusted accordingly.
                 throw new IllegalArgumentException(contentType() + " field [" + fullName + "] cannot be nested");
             }
 

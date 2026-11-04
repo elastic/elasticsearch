@@ -30,6 +30,7 @@ import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -76,6 +77,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -472,6 +474,20 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            disallowMalformedDataStreamTimestamp(context);
+        }
+
+        private void disallowMalformedDataStreamTimestamp(MapperBuilderContext context) {
+            if (DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(context.buildFullName(leafName()))
+                && context.isDataStream()
+                && ignoreMalformed.isConfigured() == false) {
+                ignoreMalformed.setValue(false);
+            }
+        }
+
+        @Override
         public DateFieldMapper build(MapperBuilderContext context) {
             final String fullFieldName = context.buildFullName(leafName());
             IndexType indexType = indexType(fullFieldName);
@@ -506,11 +522,7 @@ public final class DateFieldMapper extends FieldMapper {
             );
 
             Long nullTimestamp = parseNullValue(ft);
-            if (ft.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                && context.isDataStream()
-                && ignoreMalformed.isConfigured() == false) {
-                ignoreMalformed.setValue(false);
-            }
+            disallowMalformedDataStreamTimestamp(context);
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.get();
             return new DateFieldMapper(
@@ -1196,6 +1208,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final boolean isDataStreamTimestampField;
     private final IndexSettings indexSettings;
     private final String offsetsFieldName;
+    private final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> offsetsFallback;
 
     private DateFieldMapper(
         String leafName,
@@ -1230,6 +1243,8 @@ public final class DateFieldMapper extends FieldMapper {
         this.isDataStreamTimestampField = isDataStream && mappedFieldType.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         this.indexSettings = builder.indexSettings;
         this.offsetsFieldName = offsetsFieldName;
+        // The recorded value is the parsed timestamp in this field's resolution; format it like the offsets-aware loader does.
+        this.offsetsFallback = (b, v) -> b.value(fieldType().format((Long) v, fieldType().dateTimeFormatter()));
     }
 
     @Override
@@ -1364,7 +1379,7 @@ public final class DateFieldMapper extends FieldMapper {
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
             if (nullValue == null) {
                 if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
-                    context.getOffSetContext().recordNull(offsetsFieldName);
+                    context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
                 }
                 return;
             }
@@ -1379,7 +1394,7 @@ public final class DateFieldMapper extends FieldMapper {
                 if (ignoreMalformed) {
                     context.addIgnoredField(mappedFieldType.name());
                     if (isSourceSynthetic) {
-                        FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                        FallbackPostMapper.captureMalformed(context, fullPath(), offsetsFieldName, docValuesParameters.multiValue());
                     } else {
                         context.parser().skipChildren();
                     }
@@ -1396,7 +1411,7 @@ public final class DateFieldMapper extends FieldMapper {
                         context.addIgnoredField(mappedFieldType.name());
                         if (isSourceSynthetic) {
                             // Save a copy of the field so synthetic source can load it
-                            FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                            FallbackPostMapper.captureMalformed(context, fullPath(), offsetsFieldName, docValuesParameters.multiValue());
                         }
                         return;
                     } else {
@@ -1407,7 +1422,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         indexValue(context, timestamp);
         if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, timestamp);
+            context.getOffSetContext().recordOffset(offsetsFieldName, timestamp, offsetsFallback);
         }
     }
 

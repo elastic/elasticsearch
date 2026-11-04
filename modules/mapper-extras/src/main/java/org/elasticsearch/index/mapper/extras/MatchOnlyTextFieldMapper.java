@@ -1347,7 +1347,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             // Attach output columns. Terms, binary-dv blob, and counts are each emitted independently.
             // All-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled.
             // Each builder owns its buffers, so every finished column is registered for release with the batch.
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }
@@ -1445,7 +1445,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, TextFieldMapper.OFFSETS_FALLBACK);
             }
             return;
         }
@@ -1504,7 +1504,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         if (recordOffsets) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()));
+            context.getOffSetContext()
+                .recordOffset(
+                    offsetsFieldName,
+                    new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()),
+                    TextFieldMapper.OFFSETS_FALLBACK
+                );
         }
 
         // match only text isn't stored, so if synthetic source needs to be supported, we must find an alternative way of loading the field

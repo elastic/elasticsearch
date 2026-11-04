@@ -279,6 +279,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         b.field("type", "text");
     }
 
+    public void testExplicitDocValuesFalseMatchesDefault() throws IOException {
+        assertExplicitDocValuesFalseMatchesDisabledDefault();
+    }
+
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
@@ -1278,6 +1282,32 @@ public class TextFieldMapperTests extends MapperTestCase {
 
         // the parent keyword field should store in doc values
         FieldStorageVerifier.forField("name", doc.rootDoc()).expectDocValues().verify();
+    }
+
+    /**
+     * Before {@code KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED} the default of {@code store} depends on whether a keyword
+     * multi-field can hold the original value. A normalized keyword that skips storing it can, so the builder serialization
+     * has to agree with the mapper serialization about it.
+     */
+    public void testNormalizedKeywordMultiFieldSkippingOriginalValueOnOldIndex() throws IOException {
+        var mapping = mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("keyword");
+            b.field("type", "keyword");
+            b.field("normalizer", "lowercase");
+            b.field("normalizer_skip_store_original_value", true);
+            b.endObject();
+            b.endObject();
+            b.endObject();
+        });
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        DocumentMapper mapper = createMapperService(IndexVersions.IGNORED_SOURCE_COALESCED_ENTRIES, indexSettings, () -> true, mapping)
+            .documentMapper();
+        assertFalse(((TextFieldMapper) mapper.mappers().getMapper("name")).fieldType().isStored());
+        // mappings persisted before this keyword counted as compatible have an explicit store, and keep it
+        assertThat(mapper.mappingSource().string(), containsString("\"store\":false"));
     }
 
     public void testDoesNotDelegateSyntheticSourceForNormalizedKeywordMultiFieldWhenStoreOriginalValue() throws IOException {

@@ -744,11 +744,13 @@ redirects:
     anchors:
       'next-steps': 'query-a-dataset'
     many:
-      - to: 'reference/query-languages/esql/esql-data-federation-manage-datasets.md'
+      - to: 'reference/query-languages/esql/esql-data-federation-manage-datasets-ui.md'
         anchors:
-          'manage-datasets-in-the-ui': 'manage-datasets-in-the-ui'
+          'manage-datasets-in-the-ui':
           'add-a-new-dataset': 'add-a-new-dataset'
-          'manage-datasets-using-the-api': 'manage-datasets-using-the-api'
+      - to: 'reference/query-languages/esql/esql-data-federation-manage-datasets-api.md'
+        anchors:
+          'manage-datasets-using-the-api':
           'create-or-update-a-dataset': 'create-or-update-a-dataset'
           'get-a-dataset': 'get-a-dataset'
           'list-all-datasets': 'list-all-datasets'
@@ -777,6 +779,24 @@ redirects:
           'lexicographic-path-file_sort_by-name': 'sort-by-object-path'
           'newest-oldest-object-file_sort_by-mtime': 'sort-by-modification-time'
           'rejected-combinations': 'control-which-file-supplies-the-schema'
+  # ES|QL Data Federation: dataset management split into UI and API pages
+  'reference/query-languages/esql/esql-data-federation-manage-datasets.md':
+    to: 'reference/query-languages/esql/esql-data-federation-manage-datasets.md'
+    anchors: {} # pass-through unlisted anchors in the `many` ruleset
+    many:
+      - to: 'reference/query-languages/esql/esql-data-federation-manage-datasets-ui.md'
+        anchors:
+          'manage-datasets-in-the-ui':
+          'add-a-new-dataset': 'add-a-new-dataset'
+      - to: 'reference/query-languages/esql/esql-data-federation-manage-datasets-api.md'
+        anchors:
+          'manage-datasets-using-the-api':
+          'create-or-update-a-dataset': 'create-or-update-a-dataset'
+          'setting-validation': 'setting-validation'
+          'verify-the-inferred-schema': 'verify-the-inferred-schema'
+          'get-a-dataset': 'get-a-dataset'
+          'list-all-datasets': 'list-all-datasets'
+          'delete-a-dataset': 'delete-a-dataset'
   'reference/query-languages/esql/esql-data-federation-patterns.md':
     to: 'reference/query-languages/esql/esql-data-federation-patterns.md'
     anchors:
@@ -789,7 +809,7 @@ redirects:
       'brace-groups-and-partition-placeholders': 'define-partition-paths'
       'patterns-in-file_exclusions': 'exclude-non-data-objects'
 
-  # ES|QL Data Federation: S3 data source settings split out of the data sources page
+  # ES|QL Data Federation: S3 data source settings, and the UI and API content, moved out of the data sources page
   'reference/query-languages/esql/esql-data-federation-sources.md':
     to: 'reference/query-languages/esql/esql-data-federation-sources.md'
     anchors: {} # pass-through unlisted anchors in the `many` ruleset
@@ -798,6 +818,16 @@ redirects:
         anchors:
           's3': 's3'
           's3-endpoint-requirements': 's3-endpoint-requirements'
+      - to: 'reference/query-languages/esql/esql-data-federation-manage-data-sources.md'
+        anchors:
+          'manage-data-sources-using-the-kibana-ui': 'manage-data-sources-using-the-kibana-ui'
+          'connect-a-new-data-source': 'connect-a-new-data-source'
+          'manage-data-sources-using-the-api': 'manage-data-sources-using-the-api'
+          'create-or-update-a-data-source': 'create-or-update-a-data-source'
+          'get-a-data-source': 'get-a-data-source'
+          'list-all-data-sources': 'list-all-data-sources'
+          'delete-a-data-source': 'delete-a-data-source'
+          # 'test-a-connection': 'test-a-connection'  # restore when the test connection API is released
 
   # Node-scoped settings moved out of index-settings into configuration-reference.
   # The cluster.routing.allocation.total_shards_per_node setting is now documented
@@ -811,3 +841,27 @@ redirects:
       - to: 'reference/elasticsearch/configuration-reference/cluster-level-shard-allocation-routing-settings.md'
         anchors:
           'cluster-total-shards-per-node': 'cluster-routing-allocation-total-shards-per-node'
+
+  'reference/query-languages/esql/esql-task-management.md':
+    to: 'reference/query-languages/query-task-management.md'
+    anchors:
+      'esql-task-management-get-all': 'query-task-management-list'
+      'esql-task-management-cancelEsqlQueryRequestTests': 'query-task-management-cancel'
+
+  # The PromQL limitations page is now the Prometheus compatibility page.
+  'reference/query-languages/promql/promql-limitations.md':
+    to: 'reference/query-languages/promql/prometheus-compatibility.md'
+    anchors:
+      'promql-limitations-exemplars': 'prometheus-compatibility-querying-exemplars'
+      'promql-limitations-form-post': 'prometheus-compatibility-format-overview'
+      'promql-limitations-functions': 'prometheus-compatibility-functions'
+      'promql-limitations-http-api': 'prometheus-compatibility-http-api'
+      'promql-limitations-instant-query': 'prometheus-compatibility-staleness'
+      'promql-limitations-lookback': 'prometheus-compatibility-staleness'
+      'promql-limitations-metadata-help': 'prometheus-compatibility-querying-metric-metadata'
+      'promql-limitations-native-histograms': 'prometheus-compatibility-histograms'
+      'promql-limitations-range-query': 'prometheus-compatibility-staleness'
+      'promql-limitations-staleness': 'prometheus-compatibility-staleness'
+      'promql-limitations-unsupported-constructs': 'prometheus-compatibility-basics'
+      'promql-limitations-unsupported-query-params': 'prometheus-compatibility-expression-queries'
+      'promql-limitations-time-buckets': 'prometheus-compatibility-staleness'

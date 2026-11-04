@@ -217,7 +217,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE,
                 IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD,
                 IndexSettings.SLICE_ENABLED,
-                IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED,
                 IndexSettings.PREFER_ILM_SETTING,
                 DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
                 FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
@@ -256,6 +255,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.TIME_SERIES_BATCH_INDEXING,
+                IndexSettings.TIME_SERIES_TSID_PREFIXED_DIMENSIONS,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,
                 IndexSettings.SYNTHETIC_ID,
                 SyntheticIdBloomFilterSettings.NUM_HASH_FUNCTIONS,
@@ -284,6 +284,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
         settings.add(IndexSettings.USE_COLUMNAR_ID_BY_DEFAULT);
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
+        settings.add(IndexSettings.BATCH_INDEXING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };
 

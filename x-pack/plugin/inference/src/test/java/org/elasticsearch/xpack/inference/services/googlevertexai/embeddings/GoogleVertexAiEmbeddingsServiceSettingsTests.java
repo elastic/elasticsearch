@@ -65,7 +65,9 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
     private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
     private static final SimilarityMeasure INITIAL_SIMILARITY_MEASURE = SimilarityMeasure.L2_NORM;
-    private static final SimilarityMeasure DEFAULT_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+    // Similarity value used when a PERSISTENT config has no similarity stored.
+    // Legacy endpoints stored before the constructor default was removed default to dot_product.
+    private static final SimilarityMeasure LEGACY_PERSISTED_DEFAULT_SIMILARITY = SimilarityMeasure.DOT_PRODUCT;
 
     private static final int TEST_RATE_LIMIT = 10_000;
     private static final int INITIAL_TEST_RATE_LIMIT = 20_000;
@@ -120,7 +122,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
                     null,
                     null,
                     null,
-                    DEFAULT_SIMILARITY_MEASURE,
+                    LEGACY_PERSISTED_DEFAULT_SIMILARITY,
                     new RateLimitSettings(DEFAULT_RATE_LIMIT)
                 )
             )
@@ -143,7 +145,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
                     null,
                     TEST_DIMENSIONS,
                     null,
-                    DEFAULT_SIMILARITY_MEASURE,
+                    null,
                     new RateLimitSettings(DEFAULT_RATE_LIMIT)
                 )
             )

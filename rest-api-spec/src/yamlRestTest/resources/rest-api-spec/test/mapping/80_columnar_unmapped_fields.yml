@@ -4,19 +4,18 @@ setup:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+          capabilities: [ columnar_index_modes, dynamic_flattened ]
       reason: "columnar index modes and the flattened _unmapped sink are required"
 
-  # Empty mapping: every field in a document is unmapped and therefore absorbed into the sink. The empty properties block matters: an index
-  # created without any mappings has no mapping source for the sink to be injected into, so its first document would be dynamically mapped.
+  # Empty mapping with root dynamic: flattened, so every field in a document is unmapped and therefore absorbed into the sink.
   - do:
       indices.create:
         index: test
         body:
           settings:
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
+            dynamic: flattened
             properties: {}
 
   # Same index with one concrete field, for the tests that need a mapped field alongside the absorbed ones. A single shard so that a fetch-phase
@@ -28,8 +27,8 @@ setup:
           settings:
             index.number_of_shards: 1
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
+            dynamic: flattened
             properties:
               mapped:
                 type: long
@@ -51,7 +50,105 @@ setup:
   - do:
       indices.get_mapping:
         index: test
-  - match: { test.mappings: {} }
+  - match: { test.mappings: { dynamic: flattened } }
+
+---
+"the sink absorbs nothing without dynamic flattened":
+  # Every new strict columnar index has the sink, but with dynamic unset unmapped fields are mapped as usual.
+  - do:
+      indices.create:
+        index: test_unset
+        body:
+          settings:
+            index.mode: columnar
+
+  - do:
+      index:
+        index: test_unset
+        id: "1"
+        refresh: true
+        body:
+          bare: "bare-value"
+
+  - do:
+      indices.get_mapping:
+        index: test_unset
+  - is_true: test_unset.mappings.properties.bare
+  - is_false: test_unset.mappings.dynamic
+
+  - do:
+      search:
+        index: test_unset
+        body: { query: { term: { bare: "bare-value" } } }
+  - match: { hits.total.value: 1 }
+
+---
+"dynamic flattened is rejected outside strict columnar index modes":
+  - do:
+      catch: /dynamic \[flattened\] is only supported in strict columnar mode/
+      indices.create:
+        index: test_standard
+        body:
+          mappings:
+            dynamic: flattened
+
+  # A component template is validated with its own settings only, so without a strict columnar index.mode it is rejected when saved.
+  - do:
+      catch: /dynamic \[flattened\] is only supported in strict columnar mode/
+      cluster.put_component_template:
+        name: dynamic-flattened-component
+        body:
+          template:
+            mappings:
+              dynamic: flattened
+
+---
+"an index template carries dynamic flattened to the indices it creates":
+  # An index template is validated with its settings and mappings together, so it may set dynamic: flattened next to a strict columnar
+  # index.mode, and an index created from it absorbs.
+  - do:
+      indices.put_index_template:
+        name: dynamic-flattened-template
+        body:
+          index_patterns: [ "dynamic-flattened-*" ]
+          template:
+            settings:
+              index.mode: columnar
+            mappings:
+              dynamic: flattened
+
+  - do:
+      indices.create:
+        index: dynamic-flattened-1
+
+  - do:
+      index:
+        index: dynamic-flattened-1
+        id: "1"
+        refresh: true
+        body:
+          bare: "bare-value"
+
+  - do:
+      indices.get_mapping:
+        index: dynamic-flattened-1
+  - match: { dynamic-flattened-1.mappings: { dynamic: flattened } }
+
+---
+"a template mapping a field named _unmapped is rejected for strict columnar indices":
+  - do:
+      catch: /Field \[_unmapped\] is defined more than once/
+      indices.put_index_template:
+        name: unmapped-field-template
+        body:
+          index_patterns: [ "unmapped-field-*" ]
+          template:
+            settings:
+              index.mode: columnar
+            mappings:
+              properties:
+                _unmapped:
+                  type: keyword
 
 ---
 "absorbed names stay unmapped in _search":
@@ -206,8 +303,8 @@ setup:
         body:
           settings:
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
+            dynamic: flattened
             properties:
               n:
                 type: nested
@@ -242,8 +339,8 @@ setup:
         body:
           settings:
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
           mappings:
+            dynamic: flattened
             properties:
               obj:
                 properties:

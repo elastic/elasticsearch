@@ -209,6 +209,8 @@ which can appear anywhere in the query.
 `MATCH` and the `:` operator {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
 and `MATCH_PHRASE` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
 can search expressions and other values that have no index behind them, such as a column computed by `EVAL`.
+[`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md)
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` can search `dense_vector` expressions the same way.
 This is called
 [runtime search](/reference/query-languages/esql/esql-runtime-search.md), and it has these limitations:
 
@@ -241,6 +243,11 @@ This is called
 * [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) and
   [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) don't support
   runtime search.
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+  [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on a `dense_vector`
+  expression needs a later `LIMIT` to set the number of nearest neighbors to find. In 9.6.0, a `LIMIT` after
+  `STATS` doesn't count, so add a `LIMIT` before `STATS`. Refer to
+  [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
 
 :::{warning}
 An indexed `text` field searched at runtime, for example after
@@ -250,6 +257,19 @@ its mapping. This happens without an error or warning, and for a field mapped di
 the analyzer can't be changed. Refer to
 [Indexed `text` fields searched at runtime](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-indexed).
 :::
+
+### `KNN` on expressions during rolling upgrades and CCS [esql-limitations-knn-expression-upgrade]
+
+{applies_to}`stack: preview 9.6+`
+`KNN` on a `dense_vector` expression requires every participating node to run version 9.6 or later.
+During a rolling upgrade, or when a remote cluster in a cross-cluster search (CCS) runs an earlier version,
+the coordinating node rejects the query before it runs with this error:
+
+```text
+KNN over a non-index-mapped field or expression is not supported on every participating node; rolling upgrade in progress, or a remote cluster is on an older version
+```
+
+Upgrade all nodes and remote clusters before you run queries that use `KNN` on an expression.
 
 ### Text fields without a search function [esql-limitations-full-text-search-keyword-fallback]
 
@@ -341,8 +361,8 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 [views](/reference/query-languages/esql/esql-views.md) are closely related,
 since both extend the
 [`FROM`](/reference/query-languages/esql/commands/from.md) command with
-branched query plans. They share the overall branching constraints but each
-has its own additional limitations, described in turn below.
+branched query plans. Their nesting and branching support varies by version,
+and each has additional limitations described in turn below.
 
 ### Subquery limitations [esql-limitations-subquery]
 
@@ -352,14 +372,20 @@ has its own additional limitations, described in turn below.
 ### View limitations [esql-limitations-views]
 
 [Views](/reference/query-languages/esql/esql-views.md) reuse the same
-branching model as subqueries, nested branching is generally not supported, but
-views can work around this limitation via
+branching model as subqueries. The following limitations include the
+version-specific rules for nested branching and
 [query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
-Beyond that, views have a few additional restrictions of their own, listed next.
 
 :::{include} _snippets/common/view_limitations.md
 :::
 
+## Data Federation limitations [esql-limitations-data-federation]
+```{applies_to}
+stack: preview 9.6+, experimental =9.5
+serverless: unavailable
+```
+
+[Datasets](/reference/query-languages/esql/esql-data-federation-datasets.md) created through [{{esql}} Data Federation](/reference/query-languages/esql/esql-data-federation.md) don't support every operation that works on an {{es}} index. For example, a dataset can't be the lookup target of `LOOKUP JOIN` or the source of `TS`. For the full list, refer to [](/reference/query-languages/esql/esql-data-federation-querying.md#limitations).
 
 ## Kibana limitations [esql-limitations-kibana]
 

@@ -68,20 +68,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregators,
         int aggregationBatchSize,
-        int targetChunkRows
+        int targetChunkRows,
+        int partialEmitKeysThreshold,
+        ParallelConfig parallelConfig
     ) implements OperatorFactory {
-
-        public Factory(
-            Rounding.Prepared timeBucket,
-            boolean dateNanos,
-            List<BlockHash.GroupSpec> groups,
-            AggregatorMode aggregatorMode,
-            List<GroupingAggregator.Factory> aggregators,
-            int aggregationBatchSize
-        ) {
-            this(timeBucket, dateNanos, groups, aggregatorMode, aggregators, aggregationBatchSize, Integer.MAX_VALUE);
-        }
-
         @Override
         public Operator get(DriverContext driverContext) {
             final boolean outputFinal = aggregatorMode.isOutputPartial() == false;
@@ -96,15 +86,17 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
                         var g1 = groups.get(0);
                         var g2 = groups.get(1);
                         if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                            return new TimeSeriesBlockHash(g1.channel(), g2.channel(), false, outputFinal, driverContext.blockFactory());
+                            return new TimeSeriesBlockHash(g1.channel(), g2.channel(), false, outputFinal, dc.blockFactory());
                         } else if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                            return new TimeSeriesBlockHash(g2.channel(), g1.channel(), true, outputFinal, driverContext.blockFactory());
+                            return new TimeSeriesBlockHash(g2.channel(), g1.channel(), true, outputFinal, dc.blockFactory());
                         }
                     }
                     // Broken optimizations are allowed as the inputs are vectors.
                     return BlockHash.build(groups, dc.blockFactory(), aggregationBatchSize, true);
                 },
                 targetChunkRows,
+                partialEmitKeysThreshold,
+                parallelConfig,
                 driverContext
             );
         }
@@ -121,6 +113,8 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
     private final Rounding.Prepared timeBucket;
     private final DateFieldMapper.Resolution timeResolution;
+    private final int targetChunkRows;
+    private final ParallelConfig parallelConfig;
     private ExpandingGroups expandingGroups = null;
     private int numGroupsBeforeExpanding = -1;
 
@@ -131,27 +125,88 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         List<GroupingAggregator.Factory> aggregators,
         Function<DriverContext, BlockHash> blockHash,
         int targetChunkRows,
+        int partialEmitKeysThreshold,
+        ParallelConfig parallelConfig,
         DriverContext driverContext
     ) {
-        super(aggregatorMode, aggregators, blockHash, Integer.MAX_VALUE, 1.0, targetChunkRows, null, driverContext, null, false);
+        // Time-series keys (_tsid, timestamp) are sorted per segment, so the uniqueness ratio is not a
+        // meaningful signal here and would mostly just prevent periodic emit. Always pass 0.
+        super(
+            aggregatorMode,
+            aggregators,
+            blockHash,
+            partialEmitKeysThreshold,
+            0.0,
+            targetChunkRows,
+            null,
+            driverContext,
+            parallelConfig,
+            false
+        );
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
+        this.targetChunkRows = targetChunkRows;
+        this.parallelConfig = parallelConfig;
     }
 
     @Override
-    public Operator tryPromote(DriverContext driverContext) {
-        return this;
+    HashAggregationOperator spawnWorker() {
+        DriverContext mainDriverContext = this.driverContext;
+        var workerBlockFactory = mainDriverContext.createChildBlockFactory();
+        boolean success = false;
+        try {
+            var workerDriverContext = new DriverContext(
+                mainDriverContext.bigArrays(),
+                workerBlockFactory,
+                mainDriverContext.localBreakerSettings()
+            );
+            var worker = new TimeSeriesAggregationOperator(
+                timeBucket,
+                timeResolution,
+                aggregatorMode,
+                aggregatorFactories,
+                blockHashSupplier,
+                targetChunkRows,
+                partialEmitKeysThreshold,
+                parallelConfig,
+                workerDriverContext
+            ) {
+                @Override
+                public void close() {
+                    Releasables.close(
+                        super::close,
+                        () -> mainDriverContext.releaseChildBlockFactory(workerBlockFactory),
+                        mainDriverContext::removeAsyncAction
+                    );
+                }
+            };
+            mainDriverContext.addAsyncAction();
+            success = true;
+            return worker;
+        } finally {
+            if (success == false) {
+                mainDriverContext.releaseChildBlockFactory(workerBlockFactory);
+            }
+        }
     }
 
     @Override
-    public void finish() {
+    protected void emit() {
         expandWindowBuckets();
-        super.finish();
+        super.emit();
     }
 
     @Override
-    protected boolean shouldEmitPartialResultsPeriodically() {
-        return false;
+    protected boolean shouldEmitPartialResultsPeriodically(Page incomingPage) {
+        if (super.shouldEmitPartialResultsPeriodically(incomingPage) == false) {
+            return false;
+        }
+        for (GroupingAggregator aggregator : aggregators) {
+            if (aggregator.aggregatorFunction().canEmitPartialResultsPeriodically(incomingPage) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private long largestWindowMillis() {
@@ -223,6 +278,9 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
      * ```
      */
     private void expandWindowBuckets() {
+        Releasables.close(expandingGroups);
+        expandingGroups = null;
+        numGroupsBeforeExpanding = -1;
         if (aggregatorMode.isOutputPartial()) {
             return;
         }

@@ -17,11 +17,15 @@ import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.VectorTestUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.ShortBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -825,34 +829,46 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         return vectors;
     }
 
+    // Bulk-path datasets arrive from DocValues.binaryValue(), whose BytesRef rarely starts at offset 0;
+    // encoding the test datasets behind a junk prefix exercises the offset arithmetic end to end.
+    private static final int VECTOR_BYTES_PREFIX = 13;
+
     private static BytesRef encodeFloatVectors(float[][] vectors) {
         int dims = vectors[0].length;
-        ByteBuffer buffer = ByteBuffer.allocate(vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer buffer = ByteBuffer.allocate(VECTOR_BYTES_PREFIX + vectors.length * dims * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.position(VECTOR_BYTES_PREFIX);
         var floatBuffer = buffer.asFloatBuffer();
         for (float[] vector : vectors) {
             floatBuffer.put(vector);
         }
-        return new BytesRef(buffer.array());
+        return new BytesRef(buffer.array(), VECTOR_BYTES_PREFIX, vectors.length * dims * Float.BYTES);
     }
 
     private static BytesRef encodeByteVectors(byte[][] vectors) {
         int dims = vectors[0].length;
-        byte[] bytes = new byte[vectors.length * dims];
-        int offset = 0;
+        byte[] bytes = new byte[VECTOR_BYTES_PREFIX + vectors.length * dims];
+        int offset = VECTOR_BYTES_PREFIX;
         for (byte[] vector : vectors) {
             System.arraycopy(vector, 0, bytes, offset, dims);
             offset += dims;
         }
-        return new BytesRef(bytes);
+        return new BytesRef(bytes, VECTOR_BYTES_PREFIX, vectors.length * dims);
     }
 
     private static BytesRef encodeBFloat16Vectors(float[][] vectors) {
         int dims = vectors[0].length;
-        byte[] buffer = new byte[vectors.length * dims * BFloat16.BYTES];
+        byte[] buffer = new byte[VECTOR_BYTES_PREFIX + vectors.length * dims * BFloat16.BYTES];
         for (int i = 0; i < vectors.length; i++) {
-            ESVectorUtil.floatToBFloat16(vectors[i], 0, buffer, i * dims * BFloat16.BYTES, dims, ByteOrder.LITTLE_ENDIAN);
+            ESVectorUtil.floatToBFloat16(
+                vectors[i],
+                0,
+                buffer,
+                VECTOR_BYTES_PREFIX + i * dims * BFloat16.BYTES,
+                dims,
+                ByteOrder.LITTLE_ENDIAN
+            );
         }
-        return new BytesRef(buffer);
+        return new BytesRef(buffer, VECTOR_BYTES_PREFIX, vectors.length * dims * BFloat16.BYTES);
     }
 
     private static class TestMultiFloatVectorsSource implements MultiFloatVectorsSource {
@@ -1499,12 +1515,85 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             float[] expected = basicMatrixMultiply(a, b, m, k, n);
 
             float[] scalar = new float[m * n];
-            defaultedProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, scalar, tasks);
+            defaultedProvider.getVectorUtilSupport().matrixMultiply(a, 0, b, 0, m, k, n, scalar, 0, tasks);
             assertArrayEquals(expected, scalar, 1e-3f);
             float[] panama = new float[m * n];
-            panamaProvider.getVectorUtilSupport().matrixMultiply(a, b, m, k, n, panama, tasks);
+            panamaProvider.getVectorUtilSupport().matrixMultiply(a, 0, b, 0, m, k, n, panama, 0, tasks);
             assertArrayEquals(expected, panama, 1e-3f);
         }
+    }
+
+    public void testMatrixMultiplySymmetric() {
+        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null) {
+            TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
+            // up to 1024 columns, enough panels for the parallel path, and sizes that are not multiples of the tile
+            int n = randomIntBetween(2, 1024);
+            int k = randomIntBetween(2, 512);
+
+            // A^T A is symmetric
+            float[] x = VectorTestUtils.randomFloatVector(k * n);
+            float[] xT = ESVectorUtil.transposeMatrix(x, k, n);
+            float[] expected = basicMatrixMultiply(xT, x, n, k, n);
+
+            for (var provider : new ESVectorizationProvider[] { defaultedProvider, panamaProvider }) {
+                float[] actual = new float[n * n];
+                Arrays.fill(actual, 12345f); // whatever the result held must not matter
+                provider.getVectorUtilSupport().matrixMultiplySymmetric(xT, 0, x, 0, n, k, actual, 0, tasks);
+                assertArrayEquals("n=" + n + " k=" + k, expected, actual, 1e-3f);
+            }
+        }
+    }
+
+    public void testMatrixMultiplyWithOffsets() {
+        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null) {
+            TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
+            int m = randomIntBetween(0, 256);
+            int k = randomIntBetween(1, 256);
+            int n = randomIntBetween(1, 256);
+            int aOffset = randomIntBetween(0, 33);
+            int bOffset = randomIntBetween(0, 33);
+            int resultOffset = randomIntBetween(0, 33);
+            int aTrailing = randomIntBetween(0, 33);
+            int bTrailing = randomIntBetween(0, 33);
+            int resultTrailing = randomIntBetween(0, 33);
+
+            float[] aExact = VectorTestUtils.randomFloatVector(m * k);
+            float[] bExact = VectorTestUtils.randomFloatVector(k * n);
+            float[] a = padded(aExact, aOffset, aTrailing);
+            float[] b = padded(bExact, bOffset, bTrailing);
+            float[] expected = basicMatrixMultiply(aExact, bExact, m, k, n);
+            float[] expectedPadded = padded(expected, resultOffset, resultTrailing);
+
+            for (var provider : List.of(defaultedProvider, panamaProvider)) {
+                // the padding is a sentinel for writes outside the result range, so it must survive
+                float[] result = padded(new float[m * n], resultOffset, resultTrailing);
+                provider.getVectorUtilSupport().matrixMultiply(a, aOffset, b, bOffset, m, k, n, result, resultOffset, tasks);
+                assertArrayEquals(expectedPadded, result, 1e-3f);
+            }
+
+            float[] result = padded(new float[m * n], resultOffset, resultTrailing);
+            ESVectorUtil.matrixMultiply(a, aOffset, b, bOffset, m, k, n, result, resultOffset, tasks);
+            assertArrayEquals(expectedPadded, result, 1e-3f);
+        }
+    }
+
+    public void testMatrixMultiplyOffsetsOutOfBounds() {
+        float[] a = new float[6];
+        float[] b = new float[6];
+        float[] result = new float[4];
+        // a is (2 x 3), b is (3 x 2), result is (2 x 2)
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.matrixMultiply(a, 1, b, 0, 2, 3, 2, result, 0, null));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.matrixMultiply(a, 0, b, 1, 2, 3, 2, result, 0, null));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.matrixMultiply(a, 0, b, 0, 2, 3, 2, result, 1, null));
+        expectThrows(IndexOutOfBoundsException.class, () -> ESVectorUtil.matrixMultiply(a, -1, b, 0, 2, 3, 2, result, 0, null));
+    }
+
+    /** {@code values} between leading and trailing padding of a sentinel value, so out-of-range writes show up. */
+    private static float[] padded(float[] values, int leading, int trailing) {
+        float[] padded = new float[leading + values.length + trailing];
+        Arrays.fill(padded, 7f);
+        System.arraycopy(values, 0, padded, leading, values.length);
+        return padded;
     }
 
     private static float[] basicMatrixMultiply(float[] a, float[] b, int m, int k, int n) {
@@ -1515,6 +1604,54 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
             for (int l = 0; l < k; l++) {
                 for (int d = 0; d < n; d++) {
                     c[cBase + d] = Math.fma(a[aBase + l], b[l * n + d], c[cBase + d]);
+                }
+            }
+        }
+        return c;
+    }
+
+    public void testByteMatrixMultiply() {
+        try (ExecutorService executor = randomBoolean() ? Executors.newCachedThreadPool() : null; Arena arena = Arena.ofShared()) {
+            TaskExecutor tasks = executor == null ? null : new TaskExecutor(executor);
+            int m = randomIntBetween(2, 1024);
+            int k = randomIntBetween(2, 2500);
+            int n = randomIntBetween(2, 1024);
+            int aSize = m * k;
+            int bSize = k * n;
+            long resultSize = m * n;
+
+            MemorySegment a = arena.allocate(aSize);
+            MemorySegment b = arena.allocate(bSize);
+            MemorySegment.copy(randomByteArrayOfLength(aSize), 0, a, ValueLayout.JAVA_BYTE, 0, aSize);
+            MemorySegment.copy(randomByteArrayOfLength(bSize), 0, b, ValueLayout.JAVA_BYTE, 0, bSize);
+
+            int[] expected = basicMatrixMultiply(a.toArray(ValueLayout.JAVA_BYTE), b.toArray(ValueLayout.JAVA_BYTE), m, k, n);
+
+            // pre-filled, as the implementations must overwrite the result rather than accumulate into it
+            // the API on SegmentAllocator has changed between JDKs, so use one that hasn't
+            MemorySegment scalar = arena.allocate(resultSize * Integer.BYTES, Integer.BYTES);
+            scalar.fill(randomByte());
+            defaultedProvider.getVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, scalar, tasks);
+            assertThat(scalar.toArray(ValueLayout.JAVA_INT), equalTo(expected));
+
+            MemorySegment panama = arena.allocate(resultSize * Integer.BYTES, Integer.BYTES);
+            panama.fill(randomByte());
+            panamaProvider.getVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, panama, tasks);
+            assertThat(panama.toArray(ValueLayout.JAVA_INT), equalTo(expected));
+
+            MemorySegment nativeResult = arena.allocate(resultSize * Integer.BYTES, Integer.BYTES);
+            nativeResult.fill(randomByte());
+            nativeProvider.getVectorUtilSupport().matrixMultiplyI8(a, b, m, k, n, nativeResult, tasks);
+            assertThat(nativeResult.toArray(ValueLayout.JAVA_INT), equalTo(expected));
+        }
+    }
+
+    private static int[] basicMatrixMultiply(byte[] a, byte[] b, int m, int k, int n) {
+        int[] c = new int[m * n];
+        for (int i = 0; i < m; i++) {
+            for (int l = 0; l < k; l++) {
+                for (int d = 0; d < n; d++) {
+                    c[i * n + d] += a[i * k + l] * b[l * n + d];
                 }
             }
         }

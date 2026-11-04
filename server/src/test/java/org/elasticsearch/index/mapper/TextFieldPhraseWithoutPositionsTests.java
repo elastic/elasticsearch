@@ -24,6 +24,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -406,11 +407,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     /** What {@code query} matches over an index of {@code docs}. */
     private List<Integer> matching(MapperService mapperService, List<Object> docs, QueryBuilder query) throws IOException {
         final List<Integer> hits = new ArrayList<>();
-        withLuceneIndex(mapperService, iw -> {
-            for (Object doc : docs) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
-            }
-        }, reader -> {
+        withLuceneIndex(mapperService, iw -> addInOrder(mapperService, iw, docs), reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
             final IndexSearcher searcher = newSearcher(reader);
             for (var hit : searcher.search(query.toQuery(context), 10).scoreDocs) {
@@ -428,11 +425,7 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
     /** What each of {@code queries} matches, over one index built from {@link #DOCS}. */
     private List<List<Integer>> matching(MapperService mapperService, List<QueryBuilder> queries) throws IOException {
         final List<List<Integer>> perQuery = new ArrayList<>();
-        withLuceneIndex(mapperService, iw -> {
-            for (Object doc : DOCS) {
-                iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
-            }
-        }, reader -> {
+        withLuceneIndex(mapperService, iw -> addInOrder(mapperService, iw, DOCS), reader -> {
             final SearchExecutionContext context = createSearchExecutionContext(mapperService);
             final IndexSearcher searcher = newSearcher(reader);
             for (QueryBuilder query : queries) {
@@ -445,5 +438,13 @@ public class TextFieldPhraseWithoutPositionsTests extends MapperServiceTestCase 
             }
         });
         return perQuery;
+    }
+
+    private void addInOrder(MapperService mapperService, RandomIndexWriter iw, List<Object> docs) throws IOException {
+        final List<LuceneDocument> block = new ArrayList<>();
+        for (Object doc : docs) {
+            block.add(mapperService.documentMapper().parse(source(b -> b.field("body", doc))).rootDoc());
+        }
+        iw.addDocuments(block);
     }
 }

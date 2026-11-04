@@ -674,6 +674,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
      * @return the restore UUID, which the exception carries as its recovery ID
      */
     protected String blockAndStartRestoreReportingShardRestoring(String repoName, String snapshotName, String indexName) {
+        return blockAndStartRestore(repoName, snapshotName, indexName, true);
+    }
+
+    /**
+     * Blocks all data nodes for the given repository, starts a non-blocking restore of {@code snapshotName} to reconstruct
+     * {@code indexName} that does or does not ask for its shards to be reported as {@link ShardRestoringException}, and waits until the
+     * primary shard is INITIALIZING with a snapshot recovery source and a data node has actually hit the block. Static so that test cases
+     * that cannot extend this class, such as the stateless ones, can use it too.
+     *
+     * @return the restore UUID, which the exception carries as its recovery ID
+     */
+    public static String blockAndStartRestore(String repoName, String snapshotName, String indexName, boolean reportShardRestoring) {
         blockAllDataNodes(repoName);
         final String restoreUuid = UUIDs.randomBase64UUID();
         final PlainActionFuture<RestoreService.RestoreCompletionResponse> started = new PlainActionFuture<>();
@@ -682,7 +694,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 ProjectId.DEFAULT,
                 new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, repoName, snapshotName).indices(indexName).waitForCompletion(false),
                 restoreUuid,
-                true,
+                reportShardRestoring,
                 started,
                 (state, builder) -> {}
             );

@@ -310,6 +310,52 @@ public class CcrRenameIT extends CcrIntegTestCase {
         assertTrue(response.isAcknowledged());
     }
 
+    /**
+     * The follower records the leader's name as it was when following began. Resuming after the leader was renamed has to find the
+     * leader by its recorded UUID, and then keep following it.
+     */
+    public void testResumeAfterLeaderRename() throws Exception {
+        followAndRenameLeader();
+        resumeFollowerIndex("follower");
+        leaderClient().prepareIndex("leader-renamed").setSource("{\"f\": 2}", XContentType.JSON).get();
+        assertIndexFullyReplicatedToFollower("leader-renamed", "follower");
+        assertNoFatalFollowError();
+    }
+
+    /**
+     * Like {@link #testResumeAfterLeaderRename}, but an unrelated index took the old leader name in the meantime. Resuming by the
+     * recorded name would find that index, which is not the leader, so the resume has to look the leader up by UUID instead.
+     */
+    public void testResumeAfterLeaderNameIsReused() throws Exception {
+        followAndRenameLeader();
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(getIndexSettings(1, 0), XContentType.JSON));
+        ensureLeaderYellow("leader");
+        leaderClient().prepareIndex("leader").setSource("{\"unrelated\": 1}", XContentType.JSON).get();
+        resumeFollowerIndex("follower");
+        leaderClient().prepareIndex("leader-renamed").setSource("{\"f\": 2}", XContentType.JSON).get();
+        assertIndexFullyReplicatedToFollower("leader-renamed", "follower");
+        assertNoFatalFollowError();
+    }
+
+    private void followAndRenameLeader() throws Exception {
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(getIndexSettings(1, 0), XContentType.JSON));
+        ensureLeaderYellow("leader");
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        ensureFollowerGreen("follower");
+        leaderClient().prepareIndex("leader").setSource("{\"f\": 0}", XContentType.JSON).get();
+        assertIndexFullyReplicatedToFollower("leader", "follower");
+        rename(leaderClient(), "leader", "leader-renamed");
+        leaderClient().prepareIndex("leader-renamed").setSource("{\"f\": 1}", XContentType.JSON).get();
+        assertIndexFullyReplicatedToFollower("leader-renamed", "follower");
+        pauseFollow("follower");
+    }
+
+    private void resumeFollowerIndex(String followerIndex) throws Exception {
+        final ResumeFollowAction.Request resume = new ResumeFollowAction.Request(TEST_REQUEST_TIMEOUT);
+        resume.setFollowerIndex(followerIndex);
+        assertAcked(followerClient().execute(ResumeFollowAction.INSTANCE, resume).get());
+    }
+
     private void createUnrelatedIndexNamedLikeTheOldFollower() throws Exception {
         assertAcked(
             followerClient().admin()

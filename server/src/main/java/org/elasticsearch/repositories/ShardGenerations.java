@@ -13,11 +13,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -57,9 +55,6 @@ public final class ShardGenerations {
      * For each index, the list of shard generations for its shards (i.e. the generation for shard i is at the i'th position of the list)
      */
     private final Map<IndexId, List<ShardGeneration>> shardGenerations;
-
-    /** Built on first use by {@link #generationsById()}. */
-    private volatile Map<String, List<ShardGeneration>> generationsById;
 
     private ShardGenerations(Map<IndexId, List<ShardGeneration>> shardGenerations) {
         this.shardGenerations = Map.copyOf(shardGenerations);
@@ -154,42 +149,11 @@ public final class ShardGenerations {
      */
     @Nullable
     public ShardGeneration getShardGen(IndexId indexId, int shardId) {
-        final List<ShardGeneration> generations = generationsFor(indexId);
+        final List<ShardGeneration> generations = shardGenerations.get(indexId);
         if (generations == null || generations.size() < shardId + 1) {
             return null;
         }
         return generations.get(shardId);
-    }
-
-    /**
-     * The generations tracked for the index, or for another {@link IndexId} with the same id: an index renamed between snapshots is
-     * tracked under each of its names, and the names share the shard paths (see {@link RepositoryData#resolveNewIndices}).
-     */
-    @Nullable
-    private List<ShardGeneration> generationsFor(IndexId indexId) {
-        final List<ShardGeneration> generations = shardGenerations.get(indexId);
-        if (generations != null || shardGenerations.isEmpty()) {
-            return generations;
-        }
-        // not tracked under this name, which for an index that is new to the repository is the usual case, so look the id up rather
-        // than scanning every index for it
-        return generationsById().get(indexId.getId());
-    }
-
-    /**
-     * The generations by repository id, built when first needed. The names that share an id also share their generations, so any
-     * of them will do.
-     */
-    private Map<String, List<ShardGeneration>> generationsById() {
-        Map<String, List<ShardGeneration>> result = generationsById;
-        if (result == null) {
-            result = Maps.newHashMapWithExpectedSize(shardGenerations.size());
-            for (Map.Entry<IndexId, List<ShardGeneration>> entry : shardGenerations.entrySet()) {
-                result.putIfAbsent(entry.getKey().getId(), entry.getValue());
-            }
-            generationsById = result;
-        }
-        return result;
     }
 
     public boolean hasShardGen(RepositoryShardId repositoryShardId) {
@@ -198,8 +162,7 @@ public final class ShardGenerations {
     }
 
     public List<ShardGeneration> getGens(IndexId indexId) {
-        final List<ShardGeneration> generations = generationsFor(indexId);
-        return generations == null ? Collections.emptyList() : generations;
+        return shardGenerations.getOrDefault(indexId, Collections.emptyList());
     }
 
     @Override
@@ -231,12 +194,6 @@ public final class ShardGenerations {
     public static final class Builder {
 
         private final Map<IndexId, Map<Integer, ShardGeneration>> generations = new HashMap<>();
-
-        /**
-         * The names recorded for each repository id, for the sharing of generations between the names of a renamed index. It can name
-         * indices that {@link #retainIndicesAndPruneDeletes} has since dropped, so users of it look each name up in {@link #generations}.
-         */
-        private final Map<String, List<IndexId>> namesById = new HashMap<>();
 
         /**
          * Filters out all generations that don't belong to any of the supplied {@code indices} and prunes all {@link #DELETED_SHARD_GEN}
@@ -294,20 +251,6 @@ public final class ShardGenerations {
             ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null
                 : "must not overwrite existing generation with null generation [" + existingGeneration + "]";
-            // the other names of a renamed index share the shard path, so they share the generation; found through the names
-            // recorded per id, not by comparing the id to every index in the builder
-            final List<IndexId> sameId = namesById.computeIfAbsent(indexId.getId(), k -> new ArrayList<>(1));
-            if (sameId.contains(indexId) == false) {
-                sameId.add(indexId);
-            }
-            if (sameId.size() > 1) {
-                for (IndexId otherName : sameId) {
-                    final Map<Integer, ShardGeneration> otherGenerations = generations.get(otherName);
-                    if (otherName.equals(indexId) == false && otherGenerations != null) {
-                        otherGenerations.put(shardId, generation);
-                    }
-                }
-            }
             return this;
         }
 

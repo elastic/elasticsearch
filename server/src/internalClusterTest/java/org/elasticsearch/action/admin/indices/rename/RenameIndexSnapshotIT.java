@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -31,18 +32,20 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
 
 /**
- * How a rename interacts with snapshots: a snapshot or restore in flight carries on under the new name, and a renamed index can be
- * snapshotted and restored under its new name, incrementally (T5 in docs/internal/atomic-index-rename.md).
+ * How a rename interacts with snapshots: a snapshot in flight carries on and is an image of the cluster as it started, a restore in
+ * flight carries on under the new name, and a renamed index snapshots and restores under its new name like any other index (T5 in
+ * docs/internal/atomic-index-rename.md).
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     /**
-     * A snapshot in flight does not block a rename. The snapshot entry is renamed with the index, so the shard uploads that were
-     * already running finish under the same repository id, the snapshot finalizes with the index's new name, and it restores under
-     * that name.
+     * A snapshot in flight does not block a rename, and is not changed by it: the entry keeps the name and the repository id the
+     * index had when the snapshot started, the shard uploads already running finish under that id, and the snapshot finalizes as an
+     * image of the cluster as it started, with the index under its old name.
      */
     public void testRenameWhileSnapshotting() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -59,26 +62,128 @@ public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
             rename("source", "renamed");
             assertTrue(indexExists("renamed"));
             assertFalse(indexExists("source"));
-            // the running snapshot now tracks the index under its new name
             final var entry = SnapshotsInProgress.get(clusterService().state()).forRepo("repo").get(0);
-            assertThat(entry.indices().keySet(), equalTo(Set.of("renamed")));
-            assertTrue(entry.shards().keySet().stream().allMatch(shardId -> shardId.getIndexName().equals("renamed")));
+            assertThat(entry.indices().keySet(), equalTo(Set.of("source")));
         } finally {
             unblockNode("repo", dataNode);
         }
         final SnapshotInfo snapshotInfo = assertSuccessful(snapshot);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.indices(), equalTo(List.of("renamed")));
+        assertThat(snapshotInfo.indices(), equalTo(List.of("source")));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
 
         assertAcked(indicesAdmin().prepareDelete("renamed"));
         final RestoreSnapshotResponse restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
-            .setIndices("renamed")
             .setWaitForCompletion(true)
             .get();
         assertThat(restore.getRestoreInfo().failedShards(), equalTo(0));
-        ensureGreen("renamed");
-        ElasticsearchAssertions.assertHitCount(prepareSearch("renamed").setSize(0), docs);
+        ensureGreen("source");
+        ElasticsearchAssertions.assertHitCount(prepareSearch("source").setSize(0), docs);
+    }
+
+    /**
+     * The name of one index is taken over by another while a snapshot of both is in flight: "a" becomes "c" and "b" becomes "a". The
+     * snapshot is an image of the cluster as it started, so restoring it gives each name the contents it had then, not the contents of
+     * the index that holds the name now.
+     */
+    public void testNameTakenOverWhileSnapshotting() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepository("repo", "mock");
+        createIndex("a", indexSettings(1, 0).build(), false);
+        createIndex("b", indexSettings(1, 0).build(), false);
+        for (int i = 0; i < 3; i++) {
+            indexDoc("a", "a" + i, "field", "a");
+        }
+        for (int i = 0; i < 5; i++) {
+            indexDoc("b", "b" + i, "field", "b");
+        }
+        flushAndRefresh("a", "b");
+
+        blockDataNode("repo", dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshot = startFullSnapshot("repo", "snap");
+        waitForBlock(dataNode, "repo");
+        try {
+            final var response = client().execute(
+                TransportIndicesAliasesAction.TYPE,
+                new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+                    IndicesAliasesRequest.AliasActions.renameIndex().index("a").newIndex("c")
+                ).addAliasAction(IndicesAliasesRequest.AliasActions.renameIndex().index("b").newIndex("a"))
+            ).actionGet();
+            assertTrue(response.isAcknowledged());
+            assertThat(docCount("c"), equalTo(3L));
+            assertThat(docCount("a"), equalTo(5L));
+        } finally {
+            unblockNode("repo", dataNode);
+        }
+        final SnapshotInfo snapshotInfo = assertSuccessful(snapshot);
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+        assertThat(Set.copyOf(snapshotInfo.indices()), equalTo(Set.of("a", "b")));
+
+        assertAcked(indicesAdmin().prepareDelete("a", "c"));
+        final RestoreSnapshotResponse restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restore.getRestoreInfo().failedShards(), equalTo(0));
+        ensureGreen("a", "b");
+        assertThat(docCount("a"), equalTo(3L));
+        assertThat(docCount("b"), equalTo(5L));
+    }
+
+    /**
+     * Like {@link #testRenameWhileSnapshotting}, but the repository already knows the index under its old name from an earlier
+     * snapshot, so the repository id the running snapshot writes to is one that the old name owns. The renamed index must not
+     * end up under a second name with that id; every snapshot has to stay restorable and the repository consistent (checked by the
+     * base class after the test).
+     */
+    public void testRenameWhileSnapshottingAnIndexTheRepositoryKnows() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepository("repo", "mock");
+        createIndexWithContent("source");
+        refresh("source");
+        final long docs = docCount("source");
+        createFullSnapshot("repo", "snap-before");
+
+        // new segment files, so that the next snapshot has something to upload, and so to block on
+        indexDoc("source", "extra", "field", "value");
+        flushAndRefresh("source");
+        final long docsDuring = docCount("source");
+
+        blockDataNode("repo", dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshot = startFullSnapshot("repo", "snap-during");
+        waitForBlock(dataNode, "repo");
+        try {
+            rename("source", "renamed");
+        } finally {
+            unblockNode("repo", dataNode);
+        }
+        assertSuccessful(snapshot);
+        createFullSnapshot("repo", "snap-after");
+
+        // the snapshot that was running across the rename knows the index by its old name, like the earlier one, and writes under the
+        // id the repository already had for that name; the later one knows it by the new name
+        final RepositoryData repositoryData = getRepositoryData("repo");
+        assertThat(repositoryData.getIndices().keySet(), equalTo(Set.of("source", "renamed")));
+        assertThat(repositoryData.getIndices().get("renamed").getId(), not(equalTo(repositoryData.getIndices().get("source").getId())));
+        assertThat(getSnapshot("repo", "snap-during").indices(), equalTo(List.of("source")));
+        assertThat(getSnapshot("repo", "snap-after").indices(), equalTo(List.of("renamed")));
+
+        assertAcked(indicesAdmin().prepareDelete("renamed"));
+        for (String snapshotName : List.of("snap-before", "snap-during", "snap-after")) {
+            final String indexName = getSnapshot("repo", snapshotName).indices().get(0);
+            final RestoreSnapshotResponse restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", snapshotName)
+                .setWaitForCompletion(true)
+                .get();
+            assertThat(restore.getRestoreInfo().failedShards(), equalTo(0));
+            ensureGreen(indexName);
+            ElasticsearchAssertions.assertHitCount(
+                prepareSearch(indexName).setSize(0),
+                snapshotName.equals("snap-before") ? docs : docsDuring
+            );
+            assertAcked(indicesAdmin().prepareDelete(indexName));
+        }
     }
 
     /**
@@ -156,11 +261,11 @@ public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * The repository matches a renamed index to the id it was snapshotted under before by its UUID (D6), so the first snapshot after
-     * a rename uploads only what changed, deleting the old-name snapshot keeps the files the new-name snapshot references, and the
-     * repository stays consistent (checked by the base class after the test).
+     * The repository keys indices by name, one repository id per name, so a renamed index gets an id of its own and its first
+     * snapshot uploads it in full. Sharing the old name's id would make a later index that reuses the old name collide with it in one
+     * snapshot (see {@link #testSnapshotAfterOriginalNameIsReused}). Deleting the old-name snapshot must keep the new one intact.
      */
-    public void testSnapshotAfterRenameIsIncremental() throws Exception {
+    public void testSnapshotAfterRenameUploadsUnderANewId() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
         createRepository("repo", "fs");
@@ -175,15 +280,12 @@ public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
         rename("source", "renamed");
         createFullSnapshot("repo", "snap-after");
 
-        // the same repository id under both names, so the same blob path
         RepositoryData repositoryData = getRepositoryData("repo");
-        assertThat(repositoryData.getIndices().get("renamed").getId(), equalTo(repositoryData.getIndices().get("source").getId()));
-        // nothing was written between the two snapshots, so the second one uploaded no segment file at all
+        assertThat(repositoryData.getIndices().get("renamed").getId(), not(equalTo(repositoryData.getIndices().get("source").getId())));
         final SnapshotStats afterStats = indexSnapshotStats("repo", "snap-after", "renamed");
         assertThat(afterStats.getTotalFileCount(), greaterThan(0));
-        assertThat(afterStats.getIncrementalFileCount(), equalTo(0));
+        assertThat(afterStats.getIncrementalFileCount(), equalTo(afterStats.getTotalFileCount()));
 
-        // deleting the old-name snapshot rewrites the shared shard listing but keeps the files the new-name snapshot references
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap-before").get());
         repositoryData = getRepositoryData("repo");
         assertFalse(repositoryData.getIndices().containsKey("source"));
@@ -198,10 +300,43 @@ public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen("renamed");
         ElasticsearchAssertions.assertHitCount(prepareSearch("renamed").setSize(0), docs);
 
-        // and the shared listing is intact: the next snapshot reuses the segment files again
+        // from then on the renamed index snapshots incrementally like any other
         createFullSnapshot("repo", "snap-third");
         final SnapshotStats thirdStats = indexSnapshotStats("repo", "snap-third", "renamed");
         assertThat(thirdStats.getIncrementalFileCount(), lessThan(thirdStats.getTotalFileCount()));
+    }
+
+    /**
+     * An index renamed away from a name and a new, unrelated index that takes that name are two indices in one snapshot. Each must
+     * restore with its own data, and the repository must stay consistent (checked by the base class after the test).
+     */
+    public void testSnapshotAfterOriginalNameIsReused() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        createRepository("repo", "fs");
+        createIndex("source", indexSettings(1, 0).build(), false);
+        indexDoc("source", "original", "field", "original");
+        flushAndRefresh("source");
+        createFullSnapshot("repo", "snap-before");
+        rename("source", "renamed");
+        createFullSnapshot("repo", "snap-renamed");
+        createIndex("source", indexSettings(1, 0).build(), false);
+        indexDoc("source", "replacement-one", "field", "replacement");
+        indexDoc("source", "replacement-two", "field", "replacement");
+        flushAndRefresh("source", "renamed");
+        createFullSnapshot("repo", "snap-both");
+
+        final RepositoryData repositoryData = getRepositoryData("repo");
+        assertThat(repositoryData.getIndices().get("source").getId(), not(equalTo(repositoryData.getIndices().get("renamed").getId())));
+
+        assertAcked(indicesAdmin().prepareDelete("source", "renamed"));
+        final RestoreSnapshotResponse restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "snap-both")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restore.getRestoreInfo().failedShards(), equalTo(0));
+        ensureGreen("source", "renamed");
+        assertThat(docCount("source"), equalTo(2L));
+        assertThat(docCount("renamed"), equalTo(1L));
     }
 
     private SnapshotStats indexSnapshotStats(String repository, String snapshot, String index) {

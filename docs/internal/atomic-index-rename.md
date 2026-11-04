@@ -56,8 +56,9 @@ What may be renamed: open and closed plain indices, data stream backing and
 failure indices (write indices included), CCR leaders and followers, mounted
 searchable snapshot indices, resize sources with a resize in flight, hidden
 indices that a feature owns by naming convention, since delete allows those
-too, and indices with a snapshot, restore or stateless reshard in flight,
-which carry on under the new name. What is refused: a data stream or an alias as the source,
+too, and indices with a snapshot, restore or stateless reshard in flight.
+A restore or reshard carries on under the new name; a snapshot carries on
+as an image of the cluster as it started (T5). What is refused: a data stream or an alias as the source,
 and system indices and system index names. Index metadata blocks (`read_only`,
 `metadata`) refuse a rename the way they refuse a delete, because a rename is
 a metadata write; a `write` block alone does not.
@@ -72,7 +73,7 @@ UUID survives a rename untouched: node data paths, persisted cluster state,
 the stateless object store, and the data node's `IndicesService#indices` map.
 Everything keyed on the name is rewritten in the cluster state update
 (`ProjectMetadata#indices`, `RoutingTable`, `ClusterBlocks`, `DataStream`
-index lists) or matched by UUID afterwards (snapshot repository `IndexId`).
+index lists) or matched by UUID afterwards (a snapshot in flight).
 
 ### Master side
 
@@ -99,9 +100,9 @@ source exists, the new name passes `validateIndexName`), and then:
 4. if the index belongs to a data stream, replaces it in place through
    `DataStream#renameIndex`, which keeps the generation (the generation counts
    rollovers and names the next backing index, so a rename must not move it);
-5. renames the index in every `SnapshotsInProgress` and `RestoreInProgress`
-   entry that includes it, so that a snapshot or restore in flight finalizes
-   under the new name (T5).
+5. renames the index in every `RestoreInProgress` entry that includes it, so
+   that a restore in flight finishes under the new name. A `SnapshotsInProgress`
+   entry is deliberately left alone (T5).
 
 Nothing in the cluster state marks the rename. The request is acknowledged
 once every node has applied the state, like any other aliases request. The
@@ -151,15 +152,9 @@ Costs:
   now compare names as well as UUIDs for this reason, with a diff round-trip
   test. `IndexMetadata` and the routing table are diffed as maps keyed by name
   and are safe; `RestoreInProgress` is copied whole on change. A
-  `SnapshotsInProgress` entry diffs its shard map by `ShardId`, so the diff of
-  a renamed entry carries the index map change but keeps the shard keys under
-  the old name; applying the diff re-keys them through the repository id the
-  two names share (`EntryDiff#reKeyRenamedShards`). A key counts as current
-  only if its name denotes the same repository id before and after, not merely
-  if the name is still in the entry: after `a` becomes `c` and `b` becomes `a`
-  the name `a` is still there but denotes the other index. Wire round-trip
-  tests cover that, and a three-way exchange that leaves the set of names
-  unchanged.
+  `SnapshotsInProgress` entry diffs its shard map by `ShardId`, which compares
+  by UUID, so a diff cannot carry a change of shard key names; that is one of
+  the reasons a rename does not rewrite the entries (T5).
   Every future cluster state component that stores an `Index` needs the same
   care.
 - A `HashMap#put` whose key is equal to an existing key refreshes the value and
@@ -294,78 +289,66 @@ Everything else a user sees comes from state that is updated: write responses,
 shard-level stats and `_cat` output, slow logs, recovery output, and request
 and query cache statistics.
 
-### T5. Snapshot repositories match a renamed index by UUID
+### T5. A renamed index is a new name to a snapshot repository
 
 A repository identifies an index by an `IndexId` (`name`, `id`): the `id` is
-minted the first time a name is snapshotted, and every blob of the index lives
-under `indices/<id>/<shard>/`. Incremental snapshots work by reading the
-shard's `index-N` listing under that path. Without help, a renamed index is a
-new name, gets a new `id`, and every segment file is uploaded again, which
-makes renaming a large index very costly.
+minted the first time a name is snapshotted, every blob of the index lives
+under `indices/<id>/<shard>/`, and the repository data is keyed by name, one
+`id` per name. A renamed index is therefore a new name: it gets a new `id`, and
+its first snapshot uploads every segment file again, so the first backup after
+renaming a large index costs what the first backup of a new index does. Later
+snapshots are incremental again. The snapshots taken under the old name keep
+it and restore under it (`RenameIndexSnapshotIT#testSnapshotAndRestoreRenamedIndex`,
+`testSnapshotAfterRenameUploadsUnderANewId`).
 
-The prototype reuses the `id` without a format change. The repository already
-records, per snapshot and `IndexId`, a metadata identifier that starts with
-the index UUID, so when a name new to the repository arrives,
-`RepositoryData#resolveNewIndices` looks for the `IndexId` last used for that
-UUID and reuses its `id` under the new name. On disk the `indices` object then
-has two names carrying the same `id`. The places that assumed one name per
-`id` were adjusted: `ShardGenerations` resolves a miss through any `IndexId`
-with the same `id` and keeps both names' listings identical;
-`SnapshotsServiceUtils#shards` decides whether an index is new by `id`;
-snapshot deletion processes each `id` once with the union of the snapshots
-referencing it under any name, so deleting every old-name snapshot keeps the
-shared shard path alive for the new name; and the `RepositoryData` parser
-resolves the per-snapshot metadata identifier to the name whose snapshot list
-contains that snapshot. `RenameIndexSnapshotIT#testSnapshotAfterRenameIsIncremental`
-shows the second snapshot uploading no segment file, the old-name snapshot
-deleted with the new-name one still restorable, and a third snapshot
-incremental again.
-
-All of these lookups sit on paths that every snapshot takes, in repositories
-that have never seen a rename, so none of them may scan the repository.
-`hasIndexId` and `indexIdsSharingId` are answered from the indices grouped by id
-once per `RepositoryData`; the sibling sync in `ShardGenerations.Builder#put`
-and the fallback in `ShardGenerations#generationsFor` use a grouping of names
-by id kept by the builder and built once per `ShardGenerations`; the lookup of
-an index by UUID searches the metadata identifiers in sorted order by prefix
-(an identifier cannot be split into its UUID and the rest, because both can
-contain dashes); and the choice of name per snapshot while parsing is a direct
-lookup, with a snapshot-to-name map built only for the ids that several names
-share. A first version scanned for each of them. For 15,000 indices and 60
-snapshots, with assertions off, 60 `addSnapshot` calls took 186 s against 1.9 s
-on main (the sibling sync alone made every snapshot finalization take about
-three seconds), resolving 2,000 new names took 4.6 s, and the per-index
-`hasIndexId` loop 0.8 s; they now take 2.1 s, 17 ms and 4 ms, and building and
-parsing match main. Parsing 2,000 indices over 800 snapshots took 1.8 s, growing
-about 3.5 times when the snapshot count doubled, because of a list scan per
-snapshot and index; it now takes 0.3 s and grows linearly. With every index
-renamed halfway through it took 11 s and now takes 0.55 s. Assertions hide this:
-the test JVM's assertions in `IndexMetaDataGenerations` are quadratic on main
-too, so the same benchmark with assertions on shows 167 s on main and 152 s here.
-A repository of this size has to be measured with `-Dtests.asserts=false`.
+Giving the new name the old `id` would avoid the upload, and an earlier version
+of the prototype did, but it cannot be made safe in this format. A later
+index that takes the old name is, by name, the old `id` again, so two live
+indices in one snapshot resolve to the same shard container and the same
+index metadata blob, and restoring one gives it the other's data
+(`testSnapshotAfterOriginalNameIsReused`). The name cannot be pointed at a
+fresh `id` instead, because the repository data is keyed by name. The
+master also keeps concurrent operations on one repository shard apart
+through `RepositoryShardId`, which includes the name, so two names sharing a
+container would not be seen as the same shard. Doing it properly takes a
+format change that makes `id` the key and stores the name per snapshot, with
+a minimum-version marker so that older nodes do not read it; that is the
+follow-up if the re-upload turns out to matter.
 
 A snapshot or restore in flight does not block the rename, which matters in
 serverless, where backups run on a schedule the user neither sees nor
-controls. The in-progress entries record an index by name, in the entry's
-index map and in its `ShardId` keys, and finalization collects the index
-metadata to store in the snapshot by that name; a rename that left the
-entries alone would finalize a snapshot without the index's metadata. So the
-rename rewrites the entries (step 5 of the master side): the `IndexId` keeps
-its id under the new name, the shard keys carry the new name, and the
-finalized snapshot lists the index under the name it has at completion, which
-is what a restore of it produces. The shard uploads that were already running
-are unaffected, since the data nodes address the local shard by UUID-equal
-`ShardId` and the repository by id. A status update from a data node that
-started the shard under the old name is matched by UUID
-(`Entry#indexIdForShard`), so a queued operation on that repository shard
-still starts when the previous one finishes.
-`RenameIndexSnapshotIT#testRenameWhileSnapshotting` and
-`testRenameWhileRestoring` cover both, including a restore of the snapshot
-taken across the rename.
+controls. A restore entry names the index it creates, so the rename rewrites
+it (step 5 of the master side) and the restore finishes under the new name
+(`testRenameWhileRestoring`). A snapshot entry is left alone, because it also
+names the repository `IndexId` the shards are being written under, and that
+cannot change while they are: renaming it would make the same `id` belong to
+two names in the repository (`testRenameWhileSnapshottingAnIndexTheRepositoryKnows`
+fails with an inconsistent repository when it does), and would hide the running
+shard operations from the serialization above. The snapshot is instead an image
+of the cluster as it started, with the index under the name it had then.
+Whatever reads a shard of an entry against the cluster state goes through the
+`Index` or `ShardId`, which compare by UUID, so the entry's stale names do not
+matter to it. Finalization is the one place that looks an index up by the
+entry's name, and `SnapshotsServiceUtils#projectForSnapshot` now looks it up
+by UUID, stores its metadata under the entry's name, and rewrites the data
+streams that contain it the same way, so that a restore of the data stream finds
+its backing indices (`testRenameWhileSnapshotting`,
+`testNameTakenOverWhileSnapshotting`, `ProjectForSnapshotTests`). A name that
+another index took over in the meantime does not mix the two up.
 
-Costs: the repository needs a minimum-version marker before this ships, and a
-clone of a pre-rename snapshot that runs concurrently with a new snapshot of
-the renamed index is not serialized against it; see the gaps below.
+One more consequence of an index appearing under two ids: the repository finds
+an index metadata blob by an identifier built from the index UUID and the
+versions of its metadata, but the blob lives in the container of one `id`. A
+snapshot that was running across the rename is finalized under the old `id`
+with the metadata as it is then, and the next snapshot, under the new `id`,
+has the same metadata, hence the same identifier, and used to be pointed at a
+blob in the other container. `BlobStoreRepository#identifierForContainer`
+makes the identifier specific to the `id` when another `id` already holds it;
+for any index that has only ever had one `id`, which is every index on a
+cluster that has never renamed one, it returns the identifier it was given.
+
+Costs: the first snapshot after a rename is a full upload, and the old-name
+snapshots hold their own copy of the data until they are deleted.
 
 ### T6. Security authorizes both names, nothing more
 
@@ -413,6 +396,16 @@ being applied in which a second rename could still redirect it. The retention
 lease one matters beyond CCR: every renewal failed after a leader rename, and
 the lease would have expired after the retention period, at which point the
 leader could discard history the follower still needed.
+
+Resuming a paused follower after a leader rename has to find the leader too.
+`TransportResumeFollowAction` fetches the leader's metadata by the name the
+follower recorded when following began. It still tries that name first, as one
+cheap request, and falls back to a lookup by the recorded UUID when the name no
+longer denotes the leader: the fetch finds nothing, it finds an alias or data
+stream, or it finds an unrelated index that took the old name, which validation
+would reject as a different leader. The follow tasks it then creates address the
+leader by its current name. `CcrRenameIT#testResumeAfterLeaderRename` and
+`testResumeAfterLeaderNameIsReused` cover both.
 
 A leader rename while the follower is still bootstrapping from the leader
 fails that bootstrap, because the CCR repository addresses the leader by the
@@ -489,24 +482,6 @@ UUID and is unaffected.
 
 ## Known gaps before production
 
-- **Repository minimum-version marker (T5).** An older node reading a
-  repository where two names share an `id` would process the shared shard
-  path once per name on deletion, and the two rewrites of the same path race.
-  `RepositoryData` writes a `min_version` for this purpose, but the code that
-  writes it notes that no numeric `IndexVersion` can be written helpfully
-  (versions before 8.11 parse it as a dotted version string), so a new marker
-  needs its own design. This must be solved first, either with a marker or by
-  making the sharing invisible to old readers. The cleaner long-term form is a
-  format change that makes `id` the key and stores the name per snapshot.
-- **Clones and snapshots of a renamed index are not serialized against each
-  other (T5).** The master keeps concurrent operations on the same repository
-  shard from running at once through `InFlightShardSnapshotStates` and
-  `RepositoryShardId`, both keyed by `IndexId` name. A clone of a snapshot
-  taken under the old name addresses the shard as `(old, id)` while a new
-  snapshot addresses it as `(new, id)`, so the two are not seen as the same
-  shard and could write the same shard container concurrently. The fix is to
-  key both by the repository id rather than the name; it is a consequence of
-  reusing the id across names, not of the rename during a snapshot.
 - **The rename trick must become randomized or opt-in (T8).**
 - **A strict by-name lookup method for authorization code (T2)**, so that
   reviewers do not have to spot the lenient `index(Index)` in security code.
@@ -515,17 +490,21 @@ UUID and is unaffected.
 - **Snapshot-based peer recovery cannot use snapshots taken before a rename.**
   `IndexSnapshotsService` finds the latest snapshot of a shard through the
   repository's `IndexId` for the shard's current index name, so for a renamed
-  index it sees only snapshots taken under the new name. Recovery then falls
-  back to the ordinary peer path, which is slower but correct. Swapped names
-  are safe: the recovery plan reuses a snapshot file only when its metadata
-  matches the source's, as after a delete and re-create. Resolving the
-  `IndexId` by UUID, as T5 does for snapshot creation, would close the gap.
+  index it sees only snapshots taken under the new name, and none until the
+  first one after the rename. Recovery then falls back to the ordinary peer
+  path, which is slower but correct. Swapped names are safe: the recovery
+  plan reuses a snapshot file only when its metadata matches the source's, as
+  after a delete and re-create.
 - **The reshard split helper and the shutdown progress tracker key by the
   name the request carried**, which can be stale during a rename. Both only
   affect the name reported or logged.
 - **CCR's `leader_index_name` custom metadata** keeps the name the leader had
   when following started, and `_ccr/info` shows it; it should show the
-  current name.
+  current name. Resuming a follower finds the leader by its recorded UUID, so
+  nothing but the display depends on it.
+- **A rename that lands between resolving a CCR follower's name and applying
+  the request** can still redirect it. The window is narrow and cannot be
+  closed while the follower-side APIs are addressed by name.
 - **Serverless metering** records usage by index name; how billing should
   treat a rename is undecided. The metering tests opt out of the trick for
   now.
@@ -569,7 +548,9 @@ Direct tests of the rename:
   rename. `TransportReplicationActionTests#testBlocksAfterIndexNamesSwapped`
   checks the reroute phase directly.
 - `RenameIndexSnapshotIT` (rename during a snapshot and during a restore,
-  incremental snapshot after rename), `RenameIndexResizeIT` (clone, shrink and split from
+  including an index the repository already knows and a name taken over by
+  another index, snapshot after rename and after the old name is reused),
+  `ProjectForSnapshotTests` (finalization by UUID, data streams), `RenameIndexResizeIT` (clone, shrink and split from
   a renamed source, rename of the source while a clone target recovers),
   `RenameSystemIndexIT` (system source and system destination name refused),
   `SearchableSnapshotsRenameIT` (mounted index renamed and recovered again
@@ -615,8 +596,6 @@ listed here as the places where names hide:
   when the recovery began; a shard finishing recovery across a rename failed
   to start once and was retried on the next cluster state. It now uses the
   index from the matched routing.
-- The `SnapshotsInProgress` entry diff keeping shard keys under the old name
-  (T1), which made every other node fail to apply the state.
 - Bulk item responses reporting the name the index had when the bulk was
   routed, because the shard response was built from the request's shard id.
 - Name-string lookups fed from a shard id (T2): the replication reroute
@@ -658,16 +637,14 @@ what a rename may do.
    it is reachable yet, but it is the bulk of the review.
 5. The `rename_index` aliases action, `MetadataRenameIndexService`, the
    `_rename` shorthand endpoint, the transport version and the security tests
-   (T6). Ship it refusing an index with a snapshot or restore in flight, as
-   delete does, because lifting that depends on step 7.
+   (T6). It does not refuse an index with a snapshot or restore in flight; the
+   snapshot side needs the finalization by UUID and the metadata identifier
+   fix of T5, so they go in the same step.
 6. The rename-on-create trick in `ESIntegTestCase` (T8), randomized or
    opt-in, extended to the module and x-pack internal cluster test suites. It
    needs the action from step 5 to do anything, which is why it comes after
    it; the opt-outs listed under test coverage come with it.
-7. Repository `IndexId` reuse by UUID with the minimum-version marker (T5),
-   then lifting the in-flight refusal on top of it: the in-progress entry
-   rewrite, the entry diff re-keying and the status update matching by UUID
-   all produce or rely on two names sharing a repository id, so they cannot
-   land before the repository handles that. The clone-versus-snapshot
-   serialization gap belongs here too.
+7. Optional, if the re-upload after a rename matters: a repository format
+   that makes the `id` the key and keeps the name per snapshot, with a
+   minimum-version marker (T5).
 8. ILM and Upgrade Assistant adopting the rename.

@@ -310,21 +310,47 @@ public class SnapshotsServiceUtils {
         );
     }
 
+    /**
+     * The metadata a snapshot is finalized with. A snapshot identifies each index by the name it had when the snapshot started, which
+     * is also the name of its repository {@link IndexId}: shards are written under that id, and it cannot change while they are. An
+     * index renamed since then is therefore looked up by UUID, and stored under the name the snapshot knows it by, as are the data
+     * streams that contain it, so that the snapshot is an image of the cluster as the snapshot saw it: restoring it gives the
+     * names it started with, and a name that another index has taken over in the meantime does not mix the two up.
+     */
     public static ProjectMetadata projectForSnapshot(SnapshotsInProgress.Entry snapshot, ProjectMetadata project) {
+        // each index of the snapshot as the cluster has it now, and as the snapshot names it
+        final Map<String, IndexMetadata> metadataBySnapshotName = new HashMap<>();
+        final Map<Index, Index> snapshotNames = new HashMap<>();
+        for (IndexId indexId : snapshot.indices().values()) {
+            // a clone has no live indices: its project is made of the source snapshot's metadata, under the repository names
+            final Index startedAs = snapshot.isClone() ? null : snapshot.indexByName(indexId.getName());
+            final IndexMetadata indexMetadata = startedAs == null ? project.index(indexId.getName()) : project.index(startedAs);
+            if (indexMetadata == null) {
+                assert snapshot.partial() : "Index [" + indexId + "] was deleted during a snapshot but snapshot was not partial.";
+            } else {
+                metadataBySnapshotName.put(indexId.getName(), indexMetadata);
+                snapshotNames.put(indexMetadata.getIndex(), startedAs == null ? indexMetadata.getIndex() : startedAs);
+            }
+        }
         final ProjectMetadata.Builder builder;
         if (snapshot.includeGlobalState() == false) {
             // Create a new project state that only includes the index data
             builder = ProjectMetadata.builder(project.id());
-            for (IndexId index : snapshot.indices().values()) {
-                final IndexMetadata indexMetadata = project.index(index.getName());
-                if (indexMetadata == null) {
-                    assert snapshot.partial() : "Index [" + index + "] was deleted during a snapshot but snapshot was not partial.";
-                } else {
-                    builder.put(indexMetadata, false);
-                }
-            }
         } else {
             builder = ProjectMetadata.builder(project);
+            // an index that has been renamed would otherwise be present twice, and its old name may denote another index
+            for (IndexMetadata indexMetadata : metadataBySnapshotName.values()) {
+                builder.remove(indexMetadata.getIndex().getName());
+            }
+        }
+        for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
+            final IndexMetadata indexMetadata = entry.getValue();
+            builder.put(
+                indexMetadata.getIndex().getName().equals(entry.getKey())
+                    ? indexMetadata
+                    : IndexMetadata.builder(indexMetadata).index(entry.getKey()).build(),
+                false
+            );
         }
         // Only keep those data streams in the metadata that were actually requested by the initial snapshot create operation and that have
         // all their indices contained in the snapshot
@@ -336,6 +362,13 @@ public class SnapshotsServiceUtils {
                 assert snapshot.partial()
                     : "Data stream [" + dataStreamName + "] was deleted during a snapshot but snapshot was not partial.";
             } else {
+                for (Map.Entry<Index, Index> renamed : snapshotNames.entrySet()) {
+                    if (renamed.getKey().getName().equals(renamed.getValue().getName()) == false
+                        && (dataStream.getIndices().contains(renamed.getKey())
+                            || dataStream.getFailureIndices().contains(renamed.getKey()))) {
+                        dataStream = dataStream.renameIndex(renamed.getKey(), renamed.getValue());
+                    }
+                }
                 final DataStream reconciled = dataStream.snapshot(indicesInSnapshot, builder);
                 if (reconciled != null) {
                     dataStreams.put(dataStreamName, reconciled);
@@ -1014,8 +1047,7 @@ public class SnapshotsServiceUtils {
         final RestoreInProgress restoreInProgress = RestoreInProgress.get(currentState.cluster());
         for (IndexId index : indices) {
             final String indexName = index.getName();
-            // by id rather than by name: a renamed index keeps the id it was snapshotted under before, and so its shard generations
-            final boolean isNewIndex = repositoryData.hasIndexId(index.getId()) == false;
+            final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
             IndexMetadata indexMetadata = currentState.metadata().index(indexName);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.

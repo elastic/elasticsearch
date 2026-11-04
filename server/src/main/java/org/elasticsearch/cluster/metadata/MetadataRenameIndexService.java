@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -45,7 +44,7 @@ public class MetadataRenameIndexService {
      * Validates the rename against the given state: the index must exist under {@code originalName} and {@code destinationName}
      * must be a valid name that nothing else uses. The checks that do not depend on the current cluster state (feature support,
      * system indices) are made by the transport action before the request is queued. A snapshot or restore in flight does not
-     * refuse the rename: the in-progress entries are renamed with the index, see {@link #renameIndex}.
+     * refuse the rename, see {@link #renameIndex}.
      */
     public static void validateRename(ProjectState projectState, String originalName, String destinationName) {
         final ProjectMetadata project = projectState.metadata();
@@ -59,9 +58,10 @@ public class MetadataRenameIndexService {
     /**
      * Builds the cluster state with {@code originalName} renamed to {@code destinationName}: the index metadata is re-keyed under
      * the new name, the routing table and the index blocks are rewritten for it, a data stream it belongs to is updated, and the
-     * snapshots and restores in progress that include it track it under the new name from here on. The repository side of a
-     * snapshot in flight is unaffected, since the index keeps the repository id it is being written under; only the name the
-     * snapshot is finalized with changes.
+     * restores in progress that include it track it under the new name from here on. A snapshot in progress is left alone: it
+     * identifies the index by the repository {@link org.elasticsearch.repositories.IndexId} it resolved when it started, and that
+     * must not change while shards are being written under it. The snapshot keeps the name the index had then, and is finalized
+     * from the index found by UUID, see {@code SnapshotsServiceUtils#projectForSnapshot}.
      */
     public static ClusterState renameIndex(ProjectState projectState, String originalName, String destinationName) {
         validateRename(projectState, originalName, destinationName);
@@ -120,11 +120,6 @@ public class MetadataRenameIndexService {
             .putRoutingTable(projectId, rtBuilder.build())
             .blocks(clusterBlocks)
             .putProjectMetadata(projectBuilder);
-        final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
-        final SnapshotsInProgress renamedSnapshots = snapshotsInProgress.withRenamedIndex(projectId, index, newIndex);
-        if (renamedSnapshots != snapshotsInProgress) {
-            stateBuilder.putCustom(SnapshotsInProgress.TYPE, renamedSnapshots);
-        }
         final RestoreInProgress restoreInProgress = RestoreInProgress.get(currentState);
         final RestoreInProgress renamedRestores = restoreInProgress.withRenamedIndex(index, newIndex);
         if (renamedRestores != restoreInProgress) {

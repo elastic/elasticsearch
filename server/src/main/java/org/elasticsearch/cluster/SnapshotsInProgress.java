@@ -173,32 +173,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return new SnapshotsInProgress(copy, nodesIdsForRemoval);
     }
 
-    /**
-     * Returns a copy in which every snapshot of {@code previous} in the given project tracks it as {@code current} (the same index
-     * under a new name), or this instance if no snapshot in the project includes it. Called from the cluster state update that
-     * renames an index, so that a snapshot in flight finalizes under the index's current name.
-     */
-    public SnapshotsInProgress withRenamedIndex(ProjectId projectId, Index previous, Index current) {
-        SnapshotsInProgress result = this;
-        for (List<Entry> entriesForRepo : entriesByRepo(projectId)) {
-            List<Entry> updated = null;
-            for (int i = 0; i < entriesForRepo.size(); i++) {
-                final Entry entry = entriesForRepo.get(i);
-                final Entry renamed = entry.withRenamedIndex(previous, current);
-                if (renamed != entry) {
-                    if (updated == null) {
-                        updated = new ArrayList<>(entriesForRepo);
-                    }
-                    updated.set(i, renamed);
-                }
-            }
-            if (updated != null) {
-                result = result.createCopyWithUpdatedEntriesForRepo(projectId, entriesForRepo.get(0).repository(), updated);
-            }
-        }
-        return result;
-    }
-
     public SnapshotsInProgress withAddedEntry(Entry entry) {
         final List<Entry> forRepo = new ArrayList<>(forRepo(entry.projectId(), entry.repository()));
         forRepo.add(entry);
@@ -1268,64 +1242,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return this;
         }
 
-        /**
-         * Returns this entry with the index {@code previous} tracked as {@code current}, the same index under a new name, or this
-         * entry if it does not snapshot that index. The repository side is unchanged: the index keeps the {@link IndexId#getId() id}
-         * it is being written under, only the name next to it changes. A clone never references a live index and is returned as is.
-         */
-        public Entry withRenamedIndex(Index previous, Index current) {
-            assert previous.getUUID().equals(current.getUUID()) : "rename must keep the uuid: " + previous + " -> " + current;
-            if (isClone()) {
-                return this;
-            }
-            final IndexId existing = indices.get(previous.getName());
-            if (existing == null || previous.equals(snapshotIndices.get(previous.getName())) == false) {
-                return this;
-            }
-            final Map<String, IndexId> updatedIndices = new HashMap<>(indices);
-            updatedIndices.remove(previous.getName());
-            updatedIndices.put(current.getName(), new IndexId(current.getName(), existing.getId()));
-            final Map<ShardId, ShardSnapshotStatus> updatedShards = Maps.newHashMapWithExpectedSize(shards.size());
-            for (Map.Entry<ShardId, ShardSnapshotStatus> shard : shards.entrySet()) {
-                final ShardId shardId = shard.getKey();
-                updatedShards.put(previous.equals(shardId.getIndex()) ? new ShardId(current, shardId.id()) : shardId, shard.getValue());
-            }
-            return snapshot(
-                snapshot,
-                includeGlobalState,
-                partial,
-                state,
-                updatedIndices,
-                dataStreams,
-                featureStates,
-                startTime,
-                repositoryStateId,
-                Map.copyOf(updatedShards),
-                failure,
-                userMetadata,
-                version
-            );
-        }
-
-        /**
-         * The repository index id of the index a shard belongs to, resolved by name and then, when the name is unknown to this entry
-         * because the shard id was captured before the index was renamed, by the index UUID. {@code null} if the entry does not
-         * include the index. A clone entry holds no routing indices and so resolves by name only.
-         */
-        @Nullable
-        public IndexId indexIdForShard(ShardId shardId) {
-            final IndexId byName = indices.get(shardId.getIndexName());
-            if (byName != null || isClone()) {
-                return byName;
-            }
-            for (Map.Entry<String, Index> snapshotIndex : snapshotIndices.entrySet()) {
-                if (snapshotIndex.getValue().equals(shardId.getIndex())) {
-                    return indices.get(snapshotIndex.getKey());
-                }
-            }
-            return null;
-        }
-
         public Entry withClones(Map<RepositoryShardId, ShardSnapshotStatus> updatedClones) {
             if (updatedClones.equals(shardStatusByRepoShardId)) {
                 return this;
@@ -1915,7 +1831,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Override
         public Entry apply(Entry part) {
             final var updatedIndices = indexByIndexNameDiff.apply(part.indices);
-            final var updatedStateByShard = reKeyRenamedShards(part.indices, updatedIndices, shardsByShardIdDiff.apply(part.shards));
+            final var updatedStateByShard = shardsByShardIdDiff.apply(part.shards);
             if (part.isClone() == false && updatedIndices == part.indices && updatedStateByShard == part.shards) {
                 // fast path for normal snapshots that avoid rebuilding the by-repo-id map if nothing changed about shard status
                 return new Entry(
@@ -1968,67 +1884,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 part.userMetadata,
                 part.version
             );
-        }
-
-        /**
-         * Returns {@code shards} with the keys of a renamed index carrying its current name. A diff of an entry whose index was
-         * renamed carries the change of the index map but not of the shard keys, because {@link ShardId} compares by UUID, so the
-         * keys applied from the diff still carry the previous name. The rename keeps the repository id, which links the previous
-         * name in {@code previousIndices} to the current one in {@code currentIndices}.
-         * <p>
-         * A key is current only if its name still denotes the same {@link IndexId}, id included, in both maps. Finding the name in
-         * {@code currentIndices} is not enough: renaming one index away and giving its name to another leaves the name in the map
-         * with a different repository id, and a key that kept it would belong to the wrong index.
-         */
-        private static Map<ShardId, ShardSnapshotStatus> reKeyRenamedShards(
-            Map<String, IndexId> previousIndices,
-            Map<String, IndexId> currentIndices,
-            Map<ShardId, ShardSnapshotStatus> shards
-        ) {
-            // the whole maps, not their key sets: names can be exchanged among indices without the set of names changing
-            if (previousIndices == currentIndices || previousIndices.equals(currentIndices)) {
-                return shards;
-            }
-            Map<ShardId, ShardSnapshotStatus> reKeyed = null;
-            Map<String, String> currentNameByRepositoryId = null;
-            for (Map.Entry<ShardId, ShardSnapshotStatus> entry : shards.entrySet()) {
-                final ShardId shardId = entry.getKey();
-                final IndexId previousIndexId = previousIndices.get(shardId.getIndexName());
-                if (previousIndexId == null || previousIndexId.equals(currentIndices.get(shardId.getIndexName()))) {
-                    // the name is not one of the previous names, so the key was not taken from the previous state and is already
-                    // current, or it still denotes the same repository index; the entry's consistency check reports a shard that
-                    // belongs to neither
-                    if (reKeyed != null) {
-                        reKeyed.put(shardId, entry.getValue());
-                    }
-                    continue;
-                }
-                if (currentNameByRepositoryId == null) {
-                    currentNameByRepositoryId = Maps.newHashMapWithExpectedSize(currentIndices.size());
-                    for (IndexId indexId : currentIndices.values()) {
-                        currentNameByRepositoryId.put(indexId.getId(), indexId.getName());
-                    }
-                }
-                final String currentName = currentNameByRepositoryId.get(previousIndexId.getId());
-                if (currentName == null) {
-                    // the index was removed from the snapshot rather than renamed; the caller's consistency assertion reports it
-                    if (reKeyed != null) {
-                        reKeyed.put(shardId, entry.getValue());
-                    }
-                    continue;
-                }
-                if (reKeyed == null) {
-                    reKeyed = Maps.newHashMapWithExpectedSize(shards.size());
-                    for (Map.Entry<ShardId, ShardSnapshotStatus> previous : shards.entrySet()) {
-                        if (previous.getKey() == shardId) {
-                            break;
-                        }
-                        reKeyed.put(previous.getKey(), previous.getValue());
-                    }
-                }
-                reKeyed.put(new ShardId(new Index(currentName, shardId.getIndex().getUUID()), shardId.id()), entry.getValue());
-            }
-            return reKeyed == null ? shards : Map.copyOf(reKeyed);
         }
 
         @Override

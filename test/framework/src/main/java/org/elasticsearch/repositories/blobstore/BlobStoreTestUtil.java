@@ -200,8 +200,7 @@ public final class BlobStoreTestUtil {
     }
 
     private static void assertIndexUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
-        // an index renamed between snapshots is listed under each of its names with one shared id, hence one container
-        final List<String> expectedIndexUUIDs = repositoryData.getIndices().values().stream().map(IndexId::getId).distinct().toList();
+        final List<String> expectedIndexUUIDs = repositoryData.getIndices().values().stream().map(IndexId::getId).toList();
         final BlobContainer indicesContainer = repository.blobContainer().children(randomPurpose()).get("indices");
         final List<String> foundIndexUUIDs;
         if (indicesContainer == null) {
@@ -224,22 +223,13 @@ public final class BlobStoreTestUtil {
                 .map(p -> p.replace(BlobStoreRepository.METADATA_PREFIX, "").replace(METADATA_BLOB_NAME_SUFFIX, ""))
                 .collect(Collectors.toSet());
             final Set<String> indexMetaGenerationsExpected = new HashSet<>();
-            for (IndexId idx : repositoryData.indexIdsSharingId(indexId)) {
-                for (SnapshotId snapshotId : repositoryData.getSnapshots(idx)) {
-                    indexMetaGenerationsExpected.add(repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, idx));
-                }
+            final IndexId idx = repositoryData.getIndices().values().stream().filter(i -> i.getId().equals(indexId)).findFirst().get();
+            for (SnapshotId snapshotId : repositoryData.getSnapshots(idx)) {
+                indexMetaGenerationsExpected.add(repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, idx));
             }
             // TODO: assertEquals(indexMetaGenerationsExpected, indexMetaGenerationsFound); requires cleanup functionality for
             // index meta generations blobs
-            assertTrue(
-                "index ["
-                    + indexId
-                    + "] metadata blobs "
-                    + indexMetaGenerationsFound
-                    + " do not include all of "
-                    + indexMetaGenerationsExpected,
-                indexMetaGenerationsFound.containsAll(indexMetaGenerationsExpected)
-            );
+            assertTrue(indexMetaGenerationsFound.containsAll(indexMetaGenerationsExpected));
         }
     }
 

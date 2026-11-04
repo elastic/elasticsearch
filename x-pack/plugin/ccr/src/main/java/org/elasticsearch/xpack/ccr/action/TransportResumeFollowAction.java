@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -29,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
@@ -44,6 +47,8 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -69,6 +74,8 @@ import java.util.concurrent.Executor;
 import static org.elasticsearch.xpack.ccr.Ccr.CCR_THREAD_POOL_NAME;
 
 public class TransportResumeFollowAction extends AcknowledgedTransportMasterNodeAction<ResumeFollowAction.Request> {
+
+    private static final Logger logger = LogManager.getLogger(TransportResumeFollowAction.class);
 
     static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB);
     static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
@@ -144,25 +151,116 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         }
         final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(
+        final RemoteClusterClient remoteClient = client.getRemoteClusterClient(
             leaderCluster,
             remoteClientResponseExecutor,
             RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
         );
-        final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-            client,
+        final Index recordedLeaderIndex = new Index(
+            ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY),
+            ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY)
+        );
+        fetchLeaderAndStart(
+            request,
             leaderCluster,
-            leaderIndex,
-            listener::onFailure,
-            (leaderHistoryUUID, leaderIndexMetadata) -> {
+            remoteClient,
+            recordedLeaderIndex,
+            recordedLeaderIndex.getName(),
+            followerIndexMetadata,
+            listener
+        );
+    }
+
+    /**
+     * Fetches the leader's metadata under {@code leaderIndexName} and starts following. The name recorded in the follower's metadata
+     * is the one the leader had when the follower was created, and the leader may have been renamed since (the UUID stays). So when
+     * that name no longer denotes the recorded leader, because it is gone or because some other index or alias took it over, the
+     * leader is looked up by its UUID on the remote cluster and the fetch is repeated once under its current name. If it cannot be
+     * found that way the original outcome stands: the failure of the fetch, or the UUID mismatch that validation reports.
+     */
+    private void fetchLeaderAndStart(
+        ResumeFollowAction.Request request,
+        String leaderCluster,
+        RemoteClusterClient remoteClient,
+        Index recordedLeaderIndex,
+        String leaderIndexName,
+        IndexMetadata followerIndexMetadata,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final boolean mayResolveByUuid = leaderIndexName.equals(recordedLeaderIndex.getName());
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(client, leaderCluster, leaderIndexName, e -> {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (mayResolveByUuid && (cause instanceof IndexNotFoundException || cause instanceof IllegalArgumentException)) {
+                resolveLeaderByUuidAndRetry(
+                    request,
+                    leaderCluster,
+                    remoteClient,
+                    recordedLeaderIndex,
+                    followerIndexMetadata,
+                    listener,
+                    () -> listener.onFailure(e)
+                );
+            } else {
+                listener.onFailure(e);
+            }
+        }, (leaderHistoryUUID, leaderIndexMetadata) -> {
+            final Runnable startWithFetched = () -> {
                 try {
                     start(request, leaderCluster, leaderIndexMetadata.v1(), followerIndexMetadata, leaderHistoryUUID, listener);
                 } catch (final IOException e) {
                     listener.onFailure(e);
                 }
+            };
+            if (mayResolveByUuid && leaderIndexMetadata.v1().getIndex().equals(recordedLeaderIndex) == false) {
+                // the recorded name belongs to another index now, which validation would reject as a different leader
+                resolveLeaderByUuidAndRetry(
+                    request,
+                    leaderCluster,
+                    remoteClient,
+                    recordedLeaderIndex,
+                    followerIndexMetadata,
+                    listener,
+                    startWithFetched
+                );
+            } else {
+                startWithFetched.run();
             }
-        );
+        });
+    }
+
+    private void resolveLeaderByUuidAndRetry(
+        ResumeFollowAction.Request request,
+        String leaderCluster,
+        RemoteClusterClient remoteClient,
+        Index recordedLeaderIndex,
+        IndexMetadata followerIndexMetadata,
+        ActionListener<AcknowledgedResponse> listener,
+        Runnable ifNotResolved
+    ) {
+        CcrRequests.resolveIndexByUuid(remoteClient, recordedLeaderIndex, ActionListener.wrap(resolved -> {
+            if (resolved.getName().equals(recordedLeaderIndex.getName())) {
+                ifNotResolved.run();
+                return;
+            }
+            logger.info(
+                "leader index {} of follower [{}] was renamed to [{}]",
+                recordedLeaderIndex,
+                followerIndexMetadata.getIndex().getName(),
+                resolved.getName()
+            );
+            fetchLeaderAndStart(
+                request,
+                leaderCluster,
+                remoteClient,
+                recordedLeaderIndex,
+                resolved.getName(),
+                followerIndexMetadata,
+                listener
+            );
+        }, resolveFailure -> {
+            logger.debug("could not resolve leader index {} by uuid", recordedLeaderIndex, resolveFailure);
+            ifNotResolved.run();
+        }));
     }
 
     /**

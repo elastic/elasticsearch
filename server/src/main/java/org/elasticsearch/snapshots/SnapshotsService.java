@@ -2022,9 +2022,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             private void tryStartNextTaskAfterSnapshotUpdated(ShardId shardId, ShardSnapshotStatus updatedState) {
                 // We applied the update for a shard snapshot state to its snapshot entry, now check if we can update
-                // either a clone or a snapshot. The update may carry the name the index had when the data node started the shard
-                // snapshot, so the index is resolved by UUID when the name no longer matches.
-                final IndexId indexId = entry.indexIdForShard(shardId);
+                // either a clone or a snapshot
+                final IndexId indexId = entry.indices().get(shardId.getIndexName());
                 if (indexId != null) {
                     final RepositoryShardId repoShardId = new RepositoryShardId(indexId, shardId.id());
                     if (SnapshotsServiceUtils.isQueued(entry.shardSnapshotStatusByRepoShardId().get(repoShardId))) {
@@ -2432,10 +2431,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             for (SnapshotsInProgress.Entry runningSnapshot : snapshotsInProgress.forRepo(projectState.projectId(), repositoryName)) {
                 allIndices.putAll(runningSnapshot.indices());
             }
-            final Map<String, IndexId> indexIds = repositoryData.resolveNewIndices(indices, allIndices, indexName -> {
-                final IndexMetadata indexMetadata = projectState.metadata().index(indexName);
-                return indexMetadata == null ? null : indexMetadata.getIndexUUID();
-            });
+            final Map<String, IndexId> indexIds = repositoryData.resolveNewIndices(indices, allIndices);
             final IndexVersion version = SnapshotsServiceUtils.minCompatibleVersion(
                 // NB minCompatibleVersion iterates over all the snapshots in the current repositoryData, which probably should happen on a
                 // different thread. Also is the _current_ repositoryData the right thing to consider? The minimum repository format version

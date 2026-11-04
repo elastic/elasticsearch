@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
@@ -24,6 +25,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
@@ -106,7 +108,7 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
      * The shards of each index miss one of the sort keys, so each batch sorts on its own key after local optimization. The
      * bound of one batch must not skip the shards of the other.
      */
-    public void testSortKeyMissingFromSomeShards() {
+    public void testSortKeyMissingFromSomeShards() throws Exception {
         String node = internalCluster().getRandomDataNodeName();
         // The index holding the winning rows is the oldest, so it runs last
         createSingleShardIndex("keys-winning", node, "t1", "type=date");
@@ -121,7 +123,42 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
         assertTopN("FROM keys-* | SORT t1 DESC NULLS LAST, t2 DESC NULLS LAST | LIMIT 1 | KEEP t1", expected, false);
     }
 
-    private void createSingleShardIndex(String index, String node, String field, String type) {
+    public void testSecondarySort() {
+        List<Long> expected = timestamps.stream().sorted(Comparator.reverseOrder()).limit(LIMIT).toList();
+        assertTopN("FROM events-* | SORT @timestamp DESC, message ASC | LIMIT " + LIMIT + " | KEEP @timestamp", expected);
+    }
+
+    /**
+     * Rows that tie on the first sort key are ordered by the second, so a shard holding such a tie is never skipped.
+     */
+    public void testTiesOnTheFirstKey() throws Exception {
+        String node = internalCluster().getRandomDataNodeName();
+        // The index holding the winning row is the oldest, so it runs last
+        createSingleShardIndex("ties-winning", node, "t1", "type=date", "message", "type=keyword");
+        createSingleShardIndex("ties-other", node, "t1", "type=date", "message", "type=keyword");
+        String timestamp = Instant.ofEpochMilli(1_000_000L).toString();
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int d = 0; d < DOCS_PER_INDEX; d++) {
+            bulk.add(client().prepareIndex("ties-winning").setSource("t1", timestamp, "message", "a"));
+            bulk.add(client().prepareIndex("ties-other").setSource("t1", timestamp, "message", "b"));
+        }
+        assertFalse(bulk.get().hasFailures());
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM ties-* | SORT t1 DESC, message ASC | LIMIT 1 | KEEP message");
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse response = run(request)) {
+            List<Object> rows = new ArrayList<>();
+            response.values().forEachRemaining(row -> rows.add(row.next()));
+            assertThat(rows, equalTo(List.of("a")));
+        }
+    }
+
+    /**
+     * Creates an index on {@code node}, and waits for the clock to pass its creation date, so that the indices created next
+     * are more recent.
+     */
+    private void createSingleShardIndex(String index, String node, String... mapping) throws Exception {
         client().admin()
             .indices()
             .prepareCreate(index)
@@ -131,9 +168,18 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
                     .put("index.number_of_replicas", 0)
                     .put("index.routing.allocation.require._name", node)
             )
-            .setMapping(field, type)
+            // With @timestamp, the indices run in the order of their creation
+            .setMapping(ArrayUtils.concat(new String[] { "@timestamp", "type=date" }, mapping))
             .get();
         ensureGreen(index);
+        long created = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index(index)
+            .getCreationDate();
+        assertBusy(() -> assertThat(System.currentTimeMillis(), greaterThan(created)));
     }
 
     private void assertTopN(String query, List<Long> expected) {

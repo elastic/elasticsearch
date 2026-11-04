@@ -177,7 +177,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         /**
-         * @param sortBound the bound shared by the operators of the request, used for a sort on a single field, or {@code null}
+         * @param sortBound the bound shared by the operators of the request, used when the first sort key is a field, or {@code null}
          */
         public Factory(
             IndexedByShardId<? extends ShardContext> contexts,
@@ -280,7 +280,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private PerShardCollector perShardCollector;
 
     /**
-     * The field of a sort on a single field that can skip shards, or {@code null}.
+     * The field of the first sort key, which skips the shards that can't beat the bound, or {@code null}.
      */
     @Nullable
     private final String boundField;
@@ -340,8 +340,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         this.limit = limit;
         this.needsScore = needsScore;
         this.perShardCollectorProvider = perShardCollectorProvider;
+        // The other sort keys only order the rows that tie on the first one, so the bound only needs the first key
         if (sortBound != null
-            && sorts.size() == 1
+            && sorts.isEmpty() == false
             && sorts.getFirst() instanceof FieldSortBuilder field
             && (field.missing() == null || "_last".equals(field.missing()) || "_first".equals(field.missing()))) {
             this.boundField = field.getFieldName();
@@ -560,7 +561,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     /**
-     * Offers the last value of a full top N to the shared bound.
+     * Offers the first sort key of the last row of a full top N to the shared bound.
      */
     private void offerBound(ShardContext shardContext) {
         if (sortBound == null || topDocs.length < limit || topDocs.length == 0) {

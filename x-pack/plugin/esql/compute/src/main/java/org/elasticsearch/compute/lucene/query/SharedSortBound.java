@@ -17,8 +17,9 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import java.util.List;
 
 /**
- * The competitive bound of a top N on a single field, shared by the operators of a data-node request across its batches of
- * shards. The rows behind the bound are part of the output, so a shard whose values can't beat it can't add to the top N.
+ * The competitive bound of a top N on its first sort key, shared by the operators of a data-node request across its batches
+ * of shards. The rows behind the bound are part of the output, so a shard whose values of that key can't beat it can't add
+ * to the top N, whatever its other keys.
  * <p>
  * A top N pushed to Lucene offers the last value of each full per-shard top N, and skips the shards that can't beat it. A
  * top N that runs after the source keeps its {@link SharedMinCompetitive} here for the whole request, so the sources of the
@@ -37,7 +38,7 @@ public final class SharedSortBound implements Releasable {
     private SharedMinCompetitive heldMinCompetitive;
 
     /**
-     * Offers the last value of a full top N on {@code field}.
+     * Offers the first sort key, on {@code field}, of the last row of a full top N.
      */
     public synchronized void offer(String field, boolean ascending, DateFieldMapper.Resolution resolution, long value) {
         if (disabled) {

@@ -61,15 +61,13 @@ final class ShardTimestampOrder {
     }
 
     /**
-     * Whether the plan has a single top N, sorted on a single field. Its bound then means the same in every batch of shards,
-     * even after local optimization drops the sort keys that a batch doesn't have.
+     * Whether the plan has a single top N, with a field as its first sort key. Its bound then means the same in every batch
+     * of shards that sorts on that field, even after local optimization drops the sort keys that a batch doesn't have.
      */
-    static boolean singleKeyTopN(PhysicalPlan plan) {
+    static boolean sharesTopNBound(PhysicalPlan plan) {
         List<TopN> topNs = new ArrayList<>();
         plan.forEachDown(FragmentExec.class, fragment -> fragment.fragment().forEachDown(TopN.class, topNs::add));
-        return topNs.size() == 1
-            && topNs.getFirst().order().size() == 1
-            && topNs.getFirst().order().getFirst().child() instanceof Attribute;
+        return topNs.size() == 1 && topNs.getFirst().order().getFirst().child() instanceof Attribute;
     }
 
     private static boolean sortsAscending(TopN topN) {

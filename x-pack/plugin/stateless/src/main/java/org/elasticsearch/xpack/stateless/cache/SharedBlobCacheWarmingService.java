@@ -242,7 +242,7 @@ public class SharedBlobCacheWarmingService {
             @Override
             public void validate(ByteSizeValue value) {
                 if (value.getBytes() < 0) {
-                    throw new SettingsException("setting [{}] must be non-negative", PREWARMING_RANGE_MINIMIZATION_STEP_SETTING_NAME);
+                    throw new SettingsException("FIXME setting [{}] must be non-negative", PREWARMING_RANGE_MINIMIZATION_STEP_SETTING_NAME);
                 }
                 if (value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
                     throw new SettingsException(

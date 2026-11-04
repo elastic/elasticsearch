@@ -30,8 +30,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.INTERNAL)
 public class RestHealthAction extends AbstractCatAction {
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
-        Sets.union(COMMON_QUERY_PARAMETERS, Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM))
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        RestUtils.REST_MASTER_TIMEOUT_PARAM
     );
 
     @Override

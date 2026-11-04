@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -37,9 +36,7 @@ public class RestCatCircuitBreakerAction extends AbstractCatAction {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "circuit_breaker_patterns");
 
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
-        Sets.union(COMMON_QUERY_PARAMETERS, Set.of("circuit_breaker_patterns"))
-    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = addToCopy(COMMON_QUERY_PARAMETERS, "circuit_breaker_patterns");
 
     @Override
     public String getName() {

@@ -46,19 +46,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @ServerlessScope(Scope.INTERNAL)
 public class RestCatRecoveryAction extends AbstractCatAction {
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
-        Sets.union(
-            COMMON_QUERY_PARAMETERS,
-            Set.of(
-                "index",
-                "detailed",
-                "active_only",
-                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
-                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
-                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
-                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
-            )
-        )
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        "index",
+        "detailed",
+        "active_only",
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
     );
 
     @Override

@@ -71,8 +71,11 @@ public class RestNodesAction extends AbstractCatAction {
 
     private static final String CAPABILITY_AVAILABLE_PROCESSORS_AVAILABILITY = "available_processors_availability";
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
-        Sets.union(COMMON_QUERY_PARAMETERS, Set.of("full_id", REST_MASTER_TIMEOUT_PARAM, "include_unloaded_segments"))
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        "full_id",
+        REST_MASTER_TIMEOUT_PARAM,
+        "include_unloaded_segments"
     );
 
     @Override

@@ -34,19 +34,15 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
 @ServerlessScope(Scope.PUBLIC)
 public class RestAliasAction extends AbstractCatAction {
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
-        Sets.union(
-            COMMON_QUERY_PARAMETERS,
-            Set.of(
-                REST_MASTER_TIMEOUT_PARAM,
-                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
-                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
-                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
-                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
-            )
-        )
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        REST_MASTER_TIMEOUT_PARAM,
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
     );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("alias")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "alias");
 
     @Override
     public List<Route> routes() {

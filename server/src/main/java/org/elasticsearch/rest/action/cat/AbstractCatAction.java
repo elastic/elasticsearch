@@ -77,7 +77,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
      * The query parameters every cat API accepts. {@code help} is read by {@link #prepareRequest}, and the others format the table in
      * {@link RestTable}. Subclasses add their own parameters to this set.
      */
-    static final Set<String> COMMON_QUERY_PARAMETERS = Set.copyOf(Sets.union(RESPONSE_PARAMS, Set.of("help")));
+    static final Set<String> COMMON_QUERY_PARAMETERS = Sets.addToCopy(RESPONSE_PARAMS, "help");
 
     @Override
     protected Set<String> responseParams() {

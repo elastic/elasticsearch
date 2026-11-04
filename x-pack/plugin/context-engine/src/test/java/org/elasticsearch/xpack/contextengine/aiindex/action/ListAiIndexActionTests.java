@@ -46,6 +46,9 @@ public class ListAiIndexActionTests extends AbstractWireSerializingTestCase<List
 
         ActionRequestValidationException e = new ListAiIndexAction.Request(null, null, 0).validate();
         assertThat(e, notNullValue());
-        assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
+        assertThat(e.getMessage(), containsString("[size] must be between 1 and 1000"));
+
+        e = new ListAiIndexAction.Request(null, null, 1001).validate();
+        assertThat(e.getMessage(), containsString("[size] must be between 1 and 1000"));
     }
 }

@@ -40,13 +40,13 @@ public class GetSessionEventsAction {
         @Nullable
         private final String space;
         @Nullable
-        private final String aiIndexId;
+        private final List<String> aiIndexIds;
         private final int size;
 
-        public Request(String sessionId, @Nullable String space, @Nullable String aiIndexId, int size) {
+        public Request(String sessionId, @Nullable String space, @Nullable List<String> aiIndexIds, int size) {
             this.sessionId = sessionId;
             this.space = space;
-            this.aiIndexId = aiIndexId;
+            this.aiIndexIds = aiIndexIds;
             this.size = size;
         }
 
@@ -54,7 +54,7 @@ public class GetSessionEventsAction {
             super(in);
             this.sessionId = in.readString();
             this.space = in.readOptionalString();
-            this.aiIndexId = in.readOptionalString();
+            this.aiIndexIds = in.readOptionalStringCollectionAsList();
             this.size = in.readVInt();
         }
 
@@ -68,8 +68,8 @@ public class GetSessionEventsAction {
         }
 
         @Nullable
-        public String aiIndexId() {
-            return aiIndexId;
+        public List<String> aiIndexIds() {
+            return aiIndexIds;
         }
 
         public int size() {
@@ -81,7 +81,7 @@ public class GetSessionEventsAction {
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeOptionalString(space);
-            out.writeOptionalString(aiIndexId);
+            out.writeOptionalStringCollection(aiIndexIds);
             out.writeVInt(size);
         }
 
@@ -105,12 +105,12 @@ public class GetSessionEventsAction {
             return size == request.size
                 && Objects.equals(sessionId, request.sessionId)
                 && Objects.equals(space, request.space)
-                && Objects.equals(aiIndexId, request.aiIndexId);
+                && Objects.equals(aiIndexIds, request.aiIndexIds);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(sessionId, space, aiIndexId, size);
+            return Objects.hash(sessionId, space, aiIndexIds, size);
         }
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.contextengine.memory;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -15,12 +16,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -36,7 +39,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.CONTEXT_ENGINE_ORIGIN;
@@ -71,17 +76,19 @@ public class SessionMemoryIndexService {
     }
 
     /**
-     * Returns the newest memories matching the request's filters, without any inference.
+     * Returns the current revision of the newest memories matching the request's filters, without any inference.
      */
     public void list(ListSessionMemoryAction.Request request, ActionListener<List<SessionMemory>> listener) {
         try {
             BoolQueryBuilder query = QueryBuilders.boolQuery();
-            filters(request.sessionId(), request.userId(), request.space(), request.aiIndexId()).forEach(query::filter);
+            filters(request.sessionId(), request.userId(), request.space(), request.aiIndexIds()).forEach(query::filter);
             SearchSourceBuilder source = new SearchSourceBuilder().query(query)
                 .size(request.size())
                 .sort(SessionMemory.TIMESTAMP_FIELD.getPreferredName(), SortOrder.DESC)
-                .sort(SessionMemory.ID_FIELD.getPreferredName(), SortOrder.ASC);
-            SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source);
+                .sort(SessionMemory.ID_FIELD.getPreferredName(), SortOrder.ASC)
+                .collapse(new CollapseBuilder(SessionMemory.ID_FIELD.getPreferredName()));
+            SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source)
+                .allowPartialSearchResults(false);
             clientWithOrigin.search(searchRequest, ActionListener.wrap(searchResponse -> {
                 List<SessionMemory> memories = new ArrayList<>();
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -89,7 +96,7 @@ public class SessionMemoryIndexService {
                 }
                 listener.onResponse(memories);
             }, e -> {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     listener.onResponse(List.of());
                 } else {
                     listener.onFailure(e);
@@ -102,8 +109,9 @@ public class SessionMemoryIndexService {
 
     /**
      * Runs one kNN search for the query over the {@code inputs} field, which holds a memory's content and media in a single
-     * embedding space, embedding the query with {@code inferenceId}. A memory is scored by its best-matching input. The
-     * request's filters are applied inside the kNN clause so they narrow the candidates rather than the results.
+     * embedding space, embedding the query with {@code inferenceId}. A memory is scored by its best-matching input across
+     * its revisions, and its current revision is returned. The request's filters are applied inside the kNN clause so they
+     * narrow the candidates rather than the results.
      */
     public void search(
         SearchSessionMemoryAction.Request request,
@@ -111,18 +119,20 @@ public class SessionMemoryIndexService {
         ActionListener<List<SearchSessionMemoryAction.Hit>> listener
     ) {
         try {
-            List<QueryBuilder> filters = filters(request.sessionId(), request.userId(), request.space(), request.aiIndexId());
+            List<QueryBuilder> filters = filters(request.sessionId(), request.userId(), request.space(), request.aiIndexIds());
             SearchSourceBuilder source = new SearchSourceBuilder().query(knnQuery(request.query(), inferenceId, request.size(), filters))
-                .size(request.size());
-            SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source);
+                .size(request.size())
+                .collapse(new CollapseBuilder(SessionMemory.ID_FIELD.getPreferredName()));
+            SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source)
+                .allowPartialSearchResults(false);
             clientWithOrigin.search(searchRequest, ActionListener.wrap(searchResponse -> {
-                List<SearchSessionMemoryAction.Hit> hits = new ArrayList<>();
+                List<Tuple<String, Float>> ranked = new ArrayList<>();
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    hits.add(new SearchSessionMemoryAction.Hit(parseHit(hit), hit.getScore()));
+                    ranked.add(Tuple.tuple(parseHit(hit).id(), hit.getScore()));
                 }
-                listener.onResponse(hits);
+                currentRevisions(ranked, listener);
             }, e -> {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     listener.onResponse(List.of());
                 } else {
                     listener.onFailure(e);
@@ -133,12 +143,49 @@ public class SessionMemoryIndexService {
         }
     }
 
-    private static List<QueryBuilder> filters(String sessionId, String userId, String space, String aiIndexId) {
+    /**
+     * The kNN hit for an id may be a stale revision, so the ranked ids are resolved to their current revision in a second
+     * search before the hits are built.
+     */
+    private void currentRevisions(List<Tuple<String, Float>> ranked, ActionListener<List<SearchSessionMemoryAction.Hit>> listener) {
+        if (ranked.isEmpty()) {
+            listener.onResponse(List.of());
+            return;
+        }
+        List<String> ids = ranked.stream().map(Tuple::v1).toList();
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
+            QueryBuilders.termsQuery(SessionMemory.ID_FIELD.getPreferredName(), ids)
+        )
+            .size(ids.size())
+            .sort(SessionMemory.TIMESTAMP_FIELD.getPreferredName(), SortOrder.DESC)
+            .collapse(new CollapseBuilder(SessionMemory.ID_FIELD.getPreferredName()));
+        SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source)
+            .allowPartialSearchResults(false);
+        clientWithOrigin.search(searchRequest, listener.delegateFailureAndWrap((l, searchResponse) -> {
+            Map<String, SessionMemory> current = new HashMap<>();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                SessionMemory memory = parseHit(hit);
+                current.put(memory.id(), memory);
+            }
+            List<SearchSessionMemoryAction.Hit> hits = new ArrayList<>();
+            for (Tuple<String, Float> entry : ranked) {
+                SessionMemory memory = current.get(entry.v1());
+                if (memory != null) {
+                    hits.add(new SearchSessionMemoryAction.Hit(memory, entry.v2()));
+                }
+            }
+            l.onResponse(hits);
+        }));
+    }
+
+    private static List<QueryBuilder> filters(String sessionId, String userId, String space, List<String> aiIndexIds) {
         List<QueryBuilder> filters = new ArrayList<>();
         addTermFilter(filters, SessionMemory.SESSION_ID_FIELD, sessionId);
         addTermFilter(filters, SessionMemory.USER_ID_FIELD, userId);
         addTermFilter(filters, SessionMemory.SPACE_FIELD, space);
-        addTermFilter(filters, SessionMemory.AI_INDEX_IDS_FIELD, aiIndexId);
+        if (aiIndexIds != null) {
+            filters.add(QueryBuilders.termsQuery(SessionMemory.AI_INDEX_IDS_FIELD.getPreferredName(), aiIndexIds));
+        }
         return filters;
     }
 

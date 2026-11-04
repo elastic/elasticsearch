@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.contextengine.aiindex;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -75,6 +76,7 @@ public class AiIndexRegistryService {
             .setAliasName(AI_INDEX_REGISTRY_ALIAS_NAME)
             .setIndexFormat(AI_INDEX_REGISTRY_INDEX_VERSION)
             .setOrigin(CONTEXT_ENGINE_ORIGIN)
+            .setNetNew()
             .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
             .build();
     }
@@ -100,7 +102,7 @@ public class AiIndexRegistryService {
             }
             index(aiIndex.withIdentityAndDates(id, aiIndex.space(), created, now), DocWriteRequest.OpType.INDEX, listener);
         }, e -> {
-            if (e instanceof IndexNotFoundException) {
+            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                 index(aiIndex.withIdentityAndDates(id, aiIndex.space(), now, now), DocWriteRequest.OpType.INDEX, listener);
             } else {
                 listener.onFailure(e);
@@ -130,11 +132,11 @@ public class AiIndexRegistryService {
                 return;
             }
             listener.onResponse(parse(getResponse.getSourceAsBytesRef().streamInput()));
-        }, e -> listener.onFailure(e instanceof IndexNotFoundException ? notFound(space, id) : e)));
+        }, e -> listener.onFailure(ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException ? notFound(space, id) : e)));
     }
 
     /**
-     * Lists records sorted by id, optionally narrowed to one space and to records whose backing store is {@code dest}.
+     * Lists records sorted by id then space, optionally narrowed to one space and to records whose backing store is {@code dest}.
      */
     public void list(String space, String dest, int size, ActionListener<List<AiIndex>> listener) {
         try {
@@ -149,8 +151,9 @@ public class AiIndexRegistryService {
             }
             SearchSourceBuilder source = new SearchSourceBuilder().query(query)
                 .size(size)
-                .sort(AiIndex.ID_FIELD.getPreferredName(), SortOrder.ASC);
-            SearchRequest request = new SearchRequest(AI_INDEX_REGISTRY_ALIAS_NAME).source(source);
+                .sort(AiIndex.ID_FIELD.getPreferredName(), SortOrder.ASC)
+                .sort(AiIndex.SPACE_FIELD.getPreferredName(), SortOrder.ASC);
+            SearchRequest request = new SearchRequest(AI_INDEX_REGISTRY_ALIAS_NAME).source(source).allowPartialSearchResults(false);
             clientWithOrigin.search(request, ActionListener.wrap(searchResponse -> {
                 List<AiIndex> results = new ArrayList<>();
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -158,7 +161,7 @@ public class AiIndexRegistryService {
                 }
                 listener.onResponse(results);
             }, e -> {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     listener.onResponse(List.of());
                 } else {
                     listener.onFailure(e);
@@ -178,7 +181,7 @@ public class AiIndexRegistryService {
                     return;
                 }
                 listener.onResponse(null);
-            }, e -> listener.onFailure(e instanceof IndexNotFoundException ? notFound(space, id) : e)));
+            }, e -> listener.onFailure(ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException ? notFound(space, id) : e)));
     }
 
     private static ResourceNotFoundException notFound(String space, String id) {

@@ -31,7 +31,7 @@ public class SearchSessionMemoryActionRequestTests extends AbstractWireSerializi
             randomBoolean() ? null : randomAlphaOfLength(12),
             randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomAlphaOfLength(8),
-            randomBoolean() ? null : randomAlphaOfLength(6),
+            randomBoolean() ? null : randomList(1, 3, () -> randomAlphaOfLength(6)),
             randomIntBetween(1, 100)
         );
     }
@@ -43,7 +43,7 @@ public class SearchSessionMemoryActionRequestTests extends AbstractWireSerializi
             instance.sessionId(),
             instance.userId(),
             instance.space(),
-            instance.aiIndexId(),
+            instance.aiIndexIds(),
             instance.size()
         );
     }

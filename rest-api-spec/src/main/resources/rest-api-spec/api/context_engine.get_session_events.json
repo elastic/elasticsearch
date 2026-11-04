@@ -33,8 +33,8 @@
         "description": "Only return events written for this Kibana space"
       },
       "ai_index_ids": {
-        "type": "string",
-        "description": "Only return events targeting this AI index"
+        "type": "list",
+        "description": "Only return events targeting any of these AI indices"
       },
       "size": {
         "type": "int",

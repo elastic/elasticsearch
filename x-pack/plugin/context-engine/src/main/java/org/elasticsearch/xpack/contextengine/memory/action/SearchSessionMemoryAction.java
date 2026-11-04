@@ -62,7 +62,7 @@ public class SearchSessionMemoryAction {
                 (String) args[1],
                 (String) args[2],
                 (String) args[3],
-                (String) args[4],
+                (List<String>) args[4],
                 args[5] == null ? DEFAULT_SIZE : (Integer) args[5]
             )
         );
@@ -77,7 +77,7 @@ public class SearchSessionMemoryAction {
             PARSER.declareString(optionalConstructorArg(), SessionMemory.SESSION_ID_FIELD);
             PARSER.declareString(optionalConstructorArg(), SessionMemory.USER_ID_FIELD);
             PARSER.declareString(optionalConstructorArg(), SessionMemory.SPACE_FIELD);
-            PARSER.declareString(optionalConstructorArg(), SessionMemory.AI_INDEX_IDS_FIELD);
+            PARSER.declareStringArray(optionalConstructorArg(), SessionMemory.AI_INDEX_IDS_FIELD);
             PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
         }
 
@@ -93,7 +93,7 @@ public class SearchSessionMemoryAction {
         @Nullable
         private final String space;
         @Nullable
-        private final String aiIndexId;
+        private final List<String> aiIndexIds;
         private final int size;
 
         public Request(
@@ -101,14 +101,14 @@ public class SearchSessionMemoryAction {
             @Nullable String sessionId,
             @Nullable String userId,
             @Nullable String space,
-            @Nullable String aiIndexId,
+            @Nullable List<String> aiIndexIds,
             int size
         ) {
             this.query = query;
             this.sessionId = sessionId;
             this.userId = userId;
             this.space = space;
-            this.aiIndexId = aiIndexId;
+            this.aiIndexIds = aiIndexIds;
             this.size = size;
         }
 
@@ -118,7 +118,7 @@ public class SearchSessionMemoryAction {
             this.sessionId = in.readOptionalString();
             this.userId = in.readOptionalString();
             this.space = in.readOptionalString();
-            this.aiIndexId = in.readOptionalString();
+            this.aiIndexIds = in.readOptionalStringCollectionAsList();
             this.size = in.readVInt();
         }
 
@@ -145,8 +145,8 @@ public class SearchSessionMemoryAction {
         }
 
         @Nullable
-        public String aiIndexId() {
-            return aiIndexId;
+        public List<String> aiIndexIds() {
+            return aiIndexIds;
         }
 
         public int size() {
@@ -160,7 +160,7 @@ public class SearchSessionMemoryAction {
             out.writeOptionalString(sessionId);
             out.writeOptionalString(userId);
             out.writeOptionalString(space);
-            out.writeOptionalString(aiIndexId);
+            out.writeOptionalStringCollection(aiIndexIds);
             out.writeVInt(size);
         }
 
@@ -177,8 +177,8 @@ public class SearchSessionMemoryAction {
             if (space != null) {
                 builder.field(SessionMemory.SPACE_FIELD.getPreferredName(), space);
             }
-            if (aiIndexId != null) {
-                builder.field(SessionMemory.AI_INDEX_IDS_FIELD.getPreferredName(), aiIndexId);
+            if (aiIndexIds != null) {
+                builder.field(SessionMemory.AI_INDEX_IDS_FIELD.getPreferredName(), aiIndexIds);
             }
             builder.field(SIZE_FIELD.getPreferredName(), size);
             builder.endObject();
@@ -247,12 +247,12 @@ public class SearchSessionMemoryAction {
                 && Objects.equals(sessionId, request.sessionId)
                 && Objects.equals(userId, request.userId)
                 && Objects.equals(space, request.space)
-                && Objects.equals(aiIndexId, request.aiIndexId);
+                && Objects.equals(aiIndexIds, request.aiIndexIds);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(query, sessionId, userId, space, aiIndexId, size);
+            return Objects.hash(query, sessionId, userId, space, aiIndexIds, size);
         }
     }
 

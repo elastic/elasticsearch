@@ -196,7 +196,7 @@ teardown:
   - do:
       context_engine.remember:
         body:
-          id: "list-older"
+          id: "list-first"
           session_id: "session-3"
           user_id: "user-1"
           space: "default"
@@ -206,7 +206,7 @@ teardown:
   - do:
       context_engine.remember:
         body:
-          id: "list-newer"
+          id: "list-second"
           session_id: "session-3"
           user_id: "user-2"
           space: "default"
@@ -217,8 +217,8 @@ teardown:
         session_id: "session-3"
 
   - match: { count: 2 }
-  - match: { results.0.id: "list-newer" }
-  - match: { results.1.id: "list-older" }
+  - match: { results.0.id: "list-second" }
+  - match: { results.1.id: "list-first" }
 
   - do:
       context_engine.list_session_memory:
@@ -227,7 +227,7 @@ teardown:
         ai_index_ids: "ai-index-1"
 
   - match: { count: 1 }
-  - match: { results.0.id: "list-older" }
+  - match: { results.0.id: "list-first" }
 
   - do:
       context_engine.list_session_memory:
@@ -235,7 +235,7 @@ teardown:
         size: 1
 
   - match: { count: 1 }
-  - match: { results.0.id: "list-newer" }
+  - match: { results.0.id: "list-second" }
 
 ---
 "Search rejects an empty query":
@@ -246,3 +246,41 @@ teardown:
           query: ""
 
   - match: { error.reason: "/.*\\[query\\]\\scannot\\sbe\\sempty.*/" }
+
+---
+"Revising a memory keeps only the current revision retrievable":
+  - do:
+      context_engine.remember:
+        body:
+          id: "revised"
+          session_id: "session-4"
+          user_id: "user-1"
+          space: "default"
+          content: "The user lives in Boston."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "revised"
+          session_id: "session-4"
+          user_id: "user-1"
+          space: "default"
+          content: "The user lives in Chicago."
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-4"
+
+  - match: { count: 1 }
+  - match: { results.0.id: "revised" }
+  - match: { results.0.content: "The user lives in Chicago." }
+
+  - do:
+      context_engine.search_session_memory:
+        body:
+          query: "where does the user live"
+          session_id: "session-4"
+
+  - match: { count: 1 }
+  - match: { results.0.memory.id: "revised" }
+  - match: { results.0.memory.content: "The user lives in Chicago." }

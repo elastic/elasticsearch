@@ -27,7 +27,7 @@ public class GetSessionEventsActionRequestTests extends AbstractWireSerializingT
         return new GetSessionEventsAction.Request(
             randomAlphaOfLength(12),
             randomBoolean() ? null : randomAlphaOfLength(8),
-            randomBoolean() ? null : randomAlphaOfLength(6),
+            randomBoolean() ? null : randomList(1, 3, () -> randomAlphaOfLength(6)),
             randomIntBetween(1, 1000)
         );
     }
@@ -37,7 +37,7 @@ public class GetSessionEventsActionRequestTests extends AbstractWireSerializingT
         return new GetSessionEventsAction.Request(
             randomValueOtherThan(instance.sessionId(), () -> randomAlphaOfLength(12)),
             instance.space(),
-            instance.aiIndexId(),
+            instance.aiIndexIds(),
             instance.size()
         );
     }

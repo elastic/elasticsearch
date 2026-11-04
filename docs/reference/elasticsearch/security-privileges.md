@@ -100,7 +100,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 
 
 `manage_context_engine`
-:   All operations on Context Engine session memory.
+:   All operations on Context Engine session memory, session events, and the AI index registry.
 
 `manage_data_frame_transforms` {applies_to}`serverless: unavailable` {applies_to}`stack: deprecated 7.5`
 :   Use `manage_transform` instead. {{es}} version 7.5 and older used `manage_data_frame_transforms` in operations related to managing {{transforms}}.

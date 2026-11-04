@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.contextengine.events;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -67,21 +68,28 @@ public class SessionEventsIndexService {
     /**
      * Returns the newest events for a session, optionally narrowed to a space and an AI index.
      */
-    public void getBySession(String sessionId, String space, String aiIndexId, int size, ActionListener<List<SessionEvent>> listener) {
+    public void getBySession(
+        String sessionId,
+        String space,
+        List<String> aiIndexIds,
+        int size,
+        ActionListener<List<SessionEvent>> listener
+    ) {
         try {
             BoolQueryBuilder query = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(SessionEvent.SESSION_ID_FIELD.getPreferredName(), sessionId));
             if (space != null) {
                 query.filter(QueryBuilders.termQuery(SessionEvent.SPACE_FIELD.getPreferredName(), space));
             }
-            if (aiIndexId != null) {
-                query.filter(QueryBuilders.termQuery(SessionEvent.AI_INDEX_IDS_FIELD.getPreferredName(), aiIndexId));
+            if (aiIndexIds != null) {
+                query.filter(QueryBuilders.termsQuery(SessionEvent.AI_INDEX_IDS_FIELD.getPreferredName(), aiIndexIds));
             }
             SearchSourceBuilder source = new SearchSourceBuilder().query(query)
                 .size(size)
                 .sort(SessionEvent.TIMESTAMP_FIELD.getPreferredName(), SortOrder.DESC)
                 .sort(SessionEvent.ID_FIELD.getPreferredName(), SortOrder.ASC);
-            SearchRequest request = new SearchRequest(ContextEnginePlugin.SESSION_EVENTS_DATA_STREAM_NAME).source(source);
+            SearchRequest request = new SearchRequest(ContextEnginePlugin.SESSION_EVENTS_DATA_STREAM_NAME).source(source)
+                .allowPartialSearchResults(false);
             clientWithOrigin.search(request, ActionListener.wrap(searchResponse -> {
                 List<SessionEvent> events = new ArrayList<>();
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
@@ -89,7 +97,7 @@ public class SessionEventsIndexService {
                 }
                 listener.onResponse(events);
             }, e -> {
-                if (e instanceof IndexNotFoundException) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                     listener.onResponse(List.of());
                 } else {
                     listener.onFailure(e);

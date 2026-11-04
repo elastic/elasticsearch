@@ -40,7 +40,7 @@ public class TransportGetSessionEventsAction extends HandledTransportAction<
         sessionEventsIndexService.getBySession(
             request.sessionId(),
             request.space(),
-            request.aiIndexId(),
+            request.aiIndexIds(),
             request.size(),
             listener.map(GetSessionEventsAction.Response::new)
         );

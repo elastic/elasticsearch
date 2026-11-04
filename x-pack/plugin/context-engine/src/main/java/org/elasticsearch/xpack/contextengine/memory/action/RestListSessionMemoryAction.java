@@ -14,6 +14,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
+import java.util.Arrays;
 import java.util.List;
 
 @ServerlessScope(Scope.INTERNAL)
@@ -35,7 +36,7 @@ public class RestListSessionMemoryAction extends BaseRestHandler {
             request.param("session_id"),
             request.param("user_id"),
             request.param("space"),
-            request.param("ai_index_ids"),
+            request.hasParam("ai_index_ids") ? Arrays.asList(request.paramAsStringArray("ai_index_ids", null)) : null,
             request.paramAsInt("size", ListSessionMemoryAction.DEFAULT_SIZE)
         );
         return channel -> client.execute(ListSessionMemoryAction.INSTANCE, listRequest, new RestToXContentListener<>(channel));

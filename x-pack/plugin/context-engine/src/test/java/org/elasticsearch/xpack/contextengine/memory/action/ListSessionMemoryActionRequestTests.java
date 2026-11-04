@@ -28,7 +28,7 @@ public class ListSessionMemoryActionRequestTests extends AbstractWireSerializing
             randomBoolean() ? null : randomAlphaOfLength(12),
             randomBoolean() ? null : randomAlphaOfLength(8),
             randomBoolean() ? null : randomAlphaOfLength(8),
-            randomBoolean() ? null : randomAlphaOfLength(6),
+            randomBoolean() ? null : randomList(1, 3, () -> randomAlphaOfLength(6)),
             randomIntBetween(1, 1000)
         );
     }
@@ -39,7 +39,7 @@ public class ListSessionMemoryActionRequestTests extends AbstractWireSerializing
             instance.sessionId(),
             instance.userId(),
             instance.space(),
-            instance.aiIndexId(),
+            instance.aiIndexIds(),
             randomValueOtherThan(instance.size(), () -> randomIntBetween(1, 1000))
         );
     }

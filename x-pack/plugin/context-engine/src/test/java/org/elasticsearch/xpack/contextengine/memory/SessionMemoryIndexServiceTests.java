@@ -38,6 +38,8 @@ public class SessionMemoryIndexServiceTests extends ESTestCase {
         assertThat(knn.get("num_candidates"), equalTo(200));
         assertThat(((Map<?, ?>) ((Map<?, ?>) knn.get("query_vector_builder")).get("embedding")).get("input"), equalTo("dark mode"));
         assertThat((List<?>) knn.get("filter"), hasSize(1));
+        Map<?, ?> term = (Map<?, ?>) ((Map<?, ?>) ((List<?>) knn.get("filter")).get(0)).get("term");
+        assertThat(((Map<?, ?>) term.get("user_id")).get("value"), equalTo("user-1"));
     }
 
     public void testKnnQueryImageInputWithoutFilters() throws IOException {

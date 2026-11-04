@@ -35,8 +35,8 @@
         "description": "Only return memories written for this Kibana space"
       },
       "ai_index_ids": {
-        "type": "string",
-        "description": "Only return memories targeting this AI index"
+        "type": "list",
+        "description": "Only return memories targeting any of these AI indices"
       },
       "size": {
         "type": "int",

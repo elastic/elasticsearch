@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -1664,7 +1665,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             prewarmRepliedAtHandoff.get()
         );
     }
-
     // verify that the source stops waiting for the prewarm reply once the prewarm wait timeout expires and proceeds with the handoff
     public void testRelocationSourceProceedsWithHandoffAfterPrewarmWaitTimeout() {
         startMasterOnlyNode();
@@ -1727,6 +1727,55 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         ensureGreen(indexName);
         // the late prewarm reply is ignored by the source, but wait for it so no request is in flight when the test ends
         safeAwait(prewarmReplied);
+    }
+
+    // verify that the source stops waiting as soon as the prewarm fails (before the timeout) and proceeds with the handoff
+    public void testRelocationSourceProceedsWithHandoffWhenPrewarmFails() {
+        startMasterOnlyNode();
+        final var nodeSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            // disable hollow shards as we don't prewarm cache during relocation for to-be-hollowed shards
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
+            // set to be high enough so the handoff can only arrive because the source stopped waiting upon the prewarm failure
+            .put(PREWARM_WAIT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
+            .build();
+
+        final var indexNodeA = startIndexNode(nodeSettings);
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        flush(indexName);
+
+        final var indexNodeB = startIndexNode(nodeSettings);
+        ensureStableCluster(3);
+
+        final var prewarmFailed = new AtomicBoolean();
+        final var prewarmFailedAtHandoff = new AtomicBoolean();
+        final var handoffReceived = new CountDownLatch(1);
+        final var targetTransportService = MockTransportService.getInstance(indexNodeB);
+        targetTransportService.addRequestHandlingBehavior(PREWARM_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+            // the target responds to the `prewarm` request with a failure
+            prewarmFailed.set(true);
+            channel.sendResponse(new ElasticsearchException("simulated prewarm failure"));
+        });
+
+        targetTransportService.addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+            // corresponds to when the target is about to receive the `primary_context_handoff` request
+            prewarmFailedAtHandoff.set(prewarmFailed.get());
+            handoffReceived.countDown();
+            handler.messageReceived(request, channel, task);
+        });
+
+        // trigger a relocation (note we only have 2 index nodes, so index has to move to `indexNodeB`)
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+
+        safeAwait(handoffReceived);
+        assertTrue("source sends the handoff after the prewarm failure, without waiting for the timeout", prewarmFailedAtHandoff.get());
+
+        ensureGreen(indexName);
     }
 
     /**

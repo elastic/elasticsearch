@@ -426,6 +426,59 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     /**
+     * Only the buckets whose formats differ from the ones of the composite are serialized, identified by their position. Mixes
+     * conforming buckets (same format as the composite, or a null key which is never formatted) with buckets of another format, so
+     * that each bucket gets back its own formats.
+     */
+    public void testSerializeSparseBucketFormats() throws IOException {
+        final String name = randomAlphaOfLength(10);
+        final List<String> names = List.of("date");
+        final var epochSecond = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("epoch_second"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        final var isoDate = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("strict_date_optional_time"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        // Formats of the composite are isoDate: buckets 1 and 3 conform, 0 and 2 don't, and 4 has a null key so it always conforms
+        final List<List<DocValueFormat>> bucketFormats = List.of(
+            List.of(epochSecond),
+            List.of(isoDate),
+            List.of(epochSecond),
+            List.of(isoDate),
+            List.of(DocValueFormat.RAW)
+        );
+        final List<InternalComposite.InternalBucket> buckets = new ArrayList<>();
+        for (int i = 0; i < bucketFormats.size(); i++) {
+            final var key = new CompositeKey(i == bucketFormats.size() - 1 ? null : 1_000L * (i + 1));
+            buckets.add(new InternalComposite.InternalBucket(names, bucketFormats.get(i), key, 1, InternalAggregations.EMPTY));
+        }
+        final var composite = new InternalComposite(
+            name,
+            10,
+            names,
+            List.of(isoDate),
+            buckets,
+            buckets.get(buckets.size() - 1).getRawKey(),
+            new int[] { 1 },
+            new MissingOrder[] { MissingOrder.LAST },
+            false,
+            emptyMap()
+        );
+
+        InternalComposite wire = (InternalComposite) copyNamedWriteable(composite, getNamedWriteableRegistry(), InternalAggregation.class);
+        assertThat(wire.getBuckets().size(), equalTo(buckets.size()));
+        for (int i = 0; i < buckets.size(); i++) {
+            final var expected = i == buckets.size() - 1 ? List.of(isoDate) : bucketFormats.get(i);
+            assertThat("formats of bucket " + i, wire.getBuckets().get(i).getFormats(), equalTo(expected));
+            assertThat("key of bucket " + i, wire.getBuckets().get(i).getKey(), equalTo(composite.getBuckets().get(i).getKey()));
+        }
+    }
+
+    /**
      * The mapped / unmapped case that is fixed by selecting the formats must also work when talking to an older node.
      */
     public void testPartialReduceMixedFormatsOldTransportVersion() throws IOException {

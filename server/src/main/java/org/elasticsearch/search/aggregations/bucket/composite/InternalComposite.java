@@ -30,6 +30,7 @@ import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -109,24 +110,21 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         this.reverseMuls = in.readIntArray();
         this.missingOrders = in.readArray(MissingOrder::readFromStream, MissingOrder[]::new);
-        List<List<DocValueFormat>> bucketFormats = null;
-        int[] bucketFormatsIndices = null;
-        if (in.getTransportVersion().supports(COMPOSITE_PER_BUCKET_FORMATS) && in.readBoolean() == false) {
-            // Some buckets have formats that differ from the composite's ones: a table of distinct formats and a table index per bucket
-            bucketFormats = in.readCollectionAsList(input -> {
+        Map<Integer, List<DocValueFormat>> bucketFormats = Map.of();
+        if (in.getTransportVersion().supports(COMPOSITE_PER_BUCKET_FORMATS)) {
+            // Only the buckets whose formats differ from the composite's ones are serialized, keyed by their index
+            bucketFormats = in.readMap(StreamInput::readVInt, input -> {
                 final List<DocValueFormat> bucketFormat = new ArrayList<>(sourceNames.size());
                 for (int i = 0; i < sourceNames.size(); i++) {
                     bucketFormat.add(input.readNamedWriteable(DocValueFormat.class));
                 }
                 return bucketFormat;
             });
-            bucketFormatsIndices = in.readVIntArray();
         }
         final int numBuckets = in.readVInt();
         final List<InternalBucket> readBuckets = new ArrayList<>(numBuckets);
         for (int i = 0; i < numBuckets; i++) {
-            final List<DocValueFormat> bucketFormat = bucketFormats == null ? formats : bucketFormats.get(bucketFormatsIndices[i]);
-            readBuckets.add(new InternalBucket(in, sourceNames, bucketFormat));
+            readBuckets.add(new InternalBucket(in, sourceNames, bucketFormats.getOrDefault(i, formats)));
         }
         this.buckets = readBuckets;
         this.afterKey = in.readOptionalWriteable(CompositeKey::new);
@@ -151,38 +149,25 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     }
 
     /**
-     * Writes whether all the buckets can use the formats of the composite, and if not, the formats of each bucket.
+     * Writes the formats of the buckets that can't use the formats of the composite, as a map from bucket index to formats.
      * <p>
      * A bucket can use the composite's formats if they are the same for all the non-null key components, as null keys are never
-     * formatted. This is the case of a missing bucket coming from an index where the source is unmapped. In the rare case where some
-     * buckets can't, we write a table of distinct formats (the first one being the composite's) and a table index for each bucket.
+     * formatted. This is the case of a missing bucket coming from an index where the source is unmapped. The map is empty
+     * (a single byte) in the common case where all buckets can.
      */
     private void writeBucketFormats(StreamOutput out) throws IOException {
-        final List<List<DocValueFormat>> distinctFormats = new ArrayList<>();
-        distinctFormats.add(formats);
-        final int[] indices = new int[buckets.size()];
-        boolean uniform = true;
-        for (int i = 0; i < indices.length; i++) {
+        final Map<Integer, List<DocValueFormat>> bucketFormats = new HashMap<>();
+        for (int i = 0; i < buckets.size(); i++) {
             final InternalBucket bucket = buckets.get(i);
             if (bucket.canUseFormats(formats) == false) {
-                uniform = false;
-                int index = distinctFormats.indexOf(bucket.formats);
-                if (index < 0) {
-                    index = distinctFormats.size();
-                    distinctFormats.add(bucket.formats);
-                }
-                indices[i] = index;
+                bucketFormats.put(i, bucket.formats);
             }
         }
-        out.writeBoolean(uniform);
-        if (uniform == false) {
-            out.writeCollection(distinctFormats, (o, bucketFormats) -> {
-                for (DocValueFormat format : bucketFormats) {
-                    o.writeNamedWriteable(format);
-                }
-            });
-            out.writeVIntArray(indices);
-        }
+        out.writeMap(bucketFormats, StreamOutput::writeVInt, (o, bucketFormat) -> {
+            for (DocValueFormat format : bucketFormat) {
+                o.writeNamedWriteable(format);
+            }
+        });
     }
 
     @Override

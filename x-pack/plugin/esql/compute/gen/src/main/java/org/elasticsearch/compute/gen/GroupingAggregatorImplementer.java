@@ -154,13 +154,13 @@ public class GroupingAggregatorImplementer {
             declarationType,
             requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
             requireName("prepareEvaluateIntermediate"),
-            requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
+            requireArgs(requireType(aggState.type()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
         );
         this.prepareEvaluateFinal = optionalStaticMethod(
             declarationType,
             requireType(GROUPING_AGGREGATOR_FUNCTION_PREPARED_FOR_EVALUATION),
             requireName("prepareEvaluateFinal"),
-            requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
+            requireArgs(requireType(aggState.type()), requireType(INT_VECTOR), requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT))
         );
 
         List<Argument> allCombineArgs = combine.getParameters().stream().skip(aggState.declaredType().isPrimitive() ? 1 : 2).map(v -> {
@@ -661,7 +661,7 @@ public class GroupingAggregatorImplementer {
             requireName("wrapAddInput"),
             requireArgs(
                 Stream.concat(
-                    Stream.of(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.declaredType())),
+                    Stream.of(requireType(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT), requireType(aggState.type())),
                     aggParams.stream().map(a -> {
                         if (a instanceof BlockArgument) {
                             return requireType(a.type());

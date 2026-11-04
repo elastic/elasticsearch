@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.test.XContentTestUtils.assertLongValueEquals;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.hamcrest.Matchers.equalTo;
@@ -275,5 +276,36 @@ public class XContentTestUtilsTests extends ESTestCase {
         assertThat(differenceBetweenMapsIgnoringArrayOrder(map1, map2, path -> path.equals("/different/*") == false), nullValue());
         assertThat(differenceBetweenMapsIgnoringArrayOrder(map1, map2, path -> path.equals("/different") == false), nullValue());
         assertThat(differenceBetweenMapsIgnoringArrayOrder(map1, map2, path -> path.isEmpty() == false), nullValue());
+    }
+
+    public void testAssertLongValueEquals() throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("small", 7L);
+        builder.field("big", 9876543210L);
+        builder.nullField("missing");
+        builder.endObject();
+
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder),
+                builder.contentType()
+            )
+        ) {
+            Map<String, Object> map = parser.map();
+            assertThat(map.get("small"), instanceOf(Integer.class));
+            assertThat(map.get("big"), instanceOf(Long.class));
+            assertLongValueEquals(map.get("small"), 7L);
+            assertLongValueEquals(map.get("big"), 9876543210L);
+            assertLongValueEquals(map.get("missing"), null);
+
+            expectThrows(AssertionError.class, () -> assertLongValueEquals(map.get("small"), 8L));
+            expectThrows(AssertionError.class, () -> assertLongValueEquals(map.get("big"), 7L));
+            expectThrows(AssertionError.class, () -> assertLongValueEquals(map.get("missing"), 7L));
+            expectThrows(AssertionError.class, () -> assertLongValueEquals(map.get("small"), null));
+            expectThrows(AssertionError.class, () -> assertLongValueEquals("not-a-number", 7L));
+        }
     }
 }

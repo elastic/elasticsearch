@@ -190,6 +190,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     /**
      * Returns the raw in-memory size in bytes of a field value that {@link #asBytes} accepts, before any decoding.
      *
+     * @param fieldValue the field value, which must not be null (the caller deals with a missing value)
      * @return size in bytes, an integer (because the underlying format can be a byte array or a string)
      * @throws IllegalArgumentException if the field value is not a string or a byte array
      */
@@ -206,6 +207,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     /**
      * Returns a field value as a byte array: a string is base64 decoded, and a byte array is just returned.
      *
+     * @param fieldValue the field value, which must not be null (the caller deals with a missing value)
      * @throws IllegalArgumentException if the field value is not a string or a byte array
      */
     private static byte[] asBytes(String field, Object fieldValue) {

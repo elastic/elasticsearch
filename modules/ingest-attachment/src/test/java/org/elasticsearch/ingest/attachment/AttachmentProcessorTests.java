@@ -729,6 +729,39 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("source_field"));
     }
 
+    /**
+     * The size of a string field is its length, as it is received (one base64 character is one byte), not the length that it decodes to.
+     */
+    public void testMaxAttachmentFieldSizeIsTheLengthOfAStringField() throws Exception {
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            8,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            new SetOnce<>()
+        );
+        // 8 characters is exactly at the limit (and decodes to just 6 bytes)
+        Map<String, Object> atLimit = new HashMap<>();
+        atLimit.put("source_field", "QUJDREVG");
+        processor.execute(RandomDocumentPicks.randomIngestDocument(random(), atLimit));
+
+        // 12 characters is over the limit, even though it decodes to just 8 bytes, which is not over it
+        Map<String, Object> overLimit = new HashMap<>();
+        overLimit.put("source_field", "QUJDREVGR0g=");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), overLimit);
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> processor.execute(ingestDocument));
+        assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+    }
+
     public void testSourceFieldOfInvalidType() {
         Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
         Map<String, Object> document = new HashMap<>();

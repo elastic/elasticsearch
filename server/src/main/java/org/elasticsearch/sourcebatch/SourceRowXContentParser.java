@@ -610,6 +610,11 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
         );
     }
 
+    /** The error for a number token whose type is none of the four number types, which {@code numericType()} makes unreachable. */
+    private AssertionError unexpectedNumberType() {
+        return new AssertionError("unexpected number type [" + currentType + "]");
+    }
+
     private XContentParseException outOfRange(Object value, String type, Object min, Object max) {
         return new XContentParseException(
             getTokenLocation(),
@@ -617,25 +622,37 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
         );
     }
 
+    /**
+     * The type of the number the parser is on. {@code currentType} is the type of the last value read and is not reset when the parser
+     * moves to a token that is not a value, such as a field name or the start of an object, so on any token other than a number it
+     * still describes an earlier value, and an accessor reading it would return that value instead of throwing as the JSON parser does.
+     */
+    private byte numericType() {
+        if (currentToken != Token.VALUE_NUMBER) {
+            throw notNumeric();
+        }
+        return currentType;
+    }
+
     @Override
     public Number numberValue() {
-        return switch (currentType) {
+        return switch (numericType()) {
             case SourceValueType.INT -> cachedInt;
             case SourceValueType.LONG -> cachedLong;
             case SourceValueType.FLOAT -> cachedFloat;
             case SourceValueType.DOUBLE -> cachedDouble;
-            default -> throw notNumeric();
+            default -> throw unexpectedNumberType();
         };
     }
 
     @Override
     public NumberType numberType() {
-        return switch (currentType) {
+        return switch (numericType()) {
             case SourceValueType.INT -> NumberType.INT;
             case SourceValueType.LONG -> NumberType.LONG;
             case SourceValueType.FLOAT -> NumberType.FLOAT;
             case SourceValueType.DOUBLE -> NumberType.DOUBLE;
-            default -> throw notNumeric();
+            default -> throw unexpectedNumberType();
         };
     }
 
@@ -658,12 +675,12 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
 
     @Override
     protected int doIntValue() {
-        return switch (currentType) {
+        return switch (numericType()) {
             case SourceValueType.INT -> cachedInt;
             case SourceValueType.LONG -> toInt(cachedLong);
             case SourceValueType.FLOAT -> toInt(cachedFloat);
             case SourceValueType.DOUBLE -> toInt(cachedDouble);
-            default -> throw notNumeric();
+            default -> throw unexpectedNumberType();
         };
     }
 
@@ -683,12 +700,12 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
 
     @Override
     protected long doLongValue() {
-        return switch (currentType) {
+        return switch (numericType()) {
             case SourceValueType.LONG -> cachedLong;
             case SourceValueType.INT -> cachedInt;
             case SourceValueType.FLOAT -> toLong(cachedFloat);
             case SourceValueType.DOUBLE -> toLong(cachedDouble);
-            default -> throw notNumeric();
+            default -> throw unexpectedNumberType();
         };
     }
 
@@ -701,23 +718,23 @@ public final class SourceRowXContentParser extends AbstractXContentParser {
 
     @Override
     protected float doFloatValue() {
-        return switch (currentType) {
+        return switch (numericType()) {
             case SourceValueType.FLOAT -> cachedFloat;
             case SourceValueType.DOUBLE -> (float) cachedDouble;
             case SourceValueType.INT -> (float) cachedInt;
             case SourceValueType.LONG -> (float) cachedLong;
-            default -> throw notNumeric();
+            default -> throw unexpectedNumberType();
         };
     }
 
     @Override
     protected double doDoubleValue() {
-        return switch (currentType) {
+        return switch (numericType()) {
             case SourceValueType.DOUBLE -> cachedDouble;
             case SourceValueType.FLOAT -> cachedFloat;
             case SourceValueType.INT -> cachedInt;
             case SourceValueType.LONG -> (double) cachedLong;
-            default -> throw notNumeric();
+            default -> throw unexpectedNumberType();
         };
     }
 

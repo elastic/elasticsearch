@@ -315,7 +315,13 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
     ) {
         int candidateBudget = Math.multiplyExact(spec.numCandidates(), primaryShards);
         SearchSourceBuilder source = commonSource(pit).query(
-            new RankVectorsCandidateQueryBuilder(spec.field(), spec.queryVector(), spec.k(), spec.numCandidates())
+            new RankVectorsCandidateQueryBuilder(
+                spec.field(),
+                spec.queryVector(),
+                spec.k(),
+                spec.numCandidates(),
+                spec.rescoreVectorBuilder() == null ? null : spec.rescoreVectorBuilder().oversample()
+            )
         ).size(candidateBudget);
         SearchRequest candidates = searchRequest(source);
         setParent(task, candidates);
@@ -355,7 +361,7 @@ public final class TransportRankVectorsEvalAction extends HandledTransportAction
         ActionListener<RankVectorsEvalResponse> listener
     ) {
         SearchSourceBuilder source = commonSource(pit).query(
-            new RankVectorsQueryBuilder(spec.field(), spec.queryVector(), spec.k(), spec.numCandidates())
+            new RankVectorsQueryBuilder(spec.field(), spec.queryVector(), spec.k(), spec.numCandidates(), spec.rescoreVectorBuilder())
         ).size(spec.k());
         SearchRequest request = searchRequest(source);
         setParent(task, request);

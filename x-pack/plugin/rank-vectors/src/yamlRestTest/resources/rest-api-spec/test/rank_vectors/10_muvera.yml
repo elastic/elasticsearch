@@ -1,0 +1,174 @@
+setup:
+  - requires:
+      cluster_features:
+        - "mapper.rank_vectors.muvera_indexing"
+        - "rank_vectors.query"
+        - "rank_vectors.eval"
+      reason: "requires indexed rank_vectors search and evaluation"
+
+  - do:
+      indices.create:
+        index: rank-vectors-muvera
+        body:
+          settings:
+            number_of_shards: 1
+            index.mapping.exclude_source_vectors: false
+
+  - do:
+      indices.put_mapping:
+        index: rank-vectors-muvera
+        body:
+          properties:
+            vectors:
+              type: rank_vectors
+              dims: 128
+              index: true
+
+  - do:
+      index:
+        index: rank-vectors-muvera
+        id: "best"
+        body:
+          vectors:
+            - [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+  - do:
+      index:
+        index: rank-vectors-muvera
+        id: "other"
+        refresh: true
+        body:
+          vectors:
+            - [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+  - do:
+      get:
+        index: rank-vectors-muvera
+        id: "best"
+  - set: { _source.vectors: query_vectors }
+
+---
+"rescore_vector oversample works for query, retriever, and eval":
+  - do:
+      search:
+        index: rank-vectors-muvera
+        body:
+          size: 1
+          query:
+            rank_vectors:
+              field: vectors
+              query_vector: $query_vectors
+              k: 1
+              num_candidates: 2
+              rescore_vector:
+                oversample: 2
+  - match: { hits.hits.0._id: "best" }
+
+  - do:
+      search:
+        index: rank-vectors-muvera
+        body:
+          retriever:
+            rank_vectors:
+              field: vectors
+              query_vector: $query_vectors
+              k: 1
+              num_candidates: 2
+              rescore_vector:
+                oversample: 2
+  - match: { hits.hits.0._id: "best" }
+
+  - do:
+      rank_vectors_eval:
+        index: rank-vectors-muvera
+        body:
+          field: vectors
+          query_vector: $query_vectors
+          k: 1
+          num_candidates: 2
+          rescore_vector:
+            oversample: 2
+          allow_exact: true
+  - match: { candidate_recall: 1.0 }
+  - match: { final_recall: 1.0 }
+  - match: { exact_hits.0._id: "best" }
+  - match: { final_hits.0._id: "best" }
+
+  - do:
+      rank_vectors_eval:
+        index: rank-vectors-muvera
+        wait_for_completion: false
+        body:
+          field: vectors
+          query_vector: $query_vectors
+          k: 1
+          num_candidates: 2
+          rescore_vector:
+            oversample: 2
+          allow_exact: true
+  - match: { task: '/.+:\d+/' }
+  - set: { task: task_id }
+
+  - do:
+      tasks.get:
+        task_id: $task_id
+        wait_for_completion: true
+  - match: { response.final_recall: 1.0 }
+  - match: { response.final_hits.0._id: "best" }
+
+---
+"rank_vectors requires exact MaxSim rescoring":
+  - do:
+      catch: /\[rescore_vector.oversample\] must be >= 1/
+      search:
+        index: rank-vectors-muvera
+        body:
+          query:
+            rank_vectors:
+              field: vectors
+              query_vector: $query_vectors
+              k: 1
+              num_candidates: 2
+              rescore_vector:
+                oversample: 0
+
+  - do:
+      catch: /\[rescore_vector.oversample\] must be >= 1/
+      search:
+        index: rank-vectors-muvera
+        body:
+          retriever:
+            rank_vectors:
+              field: vectors
+              query_vector: $query_vectors
+              k: 1
+              num_candidates: 2
+              rescore_vector:
+                oversample: 0
+
+  - do:
+      catch: /\[rescore_vector.oversample\] must be >= 1/
+      rank_vectors_eval:
+        index: rank-vectors-muvera
+        body:
+          field: vectors
+          query_vector: $query_vectors
+          k: 1
+          num_candidates: 2
+          rescore_vector:
+            oversample: 0
+          allow_exact: true

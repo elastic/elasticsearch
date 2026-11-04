@@ -11,6 +11,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.LeafQueryBuilder;
@@ -33,12 +34,25 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
     private final float[][] queryVectors;
     private final int k;
     private final int numCandidates;
+    @Nullable
+    private final Float queryOversample;
 
     public RankVectorsCandidateQueryBuilder(String field, float[][] queryVectors, int k, int numCandidates) {
+        this(field, queryVectors, k, numCandidates, null);
+    }
+
+    public RankVectorsCandidateQueryBuilder(
+        String field,
+        float[][] queryVectors,
+        int k,
+        int numCandidates,
+        @Nullable Float queryOversample
+    ) {
         this.field = Objects.requireNonNull(field);
         this.queryVectors = deepCopy(queryVectors);
         this.k = k;
         this.numCandidates = numCandidates;
+        this.queryOversample = queryOversample;
     }
 
     public RankVectorsCandidateQueryBuilder(StreamInput in) throws IOException {
@@ -47,6 +61,7 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
         queryVectors = in.readArray(StreamInput::readFloatArray, float[][]::new);
         k = in.readVInt();
         numCandidates = in.readVInt();
+        queryOversample = in.getTransportVersion().supports(RankVectorsQueryBuilder.RANK_VECTORS_QUERY) ? in.readOptionalFloat() : null;
     }
 
     @Override
@@ -62,7 +77,7 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
                 aliasFilter = context.getAliasFilter().toQuery(context);
             }
         }
-        return rankVectorsFieldType.muveraCandidateQuery(queryVectors, k, numCandidates, aliasFilter);
+        return rankVectorsFieldType.muveraCandidateQuery(queryVectors, k, numCandidates, queryOversample, aliasFilter);
     }
 
     @Override
@@ -71,6 +86,9 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
         out.writeArray(StreamOutput::writeFloatArray, queryVectors);
         out.writeVInt(k);
         out.writeVInt(numCandidates);
+        if (out.getTransportVersion().supports(RankVectorsQueryBuilder.RANK_VECTORS_QUERY)) {
+            out.writeOptionalFloat(queryOversample);
+        }
     }
 
     @Override
@@ -88,6 +106,11 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
         builder.endArray();
         builder.field("k", k);
         builder.field("num_candidates", numCandidates);
+        if (queryOversample != null) {
+            builder.startObject(RankVectorsQueryBuilder.RESCORE_VECTOR_FIELD.getPreferredName());
+            builder.field("oversample", queryOversample);
+            builder.endObject();
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -99,7 +122,6 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // The public query and this private companion are introduced together.
         return RankVectorsQueryBuilder.RANK_VECTORS_QUERY;
     }
 
@@ -108,12 +130,13 @@ public final class RankVectorsCandidateQueryBuilder extends LeafQueryBuilder<Ran
         return field.equals(other.field)
             && Arrays.deepEquals(queryVectors, other.queryVectors)
             && k == other.k
-            && numCandidates == other.numCandidates;
+            && numCandidates == other.numCandidates
+            && Objects.equals(queryOversample, other.queryOversample);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(field, Arrays.deepHashCode(queryVectors), k, numCandidates);
+        return Objects.hash(field, Arrays.deepHashCode(queryVectors), k, numCandidates, queryOversample);
     }
 
     private static float[][] deepCopy(float[][] vectors) {

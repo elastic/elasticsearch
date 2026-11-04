@@ -189,6 +189,23 @@ public class RankVectorsDiskBBQIntegrationTests extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int k = 10;
                 int numCandidates = 50;
+                IVFKnnFloatVectorQuery defaultOversampleQuery = (IVFKnnFloatVectorQuery) MuveraCandidateQuery.approximateQuery(
+                    "field",
+                    new float[RankVectorsFieldMapper.MUVERA_FDE_DIMS],
+                    k,
+                    numCandidates,
+                    null
+                );
+                assertEquals(30, defaultOversampleQuery.postFilterExpectedBaseQueryDocMatches(reader.leaves()));
+                IVFKnnFloatVectorQuery explicitOversampleQuery = (IVFKnnFloatVectorQuery) MuveraCandidateQuery.approximateQuery(
+                    "field",
+                    new float[RankVectorsFieldMapper.MUVERA_FDE_DIMS],
+                    k,
+                    numCandidates,
+                    5f,
+                    null
+                );
+                assertEquals(50, explicitOversampleQuery.postFilterExpectedBaseQueryDocMatches(reader.leaves()));
                 TopDocs candidates = new IndexSearcher(reader).search(
                     new MuveraCandidateQuery("field", unitTokens(0, 1), k, numCandidates, null, encoder()),
                     numCandidates

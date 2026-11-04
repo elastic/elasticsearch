@@ -13,6 +13,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Retrieves documents from an indexed {@code rank_vectors} field and returns
@@ -36,7 +38,13 @@ public final class RankVectorsRetrieverBuilder extends RetrieverBuilder {
     private static final ConstructingObjectParser<RankVectorsRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(
             NAME,
-            args -> new RankVectorsRetrieverBuilder((String) args[0], (float[][]) args[1], (int) args[2], (int) args[3])
+            args -> new RankVectorsRetrieverBuilder(
+                (String) args[0],
+                (float[][]) args[1],
+                (int) args[2],
+                (int) args[3],
+                (RescoreVectorBuilder) args[4]
+            )
         );
 
     static {
@@ -49,6 +57,11 @@ public final class RankVectorsRetrieverBuilder extends RetrieverBuilder {
         );
         PARSER.declareInt(constructorArg(), RankVectorsQueryBuilder.K_FIELD);
         PARSER.declareInt(constructorArg(), RankVectorsQueryBuilder.NUM_CANDIDATES_FIELD);
+        PARSER.declareObject(
+            optionalConstructorArg(),
+            (parser, context) -> RescoreVectorBuilder.fromXContent(parser),
+            RankVectorsQueryBuilder.RESCORE_VECTOR_FIELD
+        );
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -56,17 +69,29 @@ public final class RankVectorsRetrieverBuilder extends RetrieverBuilder {
     private final float[][] queryVectors;
     private final int k;
     private final int numCandidates;
+    private final RescoreVectorBuilder rescoreVectorBuilder;
 
     public RankVectorsRetrieverBuilder(String fieldName, float[][] queryVectors, int k, int numCandidates) {
-        RankVectorsQueryBuilder queryBuilder = new RankVectorsQueryBuilder(fieldName, queryVectors, k, numCandidates);
+        this(fieldName, queryVectors, k, numCandidates, null);
+    }
+
+    public RankVectorsRetrieverBuilder(
+        String fieldName,
+        float[][] queryVectors,
+        int k,
+        int numCandidates,
+        RescoreVectorBuilder rescoreVectorBuilder
+    ) {
+        RankVectorsQueryBuilder queryBuilder = new RankVectorsQueryBuilder(fieldName, queryVectors, k, numCandidates, rescoreVectorBuilder);
         this.fieldName = queryBuilder.getFieldName();
         this.queryVectors = queryBuilder.getQueryVectors();
         this.k = queryBuilder.getK();
         this.numCandidates = queryBuilder.getNumCandidates();
+        this.rescoreVectorBuilder = queryBuilder.getRescoreVectorBuilder();
     }
 
     private RankVectorsRetrieverBuilder(RankVectorsRetrieverBuilder source, List<QueryBuilder> filters) {
-        this(source.fieldName, source.queryVectors, source.k, source.numCandidates);
+        this(source.fieldName, source.queryVectors, source.k, source.numCandidates, source.rescoreVectorBuilder);
         this.preFilterQueryBuilders = filters;
         this.retrieverName = source.retrieverName;
         this.minScore = source.minScore;
@@ -122,6 +147,9 @@ public final class RankVectorsRetrieverBuilder extends RetrieverBuilder {
         builder.endArray();
         builder.field(RankVectorsQueryBuilder.K_FIELD.getPreferredName(), k);
         builder.field(RankVectorsQueryBuilder.NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
+        if (rescoreVectorBuilder != null) {
+            builder.field(RankVectorsQueryBuilder.RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
+        }
     }
 
     @Override
@@ -130,16 +158,18 @@ public final class RankVectorsRetrieverBuilder extends RetrieverBuilder {
         return fieldName.equals(other.fieldName)
             && Arrays.deepEquals(queryVectors, other.queryVectors)
             && k == other.k
-            && numCandidates == other.numCandidates;
+            && numCandidates == other.numCandidates
+            && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, Arrays.deepHashCode(queryVectors), k, numCandidates);
+        return Objects.hash(fieldName, Arrays.deepHashCode(queryVectors), k, numCandidates, rescoreVectorBuilder);
     }
 
     private RankVectorsQueryBuilder queryBuilder() {
-        return new RankVectorsQueryBuilder(fieldName, queryVectors, k, numCandidates).addFilterQueries(preFilterQueryBuilders)
-            .queryName(retrieverName);
+        return new RankVectorsQueryBuilder(fieldName, queryVectors, k, numCandidates, rescoreVectorBuilder).addFilterQueries(
+            preFilterQueryBuilders
+        ).queryName(retrieverName);
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -41,7 +42,14 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
 
     private static final ConstructingObjectParser<RankVectorsEvalSpec, Void> PARSER = new ConstructingObjectParser<>(
         "rank_vectors_eval",
-        args -> new RankVectorsEvalSpec((String) args[0], (float[][]) args[1], (int) args[2], (int) args[3], (boolean) args[4])
+        args -> new RankVectorsEvalSpec(
+            (String) args[0],
+            (float[][]) args[1],
+            (int) args[2],
+            (int) args[3],
+            (RescoreVectorBuilder) args[4],
+            (boolean) args[5]
+        )
     );
 
     static {
@@ -54,6 +62,11 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
         );
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), K);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUM_CANDIDATES);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (parser, context) -> RescoreVectorBuilder.fromXContent(parser),
+            RankVectorsQueryBuilder.RESCORE_VECTOR_FIELD
+        );
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ALLOW_EXACT);
     }
 
@@ -61,9 +74,21 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
     private final float[][] queryVector;
     private final int k;
     private final int numCandidates;
+    private final RescoreVectorBuilder rescoreVectorBuilder;
     private final boolean allowExact;
 
     public RankVectorsEvalSpec(String field, float[][] queryVector, int k, int numCandidates, boolean allowExact) {
+        this(field, queryVector, k, numCandidates, null, allowExact);
+    }
+
+    public RankVectorsEvalSpec(
+        String field,
+        float[][] queryVector,
+        int k,
+        int numCandidates,
+        RescoreVectorBuilder rescoreVectorBuilder,
+        boolean allowExact
+    ) {
         if (Strings.hasText(field) == false) {
             throw new IllegalArgumentException("[field] must be a non-empty field name");
         }
@@ -93,7 +118,17 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
         if (numCandidates < k || numCandidates > MAX_NUM_CANDIDATES) {
             throw new IllegalArgumentException("[num_candidates] must be between [k] and " + MAX_NUM_CANDIDATES);
         }
-        RankVectorsQueryBuilder.validateRescoreWork(queryVector.length, k, numCandidates);
+        if (rescoreVectorBuilder != null && rescoreVectorBuilder.oversample() == RescoreVectorBuilder.NO_OVERSAMPLE) {
+            throw new IllegalArgumentException("[rescore_vector.oversample] must be >= 1");
+        }
+        RankVectorsQueryBuilder.validateRescoreWork(
+            queryVector.length,
+            k,
+            numCandidates,
+            rescoreVectorBuilder == null
+                ? org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE
+                : rescoreVectorBuilder.oversample()
+        );
         if (allowExact == false) {
             throw new IllegalArgumentException(
                 "[allow_exact] must be true because the exact MaxSim baseline can severely slow other searches"
@@ -103,11 +138,21 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
         this.queryVector = deepCopy(queryVector);
         this.k = k;
         this.numCandidates = numCandidates;
+        this.rescoreVectorBuilder = rescoreVectorBuilder;
         this.allowExact = true;
     }
 
     public RankVectorsEvalSpec(StreamInput in) throws IOException {
-        this(in.readString(), in.readArray(StreamInput::readFloatArray, float[][]::new), in.readVInt(), in.readVInt(), in.readBoolean());
+        this(
+            in.readString(),
+            in.readArray(StreamInput::readFloatArray, float[][]::new),
+            in.readVInt(),
+            in.readVInt(),
+            in.getTransportVersion().supports(RankVectorsQueryBuilder.RANK_VECTORS_QUERY)
+                ? in.readOptionalWriteable(RescoreVectorBuilder::new)
+                : null,
+            in.readBoolean()
+        );
     }
 
     public static RankVectorsEvalSpec parse(XContentParser parser) {
@@ -130,6 +175,10 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
         return numCandidates;
     }
 
+    public RescoreVectorBuilder rescoreVectorBuilder() {
+        return rescoreVectorBuilder;
+    }
+
     public boolean allowExact() {
         return allowExact;
     }
@@ -140,6 +189,9 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
         out.writeArray(StreamOutput::writeFloatArray, queryVector);
         out.writeVInt(k);
         out.writeVInt(numCandidates);
+        if (out.getTransportVersion().supports(RankVectorsQueryBuilder.RANK_VECTORS_QUERY)) {
+            out.writeOptionalWriteable(rescoreVectorBuilder);
+        }
         out.writeBoolean(allowExact);
     }
 
@@ -150,6 +202,9 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
         builder.field(QUERY_VECTOR.getPreferredName(), queryVector);
         builder.field(K.getPreferredName(), k);
         builder.field(NUM_CANDIDATES.getPreferredName(), numCandidates);
+        if (rescoreVectorBuilder != null) {
+            builder.field(RankVectorsQueryBuilder.RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
+        }
         builder.field(ALLOW_EXACT.getPreferredName(), allowExact);
         return builder.endObject();
     }
@@ -161,12 +216,13 @@ public final class RankVectorsEvalSpec implements Writeable, ToXContentObject {
             && java.util.Arrays.deepEquals(queryVector, other.queryVector)
             && k == other.k
             && numCandidates == other.numCandidates
+            && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder)
             && allowExact == other.allowExact;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, java.util.Arrays.deepHashCode(queryVector), k, numCandidates, allowExact);
+        return Objects.hash(field, java.util.Arrays.deepHashCode(queryVector), k, numCandidates, rescoreVectorBuilder, allowExact);
     }
 
     private static float[][] parseVectors(XContentParser parser) throws IOException {

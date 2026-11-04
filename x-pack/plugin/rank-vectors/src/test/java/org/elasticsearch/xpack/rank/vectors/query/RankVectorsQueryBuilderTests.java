@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -31,7 +32,8 @@ public class RankVectorsQueryBuilderTests extends ESTestCase {
               "field": "tokens",
               "query_vector": [[1.0, 0.0], [0.0, 1.0]],
               "k": 2,
-              "num_candidates": 10
+              "num_candidates": 10,
+              "rescore_vector": { "oversample": 4.0 }
             }
             """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
@@ -42,12 +44,18 @@ public class RankVectorsQueryBuilderTests extends ESTestCase {
             assertArrayEquals(new float[] { 0f, 1f }, builder.getQueryVectors()[1], 0f);
             assertEquals(2, builder.getK());
             assertEquals(10, builder.getNumCandidates());
+            assertEquals(new RescoreVectorBuilder(4f), builder.getRescoreVectorBuilder());
         }
     }
 
     public void testWireRoundTrip() throws IOException {
-        RankVectorsQueryBuilder builder = new RankVectorsQueryBuilder("tokens", new float[][] { { 1f, 0f }, { 0f, 1f } }, 2, 10).boost(1.5f)
-            .queryName("late-interaction");
+        RankVectorsQueryBuilder builder = new RankVectorsQueryBuilder(
+            "tokens",
+            new float[][] { { 1f, 0f }, { 0f, 1f } },
+            2,
+            10,
+            new RescoreVectorBuilder(4f)
+        ).boost(1.5f).queryName("late-interaction");
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setTransportVersion(TransportVersion.current());
             builder.writeTo(output);
@@ -111,5 +119,17 @@ public class RankVectorsQueryBuilderTests extends ESTestCase {
             () -> new RankVectorsQueryBuilder("tokens", new float[RankVectorsFieldMapper.MAX_MUVERA_VECTORS][1], 10_000, 10_000)
         );
         assertThat(e.getMessage(), containsString("exact MaxSim work"));
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RankVectorsQueryBuilder(
+                "tokens",
+                new float[][] { { 1f } },
+                1,
+                10,
+                new RescoreVectorBuilder(RescoreVectorBuilder.NO_OVERSAMPLE)
+            )
+        );
+        assertThat(e.getMessage(), containsString("[rescore_vector.oversample] must be >= 1"));
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.usage.SearchUsage;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -41,6 +42,7 @@ public class RankVectorsRetrieverBuilderTests extends ESTestCase {
                 "query_vector": [[1.0, 0.0], [0.0, 1.0]],
                 "k": 2,
                 "num_candidates": 10,
+                "rescore_vector": { "oversample": 4.0 },
                 "filter": [
                   { "term": { "language": "en" } }
                 ],
@@ -54,6 +56,7 @@ public class RankVectorsRetrieverBuilderTests extends ESTestCase {
         assertEquals("tokens", topDocsQuery.getFieldName());
         assertEquals(2, topDocsQuery.getK());
         assertEquals(10, topDocsQuery.getNumCandidates());
+        assertEquals(new RescoreVectorBuilder(4f), topDocsQuery.getRescoreVectorBuilder());
         assertEquals(List.of(new TermQueryBuilder("language", "en")), topDocsQuery.getFilterQueries());
         assertEquals("late-interaction", topDocsQuery.queryName());
 
@@ -71,7 +74,8 @@ public class RankVectorsRetrieverBuilderTests extends ESTestCase {
                 "field": "tokens",
                 "query_vector": [[1.0, 0.0], [0.0, 1.0]],
                 "k": 2,
-                "num_candidates": 10
+                "num_candidates": 10,
+                "rescore_vector": { "oversample": 5.0 }
               }
             }
             """);

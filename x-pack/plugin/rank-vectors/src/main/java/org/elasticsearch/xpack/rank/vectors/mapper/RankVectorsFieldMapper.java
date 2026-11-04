@@ -407,13 +407,23 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
         }
 
         public Query maxSimQuery(float[][] queryVectors, int k, int numCandidates, @Nullable Query filter) {
+            return maxSimQuery(queryVectors, k, numCandidates, null, filter);
+        }
+
+        public Query maxSimQuery(
+            float[][] queryVectors,
+            int k,
+            int numCandidates,
+            @Nullable Float queryOversample,
+            @Nullable Query filter
+        ) {
             if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException("Rank Vectors");
             }
             if (encodingProfile == null) {
                 throw new IllegalArgumentException("Field [" + name() + "] is not indexed for approximate MaxSim search");
             }
-            return new MuveraMaxSimQuery(name(), queryVectors, k, numCandidates, filter, encodingProfile.encoder());
+            return new MuveraMaxSimQuery(name(), queryVectors, k, numCandidates, queryOversample, filter, encodingProfile.encoder());
         }
 
         /** Returns a native brute-force MaxSim query for evaluation baselines. */
@@ -426,13 +436,24 @@ public class RankVectorsFieldMapper extends FieldMapper implements KnnVectorsFor
 
         /** Returns the raw per-shard MUVERA candidate query used by the private evaluation action. */
         public Query muveraCandidateQuery(float[][] queryVectors, int k, int numCandidates, @Nullable Query filter) {
+            return muveraCandidateQuery(queryVectors, k, numCandidates, null, filter);
+        }
+
+        /** Returns the raw per-shard MUVERA candidate query used by the private evaluation action. */
+        public Query muveraCandidateQuery(
+            float[][] queryVectors,
+            int k,
+            int numCandidates,
+            @Nullable Float queryOversample,
+            @Nullable Query filter
+        ) {
             if (RANK_VECTORS_FEATURE.check(licenseState) == false) {
                 throw LicenseUtils.newComplianceException("Rank Vectors");
             }
             if (encodingProfile == null) {
                 throw new IllegalArgumentException("Field [" + name() + "] is not indexed with MUVERA");
             }
-            return new MuveraCandidateQuery(name(), queryVectors, k, numCandidates, filter, encodingProfile.encoder());
+            return new MuveraCandidateQuery(name(), queryVectors, k, numCandidates, queryOversample, filter, encodingProfile.encoder());
         }
 
         public int getVectorDimensions() {

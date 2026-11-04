@@ -34,6 +34,8 @@ public final class MuveraCandidateQuery extends Query {
     private final int k;
     private final int numCandidates;
     @Nullable
+    private final Float queryOversample;
+    @Nullable
     private final Query filter;
     private final MuveraEncoder encoder;
 
@@ -42,6 +44,18 @@ public final class MuveraCandidateQuery extends Query {
         float[][] queryVectors,
         int k,
         int numCandidates,
+        @Nullable Query filter,
+        MuveraEncoder encoder
+    ) {
+        this(field, queryVectors, k, numCandidates, null, filter, encoder);
+    }
+
+    public MuveraCandidateQuery(
+        String field,
+        float[][] queryVectors,
+        int k,
+        int numCandidates,
+        @Nullable Float queryOversample,
         @Nullable Query filter,
         MuveraEncoder encoder
     ) {
@@ -55,6 +69,7 @@ public final class MuveraCandidateQuery extends Query {
         this.queryVectors = deepCopy(queryVectors);
         this.k = k;
         this.numCandidates = numCandidates;
+        this.queryOversample = queryOversample;
         this.filter = filter;
         this.encoder = Objects.requireNonNull(encoder);
         this.encoder.validateQueryVectors(this.queryVectors);
@@ -65,10 +80,22 @@ public final class MuveraCandidateQuery extends Query {
         Runnable checkCancelled = searcher instanceof ContextIndexSearcher contextSearcher
             ? contextSearcher::checkCancelled
             : NO_CANCELLATION;
-        return approximateQuery(field, encoder.encodeQuery(queryVectors, checkCancelled), k, numCandidates, filter).rewrite(searcher);
+        return approximateQuery(field, encoder.encodeQuery(queryVectors, checkCancelled), k, numCandidates, queryOversample, filter)
+            .rewrite(searcher);
     }
 
     static Query approximateQuery(String field, float[] queryFde, int k, int numCandidates, @Nullable Query filter) {
+        return approximateQuery(field, queryFde, k, numCandidates, null, filter);
+    }
+
+    static Query approximateQuery(
+        String field,
+        float[] queryFde,
+        int k,
+        int numCandidates,
+        @Nullable Float queryOversample,
+        @Nullable Query filter
+    ) {
         return IVFKnnFloatVectorQuery.fromMappingConfig(
             field,
             queryFde,
@@ -80,7 +107,7 @@ public final class MuveraCandidateQuery extends Query {
             false,
             1,
             DEFAULT_OVERSAMPLE,
-            null
+            queryOversample
         );
     }
 
@@ -104,13 +131,14 @@ public final class MuveraCandidateQuery extends Query {
             && Arrays.deepEquals(queryVectors, other.queryVectors)
             && k == other.k
             && numCandidates == other.numCandidates
+            && Objects.equals(queryOversample, other.queryOversample)
             && Objects.equals(filter, other.filter)
             && encoder == other.encoder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, Arrays.deepHashCode(queryVectors), k, numCandidates, filter, encoder);
+        return Objects.hash(classHash(), field, Arrays.deepHashCode(queryVectors), k, numCandidates, queryOversample, filter, encoder);
     }
 
     private static float[][] deepCopy(float[][] vectors) {

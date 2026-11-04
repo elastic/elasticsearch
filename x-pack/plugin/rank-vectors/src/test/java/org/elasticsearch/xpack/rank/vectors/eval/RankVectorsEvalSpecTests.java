@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rank.vectors.eval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -38,6 +39,9 @@ public class RankVectorsEvalSpecTests extends ESTestCase {
                 .endArray()
                 .field("k", 2)
                 .field("num_candidates", 20)
+                .startObject("rescore_vector")
+                .field("oversample", 4.0)
+                .endObject()
                 .field("allow_exact", true)
                 .endObject();
             XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))
@@ -45,6 +49,7 @@ public class RankVectorsEvalSpecTests extends ESTestCase {
             RankVectorsEvalSpec parsed = RankVectorsEvalSpec.parse(parser);
             assertEquals("vectors", parsed.field());
             assertEquals(2, parsed.queryVector().length);
+            assertEquals(new RescoreVectorBuilder(4f), parsed.rescoreVectorBuilder());
             assertEquals(parsed, copyWriteable(parsed, new NamedWriteableRegistry(List.of()), RankVectorsEvalSpec::new));
         }
     }
@@ -84,5 +89,20 @@ public class RankVectorsEvalSpecTests extends ESTestCase {
         );
         assertThat(exception.getMessage(), containsString("exact MaxSim work"));
         assertEquals(Long.MAX_VALUE, TransportRankVectorsEvalAction.saturatingMultiply(Long.MAX_VALUE, 2));
+    }
+
+    public void testRejectsDisabledMaxSimRescore() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RankVectorsEvalSpec(
+                "vectors",
+                new float[][] { { 1f } },
+                1,
+                10,
+                new RescoreVectorBuilder(RescoreVectorBuilder.NO_OVERSAMPLE),
+                true
+            )
+        );
+        assertThat(exception.getMessage(), containsString("[rescore_vector.oversample] must be >= 1"));
     }
 }

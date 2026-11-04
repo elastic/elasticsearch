@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -55,7 +56,7 @@ public class RankVectorsEvalIT extends ESIntegTestCase {
         refresh(INDEX);
 
         RankVectorsEvalRequest request = new RankVectorsEvalRequest(
-            new RankVectorsEvalSpec("vectors", tokens(0, 1), 2, 2, true),
+            new RankVectorsEvalSpec("vectors", tokens(0, 1), 2, 2, new RescoreVectorBuilder(1f), true),
             new String[] { INDEX }
         );
         RankVectorsEvalResponse response = client().execute(RankVectorsPlugin.RANK_VECTORS_EVAL_ACTION, request).actionGet();

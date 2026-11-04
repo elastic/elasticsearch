@@ -31,6 +31,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+
 /**
  * Uses a MUVERA FDE to select candidates and replaces every approximate score
  * with exact MaxSim over the original rank vectors before returning any hits.
@@ -45,10 +47,24 @@ final class MuveraMaxSimQuery extends Query {
     private final int k;
     private final int numCandidates;
     @Nullable
+    private final Float queryOversample;
+    @Nullable
     private final Query filter;
     private final MuveraEncoder encoder;
 
     MuveraMaxSimQuery(String field, float[][] queryVectors, int k, int numCandidates, @Nullable Query filter, MuveraEncoder encoder) {
+        this(field, queryVectors, k, numCandidates, null, filter, encoder);
+    }
+
+    MuveraMaxSimQuery(
+        String field,
+        float[][] queryVectors,
+        int k,
+        int numCandidates,
+        @Nullable Float queryOversample,
+        @Nullable Query filter,
+        MuveraEncoder encoder
+    ) {
         if (queryVectors == null || queryVectors.length == 0) {
             throw new IllegalArgumentException("query vectors must not be empty");
         }
@@ -70,11 +86,17 @@ final class MuveraMaxSimQuery extends Query {
         if (numCandidates > MAX_CANDIDATES) {
             throw new IllegalArgumentException("[num_candidates] cannot exceed [" + MAX_CANDIDATES + "]");
         }
-        RankVectorsQueryBuilder.validateRescoreWork(queryVectors.length, k, numCandidates);
+        RankVectorsQueryBuilder.validateRescoreWork(
+            queryVectors.length,
+            k,
+            numCandidates,
+            queryOversample == null ? DEFAULT_OVERSAMPLE : queryOversample
+        );
         this.field = Objects.requireNonNull(field);
         this.queryVectors = deepCopy(queryVectors);
         this.k = k;
         this.numCandidates = numCandidates;
+        this.queryOversample = queryOversample;
         this.filter = filter;
         this.encoder = Objects.requireNonNull(encoder);
         this.encoder.validateQueryVectors(this.queryVectors);
@@ -87,7 +109,7 @@ final class MuveraMaxSimQuery extends Query {
             : NO_CANCELLATION;
         float[] queryFde = encoder.encodeQuery(queryVectors, checkCancelled);
         TopDocs candidates = searcher.search(
-            MuveraCandidateQuery.approximateQuery(field, queryFde, k, numCandidates, filter),
+            MuveraCandidateQuery.approximateQuery(field, queryFde, k, numCandidates, queryOversample, filter),
             numCandidates
         );
         if (candidates.scoreDocs.length == 0) {
@@ -172,13 +194,14 @@ final class MuveraMaxSimQuery extends Query {
             && Arrays.deepEquals(queryVectors, other.queryVectors)
             && k == other.k
             && numCandidates == other.numCandidates
+            && Objects.equals(queryOversample, other.queryOversample)
             && Objects.equals(filter, other.filter)
             && encoder == other.encoder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, Arrays.deepHashCode(queryVectors), k, numCandidates, filter, encoder);
+        return Objects.hash(classHash(), field, Arrays.deepHashCode(queryVectors), k, numCandidates, queryOversample, filter, encoder);
     }
 
     private static float[][] deepCopy(float[][] vectors) {

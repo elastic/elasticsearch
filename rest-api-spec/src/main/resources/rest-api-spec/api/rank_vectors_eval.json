@@ -2,10 +2,10 @@
   "rank_vectors_eval": {
     "documentation": {
       "url": null,
-      "description": "Compare an exact MaxSim baseline, raw per-primary-shard MUVERA candidates, and the normal exact-rescored rank_vectors top-k using one point-in-time. This private diagnostic requires allow_exact:true and rejects nested, non-indexed, non-MUVERA, or inconsistent mappings."
+      "description": "Compare an exact MaxSim baseline, raw per-primary-shard MUVERA candidates, and the normal exact-rescored rank_vectors top-k using one point-in-time. This API requires allow_exact:true and rejects nested, non-indexed, non-MUVERA, or inconsistent mappings."
     },
     "stability": "experimental",
-    "visibility": "private",
+    "visibility": "public",
     "headers": {
       "accept": [
         "application/json"
@@ -19,6 +19,7 @@
         {
           "path": "/{index}/_rank_vectors_eval",
           "methods": [
+            "GET",
             "POST"
           ],
           "parts": {
@@ -60,7 +61,7 @@
       }
     },
     "body": {
-      "description": "The field, explicit multivector query_vector, k, num_candidates, and mandatory allow_exact:true.",
+      "description": "The field, explicit multivector query_vector, k, num_candidates, optional rescore_vector, and mandatory allow_exact:true.",
       "required": true
     }
   }

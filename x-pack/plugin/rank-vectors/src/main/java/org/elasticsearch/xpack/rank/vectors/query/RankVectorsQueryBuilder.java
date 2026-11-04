@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -38,6 +39,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Selects approximate candidates for an indexed {@code rank_vectors} field and
@@ -55,6 +57,7 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField K_FIELD = new ParseField("k");
     public static final ParseField NUM_CANDIDATES_FIELD = new ParseField("num_candidates");
+    public static final ParseField RESCORE_VECTOR_FIELD = new ParseField("rescore_vector");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
 
     private static final int MAX_CANDIDATES = 10_000;
@@ -62,7 +65,13 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
 
     private static final ConstructingObjectParser<RankVectorsQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        args -> new RankVectorsQueryBuilder((String) args[0], (float[][]) args[1], (int) args[2], (int) args[3])
+        args -> new RankVectorsQueryBuilder(
+            (String) args[0],
+            (float[][]) args[1],
+            (int) args[2],
+            (int) args[3],
+            (RescoreVectorBuilder) args[4]
+        )
     );
 
     static {
@@ -75,6 +84,11 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         );
         PARSER.declareInt(constructorArg(), K_FIELD);
         PARSER.declareInt(constructorArg(), NUM_CANDIDATES_FIELD);
+        PARSER.declareObject(
+            optionalConstructorArg(),
+            (parser, context) -> RescoreVectorBuilder.fromXContent(parser),
+            RESCORE_VECTOR_FIELD
+        );
         PARSER.declareFieldArray(
             RankVectorsQueryBuilder::addFilterQueries,
             (parser, context) -> parseInnerQueryBuilder(parser),
@@ -88,17 +102,29 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
     private final float[][] queryVectors;
     private final int k;
     private final int numCandidates;
+    private final RescoreVectorBuilder rescoreVectorBuilder;
     private final List<QueryBuilder> filterQueries = new ArrayList<>();
 
     public RankVectorsQueryBuilder(String fieldName, float[][] queryVectors, int k, int numCandidates) {
+        this(fieldName, queryVectors, k, numCandidates, null);
+    }
+
+    public RankVectorsQueryBuilder(
+        String fieldName,
+        float[][] queryVectors,
+        int k,
+        int numCandidates,
+        RescoreVectorBuilder rescoreVectorBuilder
+    ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a [" + FIELD_FIELD.getPreferredName() + "]");
         }
-        validate(queryVectors, k, numCandidates);
+        validate(queryVectors, k, numCandidates, rescoreVectorBuilder);
         this.fieldName = fieldName;
         this.queryVectors = deepCopy(queryVectors);
         this.k = k;
         this.numCandidates = numCandidates;
+        this.rescoreVectorBuilder = rescoreVectorBuilder;
     }
 
     public RankVectorsQueryBuilder(StreamInput in) throws IOException {
@@ -107,7 +133,10 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         this.queryVectors = in.readArray(StreamInput::readFloatArray, float[][]::new);
         this.k = in.readVInt();
         this.numCandidates = in.readVInt();
-        validate(queryVectors, k, numCandidates);
+        this.rescoreVectorBuilder = in.getTransportVersion().supports(RANK_VECTORS_QUERY)
+            ? in.readOptionalWriteable(RescoreVectorBuilder::new)
+            : null;
+        validate(queryVectors, k, numCandidates, rescoreVectorBuilder);
         this.filterQueries.addAll(readQueries(in));
     }
 
@@ -129,6 +158,10 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
 
     public int getNumCandidates() {
         return numCandidates;
+    }
+
+    public RescoreVectorBuilder getRescoreVectorBuilder() {
+        return rescoreVectorBuilder;
     }
 
     public List<QueryBuilder> getFilterQueries() {
@@ -161,6 +194,9 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         out.writeArray(StreamOutput::writeFloatArray, queryVectors);
         out.writeVInt(k);
         out.writeVInt(numCandidates);
+        if (out.getTransportVersion().supports(RANK_VECTORS_QUERY)) {
+            out.writeOptionalWriteable(rescoreVectorBuilder);
+        }
         writeQueries(out, filterQueries);
     }
 
@@ -179,6 +215,9 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         builder.endArray();
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
+        if (rescoreVectorBuilder != null) {
+            builder.field(RESCORE_VECTOR_FIELD.getPreferredName(), rescoreVectorBuilder);
+        }
         if (filterQueries.isEmpty() == false) {
             builder.startArray(FILTER_FIELD.getPreferredName());
             for (QueryBuilder filterQuery : filterQueries) {
@@ -203,9 +242,9 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
             rewrittenFilters.add(rewritten);
         }
         if (changed) {
-            return new RankVectorsQueryBuilder(fieldName, queryVectors, k, numCandidates).addFilterQueries(rewrittenFilters)
-                .boost(boost)
-                .queryName(queryName);
+            return new RankVectorsQueryBuilder(fieldName, queryVectors, k, numCandidates, rescoreVectorBuilder).addFilterQueries(
+                rewrittenFilters
+            ).boost(boost).queryName(queryName);
         }
         return this;
     }
@@ -238,7 +277,13 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
             }
         }
         Query filter = buildFilterQuery(filters);
-        return rankVectorsFieldType.maxSimQuery(queryVectors, k, numCandidates, filter);
+        return rankVectorsFieldType.maxSimQuery(
+            queryVectors,
+            k,
+            numCandidates,
+            rescoreVectorBuilder == null ? null : rescoreVectorBuilder.oversample(),
+            filter
+        );
     }
 
     @Override
@@ -247,12 +292,13 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
             && Arrays.deepEquals(queryVectors, other.queryVectors)
             && k == other.k
             && numCandidates == other.numCandidates
+            && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder)
             && filterQueries.equals(other.filterQueries);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, Arrays.deepHashCode(queryVectors), k, numCandidates, filterQueries);
+        return Objects.hash(fieldName, Arrays.deepHashCode(queryVectors), k, numCandidates, rescoreVectorBuilder, filterQueries);
     }
 
     private static Query buildFilterQuery(List<Query> filters) {
@@ -297,7 +343,7 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         return vectors.toArray(float[][]::new);
     }
 
-    private static void validate(float[][] queryVectors, int k, int numCandidates) {
+    private static void validate(float[][] queryVectors, int k, int numCandidates, RescoreVectorBuilder rescoreVectorBuilder) {
         if (queryVectors == null || queryVectors.length == 0) {
             throw new IllegalArgumentException("[" + QUERY_VECTOR_FIELD.getPreferredName() + "] must not be empty");
         }
@@ -333,12 +379,31 @@ public final class RankVectorsQueryBuilder extends LeafQueryBuilder<RankVectorsQ
         if (numCandidates > MAX_CANDIDATES) {
             throw new IllegalArgumentException("[" + NUM_CANDIDATES_FIELD.getPreferredName() + "] cannot exceed [" + MAX_CANDIDATES + "]");
         }
-        validateRescoreWork(queryVectors.length, k, numCandidates);
+        if (rescoreVectorBuilder != null && rescoreVectorBuilder.oversample() == RescoreVectorBuilder.NO_OVERSAMPLE) {
+            throw new IllegalArgumentException(
+                "["
+                    + RESCORE_VECTOR_FIELD.getPreferredName()
+                    + "."
+                    + RescoreVectorBuilder.OVERSAMPLE_FIELD.getPreferredName()
+                    + "] must be >= 1"
+            );
+        }
+        validateRescoreWork(
+            queryVectors.length,
+            k,
+            numCandidates,
+            rescoreVectorBuilder == null ? DEFAULT_OVERSAMPLE : rescoreVectorBuilder.oversample()
+        );
     }
 
     /** Rejects a MaxSim rescore whose worst-case dot-product count exceeds the query safety limit. */
     public static void validateRescoreWork(int queryVectorCount, int k, int numCandidates) {
-        int rescoreCandidates = Math.min(numCandidates, (int) Math.ceil(k * DEFAULT_OVERSAMPLE));
+        validateRescoreWork(queryVectorCount, k, numCandidates, DEFAULT_OVERSAMPLE);
+    }
+
+    /** Rejects a MaxSim rescore whose worst-case dot-product count exceeds the query safety limit. */
+    public static void validateRescoreWork(int queryVectorCount, int k, int numCandidates, float oversample) {
+        int rescoreCandidates = Math.min(numCandidates, (int) Math.ceil(k * oversample));
         long exactDotProducts = Math.multiplyExact(
             Math.multiplyExact((long) rescoreCandidates, RankVectorsFieldMapper.MAX_MUVERA_VECTORS),
             queryVectorCount

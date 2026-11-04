@@ -244,7 +244,10 @@ GET my-index/_search
         [<128-dimensional query vector>]
       ],
       "k": 10,
-      "num_candidates": 100
+      "num_candidates": 100,
+      "rescore_vector": {
+        "oversample": 3.0
+      }
     }
   }
 }
@@ -260,7 +263,13 @@ GET my-index/_search
 :   (Required, integer) Number of exactly scored documents retained from each shard. Must be greater than `0` and no greater than `num_candidates`.
 
 `num_candidates`
-:   (Required, integer) Number of approximate candidates collected and exactly scored on each shard. Larger values generally improve recall at the cost of additional exact MaxSim work. Can’t exceed `10000`.
+:   (Required, integer) Approximate candidate exploration budget on each shard. Larger values generally improve approximate recall at the cost of additional work. Can’t exceed `10000`.
+
+`rescore_vector`
+:   (Optional, object) Exact MaxSim rescoring configuration.
+
+`rescore_vector.oversample`
+:   (Required when `rescore_vector` is specified, float) Factor applied to `k` to determine how many approximate hits are rescored with exact MaxSim. Must be at least `1`. The default is `3.0`, and the rescore pool is limited by the candidates available from `num_candidates`.
 
 `filter`
 :   (Optional, array of query objects) Filters applied during approximate candidate retrieval.
@@ -280,13 +289,16 @@ GET my-index/_search
         [<128-dimensional query vector>]
       ],
       "k": 10,
-      "num_candidates": 100
+      "num_candidates": 100,
+      "rescore_vector": {
+        "oversample": 3.0
+      }
     }
   }
 }
 ```
 
-Exact scoring cost scales with the number of candidates × the number of stored vectors per document × the number of query vectors. Elasticsearch rejects requests whose conservative worst-case work estimate exceeds the safety limit.
+Exact scoring cost scales with the rescore pool × the number of stored vectors per document × the number of query vectors. Elasticsearch rejects requests whose conservative worst-case work estimate exceeds the safety limit.
 
 ## Scoring non-indexed rank vectors [rank-vectors-scoring]
 

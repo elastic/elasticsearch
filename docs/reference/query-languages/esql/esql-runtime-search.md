@@ -3,17 +3,20 @@ applies_to:
   stack: preview =9.5, ga 9.6+
   serverless: ga
 navigation_title: "Runtime search"
-description: How ES|QL runs MATCH and MATCH_PHRASE on expressions and other values that aren't backed by an inverted index.
+description: How ES|QL runs MATCH, MATCH_PHRASE and KNN on expressions and other values that aren't backed by an index.
 ---
 
 # Search expressions with runtime search [esql-runtime-search]
 
+Search functions normally run as Lucene queries against an index: the full-text functions
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md), the
-[match operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) `:`, and
-[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) normally run
-as Lucene queries against the inverted index of the field they search. When the value being searched has no index
-behind it, for example a column computed by [`EVAL`](/reference/query-languages/esql/commands/eval.md), they run as a
-**runtime search** instead: {{esql}} analyzes and matches the values row by row as the query runs.
+[match operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) `:` and
+[`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) against the
+inverted index of the field they search, and
+[`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) against the vector index of
+a `dense_vector` field. When the value being searched has no index behind it, for example a column computed by
+[`EVAL`](/reference/query-languages/esql/commands/eval.md), they run as a **runtime search** instead: {{esql}} evaluates
+the search against the values row by row as the query runs.
 
 ```esql
 FROM books
@@ -21,10 +24,9 @@ FROM books
 | WHERE MATCH(content, "Tolkien")
 ```
 
-A runtime search keeps the semantics of the same search on an indexed field: the values are analyzed, and options
-such as `operator` and `fuzziness` behave the same way. However, the search is usually slower, since every row that
-reaches it is analyzed instead of looked up in an index. And the relevance score is computed differently, since there
-are no index statistics to compute BM25 from.
+A runtime search keeps the semantics of the same search on an indexed field. However, it is usually slower, since
+every row that reaches it is evaluated instead of looked up in an index. And the relevance score is computed
+differently, since there is no index to compute it from.
 
 Runtime search is useful to:
 
@@ -32,19 +34,10 @@ Runtime search is useful to:
 * search a column that combines several fields, like `content` above
 * search after a command that changes the rows, such as [`STATS`](/reference/query-languages/esql/commands/stats-by.md) or [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
 * search a field that is not mapped, or not mapped the same way, in every index the query reads
+* search vectors generated as the query runs by the [`DENSE_VECTOR`](/reference/query-languages/esql/commands/dense-vector.md) command
 
 Other search functions, such as [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md)
 and [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md), need an indexed field.
-
-:::{dropdown} Runtime search in 9.5
-:applies_to: stack: preview =9.5
-
-* Only `MATCH` and the `:` operator support it, not `MATCH_PHRASE`.
-* It is subject to the same [position restriction](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search-position)
-  as a search on an indexed field.
-* It does not support options, and always analyzes `text` with the `standard` analyzer.
-* It does not contribute to `_score`.
-:::
 
 ## When a search runs at runtime [esql-runtime-search-when]
 
@@ -55,8 +48,10 @@ warning when it happens. A search runs at runtime when its target is:
 * An expression rather than a field, either a column created by a command such as `EVAL` or `STATS`, or a function
   call written directly as the target, like `MATCH(TO_TEXT(CONCAT(title, " ", description)), "Tolkien")`. This includes
   [`FIELD_EXTRACT`](/reference/query-languages/esql/esql-flattened-fields.md#esql-flattened-fields-fulltext) on a
-  `flattened` field. A `STATS` grouping key is not an expression: it keeps the identity of the field it groups by, so
-  searching it after `STATS` is still a search on an indexed field.
+  `flattened` field, and a `dense_vector` produced by `DENSE_VECTOR` or
+  [`TO_DENSE_VECTOR`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md).
+  A `STATS` grouping key is not an expression: it keeps the identity of the field it groups by, so searching it after
+  `STATS` is still a search on an indexed field.
 * A field converted to `text` or `keyword` when it is not already of that type, for example `TO_TEXT` on a `keyword`
   field. A conversion that does not change the type, like `TO_TEXT` on a `text` field, still uses the index.
 * A column expanded by [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md).
@@ -84,7 +79,27 @@ FROM books
 The restriction is lifted for each search, not for the whole `WHERE` command. A search on an indexed field in the
 same `WHERE` command is still rejected.
 
-## Supported types [esql-runtime-search-types]
+## Full-text search on expressions [esql-runtime-search-full-text]
+
+```{applies_to}
+stack: preview =9.5, ga 9.6+
+serverless: ga
+```
+
+A runtime search with `MATCH`, the `:` operator or `MATCH_PHRASE` analyzes the values and matches them the way the
+same search on an indexed field would, and options such as `operator` and `fuzziness` behave the same way.
+
+:::{dropdown} Runtime search in 9.5
+:applies_to: stack: preview =9.5
+
+* Only `MATCH` and the `:` operator support it, not `MATCH_PHRASE`.
+* It is subject to the same [position restriction](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search-position)
+  as a search on an indexed field.
+* It does not support options, and always analyzes `text` with the `standard` analyzer.
+* It does not contribute to `_score`.
+:::
+
+### Supported types [esql-runtime-search-types]
 
 `MATCH` and the `:` operator can search expressions of these types:
 
@@ -103,13 +118,13 @@ convert it with [`TO_TEXT`](/reference/query-languages/esql/functions-operators/
 as in the examples on this page.
 :::
 
-## Multivalued columns [esql-runtime-search-multivalued]
+### Multivalued columns [esql-runtime-search-multivalued]
 
 For a [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) `text` column, query terms can match
 across different values in the same row. Phrase matching uses a position gap between values, so a phrase does not
 cross value boundaries with the default `slop`. A sufficiently large `slop` can allow a cross-value match.
 
-## Analyzers [esql-runtime-search-analyzers]
+### Analyzers [esql-runtime-search-analyzers]
 
 A runtime search on a `text` expression uses two analyzers, like a search on an indexed `text` field:
 
@@ -136,7 +151,7 @@ index's settings are not available, since the expression does not belong to an i
 that field to run at runtime instead of using the index. Search the field directly to use the analyzer from its
 mapping.
 
-### Indexed `text` fields searched at runtime [esql-runtime-search-analyzers-indexed]
+#### Indexed `text` fields searched at runtime [esql-runtime-search-analyzers-indexed]
 
 An indexed `text` field is sometimes searched at runtime, such as when `MV_EXPAND` expands it, or when it is not mapped the
 same way across every index the query reads. Its values are then analyzed with the values analyzer of the column, not
@@ -196,17 +211,18 @@ FROM books
 `FORK` branches that declare different values analyzers for the same column are rejected too, since the merged column
 can only have one.
 
-## Options [esql-runtime-search-options]
+### Options [esql-runtime-search-options]
 
 On `text` expressions, `MATCH` and `MATCH_PHRASE` support the same
 [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) as on an indexed
 field. On other types, `MATCH` supports only `lenient`, and `MATCH_PHRASE` supports none. When the query can't be
 converted to the type of the expression, `lenient` makes the search match no rows instead of failing.
 
-## Scoring [esql-runtime-search-scoring]
+### Scoring [esql-runtime-search-scoring]
 
-When the query requests [`METADATA _score`](/reference/query-languages/esql/esql-metadata-fields.md), a runtime search
-contributes to the relevance score. There are no index statistics for an expression, so the score is not BM25:
+When the query requests [`METADATA _score`](/reference/query-languages/esql/esql-metadata-fields.md), a runtime
+full-text search contributes to the relevance score. There are no index statistics for an expression, so the score is
+not BM25:
 
 * `MATCH` on a `text` expression scores the `boost` option (1.0 by default) for each query term the row matches. A
   term repeated in the query counts once for each repetition.
@@ -267,19 +283,51 @@ FROM books METADATA _score
 | WHERE MATCH(content, "Tolkien Rings")
 ```
 
+## `KNN` on `dense_vector` expressions [esql-runtime-search-knn]
+
+```{applies_to}
+stack: preview 9.6+
+serverless: preview
+```
+
+On an indexed `dense_vector` field, `KNN` runs an approximate search in the vector index. On a `dense_vector`
+expression, such as the embeddings that [`DENSE_VECTOR`](/reference/query-languages/esql/commands/dense-vector.md)
+generates or a value converted with
+[`TO_DENSE_VECTOR`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md),
+it runs an exact search instead: it compares the query vector with the vector in every row. There is no k at
+runtime, so sort by `_score` and limit the results to get the nearest neighbors:
+
+```esql
+FROM cooking_blog METADATA _score
+| DENSE_VECTOR description_embedding = description WITH {"inference_id": "my_embedding_model"}
+| WHERE KNN(description_embedding, TEXT_EMBEDDING("vegan recipe", "my_embedding_model"))
+| SORT _score DESC
+| LIMIT 10
+```
+
+When the query requests `METADATA _score`, a runtime `KNN` adds the similarity between the two vectors, scaled to a
+relevance score and multiplied by `boost`, to `_score`. It contributes to `_score` only after it runs, the same way as a
+[full-text runtime search](#esql-runtime-search-scoring). The `similarity_function` option picks the similarity
+metric, and the `similarity` option drops rows below a threshold. For the options a runtime `KNN` supports, how it
+picks a default metric, and the vectors it skips with a warning, refer to the
+[`KNN` function reference](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md).
+
 ## Performance [esql-runtime-search-performance]
 
-A runtime search analyzes every row that reaches it, so the time it takes grows with the number of rows rather than the
-number of matches. To keep it fast:
+A runtime search evaluates every row that reaches it, so the time it takes grows with the number of rows rather than
+the number of matches. To keep it fast:
 
 * Combine it with filters on indexed fields. Those run in the index first, so fewer rows reach the runtime search.
 * Prefer faster options. Options such as `fuzziness` take longer to evaluate for each row.
 * If searching a computed value is a frequent access pattern, index that value instead, for example with
   [`copy_to`](/reference/elasticsearch/mapping-reference/copy-to.md) or a
-  [multi-field](/reference/elasticsearch/mapping-reference/multi-fields.md), and search the indexed field.
+  [multi-field](/reference/elasticsearch/mapping-reference/multi-fields.md) for text, or a
+  [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md) field for vectors, and search the
+  indexed field.
 
 ## Related pages [esql-runtime-search-related]
 
 * [Search functions](/reference/query-languages/esql/functions-operators/search-functions.md): the full-text search functions in {{esql}}.
+* [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md): the function reference, including its behavior on `dense_vector` expressions.
 * [Full-text search limitations](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search): what runtime search and searches on indexed fields don't support.
-* [Search and filter with {{esql}}](/reference/query-languages/esql/esql-search-tutorial.md): a hands-on tutorial, including searching computed values.
+* [Search and filter with {{esql}}](/reference/query-languages/esql/esql-search-tutorial.md): a hands-on tutorial, including searching computed values and [`KNN` on `dense_vector` expressions](/reference/query-languages/esql/esql-search-tutorial.md#knn-on-dense_vector-expressions).

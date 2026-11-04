@@ -75,6 +75,19 @@ public abstract class BaseRestHandler implements RestHandler {
 
     private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "filter_path", "pretty", "human");
 
+    /**
+     * The parameters every handler accepts, in addition to the set it declares. Handling a request and the capabilities check both use this
+     * set, so they cannot disagree about which parameters are accepted.
+     */
+    private static final Set<String> COMMON_PARAMETERS = Set.copyOf(Sets.union(RestResponse.RESPONSE_PARAMS, ALWAYS_SUPPORTED));
+
+    @Override
+    public boolean supportsQueryParameters(Set<String> parameters) {
+        Set<String> supported = allSupportedParameters();
+        assert supported == allSupportedParameters() : getName() + ": did not return same instance from allSupportedParameters()";
+        return supported == null || Sets.union(COMMON_PARAMETERS, supported).containsAll(parameters);
+    }
+
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // check if the query has any parameters that are not in the supported set (if declared)
@@ -82,8 +95,7 @@ public abstract class BaseRestHandler implements RestHandler {
         assert supported == allSupportedParameters() : getName() + ": did not return same instance from allSupportedParameters()";
         if (supported != null) {
             var allSupported = Sets.union(
-                RestResponse.RESPONSE_PARAMS,
-                ALWAYS_SUPPORTED,
+                COMMON_PARAMETERS,
                 // these internal parameters cannot be set by end-users, but are used by Elasticsearch internally.
                 // they must be accepted by all handlers
                 RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,

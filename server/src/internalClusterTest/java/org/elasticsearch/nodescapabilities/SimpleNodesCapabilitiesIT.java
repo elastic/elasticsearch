@@ -49,6 +49,20 @@ public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.isSupported(), isPresentWith(false));
 
+        // check we support the parameters accepted by every API, as well as the declared ones
+        response = clusterAdmin().nodesCapabilities(
+            new NodesCapabilitiesRequest().path("_capabilities")
+                .parameters("method", "format", "filter_path", "pretty", "human", "error_trace")
+        ).actionGet();
+        assertThat(response.getNodes(), hasSize(2));
+        assertThat(response.isSupported(), isPresentWith(true));
+
+        // check an invalid parameter is still not supported when it is requested with the parameters accepted by every API
+        response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities").parameters("pretty", "invalid"))
+            .actionGet();
+        assertThat(response.getNodes(), hasSize(2));
+        assertThat(response.isSupported(), isPresentWith(false));
+
         // check we don't support a random invalid api
         // TODO this is not working yet - see https://github.com/elastic/elasticsearch/issues/107425
         /*response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_invalid"))

@@ -1365,6 +1365,92 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
+    /**
+     * A handler with fixed declared parameters, used to check which parameters the capabilities check reports as supported.
+     * A {@code null} set means the handler does not declare its parameters.
+     */
+    private static class DeclaredParametersHandler extends BaseRestHandler {
+        private final String path;
+        private final Set<String> queryParameters;
+        private final Set<String> allParameters;
+
+        DeclaredParametersHandler(String path, Set<String> queryParameters, Set<String> allParameters) {
+            this.path = path;
+            this.queryParameters = queryParameters;
+            this.allParameters = allParameters;
+        }
+
+        @Override
+        public String getName() {
+            return "declared_parameters_handler";
+        }
+
+        @Override
+        public List<Route> routes() {
+            return List.of(new Route(GET, path));
+        }
+
+        @Override
+        public Set<String> supportedQueryParameters() {
+            return queryParameters;
+        }
+
+        @Override
+        public Set<String> allSupportedParameters() {
+            return allParameters;
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+            return channel -> {};
+        }
+    }
+
+    private boolean checkSupported(String path, Set<String> parameters) {
+        return restController.checkSupported(GET, path, parameters, Set.of(), RestApiVersion.current());
+    }
+
+    public void testCheckSupportedAcceptsParameters() {
+        restController.registerHandler(
+            new DeclaredParametersHandler(
+                "/declared/{path_param}",
+                Set.of("query_param"),
+                Set.of("query_param", "path_param", "response_param")
+            )
+        );
+
+        assertTrue(checkSupported("/declared/x", Set.of()));
+        assertTrue(checkSupported("/declared/x", Set.of("query_param")));
+        // the handler accepts these in a request, even though they are not query parameters
+        assertTrue(checkSupported("/declared/x", Set.of("path_param", "response_param")));
+        // every handler that declares its parameters accepts these
+        for (String common : List.of("format", "filter_path", "pretty", "human", "error_trace")) {
+            assertTrue(common, checkSupported("/declared/x", Set.of(common)));
+        }
+        assertTrue(checkSupported("/declared/x", Set.of("query_param", "pretty", "error_trace")));
+    }
+
+    public void testCheckSupportedRejectsUnknownParameters() {
+        restController.registerHandler(
+            new DeclaredParametersHandler("/declared/{path_param}", Set.of("query_param"), Set.of("query_param", "path_param"))
+        );
+
+        assertFalse(checkSupported("/declared/x", Set.of("unknown")));
+        assertFalse(checkSupported("/declared/x", Set.of("query_param", "pretty", "unknown")));
+        // end users cannot set the internal markers, so they are not reported as supported
+        for (String internal : RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS) {
+            assertFalse(internal, checkSupported("/declared/x", Set.of(internal)));
+        }
+    }
+
+    public void testCheckSupportedWithoutDeclaredParameters() {
+        // if query parameters set is null, it just reports everything as supported
+        // TODO: remove this test when the default implementation of supportedQueryParameters is updated
+        restController.registerHandler(new DeclaredParametersHandler("/undeclared", null, null));
+
+        assertThat(checkSupported("/undeclared", Set.of(randomAlphaOfLength(8), "pretty")), is(true));
+    }
+
     public void testRegisterWithReservedPath() {
         final RestController restController = new RestController(null, client, circuitBreakerService, usageService, telemetryProvider);
         for (String path : RestController.RESERVED_PATHS) {

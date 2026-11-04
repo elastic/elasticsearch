@@ -11,7 +11,7 @@ mapped_pages:
 
 This document describes operations available to connectors using the UI.
 
-In the Kibana or Serverless UI, find **{{content-crawlers-app}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
+In the Kibana or Serverless UI, find **{{content-crawlers-app}}** using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). In {{kib}} 9.6 and earlier, search for **Connectors** or **Content connectors** instead. Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
 
 ::::{note}
 :applies_to: serverless: ga

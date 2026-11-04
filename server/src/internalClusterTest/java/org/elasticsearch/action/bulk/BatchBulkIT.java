@@ -77,6 +77,7 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -3538,6 +3539,105 @@ public class BatchBulkIT extends ESIntegTestCase {
         var getResponse = client().get(new GetRequest(index).id("doc-0")).actionGet();
         assertTrue(getResponse.isExists());
         assertThat(getResponse.getSourceAsMap().get("n"), equalTo(List.of(3, 1, 3, 2, 0)));
+    }
+
+    /**
+     * Without {@code ignore_malformed}, a value a numeric or boolean field cannot hold must reject the document with a parse error
+     * (a 400), as it does from JSON. A field that is not mapped for columnar parsing, as every field of an index that is not in a
+     * columnar or time series mode is not, is parsed from its row by {@code SourceRowXContentParser}, which used to narrow with a plain
+     * cast: {@code 70000} became the short {@code 4464}, and the document was indexed under a value it never had. A boolean field given
+     * an object did not consume it, so the document was rejected for the wrong reason (the object was taken for an unmapped field).
+     * The valid document in the same bulk request is indexed.
+     */
+    public void testValuesThatDoNotFitAreRejectedOnTheRowPathNotWrappedAround() throws IOException {
+        final String index = "test-row-path-no-wraparound";
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.BATCH_INDEXING.getKey(), true)
+                )
+                .setMapping("""
+                    {
+                      "dynamic": "strict",
+                      "properties": {
+                        "name": { "type": "keyword" },
+                        "int_field": { "type": "integer" },
+                        "short_field": { "type": "short" },
+                        "long_field": { "type": "long" },
+                        "bool_field": { "type": "boolean" }
+                      }
+                    }
+                    """)
+        );
+        ensureGreen(index);
+
+        final Map<String, String> sources = new LinkedHashMap<>();
+        sources.put("valid", """
+            {"name":"a","int_field":2147483647,"short_field":-32768,"long_field":9223372036854775807,"bool_field":true}""");
+        // Each of these used to be indexed, as 4464, -1294967296 and Long.MAX_VALUE.
+        sources.put("short_too_big", """
+            {"name":"b","short_field":70000}""");
+        sources.put("int_too_big", """
+            {"name":"c","int_field":3000000000}""");
+        sources.put("long_too_big", """
+            {"name":"d","long_field":1.0E19}""");
+        // A control: this was rejected correctly before, and must stay so.
+        sources.put("bool_for_int", """
+            {"name":"e","int_field":false}""");
+        // Used to be rejected for the wrong reason: the object was not consumed, and was read as an unmapped field.
+        sources.put("object_for_bool", """
+            {"name":"f","bool_field":{"object":"wow"}}""");
+
+        final BulkResponse response = client(findCoordinatingNode()).bulk(bulkOf(index, sources)).actionGet();
+        final Map<String, BulkItemResponse> items = new LinkedHashMap<>();
+        for (BulkItemResponse item : response.getItems()) {
+            items.put(item.getId(), item);
+        }
+        assertFalse("[valid] failed: " + items.get("valid").getFailureMessage(), items.get("valid").isFailed());
+        final Map<String, String> rejected = Map.of(
+            "short_too_big",
+            "failed to parse field [short_field] of type [short]",
+            "int_too_big",
+            "failed to parse field [int_field] of type [integer]",
+            "long_too_big",
+            "failed to parse field [long_field] of type [long]",
+            "bool_for_int",
+            "failed to parse field [int_field] of type [integer]",
+            "object_for_bool",
+            "failed to parse field [bool_field] of type [boolean]"
+        );
+        // Collect every difference, so that a failure shows which documents were handled wrongly.
+        final List<String> problems = new ArrayList<>();
+        rejected.forEach((id, expectedMessage) -> {
+            final BulkItemResponse item = items.get(id);
+            if (item.isFailed() == false) {
+                problems.add("[" + id + "] was indexed, not rejected");
+            } else if (item.getFailureMessage().contains(expectedMessage) == false
+                || item.getFailure().getStatus() != RestStatus.BAD_REQUEST) {
+                    problems.add("[" + id + "] failed with " + item.getFailure().getStatus() + ": " + item.getFailureMessage());
+                }
+        });
+        assertThat(problems, equalTo(List.of()));
+
+        refresh(index);
+        assertHitIds(index, QueryBuilders.matchAllQuery(), "valid");
+        // Nothing was indexed under the value a cast would have wrapped it to.
+        assertHitIds(index, QueryBuilders.termQuery("short_field", 4464));
+        assertHitIds(index, QueryBuilders.termQuery("int_field", -1294967296));
+        assertHitIds(index, QueryBuilders.termQuery("long_field", Long.MAX_VALUE), "valid");
+    }
+
+    private void assertHitIds(String index, QueryBuilder query, String... expectedIds) {
+        assertResponse(prepareSearch(index).setQuery(query).setSize(10), response -> {
+            final Set<String> ids = new LinkedHashSet<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                ids.add(hit.getId());
+            }
+            assertThat(query.toString(), ids, equalTo(Set.of(expectedIds)));
+        });
     }
 
     private static BulkRequest bulkOf(String index, Map<String, String> sources) {

@@ -57,7 +57,19 @@ public class MockBlockFactory extends BlockFactory {
             : true;
     }
 
-    final ConcurrentMap<Object, Object> TRACKED_BLOCKS = new ConcurrentHashMap<>();
+    private record IdentityKey(Object object) {
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof IdentityKey that && that.object == object;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(object);
+        }
+    }
+
+    final ConcurrentMap<IdentityKey, Object> TRACKED_BLOCKS = new ConcurrentHashMap<>();
 
     public void ensureAllBlocksAreReleased() {
 
@@ -120,38 +132,39 @@ public class MockBlockFactory extends BlockFactory {
 
     void purgeTrackBlocks() {
         for (var entries : TRACKED_BLOCKS.entrySet()) {
-            var b = entries.getKey();
+            var key = entries.getKey();
+            var b = key.object();
             if (b instanceof Block block) {
                 if (block.isReleased()) {
-                    TRACKED_BLOCKS.remove(block);
+                    TRACKED_BLOCKS.remove(key);
                 }
             } else if (b instanceof AbstractBlockBuilder blockBuilder) {
                 if (blockBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(blockBuilder);
+                    TRACKED_BLOCKS.remove(key);
                 }
             } else if (b instanceof IntVectorFixedBuilder vecBuilder) {
                 if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(vecBuilder);
+                    TRACKED_BLOCKS.remove(key);
                 }
             } else if (b instanceof LongVectorFixedBuilder vecBuilder) {
                 if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(vecBuilder);
+                    TRACKED_BLOCKS.remove(key);
                 }
             } else if (b instanceof DoubleVectorFixedBuilder vecBuilder) {
                 if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(vecBuilder);
+                    TRACKED_BLOCKS.remove(key);
                 }
             } else if (b instanceof BooleanVectorFixedBuilder vecBuilder) {
                 if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(vecBuilder);
+                    TRACKED_BLOCKS.remove(key);
                 }
             } else if (b instanceof AbstractVectorBuilder vecBuilder) {
                 if (vecBuilder.isReleased()) {
-                    TRACKED_BLOCKS.remove(vecBuilder);
+                    TRACKED_BLOCKS.remove(key);
                 }
             } else if (b instanceof Vector vector) {
                 if (vector.isReleased()) {
-                    TRACKED_BLOCKS.remove(vector);
+                    TRACKED_BLOCKS.remove(key);
                 }
             } else {
                 throw new RuntimeException("Unexpected: " + b);
@@ -161,7 +174,7 @@ public class MockBlockFactory extends BlockFactory {
 
     void track(Object obj, Object trackDetail) {
         purgeTrackBlocks();
-        TRACKED_BLOCKS.put(obj, trackDetail);
+        TRACKED_BLOCKS.put(new IdentityKey(obj), trackDetail);
     }
 
     @Override

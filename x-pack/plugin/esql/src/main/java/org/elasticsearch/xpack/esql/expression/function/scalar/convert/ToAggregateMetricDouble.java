@@ -52,7 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 
-public class ToAggregateMetricDouble extends AbstractConvertFunction {
+public class ToAggregateMetricDouble extends AbstractConvertFunction implements MetricPreservingConvertFunction {
 
     private static final Map<DataType, AbstractConvertFunction.BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(AGGREGATE_METRIC_DOUBLE, (source, fieldEval) -> fieldEval),

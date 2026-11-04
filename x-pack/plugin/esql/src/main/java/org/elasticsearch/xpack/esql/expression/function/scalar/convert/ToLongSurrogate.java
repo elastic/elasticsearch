@@ -54,7 +54,7 @@ public class ToLongSurrogate extends EsqlScalarFunction
     implements
         OnlySurrogateExpression,
         OptionalArgument,
-        ConvertFunction,
+        MetricPreservingConvertFunction,
         AnyNullIsNull {
 
     private final Expression field;

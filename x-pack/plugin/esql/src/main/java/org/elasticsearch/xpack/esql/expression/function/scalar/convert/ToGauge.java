@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  * {@code aggregate_metric_double} inputs are also returned unchanged (idempotent).
  * No values are modified; this is a pure type-annotation change.
  */
-public class ToGauge extends AbstractConvertFunction {
+public class ToGauge extends AbstractConvertFunction implements MetricPreservingConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGauge", ToGauge::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGauge.class).unary(ToGauge::new).name("to_gauge");
 

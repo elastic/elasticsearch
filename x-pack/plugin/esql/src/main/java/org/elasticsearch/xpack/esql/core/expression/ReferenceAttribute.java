@@ -33,7 +33,12 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
     private static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = TransportVersion.fromName("esql_qualifiers_in_attributes");
     private static final TransportVersion ESQL_TO_TEXT_VALUES_ANALYZER = TransportVersion.fromName("esql_to_text_values_analyzer");
 
+    public static final TransportVersion ESQL_METRIC_IDENTITY_IN_REFERENCES = TransportVersion.fromName(
+        "esql_metric_identity_in_references"
+    );
+
     private final String valuesAnalyzer;
+    private final boolean metric;
 
     @Deprecated
     /**
@@ -75,8 +80,28 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
         boolean synthetic,
         @Nullable String valuesAnalyzer
     ) {
+        this(source, qualifier, name, dataType, nullability, id, synthetic, valuesAnalyzer, false);
+    }
+
+    /**
+     * Creates a reference retaining expression metadata across aliasing and transport boundaries.
+     *
+     * @param metric whether the referenced expression represents a mapped time-series metric
+     */
+    public ReferenceAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic,
+        @Nullable String valuesAnalyzer,
+        boolean metric
+    ) {
         super(source, qualifier, name, dataType, nullability, id, synthetic);
         this.valuesAnalyzer = valuesAnalyzer;
+        this.metric = metric;
     }
 
     @Override
@@ -114,6 +139,11 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
                         + "] or newer."
                 );
             }
+            // Older peers intentionally retain their existing null-filtering behavior: references lose metric identity.
+            // During rolling upgrades, filtering can therefore differ between old and new nodes.
+            if (out.getTransportVersion().supports(ESQL_METRIC_IDENTITY_IN_REFERENCES)) {
+                out.writeBoolean(metric);
+            }
         }
     }
 
@@ -135,7 +165,8 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
         boolean synthetic = in.readBoolean();
         String valuesAnalyzer = in.getTransportVersion().supports(ESQL_TO_TEXT_VALUES_ANALYZER) ? in.readOptionalString() : null;
 
-        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic, valuesAnalyzer);
+        boolean metric = in.getTransportVersion().supports(ESQL_METRIC_IDENTITY_IN_REFERENCES) && in.readBoolean();
+        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic, valuesAnalyzer, metric);
     }
 
     @Override
@@ -153,9 +184,9 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
         NameId id,
         boolean synthetic
     ) {
-        // clone's signature is fixed by Attribute, so the values analyzer is always carried over from this instance;
-        // the withName/withId/... helpers routing through clone cannot silently drop it.
-        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic, valuesAnalyzer);
+        // clone's signature is fixed by Attribute, so the values analyzer and metric identity are carried over from this instance;
+        // the withName/withId/... helpers routing through clone cannot silently drop them.
+        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic, valuesAnalyzer, metric);
     }
 
     @Override
@@ -169,19 +200,20 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
             nullable(),
             id(),
             synthetic(),
-            valuesAnalyzer
+            valuesAnalyzer,
+            metric
         );
     }
 
     @Override
     protected int innerHashCode(boolean ignoreIds) {
-        return Objects.hash(super.innerHashCode(ignoreIds), valuesAnalyzer);
+        return Objects.hash(super.innerHashCode(ignoreIds), valuesAnalyzer, metric);
     }
 
     @Override
     protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (ReferenceAttribute) o;
-        return super.innerEquals(other, ignoreIds) && Objects.equals(valuesAnalyzer, other.valuesAnalyzer);
+        return super.innerEquals(other, ignoreIds) && Objects.equals(valuesAnalyzer, other.valuesAnalyzer) && metric == other.metric;
     }
 
     @Override
@@ -196,6 +228,6 @@ public final class ReferenceAttribute extends TypedAttribute implements Analyzed
 
     @Override
     public boolean isMetric() {
-        return false;
+        return metric;
     }
 }

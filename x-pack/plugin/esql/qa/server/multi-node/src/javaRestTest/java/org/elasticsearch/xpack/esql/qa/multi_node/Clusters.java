@@ -73,9 +73,7 @@ public class Clusters {
                 )
             );
         }
-        if (oldVersion.onOrAfter(Version.V_9_5_0)) {
-            encryptionKeystore(cluster);
-        }
+        encryptionKeystore(cluster);
         return cluster.build();
     }
 

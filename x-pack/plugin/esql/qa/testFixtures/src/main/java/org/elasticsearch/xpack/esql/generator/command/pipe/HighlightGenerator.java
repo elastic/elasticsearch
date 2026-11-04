@@ -31,10 +31,10 @@ import static org.elasticsearch.xpack.esql.generator.function.FullTextFunctionGe
 /**
  * Generates {@code HIGHLIGHT} commands with string and full-text queries.
  * <p>
- * When {@link EsqlCapabilities.Cap#HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS} is enabled, the {@code ON} clause may be
- * omitted (fields are derived from a MATCH-style query, or every text/keyword column for a string/QSTR/KQL query) or
- * written as {@code ON *} (every text/keyword column). Otherwise the command lists explicit {@code ON} fields, and
- * queries only reference those fields.
+ * When the cluster under test supports {@link EsqlCapabilities.Cap#HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS}, the {@code ON}
+ * clause may be omitted (fields are derived from a MATCH-style query, or every text/keyword column for a string/QSTR/KQL
+ * query) or written as {@code ON *} (every text/keyword column). Otherwise the command lists explicit {@code ON} fields,
+ * and queries only reference those fields.
  */
 public class HighlightGenerator implements CommandGenerator {
 
@@ -85,7 +85,10 @@ public class HighlightGenerator implements CommandGenerator {
             .filter(HighlightGenerator::isStringField)
             .allMatch(HighlightGenerator::canPrefix);
         Prefix prefix = pickPrefix();
-        OnMode onMode = pickOnMode(allHighlightableCanPrefix);
+        OnMode onMode = pickOnMode(
+            allHighlightableCanPrefix,
+            context.clusterSupports(EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS)
+        );
         OnClauseParts parts = switch (onMode) {
             case STAR -> starOn(stringColumns, previousCommands);
             case OMITTED -> {
@@ -111,8 +114,8 @@ public class HighlightGenerator implements CommandGenerator {
         OMITTED
     }
 
-    private static OnMode pickOnMode(boolean allHighlightableCanPrefix) {
-        if (EsqlCapabilities.Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.isEnabled() == false) {
+    private static OnMode pickOnMode(boolean allHighlightableCanPrefix, boolean implicitQueryAndFields) {
+        if (implicitQueryAndFields == false) {
             return OnMode.EXPLICIT;
         }
         return switch (randomIntBetween(0, 2)) {

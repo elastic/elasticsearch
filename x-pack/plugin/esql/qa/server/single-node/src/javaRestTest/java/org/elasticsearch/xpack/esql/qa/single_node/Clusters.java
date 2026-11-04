@@ -75,7 +75,7 @@ public class Clusters {
                 (configuredNode, version, current) -> {}
             )
         );
-        return testCluster(csvDataPath, oldNode, false, false, oldVersion.onOrAfter(Version.V_9_5_0));
+        return testCluster(csvDataPath, oldNode, false, false, true);
     }
 
     /**

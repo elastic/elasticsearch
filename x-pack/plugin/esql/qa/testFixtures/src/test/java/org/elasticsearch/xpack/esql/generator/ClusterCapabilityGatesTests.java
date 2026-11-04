@@ -83,6 +83,22 @@ public class ClusterCapabilityGatesTests extends ESTestCase {
         assertSkipped(HighlightGenerator.INSTANCE, Cap.HIGHLIGHT_V6);
     }
 
+    /**
+     * {@code ON *} and a missing {@code ON} clause need their own capability. A cluster that has {@code HIGHLIGHT}
+     * but not that capability must still get an explicit field list.
+     */
+    public void testHighlightImplicitOnNeedsClusterSupport() {
+        List<Column> previousOutput = List.of(column("message", "text"));
+        Function<GenerationContext, String> highlight = context -> generate(HighlightGenerator.INSTANCE, previousOutput, context);
+        Pattern starOn = literal(" ON *");
+        Pattern explicitOn = Pattern.compile(" ON [A-Za-z_`]");
+
+        assertThat(count(highlight, everything(), starOn), greaterThan(0));
+        GenerationContext withoutImplicit = without(Cap.HIGHLIGHT_IMPLICIT_QUERY_AND_FIELDS.capabilityName());
+        assertThat(count(highlight, withoutImplicit, starOn), is(0));
+        assertThat(count(highlight, withoutImplicit, explicitOn), is(ITERATIONS));
+    }
+
     public void testIpLocationNeedsClusterSupport() {
         assertSkipped(IpLocationGenerator.INSTANCE, Cap.IP_LOCATION_COMMAND);
     }

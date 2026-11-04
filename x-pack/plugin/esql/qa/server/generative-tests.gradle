@@ -11,29 +11,85 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.InternalBwcGitPlugin
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.gradle.process.ExecOperations
+
+import java.nio.charset.StandardCharsets
 
 def generativeTestsConfig = ext.generativeTestsConfig
+def execOperations = project.services.get(ExecOperations)
 
 tasks.register('generativeTests', StandaloneRestIntegTestTask) {
   usesDefaultDistribution("to be triaged")
   generativeTestsConfig(it)
 }
 
-// This branch's generator against the head of each maintained release branch, so generator fixes never need a backport.
-// GenerativeRestTest skips what the older cluster doesn't support. 9.4 is the first version to advertise the fn_<name>
-// capabilities GenerativeFunctionCatalog is restricted to; an older cluster would leave the generator with no functions.
+// This branch's generator against the current tip of each maintained release branch, so generator fixes never need a
+// backport. branches.json names that tip (9.5.6 and 9.6.0 today; 9.7 once it is a release branch). 9.5.0 is only the
+// floor: 9.4 and older are out. Do not set bwc.checkout.align; that checks out an older commit instead of the tip.
+// GenerativeRestTest skips what the older cluster doesn't support.
 buildParams.bwcVersions.unreleasedWireCompatible
-  .findAll { it.onOrAfter(Version.fromString("9.4.0")) && it != VersionProperties.elasticsearchVersion }
+  .findAll { it.onOrAfter(Version.fromString("9.5.0")) && it != VersionProperties.elasticsearchVersion }
   .each { bwcVersion ->
     // The release branch's own function definitions, so the generator only uses signatures that branch supports.
-    def bwcProject = project(buildParams.bwcVersions.unreleasedInfo(bwcVersion).gradleProjectPath)
+    def versionInfo = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
+    def bwcProject = project(versionInfo.gradleProjectPath)
+    def checkoutDir = bwcProject.extensions.getByName('bwcGitConfig').checkoutDir
+    def draBuildId = bwcProject.plugins.getPlugin(InternalBwcGitPlugin).draBuildId
+    // checkoutBwcBranch does not run when a pre-built snapshot is selected, so the checkout it would have
+    // populated is missing or left from another commit. Check out the snapshot's own commit first.
+    def prepareCheckout = tasks.register("v${bwcVersion}#prepareEsqlFunctionCheckout") {
+      dependsOn "${bwcProject.path}:checkoutBwcBranch"
+      inputs.property("draBuildId", draBuildId)
+      onlyIf("pre-built snapshot skipped checkoutBwcBranch") { draBuildId.get().isEmpty() == false }
+      def branch = versionInfo.branch()
+      def remoteName = providers.systemProperty("bwc.remote").getOrElse("elastic")
+      def remoteUrl = providers.systemProperty("testRemoteRepo").getOrElse("https://github.com/${remoteName}/${rootProject.name}")
+      def sourceDir = rootProject.layout.projectDirectory.asFile
+      doLast {
+        def buildId = draBuildId.get()
+        def dash = buildId.lastIndexOf('-')
+        if (dash < 0) {
+          throw new GradleException("Cannot read a commit from BWC snapshot build id [${buildId}]")
+        }
+        def hash = buildId.substring(dash + 1)
+        if ((hash ==~ /[0-9a-fA-F]+/) == false) {
+          throw new GradleException("BWC snapshot build id [${buildId}] does not end in a commit hash")
+        }
+        def dir = checkoutDir.get()
+        if (dir.exists() == false) {
+          dir.parentFile.mkdirs()
+          execOperations.exec { spec -> spec.commandLine("git", "clone", sourceDir.absolutePath, dir.absolutePath) }
+        }
+        def listedRemotes = new ByteArrayOutputStream()
+        execOperations.exec { spec ->
+          spec.workingDir(dir)
+          spec.commandLine("git", "remote")
+          spec.standardOutput = listedRemotes
+        }
+        if (listedRemotes.toString(StandardCharsets.UTF_8).readLines().contains(remoteName) == false) {
+          execOperations.exec { spec ->
+            spec.workingDir(dir)
+            spec.commandLine("git", "remote", "add", remoteName, remoteUrl)
+          }
+        }
+        execOperations.exec { spec ->
+          spec.workingDir(dir)
+          spec.commandLine("git", "fetch", "--force", remoteName, "+refs/heads/${branch}:refs/remotes/${remoteName}/${branch}")
+        }
+        execOperations.exec { spec ->
+          spec.workingDir(dir)
+          spec.commandLine("git", "checkout", "--force", hash)
+        }
+      }
+    }
     def functionDefinitions = tasks.register("v${bwcVersion}#copyEsqlFunctionDefinitions", Sync) {
       dependsOn "${bwcProject.path}:checkoutBwcBranch"
-      def checkoutDir = bwcProject.extensions.getByName('bwcGitConfig').checkoutDir
-      // 9.4 has them under kibana/definition, later branches under kibana/generated/x-pack-esql/definition.
-      from(checkoutDir.map { new File(it, 'docs/reference/query-languages/esql/kibana/definition/functions') })
-      from(checkoutDir.map { new File(it, 'docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/functions') })
+      dependsOn prepareCheckout
+      from(checkoutDir.map {
+        new File(it, 'docs/reference/query-languages/esql/kibana/generated/x-pack-esql/definition/functions')
+      })
       into layout.buildDirectory.dir("bwc-esql-functions/${bwcVersion}")
     }
     tasks.register("v${bwcVersion}#generativeTests", StandaloneRestIntegTestTask) {

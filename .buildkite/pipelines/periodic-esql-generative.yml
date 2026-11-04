@@ -20,7 +20,7 @@ steps:
       buildDirectory: /dev/shm/bk
 
   - label: esql-generative-single-node-bwc
-    command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true :x-pack:plugin:esql:qa:server:single-node:bwcGenerativeTests
+    command: .ci/scripts/run-gradle.sh --continue :x-pack:plugin:esql:qa:server:single-node:bwcGenerativeTests
     timeout_in_minutes: 180
     agents:
       provider: gcp
@@ -30,7 +30,7 @@ steps:
       buildDirectory: /dev/shm/bk
 
   - label: esql-generative-multi-node-bwc
-    command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true :x-pack:plugin:esql:qa:server:multi-node:bwcGenerativeTests
+    command: .ci/scripts/run-gradle.sh --continue :x-pack:plugin:esql:qa:server:multi-node:bwcGenerativeTests
     timeout_in_minutes: 180
     agents:
       provider: gcp

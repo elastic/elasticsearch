@@ -34,14 +34,16 @@ The merge scheduler supports the following *dynamic* index settings:
 $$$index-merge-scheduler-max-thread-count$$$
 
 `index.merge.scheduler.max_thread_count`
-:   The maximum number of threads on a **single** shard that may be merging at once. The default depends on the version:
+:   The maximum number of threads on a **single** shard that may be merging at once. The default and how {{es}} applies it depend on the version.
 
-    * {applies_to}`stack: ga 9.4+` Half the number of processors the JVM sees on the node, with a minimum of 1. This default is independent of [`node.processors`](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors). If you return default values with the `include_defaults` parameter of the [get index settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-settings), the default shown is calculated on the node that handles the request. A data node can use a different value if it has a different number of processors, or if the value is reduced to `max_merge_count`.
-    * {applies_to}`stack: ga 9.0-9.3` `Math.max(1, Math.min(4, node.processors / 2))`.
+    * {applies_to}`stack: ga 9.4+` The default is half the number of processors the JVM sees on the node, with a minimum of 1. This default is independent of [`node.processors`](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors). If `max_thread_count` is greater than `index.merge.scheduler.max_merge_count`, {{es}} reduces it to `max_merge_count`.
+    * {applies_to}`stack: ga 9.0-9.3` The default is `Math.max(1, Math.min(4, node.processors / 2))`.
 
-    The defaults work well for a good solid-state-disk (SSD). If your index is on spinning platter drives instead, decrease this to 1.
+    The default works well for a good solid-state-disk (SSD). If your index is on spinning platter drives instead, decrease this to 1.
 
-    {applies_to}`stack: ga 9.4+` If `max_thread_count` is greater than `index.merge.scheduler.max_merge_count`, Elasticsearch reduces it to `max_merge_count`.
+    If you return default values with the `include_defaults` parameter of the [get index settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-get-settings), the default shown is calculated on the node that handles the request. A data node can use a different value if it has a different number of processors.
+
+    {applies_to}`stack: ga 9.4+` If the value is reduced to `max_merge_count`, the value shown is not the value the data node uses.
 
 $$$index-merge-scheduler-max-merge-count$$$
 

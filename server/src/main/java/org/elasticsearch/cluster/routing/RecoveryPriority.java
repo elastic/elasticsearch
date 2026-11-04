@@ -140,8 +140,8 @@ public enum RecoveryPriority implements Writeable {
         return isValidForUnassigned;
     }
 
-    /// Returns the higher of the two priorities, i.e. the one with the lower [#ordinal()].
-    public static RecoveryPriority highest(RecoveryPriority first, RecoveryPriority second) {
+    /// Returns the max of the two priorities (the highest priority), which is the reverse of the enum's natural ordering
+    public static RecoveryPriority max(RecoveryPriority first, RecoveryPriority second) {
         return first.compareTo(second) <= 0 ? first : second;
     }
 

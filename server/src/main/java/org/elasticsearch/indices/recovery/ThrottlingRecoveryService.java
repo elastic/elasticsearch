@@ -183,9 +183,9 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                 // keep its lower priority until the next cluster state update.
                 if (sourceNodeId != null && nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId)) {
                     final RecoveryPriority current = indexShard.recoveryState().getRecoveryPriority();
-                    final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+                    final RecoveryPriority updated = RecoveryPriority.max(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
                     if (current != updated) {
-                        pendingRecovery.raiseRecoveryPriority(updated);
+                        raiseRecoveryPriority(pendingRecovery, updated);
                     }
                 }
                 // Note that the PendingRecovery captures the IndexMetadata that was passed in when the recovery was enqueued, so it does
@@ -320,11 +320,15 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
                     // became `null`, the old IndexShard object those stats belong to would have already been closed.
                     pending.stats().targetQueuedRecoveryDiscarded(recoveryState.getRecoverySource().getType());
                 } else if (sourceNodeId != null && nodeShutdowns.isNodeMarkedForRemoval(sourceNodeId)) {
+                    // Note that we never lower a raised priority again, even if the shutdown marker of the source node is
+                    // later removed. This is both for simplicity reason and because keeping the raised priority is also
+                    // fairly harmless: a shutdown marker is rarely removed (without the node leaving the cluster) and the
+                    // non-critical relocation never overtakes critical recoveries.
                     final RecoveryPriority current = recoveryState.getRecoveryPriority();
-                    final RecoveryPriority updated = RecoveryPriority.highest(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
+                    final RecoveryPriority updated = RecoveryPriority.max(current, RecoveryPriority.RELOCATION_CAN_REMAIN_NO);
                     if (current != updated) {
                         it.remove();
-                        pending.raiseRecoveryPriority(updated);
+                        raiseRecoveryPriority(pending, updated);
                         reprioritized.add(pending);
                     }
                 }
@@ -636,26 +640,30 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         RecoverySchedulingListener.PriorityGroup priorityGroup() {
             return isCritical() ? RecoverySchedulingListener.PriorityGroup.CRITICAL : RecoverySchedulingListener.PriorityGroup.NON_CRITICAL;
         }
+    }
 
-        /// Raises the priority of this recovery to `updated`.
-        /// Note that since the pending recoveries queue orders on this priority, this should not be called while the
-        /// recovery is in the queue.
-        void raiseRecoveryPriority(RecoveryPriority updated) {
-            RecoveryState state = recoveryState();
-            RecoveryPriority current = state.getRecoveryPriority();
-            assert updated.ordinal() < current.ordinal()
-                : "recovery priority should only be raised, updated: " + updated + ", state: " + state;
-            // Queued and running recoveries are counted per priority group, in the scheduling metrics and in the
-            // RecoveriesThrottle, and the matching decrement uses the group the recovery has when it leaves the queue or
-            // completes. Relocations are always non-critical, so raising their priority to RELOCATION_CAN_REMAIN_NO never
-            // changes the group and these counts need no update. A reprioritization that moves a recovery to the other
-            // group would have to update them too.
-            assert current.isCritical() == updated.isCritical()
-                : "recovery priority update should not change the priority group, updated priority: " + updated + ", state: " + state;
+    /// Raises the priority of the given recovery to `updated`.
+    private void raiseRecoveryPriority(PendingRecovery pending, RecoveryPriority updated) {
+        assert Thread.holdsLock(this);
 
-            logger.debug("raising priority of recovery from [{}] to [{}]: {}", current, updated, state);
-            state.setRecoveryPriority(updated);
-        }
+        // Since the pending recoveries queue orders on this priority, this function must not be called while the recovery
+        // is in the queue: callers either raise it before adding it, or remove it first and add it back afterward.
+        assert pendingRecoveries.stream().noneMatch(queued -> queued == pending)
+            : "recovery must be removed from the queue before its priority is changed: " + pending.recoveryState();
+
+        final RecoveryState state = pending.recoveryState();
+        final RecoveryPriority current = state.getRecoveryPriority();
+        assert updated.ordinal() < current.ordinal() : "recovery priority should only be raised, updated: " + updated + ", state: " + state;
+        // Queued and running recoveries are counted per priority group, in the scheduling metrics and in the
+        // RecoveriesThrottle, and the matching decrement uses the group the recovery has when it leaves the queue or
+        // completes. Relocations are always non-critical, so raising their priority to RELOCATION_CAN_REMAIN_NO never
+        // changes the group and these counts need no update. A reprioritization that moves a recovery to the other
+        // group would have to update them too.
+        assert current.isCritical() == updated.isCritical()
+            : "recovery priority update should not change the priority group, updated priority: " + updated + ", state: " + state;
+
+        logger.debug("raising priority of recovery from [{}] to [{}]: {}", current, updated, state);
+        state.setRecoveryPriority(updated);
     }
 
     /// Helper class which manages throttling the number of running recoveries.

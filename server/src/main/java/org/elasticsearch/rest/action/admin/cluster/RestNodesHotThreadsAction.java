@@ -46,7 +46,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
         "ignore_idle_threads",
         REST_TIMEOUT_PARAM
     );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("nodeId")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "nodeId");
 
     @Override
     public List<Route> routes() {

@@ -30,9 +30,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 public class RestUpdateDesiredNodesAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_MASTER_TIMEOUT_PARAM, REST_TIMEOUT_PARAM, "dry_run");
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
-        Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("history_id", "version"))
-    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "history_id", "version");
 
     @Override
     public String getName() {

@@ -31,7 +31,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 public class RestDeleteDanglingIndexAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("accept_data_loss", REST_MASTER_TIMEOUT_PARAM, REST_TIMEOUT_PARAM);
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("index_uuid")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index_uuid");
 
     @Override
     public List<Route> routes() {

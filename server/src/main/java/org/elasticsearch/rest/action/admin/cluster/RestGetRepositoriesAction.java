@@ -36,8 +36,9 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 public class RestGetRepositoriesAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_MASTER_TIMEOUT_PARAM, "local");
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
-        Sets.union(SUPPORTED_QUERY_PARAMETERS, Settings.FORMAT_PARAMS, Set.of("repository"))
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(
+        Sets.union(SUPPORTED_QUERY_PARAMETERS, Settings.FORMAT_PARAMS),
+        "repository"
     );
 
     private final SettingsFilter settingsFilter;

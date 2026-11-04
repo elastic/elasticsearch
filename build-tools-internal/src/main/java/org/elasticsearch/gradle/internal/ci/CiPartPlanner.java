@@ -30,11 +30,11 @@ import java.util.TreeSet;
  *
  * <p>Each unit (a test task, a shard of a split test task, or a project's non-test {@code check} work) is
  * placed longest first onto the part where it finishes earliest under a simple model of one CI job: a part
- * runs {@code workers} tasks at a time, but tasks of the same project run one after another (Gradle does
- * not run tasks of one project in parallel without the configuration cache). A part's estimated finish time
- * is therefore {@code max(total / workers, longest same-project chain)}. That model is what keeps e.g.
- * {@code :server:test} and {@code :server:internalClusterTest} apart; {@link Config#antiAffinity()} makes
- * such pairs explicit regardless of durations.
+ * runs {@code workers} tasks at a time (the part jobs use the configuration cache, so tasks of one project run
+ * in parallel too), but one test task is a single execution, however many of its shards the part runs. A part's
+ * estimated finish time is therefore {@code max(total / workers, longest test task)}. A project's non-test work
+ * is many short tasks (precommit and the like), so it only adds to the total. {@link Config#antiAffinity()}
+ * keeps test tasks that must not share a part apart regardless of durations.
  *
  * <p>The result depends only on the inputs: units are visited in a fixed order and ties broken by part number.
  */
@@ -72,7 +72,8 @@ public final class CiPartPlanner {
      * @param tests    test task path to duration
      * @param shards   optional estimate per shard of a split test task ({@code <task path>#<shard>}); shards without
      *                 one get an even share of the task's duration
-     * @param projects project path to the summed duration of its non-test tasks
+     * @param projects project path to the summed duration of its non-test tasks, without the ones its tests depend on
+     *                 (compilation, jars), which every part running one of its test tasks runs anyway
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Durations(
@@ -87,7 +88,10 @@ public final class CiPartPlanner {
         }
     }
 
-    /** A placeable piece of work; {@code shard} is -1 unless it is a shard of a split test task. */
+    /**
+     * A placeable piece of work; {@code shard} is -1 unless it is a shard of a split test task, and {@code taskPath}
+     * is null for a project's non-test work.
+     */
     private record Unit(String key, String taskPath, int shard, String project, double seconds) {}
 
     private CiPartPlanner() {}
@@ -118,7 +122,7 @@ public final class CiPartPlanner {
         Map<String, Set<String>> antiAffinity = antiAffinityIndex(config.antiAffinity());
         Map<String, Integer> placedTasks = new HashMap<>();
         Map<String, Integer> tests = new TreeMap<>();
-        // the part holding each project's heaviest test unit; its non-test work goes there too
+        // the part holding each project's heaviest test unit; its non-test work goes there too when that is free
         Map<String, Integer> heaviestTestPart = new HashMap<>();
 
         for (Unit unit : testUnits(config, durations)) {
@@ -139,8 +143,7 @@ public final class CiPartPlanner {
 
         Map<String, Integer> projects = new TreeMap<>();
         for (Unit unit : sortedUnits(projectUnits(durations))) {
-            Integer preferred = heaviestTestPart.get(unit.project());
-            int part = preferred != null ? preferred : bestPart(unit, load, chains, config.workers(), Set.of());
+            int part = homePart(unit, heaviestTestPart.get(unit.project()), load, chains, config.workers());
             place(unit, part, load, chains);
             projects.put(unit.key(), part + 1);
         }
@@ -207,6 +210,23 @@ public final class CiPartPlanner {
         return sorted;
     }
 
+    /**
+     * The part for a project's non-test work: the part of its heaviest test unit, which keeps the project's work
+     * together, unless that would make the slowest part slower than placing the work where it finishes earliest.
+     */
+    private static int homePart(Unit unit, Integer preferred, double[] load, List<Map<String, Double>> chains, int workers) {
+        int best = bestPart(unit, load, chains, workers, Set.of());
+        if (preferred == null) {
+            return best;
+        }
+        double makespan = 0;
+        for (int part = 0; part < load.length; part++) {
+            makespan = Math.max(makespan, finish(load[part], chains.get(part), workers));
+        }
+        double bound = Math.max(makespan, finishWith(unit, best, load, chains, workers));
+        return finishWith(unit, preferred, load, chains, workers) <= bound + 1e-9 ? preferred : best;
+    }
+
     private static int bestPart(Unit unit, double[] load, List<Map<String, Double>> chains, int workers, Set<Integer> forbidden) {
         int best = -1;
         double bestFinish = Double.MAX_VALUE;
@@ -214,17 +234,22 @@ public final class CiPartPlanner {
             if (forbidden.contains(part) && forbidden.size() < load.length) {
                 continue;
             }
-            double chain = chains.get(part).getOrDefault(unit.project(), 0.0) + unit.seconds();
-            double finish = Math.max(
-                Math.max((load[part] + unit.seconds()) / workers, chain),
-                finish(load[part], chains.get(part), workers)
-            );
+            double finish = finishWith(unit, part, load, chains, workers);
             if (finish < bestFinish - 1e-9 || (Math.abs(finish - bestFinish) <= 1e-9 && load[part] < load[best])) {
                 best = part;
                 bestFinish = finish;
             }
         }
         return best;
+    }
+
+    /** The finish time of {@code part} if {@code unit} were placed on it. */
+    private static double finishWith(Unit unit, int part, double[] load, List<Map<String, Double>> chains, int workers) {
+        double finish = Math.max((load[part] + unit.seconds()) / workers, finish(load[part], chains.get(part), workers));
+        if (unit.taskPath() != null) {
+            finish = Math.max(finish, chains.get(part).getOrDefault(unit.taskPath(), 0.0) + unit.seconds());
+        }
+        return finish;
     }
 
     private static double finish(double load, Map<String, Double> chains, int workers) {
@@ -234,7 +259,10 @@ public final class CiPartPlanner {
 
     private static void place(Unit unit, int part, double[] load, List<Map<String, Double>> chains) {
         load[part] += unit.seconds();
-        chains.get(part).merge(unit.project(), unit.seconds(), Double::sum);
+        // shards of one split test task in the same part run as one execution of that task
+        if (unit.taskPath() != null) {
+            chains.get(part).merge(unit.taskPath(), unit.seconds(), Double::sum);
+        }
     }
 
     private static Map<String, Set<String>> antiAffinityIndex(List<List<String>> groups) {

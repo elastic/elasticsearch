@@ -225,6 +225,16 @@ Three rules come with the fallback:
   index settings that way; and the stateless split state updates checked
   blocks that way. All now resolve the index through its `Index` first and
   use the current name.
+
+  This was found by grepping server, x-pack and the modules for name-keyed
+  lookups (blocks, the indices lookup, `index(String)`, name-keyed maps) whose
+  key comes from a shard id or an `Index`, and reading each hit, and it is a
+  review aid, not a proof. The rest were either built and consulted from one
+  cluster state or one request's snapshot of names (health indicators,
+  allocation, search and field-caps dispatch, broadcast replication, the
+  transform checkpoint action), keyed by UUID with the name kept only to
+  rebuild a `ShardId` (the searchable snapshots persistent cache), or only
+  report a name.
 - Code that detects a rename or a deletion by asking whether an `Index` is
   still in the metadata must look up by name explicitly, because
   `index(Index)` answers yes for a renamed index. `indicesRenamed()` does so.
@@ -460,6 +470,17 @@ UUID and is unaffected.
   reviewers do not have to spot the lenient `index(Index)` in security code.
 - **Validation that no two indices share a UUID (T3)**, in place of the
   builder assertion.
+- **Snapshot-based peer recovery cannot use snapshots taken before a rename.**
+  `IndexSnapshotsService` finds the latest snapshot of a shard through the
+  repository's `IndexId` for the shard's current index name, so for a renamed
+  index it sees only snapshots taken under the new name. Recovery then falls
+  back to the ordinary peer path, which is slower but correct. Swapped names
+  are safe: the recovery plan reuses a snapshot file only when its metadata
+  matches the source's, as after a delete and re-create. Resolving the
+  `IndexId` by UUID, as T5 does for snapshot creation, would close the gap.
+- **The reshard split helper and the shutdown progress tracker key by the
+  name the request carried**, which can be stale during a rename. Both only
+  affect the name reported or logged.
 - **CCR's `leader_index_name` custom metadata** keeps the name the leader had
   when following started, and `_ccr/info` shows it; it should show the
   current name.

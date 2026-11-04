@@ -7971,6 +7971,7 @@ unmapped-1     | none             | text_state_unmapped    | null
 // union, so it only gets _unmapped_fields once the union has.
 forkOverSubqueryUnionKeepsUnmappedFields
 required_capability: optional_fields_load_all_single_source_column
+required_capability: optional_fields_load_all_fork_over_union
 required_capability: optional_fields_load_all_subqueries
 required_capability: optional_fields_load_all_fork
 required_capability: subquery_in_from_command

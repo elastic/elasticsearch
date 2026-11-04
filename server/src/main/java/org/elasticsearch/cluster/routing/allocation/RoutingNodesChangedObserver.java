@@ -9,11 +9,14 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.ComputedMoveReason;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Records if changes were made to {@link RoutingNodes} during an allocation round.
@@ -43,7 +46,12 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
     }
 
     @Override
-    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
+    public void relocationStarted(
+        ShardRouting startedShard,
+        ShardRouting targetRelocatingShard,
+        MoveReason reason,
+        @Nullable ComputedMoveReason computedReason
+    ) {
         assert startedShard.started() : "expected started shard " + startedShard;
         assert targetRelocatingShard.isRelocationTarget() : "expected relocation target shard " + targetRelocatingShard;
         setChanged();

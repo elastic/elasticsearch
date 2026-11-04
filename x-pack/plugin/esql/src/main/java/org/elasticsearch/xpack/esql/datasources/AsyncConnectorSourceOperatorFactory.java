@@ -156,6 +156,14 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         );
 
         ProducerState state = new ProducerState(request, sliceQueue, buffer, driverContext);
+        // A hard cut (task cancel, LIMIT teardown) must reach a cursor that is blocked waiting for its first batch: the producer
+        // thread cannot poll the buffer from inside that read.
+        buffer.addCancelListener(() -> {
+            ResultCursor active = state.cursor;
+            if (active != null) {
+                active.cancel();
+            }
+        });
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
@@ -185,7 +193,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         boolean singleShotStarted;
         /** Currently active cursor, or {@code null} if between units or before the first open. */
         @Nullable
-        ResultCursor cursor;
+        volatile ResultCursor cursor;
         /** The buffer's space signal when the last drain returned {@link DrainResult#BLOCKED}, else {@code null}. */
         @Nullable
         SubscribableListener<Void> blockedOn;
@@ -342,6 +350,13 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
         }));
     }
 
+    /** A cut that happened before the cursor was published to the state saw no cursor to cancel, so it is applied here. */
+    private static void cancelIfCut(ProducerState state) {
+        if (state.buffer.readCancelled()) {
+            state.cursor.cancel();
+        }
+    }
+
     /**
      * Open a cursor for the next unit of work: either the next split pulled from the queue, or
      * the single-shot {@link Split#SINGLE} execution. Returns {@code false} if iteration is
@@ -370,6 +385,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
                 }
             }
             state.cursor = connector.execute(state.request, split);
+            cancelIfCut(state);
             return true;
         } else {
             if (state.singleShotStarted) {
@@ -377,6 +393,7 @@ public class AsyncConnectorSourceOperatorFactory implements SourceOperator.Sourc
             }
             state.singleShotStarted = true;
             state.cursor = connector.execute(state.request, Split.SINGLE);
+            cancelIfCut(state);
             return true;
         }
     }

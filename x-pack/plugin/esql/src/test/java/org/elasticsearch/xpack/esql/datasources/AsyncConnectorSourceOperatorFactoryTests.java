@@ -254,6 +254,109 @@ public class AsyncConnectorSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * A task cancel or LIMIT teardown closes the operator while the producer is blocked inside the cursor, waiting for a first batch
+     * that a remote engine is still computing. The producer cannot poll the buffer from there, so the cut has to reach the cursor.
+     */
+    public void testHardCutCancelsACursorBlockedInItsFirstRead() throws Exception {
+        CancellableConnector connector = new CancellableConnector(false);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-cancel"));
+        try {
+            QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+            SourceOperator operator = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, null).get(mockDriverContext());
+            assertTrue("the producer never reached the read", connector.inRead.await(30, TimeUnit.SECONDS));
+
+            operator.close();
+
+            assertTrue("the cursor was not cancelled", connector.cancelled.await(30, TimeUnit.SECONDS));
+        } finally {
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /** A cut that arrives while {@code execute} is still running saw no cursor to cancel, so it is applied once there is one. */
+    public void testCutDuringExecuteIsAppliedToTheCursorThatComesBack() throws Exception {
+        CancellableConnector connector = new CancellableConnector(true);
+        ExecutorService pool = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory("test", "acsof-cancel-early"));
+        try {
+            QueryRequest request = new QueryRequest("target", List.of("col"), List.of(), Map.of(), 100, TEST_BLOCK_FACTORY);
+            SourceOperator operator = new AsyncConnectorSourceOperatorFactory(connector, request, 10, pool, null).get(mockDriverContext());
+            assertTrue("the producer never reached execute", connector.inExecute.await(30, TimeUnit.SECONDS));
+
+            operator.close();
+            connector.proceed.countDown();
+
+            assertTrue("the cursor was not cancelled", connector.cancelled.await(30, TimeUnit.SECONDS));
+        } finally {
+            connector.proceed.countDown();
+            pool.shutdownNow();
+            assertTrue(pool.awaitTermination(10, TimeUnit.SECONDS));
+        }
+    }
+
+    /**
+     * A stand-in for a connector to a remote engine, which a unit test cannot start: its cursor blocks in {@code hasNext} until it is
+     * cancelled, like a read waiting for the remote engine's first batch. Optionally {@code execute} itself blocks first.
+     */
+    private static class CancellableConnector implements Connector {
+        final CountDownLatch inExecute = new CountDownLatch(1);
+        final CountDownLatch proceed = new CountDownLatch(1);
+        final CountDownLatch inRead = new CountDownLatch(1);
+        final CountDownLatch cancelled = new CountDownLatch(1);
+        private final boolean blockInExecute;
+
+        CancellableConnector(boolean blockInExecute) {
+            this.blockInExecute = blockInExecute;
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, Split split) {
+            inExecute.countDown();
+            if (blockInExecute) {
+                try {
+                    assertTrue(proceed.await(30, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
+            }
+            return new ResultCursor() {
+                @Override
+                public boolean hasNext() {
+                    inRead.countDown();
+                    try {
+                        cancelled.await(30, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    throw new NoSuchElementException();
+                }
+
+                @Override
+                public void cancel() {
+                    cancelled.countDown();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public ResultCursor execute(QueryRequest request, ExternalSplit split) {
+            throw new AssertionError("single-shot reads use Split.SINGLE");
+        }
+
+        @Override
+        public void close() {}
+    }
+
     private static class LatchedConnector implements Connector {
         private final AtomicInteger executeCount;
         private final CountDownLatch entered;

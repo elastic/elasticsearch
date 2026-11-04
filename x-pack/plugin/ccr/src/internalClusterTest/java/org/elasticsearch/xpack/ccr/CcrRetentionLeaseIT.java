@@ -45,7 +45,6 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.Transport;
@@ -72,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -661,25 +661,26 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         assertRetentionLeaseRenewal(1, 0, followerIndex, leaderIndex);
 
         final TimeValue renewInterval = CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerClusterSettings());
-        // Wait for ccr pool threads to be idle first
-        assertBusy(() -> {
-            for (final String node : getFollowerCluster().getNodeNames()) {
-                for (final ThreadPoolStats.Stats stats : getFollowerCluster().getInstance(ThreadPool.class, node).stats()) {
-                    if (Ccr.CCR_THREAD_POOL_NAME.equals(stats.name())) {
-                        assertThat(stats.active() + stats.queue(), equalTo(0));
-                    }
-                }
-            }
-        });
         // Saturate ccr pool on every follower node and check the lease is still renewed
         final CountDownLatch release = new CountDownLatch(1);
         try {
             for (final String node : getFollowerCluster().getNodeNames()) {
-                final Executor ccr = getFollowerCluster().getInstance(ThreadPool.class, node).executor(Ccr.CCR_THREAD_POOL_NAME);
+                final ThreadPool threadPool = getFollowerCluster().getInstance(ThreadPool.class, node);
+                final Executor ccr = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
+                final int poolSize = threadPool.info(Ccr.CCR_THREAD_POOL_NAME).getMax();
+                // Wait until all threads are blocked before filling the queue
+                final CyclicBarrier barrier = new CyclicBarrier(poolSize + 1);
+                for (int i = 0; i < poolSize; i++) {
+                    ccr.execute(() -> {
+                        safeAwait(barrier);
+                        safeAwait(release);
+                    });
+                }
+                safeAwait(barrier);
                 boolean full = false;
                 while (full == false) {
                     try {
-                        ccr.execute(() -> safeAwait(release, TimeValue.timeValueSeconds(60)));
+                        ccr.execute(() -> safeAwait(release));
                     } catch (EsRejectedExecutionException e) {
                         full = true;
                     }

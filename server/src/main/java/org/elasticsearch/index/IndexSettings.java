@@ -742,7 +742,8 @@ public final class IndexSettings {
 
     /**
      * Returns {@code true} if this index opted in to batch indexing. Always {@code false} when the
-     * {@code batch_indexing} feature flag is off, because the setting cannot be enabled then.
+     * {@code batch_indexing} feature flag is off, because the setting cannot be enabled then, and for time series indices with
+     * stored source, see {@link #isBatchIndexingEnabled(Settings)}.
      */
     public boolean isBatchIndexingEnabled() {
         return batchIndexingEnabled;
@@ -1156,9 +1157,14 @@ public final class IndexSettings {
      * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
      * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
      * explicit {@code true} when the feature flag is off.
+     * <p>
+     * Time series indices with {@link SourceFieldMapper.Mode#STORED stored} source never batch, see
+     * {@link #isBatchIndexingEnabled(Settings)}, so the setting defaults to {@code false} for them. An explicit {@code true} is ignored
+     * rather than rejected, because the source mode may be forced to stored after the fact, e.g. by the synthetic source license
+     * fallback, which must not fail index creation.
      */
     public static final Setting<Boolean> BATCH_INDEXING = Setting.boolSetting("index.batch_indexing", settings -> {
-        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false || isTimeSeriesWithStoredSource(settings)) {
             return Boolean.FALSE.toString();
         }
         if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
@@ -1177,13 +1183,24 @@ public final class IndexSettings {
     }, Property.Final, Property.IndexScope);
 
     /**
-     * Whether an index with the given settings is eligible for batch indexing: the feature flag is on and
-     * {@link #BATCH_INDEXING} resolves to {@code true}. Coordinators use this to decide whether to build a batch, so that their
-     * decision matches {@link #isBatchIndexingEnabled()} on the shard. The cluster-level kill switch is not included because it
-     * is node-local and dynamic; callers check it via {@link BatchIndexingEnabled}.
+     * Whether an index with the given settings is eligible for batch indexing: the feature flag is on, {@link #BATCH_INDEXING}
+     * resolves to {@code true} and the index is not a time series index with stored source. Batch indexing rebuilds {@code _source}
+     * from the batch schema, which would not preserve the original document that stored source promises to return; time series
+     * indices batch by default, so they must not silently lose that guarantee, e.g. after the synthetic source license fallback.
+     * Other index modes only batch on an explicit opt-in. Coordinators use this to
+     * decide whether to build a batch, so that their decision matches {@link #isBatchIndexingEnabled()} on the shard. The
+     * cluster-level kill switch is not included because it is node-local and dynamic; callers check it via
+     * {@link BatchIndexingEnabled}.
      */
     public static boolean isBatchIndexingEnabled(Settings indexSettings) {
-        return BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BATCH_INDEXING.get(indexSettings);
+        return BatchIndexingEnabled.FEATURE_FLAG.isEnabled()
+            && BATCH_INDEXING.get(indexSettings)
+            && isTimeSeriesWithStoredSource(indexSettings) == false;
+    }
+
+    private static boolean isTimeSeriesWithStoredSource(Settings indexSettings) {
+        return MODE.get(indexSettings) == IndexMode.TIME_SERIES
+            && INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings) == SourceFieldMapper.Mode.STORED;
     }
 
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
@@ -1821,7 +1838,9 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
-        batchIndexingEnabled = BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && scopedSettings.get(BATCH_INDEXING);
+        batchIndexingEnabled = BatchIndexingEnabled.FEATURE_FLAG.isEnabled()
+            && scopedSettings.get(BATCH_INDEXING)
+            && (mode != IndexMode.TIME_SERIES || scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING) != SourceFieldMapper.Mode.STORED);
         requestCacheEnabled = scopedSettings.get(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);

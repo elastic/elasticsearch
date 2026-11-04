@@ -4633,12 +4633,6 @@ public class EsqlCapabilities {
         WARN_NULL_MISUSE,
 
         /**
-         * The {@code index.batch_indexing} index setting is known. Not an ES|QL feature: lets the csv-spec loader pin a dataset
-         * to {@code index.batch_indexing: false} only when every cluster that receives the create-index request accepts it.
-         */
-        INDEX_BATCH_INDEXING_SETTING,
-
-        /**
          * A {@code _score} predicate after a runtime search ({@code MATCH}, {@code MATCH_PHRASE}, runtime {@code KNN}),
          * in a later {@code WHERE} or combined with it using {@code AND}, sees the score that search contributes, as it
          * does for a search on an indexed field, rather than the score from before it.

@@ -748,8 +748,16 @@ public final class LuceneSliceQueue {
 
         AdaptivePartitioner(int desiredDocsPerSlice, int maxSegmentsPerSlice) {
             this.desiredDocsPerSlice = desiredDocsPerSlice;
-            this.maxDocsPerSlice = desiredDocsPerSlice * 5 / 4;
+            this.maxDocsPerSlice = maxDocsPerSliceFor(desiredDocsPerSlice);
             this.maxSegmentsPerSlice = maxSegmentsPerSlice;
+        }
+
+        /**
+         * The largest slice accepted for a desired size: 25% above it. A leaf or range is only cut into more slices if
+         * its slices would be larger than this. It is also the size limit when small segments are grouped.
+         */
+        private static int maxDocsPerSliceFor(int desiredDocs) {
+            return desiredDocs * 5 / 4;
         }
 
         List<List<PartialLeafReaderContext>> partition(List<LeafReaderContext> leaves) {
@@ -817,7 +825,7 @@ public final class LuceneSliceQueue {
          * {@code desiredDocs} docs.
          */
         List<List<PartialLeafReaderContext>> partitionRange(LeafReaderContext leaf, int minDocInRange, int maxDocInRange, int desiredDocs) {
-            int maxDocs = desiredDocs * 5 / 4;
+            int maxDocs = maxDocsPerSliceFor(desiredDocs);
             int numDocsInRange = maxDocInRange - minDocInRange;
             int numSlices = Math.max(1, numDocsInRange / desiredDocs);
             while (Math.ceilDiv(numDocsInRange, numSlices) > maxDocs) {

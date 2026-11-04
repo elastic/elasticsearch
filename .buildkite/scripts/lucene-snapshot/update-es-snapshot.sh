@@ -32,6 +32,10 @@ python3 .buildkite/scripts/lucene-snapshot/remove-verification-metadata.py
 VERSION=$(echo "$LUCENE_SNAPSHOT_VERSION" | cut -f 1 -d '-')
 VERSION_SNAKE=$(echo "$VERSION" | sed -E 's/\./_/g')
 
+# Keep the latest index version aligned with Lucene's numeric version. A new snapshot
+# of the same Lucene version does not need another index version.
+python3 .buildkite/scripts/lucene-snapshot/update_index_versions.py "$VERSION"
+
 sed -E "s/^(:lucene_version:  *).*\$/\1$VERSION/" docs/Versions.asciidoc > docs/Versions.asciidoc.new
 sed -E "s/^(:lucene_version_path:  *).*\$/\1$VERSION_SNAKE/" docs/Versions.asciidoc.new > docs/Versions.asciidoc
 rm -f docs/Versions.asciidoc.new
@@ -45,6 +49,7 @@ else
   git add build-tools-internal/version.properties
   git add gradle/verification-metadata.xml
   git add docs/Versions.asciidoc
+  git add server/src/main/java/org/elasticsearch/index/IndexVersions.java
 
   git commit -m "[Automated] Update Lucene snapshot to $LUCENE_SNAPSHOT_VERSION"
   git push origin "$BUILDKITE_BRANCH"

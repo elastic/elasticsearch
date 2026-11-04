@@ -151,6 +151,7 @@ public final class StatsDeriver {
         }
         double groups = 1;
         double groupsUpper = 1;
+        boolean ndvMissing = false;
         for (Expression grouping : aggregate.groupings()) {
             Attribute attribute = Expressions.attribute(grouping);
             if (attribute == null) {
@@ -158,14 +159,19 @@ public final class StatsDeriver {
             }
             Estimate ndv = child.column(attribute).ndv();
             if (ndv.isUnknown()) {
-                return Estimate.UNKNOWN;
+                // A column has at most one distinct value per row, so the input rows bound its NDV.
+                ndvMissing = true;
+                groups = multiply(groups, Math.max(1, child.rows().value()));
+                groupsUpper = multiply(groupsUpper, Math.max(1, child.rows().upperBound()));
+                continue;
             }
             groups = multiply(groups, Math.max(1, ndv.value()));
             groupsUpper = multiply(groupsUpper, Math.max(1, ndv.upperBound()));
         }
         double value = Math.min(child.rows().value(), groups);
         double upperBound = Math.max(value, Math.min(child.rows().upperBound(), groupsUpper));
-        return Estimate.derived(value, upperBound, Math.max(0, upperBound - value));
+        double spread = Math.max(0, upperBound - value);
+        return ndvMissing ? new Estimate(value, upperBound, spread, Provenance.DEFAULT) : Estimate.derived(value, upperBound, spread);
     }
 
     private static PlanStats join(Join join, PlanStats left, PlanStats right) {

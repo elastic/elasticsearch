@@ -110,6 +110,21 @@ public class StatsDeriverTests extends ESTestCase {
         assertEquals(7, statistics.get(aggregate).column(field).ndv().value(), 0);
     }
 
+    public void testAggregateRowsWithUnknownGroupingNdvAreBoundedByInputRows() {
+        Attribute known = attribute("known");
+        Attribute unknown = attribute("unknown");
+        SourceStatistics statistics = sourceStatistics(100, 1_200, Map.of("known", columnStatistics(0, 7, 100, 800, 1L, 99L)));
+        SimpleSourceMetadata metadata = new SimpleSourceMetadata(List.of(known, unknown), "test", "path", statistics, List.of());
+        ExternalRelation input = new ExternalRelation(Source.EMPTY, "path", metadata, List.of(known, unknown), null, Map.of());
+        Aggregate aggregate = new Aggregate(Source.EMPTY, input, List.of(known, unknown), List.of(known, unknown));
+
+        Estimate rows = new StatsDeriver().derive(aggregate).get(aggregate).rows();
+
+        assertEquals(100, rows.value(), 0);
+        assertEquals(100, rows.upperBound(), 0);
+        assertEquals(Provenance.DEFAULT, rows.provenance());
+    }
+
     private static Attribute attribute(String name) {
         return new ReferenceAttribute(Source.EMPTY, name, DataType.LONG);
     }

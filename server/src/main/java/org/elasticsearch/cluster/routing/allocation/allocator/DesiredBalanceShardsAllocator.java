@@ -254,7 +254,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     }
                     submitReconcileTask(currentDesiredBalance);
                 } else {
-                    logger.debug("Desired balance computation for [{}] has newer input, cancelling recoveries that cannot remain", index);
+                    logger.debug("Desired balance computation for [{}] is superseded by newer input", index);
                     // No reconciliation is scheduled here. The newer input already reconciles eagerly against this
                     // intermediate balance in allocate(). Without cancelling here, recoveries that cannot remain on their
                     // current node would only be canceled once a computation converges or stops early, which may not

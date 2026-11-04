@@ -488,11 +488,11 @@ To help differentiate between the static and generated content, the generated co
 
 PromQL reference documentation is auto-generated and stored in:
 ```
-docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/functions/    # function markdown snippets: per-function pages, per-category lists, and the "Not yet supported" list
-docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/operators/    # operator markdown snippets: per-operator pages, per-category lists, and the "Not yet supported" list
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/functions/    # function markdown snippets: per-function pages, per-category lists, and the "Not supported yet" list
+docs/reference/query-languages/promql/_snippets/generated/x-pack-esql/operators/    # operator markdown snippets: per-operator pages, per-category lists, and the "Not supported yet" list
 docs/reference/query-languages/promql/kibana/generated/x-pack-esql/                 # Kibana definition JSON files for functions and operators
 ```
-For functions, the descriptions, examples, and "Differences from Prometheus" notes come from each function's `PromqlFunctionDefinition` (see `PromqlBuiltinFunctionDefinitions` and the `PROMQL_DEFINITION` fields on the individual function classes). For operators, the same metadata (plus the documentation category and per-operator stack availability) comes from `OPERATOR_DEFS` in `PromqlDocsSupport`, because operators have no runtime registry. Edit those sources rather than the generated files.
+For functions, the descriptions, examples, and "Differences from Prometheus" notes (`stdDivergence`) come from each function's `PromqlFunctionDefinition` (see `PromqlBuiltinFunctionDefinitions` and the `PROMQL_DEFINITION` fields on the individual function classes). For operators, the same metadata (plus the documentation category and per-operator stack availability) comes from `OPERATOR_DEFS` in `PromqlDocsSupport`, because operators have no runtime registry. Edit those sources rather than the generated files.
 
 The hand-written hub pages (`promql/functions.md`, `promql/operators.md`) and the per-category wrapper pages (`promql/functions/<category>.md`, `promql/operators/<category>.md`) include the generated snippets; update them by hand when adding a category.
 

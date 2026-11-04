@@ -28,8 +28,19 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
      */
     Executor executor();
 
+    /**
+     * Called on receipt of a successful response to the transport request. The caller ({@link InboundHandler}) holds a reference to the
+     * {@code response} parameter, so it has a positive refcount, and is responsible for releasing this reference after this callback
+     * returns. Implementations which need to keep the response alive past the end of the execution of this callback must therefore
+     * acquire their own references during the execution of this callback.
+     */
     void handleResponse(T response);
 
+    /**
+     * Called on receipt of an exceptional response to the transport request, which may be an exception thrown on the remote node or may
+     * be an indication of a network disconnect or other failure. The request might still have been delivered to the remote node before the
+     * network failure occurred.
+     */
     void handleException(TransportException exp);
 
     /**

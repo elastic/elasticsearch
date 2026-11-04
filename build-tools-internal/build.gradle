@@ -239,9 +239,9 @@ gradlePlugin {
       id = 'elasticsearch.legacy-yaml-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
     }
-    cacheTestFixtures {
-        id = 'elasticsearch.cache-test-fixtures'
-        implementationClass = 'org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin'
+    dockerImageCache {
+        id = 'elasticsearch.docker-image-cache'
+        implementationClass = 'org.elasticsearch.gradle.internal.docker.DockerImageCachePlugin'
     }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'

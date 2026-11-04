@@ -35,6 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 
 public class DataPointGroupingContext implements AbstractOTLPTransportAction.ProcessingContext {
@@ -278,7 +279,8 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
         private final TsidBuilder tsidBuilder;
         private final List<KeyValue> dataPointAttributes;
         private final String unit;
-        private final Set<String> metricNames = new HashSet<>();
+        // sorted so that getMetricNamesHash is independent of the order in which the sender emitted the metrics
+        private final Set<String> metricNames = new TreeSet<>();
         private final List<DataPoint> dataPoints = new ArrayList<>();
         private final TargetIndex targetIndex;
         private String metricNamesHash;
@@ -311,11 +313,12 @@ public class DataPointGroupingContext implements AbstractOTLPTransportAction.Pro
             return dataPoints.getFirst().getStartTimestampUnixNano();
         }
 
+        /** Hashes the metric name set canonically so sender ordering does not change the time series identity. */
         public String getMetricNamesHash(BufferedMurmur3Hasher hasher) {
             if (metricNamesHash == null) {
                 hasher.reset();
-                for (int i = 0; i < dataPoints.size(); i++) {
-                    hasher.addString(dataPoints.get(i).getMetricName());
+                for (String metricName : metricNames) {
+                    hasher.addString(metricName);
                 }
                 metricNamesHash = Integer.toHexString(hasher.digestHash().hashCode());
             }

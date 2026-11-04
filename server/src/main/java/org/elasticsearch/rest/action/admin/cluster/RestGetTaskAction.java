@@ -32,7 +32,7 @@ import static org.elasticsearch.rest.Scope.PUBLIC;
 public class RestGetTaskAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("wait_for_completion", "follow_relocations", REST_TIMEOUT_PARAM);
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("task_id")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "task_id");
 
     @Override
     public List<Route> routes() {

@@ -38,7 +38,7 @@ public class RestCancelTasksAction extends BaseRestHandler {
         "group_by",
         "wait_for_completion"
     );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("task_id")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "task_id");
 
     private final Supplier<DiscoveryNodes> nodesInCluster;
 

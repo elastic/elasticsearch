@@ -37,9 +37,7 @@ import static org.elasticsearch.rest.RestUtils.getTimeout;
 public class RestNodesUsageAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_TIMEOUT_PARAM);
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
-        Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("nodeId", "metric"))
-    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "nodeId", "metric");
 
     @Override
     public List<Route> routes() {

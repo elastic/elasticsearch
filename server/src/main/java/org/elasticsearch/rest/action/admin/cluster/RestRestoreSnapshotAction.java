@@ -33,9 +33,7 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 public class RestRestoreSnapshotAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_MASTER_TIMEOUT_PARAM, "wait_for_completion");
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(
-        Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("repository", "snapshot"))
-    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "repository", "snapshot");
 
     @Override
     public List<Route> routes() {

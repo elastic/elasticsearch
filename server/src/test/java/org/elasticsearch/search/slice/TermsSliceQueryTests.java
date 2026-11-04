@@ -33,8 +33,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -67,7 +67,7 @@ public class TermsSliceQueryTests extends ESTestCase {
         final int numDocs = randomIntBetween(100, 200);
         final Directory dir = newDirectory();
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir, new KeywordAnalyzer());
-        Set<String> ids = new HashSet<>();
+        Set<String> ids = ConcurrentHashMap.newKeySet();
         for (int i = 0; i < numDocs; ++i) {
             String id = "id-" + i;
             String slice = "slice-" + randomIntBetween(0, 4);
@@ -87,7 +87,7 @@ public class TermsSliceQueryTests extends ESTestCase {
         for (int id = 0; id < max; id++) {
             TermsSliceQuery query = new TermsSliceQuery(IdFieldMapper.NAME, id, max, TermsSliceQuery.TermFilter.SLICED_ID_TERMS);
             total += searcher.count(query);
-            searcher.search(query, new Collector() {
+            searcher.search(query, collectorManager(() -> new Collector() {
                 @Override
                 public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
                     StoredFields storedFields = context.reader().storedFields();
@@ -108,7 +108,7 @@ public class TermsSliceQueryTests extends ESTestCase {
                 public ScoreMode scoreMode() {
                     return ScoreMode.COMPLETE_NO_SCORES;
                 }
-            });
+            }));
         }
         // Gap-free and duplicate-free: every document counted once across the partitions, none left behind.
         assertThat(total, equalTo(numDocs));
@@ -141,7 +141,7 @@ public class TermsSliceQueryTests extends ESTestCase {
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir, new KeywordAnalyzer());
         int max = randomIntBetween(2, 10);
         int[] sliceCounters = new int[max];
-        Set<String> keys = new HashSet<>();
+        Set<String> keys = ConcurrentHashMap.newKeySet();
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
             String uuid = UUIDs.base64UUID();
@@ -159,7 +159,7 @@ public class TermsSliceQueryTests extends ESTestCase {
         for (int id = 0; id < max; id++) {
             TermsSliceQuery query1 = new TermsSliceQuery("uuid", id, max);
             assertThat(searcher.count(query1), equalTo(sliceCounters[id]));
-            searcher.search(query1, new Collector() {
+            searcher.search(query1, collectorManager(() -> new Collector() {
                 @Override
                 public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
                     StoredFields storedFields = context.reader().storedFields();
@@ -181,7 +181,7 @@ public class TermsSliceQueryTests extends ESTestCase {
                 public ScoreMode scoreMode() {
                     return ScoreMode.COMPLETE_NO_SCORES;
                 }
-            });
+            }));
         }
         assertThat(keys.size(), equalTo(0));
         w.close();

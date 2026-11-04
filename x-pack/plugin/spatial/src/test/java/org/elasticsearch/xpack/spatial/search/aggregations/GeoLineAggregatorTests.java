@@ -310,6 +310,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             assertThat(result.getName(), equalTo("ts"));
             assertThat(result.getBuckets().size(), equalTo(0));
         });
+        assertWarnings(TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
     }
 
     public void testOnePoint() throws IOException {
@@ -821,6 +822,9 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 }
             }
         }, ts -> verifyTSResults.accept(new TestTSAssertionResults(ts, testConfig, testData)));
+        if (testConfig.useTimeSeriesAggregation) {
+            assertWarnings(TimeSeriesAggregationBuilder.DEPRECATION_MESSAGE);
+        }
     }
 
     private void testAggregator(SortOrder sortOrder) throws IOException {

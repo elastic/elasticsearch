@@ -15,6 +15,7 @@ import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
+import java.lang.foreign.MemorySegment;
 import java.nio.ByteOrder;
 
 public interface ESVectorUtilSupport {
@@ -195,5 +196,11 @@ public interface ESVectorUtilSupport {
 
     void matrixMultiply(float[] a, float[] b, int m, int k, int n, float[] result, TaskExecutor executor);
 
+    void matrixMultiplySymmetric(float[] a, float[] b, int n, int k, float[] result, TaskExecutor executor);
+
+    void matrixMultiplyI8(MemorySegment a, MemorySegment b, int m, int k, int n, MemorySegment result, TaskExecutor executor);
+
     void matrixVectorMultiply(float[] a, int rows, int cols, float[] v, float[] result);
+
+    void matrixVectorMultiply(byte[] a, int rows, int cols, byte[] v, int[] result);
 }

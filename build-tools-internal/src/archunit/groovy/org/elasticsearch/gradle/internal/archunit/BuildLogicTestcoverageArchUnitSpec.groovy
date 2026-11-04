@@ -105,7 +105,6 @@ class BuildLogicTestCoverageArchUnitSpec extends AbstractArchUnitSpec {
         "org.elasticsearch.gradle.internal.dependencies.rules.ComponentMetadataRulesPlugin",
         "org.elasticsearch.gradle.internal.docker.DockerSupportPlugin",
         "org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin",
-        "org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin",
         "org.elasticsearch.gradle.internal.precommit.DependencyLicensesPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin",
         "org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin",

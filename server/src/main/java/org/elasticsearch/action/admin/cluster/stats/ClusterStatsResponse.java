@@ -42,6 +42,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final ProjectRoutingUsageSnapshot projectRoutingUsageSnapshot;
     @Nullable
     final TagsConfigSnapshot tagsConfig;
+    @Nullable
+    final SearchTierStats searchTierStats;
     final long timestamp;
     final String clusterUUID;
     private final Map<String, RemoteClusterStats> remoteClustersStats;
@@ -61,7 +63,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         ClusterSnapshotStats clusterSnapshotStats,
         Map<String, RemoteClusterStats> remoteClustersStats,
         boolean skipMRT,
-        @Nullable TagsConfigSnapshot tagsConfig
+        @Nullable TagsConfigSnapshot tagsConfig,
+        @Nullable SearchTierStats searchTierStats
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
@@ -87,6 +90,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         this.status = status;
         this.clusterSnapshotStats = clusterSnapshotStats;
         this.tagsConfig = tagsConfig;
+        this.searchTierStats = searchTierStats;
 
         this.repositoryUsageStats = nodes.stream()
             .map(ClusterStatsNodeResponse::repositoryUsageStats)
@@ -180,6 +184,12 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         if (tagsConfig != null) {
             builder.startObject("tags");
             tagsConfig.toXContent(builder, params);
+            builder.endObject();
+        }
+
+        if (searchTierStats != null) {
+            builder.startObject("search_tier");
+            searchTierStats.toXContent(builder, params);
             builder.endObject();
         }
 

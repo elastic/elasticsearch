@@ -24,18 +24,37 @@ import java.util.List;
  *
  * <p>Note that this list may not be exhaustive - if you find an unregistered fork while looking at
  * other code, please register it here so that we can track it.
+ *
+ * <p>Workarounds for Lucene bugs that don't need a forked class are also registered here, with
+ * {@link #workaround}, so that we are reminded to remove the workaround once the fix has been
+ * released.
  */
 public final class LuceneForks {
 
+    public enum Kind {
+        /** A copy of a Lucene class, named {@code X*}. */
+        FORK("fork"),
+        /** Elasticsearch code that works around a Lucene bug without copying a Lucene class. */
+        WORKAROUND("workaround");
+
+        private final String description;
+
+        Kind(String description) {
+            this.description = description;
+        }
+    }
+
     /**
-     * A forked class.
+     * A forked class, or a workaround for a Lucene bug.
      *
-     * @param className      fully qualified name of the fork; checked to exist, so renames must update the registry
+     * @param kind           whether this is a fork or a workaround
+     * @param className      fully qualified name of the fork, or of the class containing the workaround; checked to exist,
+     *                       so renames must update the registry
      * @param upstreamIssue  the apache/lucene issue or PR motivating the fork, or a description for permanent forks
      * @param fixedIn        first Lucene release containing the upstream fix, or {@code null} if the fork is permanent
-     * @param removalNote    what to do when the fork expires
+     * @param removalNote    what to do when the fork or workaround expires
      */
-    public record Fork(String className, String upstreamIssue, Version fixedIn, String removalNote) {
+    public record Fork(Kind kind, String className, String upstreamIssue, Version fixedIn, String removalNote) {
 
         public boolean isExpired(Version luceneVersion) {
             return fixedIn != null && luceneVersion.onOrAfter(fixedIn);
@@ -48,7 +67,9 @@ public final class LuceneForks {
                 + upstreamIssue
                 + " ("
                 + fixedIn
-                + "); the fork "
+                + "); the "
+                + kind.description
+                + " in "
                 + className
                 + " is no longer needed. "
                 + removalNote
@@ -57,11 +78,18 @@ public final class LuceneForks {
     }
 
     static Fork expiring(String className, String upstreamIssue, int major, int minor, int bugfix, String removalNote) {
-        return new Fork(className, upstreamIssue, Version.fromBits(major, minor, bugfix), removalNote);
+        return new Fork(Kind.FORK, className, upstreamIssue, Version.fromBits(major, minor, bugfix), removalNote);
+    }
+
+    /**
+     * Registers a workaround for a Lucene bug that lives in {@code className}.
+     */
+    static Fork workaround(String className, String upstreamIssue, int major, int minor, int bugfix, String removalNote) {
+        return new Fork(Kind.WORKAROUND, className, upstreamIssue, Version.fromBits(major, minor, bugfix), removalNote);
     }
 
     static Fork permanent(String className, String reason) {
-        return new Fork(className, reason, null, "This fork is intentional and does not expire.");
+        return new Fork(Kind.FORK, className, reason, null, "This fork is intentional and does not expire.");
     }
 
     private static final String RANGE_FIX_REMOVAL =
@@ -72,6 +100,14 @@ public final class LuceneForks {
         expiring("org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery", "apache/lucene#16546", 10, 6, 0, RANGE_FIX_REMOVAL),
         expiring("org.elasticsearch.lucene.document.XSortedSkipperScorerSupplier", "apache/lucene#16546", 10, 6, 0, RANGE_FIX_REMOVAL),
         expiring("org.elasticsearch.lucene.document.XRangeBulkScorer", "apache/lucene#16546", 10, 6, 0, RANGE_FIX_REMOVAL),
+        workaround(
+            "org.elasticsearch.search.vectors.DenseVectorQuery",
+            "apache/lucene#16377",
+            11,
+            0,
+            0,
+            "Remove the lazy initialisation of bulkScorer in DenseVectorScorer."
+        ),
         permanent("org.elasticsearch.lucene.comparators.XNumericComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XLongComparator", "Elasticsearch-specific sort skipping behaviour"),
         permanent("org.elasticsearch.lucene.comparators.XUpdateableDocIdSetIterator", "Elasticsearch-specific sort skipping behaviour"),

@@ -123,6 +123,23 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
         buf.setByte(byteIndex, buf.getByte(byteIndex) | (1 << (position % 8)));
     }
 
+    /**
+     * The {@code wordIndex}-th 64-bit word of the validity bitmap. A buffer received over Flight has its exact length
+     * (ceil(positions / 8) bytes), not one padded to whole longs, so the last word may be partial; the missing bytes read as zero.
+     */
+    private long validityWord(int wordIndex) {
+        long offset = (long) wordIndex * Long.BYTES;
+        long available = validityBuffer.capacity() - offset;
+        if (available >= Long.BYTES) {
+            return validityBuffer.getLong(offset);
+        }
+        long word = 0;
+        for (int i = 0; i < available; i++) {
+            word |= (validityBuffer.getByte(offset + i) & 0xFFL) << (8 * i);
+        }
+        return word;
+    }
+
     private int nullCount() {
         if (validityBuffer == null) {
             return 0;
@@ -130,12 +147,11 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
         int validCount = 0;
         int fullLongs = valueCount / 64;
         for (int i = 0; i < fullLongs; i++) {
-            validCount += Long.bitCount(validityBuffer.getLong((long) i * Long.BYTES));
+            validCount += Long.bitCount(validityWord(i));
         }
         int remaining = valueCount % 64;
         if (remaining > 0) {
-            long lastLong = validityBuffer.getLong((long) fullLongs * Long.BYTES);
-            validCount += Long.bitCount(lastLong & ((1L << remaining) - 1));
+            validCount += Long.bitCount(validityWord(fullLongs) & ((1L << remaining) - 1));
         }
         return valueCount - validCount;
     }
@@ -191,10 +207,14 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
             return false;
         }
 
-        // Buffers are padded to 8 bytes, and the validity bits in the padding are unset
-        // https://arrow.apache.org/docs/format/Columnar.html#validity-bitmaps
-        for (int i = 0; i < (valueCount + 63) / 64; i++) {
-            if (validityBuffer.getLong(i * Long.BYTES) != 0) {
+        // The bits beyond the last position are not guaranteed to be unset, so the last word is masked like in nullCount
+        int words = (valueCount + 63) / 64;
+        for (int i = 0; i < words; i++) {
+            long word = validityWord(i);
+            if (i == words - 1 && valueCount % 64 != 0) {
+                word &= (1L << (valueCount % 64)) - 1;
+            }
+            if (word != 0) {
                 return false;
             }
         }

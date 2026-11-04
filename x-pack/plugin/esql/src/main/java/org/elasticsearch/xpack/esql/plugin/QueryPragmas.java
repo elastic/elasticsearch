@@ -76,6 +76,8 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
+    public static final Setting<Boolean> TIME_SERIES_SINGLE_PASS = Setting.boolSetting("time_series_single_pass", true);
+
     public static final Setting<Boolean> SINGLE_NODE_OPTIMIZATIONS = Setting.boolSetting("single_node_optimizations", true);
 
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
@@ -286,8 +288,8 @@ public final class QueryPragmas implements Writeable {
         FORCE_DOC_SEQUENCE,
         PlannerSettings.TIME_SERIES_TARGET_CHUNK_ROWS,
         PlannerSettings.AGG_PARTITIONING_COUNT_THRESHOLD,
-        SINGLE_NODE_OPTIMIZATIONS
-
+        SINGLE_NODE_OPTIMIZATIONS,
+        TIME_SERIES_SINGLE_PASS
     ).map(Setting::getKey).toList();
 
     private final Settings settings;
@@ -389,6 +391,13 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean nodeLevelReduction() {
         return NODE_LEVEL_REDUCTION.get(settings);
+    }
+
+    /**
+     * Returns true if time-series single pass aggregation can be enabled when possible
+     */
+    public boolean timeSeriesSinglePass() {
+        return TIME_SERIES_SINGLE_PASS.get(settings);
     }
 
     /**

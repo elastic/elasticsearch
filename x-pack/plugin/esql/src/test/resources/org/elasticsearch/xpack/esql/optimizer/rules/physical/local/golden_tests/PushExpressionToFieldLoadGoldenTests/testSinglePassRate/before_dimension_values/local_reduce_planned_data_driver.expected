@@ -1,0 +1,5 @@
+ExchangeSinkExec[[_tsid{m}#0, time_bucket{r}#1, $$RATE_$0$timestamps{r}#2, $$RATE_$1$values{r}#3, $$RATE_$2$sampleCounts{r}#4, $$RATE_$3$resets{r}#5, $$pod$values{r}#6],false]
+\_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+TimeSeriesAggregate[[_tsid{m}#0, time_bucket{r}#1],[RATE(network.total_bytes_in{f}#7,@timestamp{f}#8,true[BOOLEAN],PT0S[TIME_DURATION]) AS RATE_$1#9, VALUES(pod{f}#10,true[BOOLEAN],PT0S[TIME_DURATION]) AS pod#11, time_bucket{r}#1],BUCKET(@timestamp{f}#8,PT5M[TIME_DURATION]),@timestamp{f}#8,TS_COMMAND]
+\_Eval[[BUCKET(@timestamp{f}#8,PT5M[TIME_DURATION]) AS time_bucket#1]]
+  \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#8, network.total_bytes_in{f}#7, pod{f}#10, _tsid{m}#0]<>]]

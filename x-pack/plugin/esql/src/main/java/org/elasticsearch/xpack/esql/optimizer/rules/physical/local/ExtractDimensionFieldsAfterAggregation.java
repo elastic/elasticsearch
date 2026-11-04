@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
-import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -67,7 +66,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
 
     @Override
     public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
-        if (plan instanceof TimeSeriesAggregateExec oldAgg && oldAgg.getMode() == AggregatorMode.INITIAL) {
+        if (plan instanceof TimeSeriesAggregateExec oldAgg && oldAgg.getMode().isInputPartial() == false) {
             return rule(oldAgg, context);
         }
         return plan;
@@ -89,6 +88,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         List<Alias> aliases = new ArrayList<>();
         Attribute packedAttr = null;
         Set<AggregateFunction> seen = new HashSet<>();
+        final boolean partial = oldAgg.getMode().isOutputPartial();
         List<Attribute> oldIntermediates = oldAgg.intermediateAttributes();
         List<Attribute> newIntermediates = new ArrayList<>(oldIntermediates.subList(0, oldAgg.groupings().size()));
         int intermediateOffset = oldAgg.groupings().size();
@@ -102,13 +102,15 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                         if (size != 1) {
                             throw new IllegalStateException("expected one intermediate attribute for [" + af + "] but got [" + size + "]");
                         }
-                        packedAttr = oldIntermediates.get(intermediateOffset);
+                        packedAttr = partial ? oldIntermediates.get(intermediateOffset) : agg.toAttribute();
                         for (Expression dim : packDimsAgg.fields()) {
                             Attribute attr = readDimAttribute((Attribute) dim);
                             readDims.add(attr);
                             packDims.add(attr);
                         }
                         intermediateOffset += size;
+                    } else if (partial == false) {
+                        return oldAgg;
                     }
                 } else {
                     Attribute dimensionField = valuesOfDimensionField(af, inputAttributes);
@@ -121,16 +123,18 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
                                     "expected one intermediate attribute for [" + af + "] but got [" + size + "]"
                                 );
                             }
-                            Attribute oldAttr = oldIntermediates.get(intermediateOffset);
+                            Attribute oldAttr = partial ? oldIntermediates.get(intermediateOffset) : agg.toAttribute();
                             dimensionField = readDimAttribute(dimensionField);
                             aliases.add(new Alias(agg.source(), agg.name(), dimensionField, oldAttr.id()));
                             readDims.add(dimensionField);
-                        } else {
+                        } else if (partial) {
                             for (int i = 0; i < size; i++) {
                                 newIntermediates.add(oldIntermediates.get(intermediateOffset + i));
                             }
                         }
                         intermediateOffset += size;
+                    } else if (partial == false && dimensionField != null) {
+                        return oldAgg;
                     }
                 }
             }
@@ -141,9 +145,17 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         if (aliases.isEmpty() && packedAttr == null) {
             return oldAgg;
         }
-        Attribute docAttr = new ReferenceAttribute(oldAgg.source(), sourceAttr.qualifier(), sourceAttr.name(), sourceAttr.dataType());
-        newIntermediates.add(docAttr);
-        newAggregates.add(new Alias(oldAgg.source(), sourceAttr.name(), new FirstDocId(oldAgg.source(), sourceAttr)));
+        Alias firstDocId = new Alias(oldAgg.source(), sourceAttr.name(), new FirstDocId(oldAgg.source(), sourceAttr));
+        Attribute docAttr = partial
+            ? new ReferenceAttribute(oldAgg.source(), sourceAttr.qualifier(), sourceAttr.name(), sourceAttr.dataType())
+            : firstDocId.toAttribute();
+        if (partial) {
+            newIntermediates.add(docAttr);
+        }
+        newAggregates.add(firstDocId);
+        if (partial == false && newAggregates.stream().noneMatch(agg -> agg.id().equals(tsidAttr.id()))) {
+            newAggregates.add(tsidAttr);
+        }
         PhysicalPlan plan = new TimeSeriesAggregateExec(
             oldAgg.source(),
             oldAgg.child(),
@@ -170,7 +182,7 @@ public final class ExtractDimensionFieldsAfterAggregation extends PhysicalOptimi
         if (aliases.isEmpty() == false) {
             plan = new EvalExec(oldAgg.source(), plan, aliases);
         }
-        return new ProjectExec(oldAgg.source(), plan, oldIntermediates);
+        return new ProjectExec(oldAgg.source(), plan, partial ? oldIntermediates : oldAgg.output());
     }
 
     private static Attribute tsidGroupingAttribute(TimeSeriesAggregateExec agg) {

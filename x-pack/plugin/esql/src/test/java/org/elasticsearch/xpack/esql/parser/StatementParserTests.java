@@ -3071,7 +3071,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3083,7 +3084,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", List.of(attribute("cpu")))), attribute("ts")),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3103,7 +3105,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 ),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS load=avg(cpu),max(rate(requests)) BY ts")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3115,7 +3118,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", List.of(attribute("errors"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS count(errors)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3127,7 +3131,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3139,7 +3144,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", List.of(attribute("b"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a(b)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3151,7 +3157,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", List.of(attribute("b2"))))),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS a1(b2)")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
         assertQuery(
@@ -3167,7 +3174,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 ),
                 null,
                 new UnresolvedTimestamp(new Source(Location.EMPTY, "STATS b = min(a) by c, d.e")),
-                TimeSeriesAggregate.Origin.TS_COMMAND
+                TimeSeriesAggregate.Origin.TS_COMMAND,
+                false
             )
         );
     }

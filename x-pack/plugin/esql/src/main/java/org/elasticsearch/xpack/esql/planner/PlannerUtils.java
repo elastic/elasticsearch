@@ -316,6 +316,9 @@ public class PlannerUtils {
             case TimeSeriesAggregateExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case MetricsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
             case TsInfoExec ignored -> SimplePlanReduction.NO_REDUCTION;
+            case AggregateExec aggExec when aggExec.anyMatch(
+                p -> p instanceof TimeSeriesAggregateExec timeSeries && timeSeries.getMode() == AggregatorMode.SINGLE
+            ) -> SimplePlanReduction.NO_REDUCTION;
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };

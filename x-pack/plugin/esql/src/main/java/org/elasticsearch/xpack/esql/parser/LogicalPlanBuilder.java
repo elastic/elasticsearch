@@ -845,7 +845,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     stats.aggregates(),
                     null,
                     new UnresolvedTimestamp(source(ctx)),
-                    TimeSeriesAggregate.Origin.TS_COMMAND
+                    TimeSeriesAggregate.Origin.TS_COMMAND,
+                    false
                 );
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings(), stats.aggregates());

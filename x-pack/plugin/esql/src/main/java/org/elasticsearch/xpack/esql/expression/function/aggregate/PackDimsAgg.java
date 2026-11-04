@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -121,5 +122,13 @@ public class PackDimsAgg extends AggregateFunction implements ToAggregator {
     @Override
     public AggregatorFunctionSupplier supplier() {
         return new PackDimsAggregatorFunctionSupplier();
+    }
+
+    public int estimateRowSize() {
+        int size = 4;
+        for (Expression field : fields()) {
+            size += EstimatesRowSize.estimateSize(field.dataType().noText());
+        }
+        return size;
     }
 }

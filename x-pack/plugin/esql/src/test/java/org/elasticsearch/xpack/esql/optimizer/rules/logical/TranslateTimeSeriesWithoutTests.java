@@ -58,7 +58,8 @@ public class TranslateTimeSeriesWithoutTests extends AbstractLogicalPlanOptimize
             List.of(timeSeriesGrouping.toAttribute()),
             null,
             null,
-            TimeSeriesAggregate.Origin.TS_COMMAND
+            TimeSeriesAggregate.Origin.TS_COMMAND,
+            false
         );
 
         TimeSeriesAggregate lowered = as(

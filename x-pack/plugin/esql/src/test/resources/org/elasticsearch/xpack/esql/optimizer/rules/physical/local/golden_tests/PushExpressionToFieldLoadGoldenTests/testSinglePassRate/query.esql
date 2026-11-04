@@ -1,0 +1,2 @@
+TS k8s
+| STATS m = max(rate(network.total_bytes_in)) BY pod, time_bucket = BUCKET(@timestamp, 5minute)

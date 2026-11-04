@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PackDimsAgg;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.List;
@@ -20,6 +23,7 @@ public interface EstimatesRowSize {
     static PhysicalPlan estimateRowSize(int extraRowSize, PhysicalPlan plan) {
         EstimatesRowSize.State state = new EstimatesRowSize.State();
         state.maxEstimatedRowSize = state.estimatedRowSize = extraRowSize;
+        state.plan = plan;
         return plan.transformDown(exec -> {
             if (exec instanceof EstimatesRowSize r) {
                 return r.estimateRowSize(state);
@@ -54,6 +58,27 @@ public interface EstimatesRowSize {
          */
         private boolean needsSortedDocIds;
 
+        private PhysicalPlan plan;
+
+        private int size(Expression expr, boolean countTextFieldAsKeyword) {
+            if (plan != null && expr.dataType() == DataType.SOURCE && Alias.unwrap(expr) instanceof NamedExpression named) {
+                for (PackDimsExec packDims : plan.collect(PackDimsExec.class)) {
+                    if (packDims.packed().id().equals(named.id())) {
+                        return packDims.estimateRowSize();
+                    }
+                }
+            }
+            if (Alias.unwrap(expr) instanceof PackDimsAgg packDims) {
+                return packDims.estimateRowSize();
+            } else {
+                DataType dataType = expr.dataType();
+                if (countTextFieldAsKeyword && dataType == DataType.TEXT) {
+                    dataType = DataType.KEYWORD;
+                }
+                return EstimatesRowSize.estimateSize(dataType);
+            }
+        }
+
         /**
          * Model an operator that has a fixed overhead.
          */
@@ -67,7 +92,9 @@ public interface EstimatesRowSize {
          * Model an operator that adds fields.
          */
         public void add(boolean needsSortedDocIds, List<? extends Expression> expressions) {
-            expressions.stream().forEach(a -> estimatedRowSize += estimateSize(a.dataType()));
+            for (Expression e : expressions) {
+                estimatedRowSize += size(e, false);
+            }
             maxEstimatedRowSize = Math.max(estimatedRowSize, maxEstimatedRowSize);
             this.needsSortedDocIds |= needsSortedDocIds;
         }
@@ -79,11 +106,7 @@ public interface EstimatesRowSize {
          */
         public void add(boolean needsSortedDocIds, List<? extends Expression> expressions, boolean countTextFieldAsKeyword) {
             for (var expr : expressions) {
-                DataType dataType = expr.dataType();
-                if (countTextFieldAsKeyword && dataType == DataType.TEXT) {
-                    dataType = DataType.KEYWORD;
-                }
-                estimatedRowSize += estimateSize(dataType);
+                estimatedRowSize += size(expr, countTextFieldAsKeyword);
             }
             maxEstimatedRowSize = Math.max(estimatedRowSize, maxEstimatedRowSize);
             this.needsSortedDocIds |= needsSortedDocIds;

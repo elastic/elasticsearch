@@ -261,6 +261,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private ExternalSourceResolution externalSourceResolution = ExternalSourceResolution.EMPTY;
         private QueryBuilder requestFilter;
         private Map<String, String> views = Map.of();
+        private boolean singleConcreteIndex;
 
         private TestBuilder(
             String esqlQuery,
@@ -418,6 +419,11 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public TestBuilder views(Map<String, String> views) {
             this.views = views;
+            return this;
+        }
+
+        public TestBuilder singleConcreteIndex() {
+            this.singleConcreteIndex = true;
             return this;
         }
 
@@ -624,7 +630,8 @@ public abstract class GoldenTestCase extends ESTestCase {
                 datasetMetadata,
                 externalSourceResolution,
                 requestFilter,
-                views
+                views,
+                singleConcreteIndex
             );
         }
 
@@ -772,7 +779,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         ProjectMetadata datasetMetadata,
         ExternalSourceResolution externalSourceResolution,
         QueryBuilder requestFilter,
-        Map<String, String> views
+        Map<String, String> views,
+        boolean singleConcreteIndex
     ) {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
@@ -840,7 +848,10 @@ public abstract class GoldenTestCase extends ESTestCase {
                 .viewSettings(viewSettings);
             boolean trackUnmappedFieldIndices = unmappedResolution.loadsUnmappedFields();
             loadIndexResolution(testDatasets(parsedPlan), trackUnmappedFieldIndices).forEach(
-                (pattern, resolution) -> testAnalyzer.addIndex(pattern.indexPattern(), resolution)
+                (pattern, resolution) -> testAnalyzer.addIndex(
+                    pattern.indexPattern(),
+                    singleConcreteIndex ? withConcreteIndices(resolution) : resolution
+                )
             );
             Analyzer analyzer = testAnalyzer.buildAnalyzer();
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
@@ -1411,6 +1422,19 @@ public abstract class GoldenTestCase extends ESTestCase {
             .toList();
         var mergedMappings = mergeMappings(mappings, trackUnmappedFieldIndices);
         return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, Map.of(), Map.of()));
+    }
+
+    private static IndexResolution withConcreteIndices(IndexResolution resolution) {
+        EsIndex index = resolution.get();
+        return IndexResolution.valid(
+            new EsIndex(
+                index.name(),
+                index.mapping(),
+                index.indexProperties(),
+                index.originalIndices(),
+                Map.of("", List.copyOf(index.indexProperties().keySet()))
+            )
+        );
     }
 
     /**

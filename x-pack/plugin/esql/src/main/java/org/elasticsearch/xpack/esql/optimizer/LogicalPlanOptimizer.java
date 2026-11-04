@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateA
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteTransportVersionAwareExpressions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.UseSinglePassTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnLostSortOrder;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.WarnUnfillableFillNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
@@ -147,6 +148,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new CombineProjections()
         ),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero(), new AddTopNPreFilterToAggregate()),
+        new Batch<>("Single Pass Time Series", Limiter.ONCE, new UseSinglePassTimeSeriesAggregate()),
         cleanup(),
         warnings(),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())

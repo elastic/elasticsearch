@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -106,7 +107,8 @@ public class LocalMapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
-            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+            boolean singlePass = aggregate instanceof TimeSeriesAggregate timeSeries && timeSeries.singlePass();
+            return MapperUtils.aggExec(aggregate, mappedChild, singlePass ? AggregatorMode.SINGLE : AggregatorMode.INITIAL, intermediate);
         }
 
         if (unary instanceof Limit limit) {

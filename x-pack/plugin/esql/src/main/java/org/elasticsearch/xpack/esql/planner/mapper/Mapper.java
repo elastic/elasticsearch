@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MergePlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TopNBy;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
@@ -154,6 +155,10 @@ public class Mapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
+
+            if (aggregate instanceof TimeSeriesAggregate timeSeries && timeSeries.singlePass() && mappedChild instanceof FragmentExec) {
+                return new FragmentExec(timeSeries);
+            }
 
             // create both sides of the aggregate (for parallelism purposes), if no fragment is present
             // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this

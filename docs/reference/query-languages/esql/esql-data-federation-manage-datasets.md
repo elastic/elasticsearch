@@ -10,9 +10,6 @@ products:
 
 # Create and manage datasets for {{esql}} Data Federation
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 Create and manage {{esql}} Data Federation datasets in {{kib}} or with the {{es}} API. Before
 creating a dataset, [connect a data source](esql-data-federation-sources.md) and review how to
 [define a dataset](esql-data-federation-datasets.md#define-a-dataset). Creating a dataset doesn't check that the data source can read its resource, so also [grant read access](esql-data-federation-sources.md#grant-read-access) to the data in your cloud provider.

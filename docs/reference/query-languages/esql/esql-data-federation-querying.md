@@ -179,9 +179,6 @@ The following search functions are available for datasets:
 
 ## Limitations
 
-:::{include} _snippets/data-federation/experimental-warning.md
-:::
-
 The limitations below include operations that require structures available only in an {{es}} index, such as the inverted index, doc values, or time series metadata, as well as unsupported data shapes. Unsupported operations fail with a clear error; representation limitations are described in the table.
 
 | Operation | Reason | Error |

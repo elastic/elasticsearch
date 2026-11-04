@@ -704,6 +704,45 @@ public class AttachmentProcessorTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("source_field"));
     }
 
+    public void testMaxAttachmentFieldSizeEnforcedOnByteArray() {
+        processor = new AttachmentProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            "target_field",
+            EnumSet.of(AttachmentProcessor.Property.CONTENT),
+            10000,
+            false,
+            null,
+            null,
+            true,
+            100,
+            new RelativeByteSizeValue(ByteSizeValue.MINUS_ONE),
+            "",
+            new SetOnce<>()
+        );
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", new byte[101]);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> processor.execute(ingestDocument));
+        assertThat(ex.getMessage(), containsString("exceeding the maximum allowed"));
+        assertThat(ex.getMessage(), containsString("source_field"));
+    }
+
+    public void testSourceFieldOfInvalidType() {
+        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", randomObject);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Content field [source_field] of unknown type [" + randomObject.getClass().getName() + "], must be string or byte array"
+            )
+        );
+    }
+
     public void testMaxFieldBytesNotViolated() throws Exception {
         processor = new AttachmentProcessor(
             randomAlphaOfLength(10),

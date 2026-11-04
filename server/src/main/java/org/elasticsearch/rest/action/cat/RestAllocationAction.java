@@ -45,10 +45,12 @@ public class RestAllocationAction extends AbstractCatAction {
 
     private static final String UNASSIGNED = "UNASSIGNED";
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
-        Sets.union(COMMON_QUERY_PARAMETERS, Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "local"))
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local"
     );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("nodes")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "nodes");
 
     @Override
     public List<Route> routes() {

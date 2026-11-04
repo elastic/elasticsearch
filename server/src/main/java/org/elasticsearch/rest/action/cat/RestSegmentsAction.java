@@ -45,21 +45,17 @@ public class RestSegmentsAction extends AbstractCatAction {
 
     private static final Set<String> CAPABILITIES = Set.of("allow_closed");
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
-        Sets.union(
-            COMMON_QUERY_PARAMETERS,
-            Set.of(
-                RestUtils.REST_MASTER_TIMEOUT_PARAM,
-                "local",
-                "allow_closed",
-                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
-                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
-                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
-                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
-            )
-        )
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Sets.addToCopy(
+        COMMON_QUERY_PARAMETERS,
+        RestUtils.REST_MASTER_TIMEOUT_PARAM,
+        "local",
+        "allow_closed",
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
     );
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("index")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "index");
 
     @Override
     public List<Route> routes() {

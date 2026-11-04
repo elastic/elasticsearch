@@ -1,0 +1,6 @@
+area: Machine Learning
+issues:
+ - 164625
+pr: 164627
+summary: Drop permanently rejected results documents from the anomaly detection persister queue
+type: bug

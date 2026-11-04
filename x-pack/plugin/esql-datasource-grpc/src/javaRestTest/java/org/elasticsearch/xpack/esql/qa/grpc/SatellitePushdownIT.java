@@ -35,17 +35,27 @@ public class SatellitePushdownIT extends ESRestTestCase {
 
     private static final String ENDPOINT = System.getProperty("tests.satellite.endpoint");
 
+    /** The directory the satellite serves ({@code -Dtests.satellite.data=DIR}): ES reads its CSV files natively to compare. */
+    private static final String DATA_DIR = System.getProperty("tests.satellite.data");
+
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .nodes(2)
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
-        .setting("xpack.ml.enabled", "false")
-        .jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED")
-        .jvmArg("-Darrow.allocation.manager.type=Unsafe")
-        .build();
+    public static ElasticsearchCluster cluster = cluster();
+
+    private static ElasticsearchCluster cluster() {
+        var builder = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .nodes(2)
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting(Federation.FEDERATION_ENABLED.getKey(), "true")
+            .setting("xpack.ml.enabled", "false")
+            .jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED")
+            .jvmArg("-Darrow.allocation.manager.type=Unsafe");
+        if (DATA_DIR != null) {
+            builder.setting("path.repo", DATA_DIR).setting("esql.external.local_allowed_paths", DATA_DIR);
+        }
+        return builder.build();
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -242,6 +252,58 @@ public class SatellitePushdownIT extends ESRestTestCase {
         Map<String, Object> on = query(esql, true);
         assertThat(on.get("values"), equalTo(off.get("values")));
         assertThat(off.get("values"), equalTo(List.of(List.of(100))));
+    }
+
+    /**
+     * The third configuration of the equivalence criterion: ES's own CSV reader over the very file the satellite serves, a satellite
+     * with the pushdown, and the same satellite without it must agree. This ties the satellite to ES's reader, not only to ES's
+     * evaluation of rows the satellite sent. A blank keyword cell is an empty string for ES's reader unless {@code null_value} is set
+     * to the empty string, which is how the satellite reads it (null), so the native dataset sets it. Needs
+     * {@code -Dtests.satellite.data=DIR}, the directory the satellite serves.
+     */
+    public void testNativeCsvAndSatelliteAgree() throws IOException {
+        assumeTrue("set -Dtests.satellite.endpoint and -Dtests.satellite.data", ENDPOINT != null && DATA_DIR != null);
+        Request source = new Request("PUT", "/_query/data_source/native_src");
+        source.setJsonEntity("{\"type\": \"local\"}");
+        client().performRequest(source);
+        Request nativeDs = new Request("PUT", "/_query/dataset/employees_native");
+        nativeDs.setJsonEntity(
+            "{\"data_source\": \"native_src\", \"resource\": \"file://"
+                + DATA_DIR
+                + "/employees.csv\","
+                + " \"settings\": {\"null_value\": \"\"}}"
+        );
+        client().performRequest(nativeDs);
+        Request satSource = new Request("PUT", "/_query/data_source/native_cmp_sat");
+        satSource.setJsonEntity("{\"type\": \"flight\"}");
+        client().performRequest(satSource);
+        Request satDs = new Request("PUT", "/_query/dataset/employees_sat");
+        satDs.setJsonEntity("{\"data_source\": \"native_cmp_sat\", \"resource\": \"flight://" + ENDPOINT + "/employees\"}");
+        client().performRequest(satDs);
+        try {
+            for (String q : ORDERED) {
+                Map<String, Object> nativeRows = query("FROM employees_native | " + q, true);
+                Map<String, Object> satellite = profiled("FROM employees_sat | " + q);
+                Map<String, Object> satelliteOff = query("FROM employees_sat | " + q, false);
+                assertThat("native vs satellite columns: " + q, satellite.get("columns"), equalTo(nativeRows.get("columns")));
+                assertThat("native vs satellite rows: " + q, satellite.get("values"), equalTo(nativeRows.get("values")));
+                assertThat("pushdown off vs native: " + q, satelliteOff.get("values"), equalTo(nativeRows.get("values")));
+                assertTrue("not pushed: " + q, pushed(satellite));
+            }
+        } finally {
+            for (String path : List.of(
+                "/_query/dataset/employees_native",
+                "/_query/dataset/employees_sat",
+                "/_query/data_source/native_src",
+                "/_query/data_source/native_cmp_sat"
+            )) {
+                try {
+                    client().performRequest(new Request("DELETE", path));
+                } catch (org.elasticsearch.client.ResponseException e) {
+                    // already gone
+                }
+            }
+        }
     }
 
     /** The same rows spread over four files, so four splits (partitions), which every distribution strategy places differently. */

@@ -17,6 +17,8 @@ import org.apache.arrow.flight.FlightStatusCode;
 import org.apache.arrow.flight.FlightStream;
 import org.apache.arrow.flight.Location;
 import org.apache.arrow.flight.Ticket;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.TimeValue;
@@ -79,6 +81,16 @@ class FlightConnector implements Connector {
         if (closed) {
             throw new IllegalStateException("Connector is closed");
         }
+        if (request.fragment() == null && request.config() != null) {
+            // source options only travel inside a fragment (protocol section 11): the planner always sends one for such a dataset,
+            // so reaching here means a plan shape it did not see, and reading without the options would change the results
+            Map<String, Object> options = FlightConnectorFactory.optionsOf(request.config());
+            if (options.isEmpty() == false) {
+                throw new IllegalStateException(
+                    "the dataset sets the source options " + options.keySet() + " but this read sends no fragment, so they would be ignored"
+                );
+            }
+        }
         return new LazyCursor(request, flightSplit);
     }
 
@@ -119,6 +131,15 @@ class FlightConnector implements Connector {
      * table that is gone): that is the caller's to fix, so it surfaces as a client error carrying the satellite's message and not as
      * an unexpected server failure. Anything else is not a rejection and is rethrown as it is (null here).
      */
+    /**
+     * Arrow allocates the memory of a batch on gRPC's network thread, where the circuit breaker may trip; Flight reports that as a
+     * cancelled call whose cause is the breaker's exception. The breaker's own exception is what the caller must see (a 429), not an
+     * unexpected failure of the remote server.
+     */
+    static RuntimeException unwrapBreaker(RuntimeException e) {
+        return ExceptionsHelper.unwrap(e, CircuitBreakingException.class) instanceof CircuitBreakingException breaker ? breaker : e;
+    }
+
     private static IllegalArgumentException rejection(Throwable t) {
         if (t instanceof FlightRuntimeException e) {
             FlightStatusCode code = e.status().code();
@@ -187,9 +208,10 @@ class FlightConnector implements Connector {
         private final QueryRequest request;
         private final FlightSplit split;
         private volatile boolean cancelled;
+        private volatile boolean closed;
         private volatile FlightStream stream;
         private FlightClient client;
-        private ResultCursor delegate;
+        private volatile ResultCursor delegate;
 
         LazyCursor(QueryRequest request, FlightSplit split) {
             this.request = request;
@@ -200,7 +222,7 @@ class FlightConnector implements Connector {
             if (delegate != null) {
                 return true;
             }
-            if (cancelled) {
+            if (cancelled || closed) {
                 return false;
             }
             try {
@@ -212,6 +234,8 @@ class FlightConnector implements Connector {
                 stream = client.getStream(ticket);
                 if (cancelled) {
                     stream.cancel("query cancelled", null);
+                    closeQuietly(stream); // no cursor owns the stream yet, so close() would not find it
+                    stream = null;
                     return false;
                 }
                 delegate = new FlightResultCursor(stream, request.attributes(), request.blockFactory(), request.fragment() != null);
@@ -227,6 +251,9 @@ class FlightConnector implements Connector {
                 IllegalArgumentException rejected = rejection(t);
                 if (rejected != null) {
                     throw rejected;
+                }
+                if (t instanceof RuntimeException e) {
+                    throw unwrapBreaker(e);
                 }
                 throw t;
             }
@@ -248,6 +275,11 @@ class FlightConnector implements Connector {
         @Override
         public void cancel() {
             cancelled = true;
+            ResultCursor reading = delegate;
+            if (reading != null) {
+                reading.cancel(); // also tells the cursor that a failed wait for the next batch is the end, not an error
+                return;
+            }
             FlightStream active = stream;
             if (active != null) {
                 active.cancel("query cancelled", null);
@@ -256,9 +288,12 @@ class FlightConnector implements Connector {
 
         @Override
         public void close() throws IOException {
+            closed = true;
             try {
                 if (delegate != null) {
                     delegate.close();
+                } else {
+                    closeQuietly(stream);
                 }
             } finally {
                 closeQuietly(client);

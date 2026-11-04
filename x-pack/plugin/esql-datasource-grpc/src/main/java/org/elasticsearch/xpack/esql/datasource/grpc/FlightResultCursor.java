@@ -29,6 +29,7 @@ class FlightResultCursor implements ResultCursor {
     private final List<Attribute> attributes;
     private final BlockFactory blockFactory;
     private boolean hasNextBatch;
+    private volatile boolean cancelled;
 
     FlightResultCursor(FlightStream stream, List<Attribute> attributes, BlockFactory blockFactory) {
         this(stream, attributes, blockFactory, false);
@@ -59,16 +60,30 @@ class FlightResultCursor implements ResultCursor {
         for (int col = 0; col < attributes.size(); col++) {
             blocks[col] = FlightTypeMapping.toBlock(root.getVector(attributes.get(col).name()), rowCount, blockFactory);
         }
-        hasNextBatch = advance();
-        return new Page(rowCount, blocks);
+        Page page = new Page(rowCount, blocks);
+        try {
+            hasNextBatch = advance();
+        } catch (RuntimeException e) {
+            if (cancelled == false) {
+                page.releaseBlocks(); // the page is not handed out, so nobody else will release it
+                throw e;
+            }
+            hasNextBatch = false; // the wait for the next batch was cancelled: this page is complete and there is no more
+        }
+        return page;
     }
 
     private boolean advance() {
-        return stream.next();
+        try {
+            return stream.next();
+        } catch (RuntimeException e) {
+            throw FlightConnector.unwrapBreaker(e);
+        }
     }
 
     @Override
     public void cancel() {
+        cancelled = true;
         stream.cancel("Query cancelled", null);
     }
 

@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -74,6 +75,11 @@ public class SatelliteCancellationIT extends ESRestTestCase {
 
                 assertTrue("the satellite must see its call cancelled", satellite.doGetCancelled.await(30, TimeUnit.SECONDS));
                 assertFalse(satellite.servedRows.get());
+                ResponseException gone = expectThrows(
+                    ResponseException.class,
+                    () -> client().performRequest(new Request("GET", "/_query/async/" + id))
+                );
+                assertEquals("the async query is gone", 404, gone.getResponse().getStatusLine().getStatusCode());
             } finally {
                 satellite.release.countDown();
                 deleteIgnoring("/_query/dataset/cancel_ds");

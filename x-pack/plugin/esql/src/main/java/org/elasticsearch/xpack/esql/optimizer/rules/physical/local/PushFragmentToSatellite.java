@@ -303,7 +303,9 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
     private static Map<String, Object> declaredOptions(Map<String, Object> config, Caps caps) {
         Map<String, Object> options = new TreeMap<>();
         config.forEach((k, v) -> {
-            if (caps.options.contains(k) && (v instanceof String || v instanceof Number || v instanceof Boolean)) {
+            if (SatelliteFragment.isOptionKey(k)
+                && caps.options.contains(k)
+                && (v instanceof String || v instanceof Number || v instanceof Boolean)) {
                 options.put(k, v);
             }
         });
@@ -326,8 +328,9 @@ public class PushFragmentToSatellite extends PhysicalOptimizerRules.Parameterize
     /** ES MUST NOT send a fragment above the declared {@code maxFragmentBytes}, and cannot fall back once it is sent. */
     private static boolean fits(Map<String, Object> request, int maxFragmentBytes) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            return Strings.toString(builder.map(request)).getBytes(StandardCharsets.UTF_8).length
-                + PARTITIONS_HEADROOM_BYTES <= maxFragmentBytes;
+            // a limit as small as the schema allows (1,024) leaves no room for 24 KiB: keep a quarter of the limit free instead
+            int headroom = Math.min(PARTITIONS_HEADROOM_BYTES, maxFragmentBytes / 4);
+            return Strings.toString(builder.map(request)).getBytes(StandardCharsets.UTF_8).length + headroom <= maxFragmentBytes;
         } catch (IOException e) {
             return false;
         }

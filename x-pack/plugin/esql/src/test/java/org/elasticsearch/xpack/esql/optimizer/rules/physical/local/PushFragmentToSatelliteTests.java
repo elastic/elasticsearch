@@ -235,10 +235,18 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
 
     public void testFragmentAboveTheDeclaredSizeIsNotPushed() throws IOException {
         Map<String, Object> caps = new java.util.HashMap<>(CAPS);
-        caps.put("limits", Map.of("maxFragmentBytes", 2048)); // below the room kept for the partitions entry
-        assertEquals("no fragment", fragment("WHERE salary > 50000 | LIMIT 10", caps));
+        StringBuilder in = new StringBuilder("WHERE salary IN (");
+        for (int i = 0; i < 200; i++) {
+            in.append(i == 0 ? "" : ", ").append(50000 + i);
+        }
+        String query = in + ") | LIMIT 10"; // a fragment of several KiB
+        caps.put("limits", Map.of("maxFragmentBytes", 2048));
+        assertEquals("no fragment", fragment(query, caps));
         caps.put("limits", Map.of("maxFragmentBytes", 1024 * 1024));
-        assertThat(fragment("WHERE salary > 50000 | LIMIT 10", caps), containsString("\"op\":\"limit\""));
+        assertThat(fragment(query, caps), containsString("\"op\":\"limit\""));
+        // the smallest limit the schema allows leaves a quarter of itself free for the partitions entry, not 24 KiB
+        caps.put("limits", Map.of("maxFragmentBytes", 1024));
+        assertThat(fragment("WHERE salary > 50000 | KEEP emp_no | LIMIT 10", caps), containsString("\"op\":\"limit\""));
     }
 
     public void testDeclarationWithoutSpecVersionZeroMeansNoPushdown() throws IOException {
@@ -380,5 +388,19 @@ public class PushFragmentToSatelliteTests extends ESTestCase {
         try (var builder = XContentFactory.jsonBuilder()) {
             return BytesReference.bytes(builder.map(request)).utf8ToString();
         }
+    }
+
+    /** A satellite that declares an option named like a key ES sets itself (here `target`) must not make ES forward its own table name. */
+    public void testConfigKeysEsSetItselfAreNeverForwardedAsOptions() throws IOException {
+        assumeTrue("EXTERNAL command", org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+        Map<String, Object> caps = new java.util.HashMap<>(CAPS);
+        caps.put("options", List.of("target", "schema_resolution", "units"));
+        String f = run(
+            "EXTERNAL \"" + PATH + "\" | WHERE salary > 50000 | KEEP emp_no, salary | LIMIT 10",
+            caps,
+            QueryPragmas.EMPTY,
+            Map.of("schema_resolution", "strict")
+        );
+        assertThat(f, not(containsString("\"options\"")));
     }
 }

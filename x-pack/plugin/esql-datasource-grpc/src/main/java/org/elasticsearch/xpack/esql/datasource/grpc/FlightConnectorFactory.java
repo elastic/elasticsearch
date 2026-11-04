@@ -91,7 +91,7 @@ class FlightConnectorFactory implements ConnectorFactory {
     static final int DEFAULT_FLIGHT_PORT = 47470;
 
     /** Config keys that are not source options: what the validator derives from the resource and what the dataset layer adds. */
-    static final Set<String> NON_OPTION_KEYS = Set.of("endpoint", "target", "schema_resolution");
+    static final Set<String> NON_OPTION_KEYS = SatelliteFragment.NON_OPTION_KEYS;
 
     private static boolean isScalar(Object value) {
         return value instanceof String || value instanceof Number || value instanceof Boolean;
@@ -101,7 +101,7 @@ class FlightConnectorFactory implements ConnectorFactory {
     static Map<String, Object> optionsOf(Map<String, Object> config) {
         Map<String, Object> options = new TreeMap<>();
         for (Map.Entry<String, Object> entry : config.entrySet()) {
-            if (NON_OPTION_KEYS.contains(entry.getKey()) == false && entry.getKey().startsWith("_") == false) {
+            if (SatelliteFragment.isOptionKey(entry.getKey())) {
                 options.put(entry.getKey(), entry.getValue());
             }
         }
@@ -256,6 +256,15 @@ class FlightConnectorFactory implements ConnectorFactory {
         for (String required : List.of("specVersions", "fragmentFormats", "plan", "functions", "types")) {
             if (caps.get(required) instanceof List<?> == false) {
                 throw new IllegalStateException("the capability declaration has no list [" + required + "]");
+            }
+        }
+        if (caps.get("options") instanceof List<?> declaredOptions) {
+            for (Object option : declaredOptions) {
+                if (SatelliteFragment.isOptionKey(String.valueOf(option)) == false) {
+                    throw new IllegalStateException(
+                        "the capability declaration lists the option [" + option + "], a name ES uses for itself"
+                    );
+                }
             }
         }
         for (Object function : (List<?>) caps.get("functions")) {

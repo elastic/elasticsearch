@@ -58,6 +58,7 @@ public class FlightCancellationTests extends ESTestCase {
     public void stopServer() throws Exception {
         server.close();
         assertEquals("a client or stream was left open", 0, blockFactory.arrowAllocator().getChildAllocators().size());
+        assertEquals("a page was left unreleased", 0L, blockFactory.arrowAllocator().getAllocatedMemory());
     }
 
     private static Map<String, Object> scanFragment() {
@@ -130,6 +131,7 @@ public class FlightCancellationTests extends ESTestCase {
         assertEquals(0, server.fragments.size());
     }
 
+    /** A pending planning call is not interrupted (it is bounded by the call deadline): the cancel takes effect when it returns. */
     public void testCancelWhileTheFlightInfoIsPendingStopsBeforeTheStream() throws Exception {
         server.blockInFlightInfo = true;
         try (
@@ -202,6 +204,81 @@ public class FlightCancellationTests extends ESTestCase {
             ResultCursor cursor = connector.execute(request(), Split.SINGLE)
         ) {
             expectThrows(FlightRuntimeException.class, cursor::hasNext);
+        }
+    }
+
+    /**
+     * The satellite has sent a batch and is computing the next one when the query is cancelled: the page already read is complete
+     * and must reach its consumer (and be releasable), the wait for the next batch ends the rows, and nothing is reported as a failure.
+     */
+    public void testCancelWhileWaitingForTheNextBatchKeepsThePageAndEndsTheRows() throws Exception {
+        server.stallAfterFirstBatch = true;
+        try (
+            FlightConnector connector = connector(TimeValue.timeValueSeconds(30));
+            ResultCursor cursor = connector.execute(request(), Split.SINGLE)
+        ) {
+            assertTrue(cursor.hasNext());
+            CompletableFuture<Page> next = CompletableFuture.supplyAsync(cursor::next);
+            assertTrue("the satellite never reached its stall", server.inSecondBatchStall.await(10, TimeUnit.SECONDS));
+            assertFalse("next() should still be waiting for the second batch", next.isDone());
+
+            cursor.cancel();
+
+            Page page = next.get(10, TimeUnit.SECONDS);
+            assertEquals(3, page.getPositionCount());
+            page.releaseBlocks();
+            assertFalse("a cancelled cursor has no more rows", cursor.hasNext());
+            assertTrue(server.doGetCancelled.await(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testAClosedCursorOpensNothing() throws Exception {
+        try (FlightConnector connector = connector(TimeValue.timeValueSeconds(30))) {
+            ResultCursor cursor = connector.execute(request(), Split.SINGLE);
+            cursor.close();
+            assertFalse(cursor.hasNext());
+            assertEquals(0, server.fragments.size());
+        }
+    }
+
+    /** A plain read cannot carry source options: it must fail instead of returning rows read without them. */
+    public void testAPlainReadOfADatasetWithOptionsFails() throws Exception {
+        QueryRequest withOptions = new QueryRequest(
+            "t",
+            List.of("id"),
+            ATTRIBUTES,
+            Map.of(
+                "endpoint",
+                "grpc://x:1",
+                "target",
+                "t",
+                "schema_resolution",
+                "strict",
+                "_definition_version",
+                "v",
+                "units",
+                "fahrenheit"
+            ),
+            1000,
+            0,
+            blockFactory,
+            null
+        );
+        try (FlightConnector connector = connector(TimeValue.timeValueSeconds(30))) {
+            Exception e = expectThrows(IllegalStateException.class, () -> connector.execute(withOptions, Split.SINGLE));
+            assertThat(e.getMessage(), containsString("[units]"));
+            // the keys ES sets itself are not options
+            QueryRequest plain = new QueryRequest(
+                "t",
+                List.of("id"),
+                ATTRIBUTES,
+                Map.of("endpoint", "grpc://x:1", "target", "t", "schema_resolution", "strict", "_datasource_type", "flight"),
+                1000,
+                0,
+                blockFactory,
+                null
+            );
+            connector.execute(plain, Split.SINGLE).close();
         }
     }
 }

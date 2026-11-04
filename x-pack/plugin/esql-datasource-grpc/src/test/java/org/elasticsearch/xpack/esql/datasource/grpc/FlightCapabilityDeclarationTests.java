@@ -65,4 +65,16 @@ public class FlightCapabilityDeclarationTests extends ESTestCase {
         caps.put("limits", Map.of("maxInListSize", 0));
         expectThrows(IllegalStateException.class, () -> FlightConnectorFactory.validateDeclaration(caps));
     }
+
+    public void testAnOptionNamedLikeAKeyEsSetsItselfIsRejected() {
+        for (String name : List.of("target", "endpoint", "schema_resolution", "_datasource")) {
+            Map<String, Object> caps = valid();
+            caps.put("options", List.of("units", name));
+            Exception e = expectThrows(IllegalStateException.class, () -> FlightConnectorFactory.validateDeclaration(caps));
+            assertThat(e.getMessage(), containsString("[" + name + "]"));
+        }
+        Map<String, Object> ok = valid();
+        ok.put("options", List.of("units", "adjusted"));
+        FlightConnectorFactory.validateDeclaration(ok);
+    }
 }

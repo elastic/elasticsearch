@@ -54,6 +54,11 @@ public final class BlockingSatelliteServer implements Closeable {
     public volatile boolean blockInFlightInfo;
     /** When set, {@code DoGet} does not send the first batch until released or cancelled by the client. */
     public volatile boolean blockInDoGet;
+    /** When set, {@code DoGet} sends one batch and then stalls until released or cancelled by the client. */
+    public volatile boolean stallAfterFirstBatch;
+    /** When positive, {@code DoGet} sends a single batch of this many rows (a result far bigger than a small breaker allows). */
+    public volatile int oneBatchOfRows;
+    public final CountDownLatch inSecondBatchStall = new CountDownLatch(1);
     /** When set, {@code GetFlightInfo(command)} answers with this status, like a satellite that rejects the request. */
     public volatile CallStatus rejectFragmentWith;
 
@@ -70,7 +75,7 @@ public final class BlockingSatelliteServer implements Closeable {
     private final Location location;
 
     public BlockingSatelliteServer() throws IOException {
-        this.location = Location.forGrpcInsecure("localhost", 0);
+        this.location = Location.forGrpcInsecure("127.0.0.1", 0);
         this.server = FlightServer.builder(allocator, location, new Producer()).build();
         this.server.start();
     }
@@ -141,14 +146,26 @@ public final class BlockingSatelliteServer implements Closeable {
             }
             try (VectorSchemaRoot root = VectorSchemaRoot.create(answerSchema, allocator)) {
                 listener.start(root);
+                int rows = oneBatchOfRows > 0 ? oneBatchOfRows : 3;
                 root.allocateNew();
                 if (root.getVector(0) instanceof IntVector ids) {
-                    for (int i = 0; i < 3; i++) {
+                    for (int i = 0; i < rows; i++) {
                         ids.setSafe(i, i);
                     }
                 }
-                root.setRowCount(3);
+                root.setRowCount(rows);
                 listener.putNext();
+                if (stallAfterFirstBatch) {
+                    inSecondBatchStall.countDown();
+                    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+                    while (listener.isCancelled() == false && release.getCount() > 0 && System.nanoTime() < deadline) {
+                        sleepQuietly(20);
+                    }
+                    if (listener.isCancelled()) {
+                        doGetCancelled.countDown();
+                        return;
+                    }
+                }
                 listener.completed();
                 servedRows.set(true);
             }

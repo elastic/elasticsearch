@@ -20,7 +20,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
-import org.elasticsearch.index.mapper.flattened.UnmappedSinkFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -93,10 +92,15 @@ public final class UnmappedFields {
 
     /**
      * Whether {@code name}, which this shard does not map, may be an unmapped field of one of its documents. It decides as
-     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}.
+     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}, except at an
+     * object the mapping parses: a document with a value there is rejected, so the mapping alone rules it out.
      */
     public boolean mayExist(String name) {
-        return skipped("", name) == false && mayExist();
+        return isParsedObject(name) == false && skipped("", name) == false && mayExist();
+    }
+
+    private boolean isParsedObject(String name) {
+        return mappingLookup.objectMappers().get(name) instanceof ObjectMapper object && object.isEnabled();
     }
 
     /**
@@ -180,6 +184,11 @@ public final class UnmappedFields {
 
         private boolean mayIncludeBelow(String path) {
             return aboveNames.contains(path) || (filter != null && filter.mayIncludeBelow(path));
+        }
+
+        /** Whether this walk reads the unmapped field {@code name}. */
+        public boolean reads(String name) {
+            return names.contains(name);
         }
     }
 
@@ -600,20 +609,11 @@ public final class UnmappedFields {
     /**
      * Loads the unmapped field {@code name}, one of the names of {@code walk}, as keywords, read by the walk of each
      * document that the loaders made with {@code walk} share. Loads nothing where {@link #mayExist(String)} rules it out.
-     * Where the {@code _unmapped} sink absorbs unmapped fields, a field that is not below a nested object is read from the sink's doc
-     * values instead (see {@link UnmappedSinkFieldMapper#blockLoader(String)}).
      */
     public BlockLoader blockLoader(String name, Walk walk) {
         assert walk.names.contains(name) : name + " is not read by the walk";
         if (mayExist(name) == false) {
             return ConstantNull.INSTANCE;
-        }
-
-        // A field absorbed below a nested object is in the sink of the nested doc, which is never loaded by ESQL (ESQL doesn't currently
-        // support nested docs), so must be read from _source.
-        UnmappedSinkFieldMapper sink = mappingLookup.getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
-        if (sink != null && mappingLookup.nestedLookup().getNestedParent(name) == null) {
-            return sink.blockLoader(name);
         }
 
         // Naming the paths restricts the read to them; without any, the whole of _source is loaded.

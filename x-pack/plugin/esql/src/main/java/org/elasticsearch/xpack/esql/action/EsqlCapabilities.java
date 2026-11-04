@@ -602,6 +602,12 @@ public class EsqlCapabilities {
         ST_CENTROID_AGG_OPTIMIZED,
 
         /**
+         * Where one index maps a name as an object and another as a field, the column has the type of the field and is {@code null}
+         * in the index of the object.
+         */
+        OBJECTS_ARE_NOT_FIELDS,
+
+        /**
          * Support for requesting the "_ignored" metadata field.
          */
         METADATA_IGNORED_FIELD,
@@ -2799,6 +2805,11 @@ public class EsqlCapabilities {
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
 
         /**
+         * Support for pushing down MV_EXPAND past PROJECT with complex queries.
+         */
+        PUSH_DOWN_MV_EXPAND_PAST_PROJECT,
+
+        /**
          * Enables automatically grouping by all dimension fields in TS mode queries and outputs the _timeseries column
          * with all the dimensions.
          */
@@ -3606,6 +3617,11 @@ public class EsqlCapabilities {
          * Support for PromQL {@code changes()} function.
          */
         PROMQL_CHANGES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Support for PromQL {@code predict_linear()} with a literal horizon in seconds.
+         */
+        PROMQL_PREDICT_LINEAR(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
@@ -4671,6 +4687,12 @@ public class EsqlCapabilities {
          * rather than every key of the object.
          */
         METRICS_INFO_FIELD_PRESENCE,
+
+        /**
+         * Each shard resolves a field the plan reads that some shards may not map to what it holds, and runs a filter pushed to it
+         * where it can query that field, or matches every document for the filter to check.
+         */
+        UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

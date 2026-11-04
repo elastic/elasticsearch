@@ -91,7 +91,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
         ShardId shardId = new ShardId(index, 0);
 
         assertSearchShardOnNode(firstNode, shardId, lastAcquiredTime);
-        assertSearchShardOnNode(secondNode, shardId, lastAcquiredTime);
+        assertBusy(() -> assertSearchShardOnNode(secondNode, shardId, lastAcquiredTime));
 
         var numberOfCommits = randomIntBetween(1, 4);
         for (int j = 0; j < numberOfCommits; j++) {
@@ -133,8 +133,7 @@ public class SearchShardInformationIndexListenerIT extends AbstractStatelessPlug
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, firstNode);
         assertThat(indicesService.hasIndex(index), equalTo(false));
 
-        // this one has the same last acquired time than the other node earlier
-        assertSearchShardOnNode(secondNode, shardId, lastAcquiredTime);
+        assertBusy(() -> assertSearchShardOnNode(secondNode, shardId, lastAcquiredTime));
 
         var numberOfCommits = randomIntBetween(1, 4);
         for (int j = 0; j < numberOfCommits; j++) {

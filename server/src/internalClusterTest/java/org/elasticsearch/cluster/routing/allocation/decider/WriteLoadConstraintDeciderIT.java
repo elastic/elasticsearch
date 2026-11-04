@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -635,7 +636,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         assertThat(recoveryStatesForMovedShard.size(), equalTo(1));
         assertThat(
             recoveryStatesForMovedShard.getFirst().getRecoveryPriority(),
-            equalTo(ShardRouting.RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)
+            equalTo(RecoveryPriority.RELOCATION_CAN_REMAIN_NOT_PREFERRED)
         );
     }
 
@@ -947,7 +948,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             RecoverySource.EmptyStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null),
             ShardRouting.Role.DEFAULT,
-            ShardRouting.RecoveryPriority.UNASSIGNED_NEW_PRIMARY
+            RecoveryPriority.UNASSIGNED_NEW_PRIMARY
         );
         shardRouting = shardRouting.initialize(assignedShardNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

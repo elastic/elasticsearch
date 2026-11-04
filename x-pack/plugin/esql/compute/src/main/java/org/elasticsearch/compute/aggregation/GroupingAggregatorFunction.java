@@ -240,11 +240,10 @@ public interface GroupingAggregatorFunction extends Releasable {
     int intermediateBlockCount();
 
     /**
-     * Whether this aggregation can safely emit partial results from its current state.
-     * Defaults to {@code true}; most aggregations can emit partial state at any time.
-     * Rate-like aggregations return {@code false} today; they may later allow flush at slice boundaries.
+     * Whether this aggregation can safely emit partial results from its current state;
+     * {@code incomingPage} is the next raw page and has not been added yet.
      */
-    default boolean canEmitPartialResultsPeriodically() {
+    default boolean canEmitPartialResultsPeriodically(Page incomingPage) {
         return true;
     }
 

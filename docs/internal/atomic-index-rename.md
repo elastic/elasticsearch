@@ -182,10 +182,20 @@ the swap still reaches the index that is now `c`, never the one that is now
 `a`. A bulk resolves its targets to `Index` objects when it is accepted and
 every lookup on the write path takes an `Index`, so the documents land in the
 index the request was accepted for, under its new name, which is the same
-semantics an alias swap has today
-(`TransportReplicationActionTests#testBlocksAfterIndexNamesSwapped` checks the
-reroute phase directly, and `RenameIndexIT#testBulkIndexingDuringRename` runs
-bulks across a rename).
+semantics an alias swap has today (`RenameIndexSwapIT` holds a bulk in flight
+across a swap and checks that its documents land in the renamed index and
+that the renamed index's blocks apply;
+`TransportReplicationActionTests#testBlocksAfterIndexNamesSwapped` checks the
+reroute phase directly; `RenameIndexIT#testBulkIndexingDuringRename` runs
+bulks across a plain rename).
+
+One thing is not right yet, and it is user-visible only in a swap: a bulk
+reports each item's `_index` as the name the index had when the bulk was
+routed. The primary builds its `BulkShardResponse` with the request's shard id
+and the items are deserialized with that shard id rather than their own, so
+after `a` becomes `c` and `b` becomes `a`, a bulk accepted for the first `a`
+reports `_index: a`, which now names a different index, while its documents
+are in `c`. Building the response from the primary's own shard id fixes it.
 
 This is what makes stale `Index` copies acceptable: a component that captured
 an `Index` before a rename keeps finding its metadata and routing, and the
@@ -483,14 +493,14 @@ Direct tests of the rename:
 - `RenameIndexIT`: simple and multiple renames, chains and swaps, recreating
   the original name, mapping changes and blocks across a rename, a metadata
   block refusing a rename, and bulk requests in flight across a rename.
-- `TransportReplicationActionTests#testBlocksAfterIndexNamesSwapped` checks
-  that the reroute phase, after a swap of two names, still routes a request to
-  its own index and applies that index's blocks, not those of the index that
-  took over the name. There is no end-to-end test that holds a bulk in flight
-  across a swap: an attempt to hold one with an action filter or a transport
-  hook never completed after release even without a rename, so the harness,
-  not the rename, was at fault, and it was dropped. A deterministic one would
-  be a worthwhile addition.
+- `RenameIndexSwapIT`: a bulk held by an action filter on the coordinating node
+  while one aliases request swaps two names through a temporary one. The
+  documents land in the renamed index and none in the index that took over the
+  name, and a write block put on the renamed index afterwards refuses the held
+  bulk (without the reroute-phase fix this test fails: the block is looked up
+  by the old name and missed). A control holds and releases a bulk with no
+  rename. `TransportReplicationActionTests#testBlocksAfterIndexNamesSwapped`
+  checks the reroute phase directly.
 - `RenameIndexSnapshotIT` (rename during a snapshot and during a restore,
   incremental snapshot after rename), `RenameIndexResizeIT` (clone, shrink and split from
   a renamed source, rename of the source while a clone target recovers),

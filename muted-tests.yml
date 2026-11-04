@@ -557,3 +557,8 @@ tests:
   - :modules:repository-azure:test
   method: testContentsChangeWhileStreaming
   issue: https://github.com/elastic/elasticsearch/issues/164636
+- class: org.elasticsearch.xpack.inference.external.http.ByteArrayFlowPublisherTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testCompletionIsWithheldUntilDemandIsAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/164701

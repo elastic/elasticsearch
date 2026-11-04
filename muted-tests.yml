@@ -609,3 +609,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testSlowConsumerUnderNetworkDelay
   issue: https://github.com/elastic/elasticsearch/issues/163264
+- class: org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRetryRecoveryCommitRegistrationIfPrimaryMoves
+  issue: https://github.com/elastic/elasticsearch/issues/164016

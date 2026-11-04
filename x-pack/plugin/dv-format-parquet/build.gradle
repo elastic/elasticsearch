@@ -1,0 +1,127 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+versions << [
+  'hadoop' : '3.4.3',
+]
+
+esplugin {
+  name = 'dv-format-parquet'
+  description = 'A Lucene doc values format that serves numeric and binary doc values from Parquet files in an object store'
+  classname = 'org.elasticsearch.xpack.parquet.ParquetDocValuesPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+base {
+  archivesName = 'x-pack-dv-format-parquet'
+}
+
+// the Hadoop jars are compile-only and not complete, so javac warns about annotations it cannot find (same as esql-datasource-parquet)
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+
+  // Plugins do not share jars, so we bundle our own copy of the Parquet reader (the same recipe as esql-datasource-parquet).
+  // We cannot extend esql-datasource-parquet for it, because that plugin extends x-pack-esql and a node must not need ESQL
+  // loaded to open a doc values segment.
+  implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+
+  // parquet-hadoop-bundle's API surface references Hadoop types, so they are needed at compile time only. At runtime we
+  // never load the Hadoop-dependent code paths (see PlainParquetReadOptions in esql-datasource-parquet for the technique).
+  compileOnly("org.apache.hadoop:hadoop-common:${versions.hadoop}") {
+    transitive = false
+  }
+  compileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") {
+    transitive = false
+  }
+
+  // Pure Java Snappy, because the ClickBench example file is SNAPPY compressed and snappy-java would load a native library.
+  implementation "io.airlift:aircompressor:${versions.aircompressor}"
+
+  // the Parquet writer that the tests use computes geospatial statistics with JTS
+  testImplementation "org.locationtech.jts:jts-core:${versions.jts}"
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  // ES|QL runs over a mount in the integration tests (the plugins that the ES|QL plugin needs are the ones that DownsampleIT uses)
+  internalClusterTestImplementation project(xpackModule('esql'))
+  internalClusterTestImplementation project(xpackModule('esql-core'))
+  internalClusterTestImplementation project(':x-pack:plugin:encryption')
+  internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
+  // the mount creates a data stream, which the data streams module serves
+  internalClusterTestImplementation project(':modules:data-streams')
+  // the integration tests write the Parquet files that they mount with the helper of the unit tests
+  internalClusterTestImplementation sourceSets.test.output
+  internalClusterTestImplementation "org.locationtech.jts:jts-core:${versions.jts}"
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /parquet-.*/, to: 'parquet'
+  mapping from: /aircompressor-.*/, to: 'aircompressor'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+  ignoreViolations(
+    // aircompressor uses sun.misc.Unsafe throughout for optimized compression/decompression. Only the Snappy classes are used.
+    'io.airlift.compress.lz4.Lz4Compressor',
+    'io.airlift.compress.lz4.Lz4Decompressor',
+    'io.airlift.compress.lz4.Lz4RawCompressor',
+    'io.airlift.compress.lz4.Lz4RawDecompressor',
+    'io.airlift.compress.lz4.UnsafeUtil',
+    'io.airlift.compress.lzo.LzoCompressor',
+    'io.airlift.compress.lzo.LzoDecompressor',
+    'io.airlift.compress.lzo.LzoRawCompressor',
+    'io.airlift.compress.lzo.LzoRawDecompressor',
+    'io.airlift.compress.lzo.UnsafeUtil',
+    'io.airlift.compress.snappy.SnappyCompressor',
+    'io.airlift.compress.snappy.SnappyDecompressor',
+    'io.airlift.compress.snappy.SnappyRawCompressor',
+    'io.airlift.compress.snappy.SnappyRawDecompressor',
+    'io.airlift.compress.snappy.UnsafeUtil',
+    'io.airlift.compress.zstd.BitInputStream',
+    'io.airlift.compress.zstd.BitInputStream$Initializer',
+    'io.airlift.compress.zstd.BitInputStream$Loader',
+    'io.airlift.compress.zstd.BitOutputStream',
+    'io.airlift.compress.zstd.DoubleFastBlockCompressor',
+    'io.airlift.compress.zstd.FiniteStateEntropy',
+    'io.airlift.compress.zstd.FseTableReader',
+    'io.airlift.compress.zstd.Histogram',
+    'io.airlift.compress.zstd.Huffman',
+    'io.airlift.compress.zstd.HuffmanCompressionTable',
+    'io.airlift.compress.zstd.HuffmanCompressor',
+    'io.airlift.compress.zstd.SequenceEncoder',
+    'io.airlift.compress.zstd.SequenceStore',
+    'io.airlift.compress.zstd.UnsafeUtil',
+    'io.airlift.compress.zstd.Util',
+    'io.airlift.compress.zstd.XxHash64',
+    'io.airlift.compress.zstd.ZstdCompressor',
+    'io.airlift.compress.zstd.ZstdDecompressor',
+    'io.airlift.compress.zstd.ZstdFrameCompressor',
+    'io.airlift.compress.zstd.ZstdFrameDecompressor',
+    'io.airlift.compress.zstd.ZstdIncrementalFrameDecompressor',
+    'io.airlift.compress.zstd.ZstdInputStream',
+    'io.airlift.compress.zstd.ZstdOutputStream',
+    // Parquet shaded hashing uses sun.misc.Unsafe
+    'shaded.parquet.net.openhft.hashing.HotSpotPrior7u6StringHash',
+    'shaded.parquet.net.openhft.hashing.LongHashFunction',
+    'shaded.parquet.net.openhft.hashing.LongTupleHashFunction',
+    'shaded.parquet.net.openhft.hashing.ModernCompactStringHash',
+    'shaded.parquet.net.openhft.hashing.ModernHotSpotStringHash',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess$OldUnsafeAccessBigEndian',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess$OldUnsafeAccessLittleEndian',
+    'shaded.parquet.net.openhft.hashing.Util',
+  )
+}

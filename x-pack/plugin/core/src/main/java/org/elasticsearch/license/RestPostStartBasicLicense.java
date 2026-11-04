@@ -14,12 +14,17 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
+import static org.elasticsearch.rest.RestUtils.REST_TIMEOUT_PARAM;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestPostStartBasicLicense extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_MASTER_TIMEOUT_PARAM, REST_TIMEOUT_PARAM, "acknowledge");
 
     public RestPostStartBasicLicense() {}
 
@@ -42,6 +47,11 @@ public class RestPostStartBasicLicense extends BaseRestHandler {
     @Override
     public String getName() {
         return "post_start_basic";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
     }
 
 }

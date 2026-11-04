@@ -19,15 +19,28 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetSynonymRuleAction extends BaseRestHandler {
 
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.of("synonymsSet", "synonymRuleId");
+
     @Override
     public String getName() {
         return "synonyms_rules_get_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

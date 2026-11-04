@@ -15,10 +15,13 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestStartRollupJobAction extends BaseRestHandler {
+
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.of("id");
 
     @Override
     public List<Route> routes() {
@@ -36,6 +39,16 @@ public class RestStartRollupJobAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "start_rollup_job";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

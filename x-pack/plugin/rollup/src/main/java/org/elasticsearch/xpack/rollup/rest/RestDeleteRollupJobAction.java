@@ -16,10 +16,13 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteRollupJobAction extends BaseRestHandler {
+
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.of("id");
 
     public static final ParseField ID = new ParseField("id");
 
@@ -44,6 +47,16 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "delete_rollup_job";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
 }

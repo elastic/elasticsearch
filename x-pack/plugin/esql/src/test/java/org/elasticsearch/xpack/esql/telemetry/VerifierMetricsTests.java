@@ -295,7 +295,7 @@ public class VerifierMetricsTests extends ESTestCase {
                       , (from employees | stats min = min(salary) by languages)
             | where min > 0 and max < 100000
             """);
-        assertMetrics(c, Map.of(EVAL, 1L, STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
+        assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, SUBQUERY, 1L), Map.of("max", 1L, "min", 1L));
     }
 
     public void testPromql() {

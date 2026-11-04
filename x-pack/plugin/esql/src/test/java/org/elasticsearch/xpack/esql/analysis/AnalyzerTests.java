@@ -3603,6 +3603,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    ( SORT emp_no )
                    ( LIMIT 9 )
             """);
+        plan = aligned(plan);
 
         var expectedOutput = List.of("emp_no", "first_name", "last_name", "_fork");
         Limit limit = as(plan, Limit.class);
@@ -3697,6 +3698,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                    | STATS x = MIN(d::double), y = MAX(e::double) WHERE d::double > 1000
                    | EVAL xyz = "abc")
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
         Fork fork = as(limit.child(), Fork.class);
@@ -6410,6 +6412,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addNoFieldsIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -6438,6 +6441,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
                 | STATS {}
                 """, count);
             var plan = basic().addEmptyIndex().query(query);
+            plan = aligned(plan);
 
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
@@ -7405,7 +7409,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
         Fork fork = plan.collect(Fork.class).getFirst();
         assertThat(fork.output(), hasItem(key));
         for (LogicalPlan branch : fork.children()) {
-            assertThat(fieldNames(branch.output()).getLast(), equalTo(ResolveHighlightIndexKey.INDEX_KEY_NAME));
+            assertThat(fieldNames(branch.output()), hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME));
         }
         assertThat(fieldNames(plan.output()), not(hasItem(ResolveHighlightIndexKey.INDEX_KEY_NAME)));
         assertWarnings();

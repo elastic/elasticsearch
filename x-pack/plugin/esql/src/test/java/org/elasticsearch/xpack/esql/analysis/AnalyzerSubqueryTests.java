@@ -190,6 +190,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             | EVAL still_hired = still_hired::string, is_rehired = is_rehired::string
             | SORT still_hired, is_rehired
             """);
+        plan = aligned(plan);
 
         Project project = as(plan, Project.class);
         List<? extends NamedExpression> projections = project.projections();
@@ -233,23 +234,23 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(2, unionAll.children().size());
 
         Project subqueryProject = as(unionAll.children().get(0), Project.class);
-        Eval implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        Eval missingFieldEval = as(subqueryProject.child(), Eval.class);
+        assertEquals(2, missingFieldEval.fields().size());
+        Eval implicitCastingEval = as(missingFieldEval.child(), Eval.class);
         assertEquals(10, implicitCastingEval.fields().size());
         Eval explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
         assertEquals(6, explicitCastingEval.fields().size());
-        Eval missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        assertEquals(2, missingFieldEval.fields().size());
-        EsRelation subqueryIndex = as(missingFieldEval.child(), EsRelation.class);
+        EsRelation subqueryIndex = as(explicitCastingEval.child(), EsRelation.class);
         assertEquals("test", subqueryIndex.indexPattern());
 
         subqueryProject = as(unionAll.children().get(1), Project.class);
-        implicitCastingEval = as(subqueryProject.child(), Eval.class);
+        missingFieldEval = as(subqueryProject.child(), Eval.class);
+        assertEquals(5, missingFieldEval.fields().size());
+        implicitCastingEval = as(missingFieldEval.child(), Eval.class);
         assertEquals(9, implicitCastingEval.fields().size());
         explicitCastingEval = as(implicitCastingEval.child(), Eval.class);
         assertEquals(6, explicitCastingEval.fields().size());
-        missingFieldEval = as(explicitCastingEval.child(), Eval.class);
-        assertEquals(5, missingFieldEval.fields().size());
-        Filter subqueryFilter = as(missingFieldEval.child(), Filter.class);
+        Filter subqueryFilter = as(explicitCastingEval.child(), Filter.class);
         GreaterThan greaterThan = as(subqueryFilter.condition(), GreaterThan.class);
         FieldAttribute fa = as(greaterThan.left(), FieldAttribute.class);
         assertEquals("languages", fa.name());
@@ -287,6 +288,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             FROM test, (FROM remote:missingIndex | WHERE message:"error"), (FROM sample_data)
             | WHERE match(client_ip,"127.0.0.1")
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);
@@ -428,6 +430,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         LogicalPlan plan = analyzer().addSampleData().query("""
             FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1) | keep client_ip
             """);
+        plan = aligned(plan);
 
         // Limit[1000]
         Limit limit = as(plan, Limit.class);
@@ -631,6 +634,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             FROM (ROW x = 1), (ROW x = "abc")
             | keep x
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
 
@@ -788,6 +792,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             FROM (FROM sample_data), (ROW client_ip = 1)
             | keep client_ip
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
 
@@ -812,18 +817,18 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         EsRelation fromRelation = as(fromConflictEval.child(), EsRelation.class);
         assertEquals("sample_data", fromRelation.indexPattern());
 
-        // ROW leg: Project → Eval[null[KEYWORD] AS client_ip] → Eval[3 nullEvals for missing
-        // sample_data columns] → Row[client_ip = 1]
+        // ROW leg: Project → Eval[3 nullEvals for missing sample_data columns] → Eval[null[KEYWORD] AS client_ip]
+        // → Row[client_ip = 1]
         Project rowProject = as(unionAll.children().get(1), Project.class);
-        Eval rowConflictEval = as(rowProject.child(), Eval.class);
+        Eval rowMissingEval = as(rowProject.child(), Eval.class);
+        assertEquals(3, rowMissingEval.fields().size()); // @timestamp, event_duration, message
+        Eval rowConflictEval = as(rowMissingEval.child(), Eval.class);
         assertEquals(1, rowConflictEval.fields().size());
         assertEquals("client_ip", rowConflictEval.fields().get(0).name());
         Literal rowNull = as(rowConflictEval.fields().get(0).child(), Literal.class);
         assertNull(rowNull.value());
         assertEquals(KEYWORD, rowNull.dataType());
-        Eval rowMissingEval = as(rowConflictEval.child(), Eval.class);
-        assertEquals(3, rowMissingEval.fields().size()); // @timestamp, event_duration, message
-        Row row = as(rowMissingEval.child(), Row.class);
+        Row row = as(rowConflictEval.child(), Row.class);
         assertEquals("client_ip", row.fields().get(0).name());
         Literal rowLiteral = as(row.fields().get(0).child(), Literal.class);
         assertEquals(1, rowLiteral.value());
@@ -852,6 +857,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             FROM employees, (ROW emp_no = "abc")
             | keep emp_no
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
 
@@ -876,18 +882,18 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         EsRelation indexRelation = as(indexConflictEval.child(), EsRelation.class);
         assertEquals("employees", indexRelation.indexPattern());
 
-        // ROW leg: Project → Eval[null[KEYWORD] AS emp_no] → Eval[10 nullEvals for missing
-        // test fields] → Row[emp_no = "abc"]
+        // ROW leg: Project → Eval[10 nullEvals for missing test fields] → Eval[null[KEYWORD] AS emp_no]
+        // → Row[emp_no = "abc"]
         Project rowProject = as(unionAll.children().get(1), Project.class);
-        Eval rowConflictEval = as(rowProject.child(), Eval.class);
+        Eval rowMissingEval = as(rowProject.child(), Eval.class);
+        assertEquals(10, rowMissingEval.fields().size()); // every test field except emp_no
+        Eval rowConflictEval = as(rowMissingEval.child(), Eval.class);
         assertEquals(1, rowConflictEval.fields().size());
         assertEquals("emp_no", rowConflictEval.fields().get(0).name());
         Literal rowNull = as(rowConflictEval.fields().get(0).child(), Literal.class);
         assertNull(rowNull.value());
         assertEquals(KEYWORD, rowNull.dataType());
-        Eval rowMissingEval = as(rowConflictEval.child(), Eval.class);
-        assertEquals(10, rowMissingEval.fields().size()); // every test field except emp_no
-        Row row = as(rowMissingEval.child(), Row.class);
+        Row row = as(rowConflictEval.child(), Row.class);
         assertEquals("emp_no", row.fields().get(0).name());
         Literal rowLiteral = as(row.fields().get(0).child(), Literal.class);
         assertEquals(BytesRefs.toBytesRef("abc"), rowLiteral.value());
@@ -910,6 +916,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             FROM (ROW a = 1, b = ["cat", "dog"]), (ROW a = [1.5, 2.5], b = true)
             | KEEP a, b
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
         Project project = as(limit.child(), Project.class);
@@ -969,6 +976,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         LogicalPlan plan = analyzer().addEmployees().query("""
             FROM employees, (ROW x = 1, y = ["cat", "dog"]), (ROW x = [1.5, -2.5], y = true)
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -986,27 +994,27 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         Attribute yAttr = output.stream().filter(a -> "y".equals(a.name())).findFirst().orElseThrow();
         assertUnsupportedAttribute(yAttr, "y", List.of(KEYWORD.esType(), KEYWORD.esType(), BOOLEAN.esType()));
 
-        // Index leg: Project → Eval[null[KEYWORD] AS x, null[KEYWORD] AS y] ← conflict-resolution
-        // → Eval[null[INTEGER] AS x, null[KEYWORD] AS y] ← missing-field fill
+        // Index leg: Project → Eval[null[KEYWORD] AS x, null[KEYWORD] AS y] ← missing-field fill of the conflicting columns
         // → EsRelation[test].
         Project indexProject = as(unionAll.children().get(0), Project.class);
-        Eval indexConflictEval = as(indexProject.child(), Eval.class);
-        assertEquals(2, indexConflictEval.fields().size());
-        Eval indexMissingEval = as(indexConflictEval.child(), Eval.class);
+        Eval indexMissingEval = as(indexProject.child(), Eval.class);
         assertEquals(2, indexMissingEval.fields().size());
+        for (Alias fill : indexMissingEval.fields()) {
+            assertEquals(KEYWORD, as(fill.child(), Literal.class).dataType());
+        }
         EsRelation indexRelation = as(indexMissingEval.child(), EsRelation.class);
         assertEquals("employees", indexRelation.indexPattern());
 
-        // ROW legs: Project → Eval[conflict-resolution null for x, y]
-        // → Eval[11 nullEvals for the test-only fields]
+        // ROW legs: Project → Eval[11 nullEvals for the test-only fields]
+        // → Eval[conflict-resolution null for x, y]
         // → Row.
         for (int i = 1; i < 3; i++) {
             Project rowLegProject = as(unionAll.children().get(i), Project.class);
-            Eval rowConflictEval = as(rowLegProject.child(), Eval.class);
-            assertEquals(2, rowConflictEval.fields().size()); // x, y conflict-resolution nulls
-            Eval rowMissingEval = as(rowConflictEval.child(), Eval.class);
+            Eval rowMissingEval = as(rowLegProject.child(), Eval.class);
             assertEquals(11, rowMissingEval.fields().size()); // 11 test-index fields nulled
-            Row row = as(rowMissingEval.child(), Row.class);
+            Eval rowConflictEval = as(rowMissingEval.child(), Eval.class);
+            assertEquals(2, rowConflictEval.fields().size()); // x, y conflict-resolution nulls
+            Row row = as(rowConflictEval.child(), Row.class);
             assertEquals(2, row.fields().size());
             assertEquals("x", row.fields().get(0).name());
             assertEquals("y", row.fields().get(1).name());
@@ -1042,6 +1050,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             FROM (TS k8s | STATS m = max(rate(network.total_bytes_in)) BY cluster),
               (FROM sample_data | EVAL m = "abc")
             """);
+        plan = aligned(plan);
 
         Limit limit = as(plan, Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
@@ -1053,7 +1062,9 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
         // Branch 0: TS leg
         Project tsProject = as(unionAll.children().get(0), Project.class);
-        Eval tsNullM = as(tsProject.child(), Eval.class);
+        Eval tsNullSampleFields = as(tsProject.child(), Eval.class);
+        assertEquals(4, tsNullSampleFields.fields().size());
+        Eval tsNullM = as(tsNullSampleFields.child(), Eval.class);
         assertEquals(1, tsNullM.fields().size());
         Alias tsNullMAlias = tsNullM.fields().get(0);
         assertEquals("m", tsNullMAlias.name());
@@ -1061,9 +1072,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertNull(tsNullMLit.value());
         assertEquals(KEYWORD, tsNullMLit.dataType());
 
-        Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
-        assertEquals(4, tsNullSampleFields.fields().size());
-        Project tsInnerProject = as(tsNullSampleFields.child(), Project.class);
+        Project tsInnerProject = as(tsNullM.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
         assertEquals(1, tsUnpack.dims().size());
         Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
@@ -1085,7 +1094,11 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
 
         // Branch 1: FROM sample_data
         Project sampleProject = as(unionAll.children().get(1), Project.class);
-        Eval sampleNullM = as(sampleProject.child(), Eval.class);
+        Eval sampleNullCluster = as(sampleProject.child(), Eval.class);
+        assertEquals(1, sampleNullCluster.fields().size());
+        assertEquals("cluster", sampleNullCluster.fields().get(0).name());
+
+        Eval sampleNullM = as(sampleNullCluster.child(), Eval.class);
         assertEquals(1, sampleNullM.fields().size());
         Alias sampleNullMAlias = sampleNullM.fields().get(0);
         assertEquals("m", sampleNullMAlias.name());
@@ -1093,10 +1106,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertNull(sampleNullMLit.value());
         assertEquals(KEYWORD, sampleNullMLit.dataType());
 
-        Eval sampleNullCluster = as(sampleNullM.child(), Eval.class);
-        assertEquals(1, sampleNullCluster.fields().size());
-        assertEquals("cluster", sampleNullCluster.fields().get(0).name());
-        Eval innerEval = as(sampleNullCluster.child(), Eval.class);
+        Eval innerEval = as(sampleNullM.child(), Eval.class);
         assertEquals(1, innerEval.fields().size());
         Alias innerMAlias = innerEval.fields().get(0);
         assertEquals("m", innerMAlias.name());
@@ -1146,6 +1156,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             | EVAL m = m::string
             | KEEP m
             """);
+        plan = aligned(plan);
 
         Project topProject = as(plan, Project.class);
         assertEquals(1, topProject.projections().size());
@@ -1174,18 +1185,18 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("$$m$converted_to$keyword", castedAttr.name());
         assertEquals(KEYWORD, castedAttr.dataType());
 
-        // Branch 0: TS leg — TOSTRING(m) eval is inserted above the null sample-data evals.
+        // Branch 0: TS leg — the null sample-data evals are aligned above the TOSTRING(m) eval pushed into the branch.
         Project tsProject = as(unionAll.children().get(0), Project.class);
-        Eval tsNullM = as(tsProject.child(), Eval.class);
+        Eval tsNullSampleFields = as(tsProject.child(), Eval.class);
+        assertEquals(4, tsNullSampleFields.fields().size());
+        Eval tsNullM = as(tsNullSampleFields.child(), Eval.class);
         assertEquals(1, tsNullM.fields().size());
         assertEquals("m", tsNullM.fields().get(0).name());
         Eval tsCastEval = as(tsNullM.child(), Eval.class);
         assertEquals(1, tsCastEval.fields().size());
         Alias tsCastAlias = tsCastEval.fields().get(0);
         assertEquals("$$m$converted_to$keyword", tsCastAlias.name());
-        Eval tsNullSampleFields = as(tsCastEval.child(), Eval.class);
-        assertEquals(4, tsNullSampleFields.fields().size());
-        Project tsInnerProject = as(tsNullSampleFields.child(), Project.class);
+        Project tsInnerProject = as(tsCastEval.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
         assertEquals(1, tsUnpack.dims().size());
         Aggregate tsOuterAggregate = as(tsUnpack.child(), Aggregate.class);
@@ -1204,16 +1215,16 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("k8s", tsRelation.indexPattern());
         assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
 
-        // Branch 1: FROM sample_data — TOSTRING(m) is inserted above the cluster null and inner literal eval.
+        // Branch 1: FROM sample_data — the cluster null is aligned above the TOSTRING(m) eval pushed into the branch.
         Project sampleProject = as(unionAll.children().get(1), Project.class);
-        Eval sampleNullM = as(sampleProject.child(), Eval.class);
+        Eval sampleNullCluster = as(sampleProject.child(), Eval.class);
+        assertEquals("cluster", sampleNullCluster.fields().get(0).name());
+        Eval sampleNullM = as(sampleNullCluster.child(), Eval.class);
         assertEquals("m", sampleNullM.fields().get(0).name());
         Eval sampleCastEval = as(sampleNullM.child(), Eval.class);
         assertEquals(1, sampleCastEval.fields().size());
         assertEquals("$$m$converted_to$keyword", sampleCastEval.fields().get(0).name());
-        Eval sampleNullCluster = as(sampleCastEval.child(), Eval.class);
-        assertEquals("cluster", sampleNullCluster.fields().get(0).name());
-        Eval innerEval = as(sampleNullCluster.child(), Eval.class);
+        Eval innerEval = as(sampleCastEval.child(), Eval.class);
         Alias innerMAlias = innerEval.fields().get(0);
         assertEquals("m", innerMAlias.name());
         assertEquals(KEYWORD, as(innerMAlias.child(), Literal.class).dataType());
@@ -1271,6 +1282,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             FROM (TS k8s | STATS m = sum(last_over_time(network.bytes_in))),
               (FROM sample_data | EVAL m = 1.5)
             """);
+        planNoCast = aligned(planNoCast);
 
         Limit noCastLimit = as(planNoCast, Limit.class);
         UnionAll noCastUnion = as(noCastLimit.child(), UnionAll.class);
@@ -1280,13 +1292,13 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertUnsupportedAttribute(noCastOutput.get(0), "m", List.of(LONG.esType(), DOUBLE.esType()));
 
         Project tsProject = as(noCastUnion.children().get(0), Project.class);
-        Eval tsNullM = as(tsProject.child(), Eval.class);
+        Eval tsNullSampleFields = as(tsProject.child(), Eval.class);
+        assertEquals(4, tsNullSampleFields.fields().size());
+        Eval tsNullM = as(tsNullSampleFields.child(), Eval.class);
         assertEquals("m", tsNullM.fields().get(0).name());
         assertEquals(KEYWORD, as(tsNullM.fields().get(0).child(), Literal.class).dataType());
-        Eval tsNullSampleFields = as(tsNullM.child(), Eval.class);
-        assertEquals(4, tsNullSampleFields.fields().size());
         // No BY clause: outer Aggregate -> inner TimeSeriesAggregate (no PACK/UNPACK layers)
-        Aggregate tsOuterAggregate = as(tsNullSampleFields.child(), Aggregate.class);
+        Aggregate tsOuterAggregate = as(tsNullM.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
         assertTrue(tsOuterAggregate.groupings().isEmpty());
         TimeSeriesAggregate tsAggregate = as(tsOuterAggregate.child(), TimeSeriesAggregate.class);
@@ -1310,6 +1322,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             | EVAL m = m::double
             | KEEP m
             """);
+        planCast = aligned(planCast);
 
         Project castTopProject = as(planCast, Project.class);
         assertEquals(1, castTopProject.projections().size());
@@ -1330,14 +1343,14 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(DOUBLE, castedOutput.dataType());
 
         Project castTsProject = as(castUnion.children().get(0), Project.class);
-        Eval castTsNullM = as(castTsProject.child(), Eval.class);
+        Eval castTsNullSamples = as(castTsProject.child(), Eval.class);
+        assertEquals(4, castTsNullSamples.fields().size());
+        Eval castTsNullM = as(castTsNullSamples.child(), Eval.class);
         assertEquals("m", castTsNullM.fields().get(0).name());
         Eval castTsConvertEval = as(castTsNullM.child(), Eval.class);
         assertEquals("$$m$converted_to$double", castTsConvertEval.fields().get(0).name());
-        Eval castTsNullSamples = as(castTsConvertEval.child(), Eval.class);
-        assertEquals(4, castTsNullSamples.fields().size());
         // No BY clause: outer Aggregate -> inner TimeSeriesAggregate (no PACK/UNPACK layers)
-        Aggregate castTsOuterAggregate = as(castTsNullSamples.child(), Aggregate.class);
+        Aggregate castTsOuterAggregate = as(castTsConvertEval.child(), Aggregate.class);
         assertFalse(castTsOuterAggregate instanceof TimeSeriesAggregate);
         TimeSeriesAggregate castTsAggregate = as(castTsOuterAggregate.child(), TimeSeriesAggregate.class);
         EsRelation castTsRelation = as(castTsAggregate.child(), EsRelation.class);
@@ -2128,7 +2141,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
      * explicit {@code (FROM ...)} subqueries produce the same shape: the analyzer strips the per-branch Subquery wrappers.
      */
     private static void assertNoFieldUnionAll(TestAnalyzer analyzer, String query, String... indices) {
-        Limit limit = as(analyzer.query(query), Limit.class);
+        Limit limit = as(aligned(analyzer.query(query)), Limit.class);
         UnionAll unionAll = as(limit.child(), UnionAll.class);
         assertEquals(0, unionAll.output().size());
         assertEquals(indices.length, unionAll.children().size());
@@ -2152,7 +2165,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         }
         String from = String.join(", ", subqueries);
         for (String count : List.of("count()", "count(*)", "count(1)")) {
-            LogicalPlan plan = analyzer.query(LoggerMessageFormat.format(null, "FROM {} | STATS {}", from, count));
+            LogicalPlan plan = aligned(analyzer.query(LoggerMessageFormat.format(null, "FROM {} | STATS {}", from, count)));
             Limit limit = as(plan, Limit.class);
             Aggregate aggregate = as(limit.child(), Aggregate.class);
             UnionAll unionAll = as(aggregate.child(), UnionAll.class);

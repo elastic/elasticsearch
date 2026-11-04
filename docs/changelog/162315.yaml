@@ -1,6 +1,0 @@
-area: Vector Search
-issues:
- - 162295
-pr: 162315
-summary: Prevent `StackOverflowError` in automatic KNN prefilter
-type: bug

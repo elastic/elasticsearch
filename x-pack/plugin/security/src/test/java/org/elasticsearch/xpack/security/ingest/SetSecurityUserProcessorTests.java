@@ -39,6 +39,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -471,5 +472,29 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
                 return AuthenticationTestHelper.builder().user(user).metadata(randomFrom(Map.of(), Map.of("foo", "bar"))).build(false);
             }
         }
+    }
+
+    /**
+     * Pipelines are stored, so a malformed path in one has to be accepted when the processor is created, with the failure only coming
+     * when a document is run through it. This goes through the factory, as creating a processor from a stored pipeline does.
+     */
+    public void testMalformedFieldFailsAtExecutionTime() throws Exception {
+        final Authentication authentication = randomAuthentication();
+        authentication.writeToContext(threadContext);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "a..b");
+        SetSecurityUserProcessor processor = new SetSecurityUserProcessor.Factory(() -> securityContext, Settings.EMPTY).create(
+            null,
+            "_tag",
+            null,
+            config,
+            null
+        );
+        assertThat(processor.getField(), hasToString("a..b"));
+
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(e.getMessage(), equalTo("path [a..b] is not valid"));
     }
 }

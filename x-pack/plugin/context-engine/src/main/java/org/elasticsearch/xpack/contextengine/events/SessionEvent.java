@@ -32,7 +32,7 @@ public class SessionEvent implements Writeable, ToXContentObject {
     public static final ParseField TIMESTAMP_FIELD = new ParseField("@timestamp");
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField SPACE_FIELD = new ParseField("space");
-    public static final ParseField AI_INDEX_ID_FIELD = new ParseField("ai_index_id");
+    public static final ParseField AI_INDEX_IDS_FIELD = new ParseField("ai_index_ids");
     public static final ParseField SESSION_ID_FIELD = new ParseField("session_id");
     public static final ParseField ROUND_ID_FIELD = new ParseField("round_id");
     public static final ParseField USER_ID_FIELD = new ParseField("user_id");
@@ -57,7 +57,7 @@ public class SessionEvent implements Writeable, ToXContentObject {
         PARSER.declareString(optionalConstructorArg(), TIMESTAMP_FIELD);
         PARSER.declareString(optionalConstructorArg(), ID_FIELD);
         PARSER.declareString(optionalConstructorArg(), SPACE_FIELD);
-        PARSER.declareStringArray(optionalConstructorArg(), AI_INDEX_ID_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), AI_INDEX_IDS_FIELD);
         PARSER.declareString(optionalConstructorArg(), SESSION_ID_FIELD);
         PARSER.declareString(optionalConstructorArg(), ROUND_ID_FIELD);
         PARSER.declareString(optionalConstructorArg(), USER_ID_FIELD);
@@ -137,7 +137,7 @@ public class SessionEvent implements Writeable, ToXContentObject {
             builder.field(SPACE_FIELD.getPreferredName(), space);
         }
         if (aiIndexIds.isEmpty() == false) {
-            builder.stringListField(AI_INDEX_ID_FIELD.getPreferredName(), aiIndexIds);
+            builder.stringListField(AI_INDEX_IDS_FIELD.getPreferredName(), aiIndexIds);
         }
         builder.field(SESSION_ID_FIELD.getPreferredName(), sessionId);
         if (roundId != null) {

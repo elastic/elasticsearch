@@ -35,7 +35,7 @@ public class RestListSessionMemoryAction extends BaseRestHandler {
             request.param("session_id"),
             request.param("user_id"),
             request.param("space"),
-            request.param("ai_index_id"),
+            request.param("ai_index_ids"),
             request.paramAsInt("size", ListSessionMemoryAction.DEFAULT_SIZE)
         );
         return channel -> client.execute(ListSessionMemoryAction.INSTANCE, listRequest, new RestToXContentListener<>(channel));

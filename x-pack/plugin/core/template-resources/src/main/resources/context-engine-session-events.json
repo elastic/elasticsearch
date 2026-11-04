@@ -30,7 +30,7 @@
         "space": {
           "type": "keyword"
         },
-        "ai_index_id": {
+        "ai_index_ids": {
           "type": "keyword"
         },
         "session_id": {

@@ -55,7 +55,6 @@ public class SessionEventsIndexService {
             String id = Strings.isNullOrEmpty(event.id()) ? UUIDs.randomBase64UUID() : event.id();
             SessionEvent stored = event.withIdAndTimestamp(id, Instant.now().truncatedTo(ChronoUnit.MILLIS));
             clientWithOrigin.prepareIndex(ContextEnginePlugin.SESSION_EVENTS_DATA_STREAM_NAME)
-                .setId(id)
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource(stored.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
@@ -76,7 +75,7 @@ public class SessionEventsIndexService {
                 query.filter(QueryBuilders.termQuery(SessionEvent.SPACE_FIELD.getPreferredName(), space));
             }
             if (aiIndexId != null) {
-                query.filter(QueryBuilders.termQuery(SessionEvent.AI_INDEX_ID_FIELD.getPreferredName(), aiIndexId));
+                query.filter(QueryBuilders.termQuery(SessionEvent.AI_INDEX_IDS_FIELD.getPreferredName(), aiIndexId));
             }
             SearchSourceBuilder source = new SearchSourceBuilder().query(query)
                 .size(size)

@@ -77,7 +77,7 @@ public class SearchSessionMemoryAction {
             PARSER.declareString(optionalConstructorArg(), SessionMemory.SESSION_ID_FIELD);
             PARSER.declareString(optionalConstructorArg(), SessionMemory.USER_ID_FIELD);
             PARSER.declareString(optionalConstructorArg(), SessionMemory.SPACE_FIELD);
-            PARSER.declareString(optionalConstructorArg(), SessionMemory.AI_INDEX_ID_FIELD);
+            PARSER.declareString(optionalConstructorArg(), SessionMemory.AI_INDEX_IDS_FIELD);
             PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
         }
 
@@ -178,7 +178,7 @@ public class SearchSessionMemoryAction {
                 builder.field(SessionMemory.SPACE_FIELD.getPreferredName(), space);
             }
             if (aiIndexId != null) {
-                builder.field(SessionMemory.AI_INDEX_ID_FIELD.getPreferredName(), aiIndexId);
+                builder.field(SessionMemory.AI_INDEX_IDS_FIELD.getPreferredName(), aiIndexId);
             }
             builder.field(SIZE_FIELD.getPreferredName(), size);
             builder.endObject();

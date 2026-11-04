@@ -53,14 +53,14 @@ public class SessionMemoryIndexService {
     }
 
     /**
-     * Appends one memory to the data stream, assigning an id when the caller did not supply one.
+     * Appends one memory to the data stream, assigning an id when the caller did not supply one. A caller-supplied id revises
+     * an existing memory: the revision is a new document carrying the same id.
      */
     public void remember(SessionMemory memory, ActionListener<SessionMemory> listener) {
         try {
             String id = Strings.isNullOrEmpty(memory.id()) ? UUIDs.randomBase64UUID() : memory.id();
             SessionMemory stored = memory.withIdAndTimestamp(id, Instant.now().truncatedTo(ChronoUnit.MILLIS));
             clientWithOrigin.prepareIndex(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME)
-                .setId(id)
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
                 .setSource(stored.toXContent(jsonBuilder(), SessionMemory.STORED_PARAMS))
@@ -138,7 +138,7 @@ public class SessionMemoryIndexService {
         addTermFilter(filters, SessionMemory.SESSION_ID_FIELD, sessionId);
         addTermFilter(filters, SessionMemory.USER_ID_FIELD, userId);
         addTermFilter(filters, SessionMemory.SPACE_FIELD, space);
-        addTermFilter(filters, SessionMemory.AI_INDEX_ID_FIELD, aiIndexId);
+        addTermFilter(filters, SessionMemory.AI_INDEX_IDS_FIELD, aiIndexId);
         return filters;
     }
 

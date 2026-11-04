@@ -34,7 +34,7 @@ public class RestGetSessionEventsAction extends BaseRestHandler {
         GetSessionEventsAction.Request getRequest = new GetSessionEventsAction.Request(
             request.param("session_id"),
             request.param("space"),
-            request.param("ai_index_id"),
+            request.param("ai_index_ids"),
             request.paramAsInt("size", GetSessionEventsAction.DEFAULT_SIZE)
         );
         return channel -> client.execute(GetSessionEventsAction.INSTANCE, getRequest, new RestToXContentListener<>(channel));

@@ -34,7 +34,7 @@ teardown:
           session_id: "session-1"
           user_id: "user-1"
           space: "default"
-          ai_index_id: ["ai-index-1"]
+          ai_index_ids: ["ai-index-1"]
           content: "The user prefers dark mode."
           attributes: { source: "test" }
 
@@ -102,7 +102,7 @@ teardown:
   - do:
       context_engine.list_session_memory:
         session_id: "session-1"
-        ai_index_id: "ai-index-1"
+        ai_index_ids: "ai-index-1"
 
   - match: { count: 1 }
   - match: { results.0.id: $text_id }
@@ -127,7 +127,7 @@ teardown:
           session_id: "session-2"
           user_id: "user-1"
           space: "default"
-          ai_index_id: ["ai-index-1"]
+          ai_index_ids: ["ai-index-1"]
           content: "The user prefers dark mode."
 
   - do:
@@ -177,7 +177,7 @@ teardown:
         body:
           query: "dark mode"
           session_id: "session-2"
-          ai_index_id: "ai-index-1"
+          ai_index_ids: "ai-index-1"
           size: 1
 
   - match: { count: 1 }
@@ -200,7 +200,7 @@ teardown:
           session_id: "session-3"
           user_id: "user-1"
           space: "default"
-          ai_index_id: ["ai-index-1"]
+          ai_index_ids: ["ai-index-1"]
           content: "The user prefers dark mode."
 
   - do:
@@ -224,7 +224,7 @@ teardown:
       context_engine.list_session_memory:
         user_id: "user-1"
         space: "default"
-        ai_index_id: "ai-index-1"
+        ai_index_ids: "ai-index-1"
 
   - match: { count: 1 }
   - match: { results.0.id: "list-older" }

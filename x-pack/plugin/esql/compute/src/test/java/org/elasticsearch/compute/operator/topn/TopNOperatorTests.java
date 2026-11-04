@@ -279,7 +279,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 IntStream.of(groupKeys).boxed().toList(),
                 maxPageSize,
                 jumboPageBytes,
-                GroupedTopNOperator.OutputOrdering.SORTED
+                GroupedTopNOperator.OutputOrdering.SORTED,
+                false
             );
         }
         return new TopNOperator.TopNOperatorFactory(

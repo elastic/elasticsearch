@@ -58,6 +58,24 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
+    /**
+     * Tied rows count towards the queue's size and memory, come back from {@link GroupedQueue#popAll}, and fall out
+     * (released) once a better row raises the group's worst rank.
+     */
+    public void testTies() {
+        try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, 1, true)) {
+            addRowWithTies(queue, 0, 30);
+            long oneRow = queue.ramBytesUsed();
+            addRowWithTies(queue, 0, 30);
+            addRowWithTies(queue, 1, 20);
+            addRowWithTies(queue, 1, 20);
+            assertThat(queue.ramBytesUsed(), greaterThan(oneRow));
+            addRowWithTies(queue, 0, 10);
+            assertQueueContents(queue, List.of(10, 20, 20));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     public void testPopAllSortedBySortKey() {
         try (GroupedQueue queue = new GroupedQueue(breaker, bigArrays, 5)) {
             addRows(queue, 0, 30, 10, 50);
@@ -123,6 +141,28 @@ public class GroupedQueueTests extends ESTestCase {
     private void addRow(GroupedQueue queue, int groupKey, int value) {
         TopNRow row = createRow(breaker, value);
         Releasables.close(queue.getOrCreateQueue(groupKey).addRow(row));
+    }
+
+    /**
+     * Inserts like {@link GroupedTopNOperator} does with ties on.
+     */
+    private void addRowWithTies(GroupedQueue queue, int groupKey, int value) {
+        TopNRow row = createRow(breaker, value);
+        TopNQueue groupQueue = queue.getOrCreateQueue(groupKey);
+        if (groupQueue.size() < groupQueue.topCount) {
+            groupQueue.add(row);
+            return;
+        }
+        int rank = groupQueue.top().compareTo(row);
+        if (rank < 0) {
+            TopNRow evicted = groupQueue.top();
+            groupQueue.updateTop(row);
+            Releasables.close(queue.evict(groupKey, evicted));
+        } else if (rank == 0) {
+            queue.addTie(groupKey, row);
+        } else {
+            row.close();
+        }
     }
 
     private static final List<TopNOperator.SortOrder> SORT_ORDERS = List.of(new TopNOperator.SortOrder(1, true, false));

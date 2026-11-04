@@ -377,7 +377,9 @@ public class ExternalDistributionTests extends ESTestCase {
     public void testNeedsGatherBoundaryIncludesTopNByAndLimitBy() {
         ExternalSourceExec source = createExternalSourceExec();
         Literal limitExpr = new Literal(SRC, 10, DataType.INTEGER);
-        assertTrue(ExternalDistributionStrategy.needsGatherBoundary(new TopNByExec(SRC, source, List.of(), limitExpr, List.of(), null)));
+        assertTrue(
+            ExternalDistributionStrategy.needsGatherBoundary(new TopNByExec(SRC, source, List.of(), limitExpr, List.of(), false, null))
+        );
         assertTrue(ExternalDistributionStrategy.needsGatherBoundary(new LimitByExec(SRC, source, limitExpr, List.of(), null)));
 
         ExternalRelation external = createExternalRelation();

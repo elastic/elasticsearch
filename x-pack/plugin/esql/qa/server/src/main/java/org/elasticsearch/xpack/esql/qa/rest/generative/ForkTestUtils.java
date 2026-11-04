@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_QUOTED_PATTERNS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_ROW;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_STATS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES;
@@ -59,6 +60,7 @@ public class ForkTestUtils {
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_STATS.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_INLINE_STATS.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_FORK.capabilityName())
+                || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_ROW.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_JOIN_AND_ENRICH.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_SUBQUERIES.capabilityName())
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_WHERE_IN_SUBQUERY.capabilityName())

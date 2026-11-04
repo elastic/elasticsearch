@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ComputedMoveReason;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -25,13 +26,26 @@ import java.util.Objects;
  *                           which runs async to reroute, uses the latest request's data to compute the desired balance.
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
  * @param weightsPerNode The node weights calculated based on {@link WeightFunction#calculateNodeWeight}
+ * @param computedMoveReasons why the computation decided that certain shard copies should leave their current nodes, keyed by the copy's
+ *                            shard id and current node. Only covers moves triggered by a non-YES {@code canRemain} decision, and is not
+ *                            considered by {@link #hasChanges}.
  */
 public record DesiredBalance(
     long lastConvergedIndex,
     Map<ShardId, ShardAssignment> assignments,
     Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
-    ComputationFinishReason finishReason
+    ComputationFinishReason finishReason,
+    Map<ComputedMoveReason.Key, ComputedMoveReason> computedMoveReasons
 ) {
+
+    public DesiredBalance(
+        long lastConvergedIndex,
+        Map<ShardId, ShardAssignment> assignments,
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightsPerNode,
+        ComputationFinishReason finishReason
+    ) {
+        this(lastConvergedIndex, assignments, weightsPerNode, finishReason, Map.of());
+    }
 
     enum ComputationFinishReason {
         /** Computation ran to completion */

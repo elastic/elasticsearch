@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.MoveReason;
+import org.elasticsearch.cluster.routing.MoveType;
 import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -272,7 +274,7 @@ public class BalancedShardsAllocatorInvalidWeightsTests extends ESTestCase {
                     shardRouting,
                     targetNode.getId(),
                     0L,
-                    "test",
+                    MoveReason.of(MoveType.CANNOT_REMAIN),
                     RoutingChangesObserver.NOOP,
                     RecoveryPriority.RELOCATION_CAN_REMAIN_NO
                 );

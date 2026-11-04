@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164342
+summary: Count queries by leading command
+type: enhancement

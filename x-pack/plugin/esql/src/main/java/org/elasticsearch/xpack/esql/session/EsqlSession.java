@@ -153,6 +153,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
+import org.elasticsearch.xpack.esql.telemetry.LeadingCommand;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.IndexViewOrigins;
@@ -466,6 +467,7 @@ public class EsqlSession {
             inferenceService.inferenceSettings(),
             flags
         );
+        planTelemetry.leadingCommand(LeadingCommand.of(statement.plan()));
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
         // before view and IN subquery resolution and pre-analysis, which would otherwise silently

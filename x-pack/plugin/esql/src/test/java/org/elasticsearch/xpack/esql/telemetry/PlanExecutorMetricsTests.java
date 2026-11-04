@@ -36,9 +36,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.iplocation.api.IpLocationService;
@@ -46,12 +48,17 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.ProjectRoutingRequestInfo;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -60,6 +67,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.action.ExternalPlanningReservation;
+import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
@@ -85,6 +93,8 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Feature;
+import org.elasticsearch.xpack.esql.telemetry.KibanaExecutionContextClassifier.Interaction;
 import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.mockito.stubbing.Answer;
@@ -104,19 +114,31 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLogTests.mockLogFieldProvider;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 public class PlanExecutorMetricsTests extends ESTestCase {
 
     private static final EncryptionService ENCRYPTION_SERVICE = mock(EncryptionService.class);
+
+    private static final String DISCOVER_OPAQUE_ID = "6b6a3bb3;kibana:application:discover:new";
+    private static final String ALERTING_V2_OPAQUE_ID =
+        "unknownId;kibana:task%20manager:run%20alerting_v2%3Adispatcher:alerting_v2%3Adispatcher%3A1.0.0";
 
     private static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = createTransportActionServices(
         new UsageService(),
@@ -132,9 +154,27 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         CrossProjectModeDecider cpsDecider,
         BlockFactoryProvider blockFactoryProvider
     ) {
+        return createTransportActionServices(usageService, cpsDecider, blockFactoryProvider, null);
+    }
+
+    private static TransportActionServices createTransportActionServices(ThreadContext threadContext) {
+        return createTransportActionServices(
+            new UsageService(),
+            CrossProjectModeDecider.NOOP,
+            new BlockFactoryProvider(PlannerUtils.NON_BREAKING_BLOCK_FACTORY),
+            threadContext
+        );
+    }
+
+    private static TransportActionServices createTransportActionServices(
+        UsageService usageService,
+        CrossProjectModeDecider cpsDecider,
+        BlockFactoryProvider blockFactoryProvider,
+        @Nullable ThreadContext threadContext
+    ) {
         ClusterService clusterService = createMockClusterService();
         return new TransportActionServices(
-            createMockTransportService(),
+            createMockTransportService(threadContext),
             mock(SearchService.class),
             null,
             clusterService,
@@ -167,15 +207,16 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         return service;
     }
 
-    private static TransportService createMockTransportService() {
+    private static TransportService createMockTransportService(@Nullable ThreadContext threadContext) {
         var service = mock(TransportService.class);
-        doReturn(createMockThreadPool()).when(service).getThreadPool();
+        doReturn(createMockThreadPool(threadContext)).when(service).getThreadPool();
         return service;
     }
 
-    private static ThreadPool createMockThreadPool() {
+    private static ThreadPool createMockThreadPool(@Nullable ThreadContext threadContext) {
         var threadPool = mock(ThreadPool.class);
         doReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE).when(threadPool).executor(anyString());
+        doReturn(threadContext).when(threadPool).getThreadContext();
         return threadPool;
     }
 
@@ -644,6 +685,466 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }
     }
 
+    public void testClientFromProductOrigin() throws Exception {
+        assertClientCounted(null, QueryMetric.REST);
+        assertClientCounted("kibana", QueryMetric.KIBANA);
+        assertClientCounted("fleet", QueryMetric.FLEET);
+        assertClientCounted("logstash-output-elasticsearch", QueryMetric.LOGSTASH);
+        assertClientCounted("my-app", QueryMetric.OTHER);
+    }
+
+    private void assertClientCounted(@Nullable String origin, QueryMetric expectedClient) throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            ThreadContext threadContext = threadContextWithOrigin(origin);
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContext),
+                queryRequest("FROM test | KEEP foo"),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            for (QueryMetric client : QueryMetric.values()) {
+                assertThat(stats.get("queries." + client + ".total"), equalTo(client == expectedClient ? 1L : 0L));
+                assertThat(stats.get("queries." + client + ".failed"), equalTo(0L));
+            }
+            assertThat(stats.get("queries._all.total"), equalTo(1L));
+        }
+    }
+
+    public void testSuccessCountsEntryPointAndLeadingCommand() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            QueryEntryPoint entryPoint = randomFrom(QueryEntryPoint.values());
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | KEEP foo").entryPoint(entryPoint),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("entry_points." + entryPoint + ".total"), equalTo(1L));
+            assertThat(stats.get("entry_points." + entryPoint + ".failed"), equalTo(0L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.failed"), equalTo(0L));
+        }
+    }
+
+    public void testFailureCountsClientEntryPointAndLeadingCommand() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin("kibana")),
+                queryRequest("FROM test | STATS m = MAX(xyz)").entryPoint(QueryEntryPoint.QUERY_ASYNC),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(VerificationException.class)))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("queries.kibana.total"), equalTo(1L));
+            assertThat(stats.get("queries.kibana.failed"), equalTo(1L));
+            assertThat(stats.get("queries.rest.total"), equalTo(0L));
+            assertThat(stats.get("entry_points.query_async.total"), equalTo(1L));
+            assertThat(stats.get("entry_points.query_async.failed"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.failed"), equalTo(1L));
+        }
+    }
+
+    public void testQueryWithoutProductOriginCountsDirectClient() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            DirectClient directClient = randomFrom(DirectClient.values());
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY).directClient(directClient),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("direct_clients." + directClient + ".total"), equalTo(1L));
+            assertThat(stats.get("direct_clients." + directClient + ".failed"), equalTo(0L));
+            assertThat(directClientTotal(stats), equalTo(stats.get("queries.rest.total")));
+        }
+    }
+
+    public void testFailedQueryWithoutProductOriginCountsDirectClient() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | STATS m = MAX(xyz)").entryPoint(QueryEntryPoint.QUERY).directClient(DirectClient.PYTHON),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(VerificationException.class)))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("direct_clients.python.total"), equalTo(1L));
+            assertThat(stats.get("direct_clients.python.failed"), equalTo(1L));
+        }
+    }
+
+    public void testQueryWithProductOriginIsNotCountedUnderDirectClients() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(
+                mockIndexResolver(),
+                dataSourceModule,
+                CrossProjectModeDecider.NOOP,
+                meterRegistry
+            );
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(randomFrom("kibana", "logstash-output-elasticsearch", "my-app"))),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY).directClient(randomFrom(DirectClient.values())),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("queries._all.total"), equalTo(1L));
+            assertThat(directClientTotal(stats), equalTo(0L));
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.getFirst().attributes(), not(hasKey(PlanTelemetryManager.DIRECT_CLIENT)));
+        }
+    }
+
+    public void testKibanaQueryCountsItsFeatureAndInteraction() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(
+                mockIndexResolver(),
+                dataSourceModule,
+                CrossProjectModeDecider.NOOP,
+                meterRegistry
+            );
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin("kibana", DISCOVER_OPAQUE_ID)),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY_ASYNC),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertKibanaCounted(stats, Feature.DISCOVER, 1, 0);
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.getFirst().attributes(), hasEntry(PlanTelemetryManager.KIBANA_FEATURE, "discover"));
+            assertThat(measurements.getFirst().attributes(), hasEntry(PlanTelemetryManager.KIBANA_INTERACTION, "person"));
+        }
+    }
+
+    public void testFailedKibanaQueryCountsItsFeatureAsFailed() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin("kibana", ALERTING_V2_OPAQUE_ID)),
+                queryRequest("FROM test | STATS m = MAX(xyz)").entryPoint(QueryEntryPoint.QUERY),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(VerificationException.class)))
+            );
+            assertKibanaCounted(planExecutor.metrics().stats(), Feature.ALERTING_V2, 1, 1);
+        }
+    }
+
+    public void testNonKibanaQueryIsNotCountedUnderKibanaFeatures() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(
+                mockIndexResolver(),
+                dataSourceModule,
+                CrossProjectModeDecider.NOOP,
+                meterRegistry
+            );
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(
+                    threadContextWithOrigin(randomFrom(Arrays.asList(null, "fleet", "my-app")), DISCOVER_OPAQUE_ID)
+                ),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("queries._all.total"), equalTo(1L));
+            assertThat(kibanaFeatureTotal(stats), equalTo(0L));
+            for (Interaction interaction : Interaction.values()) {
+                assertThat(stats.get("kibana_interactions." + interaction + ".total"), equalTo(0L));
+            }
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.getFirst().attributes(), not(hasKey(PlanTelemetryManager.KIBANA_FEATURE)));
+            assertThat(measurements.getFirst().attributes(), not(hasKey(PlanTelemetryManager.KIBANA_INTERACTION)));
+        }
+    }
+
+    public void testKibanaFeaturesSumToKibanaQueries() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            int queries = between(2, 6);
+            for (int i = 0; i < queries; i++) {
+                var executionInfo = createEsqlExecutionInfo(true);
+                executeEsql(
+                    planExecutor,
+                    createTransportActionServices(
+                        threadContextWithOrigin("kibana", randomFrom(DISCOVER_OPAQUE_ID, ALERTING_V2_OPAQUE_ID, null))
+                    ),
+                    queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
+                    executionInfo,
+                    planRunnerFor(executionInfo),
+                    ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+                );
+            }
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("queries.kibana.total"), equalTo((long) queries));
+            assertThat(kibanaFeatureTotal(stats), equalTo((long) queries));
+            long interactionTotal = 0;
+            for (Interaction interaction : Interaction.values()) {
+                interactionTotal += stats.get("kibana_interactions." + interaction + ".total");
+            }
+            assertThat(interactionTotal, equalTo((long) queries));
+        }
+    }
+
+    public void testParseErrorCountsAsUnknownLeadingCommand() throws Exception {
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(mockIndexResolver(), dataSourceModule);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | WHERE").entryPoint(QueryEntryPoint.QUERY),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> assertThat(e, instanceOf(ParsingException.class)))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("entry_points.query.failed"), equalTo(1L));
+            assertThat(stats.get("leading_commands.unknown.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.unknown.failed"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(0L));
+        }
+    }
+
+    public void testBothFeedsCarryTheSameLabels() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(
+                mockIndexResolver(),
+                dataSourceModule,
+                CrossProjectModeDecider.NOOP,
+                meterRegistry
+            );
+            var successInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin("kibana")),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
+                successInfo,
+                planRunnerFor(successInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                queryRequest("FROM test | WHERE").entryPoint(QueryEntryPoint.QUERY_ASYNC).directClient(DirectClient.CURL),
+                createEsqlExecutionInfo(true),
+                (role, p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen"),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), e -> {})
+            );
+
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS);
+            assertThat(
+                measurements.stream().map(Measurement::attributes).toList(),
+                containsInAnyOrder(
+                    Map.of(
+                        PlanTelemetryManager.CLIENT,
+                        "kibana",
+                        PlanTelemetryManager.ENTRY_POINT,
+                        "query",
+                        PlanTelemetryManager.KIBANA_FEATURE,
+                        "other_kibana",
+                        PlanTelemetryManager.KIBANA_INTERACTION,
+                        "unknown",
+                        PlanTelemetryManager.LEADING_COMMAND,
+                        "from",
+                        PlanTelemetryManager.QUERY_SUCCESS,
+                        true
+                    ),
+                    Map.of(
+                        PlanTelemetryManager.CLIENT,
+                        "rest",
+                        PlanTelemetryManager.ENTRY_POINT,
+                        "query_async",
+                        PlanTelemetryManager.DIRECT_CLIENT,
+                        "curl",
+                        PlanTelemetryManager.LEADING_COMMAND,
+                        "unknown",
+                        PlanTelemetryManager.QUERY_SUCCESS,
+                        false
+                    )
+                )
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("queries.kibana.total"), equalTo(1L));
+            assertThat(stats.get("queries.rest.failed"), equalTo(1L));
+            assertThat(stats.get("entry_points.query.total"), equalTo(1L));
+            assertThat(stats.get("entry_points.query_async.failed"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.unknown.failed"), equalTo(1L));
+            assertThat(stats.get("direct_clients.curl.failed"), equalTo(1L));
+            assertThat(directClientTotal(stats), equalTo(1L));
+        }
+    }
+
+    /**
+     * {@link ActionListener#wrap} hands an exception thrown while handling the success to the failure handler, so a query whose
+     * success bookkeeping throws reaches both handlers. The {@link UsageService} is a mock only because it is the simplest step of
+     * that bookkeeping to make throw.
+     */
+    public void testQueryReachingBothHandlersIsCountedOnce() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        UsageService usageService = mock(UsageService.class);
+        doThrow(new IllegalStateException("usage recording failed")).when(usageService).getProjectRoutingUsageHolder();
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(
+                mockIndexResolver(),
+                dataSourceModule,
+                CrossProjectModeDecider.NOOP,
+                meterRegistry
+            );
+            var executionInfo = createEsqlExecutionInfo(true);
+            AtomicReference<Exception> failure = new AtomicReference<>();
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(usageService, CrossProjectModeDecider.NOOP),
+                queryRequest("FROM test | KEEP foo").entryPoint(QueryEntryPoint.QUERY),
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> fail("this shouldn't happen"), failure::set)
+            );
+            assertThat(failure.get(), instanceOf(IllegalStateException.class));
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("leading_commands.from.total"), equalTo(1L));
+            assertThat(stats.get("leading_commands.from.failed"), equalTo(1L));
+            assertThat(stats.get("entry_points.query.total"), equalTo(1L));
+            assertThat(stats.get("entry_points.query.failed"), equalTo(1L));
+            assertThat(stats.get("queries.rest.total"), equalTo(1L));
+            assertThat(stats.get("queries.rest.failed"), equalTo(1L));
+            assertThat(stats.get("direct_clients.other.total"), equalTo(1L));
+            assertThat(stats.get("direct_clients.other.failed"), equalTo(1L));
+            assertThat(
+                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
+                hasSize(1)
+            );
+        }
+    }
+
+    public void testAnalyzeOnlyIsNotCounted() throws Exception {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        try (DataSourceModule dataSourceModule = makeDataSourceModule()) {
+            PlanExecutor planExecutor = buildPlanExecutor(
+                mockIndexResolver(),
+                dataSourceModule,
+                CrossProjectModeDecider.NOOP,
+                meterRegistry
+            );
+            var request = PreparedEsqlQueryRequest.analyzeOnly(TEST_PARSER.createStatement("FROM test | KEEP foo"), "analyze only");
+            request.entryPoint(QueryEntryPoint.QUERY).directClient(DirectClient.CURL);
+            request.allowPartialResults(false);
+            var executionInfo = createEsqlExecutionInfo(true);
+            executeEsql(
+                planExecutor,
+                createTransportActionServices(threadContextWithOrigin(null)),
+                request,
+                executionInfo,
+                planRunnerFor(executionInfo),
+                ActionListener.wrap(r -> {}, e -> fail(e, "unexpected failure"))
+            );
+            Counters stats = planExecutor.metrics().stats();
+            assertThat(stats.get("queries._all.total"), equalTo(0L));
+            assertThat(stats.get("entry_points.query.total"), equalTo(0L));
+            assertThat(stats.get("leading_commands.from.total"), equalTo(0L));
+            assertThat(directClientTotal(stats), equalTo(0L));
+            assertThat(
+                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, PlanTelemetryManager.QUERY_METRICS),
+                is(empty())
+            );
+        }
+    }
+
+    private static void assertKibanaCounted(Counters stats, Feature expected, long total, long failed) {
+        for (Feature feature : Feature.values()) {
+            assertThat(stats.get("kibana_features." + feature + ".total"), equalTo(feature == expected ? total : 0L));
+            assertThat(stats.get("kibana_features." + feature + ".failed"), equalTo(feature == expected ? failed : 0L));
+        }
+        for (Interaction interaction : Interaction.values()) {
+            boolean own = interaction == expected.interaction();
+            assertThat(stats.get("kibana_interactions." + interaction + ".total"), equalTo(own ? total : 0L));
+            assertThat(stats.get("kibana_interactions." + interaction + ".failed"), equalTo(own ? failed : 0L));
+        }
+    }
+
+    private static long kibanaFeatureTotal(Counters stats) {
+        long total = 0;
+        for (Feature feature : Feature.values()) {
+            total += stats.get("kibana_features." + feature + ".total");
+        }
+        return total;
+    }
+
+    private static long directClientTotal(Counters stats) {
+        long total = 0;
+        for (DirectClient directClient : DirectClient.values()) {
+            total += stats.get("direct_clients." + directClient + ".total");
+        }
+        return total;
+    }
+
+    private static EsqlQueryRequest queryRequest(String query) {
+        var request = new EsqlQueryRequest();
+        request.query(query);
+        request.allowPartialResults(false);
+        return request;
+    }
+
+    private static ThreadContext threadContextWithOrigin(@Nullable String origin) {
+        return threadContextWithOrigin(origin, null);
+    }
+
+    private static ThreadContext threadContextWithOrigin(@Nullable String origin, @Nullable String opaqueId) {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        if (origin != null) {
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, origin);
+        }
+        if (opaqueId != null) {
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId);
+        }
+        return threadContext;
+    }
+
     private IndexResolver mockIndexResolver() {
         return new IndexResolver(mockClient(), () -> true);
     }
@@ -868,9 +1369,18 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         DataSourceModule dataSourceModule,
         CrossProjectModeDecider cpsDecider
     ) {
+        return buildPlanExecutor(indexResolver, dataSourceModule, cpsDecider, MeterRegistry.NOOP);
+    }
+
+    private PlanExecutor buildPlanExecutor(
+        IndexResolver indexResolver,
+        DataSourceModule dataSourceModule,
+        CrossProjectModeDecider cpsDecider,
+        MeterRegistry meterRegistry
+    ) {
         return new PlanExecutor(
             indexResolver,
-            MeterRegistry.NOOP,
+            meterRegistry,
             new XPackLicenseState(() -> 0L),
             mockQueryLog(),
             List.of(),

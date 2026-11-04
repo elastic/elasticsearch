@@ -327,6 +327,35 @@ public class EsqlStreamQueryIT extends ESRestTestCase {
         assertThat("streaming root_cause reason must match sync", streamRoot.get("reason"), equalTo(syncRoot.get("reason")));
     }
 
+    public void testStreamingQueryIsCountedUnderItsEntryPoint() throws IOException {
+        Map<String, Object> before = entryPoints();
+        Response response = EsqlStreamTestUtils.rawStream(
+            client(),
+            "{\"query\": \"FROM stream-test | LIMIT 1\"}",
+            "streaming=true",
+            "format=ndjson"
+        );
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        Map<String, Object> after = entryPoints();
+        assertThat(entryPointTotal(after, "query_stream") - entryPointTotal(before, "query_stream"), equalTo(1));
+        assertThat(entryPointTotal(after, "query") - entryPointTotal(before, "query"), equalTo(0));
+    }
+
+    private static Map<String, Object> entryPoints() throws IOException {
+        Map<String, Object> usage = entityAsMap(client().performRequest(new Request("GET", "/_xpack/usage")));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> esql = (Map<String, Object>) usage.get("esql");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> entryPoints = (Map<String, Object>) esql.get("entry_points");
+        return entryPoints;
+    }
+
+    private static int entryPointTotal(Map<String, Object> entryPoints, String entryPoint) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> counters = (Map<String, Object>) entryPoints.get(entryPoint);
+        return ((Number) counters.get("total")).intValue();
+    }
+
     public void testOmittedBatchSizeDefaultsToHundred() throws IOException {
         Response response = EsqlStreamTestUtils.rawStream(
             client(),

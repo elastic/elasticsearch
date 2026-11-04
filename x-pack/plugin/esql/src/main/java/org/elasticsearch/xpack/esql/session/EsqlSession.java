@@ -630,7 +630,7 @@ public class EsqlSession {
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
             resolved,
             viewResolution.viewQueries()
-        );
+        ).withFlattenedKeys(EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG.isEnabled() && indexResolver.flattenedDataTypeEnabled());
 
         // Pre-analysis pass over the uncompacted plan from ViewResolver: reshape user-written
         // Subquery/UnionAll structures into BranchPlan. ViewShadowRelation siblings and nested
@@ -664,6 +664,10 @@ public class EsqlSession {
                     assert planningCpu.isMeteringCurrentThread() : "analyzed-plan callback reached on an unmetered thread";
 
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
+                    // Data nodes read the keys of flattened fields only if every node does
+                    Configuration executionConfiguration = finalConfiguration.withFlattenedKeys(
+                        finalConfiguration.flattenedKeys(minimumVersion)
+                    );
 
                     if (request.analyzeOnly()) {
                         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
@@ -762,7 +766,7 @@ public class EsqlSession {
                                 executionInfo,
                                 planRunner,
                                 p,
-                                finalConfiguration,
+                                executionConfiguration,
                                 foldContext,
                                 new Holder<ApproximationDriver>(),
                                 physicalPlanOptimizer,
@@ -1909,11 +1913,12 @@ public class EsqlSession {
         @Nullable QueryBuilder requestFilter,
         Configuration configuration
     ) {
-        // Parent prefixes let the verifier see flattened parents of a loaded subfield. A view that SETs a loading mode
-        // needs them even when the caller does not.
-        boolean loadsUnmappedFields = unmappedResolution.loadsUnmappedFields()
+        // Parent prefixes let the verifier see flattened parents of a loaded subfield, and resolution the flattened fields that
+        // hold a name as a key. A view that SETs a loading mode needs them even when the caller does not.
+        boolean includePrefixFields = configuration.flattenedKeys()
+            || unmappedResolution.loadsUnmappedFields()
             || viewSettings.values().stream().anyMatch(settings -> settings.unmappedFields().loadsUnmappedFields());
-        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false, loadsUnmappedFields);
+        PreAnalysisResult result = FieldNameUtils.resolveFieldNames(parsed, preAnalysis.enriches().isEmpty() == false, includePrefixFields);
         boolean filterAppliesToViewOutput = ViewRequestFilterRewriter.appliesToViewOutputs(requestFilter)
             && parsed.anyMatch(p -> p instanceof BranchPlan vua && vua.viewBranchKeys().isEmpty() == false);
         if (filterAppliesToViewOutput == false || IndexResolver.ALL_FIELDS.equals(result.fieldNames())) {
@@ -1956,6 +1961,7 @@ public class EsqlSession {
                 configuration,
                 executionInfo,
                 trackedUnmappedFieldIndices,
+                configuration.flattenedKeys() ? FieldNameUtils.namedFields(parsed) : null,
                 result,
                 requestFilter,
                 viewInternalIndexPatterns(parsed),
@@ -2717,6 +2723,7 @@ public class EsqlSession {
         Configuration configuration,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        @Nullable Set<String> namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         Set<IndexPattern> viewInternalPatterns,
@@ -2751,6 +2758,7 @@ public class EsqlSession {
                     // A view body resolves under its own definition's unmapped_fields (DEFAULT without a SET), never the
                     // caller's: a view is a virtual index with no _source of its own to load from.
                     e.getKey().isInsideView() ? e.getKey().viewLoadsUnmappedFields() : trackUnmappedFieldIndices,
+                    namedFields,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
@@ -2776,6 +2784,7 @@ public class EsqlSession {
                     // A view body resolves under its own definition's unmapped_fields (DEFAULT without a SET), never the
                     // caller's: a view is a virtual index with no _source of its own to load from.
                     e.getKey().isInsideView() ? e.getKey().viewLoadsUnmappedFields() : trackUnmappedFieldIndices,
+                    namedFields,
                     r,
                     // A pattern reachable only inside a view branch must not be pruned by the request filter.
                     viewInternalPatterns.contains(e.getKey()) ? null : requestFilter,
@@ -2792,6 +2801,7 @@ public class EsqlSession {
                             preAnalysis,
                             executionInfo,
                             trackUnmappedFieldIndices,
+                            namedFields,
                             r,
                             requestFilter,
                             ll
@@ -2822,6 +2832,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        @Nullable Set<String> namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -2851,6 +2862,7 @@ public class EsqlSession {
                 preAnalysis.hasTimeSeriesAggregation(),
                 preAnalysis.needsAnalyzerGroups(),
                 trackUnmappedFieldIndices,
+                namedFields,
                 indicesExpressionGrouper,
                 planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
                     EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
@@ -2867,6 +2879,7 @@ public class EsqlSession {
                             false,
                             preAnalysis.needsAnalyzerGroups(),
                             trackUnmappedFieldIndices,
+                            namedFields,
                             indicesExpressionGrouper,
                             planningCpu.meteredCpu(retryListener)
                         );
@@ -2924,6 +2937,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        @Nullable Set<String> namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
@@ -2942,6 +2956,7 @@ public class EsqlSession {
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
+            namedFields,
             null,
             result.indexViewOrigins(),
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
@@ -2961,6 +2976,7 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
         boolean trackUnmappedFieldIndices,
+        @Nullable Set<String> namedFields,
         PreAnalysisResult result,
         QueryBuilder requestFilter,
         @Nullable Consumer<TargetProjects> routingInfoCapture,
@@ -2981,6 +2997,7 @@ public class EsqlSession {
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
             trackUnmappedFieldIndices,
+            namedFields,
             routingInfoCapture,
             result.indexViewOrigins(),
             planningCpu.meteredCpu(ActionListener.wrap(indexResolution -> {
@@ -3003,6 +3020,7 @@ public class EsqlSession {
                         false,
                         preAnalysis.needsAnalyzerGroups(),
                         trackUnmappedFieldIndices,
+                        namedFields,
                         null,
                         result.indexViewOrigins(),
                         planningCpu.meteredCpu(retryListener)

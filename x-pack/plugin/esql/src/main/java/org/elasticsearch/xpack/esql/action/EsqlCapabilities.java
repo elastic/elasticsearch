@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.HashSet;
 import java.util.Locale;
@@ -607,6 +608,12 @@ public class EsqlCapabilities {
          * in the index of the object.
          */
         OBJECTS_ARE_NOT_FIELDS,
+
+        /**
+         * A name under a {@code flattened} field is a field, the key of that name. Its type is that of the field other indices map
+         * there, or {@code keyword} if none does.
+         */
+        FLATTENED_KEYS(EsqlPlugin.FLATTENED_KEYS_FEATURE_FLAG),
 
         /**
          * Support for requesting the "_ignored" metadata field.

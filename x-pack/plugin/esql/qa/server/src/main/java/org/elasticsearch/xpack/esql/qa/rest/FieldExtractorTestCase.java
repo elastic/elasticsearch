@@ -877,6 +877,36 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     /**
+     * A key of a {@code flattened} field fills the column of the field another index maps there. Where a node does not read keys,
+     * that index reads {@code null}.
+     */
+    public void testMergeKeywordAndFlattenedKey() throws IOException {
+        createIndex("test1", index -> {
+            index.startObject("properties");
+            index.startObject("attrs").field("type", "flattened").endObject();
+            index.endObject();
+        });
+        index("test1", """
+            {"attrs": {"bar": "a"}}""");
+        createIndex("test2", index -> {
+            index.startObject("properties");
+            index.startObject("attrs.bar").field("type", "keyword").endObject();
+            index.endObject();
+        });
+        index("test2", """
+            {"attrs": {"bar": "c"}}""");
+
+        var capsName = EsqlCapabilities.Cap.FLATTENED_KEYS.name().toLowerCase(Locale.ROOT);
+        boolean keys = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        Map<String, Object> result = runEsql("FROM test* | KEEP attrs.bar | SORT attrs.bar | LIMIT 2");
+        assertResultMap(
+            result,
+            List.of(columnInfo("attrs.bar", "keyword")),
+            keys ? List.of(matchesList().item("a"), matchesList().item("c")) : List.of(matchesList().item("c"), matchesList().item(null))
+        );
+    }
+
+    /**
      * One index with an unsupported field and a supported sub-field. The supported sub-field
      * is marked as unsupported <strong>because</strong> the parent is unsupported. Mapping:
      * <pre>

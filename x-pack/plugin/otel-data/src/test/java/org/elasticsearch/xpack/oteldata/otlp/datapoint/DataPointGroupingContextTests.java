@@ -13,7 +13,6 @@ import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 
-import org.elasticsearch.cluster.routing.TsidLayout;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -71,11 +70,11 @@ public class DataPointGroupingContextTests extends ESTestCase {
         assertEquals(permutations.size(), groups.size());
         var hasher = new BufferedMurmur3Hasher(0);
         String expectedHash = groups.getFirst().getMetricNamesHash(hasher);
-        var layout = TsidLayout.forVersion(IndexVersion.current());
-        var expectedTsid = groups.getFirst().buildMetricTsid(expectedHash, layout);
+        var indexVersion = IndexVersion.current();
+        var expectedTsid = groups.getFirst().buildMetricTsid(expectedHash, indexVersion);
         for (var group : groups) {
             String hash = group.getMetricNamesHash(hasher);
-            assertEquals(expectedTsid, group.buildMetricTsid(hash, layout));
+            assertEquals(expectedTsid, group.buildMetricTsid(hash, indexVersion));
             assertEquals(expectedHash, hash);
         }
     }

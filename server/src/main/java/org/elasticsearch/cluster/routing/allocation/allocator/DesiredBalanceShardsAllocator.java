@@ -253,6 +253,22 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
                     }
                     submitReconcileTask(currentDesiredBalance);
+                } else if (currentDesiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT) {
+                    logger.debug(
+                        "Desired balance computation for [{}] yielded to newer input, cancelling recoveries that cannot remain",
+                        index
+                    );
+                    // No reconciliation is scheduled here. The newer input already reconciles eagerly against this
+                    // intermediate balance in allocate(). Without cancelling here, recoveries that cannot remain on their
+                    // current node would only be canceled once a computation converges or stops early, which may not
+                    // happen for a long time on a cluster with a steady stream of new input. Because this balance has
+                    // finish reason YIELD_TO_NEW_INPUT, the callback only cancels recoveries of shards that are not on a
+                    // desired node in this balance and whose canRemain decision on their current node is NO. Shards that
+                    // were only moved for rebalancing are left alone, since a later computation may move them back.
+                    if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
+                        final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
+                    }
                 } else {
                     logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
                 }

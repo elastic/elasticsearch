@@ -151,6 +151,100 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
         assertTrue(escalatedRequests.get(node1).cancellations().getFirst().cancelIfStarted());
     }
 
+    /// For an intermediate desired balance from a computation that yielded to newer input, only undesired recoveries
+    /// that also cannot remain on their current node are canceled.
+    public void testComputeUndesiredRecoveryCancellationsForYieldedBalance() {
+        final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 4, 1)).build();
+        final var index = indexMetadata.getIndex();
+        final var undesiredCanRemainShardId = new ShardId(index, 0);
+        final var undesiredCannotRemainShardId = new ShardId(index, 1);
+        final var desiredCannotRemainShardId = new ShardId(index, 2);
+        final var undesiredCannotRemainPrimaryShardId = new ShardId(index, 3);
+        final var undesiredCanRemainAllocationId = AllocationId.newInitializing(randomIdentifier("undesired-can-remain-"));
+        final var undesiredCannotRemainAllocationId = AllocationId.newInitializing(randomIdentifier("undesired-cannot-remain-"));
+        final var desiredCannotRemainAllocationId = AllocationId.newInitializing(randomIdentifier("desired-cannot-remain-"));
+        final var undesiredCannotRemainPrimaryAllocationId = AllocationId.newInitializing(randomIdentifier("primary-cannot-remain-"));
+
+        final var indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(newShardRouting(undesiredCanRemainShardId, "node-0", true, STARTED))
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(undesiredCanRemainShardId, "node-1", false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(undesiredCanRemainAllocationId)
+                    .build()
+            )
+            .addShard(newShardRouting(undesiredCannotRemainShardId, "node-0", true, STARTED))
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(undesiredCannotRemainShardId, "node-1", false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(undesiredCannotRemainAllocationId)
+                    .build()
+            )
+            .addShard(newShardRouting(desiredCannotRemainShardId, "node-0", true, STARTED))
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(desiredCannotRemainShardId, "node-1", false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(desiredCannotRemainAllocationId)
+                    .build()
+            )
+            .addShard(
+                TestShardRouting.shardRoutingBuilder(undesiredCannotRemainPrimaryShardId, "node-1", true, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(undesiredCannotRemainPrimaryAllocationId)
+                    .build()
+            );
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodes(3))
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable))
+            .build();
+
+        final Map<ShardId, ShardAssignment> assignments = Map.of(
+            undesiredCanRemainShardId,
+            new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0),
+            undesiredCannotRemainShardId,
+            new ShardAssignment(Set.of("node-0", "node-2"), 2, 0, 0),
+            desiredCannotRemainShardId,
+            new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0),
+            undesiredCannotRemainPrimaryShardId,
+            new ShardAssignment(Set.of("node-2"), 1, 0, 0)
+        );
+        final var routingAllocation = createRoutingAllocationFrom(
+            clusterState,
+            forbidRemainDecider(undesiredCannotRemainShardId, "node-1", false),
+            forbidRemainDecider(desiredCannotRemainShardId, "node-1", false),
+            forbidRemainDecider(undesiredCannotRemainPrimaryShardId, "node-1", true)
+        );
+        final var yieldedBalance = new DesiredBalance(1, assignments, Map.of(), DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT);
+        final var yieldedRequests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(
+            yieldedBalance,
+            routingAllocation
+        );
+
+        final var node1 = clusterState.nodes().get("node-1");
+        assertThat(yieldedRequests.keySet(), equalTo(Set.of(node1)));
+        assertThat(
+            yieldedRequests.get(node1).cancellations(),
+            containsInAnyOrder(
+                new ShardRecoveryCancellation(undesiredCannotRemainShardId, undesiredCannotRemainAllocationId.getId(), false),
+                new ShardRecoveryCancellation(undesiredCannotRemainPrimaryShardId, undesiredCannotRemainPrimaryAllocationId.getId(), false)
+            )
+        );
+
+        final var finalBalance = new DesiredBalance(
+            1,
+            assignments,
+            Map.of(),
+            randomFrom(DesiredBalance.ComputationFinishReason.CONVERGED, DesiredBalance.ComputationFinishReason.STOP_EARLY)
+        );
+        final var finalRequests = RecoveryDirectCancellationService.computeUndesiredRecoveryCancellations(finalBalance, routingAllocation);
+        assertThat(finalRequests.keySet(), equalTo(Set.of(node1)));
+        assertThat(
+            finalRequests.get(node1).cancellations(),
+            containsInAnyOrder(
+                new ShardRecoveryCancellation(undesiredCanRemainShardId, undesiredCanRemainAllocationId.getId(), false),
+                new ShardRecoveryCancellation(undesiredCannotRemainShardId, undesiredCannotRemainAllocationId.getId(), true),
+                new ShardRecoveryCancellation(undesiredCannotRemainPrimaryShardId, undesiredCannotRemainPrimaryAllocationId.getId(), false)
+            )
+        );
+    }
+
     public void testDirectCancellationCandidatesForInitializingPrimary() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         final var index = indexMetadata.getIndex();

@@ -21,19 +21,27 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.shard.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RecoveryDirectCancellationService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -70,7 +78,9 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.addAll(List.of(TestTelemetryPlugin.class, TestRecoveryBlockerPlugin.class));
+        plugins.addAll(
+            List.of(TestTelemetryPlugin.class, TestRecoveryBlockerPlugin.class, TestDesiredBalanceComputationBlockerPlugin.class)
+        );
         return plugins;
     }
 
@@ -88,6 +98,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
     @Before
     public void resetPluginGates() {
         TestRecoveryBlockerPlugin.reset();
+        TestDesiredBalanceComputationBlockerPlugin.reset();
     }
 
     @After
@@ -175,6 +186,96 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
         ensureGreen(indexName, blockingIndex);
         awaitReplicaReassigned(indexName, 0, getNodeId(desiredReplicaNode));
+    }
+
+    /// A desired balance computation that keeps yielding to newer input never converges, but its intermediate balance
+    /// should still cancel a queued recovery of a shard that cannot remain on its node. The first computation is blocked
+    /// until newer input arrives, so it yields after its first iteration, and every later computation is blocked until
+    /// the cancellation has been observed, so the cancellation can only come from the yielded balance.
+    public void testYieldedDesiredBalanceCancelsQueuedRecoveryThatCannotRemain() throws Exception {
+        final var primaryNode = internalCluster().startNode();
+        final var initialReplicaNode = internalCluster().startDataOnlyNode();
+        final var desiredReplicaNode = internalCluster().startDataOnlyNode();
+        final var indexName = randomIndexName();
+        final var blockingIndex = randomIndexName();
+
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.include._name", primaryNode).build());
+        ensureGreen(indexName);
+
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryGate);
+        // Takes the only recovery slot on initialReplicaNode
+        assertAcked(
+            prepareCreate(blockingIndex).setSettings(indexSettings(1, 0).put("index.routing.allocation.include._name", initialReplicaNode))
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+        );
+        safeAcquire(TestRecoveryBlockerPlugin.beforeRecoveryEntered);
+        TestRecoveryBlockerPlugin.beforeRecoveryEntered.release();
+
+        updateSettings(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name", primaryNode + "," + initialReplicaNode)
+        );
+        awaitRecoveryCountStats(Map.of(initialReplicaNode, stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 1));
+        waitNoPendingTasksOnAll();
+
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        // A yielded balance only cancels recoveries that have not started yet
+        final var expectedCancellation = new ShardRecoveryCancellation(
+            shardId,
+            getInitializingAllocationId(indexName, 0, getNodeId(initialReplicaNode)),
+            false
+        );
+        final var requestAndResponse = assertDirectCancellationExchange(
+            initialReplicaNode,
+            clusterService().state(),
+            List.of(expectedCancellation),
+            Set.of(new CancelRecoveriesAction.CancelledInQueue(expectedCancellation.shardId(), expectedCancellation.allocationId()))
+        );
+
+        final var desiredNodes = primaryNode + "," + desiredReplicaNode;
+        // Only block computations whose input includes the settings change below, other reroutes may happen concurrently
+        TestDesiredBalanceComputationBlockerPlugin.blockComputation = allocation -> desiredNodes.equals(
+            allocation.metadata().getProject().index(indexName).getSettings().get("index.routing.allocation.include._name")
+        );
+        try {
+            // The replica can no longer remain on initialReplicaNode. The computation for this change blocks before moving it.
+            final var excludeInitialReplicaNodeFuture = indicesAdmin().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put("index.routing.allocation.include._name", desiredNodes))
+                .execute();
+            safeAwait(TestDesiredBalanceComputationBlockerPlugin.firstComputationBlocked);
+
+            // Submit newer input while the first computation is blocked, so that it yields after its first iteration.
+            final var newRefreshInterval = TimeValue.timeValueMillis(
+                IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(
+                    clusterService().state().metadata().getProject().index(blockingIndex).getSettings()
+                ).millis() + 1
+            );
+            final var newerInputFuture = indicesAdmin().prepareUpdateSettings(blockingIndex)
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), newRefreshInterval))
+                .execute();
+            awaitClusterState(
+                state -> IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.get(state.metadata().getProject().index(blockingIndex).getSettings())
+                    .equals(newRefreshInterval)
+            );
+
+            TestDesiredBalanceComputationBlockerPlugin.releaseFirstComputation.countDown();
+            safeAwait(requestAndResponse);
+            awaitRecoveryCountStats(
+                Map.of(initialReplicaNode, stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 0)
+            );
+            // The canceled replica is reassigned by reconciling against the yielded balance, later computations are still blocked
+            TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
+            awaitReplicaReassigned(indexName, 0, getNodeId(desiredReplicaNode));
+
+            TestDesiredBalanceComputationBlockerPlugin.releaseLaterComputations.countDown();
+            assertAcked(safeGet(excludeInitialReplicaNodeFuture));
+            assertAcked(safeGet(newerInputFuture));
+        } finally {
+            TestDesiredBalanceComputationBlockerPlugin.releaseAll();
+        }
+        ensureGreen(indexName, blockingIndex);
     }
 
     public void testDesiredBalanceChangeCancelsStartedReplicaRecovery() throws Exception {
@@ -945,6 +1046,70 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             handler.messageReceived(request, channel, task);
         });
         return shardFailureReceivedLatch;
+    }
+
+    /// Blocks desired balance computations on a simulated `canRemain` or `canAllocate` decision. Moving a shard that
+    /// cannot remain always asks for `canAllocate` on candidate target nodes, so the computation blocks before its
+    /// first move completes. The first computation whose input matches [#blockComputation] is blocked until
+    /// [#releaseFirstComputation] is released, and every computation after it until [#releaseLaterComputations] is released.
+    public static class TestDesiredBalanceComputationBlockerPlugin extends Plugin implements ClusterPlugin {
+        static volatile Predicate<RoutingAllocation> blockComputation;
+        static final AtomicReference<RoutingAllocation> firstComputation = new AtomicReference<>();
+        static volatile CountDownLatch firstComputationBlocked;
+        static volatile CountDownLatch releaseFirstComputation;
+        static volatile CountDownLatch releaseLaterComputations;
+
+        static void reset() {
+            blockComputation = null;
+            firstComputation.set(null);
+            firstComputationBlocked = new CountDownLatch(1);
+            releaseFirstComputation = new CountDownLatch(1);
+            releaseLaterComputations = new CountDownLatch(1);
+        }
+
+        static void releaseAll() {
+            blockComputation = null;
+            releaseFirstComputation.countDown();
+            releaseLaterComputations.countDown();
+        }
+
+        @Override
+        public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+            return List.of(new AllocationDecider() {
+                @Override
+                public Decision canRemain(
+                    IndexMetadata indexMetadata,
+                    ShardRouting shardRouting,
+                    RoutingNode node,
+                    RoutingAllocation allocation
+                ) {
+                    maybeBlock(allocation);
+                    return Decision.YES;
+                }
+
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    maybeBlock(allocation);
+                    return Decision.YES;
+                }
+            });
+        }
+
+        private static void maybeBlock(RoutingAllocation allocation) {
+            // Desired balance computations run on a simulated allocation, reused across all their iterations
+            final var shouldBlock = blockComputation;
+            if (shouldBlock != null && allocation.isSimulating()) {
+                final var blockedComputation = firstComputation.get();
+                if (blockedComputation == null) {
+                    if (shouldBlock.test(allocation) && firstComputation.compareAndSet(null, allocation)) {
+                        firstComputationBlocked.countDown();
+                        safeAwait(releaseFirstComputation);
+                    }
+                } else if (blockedComputation != allocation) {
+                    safeAwait(releaseLaterComputations);
+                }
+            }
+        }
     }
 
     public static class TestRecoveryBlockerPlugin extends Plugin {

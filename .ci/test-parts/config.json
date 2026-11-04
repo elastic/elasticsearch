@@ -1,6 +1,7 @@
 {
   "parts": 10,
   "workers": 13,
+  "runFirstSeconds": 240,
   "antiAffinity": [
     [
       ":server:test",
@@ -40,6 +41,10 @@
       "by": "class",
       "count": 4
     },
+    ":x-pack:plugin:eql:test": {
+      "by": "class",
+      "count": 2
+    },
     ":x-pack:plugin:esql-datasource-csv:qa:csvSpecTests": {
       "by": "class",
       "count": 3
@@ -47,6 +52,10 @@
     ":x-pack:plugin:esql-datasource-s3:javaRestTest": {
       "by": "class",
       "count": 2
+    },
+    ":x-pack:plugin:esql:compute:test": {
+      "by": "class",
+      "count": 3
     },
     ":x-pack:plugin:esql:qa:security:javaRestTest": {
       "by": "class",
@@ -62,7 +71,7 @@
     },
     ":x-pack:plugin:esql:test": {
       "by": "class",
-      "count": 2
+      "count": 4
     },
     ":x-pack:plugin:ml:qa:ml-with-security:yamlRestTest": {
       "by": "yamlFile",
@@ -78,7 +87,7 @@
     },
     ":x-pack:plugin:ml:test": {
       "by": "class",
-      "count": 2
+      "count": 3
     },
     ":x-pack:plugin:security:qa:multi-cluster:javaRestTest": {
       "by": "class",
@@ -130,7 +139,7 @@
     },
     ":x-pack:plugin:yamlRestTest": {
       "by": "yamlFile",
-      "count": 4
+      "count": 7
     },
     ":x-pack:qa:core-rest-tests-with-security:yamlRestTest": {
       "by": "yamlFile",

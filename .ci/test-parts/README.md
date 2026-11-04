@@ -7,7 +7,7 @@ non-test verification). Running every part runs exactly what `check` runs.
 
 | File | Edited by | Content |
 |---|---|---|
-| `config.json` | hand | part count, effective workers per job, test tasks to split, task groups that must not share a part |
+| `config.json` | hand | part count, effective workers per job, test tasks to split, task groups that must not share a part, and `runFirstSeconds`: test tasks at least this long in their part start before the part's other work |
 | `durations.json` | export script | median executed duration (s) of each test task, and of each project's non-test tasks (without compilation and jars, which every part running its tests pays), in PR `part-*` jobs |
 | `assignment.json` | `./gradlew generateCiPartAssignment` | the generated assignment; do not edit |
 
@@ -29,7 +29,10 @@ version from source). Regenerate with `./gradlew generateBcUpgradeTestPartAssign
 ## Refreshing
 
 1. Export durations from the CI stats cluster (median executed duration of each Gradle task in
-   `elasticsearch-pull-request` `part-*` jobs over the last 7 days) into `durations.json`.
+   `elasticsearch-pull-request` `part-*` jobs over the last 7 days) into `durations.json`. Durations
+   from a cold build (one that changes build logic, so no test or precommit task comes from the cache)
+   balance the parts for the slowest case; there, precommit tasks take much longer than usual because
+   they compete with the tests for CPU.
 2. Run `./gradlew generateCiPartAssignment` (or `generateBcUpgradeTestPartAssignment`); it prints the
    planner's per-part estimate.
 3. Review the diff of `assignment.json`.

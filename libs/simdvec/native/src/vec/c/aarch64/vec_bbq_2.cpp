@@ -399,15 +399,83 @@ EXPORT void vec_dotd2q2_bulk_sparse_2(
 // No tier-2 d2q4 kernels: the d2q4 functions resolve to the tier-1 (NEON) kernels on SVE CPUs as well,
 // which are faster than SVE versions on 128-bit SVE.
 
-EXPORT int64_t vec_dotd4q4_2(const int8_t* a, const int8_t* query, const int32_t length) {
-    const int32_t bit_length = length / 4;
-    int64_t p0 = dotd1q4_inner(a + 0 * bit_length, query, bit_length);
-    int64_t p1 = dotd1q4_inner(a + 1 * bit_length, query, bit_length);
-    int64_t p2 = dotd1q4_inner(a + 2 * bit_length, query, bit_length);
-    int64_t p3 = dotd1q4_inner(a + 3 * bit_length, query, bit_length);
-    return p0 + (p1 << 1) + (p2 << 2) + (p3 << 3);
+// One step of one vector of the d4q4 kernels: each of the four doc planes against the four query planes,
+// each weighted by its bit value, into the doc plane's accumulator.
+static inline void dot_d4q4_step_sv(
+    svuint32_t& acc0,
+    svuint32_t& acc1,
+    svuint32_t& acc2,
+    svuint32_t& acc3,
+    const svbool_t pg,
+    const int8_t* a,
+    const int32_t bit_length,
+    const svuint8_t q0,
+    const svuint8_t q1,
+    const svuint8_t q2,
+    const svuint8_t q3,
+    const svuint8_t w0,
+    const svuint8_t w1,
+    const svuint8_t w2,
+    const svuint8_t w3
+) {
+    const auto plane = [&](const svuint32_t acc, const int8_t* p) {
+        const svuint8_t doc_plane = svld1_u8(pg, (const uint8_t*)p);
+        svuint32_t r = dot_bit_weighted_sv(acc, doc_plane, q0, w0);
+        r = dot_bit_weighted_sv(r, doc_plane, q1, w1);
+        r = dot_bit_weighted_sv(r, doc_plane, q2, w2);
+        return dot_bit_weighted_sv(r, doc_plane, q3, w3);
+    };
+    acc0 = plane(acc0, a);
+    acc1 = plane(acc1, a + bit_length);
+    acc2 = plane(acc2, a + 2 * bit_length);
+    acc3 = plane(acc3, a + 3 * bit_length);
 }
 
+// Sum of a vector's four doc plane accumulators, each weighted by its doc bit value.
+static inline int64_t sum_d4q4_sv(const svuint32_t acc0, const svuint32_t acc1, const svuint32_t acc2, const svuint32_t acc3) {
+    const svbool_t all = svptrue_b32();
+    return (int64_t)svaddv_u32(all, acc0) + ((int64_t)svaddv_u32(all, acc1) << 1) + ((int64_t)svaddv_u32(all, acc2) << 2)
+        + ((int64_t)svaddv_u32(all, acc3) << 3);
+}
+
+// 4-bit doc x 4-bit query in one pass. The doc is four contiguous bit planes of length/4 bytes, the
+// query four planes of length/4 bytes. Each doc plane has its own accumulator, into which UDOT applies the
+// query plane's bit value as a weight; the doc plane's bit value is applied after the reduction.
+// Accumulators are separate variables, as SVE types cannot be array elements.
+static inline int64_t dotd4q4_inner(const int8_t* a, const int8_t* query, const int32_t length) {
+    const int32_t bit_length = length / 4;
+    const svuint8_t w0 = svdup_n_u8(1);
+    const svuint8_t w1 = svdup_n_u8(2);
+    const svuint8_t w2 = svdup_n_u8(4);
+    const svuint8_t w3 = svdup_n_u8(8);
+
+    int r = 0;
+    svuint32_t acc0 = svdup_n_u32(0);
+    svuint32_t acc1 = svdup_n_u32(0);
+    svuint32_t acc2 = svdup_n_u32(0);
+    svuint32_t acc3 = svdup_n_u32(0);
+    for (svbool_t pg = svwhilelt_b8(r, bit_length); svptest_any(svptrue_b8(), pg); pg = svwhilelt_b8(r, bit_length)) {
+        const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)(query + r));
+        const svuint8_t q1 = svld1_u8(pg, (const uint8_t*)(query + r + bit_length));
+        const svuint8_t q2 = svld1_u8(pg, (const uint8_t*)(query + r + 2 * bit_length));
+        const svuint8_t q3 = svld1_u8(pg, (const uint8_t*)(query + r + 3 * bit_length));
+        dot_d4q4_step_sv(acc0, acc1, acc2, acc3, pg, a + r, bit_length, q0, q1, q2, q3, w0, w1, w2, w3);
+        r += svcntb();
+    }
+    return sum_d4q4_sv(acc0, acc1, acc2, acc3);
+}
+
+EXPORT int64_t vec_dotd4q4_2(const int8_t* a, const int8_t* query, const int32_t length) {
+    return dotd4q4_inner(a, query, length);
+}
+
+// Bulk scoring two vectors at a time in lockstep, one accumulator per doc bit plane per vector, so the two
+// vectors' UDOT chains run side by side; an odd last vector uses the single kernel. The pair loop uses
+// z8-z15, whose low 64 bits are the scalar FP registers d8-d15 that the AArch64 calling convention requires
+// a function to preserve, so whichever function contains the loop saves and restores d8-d15. It is written
+// here, in the bulk function, rather than in a separate pair function that the compiler would keep out of
+// line, saving d8-d15 on every pair: every call with two or more vectors runs the loop anyway, so this way
+// the save happens once per call.
 template <
     typename TData,
     const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
@@ -422,16 +490,38 @@ static inline void dotd4q4_inner_bulk(
     f32_t* results
 ) {
     const int32_t bit_length = length / 4;
+    const svuint8_t w0 = svdup_n_u8(1);
+    const svuint8_t w1 = svdup_n_u8(2);
+    const svuint8_t w2 = svdup_n_u8(4);
+    const svuint8_t w3 = svdup_n_u8(8);
 
-    for (int c = 0; c < count; c++) {
+    int c = 0;
+    for (; c + 1 < count; c += 2) {
         const int8_t* a0 = mapper(a, c, offsets, pitch);
-
-        int64_t p0 = dotd1q4_inner(a0 + 0 * bit_length, query, bit_length);
-        int64_t p1 = dotd1q4_inner(a0 + 1 * bit_length, query, bit_length);
-        int64_t p2 = dotd1q4_inner(a0 + 2 * bit_length, query, bit_length);
-        int64_t p3 = dotd1q4_inner(a0 + 3 * bit_length, query, bit_length);
-
-        results[out_mapper(offsets, c)] = (f32_t)(p0 + (p1 << 1) + (p2 << 2) + (p3 << 3));
+        const int8_t* a1 = mapper(a, c + 1, offsets, pitch);
+        int r = 0;
+        svuint32_t acc00 = svdup_n_u32(0);
+        svuint32_t acc01 = svdup_n_u32(0);
+        svuint32_t acc02 = svdup_n_u32(0);
+        svuint32_t acc03 = svdup_n_u32(0);
+        svuint32_t acc10 = svdup_n_u32(0);
+        svuint32_t acc11 = svdup_n_u32(0);
+        svuint32_t acc12 = svdup_n_u32(0);
+        svuint32_t acc13 = svdup_n_u32(0);
+        for (svbool_t pg = svwhilelt_b8(r, bit_length); svptest_any(svptrue_b8(), pg); pg = svwhilelt_b8(r, bit_length)) {
+            const svuint8_t q0 = svld1_u8(pg, (const uint8_t*)(query + r));
+            const svuint8_t q1 = svld1_u8(pg, (const uint8_t*)(query + r + bit_length));
+            const svuint8_t q2 = svld1_u8(pg, (const uint8_t*)(query + r + 2 * bit_length));
+            const svuint8_t q3 = svld1_u8(pg, (const uint8_t*)(query + r + 3 * bit_length));
+            dot_d4q4_step_sv(acc00, acc01, acc02, acc03, pg, a0 + r, bit_length, q0, q1, q2, q3, w0, w1, w2, w3);
+            dot_d4q4_step_sv(acc10, acc11, acc12, acc13, pg, a1 + r, bit_length, q0, q1, q2, q3, w0, w1, w2, w3);
+            r += svcntb();
+        }
+        results[out_mapper(offsets, c)] = (f32_t)sum_d4q4_sv(acc00, acc01, acc02, acc03);
+        results[out_mapper(offsets, c + 1)] = (f32_t)sum_d4q4_sv(acc10, acc11, acc12, acc13);
+    }
+    if (c < count) {
+        results[out_mapper(offsets, c)] = (f32_t)dotd4q4_inner(mapper(a, c, offsets, pitch), query, length);
     }
 }
 

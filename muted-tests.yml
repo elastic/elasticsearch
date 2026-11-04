@@ -566,3 +566,8 @@ tests:
   - :test:test-clusters:test
   method: testWaitsForLiveFileRecreatedAfterRename
   issue: https://github.com/elastic/elasticsearch/issues/164549
+- class: org.elasticsearch.xpack.esql.action.ExternalLaggingWorkerIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testFallbackWhoseExchangeCannotBeOpenedFailsTheQuery
+  issue: https://github.com/elastic/elasticsearch/issues/164583

@@ -31,6 +31,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -971,6 +972,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
+        private final List<DataNodeRequest.Shard> shards;
+        private final SharedSortBound sortBound;
 
         DataNodeRequestExecutor(
             EsqlFlags flags,
@@ -984,7 +987,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             boolean singleNodeOptimizations,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
-            AcquiredSearchContexts searchContexts
+            AcquiredSearchContexts searchContexts,
+            SharedSortBound sortBound
         ) {
             assert (internalExchange == null) != (externalSink == null) : "exactly one exchange must be provided";
             this.flags = flags;
@@ -1001,6 +1005,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.blockingSink = exchangeSink(() -> {});
             this.searchContexts = searchContexts;
             this.planTimeProfile = new PlanTimeProfile();
+            this.sortBound = sortBound;
+            boolean ascending = ShardTimestampOrder.ascending(request.plan());
+            this.shards = ShardTimestampOrder.order(
+                request.shards(),
+                shardId -> ShardTimestampOrder.key(searchService.getIndicesService(), shardId, ascending),
+                ascending
+            );
         }
 
         void start() {
@@ -1019,9 +1030,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final Configuration configuration = request.configuration();
             final String clusterAlias = request.clusterAlias();
             final var sessionId = request.sessionId();
-            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shards().size());
+            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, shards.size());
             final AtomicInteger pagesProduced = new AtomicInteger();
-            List<DataNodeRequest.Shard> shards = request.shards().subList(startBatchIndex, endBatchIndex);
+            List<DataNodeRequest.Shard> batch = shards.subList(startBatchIndex, endBatchIndex);
             ActionListener<DriverCompletionInfo> batchListener = new ActionListener<>() {
                 final ActionListener<DriverCompletionInfo> ref = computeListener.acquireCompute();
 
@@ -1037,7 +1048,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 @Override
                 public void onFailure(Exception e) {
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
-                        for (DataNodeRequest.Shard shard : shards) {
+                        for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);
                         }
                         onResponse(DriverCompletionInfo.EMPTY);
@@ -1057,7 +1068,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             };
             acquireSearchContexts(
                 clusterAlias,
-                shards,
+                batch,
                 configuration,
                 request.aliasFilters(),
                 PlannerUtils.sliceSelection(request.plan()),
@@ -1077,7 +1088,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration.newFoldContext(),
                         null,
                         () -> exchangeSink(pagesProduced::incrementAndGet),
-                        singleNodeOptimizations
+                        singleNodeOptimizations,
+                        sortBound
                     );
                     computeService.runCompute(
                         parentTask,
@@ -1167,7 +1179,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
-            if (lastBatchIndex < request.shards().size() && exchangeFinished() == false) {
+            if (lastBatchIndex < shards.size() && exchangeFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
                 // don't return until all pages have been consumed
@@ -1210,10 +1222,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         if (externalSink == null) {
             return;
         }
+        // Shared by the batches of shards, and released once all of them are done
+        final SharedSortBound sortBound = new SharedSortBound();
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
-                listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures))
+                ActionListener.runAfter(
+                    listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
+                    sortBound::close
+                )
             )
         ) {
             var parentListener = computeListener.acquireAvoid();
@@ -1244,7 +1261,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     request.singleNodeOptimizations(),
                     shardLevelFailures,
                     computeListener,
-                    searchContexts
+                    searchContexts,
+                    sortBound
                 );
                 dataNodeRequestExecutor.start();
                 if (runNodeReduce == false) {

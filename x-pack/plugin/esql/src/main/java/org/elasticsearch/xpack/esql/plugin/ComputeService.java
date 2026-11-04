@@ -2070,7 +2070,8 @@ public class ComputeService {
                 plannerSettings,
                 planToExecute,
                 shardContexts,
-                context.singleNodeOptimizations()
+                context.singleNodeOptimizations(),
+                context.sortBound()
             );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());

@@ -116,6 +116,27 @@ public class QueryPragmasTests extends ESTestCase {
         assertThat(QueryPragmas.VALID_PRAGMA_NAMES, hasItem(QueryPragmas.CBO_TRACE.getKey()));
     }
 
+    public void testCostBasedOptimizerDefaultsShufflePartitionsToAllocatedProcessors() {
+        int processors = between(1, 64);
+        QueryPragmas resolved = new QueryPragmas(Settings.builder().put(QueryPragmas.CBO.getKey(), true).build())
+            .withDefaultShufflePartitions(processors);
+        assertThat(resolved.shufflePartitionsPerNode(), equalTo(processors));
+        assertTrue(resolved.shuffleEnabled());
+    }
+
+    public void testExplicitShufflePartitionsOverrideCostBasedOptimizerDefault() {
+        int explicit = between(0, 8);
+        QueryPragmas resolved = new QueryPragmas(
+            Settings.builder().put(QueryPragmas.CBO.getKey(), true).put(QueryPragmas.SHUFFLE_PARTITIONS_PER_NODE.getKey(), explicit).build()
+        ).withDefaultShufflePartitions(between(1, 64));
+        assertThat(resolved.shufflePartitionsPerNode(), equalTo(explicit));
+    }
+
+    public void testShufflePartitionsStayDisabledWithoutCostBasedOptimizer() {
+        QueryPragmas resolved = QueryPragmas.EMPTY.withDefaultShufflePartitions(between(1, 64));
+        assertFalse(resolved.shuffleEnabled());
+    }
+
     public void testTimeSeriesPragmaIsDecoupledFromRegularAggregationPragmas() {
         // Only the regular pragma is set: it reaches the regular accessor and leaves the time-series one at its default.
         QueryPragmas regularOnly = new QueryPragmas(

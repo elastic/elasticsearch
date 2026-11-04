@@ -114,7 +114,10 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
-    /** Number of hash-shuffle partitions per data node; zero disables shuffle planning. */
+    /**
+     * Number of hash-shuffle partitions per data node; zero disables shuffle planning. When unset and {@link #CBO} is on,
+     * the coordinator resolves it to its allocated processors, see {@link #withDefaultShufflePartitions}.
+     */
     public static final Setting<Integer> SHUFFLE_PARTITIONS_PER_NODE = Setting.intSetting("shuffle_partitions_per_node", 0, 0);
 
     /** Bounds queued output-exchange pages across a query, independently of operator memory and circuit breakers. */
@@ -130,7 +133,7 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<String> SHUFFLE_JOIN_STRATEGY = Setting.simpleString("shuffle_join_strategy", "partitioned");
 
     /** Enables cost-based selection of eligible join and aggregation distribution strategies. */
-    public static final Setting<Boolean> CBO = Setting.boolSetting("cbo", false);
+    public static final Setting<Boolean> CBO = Setting.boolSetting("cost_based_optimizer", false);
 
     /** Logs cost-based planner decisions at INFO instead of DEBUG. */
     public static final Setting<Boolean> CBO_TRACE = Setting.boolSetting("cbo_trace", false);
@@ -500,6 +503,22 @@ public final class QueryPragmas implements Writeable {
 
     public boolean shuffleEnabled() {
         return shufflePartitionsPerNode() > 0;
+    }
+
+    /**
+     * Turns on shuffle for cost-based planning without requiring a separate partition pragma. When {@link #CBO} is on
+     * and {@link #SHUFFLE_PARTITIONS_PER_NODE} is unset, returns pragmas with one partition per allocated processor,
+     * so each node runs one lane per core. The value is written into the pragmas rather than computed on read, so the
+     * optimizer, the stage scheduler and the data nodes all see the same partition count. An explicit value,
+     * including zero, is kept.
+     */
+    public QueryPragmas withDefaultShufflePartitions(int allocatedProcessors) {
+        if (cbo() == false || SHUFFLE_PARTITIONS_PER_NODE.exists(settings)) {
+            return this;
+        }
+        return new QueryPragmas(
+            Settings.builder().put(settings).put(SHUFFLE_PARTITIONS_PER_NODE.getKey(), Math.max(1, allocatedProcessors)).build()
+        );
     }
 
     public int parsingParallelism() {

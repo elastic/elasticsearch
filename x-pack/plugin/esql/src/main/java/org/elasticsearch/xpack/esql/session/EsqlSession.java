@@ -22,6 +22,7 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -648,7 +649,7 @@ public class EsqlSession {
             // TODO: plug-in security
             null,
             clusterName,
-            request.pragmas(),
+            request.pragmas().withDefaultShufflePartitions(EsExecutors.allocatedProcessors(clusterService.getSettings())),
             analyzerSettings.resultTruncationMaxSize(),
             analyzerSettings.resultTruncationDefaultSize(),
             request.query(),

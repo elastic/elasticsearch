@@ -111,7 +111,7 @@ public class ShardFailedTaskExecutorTests extends ESAllocationTestCase {
 
         ShardFailedTaskExecutor.Task task = new ShardFailedTaskExecutor.Task(
             new FailedShardEntry(
-                new ShardId(index, randomIntBetween(1)),
+                new ShardId(index, randomIntBetween(1, 10)),
                 UUIDs.randomBase64UUID(),
                 randomLongBetween(0, 10),
                 "failed recovery of removed split target after restore",

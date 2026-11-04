@@ -12,6 +12,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class CopyingLocalSupplierTests extends LocalSupplierTests {
 
@@ -34,5 +36,15 @@ public class CopyingLocalSupplierTests extends LocalSupplierTests {
             assertTrue(version.toString(), bwcDeserializedObject instanceof ImmediateLocalSupplier);
         }
         assertEquals(version.toString(), testInstance.hashCode(), bwcDeserializedObject.hashCode());
+    }
+
+    public void testPeekReturnsThePageWithoutCopying() {
+        Page page = new Page(LocalSupplierTests.randomBlock(between(1, 100)));
+        CopyingLocalSupplier supplier = new CopyingLocalSupplier(page);
+
+        assertThat(supplier.peek(), sameInstance(page));
+        Page copy = supplier.get();
+        assertThat(copy.getBlock(0), not(sameInstance(page.getBlock(0))));
+        assertThat(copy, equalTo(page));
     }
 }

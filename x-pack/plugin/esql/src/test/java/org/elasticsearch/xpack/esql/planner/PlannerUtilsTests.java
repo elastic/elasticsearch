@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -15,9 +19,13 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -28,6 +36,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
@@ -256,6 +265,23 @@ public class PlannerUtilsTests extends ESTestCase {
 
         var exception = expectThrows(EsqlIllegalArgumentException.class, () -> PlannerUtils.buildSubPlan(siblingContainer));
         assertThat(exception.getMessage(), containsString("expected a single topmost MergeExec"));
+    }
+
+    public void testLocalDataBytesCountsSharedBlocksOnce() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+        int positions = between(1, 100);
+        Block shared = blockFactory.newConstantIntBlockWith(1, positions);
+        Block equalCopy = blockFactory.newConstantIntBlockWith(1, positions);
+        assertThat(equalCopy, equalTo(shared));
+        List<Attribute> output = List.of(field("a"));
+        FragmentExec fragment = new FragmentExec(
+            new LocalRelation(Source.EMPTY, List.of(field("a"), field("b")), LocalSupplier.of(new Page(shared, equalCopy)))
+        );
+        LocalSourceExec joinData = new LocalSourceExec(Source.EMPTY, output, new CopyingLocalSupplier(new Page(shared)));
+        HashJoinExec join = new HashJoinExec(Source.EMPTY, fragment, joinData, List.of(), List.of(), List.of());
+
+        assertThat(PlannerUtils.localDataBytes(join), equalTo(shared.ramBytesUsed() + equalCopy.ramBytesUsed()));
+        assertThat(PlannerUtils.localDataBytes(localSource(output)), equalTo(0L));
     }
 
     private static FieldAttribute field(String name) {

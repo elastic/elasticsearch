@@ -578,3 +578,8 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testFallbackWhoseExchangeCannotBeOpenedFailsTheQuery
   issue: https://github.com/elastic/elasticsearch/issues/164583
+- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
+  tasks:
+  - :modules:repository-azure:test
+  method: testContentsChangeWhileStreaming
+  issue: https://github.com/elastic/elasticsearch/issues/164636

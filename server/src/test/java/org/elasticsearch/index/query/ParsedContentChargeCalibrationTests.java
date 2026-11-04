@@ -83,6 +83,11 @@ public class ParsedContentChargeCalibrationTests extends ESTestCase {
             new Shape("bool of term, non-ASCII values", n -> query(should(n, i -> termClause(nonAscii(i))))),
             new Shape("bool of term, distinct fields", n -> query(should(n, i -> clause("term", name(i), value(i, 8))))),
             new Shape("bool of match, 8 char values", n -> query(should(n, i -> clause("match", "k", value(i, 8))))),
+            // Kept as a string, which holds two bytes a character once any is outside Latin-1.
+            new Shape(
+                "bool of match, long mixed-script values",
+                n -> query(should(n, i -> clause("match", "k", "a".repeat(500) + "\u65e5" + i)))
+            ),
             new Shape("bool of empty bool", n -> query(should(n, i -> "{\"bool\":{}}"))),
             new Shape("bool of match_all", n -> query(should(n, i -> "{\"match_all\":{}}"))),
             new Shape("bool of range", n -> query(should(n, i -> "{\"range\":{\"n\":{\"gte\":" + i + ",\"lte\":" + (i + 1) + "}}}"))),

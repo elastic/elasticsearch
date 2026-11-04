@@ -38,6 +38,7 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -428,7 +429,7 @@ public class ParsedContentReservationTests extends ESTestCase {
         try (XContentBuilder builder = XContentFactory.contentBuilder(type)) {
             builder.startObject().startObject("o1").startObject("o2");
             // Charged just over a chunk, above the limit.
-            builder.field("s", "x".repeat(350_000));
+            builder.field("s", "x".repeat(1_050_000));
             builder.endObject().endObject().endObject();
             content = BytesReference.bytes(builder);
         }
@@ -586,16 +587,15 @@ public class ParsedContentReservationTests extends ESTestCase {
         try (XContentParser parser = parser(type, content)) {
             for (XContentParser.Token token = parser.nextToken(); token != null; token = parser.nextToken()) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    expected += ChargingXContentParser.STRING_VALUE_BYTES + ChargingXContentParser.BYTES_PER_CHAR * parser.text().length();
+                    expected += ChargingXContentParser.STRING_VALUE_BYTES + valueBytes(parser.text());
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     expected += switch (parser.numberType()) {
                         case INT, LONG, FLOAT, DOUBLE -> ChargingXContentParser.NUMBER_VALUE_BYTES;
-                        case BIG_INTEGER, BIG_DECIMAL -> ChargingXContentParser.STRING_VALUE_BYTES + ChargingXContentParser.BYTES_PER_CHAR
-                            * parser.text().length();
+                        case BIG_INTEGER, BIG_DECIMAL -> ChargingXContentParser.STRING_VALUE_BYTES + valueBytes(parser.text());
                     };
                 } else if (token == XContentParser.Token.FIELD_NAME) {
                     String name = parser.currentName();
-                    expected += ChargingXContentParser.TOKEN_BYTES + ChargingXContentParser.BYTES_PER_CHAR * name.length();
+                    expected += ChargingXContentParser.TOKEN_BYTES + ChargingXContentParser.NAME_BYTES_PER_CHAR * name.length();
                     if (names.contains(name) == false) {
                         if (names.size() < ChargingXContentParser.MAX_CHARGED_NAMES) {
                             names.add(name);
@@ -608,6 +608,12 @@ public class ParsedContentReservationTests extends ESTestCase {
             }
         }
         return expected;
+    }
+
+    /** What a string value is charged for its text: its UTF-8 length, or two bytes a character once any is outside Latin-1. */
+    private static long valueBytes(String text) {
+        long utf8 = text.getBytes(StandardCharsets.UTF_8).length;
+        return text.chars().allMatch(c -> c <= 0xFF) ? utf8 : Math.max(utf8, 2L * text.length());
     }
 
     private static long countTokens(XContentType type, BytesReference content) throws IOException {
@@ -646,6 +652,12 @@ public class ParsedContentReservationTests extends ESTestCase {
             builder.field("terminate_after", 10_000_000_000L);
             // Too large for a long, so charged by its digits.
             builder.field("big", new BigInteger("123456789012345678901234567890"));
+            // Charged as a String, which is larger than the UTF-8 length once any character is outside Latin-1.
+            builder.field("mixed", "abc caf\u00e9 \u65e5\u672c \ud83d\ude00");
+            // Charged the UTF-8 length, which is larger than a String for CJK and for Latin-1 with accents, and the same for ASCII.
+            builder.field("cjk", "\u65e5\u672c\u8a9e");
+            builder.field("latin1", "caf\u00e9");
+            builder.field("ascii", "plain");
             builder.field("track_total_hits", true);
             builder.nullField("post_filter");
             builder.array("stored_fields", "a", "bb", "ccc");

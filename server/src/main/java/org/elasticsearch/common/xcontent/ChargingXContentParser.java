@@ -30,8 +30,8 @@ import java.util.function.Supplier;
 /**
  * Charges a {@link ParsedContentReservation} for every token read through it, so that a request is charged for the heap its parsing
  * takes. A string value costs {@link #STRING_VALUE_BYTES}, a number {@link #NUMBER_VALUE_BYTES} and any other token
- * {@link #TOKEN_BYTES}, plus {@link #BYTES_PER_CHAR} per character of a string value or field name. Characters are counted decoded,
- * since that is what the parsed strings hold. A number too large for a {@code long} or {@code double} costs as much as a string of its
+ * {@link #TOKEN_BYTES}. A string value also costs the larger of its UTF-8 length and the size of a String holding it, and a field name
+ * {@link #NAME_BYTES_PER_CHAR} per character. A number too large for a {@code long} or {@code double} costs as much as a string of its
  * digits.
  *
  * <p>The costs are upper bounds of what parsing retains with the object layout of the bundled JDK, compressed object pointers and
@@ -75,10 +75,10 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
     static final long NUMBER_VALUE_BYTES = 32;
 
     /**
-     * The heap a character of a string takes, at most. Query builders turn strings into {@code BytesRef}s, some sized for the worst case of
-     * UTF-8, three bytes per character.
+     * What a character of a field name costs. A margin over the at most two bytes per character that builders keep, since names stay as
+     * Strings in their fields.
      */
-    static final long BYTES_PER_CHAR = 3;
+    static final long NAME_BYTES_PER_CHAR = 3;
 
     static final long CHUNK_BYTES = ByteSizeUnit.MB.toBytes(1);
 
@@ -127,12 +127,12 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
         }
         final long bytes;
         if (token == Token.VALUE_STRING) {
-            bytes = STRING_VALUE_BYTES + BYTES_PER_CHAR * delegate().textLength();
+            bytes = STRING_VALUE_BYTES + textBytes();
         } else if (token == Token.VALUE_NUMBER) {
             bytes = numberBytes();
         } else if (token == Token.FIELD_NAME) {
             final String name = delegate().currentName();
-            bytes = TOKEN_BYTES + BYTES_PER_CHAR * name.length();
+            bytes = TOKEN_BYTES + NAME_BYTES_PER_CHAR * name.length();
             chargeName(name);
         } else {
             bytes = TOKEN_BYTES;
@@ -186,13 +186,34 @@ final class ChargingXContentParser extends FilterXContentParserWrapper {
     }
 
     /**
+     * What the current text keeps at most: its UTF-8 length, as an exact-size {@code BytesRef} keeps it, or two bytes a character, as a
+     * String keeps it once any character is outside Latin-1. One pass over the characters, which {@code textLength()} decodes anyway.
+     */
+    private long textBytes() throws IOException {
+        final char[] chars = delegate().textCharacters();
+        final int offset = delegate().textOffset();
+        final int length = delegate().textLength();
+        long utf8 = length;
+        boolean latin1 = true;
+        for (int i = offset; i < offset + length; i++) {
+            final char c = chars[i];
+            if (c >= 0x80) {
+                // Two bytes below U+0800 and half of a four-byte pair for a surrogate, otherwise three.
+                utf8 += c < 0x800 || Character.isSurrogate(c) ? 1 : 2;
+                latin1 &= c <= 0xFF;
+            }
+        }
+        return latin1 ? utf8 : Math.max(utf8, 2L * length);
+    }
+
+    /**
      * What the current number is charged. One that does not fit a {@code long} or {@code double} is kept as a {@code BigInteger} or
      * {@code BigDecimal}, which grows with its digits.
      */
     private long numberBytes() throws IOException {
         return switch (delegate().numberType()) {
             case INT, LONG, FLOAT, DOUBLE -> NUMBER_VALUE_BYTES;
-            case BIG_INTEGER, BIG_DECIMAL -> STRING_VALUE_BYTES + BYTES_PER_CHAR * delegate().textLength();
+            case BIG_INTEGER, BIG_DECIMAL -> STRING_VALUE_BYTES + textBytes();
         };
     }
 

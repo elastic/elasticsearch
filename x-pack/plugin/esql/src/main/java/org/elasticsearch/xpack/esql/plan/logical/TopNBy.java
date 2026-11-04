@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,19 +25,36 @@ import java.util.Objects;
 /**
  * Logical plan node for {@code SORT order1, order2 | LIMIT N BY grouping1, grouping2, ...}.
  * Sorts the input rows retaining at most N rows per group defined by the grouping expressions.
+ * <p>
+ * With ties, a group also keeps every row that sorts equal to its N-th row, like SQL's {@code FETCH FIRST N ROWS WITH TIES}.
+ * The query language has no syntax for it; plans built by translation (PromQL {@code or}) use it.
  */
 public class TopNBy extends UnaryPlan implements PipelineBreaker, DocPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopNBy", TopNBy::new);
+    public static final TransportVersion ESQL_TOPN_BY_WITH_TIES = TransportVersion.fromName("esql_topn_by_with_ties");
 
     private final List<Order> order;
     private final Expression limitPerGroup;
     private final List<Expression> groupings;
+    private final boolean withTies;
 
     public TopNBy(Source source, LogicalPlan child, List<Order> order, Expression limitPerGroup, List<Expression> groupings) {
+        this(source, child, order, limitPerGroup, groupings, false);
+    }
+
+    public TopNBy(
+        Source source,
+        LogicalPlan child,
+        List<Order> order,
+        Expression limitPerGroup,
+        List<Expression> groupings,
+        boolean withTies
+    ) {
         super(source, child);
         this.order = order;
         this.limitPerGroup = limitPerGroup;
         this.groupings = groupings;
+        this.withTies = withTies;
     }
 
     private TopNBy(StreamInput in) throws IOException {
@@ -45,7 +63,8 @@ public class TopNBy extends UnaryPlan implements PipelineBreaker, DocPreserving 
             in.readNamedWriteable(LogicalPlan.class),
             in.readCollectionAsList(Order::new),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.getTransportVersion().supports(ESQL_TOPN_BY_WITH_TIES) && in.readBoolean()
         );
     }
 
@@ -56,6 +75,25 @@ public class TopNBy extends UnaryPlan implements PipelineBreaker, DocPreserving 
         out.writeCollection(order);
         out.writeNamedWriteable(limitPerGroup);
         out.writeNamedWriteableCollection(groupings);
+        writeWithTies(out, withTies);
+    }
+
+    /**
+     * Writes the ties flag, refusing to send ties to a node that would drop them silently.
+     */
+    public static void writeWithTies(StreamOutput out, boolean withTies) throws IOException {
+        if (out.getTransportVersion().supports(ESQL_TOPN_BY_WITH_TIES)) {
+            out.writeBoolean(withTies);
+        } else if (withTies) {
+            // Dropping the flag would make the peer cut each group at N rows and lose the tied ones.
+            throw new IllegalArgumentException(
+                "SORT | LIMIT BY with ties is not supported in peer node's version ["
+                    + out.getTransportVersion()
+                    + "]. Upgrade to version ["
+                    + ESQL_TOPN_BY_WITH_TIES
+                    + "] or newer."
+            );
+        }
     }
 
     @Override
@@ -70,12 +108,12 @@ public class TopNBy extends UnaryPlan implements PipelineBreaker, DocPreserving 
 
     @Override
     protected NodeInfo<TopNBy> info() {
-        return NodeInfo.create(this, TopNBy::new, child(), order, limitPerGroup, groupings);
+        return NodeInfo.create(this, TopNBy::new, child(), order, limitPerGroup, groupings, withTies);
     }
 
     @Override
     public TopNBy replaceChild(LogicalPlan newChild) {
-        return new TopNBy(source(), newChild, order, limitPerGroup, groupings);
+        return new TopNBy(source(), newChild, order, limitPerGroup, groupings, withTies);
     }
 
     public Expression limitPerGroup() {
@@ -90,9 +128,13 @@ public class TopNBy extends UnaryPlan implements PipelineBreaker, DocPreserving 
         return groupings;
     }
 
+    public boolean withTies() {
+        return withTies;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limitPerGroup, groupings);
+        return Objects.hash(super.hashCode(), order, limitPerGroup, groupings, withTies);
     }
 
     @Override
@@ -101,7 +143,8 @@ public class TopNBy extends UnaryPlan implements PipelineBreaker, DocPreserving 
             var other = (TopNBy) obj;
             return Objects.equals(order, other.order)
                 && Objects.equals(limitPerGroup, other.limitPerGroup)
-                && Objects.equals(groupings, other.groupings);
+                && Objects.equals(groupings, other.groupings)
+                && withTies == other.withTies;
         }
         return false;
     }

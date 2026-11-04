@@ -144,7 +144,15 @@ public class AdaptiveStrategyTests extends ESTestCase {
 
     public void testTopNByWithMultipleSplitsDistributes() {
         Literal limitExpr = new Literal(Source.EMPTY, 10, DataType.INTEGER);
-        PhysicalPlan planWithTopNBy = new TopNByExec(Source.EMPTY, createExternalSourceExec(), List.of(), limitExpr, List.of(), null);
+        PhysicalPlan planWithTopNBy = new TopNByExec(
+            Source.EMPTY,
+            createExternalSourceExec(),
+            List.of(),
+            limitExpr,
+            List.of(),
+            false,
+            null
+        );
 
         ExternalDistributionContext context = new ExternalDistributionContext(
             planWithTopNBy,

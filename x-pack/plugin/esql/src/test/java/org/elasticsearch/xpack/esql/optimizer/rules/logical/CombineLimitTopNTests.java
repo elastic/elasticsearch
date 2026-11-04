@@ -41,6 +41,18 @@ public class CombineLimitTopNTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(resultTopNBy.groupings(), equalTo(groupings));
     }
 
+    /**
+     * A TopNBy with ties can return more rows per group than its limit, so the LimitBy above it has to stay.
+     */
+    public void testLimitByStaysAboveTopNByWithTies() {
+        var attr = getFieldAttribute("a");
+        var groupings = List.<Expression>of(attr);
+        var order = List.of(new Order(EMPTY, attr, Order.OrderDirection.ASC, null));
+        var topNBy = new TopNBy(EMPTY, emptySource(), order, L(between(1, 10)), groupings, true);
+        var limitBy = new LimitBy(EMPTY, L(between(1, 10)), topNBy, groupings);
+        assertThat(new CombineLimitTopN().rule(limitBy), equalTo(limitBy));
+    }
+
     public void testCombineLimitByTopNByDifferentGroupings() {
         var attr = getFieldAttribute("a");
         var groupings = List.<Expression>of(attr);

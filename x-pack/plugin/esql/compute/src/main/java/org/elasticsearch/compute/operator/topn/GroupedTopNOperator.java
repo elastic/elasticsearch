@@ -36,6 +36,9 @@ import java.util.List;
  * <p>
  * Group keys use list semantics for multivalues: {@code [1,2]} and {@code [2,1]} are different groups.
  * <p>
+ * With ties, each group also keeps every row whose sort key equals that of its {@code topCount}-th row, so a group can
+ * return more than {@code topCount} rows. The result does not depend on the order rows arrive in.
+ * <p>
  * Unlike {@link TopNOperator}, this operator does not support sorted input optimization
  * or {@link SharedMinCompetitive} tracking, as these optimizations are not applicable
  * to grouped top-N.
@@ -60,7 +63,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
         List<Integer> groupKeys,
         int maxPageSize,
         long jumboPageBytes,
-        OutputOrdering outputOrdering
+        OutputOrdering outputOrdering,
+        boolean withTies
     ) implements OperatorFactory {
         public GroupedTopNOperatorFactory {
             for (ElementType e : elementTypes) {
@@ -93,7 +97,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 keyEncoder,
                 maxPageSize,
                 jumboPageBytes,
-                outputOrdering
+                outputOrdering,
+                withTies
             );
         }
 
@@ -111,6 +116,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
                 + groupKeys
                 + ", outputOrdering="
                 + outputOrdering
+                + (withTies ? ", withTies=true" : "")
                 + "]";
         }
     }
@@ -158,7 +164,8 @@ public class GroupedTopNOperator implements Operator, Accountable {
         GroupKeyEncoder keyEncoder,
         int maxPageSize,
         long jumboPageBytes,
-        OutputOrdering outputOrdering
+        OutputOrdering outputOrdering,
+        boolean withTies
     ) {
         BytesRefHashTable keysHash = null;
         GroupedQueue inputQueue = null;
@@ -167,7 +174,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
         try {
             originTable = DocVectorEncoder.originTableFor(encoders, breaker);
             keysHash = HashImplFactory.newBytesRefHash(blockFactory);
-            inputQueue = new GroupedQueue(breaker, blockFactory.bigArrays(), topCount);
+            inputQueue = new GroupedQueue(breaker, blockFactory.bigArrays(), topCount, withTies);
             success = true;
         } finally {
             if (success == false) {
@@ -235,11 +242,18 @@ public class GroupedTopNOperator implements Operator, Accountable {
             rowFiller.writeValues(position, spare);
             queue.add(spare);
             spare = null;
-        } else if (queue.lessThan(queue.top(), spare)) {
+            return;
+        }
+        int rank = queue.top().compareTo(spare);
+        if (rank < 0) {
             rowFiller.writeValues(position, spare);
-            TopNRow nextSpare = queue.top();
+            TopNRow evicted = queue.top();
             queue.updateTop(spare);
-            spare = nextSpare;
+            spare = inputQueue.evict(groupId, evicted);
+        } else if (rank == 0 && inputQueue.withTies()) {
+            rowFiller.writeValues(position, spare);
+            inputQueue.addTie(groupId, spare);
+            spare = null;
         }
     }
 
@@ -335,6 +349,7 @@ public class GroupedTopNOperator implements Operator, Accountable {
             + Arrays.toString(keyEncoder.groupChannels())
             + ", outputOrdering="
             + outputOrdering
+            + (inputQueue != null && inputQueue.withTies() ? ", withTies=true" : "")
             + "]";
     }
 

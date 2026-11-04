@@ -155,7 +155,8 @@ public class GroupedTopNBenchmark {
             ),
             8 * 1024,
             Long.MAX_VALUE,
-            sortedOutput ? OutputOrdering.SORTED : OutputOrdering.NOT_SORTED
+            sortedOutput ? OutputOrdering.SORTED : OutputOrdering.NOT_SORTED,
+            false
         );
     }
 

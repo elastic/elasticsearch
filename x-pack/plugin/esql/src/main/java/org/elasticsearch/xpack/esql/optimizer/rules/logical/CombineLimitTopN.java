@@ -42,8 +42,10 @@ public final class CombineLimitTopN extends OptimizerRules.OptimizerRule<UnaryPl
                 return new TopN(topn.source(), topn.child(), topn.order(), limit.limit(), topn.local());
             }
         }
+        // A TopNBy with ties can keep more rows per group than its limit, so a LimitBy above it still cuts.
         if (plan instanceof LimitBy limitBy
             && limitBy.child() instanceof TopNBy topnBy
+            && topnBy.withTies() == false
             && listSemanticEqualsIgnoreOrder(limitBy.groupings(), topnBy.groupings())) {
             int thisLimitValue = Foldables.limitValue(limitBy.limitPerGroup(), limitBy.sourceText());
             int topNValue = Foldables.limitValue(topnBy.limitPerGroup(), topnBy.sourceText());

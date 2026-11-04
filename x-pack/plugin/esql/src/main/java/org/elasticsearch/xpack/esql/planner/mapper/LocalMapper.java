@@ -122,8 +122,15 @@ public class LocalMapper {
         }
 
         if (unary instanceof TopNBy topNBy) {
-            return new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null)
-                .withNonSortedOutput();
+            return new TopNByExec(
+                topNBy.source(),
+                mappedChild,
+                topNBy.order(),
+                topNBy.limitPerGroup(),
+                topNBy.groupings(),
+                topNBy.withTies(),
+                null
+            ).withNonSortedOutput();
         }
 
         if (unary instanceof MetricsInfo metricsInfo) {

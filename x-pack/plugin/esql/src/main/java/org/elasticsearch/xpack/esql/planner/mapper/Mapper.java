@@ -202,7 +202,15 @@ public class Mapper {
 
         if (unary instanceof TopNBy topNBy) {
             mappedChild = addExchangeForFragment(topNBy, mappedChild);
-            var topNByExec = new TopNByExec(topNBy.source(), mappedChild, topNBy.order(), topNBy.limitPerGroup(), topNBy.groupings(), null);
+            var topNByExec = new TopNByExec(
+                topNBy.source(),
+                mappedChild,
+                topNBy.order(),
+                topNBy.limitPerGroup(),
+                topNBy.groupings(),
+                topNBy.withTies(),
+                null
+            );
             if (mappedChild instanceof ExchangeExec) {
                 return topNByExec.withSortedOutput();
             }

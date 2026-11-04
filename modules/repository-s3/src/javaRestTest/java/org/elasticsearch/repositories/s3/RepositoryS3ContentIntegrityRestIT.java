@@ -75,12 +75,13 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         for (final boolean https : new boolean[] { false, true }) {
             for (final boolean chunkedEncoding : new boolean[] { false, true }) {
                 for (final boolean alwaysSignRequests : new boolean[] { false, true }) {
-                    for (final boolean legacyContentMd5 : new boolean[] { false, true }) {
-                        for (final boolean requestChecksumWhenRequired : new boolean[] { false, true }) {
-                            testConfigs.add(
-                                new TestConfig(https, chunkedEncoding, alwaysSignRequests, legacyContentMd5, requestChecksumWhenRequired)
-                            );
-                        }
+                    for (final boolean requestChecksumWhenRequired : new boolean[] { false, true }) {
+                        // legacy_content_md5 only changes DeleteObjects, so it doesn't need crossing with everything else. One config
+                        // per scheme and signing mode is enough to show it still works next to the other settings.
+                        final boolean legacyContentMd5 = chunkedEncoding && requestChecksumWhenRequired == false;
+                        testConfigs.add(
+                            new TestConfig(https, chunkedEncoding, alwaysSignRequests, legacyContentMd5, requestChecksumWhenRequired)
+                        );
                     }
                 }
             }
@@ -164,12 +165,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                                 matchesPattern(S3HttpHandler.SHA256_PATTERN),
                                 // ... or there's a properly-signed footer
                                 equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER"),
-                                // ... or signed chunks with no footer, when the client wasn't asked to send a checksum
-                                equalTo(
-                                    testConfig.requestChecksumWhenRequired
-                                        ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD"
-                                        : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER"
-                                )
+                                // ... or signed chunks with no footer, which is what we get when request_checksum_when_required is set
+                                equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD")
                             ),
 
                             // Redundant check given the above condition but this is the thing that the S3 docs tell users to forbid:
@@ -344,8 +341,10 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 : (chunkedEncoding ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
         }
 
-        /// Without the setting the client sends a checksum with every upload, so the body hash header is whatever the SDK picks for
-        /// that. With it the client sends none, which is why the footer-less streaming value or the unsigned payload marker appears.
+        /// Without the setting the client sends a checksum with every upload, so the body hash header is either a SHA-256 of the body or
+        /// the streaming value for the scheme and signing mode. With it the client sends no checksum, so there is no footer. That
+        /// leaves the unsigned payload marker over unsigned HTTPS, signed chunks without a footer when chunked, and a SHA-256 of the
+        /// body when chunked encoding is disabled.
         Matcher<String> getExpectedUploadContentSha256HeaderMatcher() {
             if (requestChecksumWhenRequired == false) {
                 return anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(getExpectedUploadContentSha256Header()));

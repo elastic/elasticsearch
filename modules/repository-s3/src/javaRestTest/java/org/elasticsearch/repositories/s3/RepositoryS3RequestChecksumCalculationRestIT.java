@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
@@ -55,7 +56,7 @@ public class RepositoryS3RequestChecksumCalculationRestIT extends ESRestTestCase
     );
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
-    private static final String CLIENT = "operator_when_required_client";
+    private static final String CLIENT = "node_wide_when_required_client";
 
     private static final Supplier<String> regionSupplier = () -> "us-east-1";
     private static final Supplier<String> bucketSupplier = testClassIdentifierSupplier("bucket");
@@ -140,7 +141,7 @@ public class RepositoryS3RequestChecksumCalculationRestIT extends ESRestTestCase
     /**
      * The client setting is absent, so the node-wide property is the only thing deciding the checksum behaviour.
      */
-    public void testUnsetSettingKeepsOperatorsWhenRequiredChecksumCalculation() throws Exception {
+    public void testUnsetSettingLeavesTheNodeWideWhenRequiredPropertyInEffect() throws Exception {
         // the repository registration helper randomly adds the key, so clear it to leave the setting unset
         assertUploadsCarryNoChecksum(s -> Settings.builder().put(s).putNull("request_checksum_when_required").build());
     }
@@ -148,11 +149,11 @@ public class RepositoryS3RequestChecksumCalculationRestIT extends ESRestTestCase
     /**
      * An explicit {@code false} means the same as unset, so it must not override the operator's property either.
      */
-    public void testExplicitFalseSettingKeepsOperatorsWhenRequiredChecksumCalculation() throws Exception {
+    public void testExplicitFalseSettingLeavesTheNodeWideWhenRequiredPropertyInEffect() throws Exception {
         assertUploadsCarryNoChecksum(s -> Settings.builder().put(s).put("request_checksum_when_required", false).build());
     }
 
-    private void assertUploadsCarryNoChecksum(java.util.function.UnaryOperator<Settings> repositorySettings) throws Exception {
+    private void assertUploadsCarryNoChecksum(UnaryOperator<Settings> repositorySettings) throws Exception {
         final var repository = new AbstractRepositoryS3RestTestCase.TestRepository(
             randomIdentifier(),
             CLIENT,

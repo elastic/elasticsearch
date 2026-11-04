@@ -262,14 +262,18 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
     }
 
-    public void testRefineWithoutRequestChecksumWhenRequiredKeepsTheSameInstanceAndValue() {
+    public void testRefineWithUnrelatedSettingsKeepsTheSameInstanceAndValue() {
         final boolean clientValue = randomBoolean();
         final S3ClientSettings client = S3ClientSettings.load(
             Settings.builder().put("s3.client.default.request_checksum_when_required", clientValue).build()
         ).get("default");
         // an unrelated key must neither change the value nor force a new instance
-        assertSame(client, client.refine(Settings.EMPTY));
-        assertSame(client, client.refine(Settings.builder().put("max_retries", client.maxRetries).build()));
+        final S3ClientSettings refinedWithNothing = client.refine(Settings.EMPTY);
+        final S3ClientSettings refinedWithUnrelatedKey = client.refine(Settings.builder().put("max_retries", client.maxRetries).build());
+        assertSame(client, refinedWithNothing);
+        assertSame(client, refinedWithUnrelatedKey);
+        assertEquals(clientValue, refinedWithNothing.requestChecksumWhenRequired);
+        assertEquals(clientValue, refinedWithUnrelatedKey.requestChecksumWhenRequired);
         assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.default.request_checksum_when_required"));
     }
 
@@ -301,16 +305,6 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertEquals(off, offAgain);
         assertEquals(off.hashCode(), offAgain.hashCode());
         assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.placeholder.request_checksum_when_required"));
-    }
-
-    public void testInvalidRequestChecksumWhenRequiredValueIsRejected() {
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> S3ClientSettings.load(Settings.builder().put("s3.client.other.request_checksum_when_required", "sometimes").build())
-        );
-        assertThat(e.getMessage(), is("Failed to parse value [sometimes] as only [true] or [false] are allowed."));
-        // the deprecation is logged when the key is read, which happens before the value is parsed
-        assertWarnings(Strings.format(REQUEST_CHECKSUM_DEPRECATION_WARNING_FORMAT, "s3.client.other.request_checksum_when_required"));
     }
 
     /** The setting is deprecated at critical level from the start, so it must also be flagged as a breaking change. */

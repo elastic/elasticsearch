@@ -242,7 +242,7 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// If `convergedWithLatestInput` is false, the final `desiredBalance` is still being determined. Either this
     /// computation stopped early, or newer input arrived before it completed. A later computation may still revise such
     /// a balance, so only shards that cannot remain on their current node are included, and their recoveries are only
-    /// canceled if they have not started yet. A rebalancing move in such a balance may be reversed by a later computation,
+    /// cancelled if they have not started yet. A rebalancing move in such a balance may be reversed by a later computation,
     /// but a shard that cannot remain on its node is less likely to return to it.
     static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeUndesiredRecoveryCancellations(
         DesiredBalance desiredBalance,

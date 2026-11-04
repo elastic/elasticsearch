@@ -153,7 +153,7 @@ public class RecoveryDirectCancellationServiceTests extends ESAllocationTestCase
     }
 
     /// For a desired balance that did not converge with the latest input, only undesired recoveries that also cannot
-    /// remain on their current node are canceled, and never once started.
+    /// remain on their current node are cancelled, and never once started.
     public void testComputeUndesiredRecoveryCancellationsForNotConvergedBalance() {
         final var indexMetadata = IndexMetadata.builder(randomIndexName()).settings(indexSettings(IndexVersion.current(), 4, 1)).build();
         final var index = indexMetadata.getIndex();

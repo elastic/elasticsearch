@@ -265,7 +265,7 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
             awaitRecoveryCountStats(
                 Map.of(initialReplicaNode, stats -> stats.currentFromStore() == 1 && stats.currentAsTargetQueued() == 0)
             );
-            // The canceled replica is reassigned by reconciling against the yielded balance, later computations are still blocked
+            // The cancelled replica is reassigned by reconciling against the yielded balance, later computations are still blocked
             TestRecoveryBlockerPlugin.beforeRecoveryGate.release();
             awaitReplicaReassigned(indexName, 0, getNodeId(desiredReplicaNode));
 

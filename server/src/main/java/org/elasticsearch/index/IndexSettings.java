@@ -1409,22 +1409,18 @@ public final class IndexSettings {
      * the backported ones. Stateless keeps the original gates.
      */
 
-    public static IndexVersion getColumnarDisableSeqNoDataStreamIndexVersion(Settings nodeSettings) {
-        return DiscoveryNode.isStateless(nodeSettings)
+    public static IndexVersion getColumnarDisableSeqNoDataStreamIndexVersion(boolean stateless) {
+        return stateless
             ? IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY
             : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
     }
 
-    public static IndexVersion getIdFieldDefaultPostingsFormatIndexVersion(Settings nodeSettings) {
-        return DiscoveryNode.isStateless(nodeSettings)
-            ? IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT
-            : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+    public static IndexVersion getIdFieldDefaultPostingsFormatIndexVersion(boolean stateless) {
+        return stateless ? IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
     }
 
-    public static IndexVersion getDocValuesDefaultsForAllMappersIndexVersion(Settings nodeSettings) {
-        return DiscoveryNode.isStateless(nodeSettings)
-            ? IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
-            : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
+    public static IndexVersion getDocValuesDefaultsForAllMappersIndexVersion(boolean stateless) {
+        return stateless ? IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS : IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG;
     }
 
     /**
@@ -1449,7 +1445,7 @@ public final class IndexSettings {
             // BWC only: columnar indices created before the gate disabled sequence numbers for all columnar indices. From the gate this
             // is done per index at creation, for data-stream backing indices only (see IndexMode.IndexModeSettingsProvider).
             if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)
-                && indexVersion.before(getColumnarDisableSeqNoDataStreamIndexVersion(settings))) {
+                && indexVersion.before(getColumnarDisableSeqNoDataStreamIndexVersion(DiscoveryNode.isStateless(settings)))) {
                 return Boolean.TRUE.toString();
             }
         }
@@ -1539,6 +1535,7 @@ public final class IndexSettings {
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
+    private final boolean stateless;
 
     /**
      * The {@link IndexMode "mode"} of the index.
@@ -1770,6 +1767,7 @@ public final class IndexSettings {
     public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetadata);
         this.nodeSettings = nodeSettings;
+        this.stateless = DiscoveryNode.isStateless(nodeSettings);
         this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
         this.index = indexMetadata.getIndex();
         version = SETTING_INDEX_VERSION_CREATED.get(settings);
@@ -2143,6 +2141,14 @@ public final class IndexSettings {
      */
     public Settings getNodeSettings() {
         return nodeSettings;
+    }
+
+    /**
+     * Whether the node this index is allocated on is stateless. Used to pick between the stateless and stateful index version gates, see
+     * {@link #getDocValuesDefaultsForAllMappersIndexVersion}.
+     */
+    public boolean isStateless() {
+        return stateless;
     }
 
     /**

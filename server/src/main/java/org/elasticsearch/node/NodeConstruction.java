@@ -2015,6 +2015,6 @@ class NodeConstruction {
     }
 
     private Set<IndexSettingProvider> builtinIndexSettingProviders(Settings settings) {
-        return Set.of(new IndexMode.IndexModeSettingsProvider(settings));
+        return Set.of(new IndexMode.IndexModeSettingsProvider(DiscoveryNode.isStateless(settings)));
     }
 }

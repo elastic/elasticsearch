@@ -1334,7 +1334,7 @@ public class IndexSettingsTests extends ESTestCase {
         // BWC: below the gate, columnar modes disable sequence numbers by default.
         IndexVersion beforeGate = IndexVersionUtils.randomVersionBetween(
             IndexVersions.DISABLE_SEQUENCE_NUMBERS,
-            IndexVersionUtils.getPreviousVersion(IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(Settings.EMPTY))
+            IndexVersionUtils.getPreviousVersion(IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(false))
         );
         for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
@@ -1347,7 +1347,7 @@ public class IndexSettingsTests extends ESTestCase {
 
         // From the gate, columnar modes keep sequence numbers by default; only data-stream backing indices disable them (set at creation).
         IndexVersion fromGate = IndexVersionUtils.randomVersionBetween(
-            IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(Settings.EMPTY),
+            IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(false),
             IndexVersion.current()
         );
         for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {

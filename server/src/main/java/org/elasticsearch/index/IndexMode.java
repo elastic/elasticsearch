@@ -1196,14 +1196,14 @@ public enum IndexMode {
      * Lookup, strict columnar data-stream, and vector database modes provide additional settings.
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
-        private final Settings nodeSettings;
+        private final boolean stateless;
 
         public IndexModeSettingsProvider() {
-            this(Settings.EMPTY);
+            this(false);
         }
 
-        public IndexModeSettingsProvider(Settings nodeSettings) {
-            this.nodeSettings = nodeSettings;
+        public IndexModeSettingsProvider(boolean stateless) {
+            this.stateless = stateless;
         }
 
         private static final Set<String> AFFECTED_SETTINGS = Set.of(
@@ -1248,7 +1248,7 @@ public enum IndexMode {
             if (dataStreamName != null
                 && indexMode != null
                 && indexMode.isStrictColumnar()
-                && indexVersion.onOrAfter(IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(nodeSettings))
+                && indexVersion.onOrAfter(IndexSettings.getColumnarDisableSeqNoDataStreamIndexVersion(stateless))
                 && IndexSettings.DISABLE_SEQUENCE_NUMBERS.exists(indexTemplateAndCreateRequestSettings) == false) {
                 additionalSettings.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true);
             }

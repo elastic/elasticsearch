@@ -81,7 +81,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                     indexSettings,
                     FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(indexSettings.getNodeSettings())
+                    IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(indexSettings.isStateless())
                 ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings

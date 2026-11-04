@@ -287,7 +287,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                     indexSettings,
                     DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
                     DocValuesParameter.Values.Cardinality.HIGH,
-                    IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(indexSettings.getNodeSettings())
+                    IndexSettings.getDocValuesDefaultsForAllMappersIndexVersion(indexSettings.isStateless())
                 ),
                 m -> toType(m).docValuesParams(),
                 indexSettings

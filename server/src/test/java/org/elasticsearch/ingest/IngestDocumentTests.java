@@ -172,6 +172,59 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(expected.getMessage(), equalTo(errorMessage));
     }
 
+    /**
+     * A path made up of nothing but separators used to parse into zero path elements, which then blew up with an
+     * {@link ArrayIndexOutOfBoundsException} when it was used. Make sure that every operation reports it as an invalid path instead.
+     */
+    public void testSeparatorOnlyPathIsInvalidForAllOperations() throws Exception {
+        doWithRandomAccessPattern((doc) -> {
+            for (String path : List.of(".", "..", "_source..", "_ingest..")) {
+                String expectedMessage = "path [" + path + "] is not valid";
+                assertThat(expectThrows(IllegalArgumentException.class, () -> doc.hasField(path)).getMessage(), equalTo(expectedMessage));
+                assertThat(
+                    expectThrows(IllegalArgumentException.class, () -> doc.getFieldValue(path, Object.class)).getMessage(),
+                    equalTo(expectedMessage)
+                );
+                assertThat(
+                    expectThrows(IllegalArgumentException.class, () -> doc.getFieldValue(path, Object.class, true)).getMessage(),
+                    equalTo(expectedMessage)
+                );
+                assertThat(
+                    expectThrows(IllegalArgumentException.class, () -> doc.setFieldValue(path, "value")).getMessage(),
+                    equalTo(expectedMessage)
+                );
+                assertThat(
+                    expectThrows(IllegalArgumentException.class, () -> doc.appendFieldValue(path, "value")).getMessage(),
+                    equalTo(expectedMessage)
+                );
+                assertThat(
+                    expectThrows(IllegalArgumentException.class, () -> doc.removeField(path)).getMessage(),
+                    equalTo(expectedMessage)
+                );
+                assertThat(
+                    expectThrows(IllegalArgumentException.class, () -> doc.removeField(path, true)).getMessage(),
+                    equalTo(expectedMessage)
+                );
+            }
+        });
+    }
+
+    /**
+     * Parsed paths are cached, and the cache is shared by all of the access patterns, so a path that is only valid for some of them has
+     * to be checked against the pattern that is in use every time that it is used, whichever pattern happened to be used with it first.
+     */
+    public void testPathThatIsOnlyValidForSomeAccessPatternsIsCheckedEveryTime() throws Exception {
+        // a different path for each order, as the second would otherwise find that the first has already put it in the cache
+        String classicFirst = "classic_first_" + randomAlphaOfLength(8) + "[0]";
+        String flexibleFirst = "flexible_first_" + randomAlphaOfLength(8) + "[0]";
+
+        doWithAccessPattern(CLASSIC, (doc) -> assertPathValid(doc, classicFirst));
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertPathInvalid(doc, classicFirst, "path [" + classicFirst + "] is not valid"));
+
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertPathInvalid(doc, flexibleFirst, "path [" + flexibleFirst + "] is not valid"));
+        doWithAccessPattern(CLASSIC, (doc) -> assertPathValid(doc, flexibleFirst));
+    }
+
     public void testPathParsingLogic() throws Exception {
         // Force a blank document for this test
         document = new IngestDocument("index", "id", 1, null, null, new HashMap<>());
@@ -191,6 +244,22 @@ public class IngestDocumentTests extends ESTestCase {
             // Empty field names are not allowed in the beginning or middle of the path though
             assertPathInvalid(doc, ".a.b", "path [.a.b] is not valid");
             assertPathInvalid(doc, "a..b", "path [a..b] is not valid");
+            // A path made up of nothing but separators has no elements at all, so it is not valid either
+            assertPathInvalid(doc, ".", "path [.] is not valid");
+            assertPathInvalid(doc, "..", "path [..] is not valid");
+            assertPathInvalid(doc, "...", "path [...] is not valid");
+            // The same goes for a path that has nothing but separators left after the _source or _ingest prefix has been stripped
+            assertPathInvalid(doc, "_source..", "path [_source..] is not valid");
+            assertPathInvalid(doc, "_source...", "path [_source...] is not valid");
+            assertPathInvalid(doc, "_ingest..", "path [_ingest..] is not valid");
+            assertPathInvalid(doc, "_ingest...", "path [_ingest...] is not valid");
+            // The same rules apply after the _source and _ingest prefixes have been stripped
+            assertPathValid(doc, "_source.a");
+            assertPathValid(doc, "_source.a.b.");
+            assertPathValid(doc, "_ingest.missing");
+            assertPathValid(doc, "_ingest.a.b..");
+            assertPathInvalid(doc, "_source..a", "path [_source..a] is not valid");
+            assertPathInvalid(doc, "_source.a..b", "path [_source.a..b] is not valid");
         });
 
         doWithAccessPattern(CLASSIC, (doc) -> {

@@ -472,7 +472,13 @@ public class InboundHandler {
         final T response;
         try (inboundMessage) {
             response = handler.read(stream);
-            verifyResponseReadFully(inboundMessage.getHeader(), handler, stream);
+            try {
+                verifyResponseReadFully(inboundMessage.getHeader(), handler, stream);
+            } catch (Exception e) {
+                // The handler gets the failure instead of the response, so nothing else releases it.
+                response.decRef();
+                throw e;
+            }
         } catch (Exception e) {
             // Reading a message reserves memory for the structures it builds, so a breaker can trip part-way through reading a message
             // that is itself perfectly well-formed. That is rejected work rather than a deserialization defect, so deliver the breaker

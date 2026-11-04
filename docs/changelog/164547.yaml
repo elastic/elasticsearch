@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164547
+summary: Keep `_unmapped_fields` for FORK over a union
+type: bug

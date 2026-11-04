@@ -157,7 +157,11 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         assertThat(pendingApplierTasks.size(), equalTo(0));
     }
 
-    public void testRetryBecomesFailSendWhenShardPastRecovering() {
+    public void testRetryStillRetriesWhenShardPastRecovering() {
+        // Reaching POST_RECOVERY before the recovery itself fails no longer risks master having been
+        // told "started": updateShard only resends shardStarted once this InFlight ticket is gone, and
+        // this call is only reachable while the ticket (passed in below) is still the live one. So
+        // local retry remains safe even though the shard is already past RECOVERING.
         ShardRouting shardRouting = applyInitializingPrimary();
         MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
         assertNotNull(shard);
@@ -173,10 +177,10 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         );
 
         assertNull(indicesService.getShardOrNull(shardRouting.shardId()));
-        assertFalse(isAwaitingRecoveryRetry(shardRouting));
-        assertTrue(isFailureReported(shardRouting));
-        verify(shardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
-        assertThat(pendingApplierTasks.size(), equalTo(0));
+        assertTrue(isAwaitingRecoveryRetry(shardRouting));
+        assertFalse(isFailureReported(shardRouting));
+        verify(shardStateAction, never()).localShardFailed(any(), anyString(), any(), any(), any());
+        assertThat(pendingApplierTasks.size(), equalTo(1));
     }
 
     public void testRetrySetContextWithoutNotifyingMaster() {

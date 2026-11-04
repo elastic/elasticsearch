@@ -1616,17 +1616,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // path), but Shard doesn't currently expose it, so that part isn't asserted here.
         assert shard == null || shard.routingEntry().isSameAllocation(shardRouting)
             : "found shard for different allocation despite live ticket: " + shard.routingEntry() + " vs " + shardRouting;
-        final IndexShardState shardState = shard != null ? shard.state() : null;
+        assert shard == null
+            || shard.state() == IndexShardState.CREATED
+            || shard.state() == IndexShardState.RECOVERING
+            || shard.state() == IndexShardState.POST_RECOVERY
+            : "found shard in unexpected state despite live ticket: " + shardRouting + " in state " + shard.state();
         if (failureStrategy != FailureStrategy.RETRY) {
             finalStrategy = failureStrategy;
         } else if (localRecoveryRetryEnabled == false) {
             // local recovery retry is disabled
-            finalStrategy = FailureStrategy.FAIL_SEND;
-        } else if (shardState != IndexShardState.RECOVERING) {
-            // When the shard reaches POST_RECOVERY, updateShard may have sent a started notification even if routing is
-            // still initializing. In which case the master could respond with a `STARTED` update, and we could continue
-            // retrying locally without ever letting the master know that the shard is back in INITIALIZING.
-            // Fall back to FAIL_SEND in this case.
             finalStrategy = FailureStrategy.FAIL_SEND;
         } else if (shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT)) {
             // TODO: Remove RESHARD_SPLIT exclusion once local retries support it

@@ -321,7 +321,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
             // When it takes a long time to start emitting pages we need to return back to the driver so we can update its status.
             // Even if this should almost never happen, we want to update the driver status even when a query runs "forever".
-            if (System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
+            // But not once the last slice is done: getCurrentOrLoadNextScorer() has then set doneCollecting, which makes isFinished()
+            // true while nothing is emitting, so returning here would drop everything that was collected without an error.
+            // NOTE: this fix is only here so that this branch returns correct results. The same fix goes to the main branch with a
+            // separate change (see ~/esql-topn-lost-results-plan.md), and when this branch rebases onto it, keep the version of main.
+            if (doneCollecting == false && System.nanoTime() - start > Driver.DEFAULT_STATUS_INTERVAL.getNanos()) {
                 return null;
             }
         }

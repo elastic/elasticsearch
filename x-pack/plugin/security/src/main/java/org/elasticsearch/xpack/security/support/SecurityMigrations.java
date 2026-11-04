@@ -390,14 +390,18 @@ public class SecurityMigrations {
                 return;
             }
             incrementAttemptCount(projectId);
-            final ActionListener<ActionResponse.Empty> listener = ActionListener.runAfter(
-                ActionListener.wrap(
-                    response -> logger.debug("Security migration completed for project [{}]", projectId),
-                    // the failure itself is already logged by the action
-                    exception -> logger.debug("Security migration failed for project [{}]", projectId)
-                ),
-                () -> onMigrationFinished(projectId)
-            );
+            final ActionListener<ActionResponse.Empty> listener = ActionListener.wrap(response -> {
+                logger.debug("Security migration completed for project [{}]", projectId);
+                migrationsInProgress.remove(projectId);
+                // State changes received while this run was in flight were ignored, so re-check the latest state
+                maybeApplyPendingSecurityMigrations(projectId, systemIndices.getMainIndexManager().getProject(projectId));
+            }, exception -> {
+                // the failure itself is already logged by the action
+                logger.debug("Security migration failed for project [{}]", projectId);
+                // Do not re-check here: the index state is unchanged, so an immediate retry would loop and exhaust the attempt
+                // budget. As with the former persistent task, the next attempt is driven by the next index state change.
+                migrationsInProgress.remove(projectId);
+            });
             // Drop any authentication or origin from the calling context, so that the internal action runs as the system user
             try (var ignored = client.threadPool().getThreadContext().stashContext()) {
                 projectResolver.executeOnProject(
@@ -411,12 +415,6 @@ public class SecurityMigrations {
             } catch (Exception e) {
                 listener.onFailure(e);
             }
-        }
-
-        private void onMigrationFinished(ProjectId projectId) {
-            migrationsInProgress.remove(projectId);
-            // State changes received while this run was in flight were ignored, so re-check the latest state
-            maybeApplyPendingSecurityMigrations(projectId, systemIndices.getMainIndexManager().getProject(projectId));
         }
 
         public PersistentTasksExecutor<?> getPersistentTasksExecutor(Client client, ThreadPool threadPool) {

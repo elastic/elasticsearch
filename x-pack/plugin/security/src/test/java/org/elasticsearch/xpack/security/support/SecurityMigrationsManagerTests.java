@@ -156,13 +156,31 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
         assertThat(executions, hasSize(1));
 
         when(securityIndexManager.getProject(projectId)).thenReturn(pendingState);
-        if (randomBoolean()) {
-            executions.get(0).listener().onResponse(ActionResponse.Empty.INSTANCE);
-        } else {
-            executions.get(0).listener().onFailure(new IllegalStateException("migration failed"));
-        }
+        executions.get(0).listener().onResponse(ActionResponse.Empty.INSTANCE);
         assertThat(executions, hasSize(2));
         assertEquals(SecurityMigrations.MIGRATIONS_BY_VERSION.firstKey().intValue(), executions.get(1).request().getMigrationVersion());
+
+        when(securityIndexManager.getProject(projectId)).thenReturn(indexState(SecurityMigrations.highestMigrationVersion(), false));
+        executions.get(1).listener().onResponse(ActionResponse.Empty.INSTANCE);
+        assertThat(executions, hasSize(2));
+    }
+
+    /**
+     * A failed run must not be retried straight away: the index state is unchanged, so an immediate re-check would retry in a
+     * tight loop and burn through the attempt budget. The next attempt is driven by the next state change instead.
+     */
+    public void testTransientFailureDoesNotExhaustAttempts() {
+        final SecurityIndexManager.IndexState state = indexState(0, false);
+        when(securityIndexManager.getProject(projectId)).thenReturn(state);
+        notifyStateChange(state);
+        assertThat(executions, hasSize(1));
+
+        executions.get(0).listener().onFailure(new IllegalStateException("index temporarily unavailable"));
+        assertThat(executions, hasSize(1));
+
+        notifyStateChange(state);
+        assertThat(executions, hasSize(2));
+        assertEquals(0, executions.get(1).request().getMigrationVersion());
 
         when(securityIndexManager.getProject(projectId)).thenReturn(indexState(SecurityMigrations.highestMigrationVersion(), false));
         executions.get(1).listener().onResponse(ActionResponse.Empty.INSTANCE);
@@ -172,13 +190,11 @@ public class SecurityMigrationsManagerTests extends ESTestCase {
     public void testStopsRetryingAfterMaxAttempts() {
         final SecurityIndexManager.IndexState state = indexState(0, false);
         when(securityIndexManager.getProject(projectId)).thenReturn(state);
-        notifyStateChange(state);
-        int previousSize;
-        do {
-            previousSize = executions.size();
-            executions.get(previousSize - 1).listener().onFailure(new IllegalStateException("migration failed"));
-        } while (executions.size() > previousSize);
-        assertThat(executions, hasSize(MAX_SECURITY_MIGRATION_ATTEMPT_COUNT + 1));
+        for (int attempt = 0; attempt <= MAX_SECURITY_MIGRATION_ATTEMPT_COUNT; attempt++) {
+            notifyStateChange(state);
+            assertThat(executions, hasSize(attempt + 1));
+            executions.get(attempt).listener().onFailure(new IllegalStateException("migration failed"));
+        }
 
         notifyStateChange(state);
         assertThat(executions, hasSize(MAX_SECURITY_MIGRATION_ATTEMPT_COUNT + 1));

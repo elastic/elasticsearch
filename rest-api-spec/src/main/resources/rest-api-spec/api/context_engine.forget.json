@@ -1,0 +1,45 @@
+{
+  "context_engine.forget": {
+    "documentation": {
+      "url": null,
+      "description": "Deletes every revision of a Context Engine session memory"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_context_engine/session_memory/{id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The memory id"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "session_id": {
+        "type": "string",
+        "description": "Only forget the memory if it belongs to this session"
+      },
+      "user_id": {
+        "type": "string",
+        "description": "Only forget the memory if it belongs to this user"
+      },
+      "space": {
+        "type": "string",
+        "description": "Only forget the memory if it was written for this Kibana space"
+      }
+    }
+  }
+}

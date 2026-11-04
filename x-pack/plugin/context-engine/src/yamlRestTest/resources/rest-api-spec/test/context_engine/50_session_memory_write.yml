@@ -307,6 +307,62 @@ teardown:
   - match: { results.0.memory.media.0.type: "pdf" }
 
 ---
+"Forget deletes every revision of a memory and nothing else":
+  - do:
+      context_engine.remember:
+        body:
+          id: "forget-me"
+          session_id: "session-6"
+          user_id: "user-1"
+          space: "default"
+          content: "The user lives in Boston."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "forget-me"
+          session_id: "session-6"
+          user_id: "user-1"
+          space: "default"
+          content: "The user lives in Chicago."
+
+  - do:
+      context_engine.remember:
+        body:
+          id: "keep-me"
+          session_id: "session-6"
+          user_id: "user-1"
+          space: "default"
+          content: "The user prefers dark mode."
+
+  - do:
+      catch: missing
+      context_engine.forget:
+        id: "forget-me"
+        session_id: "no-such-session"
+
+  - do:
+      context_engine.forget:
+        id: "forget-me"
+        session_id: "session-6"
+        user_id: "user-1"
+        space: "default"
+
+  - match: { deleted: 2 }
+
+  - do:
+      context_engine.list_session_memory:
+        session_id: "session-6"
+
+  - match: { count: 1 }
+  - match: { results.0.id: "keep-me" }
+
+  - do:
+      catch: missing
+      context_engine.forget:
+        id: "forget-me"
+
+---
 "Search rejects an empty query":
   - do:
       catch: bad_request

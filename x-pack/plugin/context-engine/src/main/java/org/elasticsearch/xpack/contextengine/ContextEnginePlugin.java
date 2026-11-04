@@ -49,12 +49,15 @@ import org.elasticsearch.xpack.contextengine.events.action.RestSaveEventAction;
 import org.elasticsearch.xpack.contextengine.events.action.SaveEventAction;
 import org.elasticsearch.xpack.contextengine.events.action.TransportGetSessionEventsAction;
 import org.elasticsearch.xpack.contextengine.events.action.TransportSaveEventAction;
+import org.elasticsearch.xpack.contextengine.memory.action.ForgetAction;
 import org.elasticsearch.xpack.contextengine.memory.action.ListSessionMemoryAction;
 import org.elasticsearch.xpack.contextengine.memory.action.RememberAction;
+import org.elasticsearch.xpack.contextengine.memory.action.RestForgetAction;
 import org.elasticsearch.xpack.contextengine.memory.action.RestListSessionMemoryAction;
 import org.elasticsearch.xpack.contextengine.memory.action.RestRememberAction;
 import org.elasticsearch.xpack.contextengine.memory.action.RestSearchSessionMemoryAction;
 import org.elasticsearch.xpack.contextengine.memory.action.SearchSessionMemoryAction;
+import org.elasticsearch.xpack.contextengine.memory.action.TransportForgetAction;
 import org.elasticsearch.xpack.contextengine.memory.action.TransportListSessionMemoryAction;
 import org.elasticsearch.xpack.contextengine.memory.action.TransportRememberAction;
 import org.elasticsearch.xpack.contextengine.memory.action.TransportSearchSessionMemoryAction;
@@ -129,6 +132,7 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
             new ActionHandler(RememberAction.INSTANCE, TransportRememberAction.class),
             new ActionHandler(ListSessionMemoryAction.INSTANCE, TransportListSessionMemoryAction.class),
             new ActionHandler(SearchSessionMemoryAction.INSTANCE, TransportSearchSessionMemoryAction.class),
+            new ActionHandler(ForgetAction.INSTANCE, TransportForgetAction.class),
             new ActionHandler(SaveEventAction.INSTANCE, TransportSaveEventAction.class),
             new ActionHandler(GetSessionEventsAction.INSTANCE, TransportGetSessionEventsAction.class),
             new ActionHandler(PutAiIndexAction.INSTANCE, TransportPutAiIndexAction.class),
@@ -148,6 +152,7 @@ public class ContextEnginePlugin extends Plugin implements SystemIndexPlugin {
             new RestRememberAction(),
             new RestListSessionMemoryAction(),
             new RestSearchSessionMemoryAction(),
+            new RestForgetAction(),
             new RestSaveEventAction(),
             new RestGetSessionEventsAction(),
             new RestPutAiIndexAction(),

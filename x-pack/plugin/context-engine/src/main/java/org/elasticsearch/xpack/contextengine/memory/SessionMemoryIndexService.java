@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.contextengine.memory;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
@@ -32,6 +36,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.contextengine.ContextEnginePlugin;
+import org.elasticsearch.xpack.contextengine.memory.action.ForgetAction;
 import org.elasticsearch.xpack.contextengine.memory.action.ListSessionMemoryAction;
 import org.elasticsearch.xpack.contextengine.memory.action.SearchSessionMemoryAction;
 
@@ -50,6 +55,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.CONTEXT_ENGINE_ORIGIN;
  * Reads and writes the session memory data stream on behalf of the Context Engine actions.
  */
 public class SessionMemoryIndexService {
+
+    private static final int MAX_REVISIONS = 1000;
 
     private final Client clientWithOrigin;
 
@@ -105,6 +112,54 @@ public class SessionMemoryIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Deletes every revision of the memory with the request's id that matches its filters, and fails with a not-found error
+     * when there is none.
+     */
+    public void forget(ForgetAction.Request request, ActionListener<Integer> listener) {
+        try {
+            BoolQueryBuilder query = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(SessionMemory.ID_FIELD.getPreferredName(), request.id()));
+            filters(request.sessionId(), request.userId(), request.space(), null).forEach(query::filter);
+            SearchSourceBuilder source = new SearchSourceBuilder().query(query).size(MAX_REVISIONS).fetchSource(false);
+            SearchRequest searchRequest = new SearchRequest(ContextEnginePlugin.SESSION_MEMORY_DATA_STREAM_NAME).source(source)
+                .allowPartialSearchResults(false);
+            clientWithOrigin.search(searchRequest, ActionListener.wrap(searchResponse -> {
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                if (hits.length == 0) {
+                    listener.onFailure(notFound(request.id()));
+                    return;
+                }
+                BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+                for (SearchHit hit : hits) {
+                    bulkRequest.add(new DeleteRequest(hit.getIndex(), hit.getId()));
+                }
+                int deleted = hits.length;
+                clientWithOrigin.bulk(bulkRequest, listener.delegateFailureAndWrap((l, bulkResponse) -> {
+                    if (bulkResponse.hasFailures()) {
+                        l.onFailure(
+                            new ElasticsearchException("failed to forget memory [{}]: {}", request.id(), bulkResponse.buildFailureMessage())
+                        );
+                    } else {
+                        l.onResponse(deleted);
+                    }
+                }));
+            }, e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                    listener.onFailure(notFound(request.id()));
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static ResourceNotFoundException notFound(String id) {
+        return new ResourceNotFoundException("memory [" + id + "] not found");
     }
 
     /**

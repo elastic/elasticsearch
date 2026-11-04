@@ -194,20 +194,15 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         // stats
         Map<String, Object> stats = (Map<String, Object>) json.get("stats");
 
-        /**
-         * Jackson, by default, boxes values that are smaller than Integer.MAX_VALUE into integers, even though they are set as longs
-         * inside {@link randomDesiredBalanceStats}. We are comparing all values below expecting them to be longs, so we must cast to
-         * {@link Number} first, and then retrieve the values are longs.
-         */
-        assertEquals(((Number) stats.get("computation_converged_index")).longValue(), response.getStats().lastConvergedIndex());
+        assertLongValueEquals(stats.get("computation_converged_index"), response.getStats().lastConvergedIndex());
         assertEquals(response.getStats().computationActive(), stats.get("computation_active"));
-        assertEquals(((Number) stats.get("computation_submitted")).longValue(), response.getStats().computationSubmitted());
-        assertEquals(((Number) stats.get("computation_executed")).longValue(), response.getStats().computationExecuted());
-        assertEquals(((Number) stats.get("computation_converged")).longValue(), response.getStats().computationConverged());
-        assertEquals(((Number) stats.get("computation_iterations")).longValue(), response.getStats().computationIterations());
-        assertEquals(((Number) stats.get("computed_shard_movements")).longValue(), response.getStats().computedShardMovements());
-        assertEquals(((Number) stats.get("computation_time_in_millis")).longValue(), response.getStats().cumulativeComputationTime());
-        assertEquals(((Number) stats.get("reconciliation_time_in_millis")).longValue(), response.getStats().cumulativeReconciliationTime());
+        assertLongValueEquals(stats.get("computation_submitted"), response.getStats().computationSubmitted());
+        assertLongValueEquals(stats.get("computation_executed"), response.getStats().computationExecuted());
+        assertLongValueEquals(stats.get("computation_converged"), response.getStats().computationConverged());
+        assertLongValueEquals(stats.get("computation_iterations"), response.getStats().computationIterations());
+        assertLongValueEquals(stats.get("computed_shard_movements"), response.getStats().computedShardMovements());
+        assertLongValueEquals(stats.get("computation_time_in_millis"), response.getStats().cumulativeComputationTime());
+        assertLongValueEquals(stats.get("reconciliation_time_in_millis"), response.getStats().cumulativeReconciliationTime());
 
         // cluster balance stats
         Map<String, Object> clusterBalanceStats = (Map<String, Object>) json.get("cluster_balance_stats");
@@ -299,8 +294,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             assertEquals(nodesStats.get("shard_count"), entry.getValue().shards());
             assertEquals(nodesStats.get("undesired_shard_allocation_count"), entry.getValue().undesiredShardAllocations());
             assertEquals(nodesStats.get("forecast_write_load"), entry.getValue().forecastWriteLoad());
-            assertEquals(((Number) nodesStats.get("forecast_disk_usage_bytes")).longValue(), entry.getValue().forecastShardSize());
-            assertEquals(((Number) nodesStats.get("actual_disk_usage_bytes")).longValue(), entry.getValue().actualShardSize());
+            assertLongValueEquals(nodesStats.get("forecast_disk_usage_bytes"), entry.getValue().forecastShardSize());
+            assertLongValueEquals(nodesStats.get("actual_disk_usage_bytes"), entry.getValue().actualShardSize());
             assertEquals(nodesStats.get("node_weight"), entry.getValue().nodeWeight());
         }
 
@@ -330,14 +325,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     assertEquals(jsonShard.get("shard_id"), shardView.shardId());
                     assertEquals(jsonShard.get("index"), shardView.index());
                     assertEquals(jsonShard.get("forecast_write_load"), shardView.forecastWriteLoad());
-                    if (shardView.forecastShardSizeInBytes() == null) {
-                        assertNull(jsonShard.get("forecast_shard_size_in_bytes"));
-                    } else {
-                        assertEquals(
-                            ((Number) jsonShard.get("forecast_shard_size_in_bytes")).longValue(),
-                            shardView.forecastShardSizeInBytes().longValue()
-                        );
-                    }
+                    assertLongValueEquals(jsonShard.get("forecast_shard_size_in_bytes"), shardView.forecastShardSizeInBytes());
                     assertEquals(jsonShard.get("tier_preference"), shardView.tierPreference());
                 }
 
@@ -366,5 +354,18 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                 .mapToInt(indexEntry -> 2 + indexEntry.values().stream().mapToInt(shardEntry -> 3 + shardEntry.current().size()).sum())
                 .sum()
         );
+    }
+
+    /**
+     * {@code XContentParser#map()} boxes a JSON number that fits in 32 bits as an {@link Integer} and a larger number as a
+     * {@link Long}. Compare {@code actual} to {@code expected} without depending on that boxing. A null {@code expected} value
+     * requires {@code actual} to be null.
+     */
+    private static void assertLongValueEquals(Object actual, Long expected) {
+        if (expected == null) {
+            assertNull(actual);
+        } else {
+            assertEquals(expected.longValue(), asInstanceOf(Number.class, actual).longValue());
+        }
     }
 }

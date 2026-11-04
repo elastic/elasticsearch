@@ -66,9 +66,11 @@ def checkProfileSchema = tasks.register('checkProfileSchema') {
   mustRunAfter updateProfileSchema
   inputs.file(generatedSchema)
   inputs.file(checkedInSchema)
+  // a plain string, so the configuration cache doesn't have to store the updateProfileSchema task
+  def updateProfileSchemaPath = "${project.path}:${updateProfileSchema.name}"
   doLast {
     if (java.nio.file.Files.mismatch(generatedSchema.get().asFile.toPath(), checkedInSchema.asFile.toPath()) != -1) {
-      throw new GradleException("ES|QL profile schema is stale. Run ${updateProfileSchema.get().path}")
+      throw new GradleException("ES|QL profile schema is stale. Run ${updateProfileSchemaPath}")
     }
   }
 }

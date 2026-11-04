@@ -207,8 +207,11 @@ public class LuceneSourceOperator extends LuceneOperator {
          * <p>
          * A query with a {@code limit} keeps {@link PartitioningStrategy#SHARD} unless it is a guaranteed full scan:
          * costly-to-build clauses (BKD point ranges, multi-term) keep {@code SHARD} because a single shard-level walk
-         * beats rebuilding scorers per segment when the limit fires early; {@link org.apache.lucene.search.MatchAllDocsQuery}
-         * and {@link org.apache.lucene.search.MatchNoDocsQuery} keep {@code SHARD}; cheap filters (cost below
+         * beats rebuilding scorers per segment when the limit fires early. Indexed spatial filters (geo and cartesian
+         * distance and geometry queries) keep {@code SHARD} for the same reason, but only on this branch: their scorers
+         * walk a BKD tree, and recording them in {@link #isCostlyToBuildScorer} would force a no-limit scan onto
+         * {@link PartitioningStrategy#SEGMENT}. {@link org.apache.lucene.search.MatchAllDocsQuery} and
+         * {@link org.apache.lucene.search.MatchNoDocsQuery} keep {@code SHARD}; cheap filters (cost below
          * {@code minCostForDoc}) keep {@code SHARD}. Only a scan-heavy filter with {@code cost ≥ minCostForDoc} (e.g. a
          * doc-values-only field with no BKD index) is promoted to {@link PartitioningStrategy#DOC}, because those scans
          * visit {@code ~maxDoc} regardless of match density and the limit is never reached early.
@@ -220,7 +223,10 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
 
         private static PartitioningStrategy limitedScanAutoStrategy(ShardContext ctx, Query query, long minCostForDoc) {
-            if (containsCostlyClause(query)) {
+            // Indexed spatial scorers walk the BKD tree inside scorerSupplier.get(). A DOC split repeats that walk
+            // per slice, which is slower when LIMIT matches early. Keep those queries on SHARD without marking them
+            // costly: the no-limit path still parallelizes a large circle with DOC.
+            if (containsCostlyClause(query) || containsIndexedSpatialQuery(query)) {
                 return SHARD;
             }
             Query unwrapped = unwrapQuery(query);
@@ -373,6 +379,64 @@ public class LuceneSourceOperator extends LuceneOperator {
             return CostlyMultiTermQueries.isCostlyMultiTermQuery(query)
                 || query instanceof PointRangeQuery
                 || query instanceof PointInSetQuery;
+        }
+
+        /**
+         * {@code true} when {@code query} contains an indexed spatial clause. Same walk as
+         * {@link #containsCostlyClause}, including {@link QueryVisitor#getSubVisitor}, so the check sees through
+         * {@link ConstantScoreQuery}, {@link org.apache.lucene.search.BooleanQuery}, and
+         * {@link org.apache.lucene.search.IndexOrDocValuesQuery} (which visits both the index query and the
+         * doc-values query).
+         */
+        static boolean containsIndexedSpatialQuery(Query query) {
+            boolean[] found = { false };
+            query.visit(new QueryVisitor() {
+                @Override
+                public void consumeTerms(Query q, Term... terms) {
+                    if (isIndexedSpatialQuery(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                    if (isIndexedSpatialQuery(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public void visitLeaf(Query q) {
+                    if (isIndexedSpatialQuery(q)) {
+                        found[0] = true;
+                    }
+                }
+
+                @Override
+                public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                    if (isIndexedSpatialQuery(parent)) {
+                        found[0] = true;
+                    }
+                    return this;
+                }
+            });
+            return found[0];
+        }
+
+        /**
+         * Indexed BKD spatial queries. The Lucene classes are package-private, so this matches
+         * {@link Class#getName()} (see {@code GeoDistanceQueryBuilderTestCase}). Doc-values siblings
+         * ({@code LatLonDocValuesQuery}, {@code LatLonDocValuesBoxQuery}) are excluded so an {@code index: false}
+         * field still follows the cost check, and {@code LatLonPointDistanceFeatureQuery} is a scoring feature
+         * query, not one of these filters.
+         */
+        static boolean isIndexedSpatialQuery(Query query) {
+            return switch (query.getClass().getName()) {
+                case "org.apache.lucene.document.LatLonPointDistanceQuery", "org.apache.lucene.document.LatLonPointQuery",
+                    "org.apache.lucene.document.LatLonShapeQuery", "org.apache.lucene.document.XYPointInGeometryQuery",
+                    "org.apache.lucene.document.XYShapeQuery" -> true;
+                default -> false;
+            };
         }
 
         static Query unwrapQuery(Query query) {

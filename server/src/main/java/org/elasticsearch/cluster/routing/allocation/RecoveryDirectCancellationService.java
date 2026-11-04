@@ -62,8 +62,8 @@ import java.util.concurrent.Semaphore;
 /// - Desired-balance cancellations ([cancelUndesiredRecoveries]): when the desired balance changes and an
 ///   initializing shard is no longer assigned to its current node, a [CancelRecoveriesAction] request is sent to
 ///   the data node so the recovery is aborted as soon as possible rather than waiting for it to complete before
-///   the next allocation round can move the shard. For intermediate desired balances, from computations that yielded
-///   to newer input, only recoveries of shards that also cannot remain on their current node are cancelled.
+///   the next allocation round can move the shard. Unless the desired balance converged with the latest input, only
+///   queued recoveries of shards that also cannot remain on their current node are cancelled.
 ///
 /// - Snapshot-blocking cancellations ([cancelRecoveriesBlockingSnapshots]): when a snapshot has
 ///   [SnapshotsInProgress.ShardState#WAITING] shards blocked by a primary relocation, we attempt to cancel the
@@ -219,12 +219,18 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// @param desiredBalance the desired balance used to determine which recoveries are no longer heading to a desired node
     /// @param routingAllocation the routing allocation snapshot the desired balance was derived from, used to identify
     /// which shards are currently initializing on an undesired node
-    public void cancelUndesiredRecoveries(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
+    /// @param convergedWithLatestInput whether the computation of the desired balance converged and no newer input
+    /// arrived in the meantime, see [#computeUndesiredRecoveryCancellations]
+    public void cancelUndesiredRecoveries(
+        DesiredBalance desiredBalance,
+        RoutingAllocation routingAllocation,
+        boolean convergedWithLatestInput
+    ) {
         if (lifecycle.started() == false) {
             logger.debug("service stopped or not yet fully started, will not cancel undesired recoveries");
             return;
         }
-        genericExecutor.execute(new CancelUndesiredRecoveriesRunnable(desiredBalance, routingAllocation));
+        genericExecutor.execute(new CancelUndesiredRecoveriesRunnable(desiredBalance, routingAllocation, convergedWithLatestInput));
     }
 
     /// Returns a map of [CancelRecoveriesAction.Request] per relevant data node. Each request lists the initializing
@@ -233,12 +239,15 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     /// flag, determined by recovery type, the shutdown status of the relocation source node (if any) and allocation
     /// decider result, indicating whether the recovery should be interrupted even after it has started work.
     ///
-    /// If `desiredBalance` is an intermediate result from a computation that yielded to newer input, only shards that
-    /// cannot remain on their current node are included. A rebalancing move in such a balance may still be reversed by a
-    /// later iteration, but a shard that cannot remain on its node is less likely to return back.
+    /// If `convergedWithLatestInput` is false, the final `desiredBalance` is still being determined. Either this
+    /// computation stopped early, or newer input arrived before it completed. A later computation may still revise such
+    /// a balance, so only shards that cannot remain on their current node are included, and their recoveries are only
+    /// canceled if they have not started yet. A rebalancing move in such a balance may be reversed by a later computation,
+    /// but a shard that cannot remain on its node is less likely to return to it.
     static Map<DiscoveryNode, CancelRecoveriesAction.Request> computeUndesiredRecoveryCancellations(
         DesiredBalance desiredBalance,
-        RoutingAllocation allocation
+        RoutingAllocation allocation,
+        boolean convergedWithLatestInput
     ) {
         final long term = allocation.getClusterState().term();
         final long version = allocation.getClusterState().version();
@@ -257,21 +266,17 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
                 }
 
                 final boolean canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation).type() != Decision.Type.NO;
-                final boolean balanceYieldedToNewInput = desiredBalance
-                    .finishReason() == DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT;
-                // An intermediate balance may still move this shard back to its current node in a later iteration. A move
-                // driven by a canRemain NO is much less likely to be reversed than a rebalancing move, since NO decisions
-                // (shutdowns, allocation filters, disk watermarks) usually do not change their mind. So only cancel recoveries
-                // of shards that cannot remain.
-                if (canRemain && balanceYieldedToNewInput) {
+                // A balance that has not converged with the latest input may still move this shard back to its current
+                // node in a later computation. A move driven by a canRemain NO (shutdowns, allocation filters, disk watermarks)
+                // is less likely to be reversed than a rebalancing move, so only cancel recoveries of shards that cannot remain.
+                if (canRemain && convergedWithLatestInput == false) {
                     continue;
                 }
 
                 final boolean canCancelIfStarted = recoveryCanBeCancelledIfStarted(shardRouting, allocation);
-                // Only interrupt a started recovery if the shard cannot remain on its current node and the balance did not
-                // yield to new input (it converged or stopped early). For a balance that yielded, only cancel recoveries that
-                // have not started yet.
-                final boolean cancelIfStarted = canCancelIfStarted && canRemain == false && balanceYieldedToNewInput == false;
+                // Only interrupt a started recovery if the shard cannot remain on its current node and the balance
+                // converged with the latest input. Otherwise, only cancel recoveries that have not started yet.
+                final boolean cancelIfStarted = canCancelIfStarted && canRemain == false && convergedWithLatestInput;
                 nodeCancellations.add(
                     new ShardRecoveryCancellation(shardRouting.shardId(), shardRouting.allocationId().getId(), cancelIfStarted)
                 );
@@ -311,17 +316,24 @@ public class RecoveryDirectCancellationService extends AbstractLifecycleComponen
     private class CancelUndesiredRecoveriesRunnable extends AbstractRunnable {
         private final DesiredBalance desiredBalance;
         private final RoutingAllocation routingAllocation;
+        private final boolean convergedWithLatestInput;
 
-        CancelUndesiredRecoveriesRunnable(DesiredBalance desiredBalance, RoutingAllocation routingAllocation) {
+        CancelUndesiredRecoveriesRunnable(
+            DesiredBalance desiredBalance,
+            RoutingAllocation routingAllocation,
+            boolean convergedWithLatestInput
+        ) {
             this.desiredBalance = desiredBalance;
             this.routingAllocation = routingAllocation;
+            this.convergedWithLatestInput = convergedWithLatestInput;
         }
 
         @Override
         protected void doRun() {
             final Map<DiscoveryNode, CancelRecoveriesAction.Request> requests = computeUndesiredRecoveryCancellations(
                 desiredBalance,
-                routingAllocation
+                routingAllocation,
+                convergedWithLatestInput
             );
             if (requests.isEmpty()) {
                 return;

@@ -33,7 +33,7 @@ public record DesiredBalance(
     ComputationFinishReason finishReason
 ) {
 
-    public enum ComputationFinishReason {
+    enum ComputationFinishReason {
         /** Computation ran to completion */
         CONVERGED,
         /** Computation exited and published early because a new cluster event occurred that affects computation */

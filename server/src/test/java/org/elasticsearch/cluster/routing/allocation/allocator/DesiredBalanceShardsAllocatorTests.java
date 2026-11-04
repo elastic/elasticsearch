@@ -72,6 +72,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
@@ -91,6 +93,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -1332,6 +1335,177 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         } finally {
             clusterService.close();
             terminate(threadPool);
+        }
+    }
+
+    /// Only a computation that converged with the latest input triggers the full direct cancellation pass. A computation
+    /// that stopped early or was superseded by newer input (because it yielded to it, or converged after it arrived) only
+    /// triggers the restricted pass. Either way, a following computation with the same assignments triggers no pass.
+    public void testDirectCancellationConvergedWithLatestInput() {
+        final var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
+        final var assignments = Map.of(shardId, new ShardAssignment(Set.of(LOCAL_NODE_ID), 1, 0, 0));
+        final var outcome = between(0, 2);
+        final var firstComputation = switch (outcome) {
+            case 0 -> new ScriptedComputation(assignments, DesiredBalance.ComputationFinishReason.CONVERGED, false);
+            case 1 -> new ScriptedComputation(assignments, DesiredBalance.ComputationFinishReason.STOP_EARLY, false);
+            case 2 -> new ScriptedComputation(
+                assignments,
+                randomFrom(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT, DesiredBalance.ComputationFinishReason.CONVERGED),
+                true
+            );
+            default -> throw new AssertionError("unexpected outcome [" + outcome + "]");
+        };
+
+        assertThat(
+            runScriptedComputations(
+                List.of(firstComputation, new ScriptedComputation(assignments, DesiredBalance.ComputationFinishReason.CONVERGED, false))
+            ),
+            equalTo(List.of(new RecordedCancellation(assignments, outcome == 0)))
+        );
+    }
+
+    /// A superseded computation only triggers the restricted direct cancellation pass if its assignments changed. The
+    /// next computation on the latest input with the same assignments does not trigger any pass.
+    public void testDirectCancellationForSupersededComputationOnlyOnChanges() {
+        final var shardId = new ShardId("test-index", UUIDs.randomBase64UUID(), 0);
+        final var assignments = Map.of(shardId, new ShardAssignment(Set.of(LOCAL_NODE_ID), 1, 0, 0));
+        final var assignmentsChange = randomBoolean();
+        final var supersededAssignments = assignmentsChange
+            ? Map.of(shardId, new ShardAssignment(Set.of(OTHER_NODE_ID), 1, 0, 0))
+            : assignments;
+
+        final var recordedCancellations = runScriptedComputations(
+            List.of(
+                new ScriptedComputation(assignments, DesiredBalance.ComputationFinishReason.CONVERGED, false),
+                new ScriptedComputation(
+                    supersededAssignments,
+                    randomFrom(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT, DesiredBalance.ComputationFinishReason.CONVERGED),
+                    true
+                ),
+                new ScriptedComputation(supersededAssignments, DesiredBalance.ComputationFinishReason.CONVERGED, false)
+            )
+        );
+
+        if (assignmentsChange) {
+            assertThat(
+                recordedCancellations,
+                equalTo(List.of(new RecordedCancellation(assignments, true), new RecordedCancellation(supersededAssignments, false)))
+            );
+        } else {
+            assertThat(recordedCancellations, equalTo(List.of(new RecordedCancellation(assignments, true))));
+        }
+    }
+
+    /// The scripted result of one desired balance computation. A `supersededByNewerInput` computation blocks until newer
+    /// input is submitted, so that its input is no longer fresh once it completes.
+    private record ScriptedComputation(
+        Map<ShardId, ShardAssignment> assignments,
+        DesiredBalance.ComputationFinishReason finishReason,
+        boolean supersededByNewerInput
+    ) {}
+
+    private record RecordedCancellation(Map<ShardId, ShardAssignment> assignments, boolean convergedWithLatestInput) {}
+
+    /// Runs the given computations in order, submitting new input as needed, and returns the direct cancellation callback
+    /// invocations they triggered. Supports at most one superseded computation, which must not be the last one.
+    private List<RecordedCancellation> runScriptedComputations(List<ScriptedComputation> computations) {
+        assertThat(computations.stream().filter(ScriptedComputation::supersededByNewerInput).count(), lessThanOrEqualTo(1L));
+        assertFalse(computations.getLast().supersededByNewerInput());
+
+        final var node1 = newNode(LOCAL_NODE_ID);
+        final var node2 = newNode(OTHER_NODE_ID);
+        final var initialState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+            .build();
+        final var threadPool = new TestThreadPool(getTestName());
+        final var clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
+        final var shardsAllocator = createShardsAllocator();
+        final var remainingComputations = new ConcurrentLinkedQueue<>(computations);
+        final var supersededComputationStarted = new CountDownLatch(1);
+        final var newerInputSubmitted = new CountDownLatch(1);
+
+        final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            shardsAllocator,
+            threadPool,
+            clusterService,
+            new DesiredBalanceComputer(
+                createBuiltInClusterSettings(),
+                TimeProviderUtils.create(() -> 1L),
+                shardsAllocator,
+                TEST_ONLY_EXPLAINER
+            ) {
+                @Override
+                public DesiredBalance compute(
+                    DesiredBalance previousDesiredBalance,
+                    DesiredBalanceInput desiredBalanceInput,
+                    Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                    Predicate<DesiredBalanceInput> isFresh
+                ) {
+                    final var computation = remainingComputations.poll();
+                    assertNotNull("unexpected computation for input [" + desiredBalanceInput.index() + "]", computation);
+                    if (computation.supersededByNewerInput()) {
+                        supersededComputationStarted.countDown();
+                        safeAwait(newerInputSubmitted);
+                        assertFalse(isFresh.test(desiredBalanceInput));
+                    }
+                    return new DesiredBalance(desiredBalanceInput.index(), computation.assignments(), Map.of(), computation.finishReason());
+                }
+            },
+            (clusterState, rerouteStrategy) -> clusterState,
+            EMPTY_NODE_ALLOCATION_STATS,
+            DesiredBalanceMetrics.NOOP,
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
+        ) {
+            @Override
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {}
+
+            @Override
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {}
+        };
+        final List<RecordedCancellation> recordedCancellations = new CopyOnWriteArrayList<>();
+        desiredBalanceShardsAllocator.setRecoveryDirectCancellationCallback(
+            (desiredBalance, routingAllocation, convergedWithLatestInput) -> recordedCancellations.add(
+                new RecordedCancellation(desiredBalance.assignments(), convergedWithLatestInput)
+            )
+        );
+
+        final Runnable submitInput = () -> desiredBalanceShardsAllocator.allocate(
+            TestRoutingAllocationFactory.forClusterState(clusterService.state()).mutable(),
+            ActionListener.noop()
+        );
+        try {
+            for (int i = 0; i < computations.size(); i++) {
+                if (i > 0) {
+                    final var previousComputation = computations.get(i - 1);
+                    if (previousComputation.supersededByNewerInput()
+                        || previousComputation.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
+                        // The input for this computation was already submitted by the test or by the allocator
+                        continue;
+                    }
+                }
+                submitInput.run();
+                if (computations.get(i).supersededByNewerInput()) {
+                    safeAwait(supersededComputationStarted);
+                    submitInput.run();
+                    newerInputSubmitted.countDown();
+                }
+                awaitNoActiveComputation(desiredBalanceShardsAllocator);
+            }
+            assertThat(remainingComputations, empty());
+            return List.copyOf(recordedCancellations);
+        } finally {
+            newerInputSubmitted.countDown();
+            clusterService.close();
+            terminate(threadPool);
+        }
+    }
+
+    private static void awaitNoActiveComputation(DesiredBalanceShardsAllocator desiredBalanceShardsAllocator) {
+        try {
+            assertBusy(() -> assertFalse(desiredBalanceShardsAllocator.getStats().computationActive()));
+        } catch (Exception e) {
+            throw new AssertionError(e);
         }
     }
 

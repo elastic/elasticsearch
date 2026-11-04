@@ -115,9 +115,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @FunctionalInterface
     public interface RecoveryDirectCancellationCallback {
-        RecoveryDirectCancellationCallback NO_OP = (desiredBalance, routingAllocation) -> {};
+        RecoveryDirectCancellationCallback NO_OP = (desiredBalance, routingAllocation, convergedWithLatestInput) -> {};
 
-        void apply(DesiredBalance desiredBalance, RoutingAllocation routingAllocation);
+        void apply(DesiredBalance desiredBalance, RoutingAllocation routingAllocation, boolean convergedWithLatestInput);
     }
 
     @FunctionalInterface
@@ -231,12 +231,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         index
                     );
                     // We cancel even on a partial (not-yet-converged) balance to avoid delaying freeing recovery slots
-                    // on data nodes. This is consistent with reconciling on the same partial balance below, but comes at
-                    // the cost of potential cancellation/allocation back and forth if the final balance reverses the
-                    // decision.
+                    // on data nodes. This is consistent with reconciling on the same partial balance below. Since the
+                    // final balance may reverse the decision, only queued recoveries of shards that cannot remain on
+                    // their current node are canceled, to limit cancellation/allocation back and forth.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
-                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);
                     }
                     submitReconcileTask(currentDesiredBalance);
                     var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
@@ -250,27 +250,22 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     // is best-effort, but we should find a way to catch those cases.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
-                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, true);
                     }
                     submitReconcileTask(currentDesiredBalance);
-                } else if (currentDesiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT) {
-                    logger.debug(
-                        "Desired balance computation for [{}] yielded to newer input, cancelling recoveries that cannot remain",
-                        index
-                    );
+                } else {
+                    logger.debug("Desired balance computation for [{}] has newer input, cancelling recoveries that cannot remain", index);
                     // No reconciliation is scheduled here. The newer input already reconciles eagerly against this
                     // intermediate balance in allocate(). Without cancelling here, recoveries that cannot remain on their
                     // current node would only be canceled once a computation converges or stops early, which may not
-                    // happen for a long time on a cluster with a steady stream of new input. Because this balance has
-                    // finish reason YIELD_TO_NEW_INPUT, the callback only cancels recoveries of shards that are not on a
-                    // desired node in this balance and whose canRemain decision on their current node is NO. Shards that
-                    // were only moved for rebalancing are left alone, since a later computation may move them back.
+                    // happen for a long time on a cluster with a steady stream of new input. Because this balance did not
+                    // converge with the latest input, the callback only cancels queued recoveries of shards that are not
+                    // on a desired node in this balance and whose canRemain decision on their current node is NO. Shards
+                    // that were only moved for rebalancing are left alone, since a later computation may move them back.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
-                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation);
+                        recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);
                     }
-                } else {
-                    logger.debug("Desired balance computation for [{}] is discarded as newer one is submitted", index);
                 }
             }
 

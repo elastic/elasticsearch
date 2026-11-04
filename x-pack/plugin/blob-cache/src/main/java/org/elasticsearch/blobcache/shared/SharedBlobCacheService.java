@@ -1715,8 +1715,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     continue;
                 }
                 final var chunk = fileRegion.chunk;
-                // the sub-range must be available, not the first subRangeToRead.length() bytes of the region: otherwise a prefetch in a
-                // region whose start is cached (e.g. headers) is reported as cached and dropped (found by the fast-activation trace)
                 if (chunk.tracker.checkAvailable(subRangeToRead.end()) == false) {
                     continue;
                 }

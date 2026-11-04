@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 164372
+pr: 164380
+summary: Fix Parquet nullable columns serializing uninitialized memory in masked positions
+type: bug

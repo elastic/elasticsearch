@@ -2817,6 +2817,10 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertTextKeepsOwnDocValues(b -> b.field("null_value", "NULL"));
         assertTextKeepsOwnDocValues(b -> b.field("ignore_above", 10));
         assertTextKeepsOwnDocValues(b -> b.field("doc_values", false));
+        assertWarnings(
+            "The [doc_values] parameter of field [keyword] is ignored in columnar index modes, because doc values are always enabled. "
+                + "Remove the parameter."
+        );
     }
 
     private void assertTextKeepsOwnDocValues(CheckedConsumer<XContentBuilder, IOException> keywordConfig) throws IOException {

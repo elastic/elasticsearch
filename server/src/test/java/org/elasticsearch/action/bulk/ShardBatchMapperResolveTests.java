@@ -381,14 +381,18 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
 
     /** A sub-field configuration its own mapper cannot do columnar (no doc values) disqualifies the leaf. */
     public void testSubFieldWithoutDocValuesFallsBack() throws IOException {
-        MapperService ms = columnarMapperService(mapping(b -> {
-            b.startObject("host");
-            b.field("type", "keyword");
-            b.startObject("fields");
-            b.startObject("nd").field("type", "keyword").field("doc_values", false).endObject();
-            b.endObject();
-            b.endObject();
-        }));
+        MapperService ms = createMapperService(
+            randomVersionBeforeDocValuesNoOp(),
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build(),
+            mapping(b -> {
+                b.startObject("host");
+                b.field("type", "keyword");
+                b.startObject("fields");
+                b.startObject("nd").field("type", "keyword").field("doc_values", false).endObject();
+                b.endObject();
+                b.endObject();
+            })
+        );
         assertNull(ShardBatchMapper.resolveMappers(schemaOf("host"), ms.mappingLookup(), indexSettings));
     }
 

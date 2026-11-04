@@ -734,7 +734,8 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
             .build();
-        MapperService mapperService = createMapperService(settings, mapping(b -> {
+        // Pinned before doc_values became a no-op in columnar: the test needs text fields that really have no doc values.
+        MapperService mapperService = createMapperService(randomVersionBeforeDocValuesNoOp(), settings, mapping(b -> {
             b.startObject("lng").field("type", "long").endObject();
             b.startObject("kwd").field("type", "keyword").endObject();
             b.startObject("txt").field("type", "text").field("doc_values", false).endObject();

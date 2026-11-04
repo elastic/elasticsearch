@@ -57,7 +57,7 @@ Known issues are significant defects or limitations that may impact your impleme
 
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
-* Shards can fail to allocate after an upgrade when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md) and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
+* Shards can fail to allocate after an upgrade when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md#index-merge-scheduler-max-merge-count) to a value lower than half the number of processors on the node and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
 
   This issue is fixed in [#155693](https://github.com/elastic/elasticsearch/pull/155693), released in {{es}} 9.5.1. To avoid the issue on an affected version, remove `max_merge_count` from your index templates and indices, or set `max_thread_count` explicitly to a value that is less than or equal to `max_merge_count`.
 
@@ -65,7 +65,7 @@ Known issues are significant defects or limitations that may impact your impleme
 
 ## 9.4.0 [elasticsearch-9.4.0-known-issues]
 
-* Shards can fail to allocate after an upgrade to {{es}} 9.4.0 through 9.4.4 when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md) and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
+* Shards can fail to allocate after an upgrade to {{es}} 9.4.0 through 9.4.4 when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md#index-merge-scheduler-max-merge-count) to a value lower than half the number of processors on the node and does not set `index.merge.scheduler.max_thread_count`. In 9.4.0, the default for `max_thread_count` changed to half the number of processors on the node, so it can now exceed `max_merge_count`. The shard fails to open with `maxThreadCount (= <max_thread_count>) should be <= maxMergeCount (= <max_merge_count>)`.
 
   This issue is fixed in [#155693](https://github.com/elastic/elasticsearch/pull/155693), released in {{es}} 9.4.5. To avoid the issue on an affected version, remove `max_merge_count` from your index templates and indices, or set `max_thread_count` explicitly to a value that is less than or equal to `max_merge_count`.
 

@@ -31,7 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetDataStreamMappingsAction extends BaseRestHandler {
 
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM);
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("name")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "name");
 
     @Override
     public String getName() {

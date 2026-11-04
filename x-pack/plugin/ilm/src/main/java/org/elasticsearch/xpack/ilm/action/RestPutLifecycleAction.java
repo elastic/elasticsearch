@@ -36,7 +36,7 @@ public class RestPutLifecycleAction extends BaseRestHandler {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestPutLifecycleAction.class);
 
     private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(REST_MASTER_TIMEOUT_PARAM, REST_TIMEOUT_PARAM);
-    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("name")));
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "name");
 
     public static final String MAX_SIZE_DEPRECATION_MESSAGE = "Use of the [max_size] rollover condition found in phase [{}]. This"
         + " condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version";

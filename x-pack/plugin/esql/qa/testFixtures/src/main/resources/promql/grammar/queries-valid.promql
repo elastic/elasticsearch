@@ -256,3 +256,5 @@ limit_ratio(0.0, some_metric);
 limit_ratio(1.0, some_metric);
 sort(some_metric);
 sort_desc(some_metric);
+sort_by_label(some_metric, "job");
+sort_by_label_desc(some_metric, "job", "instance");

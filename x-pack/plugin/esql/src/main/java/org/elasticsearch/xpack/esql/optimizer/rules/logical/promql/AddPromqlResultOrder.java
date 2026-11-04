@@ -9,16 +9,25 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ResultOrderingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ResultOrderingFunction.ResultOrdering;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Injects an {@link OrderBy} above a PromQL result so that identity-preserving sort functions
@@ -27,6 +36,9 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
  * Ordering is only observable for instant queries. Range queries keep the input order and emit
  * a warning: Prometheus itself discards sort order after a range evaluation, and injecting an
  * {@code OrderBy} here would still be overwritten by the matrix layout.
+ * <p>
+ * Columns a function exposes only to bind its ordering to are projected away above the sort, so that ordering
+ * a result never changes its schema.
  * <p>
  * Runs once in the analyzer Initialize batch after {@link TranslateTimeSeriesCollapse} and before
  * {@link TranslatePromqlToEsqlPlan}, so the {@code OrderBy} is built over {@link PromqlCommand#output()}
@@ -74,18 +86,49 @@ public final class AddPromqlResultOrder extends ParameterizedRule<LogicalPlan, L
             if (cmd.isInstantQuery() == false) {
                 String name = cmd.promqlPlan() instanceof PromqlFunctionCall call ? call.functionName() : "sort";
                 HeaderWarning.addWarning("{}: ordering is discarded for range queries", name);
-                return node;
+                return hideOrderingOnlyColumns(cmd, node, node, ordering);
             }
             ResultOrdering result = ordering.resultOrdering(cmd.output(), context.configuration());
             if (result.orders().isEmpty()) {
-                return node;
+                return hideOrderingOnlyColumns(cmd, node, node, ordering);
             }
             LogicalPlan child = node;
             if (result.syntheticKeys().isEmpty() == false) {
                 child = new Eval(cmd.source(), node, result.syntheticKeys());
             }
-            return new OrderBy(cmd.source(), child, result.orders());
+            return hideOrderingOnlyColumns(cmd, node, new OrderBy(cmd.source(), child, result.orders()), ordering);
         }
         return node;
+    }
+
+    /**
+     * Drops the columns the function exposed only so the ordering could bind to them, leaving the result with the
+     * column list it would have had without the sort. Applies whether or not an ordering was actually injected, since
+     * a discarded ordering must not change the schema either.
+     *
+     * @param unordered the plan whose output defines the column list to restore
+     * @param ordered   the plan to project, i.e. {@code unordered} with any ordering already applied on top
+     */
+    private static LogicalPlan hideOrderingOnlyColumns(
+        PromqlCommand cmd,
+        LogicalPlan unordered,
+        LogicalPlan ordered,
+        ResultOrderingFunction ordering
+    ) {
+        List<Attribute> orderingOnly = ordering.orderingOnlyColumns();
+        if (orderingOnly.isEmpty()) {
+            return ordered;
+        }
+        Set<NameId> hidden = new HashSet<>(orderingOnly.size());
+        for (Attribute column : orderingOnly) {
+            hidden.add(column.id());
+        }
+        List<NamedExpression> visible = new ArrayList<>(unordered.output().size());
+        for (Attribute column : unordered.output()) {
+            if (hidden.contains(column.id()) == false) {
+                visible.add(column);
+            }
+        }
+        return visible.size() == unordered.output().size() ? ordered : new Project(cmd.source(), ordered, visible);
     }
 }

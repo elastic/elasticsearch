@@ -465,6 +465,11 @@ public final class PromqlFunctionDefinition {
     public static final List<StackAvailability> STACK_GA_9_6 = List.of(ga(PromqlDocsVersion.V_9_6));
 
     /**
+     * Stack availability for PromQL functions that ship as a preview in 9.7.
+     */
+    public static final List<StackAvailability> STACK_PREVIEW_9_7 = List.of(preview(PromqlDocsVersion.V_9_7));
+
+    /**
      * Stack availability for PromQL functions that ship as generally available in 9.7.
      */
     public static final List<StackAvailability> STACK_GA_9_7 = List.of(ga(PromqlDocsVersion.V_9_7));
@@ -536,9 +541,9 @@ public final class PromqlFunctionDefinition {
         /**
          * Declares the {@code stack} availability rendered into the function's docs {@code applies_to} badge. Use the
          * {@link PromqlFunctionDefinition#STACK_PREVIEW_9_4_GA_9_5} / {@link PromqlFunctionDefinition#STACK_GA_9_5}
-         * presets for the common cases. Serverless availability is intentionally not declared here: implemented PromQL
-         * functions are generally available in serverless, which is stated once at the docs page level rather than
-         * repeated per function. (When a function first ships as a serverless preview, add a serverless entry here.)
+         * presets for the common cases. Serverless availability is not declared separately. A list that includes
+         * {@code ga} leaves serverless to the docs page frontmatter. A preview-only list is also preview on serverless,
+         * and the generated badge says so.
          */
         public PromqlFunctionDefinition.Builder stack(List<StackAvailability> stack) {
             this.stack = stack;
@@ -896,12 +901,33 @@ public final class PromqlFunctionDefinition {
             this.functionType = FunctionType.RESULT_ORDERING;
             this.arity = PromqlFunctionArity.ONE;
             this.params = List.of(INSTANT_VECTOR);
-            this.builder = (source, target, ctx, extraParams) -> {
+            this.builder = throwingResultOrderingBuilder();
+            return this;
+        }
+
+        /**
+         * Configures a label-based result-ordering function ({@code sort_by_label}, {@code sort_by_label_desc}).
+         * Variadic in the label-name arguments after the instant vector. Like {@link #resultOrdering()}, these are not
+         * lowered through the generic {@link FunctionBuilder}.
+         */
+        public PromqlFunctionDefinition.Builder resultOrderingByLabel() {
+            this.functionType = FunctionType.RESULT_ORDERING;
+            this.arity = new PromqlFunctionArity(1, Integer.MAX_VALUE);
+            this.variadic = true;
+            this.params = List.of(
+                INSTANT_VECTOR,
+                PromqlParamInfo.of("label", PromqlDataType.SCALAR, "Name of a label to sort by (repeatable).")
+            );
+            this.builder = throwingResultOrderingBuilder();
+            return this;
+        }
+
+        private static FunctionBuilder throwingResultOrderingBuilder() {
+            return (source, target, ctx, extraParams) -> {
                 throw new UnsupportedOperationException(
                     "result-ordering functions are translated directly, not built via the generic function builder"
                 );
             };
-            return this;
         }
 
         /**

@@ -47,7 +47,7 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
                 .indices()
                 .prepareCreate(index)
                 .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                .setMapping("@timestamp", "type=date", "message", "type=keyword")
+                .setMapping("@timestamp", "type=date", "message", "type=keyword", "time", "type=alias,path=@timestamp")
                 .get();
             BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int d = 0; d < DOCS_PER_INDEX; d++) {
@@ -91,6 +91,49 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
         List<Long> expected = new ArrayList<>(Collections.nCopies(nulls, null));
         expected.addAll(timestamps.stream().sorted(Comparator.reverseOrder()).limit(LIMIT - nulls).toList());
         assertTopN("FROM events-* | SORT @timestamp DESC | LIMIT " + LIMIT + " | KEEP @timestamp", expected, false);
+    }
+
+    /**
+     * The statistics of an alias are those of its target. The order of the shards doesn't follow the alias, so this only
+     * checks that no shard holding better rows is skipped.
+     */
+    public void testAlias() {
+        List<Long> expected = timestamps.stream().sorted().limit(LIMIT).toList();
+        assertTopN("FROM events-* | SORT time ASC | LIMIT " + LIMIT + " | KEEP @timestamp", expected, false);
+    }
+
+    /**
+     * The shards of each index miss one of the sort keys, so each batch sorts on its own key after local optimization. The
+     * bound of one batch must not skip the shards of the other.
+     */
+    public void testSortKeyMissingFromSomeShards() {
+        String node = internalCluster().getRandomDataNodeName();
+        // The index holding the winning rows is the oldest, so it runs last
+        createSingleShardIndex("keys-winning", node, "t1", "type=date");
+        createSingleShardIndex("keys-other", node, "t2", "type=date");
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int d = 0; d < DOCS_PER_INDEX; d++) {
+            bulk.add(client().prepareIndex("keys-winning").setSource("t1", Instant.ofEpochMilli(1_000L + d).toString()));
+            bulk.add(client().prepareIndex("keys-other").setSource("t2", Instant.ofEpochMilli(1_000_000L + d).toString()));
+        }
+        assertFalse(bulk.get().hasFailures());
+        List<Long> expected = List.of(1_000L + DOCS_PER_INDEX - 1);
+        assertTopN("FROM keys-* | SORT t1 DESC NULLS LAST, t2 DESC NULLS LAST | LIMIT 1 | KEEP t1", expected, false);
+    }
+
+    private void createSingleShardIndex(String index, String node, String field, String type) {
+        client().admin()
+            .indices()
+            .prepareCreate(index)
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.routing.allocation.require._name", node)
+            )
+            .setMapping(field, type)
+            .get();
+        ensureGreen(index);
     }
 
     private void assertTopN(String query, List<Long> expected) {

@@ -43,6 +43,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -973,6 +974,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
         private final List<DataNodeRequest.Shard> shards;
+        @Nullable
         private final SharedSortBound sortBound;
 
         DataNodeRequestExecutor(
@@ -988,7 +990,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
             AcquiredSearchContexts searchContexts,
-            SharedSortBound sortBound
+            @Nullable SharedSortBound sortBound
         ) {
             assert (internalExchange == null) != (externalSink == null) : "exactly one exchange must be provided";
             this.flags = flags;
@@ -1050,6 +1052,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);
+                        }
+                        // The rows behind a bound offered by this batch are never delivered
+                        if (sortBound != null) {
+                            sortBound.invalidate();
                         }
                         onResponse(DriverCompletionInfo.EMPTY);
                     } else {
@@ -1223,13 +1229,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             return;
         }
         // Shared by the batches of shards, and released once all of them are done
-        final SharedSortBound sortBound = new SharedSortBound();
+        final SharedSortBound sortBound = ShardTimestampOrder.singleKeyTopN(request.plan()) ? new SharedSortBound() : null;
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
                 ActionListener.runAfter(
                     listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
-                    sortBound::close
+                    () -> Releasables.close(sortBound)
                 )
             )
         ) {

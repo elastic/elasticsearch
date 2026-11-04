@@ -1311,7 +1311,7 @@ public class LocalExecutionPlanner {
         // The bound of the request carries over to the batches of shards that run later
         SharedMinCompetitive.Supplier supplier = sortBound == null
             ? null
-            : sortBound.minCompetitive(blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
+            : sortBound.minCompetitive(sortField.name(), blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
         if (supplier == null) {
             supplier = new SharedMinCompetitive.Supplier(blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
         }

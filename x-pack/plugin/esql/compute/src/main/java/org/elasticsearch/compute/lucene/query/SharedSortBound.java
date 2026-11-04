@@ -25,28 +25,33 @@ import java.util.List;
  * later batches filter with it from the start.
  */
 public final class SharedSortBound implements Releasable {
-    private Boolean ascending;
+    private String field;
+    private boolean ascending;
     private DateFieldMapper.Resolution resolution;
     private long value;
+    private boolean offered;
     private boolean disabled;
 
+    private String minCompetitiveField;
     private SharedMinCompetitive.Supplier minCompetitive;
     private SharedMinCompetitive heldMinCompetitive;
 
     /**
-     * Offers the last value of a full top N.
+     * Offers the last value of a full top N on {@code field}.
      */
-    public synchronized void offer(boolean ascending, DateFieldMapper.Resolution resolution, long value) {
+    public synchronized void offer(String field, boolean ascending, DateFieldMapper.Resolution resolution, long value) {
         if (disabled) {
             return;
         }
-        if (this.ascending == null) {
+        if (offered == false) {
+            this.field = field;
             this.ascending = ascending;
             this.resolution = resolution;
             this.value = value;
+            offered = true;
             return;
         }
-        if (this.ascending != ascending || this.resolution != resolution) {
+        if (sameKey(field, ascending, resolution) == false) {
             // Values that don't compare with each other
             disabled = true;
             return;
@@ -55,27 +60,46 @@ public final class SharedSortBound implements Releasable {
     }
 
     /**
-     * Whether a shard whose values are within {@code [min, max]} can't beat the bound.
+     * Whether a shard whose values of {@code field} are within {@code [min, max]} can't beat the bound.
      */
-    public synchronized boolean canSkip(boolean ascending, DateFieldMapper.Resolution resolution, long min, long max) {
-        if (disabled || this.ascending == null || this.ascending != ascending || this.resolution != resolution) {
+    public synchronized boolean canSkip(String field, boolean ascending, DateFieldMapper.Resolution resolution, long min, long max) {
+        if (disabled || offered == false || sameKey(field, ascending, resolution) == false) {
             return false;
         }
         return ascending ? min > value : max < value;
     }
 
+    private boolean sameKey(String field, boolean ascending, DateFieldMapper.Resolution resolution) {
+        return this.field.equals(field) && this.ascending == ascending && this.resolution == resolution;
+    }
+
     /**
-     * The {@link SharedMinCompetitive} of a top N with these keys, kept for the whole request, or {@code null} if the request
-     * already has one for other keys.
+     * The {@link SharedMinCompetitive} of a top N on {@code field} with these keys, kept for the whole request, or
+     * {@code null} if the request already has one for another key or the bound was invalidated.
      */
     @Nullable
-    public synchronized SharedMinCompetitive.Supplier minCompetitive(CircuitBreaker breaker, List<SharedMinCompetitive.KeyConfig> keys) {
+    public synchronized SharedMinCompetitive.Supplier minCompetitive(
+        String field,
+        CircuitBreaker breaker,
+        List<SharedMinCompetitive.KeyConfig> keys
+    ) {
+        if (disabled) {
+            return null;
+        }
         if (minCompetitive == null) {
+            minCompetitiveField = field;
             minCompetitive = new SharedMinCompetitive.Supplier(breaker, keys);
             // Keeps the bound between batches, when no operator holds it
             heldMinCompetitive = minCompetitive.get();
         }
-        return minCompetitive.keyConfigs().equals(keys) ? minCompetitive : null;
+        return minCompetitiveField.equals(field) && minCompetitive.keyConfigs().equals(keys) ? minCompetitive : null;
+    }
+
+    /**
+     * Stops sharing the bound, for instance because the rows behind it may never be delivered.
+     */
+    public synchronized void invalidate() {
+        disabled = true;
     }
 
     @Override

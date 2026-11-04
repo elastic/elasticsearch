@@ -573,7 +573,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             && last.fields[0] instanceof Long value
             && value != Long.MIN_VALUE
             && value != Long.MAX_VALUE) {
-            sortBound.offer(boundAscending, resolution, value);
+            sortBound.offer(boundField, boundAscending, resolution, value);
         }
     }
 
@@ -585,30 +585,32 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return false;
         }
         DateFieldMapper.DateFieldType fieldType = (DateFieldMapper.DateFieldType) shardContext.fieldType(boundField);
+        // An alias resolves to the field that holds the statistics
+        String name = fieldType.name();
         IndexReader reader = shardContext.searcher().getIndexReader();
         long min;
         long max;
         if (fieldType.indexType().hasPoints()) {
             // Documents without a value beat any bound when they sort first
-            if (boundMissingFirst && PointValues.getDocCount(reader, boundField) != reader.maxDoc()) {
+            if (boundMissingFirst && PointValues.getDocCount(reader, name) != reader.maxDoc()) {
                 return false;
             }
-            byte[] minPacked = PointValues.getMinPackedValue(reader, boundField);
-            byte[] maxPacked = PointValues.getMaxPackedValue(reader, boundField);
+            byte[] minPacked = PointValues.getMinPackedValue(reader, name);
+            byte[] maxPacked = PointValues.getMaxPackedValue(reader, name);
             // Without points, no document has a value
             min = minPacked == null ? Long.MAX_VALUE : LongPoint.decodeDimension(minPacked, 0);
             max = maxPacked == null ? Long.MIN_VALUE : LongPoint.decodeDimension(maxPacked, 0);
         } else if (fieldType.indexType().hasDocValuesSkipper()) {
-            if (boundMissingFirst && DocValuesSkipper.globalDocCount(reader, boundField) != reader.maxDoc()) {
+            if (boundMissingFirst && DocValuesSkipper.globalDocCount(reader, name) != reader.maxDoc()) {
                 return false;
             }
             // Unknown bounds come back as the widest range
-            min = DocValuesSkipper.globalMinValue(reader, boundField);
-            max = DocValuesSkipper.globalMaxValue(reader, boundField);
+            min = DocValuesSkipper.globalMinValue(reader, name);
+            max = DocValuesSkipper.globalMaxValue(reader, name);
         } else {
             return false;
         }
-        return sortBound.canSkip(boundAscending, fieldType.resolution(), min, max);
+        return sortBound.canSkip(boundField, boundAscending, fieldType.resolution(), min, max);
     }
 
     @Nullable

@@ -14,6 +14,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
@@ -57,6 +58,18 @@ final class ShardTimestampOrder {
         return plan.anyMatch(
             p -> p instanceof FragmentExec fragment && fragment.fragment().anyMatch(l -> l instanceof TopN topN && sortsAscending(topN))
         );
+    }
+
+    /**
+     * Whether the plan has a single top N, sorted on a single field. Its bound then means the same in every batch of shards,
+     * even after local optimization drops the sort keys that a batch doesn't have.
+     */
+    static boolean singleKeyTopN(PhysicalPlan plan) {
+        List<TopN> topNs = new ArrayList<>();
+        plan.forEachDown(FragmentExec.class, fragment -> fragment.fragment().forEachDown(TopN.class, topNs::add));
+        return topNs.size() == 1
+            && topNs.getFirst().order().size() == 1
+            && topNs.getFirst().order().getFirst().child() instanceof Attribute;
     }
 
     private static boolean sortsAscending(TopN topN) {

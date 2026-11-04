@@ -20,11 +20,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RelocationReason;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -33,6 +35,7 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -42,11 +45,14 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @TestLogging(value = "org.elasticsearch.cluster.routing.allocation.ShardChangesObserver:TRACE", reason = "verifies debug level logging")
@@ -166,7 +172,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var meterRegistry = new RecordingMeterRegistry();
         final long unassignedAtMillis = randomLongBetween(0, System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1));
         final AtomicLong nowMillis = new AtomicLong(unassignedAtMillis);
-        final var observer = new ShardChangesObserver(meterRegistry, nowMillis::get);
+        final var observer = new ShardChangesObserver(meterRegistry, nowMillis::get, ShardMovementEventSink.NOOP);
 
         final var reason = randomFrom(UnassignedInfo.Reason.values());
         // ALLOCATION_FAILED needs failedAllocations > 0
@@ -247,7 +253,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
 
     public void testRelocationStartedMetric() {
         final var meterRegistry = new RecordingMeterRegistry();
-        final var observer = new ShardChangesObserver(meterRegistry, System::currentTimeMillis);
+        final var observer = new ShardChangesObserver(meterRegistry, System::currentTimeMillis, ShardMovementEventSink.NOOP);
         final var recorder = meterRegistry.getRecorder();
 
         final var shardId = new ShardId("test-index", "_na_", 0);
@@ -266,7 +272,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             final int moveCount = randomIntBetween(0, 10);
             moveCounts.put(reason, moveCount);
             for (int i = 0; i < moveCount; i++) {
-                observer.relocationStarted(startedShard, targetShard, reason);
+                observer.relocationStarted(startedShard, targetShard, RelocationReason.of(reason));
             }
         }
         List<Measurement> measurements = recorder.getMeasurements(
@@ -287,7 +293,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var unknownReason = randomIdentifier("unknown-");
         final var movements = randomIntBetween(0, 10);
         for (int i = 0; i < movements; i++) {
-            observer.relocationStarted(startedShard, targetShard, unknownReason);
+            observer.relocationStarted(startedShard, targetShard, RelocationReason.of(unknownReason));
         }
         measurements = recorder.getMeasurements(InstrumentType.LONG_COUNTER, ShardChangesObserver.RELOCATION_STARTED_METRIC);
         assertMovementCountForReason(measurements, unknownReason, movements);
@@ -298,6 +304,74 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
                 .toList(),
             everyItem(hasEntry("es_shard_primary", primary))
         );
+    }
+
+    public void testEventsForwardedToSink() {
+        final var events = new ArrayList<ShardMovementEvent>();
+        final var observer = new ShardChangesObserver(new RecordingMeterRegistry(), System::currentTimeMillis, events::add);
+
+        final var shardId = new ShardId("test-index", "_na_", 0);
+        final var primary = randomBoolean();
+        final var unassignedShard = shardRoutingBuilder(shardId, null, primary, ShardRoutingState.UNASSIGNED).build();
+        final var initializingShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.INITIALIZING).build();
+        final var startedShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.STARTED).build();
+        final var relocatingShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.RELOCATING).withRelocatingNodeId(
+            "node-2"
+        ).build();
+        final var targetShard = shardRoutingBuilder(shardId, "node-2", primary, ShardRoutingState.INITIALIZING).build();
+        final var reason = new RelocationReason(randomIdentifier(), randomBoolean() ? null : randomIdentifier());
+        final var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "boom");
+
+        observer.shardInitialized(unassignedShard, initializingShard);
+        observer.shardStarted(initializingShard, startedShard);
+        observer.relocationStarted(startedShard, targetShard, reason);
+        observer.relocationCompleted(relocatingShard);
+        observer.shardFailed(startedShard, unassignedInfo);
+
+        assertThat(
+            events,
+            contains(
+                new ShardMovementEvent.ShardInitialized(unassignedShard, initializingShard),
+                new ShardMovementEvent.ShardStarted(initializingShard, startedShard),
+                new ShardMovementEvent.RelocationStarted(startedShard, targetShard, reason),
+                new ShardMovementEvent.RelocationCompleted(relocatingShard),
+                new ShardMovementEvent.ShardFailed(startedShard, unassignedInfo)
+            )
+        );
+    }
+
+    public void testRelocationEventCarriesCanRemainDecider() {
+        final var allocationId = randomUUID();
+        final var indexName = randomIdentifier();
+        final var indexMetadata = IndexMetadata.builder(indexName)
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.exclude._id", "node-1"))
+            .putInSyncAllocationIds(0, Set.of(allocationId))
+            .build();
+        final var shard = shardRoutingBuilder(new ShardId(indexMetadata.getIndex(), 0), "node-1", true, ShardRoutingState.STARTED)
+            .withAllocationId(AllocationId.newInitializing(allocationId))
+            .build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(indexMetadata, false))
+            .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shard)))
+            .build();
+
+        final var preserveLabels = randomBoolean();
+        final var events = new ArrayList<ShardMovementEvent>();
+        final var allocationService = createAllocationService(
+            Settings.builder().put(AllocationService.PRESERVE_DECISION_LABELS_SETTING.getKey(), preserveLabels).build(),
+            events::add
+        );
+        applyStartedShardsUntilNoChange(clusterState, allocationService);
+
+        final var relocations = events.stream().filter(e -> e instanceof ShardMovementEvent.RelocationStarted).toList();
+        assertThat(relocations, hasSize(1));
+        final var relocation = (ShardMovementEvent.RelocationStarted) relocations.getFirst();
+        assertThat(relocation.shard().currentNodeId(), equalTo("node-1"));
+        assertThat(relocation.target().currentNodeId(), equalTo("node-2"));
+        assertThat(relocation.reason().reason(), equalTo(BalancedShardsAllocator.MoveType.CANNOT_REMAIN.reason()));
+        assertThat(relocation.reason().canRemainDecider(), preserveLabels ? equalTo("filter") : nullValue());
+        assertThat(events.getLast(), instanceOf(ShardMovementEvent.RelocationCompleted.class));
     }
 
     private void assertMovementCountForReason(List<Measurement> measurements, String reason, long expectedCount) {

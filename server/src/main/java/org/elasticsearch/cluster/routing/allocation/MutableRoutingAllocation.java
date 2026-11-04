@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.RelocationReason;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -204,7 +205,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         }
 
         @Override
-        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, String reason) {
+        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, RelocationReason reason) {
             invalidateNodeMaxShardWriteLoadProportion(startedShard.currentNodeId());
         }
     }

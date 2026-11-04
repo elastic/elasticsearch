@@ -521,6 +521,23 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         RoutingChangesObserver changes,
         RecoveryPriority recoveryPriority
     ) {
+        return relocateShard(startedShard, nodeId, expectedShardSize, RelocationReason.of(reason), changes, recoveryPriority);
+    }
+
+    /**
+     * Relocate a shard to another node, adding the target initializing
+     * shard as well as assigning it.
+     *
+     * @return pair of source relocating and target initializing shards.
+     */
+    public Tuple<ShardRouting, ShardRouting> relocateShard(
+        ShardRouting startedShard,
+        String nodeId,
+        long expectedShardSize,
+        RelocationReason reason,
+        RoutingChangesObserver changes,
+        RecoveryPriority recoveryPriority
+    ) {
         ensureMutable();
         relocatingShards++;
         if (isDedicatedFrozenNode(nodeId)) {

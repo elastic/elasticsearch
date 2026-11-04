@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.telemetry;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -31,6 +33,7 @@ public class PlanTelemetryManager {
     private final LongCounter viewSettingsCounterAll;
     private final LongCounter viewResolvedSettingsCounter;
     private final LongCounter linkedProjectsHistogram;
+    private final LongCounter queriesCounter;
 
     /**
      * Number of times a command is used.
@@ -98,6 +101,39 @@ public class PlanTelemetryManager {
      */
     public static final String LINKED_PROJECTS_HISTOGRAM = "es.esql.linked_projects.histogram";
 
+    /**
+     * Queries, counted once each when they finish, with the {@link #CLIENT}, {@link #ENTRY_POINT}, {@link #LEADING_COMMAND} and
+     * {@link #QUERY_SUCCESS} attributes, and the {@link #DIRECT_CLIENT} attribute for queries without an Elastic product origin.
+     */
+    public static final String QUERY_METRICS = "es.esql.queries.total";
+
+    /**
+     * Attribute of the query counter: who sent the query, one of {@link QueryMetric}
+     */
+    public static final String CLIENT = "es_esql_client";
+
+    /**
+     * Attribute of the query counter: the API the query came in on, one of {@link QueryEntryPoint}
+     */
+    public static final String ENTRY_POINT = "es_esql_entry_point";
+
+    /**
+     * Attribute of the query counter: the query's first source command, one of {@link LeadingCommand}
+     */
+    public static final String LEADING_COMMAND = "es_esql_leading_command";
+
+    /**
+     * Attribute of the query counter: the tool that sent a query without an Elastic product origin, one of {@link DirectClient}.
+     * Queries with a product origin don't carry it, since {@link #CLIENT} already names their product.
+     */
+    public static final String DIRECT_CLIENT = "es_esql_direct_client";
+
+    /**
+     * Attribute of the query counter: whether the query succeeded. The older counters' {@link #SUCCESS} name predates the
+     * {@code es_*} attribute naming rule, so new counters cannot use it.
+     */
+    public static final String QUERY_SUCCESS = "es_esql_success";
+
     public static final String FEATURE_NAME = "feature_name";
 
     /**
@@ -149,6 +185,7 @@ public class PlanTelemetryManager {
             "ESQL view settings, total number of queries in which a view body resolved a setting to a value",
             "unit"
         );
+        queriesCounter = meterRegistry.registerLongCounter(QUERY_METRICS, "ESQL queries, total number of queries", "unit");
         linkedProjectsHistogram = meterRegistry.registerLongCounter(
             LINKED_PROJECTS_HISTOGRAM,
             "Histogram of linked projects per esql query",
@@ -170,6 +207,28 @@ public class PlanTelemetryManager {
         if (metrics.linkedProjectsCount() != null) {
             linkedProjectsHistogram.incrementBy(1, Map.of("es_linked_projects_count", metrics.linkedProjectsCount()));
         }
+    }
+
+    /**
+     * Counts one finished query under its caller, entry point, direct client and leading command. {@code directClient} is
+     * {@code null} for a query with an Elastic product origin, which is not counted under direct clients.
+     */
+    public void publishQuery(
+        QueryCaller caller,
+        QueryEntryPoint entryPoint,
+        @Nullable DirectClient directClient,
+        LeadingCommand leadingCommand,
+        boolean success
+    ) {
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put(CLIENT, caller.client().toString());
+        attributes.put(ENTRY_POINT, entryPoint.toString());
+        attributes.put(LEADING_COMMAND, leadingCommand.toString());
+        attributes.put(QUERY_SUCCESS, success);
+        if (directClient != null) {
+            attributes.put(DIRECT_CLIENT, directClient.toString());
+        }
+        queriesCounter.incrementBy(1, attributes);
     }
 
     private void incCommand(String name, int count, boolean success) {

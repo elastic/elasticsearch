@@ -14,6 +14,7 @@ import org.apache.http.util.EntityUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.io.Streams;
@@ -105,6 +106,79 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
     public RestEsqlIT(Mode mode) {
         super(mode);
+    }
+
+    public void testQueryIsCountedUnderItsEntryPoint() throws IOException {
+        String entryPoint = mode == Mode.SYNC ? "query" : "query_async";
+        String otherEntryPoint = mode == Mode.SYNC ? "query_async" : "query";
+        Map<String, Object> before = esqlEntryPoints();
+        runEsql(requestObjectBuilder().query("ROW a = 1 | LIMIT 1"));
+        Map<String, Object> afterSuccess = esqlEntryPoints();
+        expectThrows(ResponseException.class, () -> runEsql(requestObjectBuilder().query("ROW a = 1 | EVAL b = missing_field")));
+        Map<String, Object> afterFailure = esqlEntryPoints();
+
+        assertThat(entryPointCounter(afterSuccess, entryPoint, "total") - entryPointCounter(before, entryPoint, "total"), equalTo(1));
+        assertThat(entryPointCounter(afterSuccess, entryPoint, "failed") - entryPointCounter(before, entryPoint, "failed"), equalTo(0));
+        assertThat(entryPointCounter(afterFailure, entryPoint, "total") - entryPointCounter(before, entryPoint, "total"), equalTo(2));
+        assertThat(entryPointCounter(afterFailure, entryPoint, "failed") - entryPointCounter(before, entryPoint, "failed"), equalTo(1));
+        assertThat(entryPointCounter(afterFailure, otherEntryPoint, "total"), equalTo(entryPointCounter(before, otherEntryPoint, "total")));
+        assertThat(entryPointCounter(afterFailure, "internal", "total"), equalTo(entryPointCounter(before, "internal", "total")));
+    }
+
+    public void testQueryIsCountedUnderItsDirectClient() throws IOException {
+        Map<String, String> curl = Map.of("User-Agent", "curl/8.7.1");
+        Map<String, String> kibana = Map.of(
+            "X-elastic-product-origin",
+            "kibana",
+            "User-Agent",
+            "Kibana/9.5.1",
+            "x-elastic-client-meta",
+            "es=9.5.1,js=22.11.0,t=9.1.1,hc=22.11.0"
+        );
+        Map<String, Object> before = esqlDirectClients();
+        runEsqlWithHeaders("ROW a = 1 | LIMIT 1", curl);
+        expectThrows(ResponseException.class, () -> runEsqlWithHeaders("ROW a = 1 | EVAL b = missing_field", curl));
+        runEsqlWithHeaders("ROW a = 1 | LIMIT 1", kibana);
+        Map<String, Object> after = esqlDirectClients();
+
+        assertThat(directClientCounter(after, "curl", "total") - directClientCounter(before, "curl", "total"), equalTo(2));
+        assertThat(directClientCounter(after, "curl", "failed") - directClientCounter(before, "curl", "failed"), equalTo(1));
+        assertThat(
+            directClientCounter(after, "elastic_product", "total"),
+            equalTo(directClientCounter(before, "elastic_product", "total"))
+        );
+    }
+
+    private void runEsqlWithHeaders(String query, Map<String, String> headers) throws IOException {
+        Request request = new Request("POST", mode == Mode.SYNC ? "/_query" : "/_query/async");
+        String waitForCompletion = mode == Mode.SYNC ? "" : ", \"wait_for_completion_timeout\": \"30s\"";
+        request.setJsonEntity("{\"query\": \"" + query + "\"" + waitForCompletion + "}");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        headers.forEach(options::addHeader);
+        request.setOptions(options);
+        assertOK(client().performRequest(request));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> esqlDirectClients() throws IOException {
+        Map<String, Object> usage = entityAsMap(client().performRequest(new Request("GET", "/_xpack/usage")));
+        return (Map<String, Object>) ((Map<String, Object>) usage.get("esql")).get("direct_clients");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int directClientCounter(Map<String, Object> directClients, String directClient, String counter) {
+        return ((Number) ((Map<String, Object>) directClients.get(directClient)).get(counter)).intValue();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> esqlEntryPoints() throws IOException {
+        Map<String, Object> usage = entityAsMap(client().performRequest(new Request("GET", "/_xpack/usage")));
+        return (Map<String, Object>) ((Map<String, Object>) usage.get("esql")).get("entry_points");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int entryPointCounter(Map<String, Object> entryPoints, String entryPoint, String counter) {
+        return ((Number) ((Map<String, Object>) entryPoints.get(entryPoint)).get(counter)).intValue();
     }
 
     public void testBasicEsql() throws IOException {

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.telemetry.DirectClient;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 
 import java.io.IOException;
 import java.util.List;
@@ -65,6 +67,7 @@ public class PrometheusMetadataRestAction extends BaseRestHandler {
         LogicalPlan plan = PrometheusMetadataPlanBuilder.buildPlan(index, metric, limit, limitPerMetric);
         EsqlStatement statement = new EsqlStatement(plan, PrometheusPlanBuilderUtils.QUERY_SETTINGS);
         PreparedEsqlQueryRequest esqlRequest = new PromqlQueryRequest(
+            QueryEntryPoint.PROMETHEUS_METADATA,
             index,
             statement,
             "prometheus_metadata",
@@ -75,6 +78,7 @@ public class PrometheusMetadataRestAction extends BaseRestHandler {
             METRIC_PARAM,
             metric
         );
+        esqlRequest.directClient(DirectClient.classify(request));
 
         return channel -> client.execute(
             EsqlQueryAction.INSTANCE,

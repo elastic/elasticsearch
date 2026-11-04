@@ -20,7 +20,6 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.usage.UsageService;
@@ -54,14 +53,19 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.telemetry.DirectClient;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
+import org.elasticsearch.xpack.esql.telemetry.QueryCaller;
+import org.elasticsearch.xpack.esql.telemetry.QueryCallerClassifier;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
@@ -255,10 +259,11 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry, applicableSettings);
-        // The client label is read from the calling thread's context, before the query goes async, so every outcome of this
-        // query (success, failure, cancellation) is attributed to the same client.
+        // The caller is read from the calling thread's context, before the query goes async, so every outcome of this
+        // query (success, failure, cancellation) is attributed to the same caller.
         final ThreadContext threadContext = services.transportService().getThreadPool().getThreadContext();
-        final String client = clientOf(threadContext);
+        final QueryCaller caller = QueryCallerClassifier.classify(threadContext);
+        final String client = clientOf(caller);
         // Resolution (glob expansion, footer reads, schema reconciliation) runs on the caller-supplied
         // executor rather than the SEARCH pool, so a wildcard external query cannot starve regular ES
         // searches or other ES|QL queries. The per-query multi-file metadata fan-out is bounded by
@@ -313,17 +318,34 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> executeListener = releasingListener;
 
         if (request.analyzeOnly() == false) {
-            QueryMetric clientId = QueryMetric.fromString("rest");
-            metrics.total(clientId);
+            metrics.total(caller.client());
+            metrics.total(request.entryPoint());
+            DirectClient directClient = directClientOf(caller, request);
+            if (directClient != null) {
+                metrics.total(directClient);
+            }
             var begin = System.nanoTime();
+            AtomicBoolean finishCounted = new AtomicBoolean();
             executeListener = wrap(
-                x -> onQuerySuccess(request, releasingListener, x, planTelemetry, services.usageService(), executionInfo, begin, client),
+                x -> onQuerySuccess(
+                    request,
+                    releasingListener,
+                    x,
+                    caller,
+                    finishCounted,
+                    planTelemetry,
+                    services.usageService(),
+                    executionInfo,
+                    begin,
+                    client
+                ),
                 ex -> onQueryFailure(
                     request,
                     session.planSnapshot().settings(),
                     releasingListener,
                     ex,
-                    clientId,
+                    caller,
+                    finishCounted,
                     planTelemetry,
                     executionInfo,
                     begin,
@@ -366,12 +388,15 @@ public class PlanExecutor {
         EsqlQueryRequest request,
         ActionListener<Versioned<Result>> listener,
         Versioned<Result> result,
+        QueryCaller caller,
+        AtomicBoolean finishCounted,
         PlanTelemetry planTelemetry,
         UsageService usageService,
         EsqlExecutionInfo executionInfo,
         long begin,
         String client
     ) {
+        countFinishedQuery(finishCounted, caller, request.entryPoint(), directClientOf(caller, request), planTelemetry, true);
         planTelemetryManager.publish(planTelemetry, true);
         boolean partial = result != null && result.inner().completionInfo().partial();
         recordExternalSourceQuery(
@@ -398,17 +423,22 @@ public class PlanExecutor {
         ResolvedSettings settings,
         ActionListener<Versioned<Result>> listener,
         Exception ex,
-        QueryMetric clientId,
+        QueryCaller caller,
+        AtomicBoolean finishCounted,
         PlanTelemetry planTelemetry,
         EsqlExecutionInfo executionInfo,
         long begin,
         String client,
         ExternalSourceResolver externalSourceResolver
     ) {
-        // The general ES|QL counters (metrics.total / metrics.failed, keyed by QueryMetric) deliberately stay on "rest": changing
-        // them would alter dashboards outside the datasource telemetry. The external-source metrics split by client from the
-        // X-elastic-product-origin header instead (see clientOf), so the two families can differ for the same query.
-        metrics.failed(clientId);
+        metrics.failed(caller.client());
+        metrics.failed(request.entryPoint());
+        DirectClient directClient = directClientOf(caller, request);
+        if (directClient != null) {
+            metrics.failed(directClient);
+        }
+        countFinishedQuery(finishCounted, caller, request.entryPoint(), directClient, planTelemetry, false);
+        metrics.failed(planTelemetry.leadingCommand());
         planTelemetryManager.publish(planTelemetry, false);
         recordExternalSourceQuery(
             dataSourceModule.externalSourceMetrics(),
@@ -429,6 +459,34 @@ public class PlanExecutor {
     }
 
     /**
+     * Counts a finished query under its leading command, which is only known once the query is parsed, and on the APM query
+     * counter. {@link ActionListener#wrap} runs the failure handler when the success handler throws, so one query can reach both;
+     * {@code finishCounted} keeps it to one count, and the failure handler still adds the failure.
+     */
+    private void countFinishedQuery(
+        AtomicBoolean finishCounted,
+        QueryCaller caller,
+        QueryEntryPoint entryPoint,
+        @Nullable DirectClient directClient,
+        PlanTelemetry planTelemetry,
+        boolean success
+    ) {
+        if (finishCounted.compareAndSet(false, true)) {
+            metrics.total(planTelemetry.leadingCommand());
+            planTelemetryManager.publishQuery(caller, entryPoint, directClient, planTelemetry.leadingCommand(), success);
+        }
+    }
+
+    /**
+     * The tool to count {@code request} under, or {@code null} for a query with an Elastic product origin: those are already
+     * split by product in {@link QueryMetric}, so direct clients only split the {@link QueryMetric#REST} queries.
+     */
+    @Nullable
+    private static DirectClient directClientOf(QueryCaller caller, EsqlQueryRequest request) {
+        return caller.client() == QueryMetric.REST ? request.directClient() : null;
+    }
+
+    /**
      * The labels of one external-source query: its client, and the storage type and format of the external sources it read,
      * taken from the analyzed plan.
      */
@@ -437,12 +495,10 @@ public class PlanExecutor {
     }
 
     /**
-     * The {@link ExternalSourceMetrics} client label of the request whose context is {@code threadContext}. A {@code null}
-     * context, which some callers and mocks supply, has no origin header and so maps to {@link ExternalSourceMetrics#CLIENT_NONE}.
+     * The {@link ExternalSourceMetrics} client label of {@code caller}.
      */
-    static String clientOf(@Nullable ThreadContext threadContext) {
-        String origin = threadContext == null ? null : threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
-        return ExternalSourceMetrics.clientFromOrigin(origin);
+    static String clientOf(QueryCaller caller) {
+        return ExternalSourceMetrics.client(caller.client());
     }
 
     /**

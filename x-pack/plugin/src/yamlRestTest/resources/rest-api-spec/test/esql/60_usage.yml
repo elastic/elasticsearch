@@ -114,7 +114,6 @@ setup:
   - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - set: { esql.features.dense_vector: dense_vector_counter }
-  - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
   - set: { esql.queries.kibana.total: kibana_total_counter }
@@ -335,7 +334,6 @@ setup:
   - set: { esql.features.fillnull: fillnull_counter }
   - set: { esql.features.highlight: highlight_counter }
   - set: { esql.features.dense_vector: dense_vector_counter }
-  - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
   - set: { esql.queries.kibana.total: kibana_total_counter }
@@ -802,3 +800,263 @@ took:
   - exists: esql.datasources.config.datasets.changes.by_op.updated
   - exists: esql.datasources.config.datasets.changes.by_op.deleted
   - exists: esql.datasources.config.datasets.changes.by_op.rejected
+
+---
+"Queries by client":
+  - requires:
+      test_runner_features: [ capabilities, headers ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_queries_by_client ]
+      reason: "Queries are split by client from the X-elastic-product-origin header"
+
+  - do: { xpack.usage: { } }
+  - length: { esql.queries: 9 }
+  - set: { esql.queries.rest.total: rest_total }
+  - set: { esql.queries.rest.failed: rest_failed }
+  - set: { esql.queries.kibana.total: kibana_total }
+  - set: { esql.queries.kibana.failed: kibana_failed }
+  - set: { esql.queries.fleet.total: fleet_total }
+  - set: { esql.queries.other.total: other_total }
+  - set: { esql.queries.other.failed: other_failed }
+  - set: { esql.queries._all.total: all_total }
+
+  - do:
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.queries.rest.total: $rest_total }
+  - match: { esql.queries.kibana.total: $kibana_total }
+  - match: { esql.queries.fleet.total: $fleet_total }
+  - match: { esql.queries.other.total: $other_total }
+  - gt: { esql.queries._all.total: $all_total }
+  - set: { esql.queries.rest.total: rest_total }
+  - set: { esql.queries._all.total: all_total }
+
+  - do:
+      headers:
+        X-elastic-product-origin: kibana
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.queries.rest.total: $rest_total }
+  - gt: { esql.queries.kibana.total: $kibana_total }
+  - match: { esql.queries.fleet.total: $fleet_total }
+  - match: { esql.queries.other.total: $other_total }
+  - gt: { esql.queries._all.total: $all_total }
+  - set: { esql.queries.kibana.total: kibana_total }
+  - set: { esql.queries._all.total: all_total }
+
+  - do:
+      headers:
+        X-elastic-product-origin: fleet
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.queries.rest.total: $rest_total }
+  - match: { esql.queries.kibana.total: $kibana_total }
+  - gt: { esql.queries.fleet.total: $fleet_total }
+  - match: { esql.queries.other.total: $other_total }
+  - gt: { esql.queries._all.total: $all_total }
+  - set: { esql.queries._all.total: all_total }
+
+  - do:
+      headers:
+        X-elastic-product-origin: my-app
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.queries.rest.total: $rest_total }
+  - match: { esql.queries.kibana.total: $kibana_total }
+  - gt: { esql.queries.other.total: $other_total }
+  - gt: { esql.queries._all.total: $all_total }
+
+  - do:
+      catch: bad_request
+      headers:
+        X-elastic-product-origin: kibana
+      esql.query:
+        body:
+          query: 'FROM test | STATS m = MAX(missing_field)'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.queries.kibana.failed: $kibana_failed }
+  - match: { esql.queries.rest.failed: $rest_failed }
+  - match: { esql.queries.other.failed: $other_failed }
+---
+"Queries by entry point":
+  # The ES|QL yaml suites also run every esql.query as _query/async, so this test only asserts what holds for both;
+  # RestEsqlIT checks that _query and _query/async are counted apart.
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_entry_points ]
+      reason: "Queries are counted by the API they came in on"
+
+  - do: { xpack.usage: { } }
+  - length: { esql.entry_points: 10 }
+  - set: { esql.entry_points.internal.total: internal_total }
+  - set: { esql.entry_points.query_stream.total: query_stream_total }
+  - set: { esql.entry_points.prometheus_query.total: prometheus_query_total }
+  - set: { esql.entry_points.prometheus_labels.total: prometheus_labels_total }
+
+  - do:
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.entry_points.internal.total: $internal_total }
+  - match: { esql.entry_points.query_stream.total: $query_stream_total }
+  - match: { esql.entry_points.prometheus_query.total: $prometheus_query_total }
+  - match: { esql.entry_points.prometheus_labels.total: $prometheus_labels_total }
+
+---
+"Queries by leading command":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_leading_commands, ts_command_v0 ]
+      reason: "Queries are counted by their first source command"
+
+  - do: { xpack.usage: { } }
+  - length: { esql.leading_commands: 8 }
+  - set: { esql.leading_commands.row.total: row_total }
+  - set: { esql.leading_commands.from.total: from_total }
+  - set: { esql.leading_commands.from.failed: from_failed }
+  - set: { esql.leading_commands.ts.total: ts_total }
+  - set: { esql.leading_commands.show.total: show_total }
+  - set: { esql.leading_commands.promql.total: promql_total }
+  - set: { esql.leading_commands.unknown.total: unknown_total }
+  - set: { esql.leading_commands.unknown.failed: unknown_failed }
+
+  - do:
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.row.total: $row_total }
+  - match: { esql.leading_commands.from.total: $from_total }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SET time_zone = "+01:00"; FROM test | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.from.total: $from_total }
+  - match: { esql.leading_commands.from.failed: $from_failed }
+  - set: { esql.leading_commands.from.total: from_total }
+
+  - do:
+      esql.query:
+        body:
+          query: 'TS test-ts | STATS max(count) BY host | LIMIT 10'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.ts.total: $ts_total }
+  - match: { esql.leading_commands.from.total: $from_total }
+  - match: { esql.leading_commands.promql.total: $promql_total }
+
+  - do:
+      esql.query:
+        body:
+          query: 'SHOW INFO | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.show.total: $show_total }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test | STATS m = MAX(missing_field)'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.from.failed: $from_failed }
+
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test |'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.leading_commands.unknown.total: $unknown_total }
+  - gt: { esql.leading_commands.unknown.failed: $unknown_failed }
+
+---
+"Queries by direct client":
+  - requires:
+      test_runner_features: [ capabilities, headers ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ usage_direct_clients ]
+      reason: "Queries without a product origin are counted by the tool that sent them"
+
+  - do: { xpack.usage: { } }
+  - length: { esql.direct_clients: 12 }
+  - set: { esql.direct_clients.curl.total: curl_total }
+  - set: { esql.direct_clients.grafana.total: grafana_total }
+  - set: { esql.direct_clients.javascript.total: javascript_total }
+  - set: { esql.direct_clients.elastic_product.total: elastic_product_total }
+
+  - do:
+      headers:
+        User-Agent: "curl/8.7.1"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.direct_clients.curl.total: $curl_total }
+  - match: { esql.direct_clients.grafana.total: $grafana_total }
+  - match: { esql.direct_clients.elastic_product.total: $elastic_product_total }
+  - set: { esql.direct_clients.curl.total: curl_total }
+
+  - do:
+      headers:
+        User-Agent: "Grafana/12.3.0 (linux; amd64) elasticsearch/12.9.4"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.direct_clients.curl.total: $curl_total }
+  - gt: { esql.direct_clients.grafana.total: $grafana_total }
+  - match: { esql.direct_clients.elastic_product.total: $elastic_product_total }
+  - set: { esql.direct_clients.grafana.total: grafana_total }
+
+  - do:
+      headers:
+        X-elastic-product-origin: kibana
+        User-Agent: "Kibana/9.5.1"
+        x-elastic-client-meta: "es=9.5.1,js=22.11.0,t=9.1.1,hc=22.11.0"
+      esql.query:
+        body:
+          query: 'ROW a = 1 | LIMIT 1'
+
+  - do: { xpack.usage: { } }
+  - match: { esql.direct_clients.curl.total: $curl_total }
+  - match: { esql.direct_clients.grafana.total: $grafana_total }
+  - match: { esql.direct_clients.javascript.total: $javascript_total }
+  - match: { esql.direct_clients.elastic_product.total: $elastic_product_total }

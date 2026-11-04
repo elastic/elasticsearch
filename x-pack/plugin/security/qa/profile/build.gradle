@@ -14,5 +14,5 @@ dependencies {
 
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution("to be triaged")
-  systemProperty 'test.literalUsername', buildParams.random.map{r -> r.nextBoolean()}.get()
+  nonInputProperties.systemProperty 'test.literalUsername', buildParams.random.map{r -> r.nextBoolean()}
 }

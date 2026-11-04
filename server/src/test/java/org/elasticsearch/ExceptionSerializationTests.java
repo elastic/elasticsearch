@@ -928,6 +928,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(196, org.elasticsearch.action.fieldcaps.RemoteResourceNotSupportedException.class);
         ids.put(197, org.elasticsearch.indices.recovery.RecoveryCancelledException.class);
         ids.put(198, org.elasticsearch.snapshots.ShardRestoringException.class);
+        ids.put(199, org.elasticsearch.index.engine.DocValuesUpdateBaseNotPresentException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

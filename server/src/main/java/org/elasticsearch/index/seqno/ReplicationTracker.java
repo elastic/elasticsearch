@@ -745,6 +745,54 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     /**
+     * Returns the lowest persisted local checkpoint tracked for the in-sync shard copies other than this primary, or
+     * {@link Long#MAX_VALUE} when this primary is the only in-sync copy. A local checkpoint is contiguous, so every in-sync replica has
+     * persisted all operations at or below the returned sequence number. Unlike the global checkpoint it does not fold in this primary's
+     * own checkpoint, which the primary trivially satisfies and which lags a just-applied operation (see
+     * {@link org.elasticsearch.action.update.UpdateHelper}).
+     *
+     * <p>This is consulted off the primary operation permit, because {@link org.elasticsearch.action.update.TransportUpdateAction}
+     * realizes a single update (deciding the in-place fast path) before acquiring one. If this copy is not an active primary (it has
+     * relocated, or has not yet been activated) there is no primary mode to read the in-sync replicas from, so it returns
+     * {@link SequenceNumbers#NO_OPS_PERFORMED}, which makes the fast-path gate fall back to a self-sufficient reindex.
+     */
+    public synchronized long getMinInSyncReplicaLocalCheckpoint() {
+        if (primaryMode == false) {
+            return SequenceNumbers.NO_OPS_PERFORMED;
+        }
+        long min = Long.MAX_VALUE;
+        for (final Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
+            final CheckpointState cps = entry.getValue();
+            if (cps.inSync && entry.getKey().equals(shardAllocationId) == false) {
+                min = Math.min(min, cps.localCheckpoint);
+            }
+        }
+        return min;
+    }
+
+    /**
+     * The lowest persisted local checkpoint among the tracked shard copies other than this primary, or {@link Long#MAX_VALUE} when this
+     * primary is the only one. Like {@link #getMinInSyncReplicaLocalCheckpoint()} but over every {@linkplain CheckpointState#tracked
+     * tracked} copy, so it also covers copies still recovering (whose checkpoint starts at {@link SequenceNumbers#UNASSIGNED_SEQ_NO}): a
+     * recovering copy already receives replicated deltas, so the in-place doc-values fast path must not ship it a delta whose base it has
+     * not reached (see {@link org.elasticsearch.action.update.UpdateHelper}). Returns {@link SequenceNumbers#NO_OPS_PERFORMED} when this is
+     * not an active primary, which makes that gate fall back to a reindex.
+     */
+    public synchronized long getMinTrackedReplicaLocalCheckpoint() {
+        if (primaryMode == false) {
+            return SequenceNumbers.NO_OPS_PERFORMED;
+        }
+        long min = Long.MAX_VALUE;
+        for (final Map.Entry<String, CheckpointState> entry : checkpoints.entrySet()) {
+            final CheckpointState cps = entry.getValue();
+            if (cps.tracked && entry.getKey().equals(shardAllocationId) == false) {
+                min = Math.min(min, cps.localCheckpoint);
+            }
+        }
+        return min;
+    }
+
+    /**
      * @return true iff any tracked global checkpoint for an in-sync copy lags behind our global checkpoint
      */
     public synchronized boolean trackedGlobalCheckpointsNeedSync() {

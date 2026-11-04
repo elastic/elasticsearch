@@ -390,7 +390,7 @@ public class UpdateRequestTests extends ESTestCase {
             IndexShard indexShard = createMockIndexShard(new ShardId("test", "_na_", 0));
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "2", UNASSIGNED_SEQ_NO, 0, 0, false, null, null, null);
-            UpdateHelper.Result result = updateHelper.prepare(indexShard, updateRequest, getResult, () -> nowInMillis);
+            UpdateHelper.Result result = updateHelper.prepare(indexShard, updateRequest, getResult, () -> nowInMillis, true);
             Writeable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
             IndexRequest indexAction = (IndexRequest) action;
@@ -430,7 +430,13 @@ public class UpdateRequestTests extends ESTestCase {
 
     private void runTimeoutTest(final GetResult getResult, final UpdateRequest updateRequest) {
         final IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));
-        final UpdateHelper.Result result = updateHelper.prepare(indexShard, updateRequest, getResult, ESTestCase::randomNonNegativeLong);
+        final UpdateHelper.Result result = updateHelper.prepare(
+            indexShard,
+            updateRequest,
+            getResult,
+            ESTestCase::randomNonNegativeLong,
+            true
+        );
         final Writeable action = result.action();
         assertThat(action, instanceOf(ReplicationRequest.class));
         final ReplicationRequest<?> request = (ReplicationRequest<?>) action;
@@ -606,13 +612,13 @@ public class UpdateRequestTests extends ESTestCase {
             request = new UpdateRequest("test", "1").fromXContent(parser);
         }
         UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class));
-        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true, false);
+        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true, false, true);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
 
         // Try again, with detectNoop turned off
-        result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, false, false);
+        result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, false, false, true);
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
@@ -620,7 +626,7 @@ public class UpdateRequestTests extends ESTestCase {
         try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))) {
             // Change the request to be a different doc
             request = new UpdateRequest("test", "1").fromXContent(parser);
-            result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true, false);
+            result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true, false, true);
 
             assertThat(result.action(), instanceOf(IndexRequest.class));
             assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
@@ -679,7 +685,7 @@ public class UpdateRequestTests extends ESTestCase {
             mergeRequest = new UpdateRequest("test", "1").fromXContent(parser);
         }
         mergeRequest.routing("s1").setRoutingFromSlice(true);
-        UpdateHelper.Result mergeResult = updateHelper.prepareUpdateIndexRequest(indexShard, mergeRequest, getResult, false, true);
+        UpdateHelper.Result mergeResult = updateHelper.prepareUpdateIndexRequest(indexShard, mergeRequest, getResult, false, true, true);
         IndexRequest mergedIndexRequest = (IndexRequest) mergeResult.action();
         assertTrue(mergedIndexRequest.isRoutingFromSlice());
 

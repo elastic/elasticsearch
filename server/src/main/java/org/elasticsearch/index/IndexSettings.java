@@ -1401,6 +1401,19 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    /**
+     * The maximum number of sparse doc-values overlay generations Lucene keeps before folding them into a dense column rewrite. It applies
+     * to columnar indices, where {@code doc_values.updatable} fields are updated in place: a higher value makes each update write only the
+     * changed documents (less write amplification) at the cost of overlaying more generations at read time, while {@code 0} disables
+     * overlays so every update rewrites the whole column. Read once, when the index writer opens.
+     */
+    public static final Setting<Integer> DOC_VALUES_MAX_OVERLAYS = Setting.intSetting(
+        "index.doc_values.max_overlays",
+        16,
+        0,
+        Property.IndexScope
+    );
+
     public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting("index.disable_sequence_numbers", settings -> {
         if (settings == null) {
             return Boolean.FALSE.toString();
@@ -1608,6 +1621,7 @@ public final class IndexSettings {
     private final boolean timeSeriesEs95CodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
+    private final int docValuesMaxOverlays;
     private final boolean indexDisabledByDefault;
     private final boolean useColumnarIdByDefault;
 
@@ -1881,6 +1895,7 @@ public final class IndexSettings {
             }
         }
         disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
+        docValuesMaxOverlays = DOC_VALUES_MAX_OVERLAYS.get(settings);
         dynamicStringsAutoText = DYNAMIC_STRINGS_AUTO_TEXT.get(settings);
         dynamicStringsAutoKeywordSubfield = DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
@@ -2817,6 +2832,24 @@ public final class IndexSettings {
 
     public boolean sequenceNumbersDisabled() {
         return disableSequenceNumbers;
+    }
+
+    /**
+     * The maximum number of sparse doc-values overlay generations the index writer keeps before a dense column rewrite; see
+     * {@link #DOC_VALUES_MAX_OVERLAYS}. Meaningful only for columnar indices, where in-place doc-values updates happen.
+     */
+    public int getDocValuesMaxOverlays() {
+        return docValuesMaxOverlays;
+    }
+
+    /**
+     * Whether in-place doc-values updates on this index advance the document's optimistic-concurrency identity through the
+     * {@code _dv_update_seq_no}/{@code _dv_update_primary_term} companion columns (see {@link SeqNoFieldMapper}). True for strict
+     * columnar indices that keep sequence numbers. Updatable fields are rejected when sequence numbers are disabled, so any index that
+     * has them always has this enabled.
+     */
+    public boolean seqNoAwareDocValuesUpdates() {
+        return disableSequenceNumbers == false && getMode().isStrictColumnar();
     }
 
     private void setDynamicStringsAutoText(boolean enabled) {

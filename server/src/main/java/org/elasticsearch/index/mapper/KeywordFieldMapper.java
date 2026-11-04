@@ -20,11 +20,14 @@ import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
@@ -302,7 +305,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings
-            );
+            ).withUpdatableSupport();
 
             this.dimension = TimeSeriesParams.dimensionParam(
                 m -> toType(m).fieldType().isDimension(),
@@ -589,6 +592,24 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (offsetsFieldName != null && usesBinaryDocValues() && indexSettings.getMode().isStrictColumnar()) {
                 this.arrayOrderBinaryDocValues = true;
                 this.offsetsFieldName = null;
+            }
+            String fullName = context.buildFullName(leafName());
+            FieldMapper.validateUpdatableDocValues(
+                fullName,
+                docValuesParameters(),
+                indexed.getValue(),
+                fieldtype.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE,
+                // A keyword's binary column holds its slot count inline, so Lucene can replace it with several values in one update.
+                true,
+                multiFieldsBuilder.hasMultiFields(),
+                indexSettings
+            );
+            if (docValuesParameters().updatable() && usesBinaryDocValues() == false) {
+                // Lucene cannot update SORTED_SET doc values, which is what low-cardinality keywords are written as. High-cardinality
+                // keywords go to a binary column instead, which it can update.
+                throw new IllegalArgumentException(
+                    "[doc_values.updatable] is not supported for low cardinality keyword field [" + fullName + "]"
+                );
             }
             return new KeywordFieldMapper(
                 leafName(),
@@ -1687,6 +1708,66 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public DocValuesParameter.Values docValuesParameters() {
         return docValuesParameters;
+    }
+
+    @Override
+    public boolean isDocValuesUpdatable() {
+        return docValuesParameters.updatable();
+    }
+
+    @Override
+    public boolean supportsMultiValueDocValuesUpdate() {
+        // Lucene replaces the whole BINARY value in one update, and a columnar-payload keyword carries its slot count inline, so an update
+        // can set several values at once. A single-valued keyword stores raw bytes with no count, so it stays single-valued.
+        return fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD;
+    }
+
+    @Override
+    public void encodeDocValuesUpdate(List<Object> values, DocValuesUpdateSink sink) {
+        // Mirror the binary doc-values value indexing writes for this field so the in-place update is byte-identical and the codec reads it
+        // the same way. A columnar-payload keyword frames its values with StringBinaryPayload (slots in document order); the single-valued
+        // format stores the raw bytes of its one value.
+        if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD) {
+            List<BytesRef> slots = new ArrayList<>(values.size());
+            for (Object value : values) {
+                slots.add(new BytesRef(normalizeValue(fieldType().normalizer(), fullPath(), value.toString())));
+            }
+            sink.binary(fullPath(), BytesRef.deepCopyOf(new StringBinaryPayload.Builder().encode(slots)));
+        } else {
+            String normalized = normalizeValue(fieldType().normalizer(), fullPath(), values.get(0).toString());
+            sink.binary(fullPath(), new BytesRef(normalized));
+        }
+    }
+
+    @Override
+    public DocValuesUpdateSourceReader docValuesUpdateSourceReader(LeafReader reader) throws IOException {
+        // An updatable keyword is binary doc values (see DocValuesFieldFactory). A columnar-payload keyword frames its values with
+        // StringBinaryPayload, so decode every slot and return a single value or a list to match how synthetic source reconstructs it; the
+        // single-valued format stores the normalized bytes of its one value directly.
+        BinaryDocValues docValues = DocValues.getBinary(reader, fullPath());
+        if (fieldType().diskFormat() == KeywordFieldType.DocValuesDiskFormat.BINARY_COLUMNAR_PAYLOAD) {
+            StringBinaryPayload.Decoder decoder = new StringBinaryPayload.Decoder();
+            return doc -> {
+                if (docValues.advanceExact(doc) == false) {
+                    return null;
+                }
+                int slotCount = decoder.reset(docValues.binaryValue());
+                if (slotCount == 0) {
+                    return null;
+                }
+                if (slotCount == 1) {
+                    BytesRef slot = decoder.next();
+                    return slot == null ? null : slot.utf8ToString();
+                }
+                List<String> result = new ArrayList<>(slotCount);
+                for (int i = 0; i < slotCount; i++) {
+                    BytesRef slot = decoder.next();
+                    result.add(slot == null ? null : slot.utf8ToString());
+                }
+                return result;
+            };
+        }
+        return doc -> docValues.advanceExact(doc) ? docValues.binaryValue().utf8ToString() : null;
     }
 
     @Override

@@ -19,11 +19,14 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.column.LongColumn;
 import org.apache.lucene.document.column.LongTupleCursor;
 import org.apache.lucene.document.column.ObjectTupleCursor;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -341,7 +344,7 @@ public final class DateFieldMapper extends FieldMapper {
                 ),
                 m -> toType(m).docValuesParameters(),
                 indexSettings
-            );
+            ).withUpdatableSupport();
             this.ignoreMalformed = Parameter.boolParam(
                 "ignore_malformed",
                 true,
@@ -449,7 +452,11 @@ public final class DateFieldMapper extends FieldMapper {
          * index creation version, index mode, and other parameters.
          */
         private IndexType indexType(String fullFieldName) {
-            if (indexSettings.useDocValuesSkipper() && docValuesParameters.getValue().enabled()) {
+            // An updatable field cannot have a skip index: a doc-values skip index cannot be updated in place, and
+            // validateUpdatableDocValues rejects a skipper. So never skipper an updatable date, even when the index otherwise would.
+            if (indexSettings.useDocValuesSkipper()
+                && docValuesParameters.getValue().enabled()
+                && docValuesParameters.getValue().updatable() == false) {
                 // If not indexed, then always use skippers for date fields:
                 if (index.get() == false && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)) {
                     return IndexType.skippers();
@@ -505,6 +512,17 @@ public final class DateFieldMapper extends FieldMapper {
                 scriptValues(),
                 meta.getValue(),
                 readInArrayOrder
+            );
+
+            FieldMapper.validateUpdatableDocValues(
+                fullFieldName,
+                docValuesParameters.getValue(),
+                index.getValue(),
+                ft.hasDocValuesSkipper(),
+                // A sorted-numeric column updates a single value at a time, so an updatable date must be single-valued.
+                false,
+                multiFieldsBuilder.hasMultiFields(),
+                indexSettings
             );
 
             Long nullTimestamp = parseNullValue(ft);
@@ -1275,6 +1293,30 @@ public final class DateFieldMapper extends FieldMapper {
     protected boolean doSupportsColumnarParse(IndexSettings indexSettings) {
         // ignore_malformed is not enforced by mapColumnBatch — it falls back per document at parse time.
         return docValuesParameters.enabled();
+    }
+
+    @Override
+    public boolean isDocValuesUpdatable() {
+        return docValuesParameters.updatable();
+    }
+
+    @Override
+    public void encodeDocValuesUpdate(List<Object> values, DocValuesUpdateSink sink) {
+        // Parse the value to a timestamp in the field's resolution exactly as indexing and source parsing do
+        // (DateFieldType#parse), so an in-place update stores the same long a reindex of the field would. A sorted-numeric column takes a
+        // single value per update.
+        Object value = values.get(0);
+        String date = value instanceof Number ? DateFieldType.NUMBER_FORMAT.format(value) : value.toString();
+        sink.numeric(fullPath(), fieldType().parse(date));
+    }
+
+    @Override
+    public DocValuesUpdateSourceReader docValuesUpdateSourceReader(LeafReader reader) throws IOException {
+        // An updatable date is single-valued sorted-numeric doc values (see DocValuesFieldFactory); format the stored timestamp back to
+        // the source representation with the field's date formatter.
+        SortedNumericDocValues docValues = DocValues.getSortedNumeric(reader, fullPath());
+        DateFormatter formatter = fieldType().dateTimeFormatter();
+        return doc -> docValues.advanceExact(doc) ? fieldType().format(docValues.nextValue(), formatter) : null;
     }
 
     @Override

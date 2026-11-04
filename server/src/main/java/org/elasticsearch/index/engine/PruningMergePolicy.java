@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterCodecReader;
@@ -18,6 +19,7 @@ import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -28,6 +30,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
@@ -311,34 +314,32 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
             NumericDocValues numeric = super.getNumeric(field);
             if (shouldPruneNumericDocValues(field.name)) {
                 assert numeric != null : field.name + " must have numeric doc values but was null";
-                final DocIdSetIterator intersection;
-                if (recoverySourceToKeep == null) {
-                    // we can't return null here Lucene's DocIdMerger expects an instance
-                    intersection = DocIdSetIterator.empty();
-                } else {
-                    intersection = ConjunctionUtils.intersectIterators(
-                        Arrays.asList(numeric, new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length()))
-                    );
-                }
-                return new FilterNumericDocValues(numeric) {
-                    @Override
-                    public int nextDoc() throws IOException {
-                        return intersection.nextDoc();
-                    }
-
-                    @Override
-                    public int advance(int target) {
-                        throw new UnsupportedOperationException();
-                    }
-
-                    @Override
-                    public boolean advanceExact(int target) {
-                        throw new UnsupportedOperationException();
-                    }
-                };
-
+                return pruneNumeric(numeric, recoverySourceToKeep);
+            }
+            // Pre-image companions are optional (a field all of whose captures were empty has no value column), so a missing column here
+            // is left as null rather than asserted.
+            if (DocValuesUpdatePreImage.isPreImageField(field.name)) {
+                return numeric == null ? null : pruneNumeric(numeric, recoverySourceToKeep);
             }
             return numeric;
+        }
+
+        @Override
+        public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
+            SortedNumericDocValues sortedNumeric = super.getSortedNumeric(field);
+            if (DocValuesUpdatePreImage.isPreImageField(field.name)) {
+                return sortedNumeric == null ? null : pruneSortedNumeric(sortedNumeric, recoverySourceToKeep);
+            }
+            return sortedNumeric;
+        }
+
+        @Override
+        public BinaryDocValues getBinary(FieldInfo field) throws IOException {
+            BinaryDocValues binary = super.getBinary(field);
+            if (DocValuesUpdatePreImage.isPreImageField(field.name)) {
+                return binary == null ? null : pruneBinary(binary, recoverySourceToKeep);
+            }
+            return binary;
         }
 
         /**
@@ -349,6 +350,113 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
                 return true;
             }
             return pruneSeqNo && fieldName.equals(SeqNoFieldMapper.NAME);
+        }
+
+        // Lucene's DocIdMerger iterates the returned instance with nextDoc() only, so the pruned view drives iteration from the
+        // intersection with the kept-docs set and delegates the values to the underlying column, which the intersection keeps positioned.
+        // A null kept-docs set means keep nothing; an empty iterator is returned since the merger expects an instance, not null.
+        private static DocIdSetIterator keptDocs(DocIdSetIterator values, BitSet recoverySourceToKeep) {
+            if (recoverySourceToKeep == null) {
+                return DocIdSetIterator.empty();
+            }
+            return ConjunctionUtils.intersectIterators(
+                Arrays.asList(values, new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length()))
+            );
+        }
+
+        private static NumericDocValues pruneNumeric(NumericDocValues numeric, BitSet recoverySourceToKeep) {
+            final DocIdSetIterator kept = keptDocs(numeric, recoverySourceToKeep);
+            return new FilterNumericDocValues(numeric) {
+                @Override
+                public int nextDoc() throws IOException {
+                    return kept.nextDoc();
+                }
+
+                @Override
+                public int advance(int target) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean advanceExact(int target) {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
+
+        private static SortedNumericDocValues pruneSortedNumeric(SortedNumericDocValues sortedNumeric, BitSet recoverySourceToKeep) {
+            final DocIdSetIterator kept = keptDocs(sortedNumeric, recoverySourceToKeep);
+            return new SortedNumericDocValues() {
+                @Override
+                public int nextDoc() throws IOException {
+                    return kept.nextDoc();
+                }
+
+                @Override
+                public int docID() {
+                    return kept.docID();
+                }
+
+                @Override
+                public int advance(int target) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean advanceExact(int target) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public long cost() {
+                    return sortedNumeric.cost();
+                }
+
+                @Override
+                public int docValueCount() {
+                    return sortedNumeric.docValueCount();
+                }
+
+                @Override
+                public long nextValue() throws IOException {
+                    return sortedNumeric.nextValue();
+                }
+            };
+        }
+
+        private static BinaryDocValues pruneBinary(BinaryDocValues binary, BitSet recoverySourceToKeep) {
+            final DocIdSetIterator kept = keptDocs(binary, recoverySourceToKeep);
+            return new BinaryDocValues() {
+                @Override
+                public int nextDoc() throws IOException {
+                    return kept.nextDoc();
+                }
+
+                @Override
+                public int docID() {
+                    return kept.docID();
+                }
+
+                @Override
+                public int advance(int target) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean advanceExact(int target) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public long cost() {
+                    return binary.cost();
+                }
+
+                @Override
+                public BytesRef binaryValue() throws IOException {
+                    return binary.binaryValue();
+                }
+            };
         }
     }
 

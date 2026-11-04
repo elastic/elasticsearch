@@ -69,7 +69,8 @@ public final class PreResolvedUpdates implements Releasable {
         IndexShard primary,
         UpdateHelper updateHelper,
         LongSupplier nowInMillis,
-        FetchSourceContext fetchSourceContext
+        FetchSourceContext fetchSourceContext,
+        boolean inPlaceDocValuesUpdatesSupported
     ) {
         // Updates are not supported in indices with sequence numbers disabled
         if (primary.indexSettings().sequenceNumbersDisabled()) {
@@ -99,7 +100,8 @@ public final class PreResolvedUpdates implements Releasable {
                     primary,
                     nowInMillis,
                     fetchSourceContext,
-                    request.splitShardCountSummary()
+                    request.splitShardCountSummary(),
+                    inPlaceDocValuesUpdatesSupported
                 );
                 if (preResolved != null) {
                     if (slots == null) {

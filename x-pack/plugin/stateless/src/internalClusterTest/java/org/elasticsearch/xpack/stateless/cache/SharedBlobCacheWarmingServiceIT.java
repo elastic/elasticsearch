@@ -142,6 +142,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1659,6 +1660,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
 
         // the source is now waiting for the prewarm reply, which the target cannot send until the early prewarming is released
         safeAwait(earlyPrewarmingBlocked);
+
+        // make the source node wait at least `minWaitInMillis` before we release the prewarming, so we can then verify prewarm metric
+        final var sourceThreadPool = internalCluster().getInstance(ThreadPool.class, sourceNode);
+        final long start = sourceThreadPool.relativeTimeInMillis();
+        final long minWaitInMillis = randomLongBetween(10, 100);
+        assertTrue(waitUntil(() -> sourceThreadPool.relativeTimeInMillis() - start >= minWaitInMillis));
+
         releaseEarlyPrewarming.countDown();
         ensureGreen(indexName);
 
@@ -1667,7 +1675,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             "source sends the handoff after the prewarm reply (due to the long `PREWARM_WAIT_TIMEOUT_SETTING`)",
             prewarmRepliedAtHandoff.get()
         );
-        assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.COMPLETED);
+        final long recordedWaitInMillis = assertPrewarmWaitOutcome(sourceNode, PrewarmWaitOutcome.COMPLETED);
+        assertThat("recorded wait covers the time the prewarm was held", recordedWaitInMillis, greaterThanOrEqualTo(minWaitInMillis));
     }
 
     // verify that the source stops waiting for the prewarm reply once the prewarm wait timeout expires and proceeds with the handoff
@@ -1785,12 +1794,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         ensureGreen(indexName);
     }
 
-    private static void assertPrewarmWaitOutcome(String node, PrewarmWaitOutcome expectedOutcome) {
+    private static long assertPrewarmWaitOutcome(String node, PrewarmWaitOutcome expectedOutcome) {
         final var telemetry = getTelemetryPlugin(node);
         telemetry.collect();
         final var measurements = telemetry.getLongHistogramMeasurement(RELOCATION_SOURCE_PREWARM_WAIT_TIME_METRIC_IN_MILLIS);
         assertThat(measurements, hasSize(1));
         assertThat(measurements.get(0).attributes(), equalTo(Map.of(PREWARM_WAIT_OUTCOME_ATTRIBUTE_KEY, expectedOutcome.attributeValue())));
+        return measurements.get(0).getLong();
     }
 
     /**

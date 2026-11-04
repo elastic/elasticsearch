@@ -1607,13 +1607,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return;
         }
 
-        final FailureStrategy finalStrategy;
-        final Shard shard = indicesService.getShardOrNull(shardRouting.shardId());
         // A still-live inFlightTicket (checked above) guarantees any local shard for this shardId
         // is this allocation's: every path that replaces it with a different allocation's shard also
         // invalidates this exact ticket first, inside the same synchronized section. The same should
         // hold for the shard's primary term (any update to it goes through the same synchronized
         // path), but Shard doesn't currently expose it, so that part isn't asserted here.
+        final Shard shard = indicesService.getShardOrNull(shardRouting.shardId());
         assert shard == null || shard.routingEntry().isSameAllocation(shardRouting)
             : "found shard for different allocation despite live ticket: " + shard.routingEntry() + " vs " + shardRouting;
         assert shard == null
@@ -1621,17 +1620,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             || shard.state() == IndexShardState.RECOVERING
             || shard.state() == IndexShardState.POST_RECOVERY
             : "found shard in unexpected state despite live ticket: " + shardRouting + " in state " + shard.state();
-        if (failureStrategy != FailureStrategy.RETRY) {
-            finalStrategy = failureStrategy;
-        } else if (localRecoveryRetryEnabled == false) {
-            // local recovery retry is disabled
-            finalStrategy = FailureStrategy.FAIL_SEND;
-        } else if (shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT)) {
-            // TODO: Remove RESHARD_SPLIT exclusion once local retries support it
-            finalStrategy = FailureStrategy.FAIL_SEND;
-        } else {
-            finalStrategy = FailureStrategy.RETRY;
-        }
+
+        final FailureStrategy finalStrategy = reviseFinalStrategy(shardRouting, failureStrategy);
 
         try {
             CloseUtils.executeDirectly(
@@ -1659,50 +1649,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // Fork onto cluster state applier thread to retry attempt to create shard
                 clusterService.getClusterApplierService()
                     .runOnApplierThread("retry recovery " + shardRouting.shardId(), Priority.NORMAL, currentState -> {
-                        synchronized (this) {
-                            try {
-                                if (lifecycle.started() == false) {
-                                    logger.debug("{} giving up on recovery retry: node is shutting down", key);
-                                    return;
-                                }
-                                // Any routing/term change that would make this ticket stale is only ever
-                                // observed through a cluster-state apply, whose own sweep (
-                                // updatePendingAllocationTracker) runs before this task could ever see that
-                                // state -- so by the time we're here, a superseded ticket is already gone
-                                // from the map, and this identity check catches it.
-                                if (pendingAllocationStates.get(key) != myRetryTicket) {
-                                    logger.debug("{} giving up on recovery retry: no longer own retry attempt", key);
-                                    return;
-                                }
-
-                                final var indexService = indicesService.indexService(key.shardId().getIndex());
-                                assert indexService != null : "index service unexpectedly not found for " + key;
-                                assert indexService.getShardOrNull(key.shardId().id()) == null
-                                    : "retry path found existing shard for " + key;
-
-                                final ShardRouting currentRouting = getCurrentRouting(key, currentState);
-                                assert currentRouting != null : "shard routing is null on create shard retry for " + key;
-                                createShard(currentRouting, currentState);
-                            } catch (Exception e) {
-                                // should not be possible
-                                final var wrappedException = new IllegalStateException(
-                                    "unexpected failure in handleRecoveryFailure on " + shardRouting,
-                                    e
-                                );
-                                logger.error(wrappedException.getMessage(), e);
-                                assert false : e;
-                                failAndRemoveShard(
-                                    shardRouting,
-                                    primaryTerm,
-                                    true,
-                                    "unexpected failure during recovery retry",
-                                    wrappedException,
-                                    currentState,
-                                    shardCloseExecutor,
-                                    ActionListener.noop()
-                                );
-                            }
-                        }
+                        retryRecovery(shardRouting, primaryTerm, currentState, key, myRetryTicket);
                     }, ActionListener.noop());
             } else if (finalStrategy == FailureStrategy.FAIL_SILENT) {
                 logger.debug("{} clearing creating-shard ticket: recovery failure strategy [{}]", key, finalStrategy);
@@ -1713,6 +1660,67 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
             logger.error(wrappedException.getMessage(), e);
             assert false : e;
+        }
+    }
+
+    private FailureStrategy reviseFinalStrategy(ShardRouting shardRouting, FailureStrategy failureStrategy) {
+        if (failureStrategy != FailureStrategy.RETRY) {
+            return failureStrategy;
+        } else if (localRecoveryRetryEnabled == false) {
+            // local recovery retry is disabled
+            return FailureStrategy.FAIL_SEND;
+        } else if (shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT)) {
+            // TODO: Remove RESHARD_SPLIT exclusion once local retries support it
+            return FailureStrategy.FAIL_SEND;
+        } else {
+            return FailureStrategy.RETRY;
+        }
+    }
+
+    private synchronized void retryRecovery(
+        ShardRouting shardRouting,
+        long primaryTerm,
+        ClusterState currentState,
+        ShardAllocationKey key,
+        PendingAllocationState.AwaitingRecoveryRetry myRetryTicket
+    ) {
+        try {
+            if (lifecycle.started() == false) {
+                logger.debug("{} giving up on recovery retry: node is shutting down", key);
+                return;
+            }
+            // Any routing/term change that would make this ticket stale is only ever
+            // observed through a cluster-state apply, whose own sweep (
+            // updatePendingAllocationTracker) runs before this task could ever see that
+            // state -- so by the time we're here, a superseded ticket is already gone
+            // from the map, and this identity check catches it.
+            if (pendingAllocationStates.get(key) != myRetryTicket) {
+                logger.debug("{} giving up on recovery retry: no longer own retry attempt", key);
+                return;
+            }
+
+            final var indexService = indicesService.indexService(key.shardId().getIndex());
+            assert indexService != null : "index service unexpectedly not found for " + key;
+            assert indexService.getShardOrNull(key.shardId().id()) == null : "retry path found existing shard for " + key;
+
+            final ShardRouting currentRouting = getCurrentRouting(key, currentState);
+            assert currentRouting != null : "shard routing is null on create shard retry for " + key;
+            createShard(currentRouting, currentState);
+        } catch (Exception e) {
+            // should not be possible
+            final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
+            logger.error(wrappedException.getMessage(), e);
+            assert false : e;
+            failAndRemoveShard(
+                shardRouting,
+                primaryTerm,
+                true,
+                "unexpected failure during recovery retry",
+                wrappedException,
+                currentState,
+                shardCloseExecutor,
+                ActionListener.noop()
+            );
         }
     }
 

@@ -22,6 +22,11 @@ import java.util.Objects;
  */
 public record MoveReason(MoveType type, @Nullable String canRemainDecider) {
 
+    /**
+     * The reason the desired balance computation gives for relocating a copy to where the previous desired balance already wanted it.
+     */
+    public static final MoveReason INHERITED = of(MoveType.INHERITED);
+
     public MoveReason {
         Objects.requireNonNull(type);
     }

@@ -25,8 +25,8 @@ import java.util.Map;
  * to leave the node it is really on. Only moves triggered by a non-YES {@code canRemain} decision are recorded, and only when the copy
  * was on the move's source node in the computation's input (later hops of the same copy inside the simulation are not interesting).
  * Reasons recorded by the previous computation are carried forward while the move is still pending: when the computation starts by
- * relocating a copy to its previous target ({@link org.elasticsearch.cluster.routing.MoveType#INHERITED}), or when the allocator
- * re-decides the same move with the same decider.
+ * relocating a copy to its previous target ({@link MoveReason#INHERITED}), or when the allocator re-decides the same move with the same
+ * decider.
  */
 final class ComputedMoveReasonCollector implements RoutingChangesObserver {
 

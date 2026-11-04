@@ -605,7 +605,8 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         final EngineException lookupFailure = new EngineException(new ShardId("index", "_na_", 0), "simulated version lookup failure");
         final AtomicBoolean failNextLookup = new AtomicBoolean();
         IndexShard shard = newColumnarPrimaryShard(config -> new InternalEngine(config) {
-            // Force a Lucene failure
+            // Fails the Lucene version lookup the engine performs while planning a sub-batch, i.e. before any sequence
+            // number has been consumed for it
             @Override
             protected <T> T performActionWithDirectoryReader(
                 Engine.SearcherScope scope,

@@ -604,3 +604,8 @@ tests:
   - :x-pack:plugin:esql:test
   method: "testFold {TestCase=field: <random mv DEDUPLICATED_UNORDERED doubles>, percentile: <positive long>}"
   issue: https://github.com/elastic/elasticsearch/issues/164558
+- class: org.elasticsearch.xpack.esql.action.EsqlStreamDisruptionIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testSlowConsumerUnderNetworkDelay
+  issue: https://github.com/elastic/elasticsearch/issues/163264

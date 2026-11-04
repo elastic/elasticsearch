@@ -156,43 +156,24 @@ public final class VectorBinarySet extends VectorBinaryOperator {
         return NodeInfo.create(this, VectorBinarySet::new, left(), right(), match(), op());
     }
 
-    /** Finished UnionAll+TopNBy so parents can consume nested or; empty on () dedups by step only. */
+    /** Finished UnionAll+TopNBy so parents can consume nested or. */
     @Override
     public IntermediateResult translate(TranslationContext context) {
         if (op != SetOp.UNION) {
             return super.translate(context);
-        }
-        if (isLabellessOrOnEmpty(this)) {
-            List<LogicalPlan> branches = List.of(left(), right());
-            List<IntermediateResult> intermediateResults = List.of(
-                context.translateIntermediate(left(), new NameId(), new NameId()),
-                context.translateIntermediate(right(), new NameId(), new NameId())
-            );
-            return wrapUnion(context, translateUnion(context, branches, intermediateResults, List.of()), true);
         }
         List<LogicalPlan> branches = flattenUnion(this);
         List<IntermediateResult> intermediateResults = new ArrayList<>(branches.size());
         for (LogicalPlan branch : branches) {
             intermediateResults.add(context.translateIntermediate(branch, new NameId(), new NameId()));
         }
-        return wrapUnion(context, translateUnion(context, branches, intermediateResults, output()), false);
-    }
-
-    /** Labelless or on (): empty-guard idiom, step-only dedup. */
-    public static boolean isLabellessOrOnEmpty(VectorBinarySet setOp) {
-        VectorMatch match = setOp.match();
-        return setOp.op() == SetOp.UNION
-            && match.filter() == VectorMatch.Filter.ON
-            && match.filterLabels().isEmpty()
-            && match.grouping() == Joining.NONE
-            && setOp.left().output().isEmpty()
-            && setOp.right().output().isEmpty();
+        return wrapUnion(context, translateUnion(context, branches, intermediateResults, output()));
     }
 
     /**
-     * Always rename value to kill UnionAll ghost channels (#158164). stickyValue also drops labels (empty on ()).
+     * Always rename value to kill UnionAll ghost channels (#158164).
      */
-    private IntermediateResult wrapUnion(TranslationContext context, LogicalPlan union, boolean stickyValue) {
+    private IntermediateResult wrapUnion(TranslationContext context, LogicalPlan union) {
         PromqlCommand cmd = context.cmd();
         Attribute value = null;
         Attribute step = null;
@@ -223,9 +204,7 @@ public final class VectorBinarySet extends VectorBinaryOperator {
         List<NamedExpression> pinnedOut = new ArrayList<>();
         pinnedOut.add(pinned.toAttribute());
         pinnedOut.add(step);
-        if (stickyValue == false) {
-            pinnedOut.addAll(labels);
-        }
+        pinnedOut.addAll(labels);
         plan = new Project(source(), plan, pinnedOut);
         return new IntermediateResult(plan, pinned.toAttribute(), step, null, Kind.AFTER_INITIAL_AGGREGATE);
     }

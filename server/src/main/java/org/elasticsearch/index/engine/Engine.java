@@ -11,6 +11,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
@@ -76,6 +77,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
+import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.SegmentCalibrationParameters;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.DocumentSource;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -175,8 +178,6 @@ public abstract class Engine implements Closeable {
     private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
 
     private final boolean isStateless;
-
-    private final DenseVectorStatsCache denseVectorStatsCache = new DenseVectorStatsCache();
 
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
@@ -390,8 +391,7 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Returns the {@link DenseVectorStats} for this engine. On stateless the vector counts are not collected, see
-     * {@link DenseVectorStatsCache}.
+     * Returns the {@link DenseVectorStats} for this engine.
      */
     public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
         if (mappingLookup == null) {
@@ -422,14 +422,48 @@ public abstract class Engine implements Closeable {
         var stats = new DenseVectorStats();
         for (LeafReaderContext readerContext : indexReader.leaves()) {
             try {
-                // counting vectors opens their values, which on a remote-backed directory fetches a cache region per
-                // field per segment; off-heap sizes come from field metadata and are always cheap
-                stats.add(denseVectorStatsCache.get(readerContext.reader(), fieldNames, isStateless == false));
+                stats.add(getDenseVectorStats(readerContext.reader(), fieldNames));
             } catch (IOException e) {
                 logger.trace(() -> "failed to get dense vector stats for [" + readerContext + "]", e);
             }
         }
         return stats;
+    }
+
+    /**
+     * Returns what {@code leafReader} contributes to the dense vector stats for {@code fieldNames}. The count, the
+     * off-heap byte size and the auto-calibration parameters are all read from the field's metadata via
+     * {@link KnnVectorsReader}, so the vector values are never opened.
+     */
+    private static DenseVectorStats getDenseVectorStats(final LeafReader leafReader, Iterable<String> fieldNames) throws IOException {
+        long totalValuesCount = 0;
+        final Map<String, Map<String, Long>> offHeapStats = new HashMap<>();
+        final Map<String, List<DenseVectorStats.AutoCalibrationEntry>> calibrationStats = new HashMap<>();
+        final KnnVectorsReader baseVectorsReader = Lucene.segmentReader(leafReader).getVectorReader();
+        for (String fieldName : fieldNames) {
+            FieldInfo info = leafReader.getFieldInfos().fieldInfo(fieldName);
+            if (info == null || info.getVectorDimension() <= 0) {
+                continue;
+            }
+            KnnVectorsReader fieldReader = baseVectorsReader;
+            if (fieldReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                fieldReader = fieldsReader.getFieldReader(info.name);
+            }
+            long fieldCount = fieldReader.getVectorCount(info);
+            totalValuesCount += fieldCount;
+            Map<String, Long> fieldOffHeap = fieldReader.getOffHeapByteSize(info);
+            offHeapStats.put(info.name, fieldOffHeap);
+            if (fieldReader instanceof CalibrationAwareReader calibrationReader) {
+                long sizeBytes = fieldOffHeap.values().stream().mapToLong(Long::longValue).sum();
+                SegmentCalibrationParameters params = calibrationReader.getCalibrationParameters(info);
+                calibrationStats.put(info.name, List.of(new DenseVectorStats.AutoCalibrationEntry(params, fieldCount, sizeBytes, 1)));
+            }
+        }
+        return new DenseVectorStats(
+            totalValuesCount,
+            Collections.unmodifiableMap(offHeapStats),
+            Collections.unmodifiableMap(calibrationStats)
+        );
     }
 
     /**
@@ -1497,10 +1531,7 @@ public abstract class Engine implements Closeable {
                         vectorFieldNames.add(fieldInfo.name);
                     }
                 }
-                // counting vectors opens their values, which on a remote-backed directory fetches a cache region per
-                // field per segment; off-heap sizes come from field metadata and are always cheap
-                // this is why vector count is disabled in stateless until we can retrieve that information cheaply
-                DenseVectorStats vectorStats = denseVectorStatsCache.get(segmentReader, vectorFieldNames, isStateless == false);
+                DenseVectorStats vectorStats = getDenseVectorStats(segmentReader, vectorFieldNames);
                 for (Map.Entry<String, List<DenseVectorStats.AutoCalibrationEntry>> fieldEntry : vectorStats.calibrationStats()
                     .entrySet()) {
                     for (DenseVectorStats.AutoCalibrationEntry calibrationEntry : fieldEntry.getValue()) {

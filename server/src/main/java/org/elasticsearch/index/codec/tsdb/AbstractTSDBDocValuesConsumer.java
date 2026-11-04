@@ -1220,8 +1220,6 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         assert field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE;
         final long start = skip.getFilePointer();
         final SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
-        // Iterate a single-valued field directly: through the wrapper, the call to the underlying iterator is shared
-        // with every other user of the wrapper in the JVM and ends up megamorphic.
         final NumericDocValues singleton = DocValues.unwrapSingleton(values);
         long globalMaxValue = Long.MIN_VALUE;
         long globalMinValue = Long.MAX_VALUE;

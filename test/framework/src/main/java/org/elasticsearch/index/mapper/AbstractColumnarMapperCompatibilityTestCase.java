@@ -35,6 +35,7 @@ import org.elasticsearch.escf.EscfColumn;
 import org.elasticsearch.escf.EscfEncoder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.sourcebatch.MappedColumns;
@@ -128,6 +129,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         SourceEncoder encoder,
         Batch... scenarios
     ) throws IOException {
+        indexSettings = withoutColumnarNumericCodec(indexSettings);
         final MapperService mapperService = createMapperService(indexSettings, mapping);
         for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario, encoder);
@@ -151,6 +153,7 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
         Settings indexSettings,
         Batch... scenarios
     ) throws IOException {
+        indexSettings = withoutColumnarNumericCodec(indexSettings);
         final MapperService mapperService = createMapperService(indexVersion, indexSettings, mapping);
         for (Batch scenario : scenarios) {
             assertScenario(mapperService, scenario, SourceEncoder.SIMD);
@@ -162,6 +165,19 @@ public abstract class AbstractColumnarMapperCompatibilityTestCase extends Mapper
                 assertScenario(columnarStoredService, scenario, SourceEncoder.SIMD);
             }
         }
+    }
+
+    /**
+     * Returns {@code indexSettings} with numeric fields kept off the ColumNAR codec, whose doc values the batch path doesn't map
+     * yet: those fields take the row path, so a scenario holding one would never reach the batch path to be compared.
+     */
+    // TODO: drop once NumberFieldMapper maps ColumNAR doc values a column at a time.
+    private static Settings withoutColumnarNumericCodec(Settings indexSettings) {
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled() == false
+            || IndexSettings.COLUMNAR_CODEC_NUMERIC_ENABLED_SETTING.exists(indexSettings)) {
+            return indexSettings;
+        }
+        return Settings.builder().put(indexSettings).put(IndexSettings.COLUMNAR_CODEC_NUMERIC_ENABLED_SETTING.getKey(), false).build();
     }
 
     /**

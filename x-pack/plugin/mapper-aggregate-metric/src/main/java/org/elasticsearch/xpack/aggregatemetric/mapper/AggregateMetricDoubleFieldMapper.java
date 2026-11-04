@@ -245,6 +245,9 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         builder.index(false);
                     }
                 }
+                // The metric fields aren't mapped in their own right, so the ColumNAR codec never stores them.
+                // TODO: decide whether the metrics of a columnar index should use the codec.
+                builder.disallowColumnarCodec();
                 NumberFieldMapper fieldMapper = builder.build(context);
                 metricMappers.put(m, fieldMapper);
             }

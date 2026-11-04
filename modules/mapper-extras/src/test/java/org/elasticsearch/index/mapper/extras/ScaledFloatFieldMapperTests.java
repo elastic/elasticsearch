@@ -61,6 +61,11 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
+    protected boolean columnarCodecStoresDocValues() {
+        return false;
+    }
+
+    @Override
     protected FieldMapper.DocValuesParameter.Values getDocValuesParameters(MapperService mapperService) {
         ScaledFloatFieldMapper mapper = (ScaledFloatFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         return mapper.docValuesParameters();

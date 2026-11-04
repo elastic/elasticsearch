@@ -35,6 +35,8 @@ public class ColumnarSourceWriterTests extends ESTestCase {
     private static final String SORTED = "sorted";
     private static final String SORTED_SET = "sorted_set";
     private static final String SORTED_NUMERIC = "sorted_numeric";
+    /** A numeric field whose doc values the ColumNAR codec stores, written as binary but read as {@code SORTED_NUMERIC}. */
+    private static final String COLUMNAR_NUMERIC = "columnar_numeric";
 
     /** A reader with one slot of each type registered, the way building a source loader leaf registers them. */
     private static ColumnarSourceWriter.ReusableColumnarStoredLeafReader readerWithAllSlots() throws IOException {
@@ -44,7 +46,39 @@ public class ColumnarSourceWriterTests extends ESTestCase {
         reader.getSortedDocValues(SORTED);
         reader.getSortedSetDocValues(SORTED_SET);
         reader.getSortedNumericDocValues(SORTED_NUMERIC);
+        reader.getSortedNumericDocValues(COLUMNAR_NUMERIC);
         return reader;
+    }
+
+    /**
+     * A numeric field the ColumNAR codec stores is served as {@code SORTED_NUMERIC}, its values sorted with duplicates kept, and
+     * its slot is cleared and refilled from one document to the next like any other.
+     */
+    public void testColumnarNumericIsServedAsSortedNumeric() throws IOException {
+        var reader = readerWithAllSlots();
+
+        LuceneDocument first = new LuceneDocument();
+        ColumnarNumericDocValuesField.recordValue(first, COLUMNAR_NUMERIC, 9);
+        ColumnarNumericDocValuesField.recordValue(first, COLUMNAR_NUMERIC, -2);
+        ColumnarNumericDocValuesField.recordValue(first, COLUMNAR_NUMERIC, 9);
+        reader.repopulate(first);
+        assertSortedNumeric(reader.getSortedNumericDocValues(COLUMNAR_NUMERIC), -2, 9, 9);
+
+        LuceneDocument second = new LuceneDocument();
+        ColumnarNumericDocValuesField.recordValue(second, COLUMNAR_NUMERIC, 4);
+        reader.repopulate(second);
+        assertSortedNumeric(reader.getSortedNumericDocValues(COLUMNAR_NUMERIC), 4);
+
+        reader.repopulate(new LuceneDocument());
+        assertFalse(reader.getSortedNumericDocValues(COLUMNAR_NUMERIC).advanceExact(0));
+    }
+
+    private static void assertSortedNumeric(SortedNumericDocValues values, long... expected) throws IOException {
+        assertTrue(values.advanceExact(0));
+        assertEquals(expected.length, values.docValueCount());
+        for (long value : expected) {
+            assertEquals(value, values.nextValue());
+        }
     }
 
     public void testRepopulateClearsSlotsTheNextDocumentDoesNotFill() throws IOException {
@@ -147,6 +181,9 @@ public class ColumnarSourceWriterTests extends ESTestCase {
         for (int i = between(0, 3); i > 0; i--) {
             doc.add(new SortedNumericDocValuesField(SORTED_NUMERIC, randomLong()));
         }
+        for (int i = between(0, 3); i > 0; i--) {
+            ColumnarNumericDocValuesField.recordValue(doc, COLUMNAR_NUMERIC, randomLong());
+        }
         return doc;
     }
 
@@ -185,13 +222,15 @@ public class ColumnarSourceWriterTests extends ESTestCase {
             }
         }
 
-        SortedNumericDocValues expectedNumbers = expected.getSortedNumericDocValues(SORTED_NUMERIC);
-        SortedNumericDocValues actualNumbers = actual.getSortedNumericDocValues(SORTED_NUMERIC);
-        assertEquals(expectedNumbers.advanceExact(0), actualNumbers.advanceExact(0));
-        if (actualNumbers.docID() == 0) {
-            assertEquals(expectedNumbers.docValueCount(), actualNumbers.docValueCount());
-            for (int i = 0; i < actualNumbers.docValueCount(); i++) {
-                assertEquals(expectedNumbers.nextValue(), actualNumbers.nextValue());
+        for (String field : new String[] { SORTED_NUMERIC, COLUMNAR_NUMERIC }) {
+            SortedNumericDocValues expectedNumbers = expected.getSortedNumericDocValues(field);
+            SortedNumericDocValues actualNumbers = actual.getSortedNumericDocValues(field);
+            assertEquals(field, expectedNumbers.advanceExact(0), actualNumbers.advanceExact(0));
+            if (actualNumbers.docID() == 0) {
+                assertEquals(field, expectedNumbers.docValueCount(), actualNumbers.docValueCount());
+                for (int i = 0; i < actualNumbers.docValueCount(); i++) {
+                    assertEquals(field, expectedNumbers.nextValue(), actualNumbers.nextValue());
+                }
             }
         }
     }

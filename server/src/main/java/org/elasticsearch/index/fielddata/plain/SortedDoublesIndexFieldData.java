@@ -18,6 +18,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -44,6 +45,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
         private final IndexType indexType;
+        private final boolean columnarDocValues;
 
         public Builder(
             String name,
@@ -52,16 +54,31 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
             IndexType indexType
         ) {
+            this(name, numericType, valuesSourceType, toScriptFieldFactory, indexType, false);
+        }
+
+        /**
+         * @param columnarDocValues whether the ColumNAR codec stores the field's doc values, see {@link ColumnarNumericDocValues}
+         */
+        public Builder(
+            String name,
+            NumericType numericType,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
+            IndexType indexType,
+            boolean columnarDocValues
+        ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
             this.indexType = indexType;
+            this.columnarDocValues = columnarDocValues;
         }
 
         @Override
         public SortedDoublesIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
+            return new SortedDoublesIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType, columnarDocValues);
         }
     }
 
@@ -70,6 +87,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
     protected final IndexType indexType;
+    private final boolean columnarDocValues;
 
     public SortedDoublesIndexFieldData(
         String fieldName,
@@ -78,12 +96,24 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
         IndexType indexType
     ) {
+        this(fieldName, numericType, valuesSourceType, toScriptFieldFactory, indexType, false);
+    }
+
+    private SortedDoublesIndexFieldData(
+        String fieldName,
+        NumericType numericType,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
+        IndexType indexType,
+        boolean columnarDocValues
+    ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint();
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexType = indexType;
+        this.columnarDocValues = columnarDocValues;
     }
 
     @Override
@@ -98,7 +128,8 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
 
     @Override
     protected boolean sortRequiresCustomComparator() {
-        return numericType == NumericType.HALF_FLOAT;
+        // Lucene's SortedNumericSortField reads SORTED_NUMERIC itself, which ColumNAR doc values are not.
+        return numericType == NumericType.HALF_FLOAT || columnarDocValues;
     }
 
     @Override
@@ -159,7 +190,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
             try {
-                SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
+                SortedNumericDocValues raw = ColumnarNumericDocValues.getSortedNumeric(reader, field);
 
                 NumericDocValues single = DocValues.unwrapSingleton(raw);
                 if (single != null) {
@@ -253,7 +284,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
             try {
-                SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
+                SortedNumericDocValues raw = ColumnarNumericDocValues.getSortedNumeric(reader, field);
 
                 NumericDocValues single = DocValues.unwrapSingleton(raw);
                 if (single != null) {
@@ -351,7 +382,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
             try {
-                SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
+                SortedNumericDocValues raw = ColumnarNumericDocValues.getSortedNumeric(reader, field);
                 return SortedNumericDoubleValues.wrap(raw);
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);

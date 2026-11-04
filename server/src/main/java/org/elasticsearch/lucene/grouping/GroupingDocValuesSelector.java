@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
+import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 import org.elasticsearch.index.fielddata.SortableBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -90,8 +91,9 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
             }
             switch (type) {
                 case NUMERIC -> values = DocValues.getNumeric(reader, field);
-                case SORTED_NUMERIC -> {
-                    final SortedNumericDocValues sorted = DocValues.getSortedNumeric(reader, field);
+                // A numeric field's doc values are BINARY when the ColumNAR codec stores them, and read as SORTED_NUMERIC.
+                case SORTED_NUMERIC, BINARY -> {
+                    final SortedNumericDocValues sorted = ColumnarNumericDocValues.getSortedNumeric(reader, field);
                     values = DocValues.unwrapSingleton(sorted);
                     if (values == null) {
                         values = new AbstractNumericDocValues() {

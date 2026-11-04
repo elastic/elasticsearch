@@ -32,6 +32,7 @@ import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
@@ -220,9 +221,11 @@ public final class SingleValueMatchQuery extends Query {
                 ScoreMode scoreMode
             ) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                NumericDocValues ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                NumericDocValues ndv = DocValues.unwrapSingleton(
+                    ColumnarNumericDocValues.getSortedNumeric(context.reader(), fieldData.getFieldName())
+                );
                 if (ndv != null && ndv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    ndv = DocValues.unwrapSingleton(DocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
+                    ndv = DocValues.unwrapSingleton(ColumnarNumericDocValues.getSortedNumeric(context.reader(), fieldData.getFieldName()));
                     return new DocIdSetIteratorScorerSupplier(boost, scoreMode, ndv);
                 }
                 final CheckedIntPredicate predicate = doc -> {
@@ -313,7 +316,9 @@ public final class SingleValueMatchQuery extends Query {
             final int maxDoc = reader.maxDoc();
             final LeafFieldData lfd = fieldData.load(context);
             if (lfd instanceof LeafNumericFieldData) {
-                NumericDocValues singleton = DocValues.unwrapSingleton(DocValues.getSortedNumeric(reader, fieldData.getFieldName()));
+                NumericDocValues singleton = DocValues.unwrapSingleton(
+                    ColumnarNumericDocValues.getSortedNumeric(reader, fieldData.getFieldName())
+                );
                 if (singleton != null) {
                     singleton.nextDoc();
                     if (singleton.docIDRunEnd() == maxDoc) {

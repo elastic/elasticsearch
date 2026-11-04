@@ -42,6 +42,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.columnar.ColumNARDocValuesFormat;
+import org.elasticsearch.columnar.ColumnarFieldType;
+import org.elasticsearch.columnar.ColumnarNumericRangeQuery;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -74,6 +77,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NumberFieldTypeTests extends FieldTypeTestCase {
@@ -483,7 +487,12 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             boolean indexed = randomBoolean();
             boolean hasDocValues = indexed == false || randomBoolean();
             assertTrue(
-                testCase.type.termQuery("field", testCase.value, IndexType.points(indexed, hasDocValues)) instanceof MatchNoDocsQuery
+                testCase.type.termQuery(
+                    "field",
+                    testCase.value,
+                    IndexType.points(indexed, hasDocValues),
+                    NumericDocValuesQueries.SORTED_NUMERIC
+                ) instanceof MatchNoDocsQuery
             );
         }
     }
@@ -1026,7 +1035,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 MOCK_CONTEXT,
                 randomBoolean(),
-                false
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
             Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery(
                 "half_float",
@@ -1037,7 +1047,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 MOCK_CONTEXT,
                 randomBoolean(),
-                false
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
@@ -1047,30 +1058,101 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     public void testNegativeZero() {
         final boolean isIndexed = randomBoolean();
         assertEquals(
-            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed, false),
-            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed, false)
+            NumberType.DOUBLE.rangeQuery(
+                "field",
+                null,
+                -0d,
+                true,
+                true,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            ),
+            NumberType.DOUBLE.rangeQuery(
+                "field",
+                null,
+                +0d,
+                true,
+                false,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            )
         );
         assertEquals(
-            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed, false),
-            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed, false)
+            NumberType.FLOAT.rangeQuery(
+                "field",
+                null,
+                -0f,
+                true,
+                true,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            ),
+            NumberType.FLOAT.rangeQuery(
+                "field",
+                null,
+                +0f,
+                true,
+                false,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            )
         );
         assertEquals(
-            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed, false),
-            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed, false)
+            NumberType.HALF_FLOAT.rangeQuery(
+                "field",
+                null,
+                -0f,
+                true,
+                true,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            ),
+            NumberType.HALF_FLOAT.rangeQuery(
+                "field",
+                null,
+                +0f,
+                true,
+                false,
+                false,
+                MOCK_CONTEXT,
+                isIndexed,
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
+            )
         );
 
         final boolean hasDocValues = isIndexed == false || randomBoolean(); // at least one should be true
         assertNotEquals(
-            NumberType.DOUBLE.termQuery("field", -0d, IndexType.points(isIndexed, hasDocValues)),
-            NumberType.DOUBLE.termQuery("field", +0d, IndexType.points(isIndexed, hasDocValues))
+            NumberType.DOUBLE.termQuery("field", -0d, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC),
+            NumberType.DOUBLE.termQuery("field", +0d, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC)
         );
         assertNotEquals(
-            NumberType.FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues)),
-            NumberType.FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues))
+            NumberType.FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC),
+            NumberType.FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC)
         );
         assertNotEquals(
-            NumberType.HALF_FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues)),
-            NumberType.HALF_FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues))
+            NumberType.HALF_FLOAT.termQuery(
+                "field",
+                -0f,
+                IndexType.points(isIndexed, hasDocValues),
+                NumericDocValuesQueries.SORTED_NUMERIC
+            ),
+            NumberType.HALF_FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues), NumericDocValuesQueries.SORTED_NUMERIC)
         );
     }
 
@@ -1127,7 +1209,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 true,
                 MOCK_CONTEXT,
                 true,
-                false
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
@@ -1135,6 +1218,127 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         }
         reader.close();
         dir.close();
+    }
+
+    public void testColumnarDocValueByteQueries() throws Exception {
+        doTestColumnarDocValueQueries(NumberType.BYTE, () -> (byte) random().nextInt(256));
+    }
+
+    public void testColumnarDocValueShortQueries() throws Exception {
+        doTestColumnarDocValueQueries(NumberType.SHORT, () -> (short) random().nextInt(65536));
+    }
+
+    public void testColumnarDocValueIntQueries() throws Exception {
+        doTestColumnarDocValueQueries(NumberType.INTEGER, random()::nextInt);
+    }
+
+    public void testColumnarDocValueLongQueries() throws Exception {
+        doTestColumnarDocValueQueries(NumberType.LONG, random()::nextLong);
+    }
+
+    public void testColumnarDocValueHalfFloatQueries() throws Exception {
+        doTestColumnarDocValueQueries(NumberType.HALF_FLOAT, () -> randomFloatBetween(-100, 100, true));
+    }
+
+    public void testColumnarDocValueFloatQueries() throws Exception {
+        doTestColumnarDocValueQueries(NumberType.FLOAT, () -> randomFloatBetween(-100, 100, true));
+    }
+
+    public void testColumnarDocValueDoubleQueries() throws Exception {
+        doTestColumnarDocValueQueries(NumberType.DOUBLE, () -> randomDoubleBetween(-100, 100, true));
+    }
+
+    /**
+     * Range and term queries answered from doc values the ColumNAR codec stores match the same documents as the points. The
+     * payloads are read either by the codec itself, whose dense single-valued columns take a vectorized path, or as plain
+     * binary doc values by a stock codec, which takes the per-document fallback.
+     */
+    private void doTestColumnarDocValueQueries(NumberType type, Supplier<Number> valueSupplier) throws IOException {
+        final IndexWriterConfig config = newIndexWriterConfig();
+        if (randomBoolean()) {
+            final ColumnarFieldType columnType = switch (type) {
+                case BYTE, SHORT, INTEGER, LONG -> ColumnarFieldType.LONG;
+                case HALF_FLOAT, FLOAT, DOUBLE -> ColumnarFieldType.DOUBLE;
+            };
+            config.setCodec(TestUtil.alwaysDocValuesFormat(new ColumNARDocValuesFormat(field -> columnType)));
+        }
+        final DocValuesFieldFactory dvFactory = new DocValuesFieldFactory(true, false, IndexVersion.current(), true);
+        final List<Number> indexed = new ArrayList<>();
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, config)) {
+                final int numDocs = between(100, 500);
+                for (int i = 0; i < numDocs; ++i) {
+                    final LuceneDocument doc = new LuceneDocument();
+                    final Number value = valueSupplier.get();
+                    indexed.add(value);
+                    type.addFields(doc, "foo", value, IndexType.points(true, true), false, dvFactory);
+                    w.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final IndexSearcher searcher = newSearcher(reader);
+                for (int iter = 0; iter < 10; ++iter) {
+                    final Number lower = randomBoolean() ? null : valueSupplier.get();
+                    final Number upper = randomBoolean() ? null : valueSupplier.get();
+                    final boolean includeLower = randomBoolean();
+                    final boolean includeUpper = randomBoolean();
+                    final Query withPoints = type.rangeQuery(
+                        "foo",
+                        lower,
+                        upper,
+                        includeLower,
+                        includeUpper,
+                        true,
+                        MOCK_CONTEXT,
+                        true,
+                        false,
+                        NumericDocValuesQueries.COLUMNAR
+                    );
+                    assertColumnarDocValuesQuery(searcher, withPoints);
+                    final Query docValuesOnly = type.rangeQuery(
+                        "foo",
+                        lower,
+                        upper,
+                        includeLower,
+                        includeUpper,
+                        true,
+                        MOCK_CONTEXT,
+                        false,
+                        false,
+                        NumericDocValuesQueries.COLUMNAR
+                    );
+                    assertThat(docValuesOnly, instanceOf(ColumnarNumericRangeQuery.class));
+                    assertEquals(searcher.count(withPoints), searcher.count(docValuesOnly));
+
+                    final Number term = randomFrom(indexed);
+                    final Query termWithPoints = type.termQuery(
+                        "foo",
+                        term,
+                        IndexType.points(true, true),
+                        NumericDocValuesQueries.COLUMNAR
+                    );
+                    assertColumnarDocValuesQuery(searcher, termWithPoints);
+                    final Query termDocValuesOnly = type.termQuery(
+                        "foo",
+                        term,
+                        IndexType.docValuesOnly(),
+                        NumericDocValuesQueries.COLUMNAR
+                    );
+                    assertThat(termDocValuesOnly, instanceOf(ColumnarNumericRangeQuery.class));
+                    final int termHits = searcher.count(termDocValuesOnly);
+                    assertThat("a term query matches the document it was taken from", termHits, greaterThan(0));
+                    assertEquals(searcher.count(termWithPoints), termHits);
+                }
+            }
+        }
+    }
+
+    /** {@code query} reads the points or the ColumNAR doc values, and both sides match the same documents. */
+    private static void assertColumnarDocValuesQuery(IndexSearcher searcher, Query query) throws IOException {
+        assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
+        final IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
+        assertThat(indexOrDvQuery.getRandomAccessQuery(), instanceOf(ColumnarNumericRangeQuery.class));
+        assertEquals(searcher.count(indexOrDvQuery.getIndexQuery()), searcher.count(indexOrDvQuery.getRandomAccessQuery()));
     }
 
     public void testIndexSortIntRange() throws Exception {
@@ -1188,7 +1392,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 true,
                 context,
                 isIndexed,
-                false
+                false,
+                NumericDocValuesQueries.SORTED_NUMERIC
             );
             assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
             Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();

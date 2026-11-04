@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -203,7 +204,7 @@ public class SortedNumericDocValuesSyntheticFieldLoaderLayer implements Composit
      * tell if there aren't any and return our empty leaf source loader.
      */
     public static SortedNumericDocValues docValuesOrNull(LeafReader reader, String fieldName) throws IOException {
-        SortedNumericDocValues dv = reader.getSortedNumericDocValues(fieldName);
+        SortedNumericDocValues dv = ColumnarNumericDocValues.getSortedNumericOrNull(reader, fieldName);
         if (dv != null) {
             return dv;
         }

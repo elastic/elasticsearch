@@ -15,6 +15,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 
 import java.io.IOException;
 
@@ -32,7 +33,7 @@ public record NumericDvSingletonOrSorted(@Nullable TrackingNumericDocValues sing
         breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
         NumericDvSingletonOrSorted result = null;
         try {
-            SortedNumericDocValues sorted = context.reader().getSortedNumericDocValues(fieldName);
+            SortedNumericDocValues sorted = ColumnarNumericDocValues.getSortedNumericOrNull(context.reader(), fieldName);
             if (sorted != null) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(sorted);
                 if (singleton != null) {

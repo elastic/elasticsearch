@@ -15,6 +15,7 @@ import org.elasticsearch.escf.EscfBatch;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.AbstractShardBatchMapperResolveTestCase;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.ColumnGroupResolver;
@@ -50,6 +51,14 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     /** Enables the implicit flattened {@code _unmapped} sink, which makes the resolved root dynamic FLATTENED. */
     private static Settings unmappedSinkEnabled() {
         return Settings.builder().put(IndexSettings.FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(), true).build();
+    }
+
+    /** Keeps numeric fields off the ColumNAR codec, whose doc values the batch path doesn't map yet. */
+    private static Settings withoutColumnarNumericCodec() {
+        if (ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled() == false) {
+            return Settings.EMPTY;
+        }
+        return Settings.builder().put(IndexSettings.COLUMNAR_CODEC_NUMERIC_ENABLED_SETTING.getKey(), false).build();
     }
 
     public void testHappyPath() throws IOException {
@@ -128,14 +137,30 @@ public class ShardBatchMapperResolveTests extends AbstractShardBatchMapperResolv
     }
 
     public void testNumberMapperIsSupported() throws IOException {
-        MapperService ms = columnarMapperService(mapping(b -> { b.startObject("v").field("type", "long").endObject(); }));
+        MapperService ms = columnarMapperService(withoutColumnarNumericCodec(), mapping(b -> {
+            b.startObject("v").field("type", "long").endObject();
+        }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);
         assertNotNull(resolution);
         assertTrue(resolution.columnMappers()[0] instanceof NumberFieldMapper);
     }
 
+    /**
+     * The batch path doesn't map numeric doc values the ColumNAR codec stores yet, so a batch holding such a field takes the row
+     * path.
+     */
+    // TODO: support once NumberFieldMapper maps ColumNAR doc values a column at a time.
+    public void testColumnarCodecNumberMapperFallsBack() throws IOException {
+        assumeTrue(
+            "columnar_codec_numeric feature flag must be enabled",
+            ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_NUMERIC_FEATURE_FLAG.isEnabled()
+        );
+        MapperService ms = columnarMapperService(mapping(b -> { b.startObject("v").field("type", "long").endObject(); }));
+        assertNull(ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings));
+    }
+
     public void testNumberIgnoreMalformedIsSupported() throws IOException {
-        MapperService ms = columnarMapperService(mapping(b -> {
+        MapperService ms = columnarMapperService(withoutColumnarNumericCodec(), mapping(b -> {
             b.startObject("v").field("type", "long").field("ignore_malformed", true).endObject();
         }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("v"), ms.mappingLookup(), indexSettings);

@@ -15,6 +15,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.fielddata.ColumnarNumericDocValues;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -47,6 +48,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
         private final IndexType indexType;
+        private final boolean columnarDocValues;
 
         public Builder(
             String name,
@@ -64,16 +66,31 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
             ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
             IndexType indexType
         ) {
+            this(name, numericType, valuesSourceType, toScriptFieldFactory, indexType, false);
+        }
+
+        /**
+         * @param columnarDocValues whether the ColumNAR codec stores the field's doc values, see {@link ColumnarNumericDocValues}
+         */
+        public Builder(
+            String name,
+            NumericType numericType,
+            ValuesSourceType valuesSourceType,
+            ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+            IndexType indexType,
+            boolean columnarDocValues
+        ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
             this.indexType = indexType;
+            this.columnarDocValues = columnarDocValues;
         }
 
         @Override
         public SortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType);
+            return new SortedNumericIndexFieldData(name, numericType, valuesSourceType, toScriptFieldFactory, indexType, columnarDocValues);
         }
     }
 
@@ -82,6 +99,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     protected final ValuesSourceType valuesSourceType;
     protected final ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory;
     protected final IndexType indexType;
+    private final boolean columnarDocValues;
 
     public SortedNumericIndexFieldData(
         String fieldName,
@@ -90,12 +108,24 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
         IndexType indexType
     ) {
+        this(fieldName, numericType, valuesSourceType, toScriptFieldFactory, indexType, false);
+    }
+
+    private SortedNumericIndexFieldData(
+        String fieldName,
+        NumericType numericType,
+        ValuesSourceType valuesSourceType,
+        ToScriptFieldFactory<SortedNumericLongValues> toScriptFieldFactory,
+        IndexType indexType,
+        boolean columnarDocValues
+    ) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
         assert this.numericType.isFloatingPoint() == false;
         this.valuesSourceType = valuesSourceType;
         this.toScriptFieldFactory = toScriptFieldFactory;
         this.indexType = indexType;
+        this.columnarDocValues = columnarDocValues;
     }
 
     @Override
@@ -110,7 +140,8 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
     @Override
     protected boolean sortRequiresCustomComparator() {
-        return false;
+        // Lucene's SortedNumericSortField reads SORTED_NUMERIC itself, which ColumNAR doc values are not.
+        return columnarDocValues;
     }
 
     @Override

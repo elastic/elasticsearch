@@ -36,7 +36,8 @@ public enum FeatureFlag {
     ESQL_EXTERNAL_AZURE("es.esql_external_azure_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     ESQL_EXTERNAL_ICEBERG("es.esql_external_iceberg_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
     BATCH_INDEXING("es.batch_indexing_feature_flag_enabled=true", Version.fromString("9.5.0"), null),
-    ESQL_DATA_SOURCE_TEST_CONNECTION("es.esql_data_source_test_connection_feature_flag_enabled=true", Version.fromString("9.6.0"), null);
+    ESQL_DATA_SOURCE_TEST_CONNECTION("es.esql_data_source_test_connection_feature_flag_enabled=true", Version.fromString("9.6.0"), null),
+    COLUMNAR_CODEC_NUMERIC("es.columnar_codec_numeric_feature_flag_enabled=true", Version.fromString("9.7.0"), null);
 
     public final String systemProperty;
     public final Version from;

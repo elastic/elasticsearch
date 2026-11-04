@@ -34,9 +34,14 @@ The merge scheduler supports the following *dynamic* index settings:
 $$$index-merge-scheduler-max-thread-count$$$
 
 `index.merge.scheduler.max_thread_count`
-:   The maximum number of threads on a **single** shard that may be merging at once. Defaults to half the number of processors the JVM sees on the node, with a minimum of 1, which works well for a good solid-state-disk (SSD). If your index is on spinning platter drives instead, decrease this to 1. This default is independent of [`node.processors`](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors). With `include_defaults`, the reported default is the unclamped value computed on the responding node; it may differ from the value a data node actually uses after clamping to `max_merge_count`, and from data nodes with a different processor count.
+:   The maximum number of threads on a **single** shard that may be merging at once. The default depends on the version:
 
-    If `max_thread_count` would exceed `index.merge.scheduler.max_merge_count`, Elasticsearch reduces it to `max_merge_count` when the index is opened or its settings change, and logs a warning. That can happen when `max_thread_count` is left unset and `max_merge_count` is set explicitly, especially across nodes with different processor counts, or when both are set with `max_thread_count` greater than `max_merge_count`.
+    * {applies_to}`stack: ga 9.4+` Half the number of processors the JVM sees on the node, with a minimum of 1. This default is independent of [`node.processors`](/reference/elasticsearch/configuration-reference/thread-pool-settings.md#node.processors). With `include_defaults`, the reported default is the unclamped value computed on the responding node. It may differ from the value a data node actually uses after clamping to `max_merge_count`, and from data nodes with a different processor count.
+    * {applies_to}`stack: ga 9.0-9.3` `Math.max(1, Math.min(4, node.processors / 2))`.
+
+    The defaults work well for a good solid-state-disk (SSD). If your index is on spinning platter drives instead, decrease this to 1.
+
+    {applies_to}`stack: ga 9.4+` If `max_thread_count` exceeds `index.merge.scheduler.max_merge_count`, Elasticsearch clamps it to `max_merge_count`.
 
 $$$index-merge-scheduler-max-merge-count$$$
 

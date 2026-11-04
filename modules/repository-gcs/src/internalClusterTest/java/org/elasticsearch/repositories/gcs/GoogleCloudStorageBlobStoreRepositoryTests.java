@@ -13,7 +13,6 @@ import fixture.gcs.FakeOAuth2HttpHandler;
 import fixture.gcs.GoogleCloudStorageHttpHandler;
 import fixture.gcs.TestUtils;
 
-import com.google.api.gax.retrying.ResultRetryAlgorithm;
 import com.google.api.gax.rpc.HeaderProvider;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.StorageOptions;
@@ -61,9 +60,6 @@ import org.threeten.bp.Duration;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadInfo;
-import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -95,8 +91,6 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CL
     issueUrl = "https://github.com/elastic/elasticsearch/issues/151474"
 )
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
-
-    private static final Logger gcpTestLogger = LogManager.getLogger(GoogleCloudStorageBlobStoreRepositoryTests.class);
 
     private static final ByteSizeValue CHUNK_SIZE_1_MB = ByteSizeValue.ofMb(1);
     private static final String CLIENT_ID_HEADER = "x-es-test-client-id";
@@ -291,10 +285,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
     }
 
-    @TestIssueLogging(
-        value = "org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests:INFO",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/152286"
-    )
     public void testWriteFileMultipleOfChunkSize() throws IOException {
         final int uploadSize = Math.toIntExact(randomIntBetween(2, 4) * CHUNK_SIZE_1_MB.getBytes());
         try (BlobStore store = newBlobStore()) {
@@ -342,19 +332,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         super.testRequestStats();
     }
 
-    // todo(szybia): remove once problem is solved. issue #152286: SocketTimeoutException on GCP request.
-    // so adding thread dump to identify why GCP mock threadpool of 2 threads is not responding within 60 seconds.
-    private static void dumpThreadsOnReadTimeout(Throwable cause, boolean willRetry) {
-        final StringBuilder b = new StringBuilder(
-            "\n==== thread dump on GCS SocketTimeoutException (#152286), willRetry=" + willRetry + " ====\n"
-        );
-        for (ThreadInfo ti : ManagementFactory.getThreadMXBean().dumpAllThreads(true, true)) {
-            b.append(ti);
-        }
-        b.append("^^==============================================\n");
-        gcpTestLogger.warn(b.toString(), cause);
-    }
-
     public static class TestGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
 
         public TestGoogleCloudStoragePlugin(Settings settings) {
@@ -374,21 +351,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                 ) {
                     StorageOptions options = super.createStorageOptions(gcsClientSettings, httpTransportOptions);
                     return options.toBuilder()
-                        .setStorageRetryStrategy(
-                            ShouldRetryDecorator.decorate(
-                                StorageRetryStrategy.getLegacyStorageRetryStrategy(),
-                                (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
-                                    final boolean willRetry = delegate.shouldRetry(prevThrowable, prevResponse);
-                                    gcpTestLogger.info(
-                                        () -> "GCS storage retry decision willRetry=" + willRetry + " cause=[" + prevThrowable + "]"
-                                    );
-                                    if (ExceptionsHelper.unwrap(prevThrowable, SocketTimeoutException.class) != null) {
-                                        dumpThreadsOnReadTimeout(prevThrowable, willRetry);
-                                    }
-                                    return willRetry;
-                                }
-                            )
-                        )
+                        .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
                         .setRetrySettings(
                             options.getRetrySettings()
                                 .toBuilder()

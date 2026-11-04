@@ -68,6 +68,11 @@ public final class PruningMergePolicy extends OneMergeWrappingMergePolicy {
                     useSyntheticId
                 );
             }
+
+            @Override
+            public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+                toWrap.mergeFinished(success, segmentDropped); // the wrapped merge may hold per-merge state to release
+            }
         });
     }
 

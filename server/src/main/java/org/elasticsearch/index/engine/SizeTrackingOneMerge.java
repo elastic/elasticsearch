@@ -52,6 +52,9 @@ public class SizeTrackingOneMerge extends MergePolicy.OneMerge {
 
     @Override
     public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+        // Let the wrapped merge release whatever it holds for the duration of the merge; otherwise this wrapper would silently
+        // swallow the callback for every policy that wraps merges underneath it.
+        wrapped.mergeFinished(success, segmentDropped);
         super.mergeFinished(success, segmentDropped);
         SegmentCommitInfo mergeInfo = getMergeInfo();
         if (success && segmentDropped) {

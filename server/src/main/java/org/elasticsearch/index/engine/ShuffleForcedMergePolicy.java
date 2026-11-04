@@ -74,6 +74,11 @@ public class ShuffleForcedMergePolicy extends FilterMergePolicy {
                 }
 
                 @Override
+                public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+                    toWrap.mergeFinished(success, segmentDropped); // the wrapped merge may hold per-merge state to release
+                }
+
+                @Override
                 public void setMergeInfo(SegmentCommitInfo info) {
                     // record that this segment was merged with interleaved segments
                     info.info.addDiagnostics(Map.of(SHUFFLE_MERGE_KEY, ""));

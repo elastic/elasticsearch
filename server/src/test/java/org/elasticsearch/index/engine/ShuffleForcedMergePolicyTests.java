@@ -19,6 +19,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
@@ -27,6 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseMergePolicyTestCase;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -94,4 +96,33 @@ public class ShuffleForcedMergePolicyTests extends BaseMergePolicyTestCase {
 
     @Override
     protected void assertMerge(MergePolicy policy, MergePolicy.MergeSpecification merge) throws IOException {}
+
+    public void testMergeFinishedIsForwarded() throws IOException {
+        AtomicInteger finished = new AtomicInteger();
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
+            iwc.setMergePolicy(new ShuffleForcedMergePolicy(countingMergeFinished(newLogMergePolicy(), finished)));
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                for (int i = 0; i < 2; i++) {
+                    Document doc = new Document();
+                    doc.add(new StringField("id", Integer.toString(i), Field.Store.NO));
+                    writer.addDocument(doc);
+                    writer.flush();
+                }
+                writer.forceMerge(1);
+                assertEquals(1, finished.get());
+            }
+        }
+    }
+
+    /** Counts {@code mergeFinished} calls on the merges the wrapped policy produces. */
+    private static MergePolicy countingMergeFinished(MergePolicy in, AtomicInteger finished) {
+        return new OneMergeWrappingMergePolicy(in, toWrap -> new MergePolicy.OneMerge(toWrap.segments) {
+            @Override
+            public void mergeFinished(boolean success, boolean segmentDropped) throws IOException {
+                toWrap.mergeFinished(success, segmentDropped);
+                finished.incrementAndGet();
+            }
+        });
+    }
 }

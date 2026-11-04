@@ -49,20 +49,30 @@ public final class CiPartPlanner {
      * @param workers      effective parallel test tasks per CI part (calibrated from CI timelines)
      * @param splits       test tasks that run as several shards
      * @param antiAffinity groups of test task paths that must run in different parts
+     * @param runFirstSeconds test tasks whose work in one part takes at least this long are listed in
+     *                        {@link CiPartAssignment#runFirst()}; 0 lists none
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Config(
         @JsonProperty("parts") int parts,
         @JsonProperty("workers") int workers,
         @JsonProperty("splits") Map<String, CiPartAssignment.Split> splits,
-        @JsonProperty("antiAffinity") List<List<String>> antiAffinity
+        @JsonProperty("antiAffinity") List<List<String>> antiAffinity,
+        @JsonProperty("runFirstSeconds") int runFirstSeconds
     ) {
         public Config {
             if (parts < 1 || workers < 1) {
                 throw new IllegalArgumentException("parts and workers must be positive");
             }
+            if (runFirstSeconds < 0) {
+                throw new IllegalArgumentException("runFirstSeconds must not be negative");
+            }
             splits = splits == null ? Map.of() : splits;
             antiAffinity = antiAffinity == null ? List.of() : antiAffinity;
+        }
+
+        public Config(int parts, int workers, Map<String, CiPartAssignment.Split> splits, List<List<String>> antiAffinity) {
+            this(parts, workers, splits, antiAffinity, 0);
         }
     }
 
@@ -147,7 +157,25 @@ public final class CiPartPlanner {
             place(unit, part, load, chains);
             projects.put(unit.key(), part + 1);
         }
-        return new CiPartAssignment(parts, config.splits(), tests, projects);
+        return new CiPartAssignment(parts, config.splits(), tests, projects, runFirst(chains, config.runFirstSeconds()));
+    }
+
+    /** Test tasks whose work in their part takes at least {@code minSeconds}, longest first. */
+    private static List<String> runFirst(List<Map<String, Double>> chains, int minSeconds) {
+        if (minSeconds == 0) {
+            return List.of();
+        }
+        Map<String, Double> longest = new TreeMap<>();
+        for (Map<String, Double> partChains : chains) {
+            partChains.forEach((taskPath, seconds) -> {
+                if (seconds >= minSeconds) {
+                    longest.merge(taskPath, seconds, Math::max);
+                }
+            });
+        }
+        List<String> sorted = new ArrayList<>(longest.keySet());
+        sorted.sort(Comparator.comparing((String taskPath) -> longest.get(taskPath)).reversed().thenComparing(Comparator.naturalOrder()));
+        return sorted;
     }
 
     /**

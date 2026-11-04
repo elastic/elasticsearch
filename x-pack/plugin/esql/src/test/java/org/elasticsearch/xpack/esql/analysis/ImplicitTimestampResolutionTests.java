@@ -34,6 +34,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -43,8 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
  * wrong values that change between runs.
  */
 public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
-
-    private static final String GROUPING_SHADOWS_TIMESTAMP_BUG = "https://github.com/elastic/elasticsearch/issues/164599";
 
     /**
      * Time-series aggregations whose per-time-series aggregation reads the implicit {@code @timestamp}, keyed by
@@ -131,7 +130,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = GROUPING_SHADOWS_TIMESTAMP_BUG)
     public void testBareTimeSeriesAggregationsIgnoreTimeBucketNamedTimestamp() {
         assertImplicitTimestampsReadSourceTimestamp(
             k8s(),
@@ -142,7 +140,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = GROUPING_SHADOWS_TIMESTAMP_BUG)
     public void testNestedTimeSeriesAggregationsIgnoreTimeBucketNamedTimestamp() {
         assertImplicitTimestampsReadSourceTimestamp(
             k8s(),
@@ -157,7 +154,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
      * The time bucket function does not matter: any grouping named {@code @timestamp} shadows the field. The nested form
      * is used because {@code DATE_TRUNC} is not accepted as a grouping of a bare time-series aggregation.
      */
-    @AwaitsFix(bugUrl = GROUPING_SHADOWS_TIMESTAMP_BUG)
     public void testRateIgnoresTimeBucketNamedTimestampForEveryTimeBucketFunction() {
         List<String> timeBuckets = new ArrayList<>(
             List.of("TBUCKET(1 minute)", "BUCKET(@timestamp, 1 minute)", "DATE_TRUNC(1 minute, @timestamp)")
@@ -182,7 +178,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
      * A grouping that is not a date must not be read as the timestamp either. {@code rate()} would read keywords as sample
      * timestamps, and aggregations that check the type of their timestamp would fail verification.
      */
-    @AwaitsFix(bugUrl = GROUPING_SHADOWS_TIMESTAMP_BUG)
     public void testTimeSeriesAggregationsIgnoreNonTemporalGroupingNamedTimestamp() {
         assertImplicitTimestampsReadSourceTimestamp(
             k8s(),
@@ -203,7 +198,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = GROUPING_SHADOWS_TIMESTAMP_BUG)
     public void testEarliestAndLatestIgnoreTimeBucketNamedTimestamp() {
         assertImplicitTimestampsReadSourceTimestamp(
             sampleData(),
@@ -217,7 +211,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
     }
 
     /** Reading the {@code ip} grouping as the timestamp would fail verification. */
-    @AwaitsFix(bugUrl = GROUPING_SHADOWS_TIMESTAMP_BUG)
     public void testEarliestAndLatestIgnoreNonTemporalGroupingNamedTimestamp() {
         assertImplicitTimestampsReadSourceTimestamp(
             sampleData(),
@@ -228,7 +221,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = GROUPING_SHADOWS_TIMESTAMP_BUG)
     public void testEarliestAndLatestIgnoreTimeBucketNamedTimestampInInlineStats() {
         assertImplicitTimestampsReadSourceTimestamp(
             sampleData(),
@@ -240,6 +232,17 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
                         + " BY @timestamp = BUCKET(@timestamp, 1 hour) | LIMIT 10"
                 )
                 .toList()
+        );
+    }
+
+    /** A grouping named {@code @timestamp} does not stand in for a {@code @timestamp} column the input no longer has. */
+    public void testLatestFailsWhenOnlyGroupingIsNamedTimestamp() {
+        sampleData().error(
+            "FROM sample_data | RENAME @timestamp AS ts | STATS v = latest(message) BY @timestamp = BUCKET(ts, 1 hour) | LIMIT 10",
+            containsString(
+                "[latest(message)] requires the [@timestamp] field, which was either not present in the source index, "
+                    + "or has been dropped or renamed"
+            )
         );
     }
 

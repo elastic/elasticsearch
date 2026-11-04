@@ -183,13 +183,13 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 ;
 
-# AwaitsFix: https://github.com/elastic/elasticsearch/issues/164599
 # Same as rate_with_window, with the time bucket named @timestamp. rate() must keep reading the @timestamp field.
-rate_with_window_time_bucket_named_timestamp-Ignore
+rate_with_window_time_bucket_named_timestamp
 required_capability: ts_command_v0
 required_capability: rate_with_interpolation
 required_capability: time_series_window_v1
 required_capability: fix_time_series_window_backward
+required_capability: fix_implicit_timestamp_shadowed_by_grouping
 
 TS k8s
 | WHERE TRANGE("2024-05-10T00:05:00.000Z", "2024-05-10T00:10:00.000Z")

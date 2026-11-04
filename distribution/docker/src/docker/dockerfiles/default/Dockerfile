@@ -74,6 +74,13 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
 # config directory.
     chown 1000:1000 bin config config/jvm.options.d data logs plugins && \\
+# Many modules and plugins bundle identical copies of the same jars. Replace the duplicates with hard links so
+# that each one is stored only once in the image layer. This has to happen before the layers are split off, and
+# the jdk is not touched since it is copied in a layer of its own.
+    prev= && \\
+    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do \\
+        if [ "\$sum" = "\$prev" ]; then ln -f "\$first" "\$path" || exit 1; else prev="\$sum"; first="\$path"; fi; \\
+    done && \\
 # Move the paths that are copied in layers of their own out of the way, keeping their paths, into a directory per layer
     mkdir /layers && \\
     n=0 && \\

@@ -193,3 +193,15 @@ To reduce S3 costs, you'll need to minimize the number of requests sent and the 
 - Use `KEEP`, `WHERE`, and `LIMIT` to read only what a query needs.
 - Lengthen dashboard refresh intervals and narrow time ranges.
 - Keep frequently queried data out of infrequent-access storage classes, and enable S3 Bucket Keys for SSE-KMS buckets.
+
+### Discovery limits [s3-discovery-limits]
+
+Two dynamic cluster settings limit file discovery for a single query. They exist to protect the cluster from glob patterns that match too many objects, not to control costs. Lowering them limits how many objects a query can list and how many files it can read, which also limits the requests that discovery sends.
+
+[`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files)
+:   The maximum number of files a query keeps after listing. Defaults to 25,000. A query that exceeds it fails instead of scanning.
+
+[`esql.external.max_listed_objects`](esql-data-federation-cluster-settings.md#esql-external-max-listed-objects)
+:   The maximum number of objects one listing visits, including objects that don't match the pattern. Defaults to 1,000,000. Each 1,000 objects listed costs at least one `LIST` request. The cap applies to each listing rather than the whole query, and not every discovery path checks it, so treat it as a brake on runaway listings rather than a budget.
+
+`esql.external.max_concurrent_requests` isn't a cost limit. It caps how many requests each node has in flight at once, not how many it sends.

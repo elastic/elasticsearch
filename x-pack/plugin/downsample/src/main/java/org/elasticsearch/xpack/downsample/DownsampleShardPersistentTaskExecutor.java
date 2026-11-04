@@ -73,6 +73,9 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         final DownsampleShardTaskParams params,
         final PersistentTaskState state
     ) {
+        // We used to search the target index here to determine the lastDownsampleTsid in order to resume. However,
+        // this was not a guaranteed safe point, and we reverted it https://github.com/elastic/elasticsearch/pull/164605
+        // We opened https://github.com/elastic/elasticsearch/issues/164609 to investigate how to reinstate it.
         delegate(task, params, null);
     }
 

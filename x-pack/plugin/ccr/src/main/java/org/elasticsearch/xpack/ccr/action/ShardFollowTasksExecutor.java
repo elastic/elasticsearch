@@ -185,13 +185,24 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
 
             @Override
             protected String currentFollowerIndexName() {
+                // for reporting, so the name the task was created with is a fair fallback for a follower that is gone
+                final String name = followerIndexNameNow();
+                return name == null ? params.getFollowShardId().getIndexName() : name;
+            }
+
+            /**
+             * The follower index's name in the current cluster state, found by UUID because the index may have been renamed since the
+             * task was created, or {@code null} if it no longer exists. Requests that change the follower and are addressed by name must
+             * use this and fail when it is {@code null}: the name in the task parameters is the one the follower had when the task
+             * started, and may by now belong to an unrelated index.
+             */
+            @Nullable
+            private String followerIndexNameNow() {
                 final IndexMetadata followerIndexMetadata = clusterService.state()
                     .metadata()
                     .getProject()
                     .index(params.getFollowShardId().getIndex());
-                return followerIndexMetadata == null
-                    ? params.getFollowShardId().getIndexName()
-                    : followerIndexMetadata.getIndex().getName();
+                return followerIndexMetadata == null ? null : followerIndexMetadata.getIndex().getName();
             }
 
             /**
@@ -236,7 +247,6 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
 
             @Override
             protected void innerUpdateMapping(long minRequiredMappingVersion, LongConsumer handler, Consumer<Exception> errorHandler) {
-                final Index followerIndex = params.getFollowShardId().getIndex();
                 final Supplier<TimeValue> timeout = () -> isStopped() ? TimeValue.MINUS_ONE : waitForMetadataTimeOut;
                 runWithLeaderIndex((leaderIndex, onError) -> {
                     final ActionListener<IndexMetadata> listener = ActionListener.wrap(indexMetadata -> {
@@ -246,7 +256,12 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                             return;
                         }
                         MappingMetadata mappingMetadata = indexMetadata.mapping();
-                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndex.getName(), mappingMetadata);
+                        final String followerIndexName = followerIndexNameNow();
+                        if (followerIndexName == null) {
+                            errorHandler.accept(new IndexNotFoundException(params.getFollowShardId().getIndex()));
+                            return;
+                        }
+                        PutMappingRequest putMappingRequest = CcrRequests.putMappingRequest(followerIndexName, mappingMetadata);
                         followerClient.admin()
                             .indices()
                             .putMapping(
@@ -292,9 +307,9 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                             // if so just update the follower index's settings:
                             if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {
                                 // If only dynamic settings have been updated then just update these settings in follower index:
-                                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName())
-                                    .masterNodeTimeout(TimeValue.MAX_VALUE)
-                                    .settings(updatedSettings);
+                                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(
+                                    followerIMD.getIndex().getName()
+                                ).masterNodeTimeout(TimeValue.MAX_VALUE).settings(updatedSettings);
                                 followerClient.admin()
                                     .indices()
                                     .updateSettings(
@@ -305,7 +320,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                                 // If one or more setting are not dynamic then close follow index, update leader settings and
                                 // then open leader index:
                                 Runnable handler = () -> finalHandler.accept(leaderIMD.getSettingsVersion());
-                                closeIndexUpdateSettingsAndOpenIndex(followIndex.getName(), updatedSettings, handler, errorHandler);
+                                closeIndexUpdateSettingsAndOpenIndex(updatedSettings, handler, errorHandler);
                             }
                         }
                     };
@@ -382,7 +397,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                             // writes
                             aliasActions.add(
                                 IndicesAliasesRequest.AliasActions.add()
-                                    .index(followerIndex.getName())
+                                    .index(followerIndexMetadata.getIndex().getName())
                                     .alias(alias.alias())
                                     .filter(alias.filter() == null ? null : alias.filter().toString())
                                     .indexRouting(alias.indexRouting())
@@ -412,7 +427,7 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                             // writes
                             aliasActions.add(
                                 IndicesAliasesRequest.AliasActions.add()
-                                    .index(followerIndex.getName())
+                                    .index(followerIndexMetadata.getIndex().getName())
                                     .alias(leaderAliasMetadata.alias())
                                     .filter(leaderAliasMetadata.filter() == null ? null : leaderAliasMetadata.filter().toString())
                                     .indexRouting(leaderAliasMetadata.indexRouting())
@@ -423,7 +438,11 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
 
                         // remove aliases that the leader no longer has
                         for (final var aliasName : aliasesOnFollowerNotOnLeader) {
-                            aliasActions.add(IndicesAliasesRequest.AliasActions.remove().index(followerIndex.getName()).alias(aliasName));
+                            aliasActions.add(
+                                IndicesAliasesRequest.AliasActions.remove()
+                                    .index(followerIndexMetadata.getIndex().getName())
+                                    .alias(aliasName)
+                            );
                         }
 
                         if (aliasActions.isEmpty()) {
@@ -453,34 +472,44 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 }, errorHandler);
             }
 
-            private void closeIndexUpdateSettingsAndOpenIndex(
-                String followIndex,
-                Settings updatedSettings,
-                Runnable handler,
-                Consumer<Exception> onFailure
-            ) {
+            /**
+             * Closes the follower, updates its settings and opens it again. Each of the three requests resolves the follower's name
+             * when it is sent, so a rename between the steps is followed, and a follower that has been deleted fails the sequence
+             * instead of sending the next step to whatever index has taken the name.
+             */
+            private void closeIndexUpdateSettingsAndOpenIndex(Settings updatedSettings, Runnable handler, Consumer<Exception> onFailure) {
+                final String followIndex = followerIndexNameNow();
+                if (followIndex == null) {
+                    onFailure.accept(new IndexNotFoundException(params.getFollowShardId().getIndex()));
+                    return;
+                }
                 CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
                 CheckedConsumer<CloseIndexResponse, Exception> onResponse = response -> {
-                    updateSettingsAndOpenIndex(followIndex, updatedSettings, handler, onFailure);
+                    updateSettingsAndOpenIndex(updatedSettings, handler, onFailure);
                 };
                 followerClient.admin().indices().close(closeRequest, ActionListener.wrap(onResponse, onFailure));
             }
 
-            private void updateSettingsAndOpenIndex(
-                String followIndex,
-                Settings updatedSettings,
-                Runnable handler,
-                Consumer<Exception> onFailure
-            ) {
+            private void updateSettingsAndOpenIndex(Settings updatedSettings, Runnable handler, Consumer<Exception> onFailure) {
+                final String followIndex = followerIndexNameNow();
+                if (followIndex == null) {
+                    onFailure.accept(new IndexNotFoundException(params.getFollowShardId().getIndex()));
+                    return;
+                }
                 final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex).masterNodeTimeout(
                     TimeValue.MAX_VALUE
                 );
                 updateSettingsRequest.settings(updatedSettings);
-                CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> openIndex(followIndex, handler, onFailure);
+                CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> openIndex(handler, onFailure);
                 followerClient.admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(onResponse, onFailure));
             }
 
-            private void openIndex(String followIndex, Runnable handler, Consumer<Exception> onFailure) {
+            private void openIndex(Runnable handler, Consumer<Exception> onFailure) {
+                final String followIndex = followerIndexNameNow();
+                if (followIndex == null) {
+                    onFailure.accept(new IndexNotFoundException(params.getFollowShardId().getIndex()));
+                    return;
+                }
                 OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex).masterNodeTimeout(TimeValue.MAX_VALUE);
                 CheckedConsumer<OpenIndexResponse, Exception> onResponse = response -> handler.run();
                 followerClient.admin().indices().open(openIndexRequest, ActionListener.wrap(onResponse, onFailure));

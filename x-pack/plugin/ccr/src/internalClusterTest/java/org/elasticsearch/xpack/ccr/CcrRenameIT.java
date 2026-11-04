@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -27,10 +28,14 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.ESIntegTestCase.renameIndexRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -157,6 +162,104 @@ public class CcrRenameIT extends CcrIntegTestCase {
     }
 
     /**
+     * The follow task applies the leader's mapping, dynamic settings and alias changes to the follower with requests addressed by
+     * name, so after a rename they must address the follower's current name, found by UUID. An unrelated index that has since been
+     * given the follower's old name must be left alone.
+     */
+    public void testLeaderMetadataChangesReachRenamedFollower() throws Exception {
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(getIndexSettings(1, 0), XContentType.JSON));
+        ensureLeaderYellow("leader");
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        ensureFollowerGreen("follower");
+        leaderClient().prepareIndex("leader").setSource("{\"f\": 0}", XContentType.JSON).get();
+        assertIndexFullyReplicatedToFollower("leader", "follower");
+
+        rename(followerClient(), "follower", "follower-renamed");
+        createUnrelatedIndexNamedLikeTheOldFollower();
+
+        // a new field (mapping), a dynamic setting and an alias on the leader, each applied by a request addressed by name
+        leaderClient().prepareIndex("leader").setSource("{\"f\": 1, \"g\": \"new-field\"}", XContentType.JSON).get();
+        assertAcked(
+            leaderClient().admin()
+                .indices()
+                .updateSettings(
+                    new UpdateSettingsRequest("leader").settings(Settings.builder().put("index.mapping.total_fields.limit", 1234))
+                )
+                .get()
+        );
+        assertAcked(
+            leaderClient().admin()
+                .indices()
+                .aliases(
+                    new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+                        IndicesAliasesRequest.AliasActions.add().index("leader").alias("leader-alias")
+                    )
+                )
+                .get()
+        );
+
+        assertBusy(() -> {
+            final var settings = followerClient().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "follower-renamed").get();
+            assertThat(settings.getSetting("follower-renamed", "index.mapping.total_fields.limit"), equalTo("1234"));
+            assertThat(fieldNamesOf("follower-renamed"), hasItems("f", "g"));
+            final var aliases = followerClient().admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT, "leader-alias").get();
+            assertThat(aliases.getAliases().get("follower-renamed"), hasSize(1));
+        });
+        assertIndexFullyReplicatedToFollower("leader", "follower-renamed");
+        assertNoFatalFollowError();
+
+        assertUnrelatedIndexUntouched();
+        pauseFollow("follower-renamed");
+    }
+
+    /**
+     * Non-dynamic leader settings are applied by closing the follower, updating its settings and opening it again, three requests
+     * addressed by name. After a rename all three must address the follower's current name, so an unrelated index with the old name
+     * is never closed, changed or reopened.
+     */
+    public void testNonDynamicSettingsReachRenamedFollower() throws Exception {
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(getIndexSettings(1, 0), XContentType.JSON));
+        ensureLeaderYellow("leader");
+        followerClient().execute(PutFollowAction.INSTANCE, putFollow("leader", "follower")).get();
+        ensureFollowerGreen("follower");
+        leaderClient().prepareIndex("leader").setSource("{\"f\": 0}", XContentType.JSON).get();
+        assertIndexFullyReplicatedToFollower("leader", "follower");
+
+        rename(followerClient(), "follower", "follower-renamed");
+        createUnrelatedIndexNamedLikeTheOldFollower();
+
+        assertAcked(leaderClient().admin().indices().prepareClose("leader").get());
+        assertAcked(
+            leaderClient().admin()
+                .indices()
+                .updateSettings(
+                    new UpdateSettingsRequest("leader").settings(
+                        Settings.builder()
+                            .put("index.analysis.analyzer.my_analyzer.type", "custom")
+                            .put("index.analysis.analyzer.my_analyzer.tokenizer", "keyword")
+                    )
+                )
+                .get()
+        );
+        assertAcked(leaderClient().admin().indices().prepareOpen("leader").get());
+        ensureLeaderGreen("leader");
+        leaderClient().prepareIndex("leader").setSource("{\"f\": 1}", XContentType.JSON).get();
+
+        assertBusy(() -> {
+            final var settings = followerClient().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "follower-renamed").get();
+            assertThat(settings.getSetting("follower-renamed", "index.analysis.analyzer.my_analyzer.type"), equalTo("custom"));
+            assertThat(settings.getSetting("follower-renamed", "index.analysis.analyzer.my_analyzer.tokenizer"), equalTo("keyword"));
+            assertThat(followerIndexState("follower-renamed"), equalTo(IndexMetadata.State.OPEN));
+        });
+        ensureFollowerGreen("follower-renamed");
+        assertIndexFullyReplicatedToFollower("leader", "follower-renamed");
+        assertNoFatalFollowError();
+
+        assertUnrelatedIndexUntouched();
+        pauseFollow("follower-renamed");
+    }
+
+    /**
      * Auto-follow records followed leader indices by UUID, so a renamed leader that still matches the pattern must not be
      * followed a second time.
      */
@@ -205,6 +308,39 @@ public class CcrRenameIT extends CcrIntegTestCase {
         final var response = client.execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(source, target))
             .actionGet(TimeValue.timeValueSeconds(30));
         assertTrue(response.isAcknowledged());
+    }
+
+    private void createUnrelatedIndexNamedLikeTheOldFollower() throws Exception {
+        assertAcked(
+            followerClient().admin()
+                .indices()
+                .prepareCreate("follower")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        );
+        followerClient().prepareIndex("follower").setSource("{\"u\": 1}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        ensureFollowerGreen("follower");
+    }
+
+    /** The index that took the follower's old name has neither the leader's mapping, settings or alias, and was never closed. */
+    private void assertUnrelatedIndexUntouched() throws Exception {
+        assertThat(followerIndexState("follower"), equalTo(IndexMetadata.State.OPEN));
+        assertThat(fieldNamesOf("follower"), equalTo(Set.of("u")));
+        final var settings = followerClient().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "follower").get();
+        assertThat(settings.getSetting("follower", "index.mapping.total_fields.limit"), nullValue());
+        assertThat(settings.getSetting("follower", "index.analysis.analyzer.my_analyzer.type"), nullValue());
+        final var aliases = followerClient().admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT, "leader-alias").get();
+        assertThat(aliases.getAliases().get("follower"), nullValue());
+    }
+
+    private Set<String> fieldNamesOf(String followerIndex) {
+        final var mappings = followerClient().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, followerIndex).get();
+        final Map<?, ?> properties = (Map<?, ?>) mappings.mappings().get(followerIndex).getSourceAsMap().get("properties");
+        return properties == null ? Set.of() : properties.keySet().stream().map(String::valueOf).collect(Collectors.toSet());
+    }
+
+    private IndexMetadata.State followerIndexState(String index) {
+        final Metadata metadata = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
+        return metadata.getProject().index(index).getState();
     }
 
     private boolean followerIndexExists(String index) {

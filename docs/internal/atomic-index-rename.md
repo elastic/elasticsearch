@@ -374,7 +374,19 @@ through the UUID: the follower's leader metadata requests (mapping, settings
 and alias sync), which on an `IndexNotFoundException` ask the leader cluster
 for the current name by UUID once and remember it; `ShardChangesAction` and
 `RetentionLeaseActions`, which resolve the shard through `RoutingTable#index(Index)`;
-and pause, unfollow and follow-stats, which match tasks by UUID. The retention
+and pause, unfollow and follow-stats, which match tasks by UUID. The requests
+the follow task sends to change the follower itself (put mapping, update
+settings, the close, update and open sequence for non-dynamic settings, and
+alias changes) are addressed by name, and the name in the task parameters is
+the one the follower had when the task started. Each now resolves the
+follower's current name by UUID when it sends the request, the three steps of
+the close, update and open sequence each on their own, and fails if the
+follower no longer exists rather than falling back to the old name, which an
+unrelated index may by then have taken: before this, a renamed follower
+stopped receiving leader mapping, settings and alias changes, and the
+unrelated index with the old name received them, or was closed and reopened.
+The name-keyed APIs leave a window between resolving the name and the request
+being applied in which a second rename could still redirect it. The retention
 lease one matters beyond CCR: every renewal failed after a leader rename, and
 the lease would have expired after the retention period, at which point the
 leader could discard history the follower still needed.
@@ -382,8 +394,10 @@ leader could discard history the follower still needed.
 A leader rename while the follower is still bootstrapping from the leader
 fails that bootstrap, because the CCR repository addresses the leader by the
 name in the snapshot index id; the follow request has to be retried.
-`CcrRenameIT` covers a leader rename mid-replication, a follower rename, and
-auto-follow with a renamed leader.
+`CcrRenameIT` covers a leader rename mid-replication, a follower rename, a
+mapping, dynamic setting, alias and non-dynamic setting change on the leader
+after a follower rename with an unrelated index created under the follower's old
+name (which must be left untouched), and auto-follow with a renamed leader.
 
 ### T8. The `createIndex` rename trick is always on
 

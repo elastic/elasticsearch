@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 164162
+summary: Slice the primary sort range of a leaf
+type: enhancement

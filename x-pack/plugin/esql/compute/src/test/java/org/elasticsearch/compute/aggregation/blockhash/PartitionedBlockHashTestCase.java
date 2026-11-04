@@ -133,7 +133,7 @@ public abstract class PartitionedBlockHashTestCase extends ComputeTestCase {
         return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
-    private List<Page> randomPages(BlockFactory blockFactory, List<BlockHash.GroupSpec> groups) {
+    protected List<Page> randomPages(BlockFactory blockFactory, List<BlockHash.GroupSpec> groups) {
         int pageCount = between(1, 20);
         List<Page> pages = new ArrayList<>(pageCount);
         for (int i = 0; i < pageCount; i++) {

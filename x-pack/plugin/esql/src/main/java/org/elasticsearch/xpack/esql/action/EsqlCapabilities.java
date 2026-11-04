@@ -521,9 +521,10 @@ public class EsqlCapabilities {
         /**
          * Fields absorbed into the implicit {@code _unmapped} sink of a strict columnar index load under {@code SET unmapped_fields="load"}
          * from the sink's doc values. As for a key of a mapped flattened field, they are keywords and their values are sorted and
-         * deduplicated. A field below a nested object is still read from {@code _source}.
+         * deduplicated. A field below a nested object is still read from {@code _source}. V2: the sink is opted into with a root
+         * {@code dynamic: flattened}, which the test datasets set and a node of the first version rejects.
          */
-        FLATTENED_UNMAPPED_SINK_LOAD(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
+        FLATTENED_UNMAPPED_SINK_LOAD_V2(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
 
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
@@ -600,6 +601,12 @@ public class EsqlCapabilities {
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
+
+        /**
+         * Where one index maps a name as an object and another as a field, the column has the type of the field and is {@code null}
+         * in the index of the object.
+         */
+        OBJECTS_ARE_NOT_FIELDS,
 
         /**
          * Support for requesting the "_ignored" metadata field.
@@ -2799,6 +2806,11 @@ public class EsqlCapabilities {
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
 
         /**
+         * Support for pushing down MV_EXPAND past PROJECT with complex queries.
+         */
+        PUSH_DOWN_MV_EXPAND_PAST_PROJECT,
+
+        /**
          * Enables automatically grouping by all dimension fields in TS mode queries and outputs the _timeseries column
          * with all the dimensions.
          */
@@ -4676,6 +4688,12 @@ public class EsqlCapabilities {
          * rather than every key of the object.
          */
         METRICS_INFO_FIELD_PRESENCE,
+
+        /**
+         * Each shard resolves a field the plan reads that some shards may not map to what it holds, and runs a filter pushed to it
+         * where it can query that field, or matches every document for the filter to check.
+         */
+        UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

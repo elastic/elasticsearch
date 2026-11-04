@@ -23,16 +23,46 @@ import static org.hamcrest.Matchers.not;
 public class CiPartPlannerTests {
 
     @Test
-    public void testSameProjectTasksAreSpreadBecauseTheyRunSerially() {
-        // without the configuration cache two tasks of :server would run one after another in one part
+    public void testTasksOfOneProjectRunInParallel() {
+        // with the configuration cache :p:c runs alongside :p:a, so it fits next to it rather than next to the longer :q:b
         CiPartPlanner.Config config = new CiPartPlanner.Config(2, 8, Map.of(), List.of());
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
-            Map.of(":server:test", 600.0, ":server:internalClusterTest", 590.0, ":a:test", 100.0, ":b:test", 100.0),
+            Map.of(":p:a", 1000.0, ":q:b", 1100.0, ":p:c", 500.0),
             Map.of(),
             Map.of()
         );
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
-        assertThat(assignment.partOfTest(":server:test"), not(equalTo(assignment.partOfTest(":server:internalClusterTest"))));
+        assertThat(assignment.partOfTest(":p:c"), equalTo(assignment.partOfTest(":p:a")));
+    }
+
+    @Test
+    public void testShardsOfOneTaskInAPartRunAsOneExecution() {
+        // plenty of workers, but two shards in one part are one execution of the task, so they take twice as long
+        CiPartPlanner.Config config = new CiPartPlanner.Config(
+            2,
+            8,
+            Map.of(":x:test", new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.CLASS)),
+            List.of()
+        );
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:test", 1000.0), Map.of(), Map.of());
+        CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
+        assertThat(assignment.partOfShard(":x:test", 0), not(equalTo(assignment.partOfShard(":x:test", 1))));
+    }
+
+    @Test
+    public void testProjectWorkLeavesItsHeaviestTestPartWhenThatWouldBeSlowest() {
+        CiPartPlanner.Config config = new CiPartPlanner.Config(2, 1, Map.of(), List.of());
+        // :a's 40s of non-test work next to :a:test would make that part 140s; next to :b:test it is 90s
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(":a:test", 100.0, ":b:test", 50.0),
+            Map.of(),
+            Map.of(":a", 40.0, ":b", 5.0)
+        );
+        CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
+        assertThat(assignment.homePart(":a"), equalTo(assignment.partOfTest(":b:test")));
+        assertThat(assignment.homePart(":b"), equalTo(assignment.partOfTest(":b:test")));
+        double[] minutes = CiPartPlanner.estimatedMinutes(assignment, config, durations);
+        assertThat(Math.max(minutes[0], minutes[1]), equalTo(100.0 / 60));
     }
 
     @Test
@@ -68,10 +98,11 @@ public class CiPartPlannerTests {
     public void testSplitTasksArePlacedPerShardAndProjectsFollowTheirHeaviestTest() {
         CiPartPlanner.Config config = new CiPartPlanner.Config(
             3,
-            1,
+            8,
             Map.of(":x:yamlRestTest", new CiPartAssignment.Split(3, CiPartAssignment.SplitBy.YAML_FILE)),
             List.of()
         );
+        // with 8 workers :y's non-test work next to :y:test costs nothing, so it stays with the project's tests
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:yamlRestTest", 900.0, ":y:test", 10.0), Map.of(), Map.of(":y", 5.0));
         CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
         assertThat(assignment.tests().keySet(), equalTo(java.util.Set.of(":x:yamlRestTest#0", ":x:yamlRestTest#1", ":x:yamlRestTest#2", ":y:test")));

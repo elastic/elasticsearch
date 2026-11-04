@@ -8,7 +8,7 @@ non-test verification). Running every part runs exactly what `check` runs.
 | File | Edited by | Content |
 |---|---|---|
 | `config.json` | hand | part count, effective workers per job, test tasks to split, task groups that must not share a part |
-| `durations.json` | export script | median executed duration (s) of each test task, and of each project's non-test tasks, in PR `part-*` jobs |
+| `durations.json` | export script | median executed duration (s) of each test task, and of each project's non-test tasks (without compilation and jars, which every part running its tests pays), in PR `part-*` jobs |
 | `assignment.json` | `./gradlew generateCiPartAssignment` | the generated assignment; do not edit |
 
 Test tasks or projects missing from `assignment.json` (for example ones added since it was generated)

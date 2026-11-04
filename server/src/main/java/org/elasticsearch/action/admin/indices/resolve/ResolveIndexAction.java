@@ -52,6 +52,7 @@ import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidato
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -616,7 +617,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             IndexNameExpressionResolver indexNameExpressionResolver,
             CrossProjectModeDecider crossProjectModeDecider
         ) {
-            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(
+                NAME,
+                transportService,
+                actionFilters,
+                Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+            );
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.projectResolver = projectResolver;
@@ -627,6 +634,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }

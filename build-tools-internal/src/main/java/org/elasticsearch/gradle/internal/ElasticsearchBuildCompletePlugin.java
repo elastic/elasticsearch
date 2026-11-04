@@ -36,8 +36,10 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,6 +50,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
 import javax.inject.Inject;
@@ -86,6 +90,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 spec.getParameters().getFilteredFiles().addAll(getFlowProviders().getBuildWorkResult().map((result) -> {
                     if (preemptionMarker.exists()) {
                         System.out.println("Build Finished Action: Skipping archive collection (build was preempted)");
+                        return List.<File>of();
+                    }
+                    // the archive is for investigating failures; a successful build's results are in its build scan
+                    if (result.getFailure().isEmpty()) {
+                        System.out.println("Build Finished Action: Skipping archive collection (build succeeded)");
                         return List.<File>of();
                     }
                     System.out.println("Build Finished Action: Collecting archive files...");
@@ -169,7 +178,45 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         // node. They account for most of the archive size. The same files come from the
         // geolite2-databases test dependency, not from the failing test.
         projectDirFiles.exclude("**/*.mmdb");
-        return projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
+        return projectDirFiles.getFiles()
+            .stream()
+            .filter(f -> Files.isRegularFile(f.toPath()))
+            // results of test classes that passed are the bulk of the archive and are in the build scan anyway
+            .filter(f -> isTestResult(f) == false || hasFailedTests(f))
+            .toList();
+    }
+
+    private static boolean isTestResult(File file) {
+        return file.getName().endsWith(".xml") && file.getPath().contains(File.separator + "test-results" + File.separator);
+    }
+
+    private static final Pattern FAILURES_OR_ERRORS = Pattern.compile("\\b(?:failures|errors)=\"([0-9]+)\"");
+
+    /**
+     * Whether the JUnit XML report {@code file} records a failed test. Only the start of the file is read, since the
+     * {@code testsuite} element and its counts come first; a report whose counts cannot be found counts as failed.
+     */
+    static boolean hasFailedTests(File file) {
+        String head;
+        try (InputStream in = Files.newInputStream(file.toPath())) {
+            head = new String(in.readNBytes(4096), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return true;
+        }
+        int start = head.indexOf("<testsuite ");
+        int end = start < 0 ? -1 : head.indexOf('>', start);
+        if (end < 0) {
+            return true;
+        }
+        Matcher counts = FAILURES_OR_ERRORS.matcher(head.substring(start, end));
+        boolean found = false;
+        while (counts.find()) {
+            found = true;
+            if (Integer.parseInt(counts.group(1)) > 0) {
+                return true;
+            }
+        }
+        return found == false;
     }
 
     private static long secondsSince(long startNanos) {

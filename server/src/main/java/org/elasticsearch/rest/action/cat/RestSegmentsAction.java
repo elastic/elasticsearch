@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -44,6 +45,22 @@ public class RestSegmentsAction extends AbstractCatAction {
 
     private static final Set<String> CAPABILITIES = Set.of("allow_closed");
 
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.copyOf(
+        Sets.union(
+            COMMON_QUERY_PARAMETERS,
+            Set.of(
+                RestUtils.REST_MASTER_TIMEOUT_PARAM,
+                "local",
+                "allow_closed",
+                IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+                IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+                IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+                IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED
+            )
+        )
+    );
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.copyOf(Sets.union(SUPPORTED_QUERY_PARAMETERS, Set.of("index")));
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_cat/segments"), new Route(GET, "/_cat/segments/{index}"));
@@ -52,6 +69,16 @@ public class RestSegmentsAction extends AbstractCatAction {
     @Override
     public String getName() {
         return "cat_segments_action";
+    }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
     }
 
     @Override

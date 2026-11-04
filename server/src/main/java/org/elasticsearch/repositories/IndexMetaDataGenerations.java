@@ -15,10 +15,14 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -43,6 +47,18 @@ public final class IndexMetaDataGenerations {
      */
     final Map<String, String> identifiers;
 
+    /**
+     * The identifiers in sorted order, so that those starting with an index UUID can be found without a scan. Built when first needed;
+     * the contents never change, so a benign race between threads building it is harmless.
+     */
+    private volatile NavigableSet<String> sortedIdentifiers;
+
+    /**
+     * The {@link IndexId}s that reference each identifier. Built when first needed, on the first lookup that finds a matching
+     * identifier, because it takes a pass over every snapshot-by-index entry in the repository.
+     */
+    private volatile Map<String, List<IndexId>> indexIdsByIdentifier;
+
     IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
         assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet()))
             : "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
@@ -53,6 +69,53 @@ public final class IndexMetaDataGenerations {
 
     public boolean isEmpty() {
         return identifiers.isEmpty();
+    }
+
+    /**
+     * The {@link IndexId}s of the snapshots that reference index metadata of the index with the given cluster UUID, under whatever
+     * name the index had when it was snapshotted. Identifiers start with the index UUID followed by a dash (see
+     * {@link #buildUniqueIdentifier}), and a UUID can itself contain dashes, so they are matched by prefix: the identifiers with a
+     * given prefix are contiguous in sorted order, so the common answer, that there is none, costs a binary search rather than a pass
+     * over every snapshot of every index.
+     */
+    List<IndexId> indexIdsForIndexUuid(String indexUuid) {
+        final String prefix = indexUuid + "-";
+        NavigableSet<String> sorted = sortedIdentifiers;
+        if (sorted == null) {
+            sorted = new TreeSet<>(identifiers.keySet());
+            sortedIdentifiers = sorted;
+        }
+        List<IndexId> result = null;
+        for (String identifier : sorted.tailSet(prefix, true)) {
+            if (identifier.startsWith(prefix) == false) {
+                break;
+            }
+            final List<IndexId> indexIds = indexIdsByIdentifier().get(identifier);
+            if (indexIds != null) {
+                if (result == null) {
+                    result = new ArrayList<>(indexIds.size());
+                }
+                result.addAll(indexIds);
+            }
+        }
+        return result == null ? List.of() : result;
+    }
+
+    private Map<String, List<IndexId>> indexIdsByIdentifier() {
+        Map<String, List<IndexId>> result = indexIdsByIdentifier;
+        if (result == null) {
+            result = Maps.newHashMapWithExpectedSize(identifiers.size());
+            for (Map<IndexId, String> identifiersBySnapshot : lookup.values()) {
+                for (Map.Entry<IndexId, String> entry : identifiersBySnapshot.entrySet()) {
+                    final List<IndexId> indexIds = result.computeIfAbsent(entry.getValue(), k -> new ArrayList<>(1));
+                    if (indexIds.contains(entry.getKey()) == false) {
+                        indexIds.add(entry.getKey());
+                    }
+                }
+            }
+            indexIdsByIdentifier = result;
+        }
+        return result;
     }
 
     /**

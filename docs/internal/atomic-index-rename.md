@@ -321,6 +321,29 @@ shows the second snapshot uploading no segment file, the old-name snapshot
 deleted with the new-name one still restorable, and a third snapshot
 incremental again.
 
+All of these lookups sit on paths that every snapshot takes, in repositories
+that have never seen a rename, so none of them may scan the repository.
+`hasIndexId` and `indexIdsSharingId` are answered from the indices grouped by id
+once per `RepositoryData`; the sibling sync in `ShardGenerations.Builder#put`
+and the fallback in `ShardGenerations#generationsFor` use a grouping of names
+by id kept by the builder and built once per `ShardGenerations`; the lookup of
+an index by UUID searches the metadata identifiers in sorted order by prefix
+(an identifier cannot be split into its UUID and the rest, because both can
+contain dashes); and the choice of name per snapshot while parsing is a direct
+lookup, with a snapshot-to-name map built only for the ids that several names
+share. A first version scanned for each of them. For 15,000 indices and 60
+snapshots, with assertions off, 60 `addSnapshot` calls took 186 s against 1.9 s
+on main (the sibling sync alone made every snapshot finalization take about
+three seconds), resolving 2,000 new names took 4.6 s, and the per-index
+`hasIndexId` loop 0.8 s; they now take 2.1 s, 17 ms and 4 ms, and building and
+parsing match main. Parsing 2,000 indices over 800 snapshots took 1.8 s, growing
+about 3.5 times when the snapshot count doubled, because of a list scan per
+snapshot and index; it now takes 0.3 s and grows linearly. With every index
+renamed halfway through it took 11 s and now takes 0.55 s. Assertions hide this:
+the test JVM's assertions in `IndexMetaDataGenerations` are quadratic on main
+too, so the same benchmark with assertions on shows 167 s on main and 152 s here.
+A repository of this size has to be measured with `-Dtests.asserts=false`.
+
 A snapshot or restore in flight does not block the rename, which matters in
 serverless, where backups run on a schedule the user neither sees nor
 controls. The in-progress entries record an index by name, in the entry's

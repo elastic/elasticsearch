@@ -122,6 +122,9 @@ public final class RepositoryData {
      */
     private final Map<IndexId, List<SnapshotId>> indexSnapshots;
 
+    /** Built on first use by {@link #indexIdsById()}. */
+    private volatile Map<String, List<IndexId>> indexIdsById;
+
     /**
      * Index metadata generations.
      */
@@ -621,12 +624,9 @@ public final class RepositoryData {
      */
     @Nullable
     public IndexId indexIdForIndexUuid(String indexUuid) {
-        final String prefix = indexUuid + "-";
-        for (Map<IndexId, String> identifiersBySnapshot : indexMetaDataGenerations.lookup.values()) {
-            for (Map.Entry<IndexId, String> entry : identifiersBySnapshot.entrySet()) {
-                if (entry.getValue().startsWith(prefix) && indices.containsKey(entry.getKey().getName())) {
-                    return entry.getKey();
-                }
+        for (IndexId candidate : indexMetaDataGenerations.indexIdsForIndexUuid(indexUuid)) {
+            if (indices.containsKey(candidate.getName())) {
+                return candidate;
             }
         }
         return null;
@@ -637,14 +637,31 @@ public final class RepositoryData {
      * snapshots: the names differ, the blobs are shared.
      */
     public List<IndexId> indexIdsSharingId(String id) {
-        return indices.values().stream().filter(indexId -> indexId.getId().equals(id)).toList();
+        return indexIdsById().getOrDefault(id, List.of());
     }
 
     /**
      * Whether some index in the repository, under any name, has the given id.
      */
     public boolean hasIndexId(String id) {
-        return indices.values().stream().anyMatch(indexId -> indexId.getId().equals(id));
+        return indexIdsById().containsKey(id);
+    }
+
+    /**
+     * The indices grouped by repository id, built when first needed and shared by every lookup on this instance. Both callers ask once
+     * per index of a snapshot or of a deletion, so answering each from a pass over all the indices would be quadratic.
+     */
+    private Map<String, List<IndexId>> indexIdsById() {
+        Map<String, List<IndexId>> result = indexIdsById;
+        if (result == null) {
+            result = Maps.newHashMapWithExpectedSize(indices.size());
+            for (IndexId indexId : indices.values()) {
+                result.computeIfAbsent(indexId.getId(), k -> new ArrayList<>(1)).add(indexId);
+            }
+            result.replaceAll((id, indexIds) -> List.copyOf(indexIds));
+            indexIdsById = result;
+        }
+        return result;
     }
 
     private static final String SHARD_GENERATIONS = "shard_generations";
@@ -945,6 +962,7 @@ public final class RepositoryData {
         if (indexMetaLookup.isEmpty()) {
             return IndexMetaDataGenerations.EMPTY;
         }
+        final Map<String, Map<SnapshotId, IndexId>> sharedIds = indexIdsSharedByNames(indexLookup, indexSnapshots);
         // Build a new map that instead of indexing the per-snapshot index generations by index id string, is indexed by IndexId
         final Map<SnapshotId, Map<IndexId, String>> indexGenerations = Maps.newMapWithExpectedSize(indexMetaLookup.size());
         for (Map.Entry<SnapshotId, Map<String, String>> snapshotIdMapEntry : indexMetaLookup.entrySet()) {
@@ -953,7 +971,7 @@ public final class RepositoryData {
             final Map<IndexId, String> forSnapshot = Maps.newMapWithExpectedSize(val.size());
             for (Map.Entry<String, String> generationEntry : val.entrySet()) {
                 forSnapshot.put(
-                    indexIdInSnapshot(generationEntry.getKey(), snapshotId, indexLookup, indexSnapshots),
+                    indexIdInSnapshot(generationEntry.getKey(), snapshotId, indexLookup, sharedIds),
                     generationEntry.getValue()
                 );
             }
@@ -971,18 +989,53 @@ public final class RepositoryData {
         String id,
         SnapshotId snapshotId,
         Map<String, IndexId> indexLookup,
+        Map<String, Map<SnapshotId, IndexId>> sharedIds
+    ) {
+        // the usual case, an id with one name, is the direct lookup; an id that several names share is answered from the snapshots
+        // of each of its names, grouped once
+        final Map<SnapshotId, IndexId> bySnapshot = sharedIds.get(id);
+        final IndexId inSnapshot = bySnapshot == null ? null : bySnapshot.get(snapshotId);
+        return inSnapshot != null ? inSnapshot : indexLookup.get(id);
+    }
+
+    /**
+     * For each repository id that more than one index name has, the {@link IndexId} that each snapshot references. Empty unless an
+     * index was renamed between snapshots, which is detected without grouping anything: the lookup holds one entry per distinct id, so
+     * it is as large as the set of {@link IndexId}s only if every id has a single name. The grouping costs one pass over the
+     * snapshots of the shared names, so a repository in which many indices were renamed is not parsed in time quadratic in the number
+     * of snapshots. When a snapshot references more than one name of an id, the name that {@code indexLookup} holds is preferred.
+     */
+    private static Map<String, Map<SnapshotId, IndexId>> indexIdsSharedByNames(
+        Map<String, IndexId> indexLookup,
         Map<IndexId, List<SnapshotId>> indexSnapshots
     ) {
-        final IndexId anyName = indexLookup.get(id);
-        if (anyName == null || indexSnapshots.getOrDefault(anyName, List.of()).contains(snapshotId)) {
-            return anyName;
+        if (indexLookup.size() == indexSnapshots.size()) {
+            return Map.of();
         }
-        for (Map.Entry<IndexId, List<SnapshotId>> entry : indexSnapshots.entrySet()) {
-            if (entry.getKey().getId().equals(id) && entry.getValue().contains(snapshotId)) {
-                return entry.getKey();
+        final Map<String, List<IndexId>> namesById = new HashMap<>();
+        for (IndexId indexId : indexSnapshots.keySet()) {
+            namesById.computeIfAbsent(indexId.getId(), k -> new ArrayList<>(1)).add(indexId);
+        }
+        final Map<String, Map<SnapshotId, IndexId>> shared = new HashMap<>();
+        for (Map.Entry<String, List<IndexId>> entry : namesById.entrySet()) {
+            if (entry.getValue().size() < 2) {
+                continue;
             }
+            final Map<SnapshotId, IndexId> bySnapshot = new HashMap<>();
+            final IndexId preferred = indexLookup.get(entry.getKey());
+            if (preferred != null) {
+                for (SnapshotId snapshotId : indexSnapshots.getOrDefault(preferred, List.of())) {
+                    bySnapshot.put(snapshotId, preferred);
+                }
+            }
+            for (IndexId name : entry.getValue()) {
+                for (SnapshotId snapshotId : indexSnapshots.getOrDefault(name, List.of())) {
+                    bySnapshot.putIfAbsent(snapshotId, name);
+                }
+            }
+            shared.put(entry.getKey(), bySnapshot);
         }
-        return anyName;
+        return shared;
     }
 
     /**

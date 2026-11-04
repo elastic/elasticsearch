@@ -57,6 +57,16 @@ Known issues are significant defects or limitations that may impact your impleme
 
   Refer to [#158212](https://github.com/elastic/elasticsearch/issues/158212) for further details, including information about determining whether your cluster has been affected by this issue and our recommended workarounds should any be needed.
 
+## 9.4.0 [elasticsearch-9.4.0-known-issues]
+
+* Shards can fail to allocate after an upgrade to {{es}} 9.4.0 through 9.4.4, or to 9.5.0, when an index template or index sets [`index.merge.scheduler.max_merge_count`](/reference/elasticsearch/index-settings/merge.md) to a low value and does not set `index.merge.scheduler.max_thread_count`.
+
+  In 9.4.0, the default for `index.merge.scheduler.max_thread_count` changed from half the number of processors on the node, capped at 4, to half the number of processors with no cap. {{es}} requires `max_thread_count` to be less than or equal to `max_merge_count`. On a node with 32 processors, the new default of 16 conflicts with a `max_merge_count` of 6, and the shard fails to open with `maxThreadCount (= 16) should be <= maxMergeCount (= 6)`.
+
+  This issue is fixed in [#155693](https://github.com/elastic/elasticsearch/pull/155693), released in {{es}} 9.4.5, 9.5.1, and 9.6.0. In those versions, {{es}} reduces `max_thread_count` to `max_merge_count` and logs a warning. To avoid the issue on an affected version, remove `index.merge.scheduler.max_merge_count` from your index templates and indices, or set `index.merge.scheduler.max_thread_count` explicitly to a value that is less than or equal to `max_merge_count`.
+
+  Refer to [#155678](https://github.com/elastic/elasticsearch/issues/155678) for further details.
+
 ## 9.3.6 [elasticsearch-9.3.6-known-issues]
 
 * The [create trained model API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-trained-model) enforces overly restrictive input limits that may reject valid requests. Version 9.3.6 introduced caps on `description`, `tags`, `prefix_strings.ingest_prefix`, `prefix_strings.search_prefix`, `input.field_names`, `default_field_map` and `metadata`. These limits are too low for some existing use cases.

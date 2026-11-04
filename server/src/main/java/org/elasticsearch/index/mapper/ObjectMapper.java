@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -259,18 +260,65 @@ public class ObjectMapper extends Mapper {
             return null;
         }
 
-        protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
+        /**
+         * The context this builder's children are normalized and built under
+         */
+        protected MapperBuilderContext childContext(MapperBuilderContext context) {
+            return context.createChildContext(leafName(), dynamic);
+        }
+
+        /**
+         * Merges duplicate children and flattens plain object children under {@code subobjects: false}
+         */
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            MapperBuilderContext childContext = childContext(context);
             // Assuming all features are supported is safe here. Builders that went through a merge have no duplicates left, and the
             // duplicates added while building a dynamic mapping update are copies of the same object, so merging them changes nothing.
             // That update is merged again on the master, which checks the features the cluster supports.
-            Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(
-                mappersBuilders,
-                mapperBuilderContext,
-                MapperMergeContext.fromBuilderContext(mapperBuilderContext, Long.MAX_VALUE, f -> true)
-            );
+            MapperMergeContext mergeContext = MapperMergeContext.fromBuilderContext(childContext, Long.MAX_VALUE, f -> true);
+            // grandchild mappers are normalized under the settings of the child, so duplicate children are merged
+            // first so that all grandchildren see the same settings
+            mergeDuplicateChildren(mergeContext.withUnlimitedParseFieldLimitsBudget(childContext));
+            for (Mapper.Builder child : mappersBuilders) {
+                child.normalize(childContext);
+            }
+            Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(mappersBuilders, childContext, mergeContext);
+            mappersBuilders.clear();
+            mappersBuilders.addAll(dedupedBuilders.values());
+        }
+
+        // Merge duplicate children, using a LinkedHashMap to preserve declaration order.
+        // Objects that are flattened away are not merged with each other, so they are keyed by identity.
+        // TODO combine this with flattening - would be a breaking change as some broken mappings
+        // that are currently accepted and silently fixed would be rejected
+        private void mergeDuplicateChildren(MapperMergeContext dedupContext) {
+            Map<Object, Mapper.Builder> merged = new LinkedHashMap<>();
+            for (Mapper.Builder builder : mappersBuilders) {
+                Object key = isFlattenedAway(builder) ? builder : builder.leafName();
+                merged.merge(key, builder, (existing, duplicate) -> existing.mergeWith(duplicate, dedupContext));
+            }
+            mappersBuilders.clear();
+            mappersBuilders.addAll(merged.values());
+        }
+
+        // Nested builders are a genuine document boundary and must survive subobjects:false rather than being flattened into
+        // dotted leaves. Plain object builders have no internal existence and are flattened away.
+        // NestedObjectMapper.Builder extends ObjectMapper.Builder, hence the explicit guard.
+        private boolean isFlattenedAway(Mapper.Builder builder) {
+            return subobjects.value() == Subobjects.DISABLED
+                && builder instanceof ObjectMapper.Builder
+                && builder instanceof NestedObjectMapper.Builder == false;
+        }
+
+        /**
+         * Builds the children of this builder. Requires that {@link #normalize} has already been applied to the tree. That is done
+         * once, when the root is built.
+         */
+        protected final Map<String, Mapper> buildMappers(MapperBuilderContext childContext) {
             Map<String, Mapper> mappers = new HashMap<>();
-            for (Mapper.Builder builder : dedupedBuilders.values()) {
-                Mapper mapper = builder.build(mapperBuilderContext);
+            for (Mapper.Builder builder : mappersBuilders) {
+                Mapper mapper = builder.build(childContext);
                 mappers.put(mapper.leafName(), mapper);
             }
             return mappers;
@@ -389,13 +437,13 @@ public class ObjectMapper extends Mapper {
             MapperMergeContext dedupContext = mergeContext.withUnlimitedParseFieldLimitsBudget(builderContext);
             Map<String, Mapper.Builder> map = new HashMap<>();
             for (Mapper.Builder builder : builders) {
-                // Nested builders are a genuine document boundary and must survive subobjects:false rather than
-                // being flattened into dotted leaves. Plain object builders have no internal existence and are
-                // flattened away. NestedObjectMapper.Builder extends ObjectMapper.Builder, hence the explicit guard.
-                if (subobjects.value() == Subobjects.DISABLED
-                    && builder instanceof ObjectMapper.Builder objectMapperBuilder
-                    && builder instanceof NestedObjectMapper.Builder == false) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(builderContext, map, new ContentPath(), this.prefixProperties);
+                if (isFlattenedAway(builder)) {
+                    ((ObjectMapper.Builder) builder).asFlattenedFieldBuilders(
+                        builderContext,
+                        map,
+                        new ContentPath(),
+                        this.prefixProperties
+                    );
                 } else {
                     Mapper.Builder existing = map.get(builder.leafName());
                     if (existing != null) {
@@ -442,6 +490,8 @@ public class ObjectMapper extends Mapper {
                     return;
                 }
             }
+            // Merge together prefix properties collected from flattened objects
+            prefixProperties.forEach((prefix, properties) -> collector.merge(prefix, properties, PrefixProperties::merge));
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
                 if (childBuilder instanceof NestedObjectMapper.Builder nestedBuilder) {
@@ -579,7 +629,7 @@ public class ObjectMapper extends Mapper {
                 subobjects,
                 sourceKeepMode,
                 dynamic,
-                buildMappers(context.createChildContext(leafName(), dynamic))
+                buildMappers(childContext(context))
             );
         }
     }

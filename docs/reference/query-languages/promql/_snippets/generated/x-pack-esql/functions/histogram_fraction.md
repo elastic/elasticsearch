@@ -27,3 +27,9 @@
 ```
 histogram_fraction(0, 0.2, increase(http_request_duration_seconds[1h]))
 ```
+
+:::{note}
+**Differences from {{prom}}**
+
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` An argument computed by `topk`, `bottomk`, `limitk`, `limit_ratio`, or `without(...)`, such as `histogram_quantile(0.9, topk(5, a))`, isn't supported yet. Aggregate with `by(...)` first, such as `histogram_quantile(0.9, topk(5, sum by (job, le) (a)))`.
+:::

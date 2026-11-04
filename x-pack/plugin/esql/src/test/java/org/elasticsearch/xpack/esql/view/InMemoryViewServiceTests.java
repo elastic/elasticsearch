@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.PlanSize;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
 import org.elasticsearch.xpack.esql.parser.AbstractStatementParserTests;
-import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -1290,6 +1290,19 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             startsWith(MAX_PLAN_NODES_ERROR),
             () -> replaceViews(query("FROM long_view" + pipes(150) + fork))
         );
+    }
+
+    /**
+     * Each view FORKs over the previous one, so the expanded plan doubles at every level and goes over the plan size limit well
+     * before the view depth limit. The view-side twin of {@code LetResolverTests#testBigForkExpansionRejected}.
+     */
+    public void testMaxPlanNodesCountWithChainedForkViews() {
+        addView("fork_view_0", "FROM emp | FORK (WHERE a > 0) (WHERE a < 0)");
+        for (int i = 1; i < 9; i++) {
+            addView("fork_view_" + i, "FROM fork_view_" + (i - 1) + " | FORK (WHERE a > 0) (WHERE a < 0)");
+        }
+        replaceViews(query("FROM fork_view_3"));
+        expectThrows(VerificationException.class, startsWith(MAX_PLAN_NODES_ERROR), () -> replaceViews(query("FROM fork_view_8")));
     }
 
     public void testMaxQueryDepthOfViewWithoutRelation() {
@@ -3364,6 +3377,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
                 this::parse,
                 ViewBoundaryPreservation.NONE,
                 maxPlanNodesCount,
+                PlanSize.CLUSTER_SETTING_SOURCE,
                 listener
             )
         );
@@ -3517,7 +3531,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     }
 
     private EsqlStatement parse(String query, String viewName) {
-        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, EsqlParser.DEFAULT_MAX_COMMAND_COUNT);
+        return TEST_PARSER.parseView(query, queryParams, EMPTY_INFERENCE_SETTINGS, viewName, QueryPragmas.EMPTY, EsqlFlags.DEFAULTS);
     }
 
     /**

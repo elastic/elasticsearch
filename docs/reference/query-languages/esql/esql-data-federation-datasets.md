@@ -8,7 +8,7 @@ products:
   - id: elasticsearch
 ---
 
-# Datasets in {{esql}} Data Federation
+# External datasets in {{esql}} Data Federation
 
 A dataset makes a named collection of files in external storage available to {{esql}}. It records which connected data source and files to use, together with any settings or schema definitions needed to interpret them. You can query the dataset by name without ingesting its data into {{es}}.
 

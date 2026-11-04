@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
+import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
@@ -3661,10 +3662,11 @@ public class InternalEngine extends Engine {
     /**
      * Allows subclasses to wrap the {@link MergePolicy} before it is installed on the writer. It is applied last, so the
      * returned policy is the outermost one and the {@code OneMerge}s it produces are the instances the {@link IndexWriter}
-     * actually executes. The default implementation returns the policy unchanged.
+     * actually executes. The default implementation wraps merges in a {@link SizeTrackingOneMerge}; overrides should do the same
+     * (e.g. by extending it) so that the merged segment size is recorded for merge metrics.
      */
     protected MergePolicy wrapMergePolicy(MergePolicy mergePolicy) {
-        return mergePolicy;
+        return new OneMergeWrappingMergePolicy(mergePolicy, SizeTrackingOneMerge::new);
     }
 
     /** A listener that warms the segments if needed when acquiring a new reader */

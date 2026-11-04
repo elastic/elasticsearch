@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -91,9 +90,7 @@ public class ForceMergeStep extends AsyncActionStep {
                     "index [%s] in policy [%s] encountered failures [%s] on step [%s]",
                     indexName,
                     policyName,
-                    failures == null
-                        ? "n/a"
-                        : failures.stream().map(Strings::toString).collect(Collectors.joining(",")),
+                    failures == null ? "n/a" : failures.stream().map(Strings::toString).collect(Collectors.joining(",")),
                     NAME
                 );
                 logger.warn(errorMessage);

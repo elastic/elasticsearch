@@ -95,9 +95,7 @@ public class SegmentCountStep extends AsyncWaitStep {
                         "[{}] retrieval of segment counts after force merge did not succeed, there were {} shard failures. failures: {}",
                         targetIndexName,
                         response.getFailedShards(),
-                        failures == null
-                            ? "n/a"
-                            : failures.stream().map(Strings::toString).collect(Collectors.joining(","))
+                        failures == null ? "n/a" : failures.stream().map(Strings::toString).collect(Collectors.joining(","))
                     );
                     listener.onResponse(true, new Info(-1));
                 } else {

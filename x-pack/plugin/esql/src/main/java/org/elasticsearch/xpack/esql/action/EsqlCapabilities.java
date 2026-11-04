@@ -4688,6 +4688,13 @@ public class EsqlCapabilities {
          */
         UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
 
+        /**
+         * Support for {@code ROW} under {@code unmapped_fields="LOAD_ALL"}, alone or as a branch of a subquery next to an index. A
+         * {@code ROW} has no {@code _source}, so it adds no unmapped fields and its rows have a null {@code _unmapped_fields}. Only
+         * meaningful when {@link #OPTIONAL_FIELDS_LOAD_ALL_V2} is available.
+         */
+        OPTIONAL_FIELDS_LOAD_ALL_ROW(OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

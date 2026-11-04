@@ -38,17 +38,6 @@ public final class LoadAllFromLoad {
         "unmapped-type-conflicts.csv-spec",
         "views.csv-spec" };
 
-    /** Tests with {@code ROW}, which the command allow-list of {@code LOAD_ALL} does not have yet. */
-    private static final Set<String> NEEDS_ROW = Set.of(
-        "in_subquery.forkFoldableLHSUnmappedEvalLoadShouldNotLeakConst",
-        "in_subquery.forkMarkJoinUnmappedEvalLoadShouldNotLeakMark",
-        "in_subquery.unionAllFoldableLHSUnmappedEvalLoadShouldNotLeakConst",
-        "in_subquery.unionAllMarkJoinUnmappedEvalLoadShouldNotLeakMark",
-        "unmapped-load.loadUnmappedFieldReferencedOnlyAboveIndexAndRowUnion",
-        "unmapped-load.loadViewRowConstantsLoadMode",
-        "unmapped-load.loadViewRowEvalLoadMode"
-    );
-
     /** Tests with {@code TS}, which {@code LOAD_ALL} does not support. */
     private static final Set<String> NEEDS_TS = Set.of(
         "unmapped-load.evalOnMaxOverTime",
@@ -92,9 +81,6 @@ public final class LoadAllFromLoad {
 
     /** Why the test is not run with {@code LOAD_ALL}, or {@code null} if it is. */
     public static String skipReason(String testId) {
-        if (NEEDS_ROW.contains(testId)) {
-            return "LOAD_ALL does not support ROW";
-        }
         if (NEEDS_TS.contains(testId)) {
             return "LOAD_ALL does not support TS";
         }

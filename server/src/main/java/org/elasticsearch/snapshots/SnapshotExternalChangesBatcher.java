@@ -20,11 +20,13 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -33,11 +35,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * Manages batching of cluster state tasks that update in-progress snapshots in response to external cluster
@@ -279,6 +281,7 @@ final class SnapshotExternalChangesBatcher {
                                 .processWaitingShardsAndRemovedNodes(
                                     snapshotEntry,
                                     currentState.routingTable(projectId),
+                                    currentState.metadata().getProject(projectId),
                                     nodes,
                                     snapshotsInProgress::isNodeIdForRemoval,
                                     knownFailures
@@ -331,32 +334,30 @@ final class SnapshotExternalChangesBatcher {
         }
 
         private void clusterStateProcessed(ClusterState newState, Collection<SnapshotsInProgress.Entry> finishedSnapshots) {
-            final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(newState);
-            if (finishedSnapshots.isEmpty() == false) {
-                // Skip finalization for repos with an active delete, because it will trigger finalization
-                // for any completed snapshots when it removes itself from the cluster state.
-                final Set<String> reposWithRunningDeletes = snapshotDeletionsInProgress.getEntries()
-                    .stream()
-                    .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.STARTED)
-                    .map(SnapshotDeletionsInProgress.Entry::repository)
-                    .collect(Collectors.toSet());
-                for (SnapshotsInProgress.Entry entry : finishedSnapshots) {
-                    if (reposWithRunningDeletes.contains(entry.repository()) == false) {
-                        finalizeTaskSubmitter.submitFinalizeSnapshotRepositoryDataWriteTask(entry, newState.metadata());
-                    }
-                }
-                finishedSnapshots.clear();
-            }
-            clonesStarter.startClones(SnapshotsInProgress.get(newState));
-            // Run newly ready deletes
-            for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
+            final Map<ProjectId, Set<String>> repositoriesRunningDeletes = Maps.newMapWithExpectedSize(
+                newState.metadata().projects().size()
+            );
+            for (SnapshotDeletionsInProgress.Entry entry : SnapshotDeletionsInProgress.get(newState).getEntries()) {
                 if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
+                    repositoriesRunningDeletes.computeIfAbsent(entry.projectId(), ignored -> new HashSet<>()).add(entry.repository());
                     deleteTaskSubmitter.submitDeleteSnapshotsRepositoryDataWriteTask(
                         entry,
                         newState.nodes().getMaxDataNodeCompatibleIndexVersion()
                     );
                 }
             }
+            for (SnapshotsInProgress.Entry entry : finishedSnapshots) {
+                if (repositoriesRunningDeletes.getOrDefault(entry.projectId(), Set.of()).contains(entry.repository())) {
+                    // The repository has a running delete operation alongside this ready-to-finalize snapshot. The delete operation must
+                    // have started when no snapshots were in progress, but then before the delete operation completed this snapshot
+                    // creation was started and became ready to finalize without interacting with the repository (e.g. because all its
+                    // shards failed). The existence of the running delete operation means that we should not start the finalization yet.
+                    continue;
+                }
+                finalizeTaskSubmitter.submitFinalizeSnapshotRepositoryDataWriteTask(entry, newState.metadata());
+            }
+            finishedSnapshots.clear();
+            clonesStarter.startClones(SnapshotsInProgress.get(newState));
         }
     }
 }

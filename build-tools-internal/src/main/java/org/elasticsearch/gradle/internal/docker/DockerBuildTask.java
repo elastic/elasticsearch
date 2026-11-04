@@ -15,8 +15,6 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
@@ -38,13 +36,16 @@ import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -56,7 +57,7 @@ import javax.inject.Inject;
  * mechanism that can retry, and emitting the image SHA as a task output.
  */
 public abstract class DockerBuildTask extends DefaultTask {
-    private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
+    private static final int MAX_PULL_ATTEMPTS = 10;
 
     private final WorkerExecutor workerExecutor;
     private final RegularFileProperty markerFile;
@@ -207,49 +208,47 @@ public abstract class DockerBuildTask extends DefaultTask {
         /**
          * Wraps `docker pull` in a retry loop, to try and provide some resilience against
          * transient errors
-         * @param baseImage the image to pull.
+         * @param image the image to pull.
          */
-        private void pullBaseImage(String baseImage) {
-            final int maxAttempts = 10;
-            String docker = getParameters().getDockerExecutable().get();
+        private void pullImage(String image) {
+            DockerImagePullSupport.pullImage(execOperations, getParameters().getDockerExecutable().get(), image, null, MAX_PULL_ATTEMPTS);
+        }
 
-            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-                try {
-                    LoggedExec.exec(execOperations, spec -> {
-                        maybeConfigureDockerConfig(spec);
-                        spec.executable(docker);
-                        spec.args("pull");
-                        spec.environment("DOCKER_BUILDKIT", "1");
-                        spec.args(baseImage);
-                    });
-
-                    return;
-                } catch (Exception e) {
-                    LOGGER.warn("Attempt {}/{} to pull Docker base image {} failed", attempt, maxAttempts, baseImage);
-                }
+        /**
+         * Base images pinned by digest are immutable, so an image that is already present locally (e.g. pre-cached on CI
+         * agents at image bake time, see {@link DockerImageCachePlugin}) is reused. Other base images (e.g. moving
+         * {@code latest} tags) are always pulled to pick up updates. Cross-platform builds use buildx, which resolves
+         * digest-pinned base images itself, so these are not pulled into the daemon.
+         */
+        private void pullBaseImage(String baseImage, boolean isCrossPlatform) {
+            if (DockerImagePullSupport.isDigestPinned(baseImage) == false) {
+                pullImage(baseImage);
+            } else if (isCrossPlatform == false) {
+                DockerImagePullSupport.ensureImageAvailable(execOperations, getParameters().getDockerExecutable().get(), baseImage, null);
             }
-
-            // If we successfully ran `docker pull` above, we would have returned before this point.
-            throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
         }
 
         private void maybeConfigureDockerConfig(ExecSpec spec) {
-            String dockerConfig = System.getenv("DOCKER_CONFIG");
-            if (dockerConfig != null) {
-                spec.environment("DOCKER_CONFIG", dockerConfig);
-            }
+            DockerImagePullSupport.maybeConfigureDockerConfig(spec);
         }
 
         @Override
         public void execute() {
             final Parameters parameters = getParameters();
 
-            if (parameters.getPull().get()) {
-                parameters.getBaseImages().get().forEach(this::pullBaseImage);
-            }
-
             final List<String> tags = parameters.getTags().get();
             final boolean isCrossPlatform = isCrossPlatform();
+
+            if (parameters.getPull().get()) {
+                // Besides explicitly declared base images, also make sure digest-pinned images referenced in the
+                // Dockerfile are available, so `docker build` does not pull them implicitly without any retries.
+                Set<String> baseImages = new LinkedHashSet<>(parameters.getBaseImages().get());
+                File dockerfile = new File(parameters.getDockerContext().get().getAsFile(), "Dockerfile");
+                if (dockerfile.isFile()) {
+                    baseImages.addAll(DockerImagePullSupport.digestPinnedBaseImages(dockerfile));
+                }
+                baseImages.forEach(baseImage -> pullBaseImage(baseImage, isCrossPlatform));
+            }
 
             LoggedExec.exec(execOperations, spec -> {
                 maybeConfigureDockerConfig(spec);
@@ -315,7 +314,7 @@ public abstract class DockerBuildTask extends DefaultTask {
                 // multi-platform image builds do not end up in local registry, so we need to pull the just build image
                 // first to get the checksum and also serves as a test for the image being pushed correctly
                 if (parameters.getPlatforms().get().size() > 1 && parameters.getPush().getOrElse(false)) {
-                    pullBaseImage(tags.get(0));
+                    pullImage(tags.get(0));
                 }
                 final String checksum = getImageChecksum(tags.get(0));
                 Files.writeString(parameters.getMarkerFile().getAsFile().get().toPath(), checksum + "\n");

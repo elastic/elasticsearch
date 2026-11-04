@@ -105,6 +105,11 @@ public final class PassThroughObjectMapper extends ObjectMapper implements PassT
         }
 
         @Override
+        protected MapperBuilderContext childContext(MapperBuilderContext context) {
+            return context.createChildContext(leafName(), timeSeriesDimensionSubFields.value(), dynamic);
+        }
+
+        @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
             return new PassThroughObjectMapper(
                 leafName(),
@@ -112,7 +117,7 @@ public final class PassThroughObjectMapper extends ObjectMapper implements PassT
                 enabled,
                 sourceKeepMode,
                 dynamic,
-                buildMappers(context.createChildContext(leafName(), timeSeriesDimensionSubFields.value(), dynamic)),
+                buildMappers(childContext(context)),
                 timeSeriesDimensionSubFields,
                 priority
             );

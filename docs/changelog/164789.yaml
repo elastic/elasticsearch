@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 164774
+pr: 164789
+summary: Move mapping object depth checks into `ParseFieldLimits`
+type: bug

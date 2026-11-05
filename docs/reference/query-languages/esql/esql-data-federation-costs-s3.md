@@ -192,16 +192,13 @@ To reduce S3 costs, you'll need to minimize the number of requests sent and the 
 - Partition data by commonly filtered fields, and put partition filters before `LIMIT`, `SORT`, and `STATS`. Set [`partition_spec`](esql-data-federation-partition-spec.md) so filters on columns inside the files, such as timestamps, can also skip folders. For details, refer to [](esql-data-federation-querying.md#partition-pruning).
 - Use `KEEP`, `WHERE`, and `LIMIT` to read only what a query needs.
 - Lengthen dashboard refresh intervals and narrow time ranges.
-- Keep frequently queried data out of infrequent-access storage classes, and enable S3 Bucket Keys for SSE-KMS buckets.
+- Keep frequently queried data out of infrequent-access storage classes.
+- Enable S3 Bucket Keys for SSE-KMS buckets.
 
 ### Discovery limits [s3-discovery-limits]
 
-Two dynamic cluster settings limit file discovery for a single query. They exist to protect the cluster from glob patterns that match too many objects, not to control costs. Lowering them limits how many objects a query can list and how many files it can read, which also limits the requests that discovery sends.
+The [`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files) and [`esql.external.max_listed_objects`](esql-data-federation-cluster-settings.md#esql-external-max-listed-objects) cluster settings limit file discovery for each dataset. They protect the cluster from glob patterns that match too many objects, so they aren't a cost control. Lowering them limits how many objects {{es}} lists and how many files it keeps, which also limits the requests that discovery sends. For the defaults and how the limits apply, refer to [](esql-data-federation-querying.md#file-discovery-limits).
 
-[`esql.external.max_discovered_files`](esql-data-federation-cluster-settings.md#esql-external-max-discovered-files)
-:   The maximum number of files a query keeps after listing. Defaults to 25,000. A query that exceeds it fails instead of scanning.
-
-[`esql.external.max_listed_objects`](esql-data-federation-cluster-settings.md#esql-external-max-listed-objects)
-:   The maximum number of objects one listing visits, including objects that don't match the pattern. Defaults to 1,000,000. Each 1,000 objects listed costs at least one `LIST` request. The cap applies to each listing rather than the whole query, and not every discovery path checks it, so treat it as a brake on runaway listings rather than a budget.
+Each 1,000 objects listed costs at least one `LIST` request. `esql.external.max_listed_objects` applies to each listing, and not every discovery path checks it, so treat it as a brake on runaway listings rather than a budget.
 
 `esql.external.max_concurrent_requests` isn't a cost limit. It caps how many requests each node has in flight at once, not how many it sends.

@@ -100,6 +100,15 @@ public class HttpClient implements Closeable {
         clientBuilder.disableConnectionState();
 
         /*
+          Retries are owned by RetryingHttpSender, which is bounded by the inference timeout and lets each service's response
+          handler decide what is retryable. The 5.x default retry strategy (absent in the 4.x client) would instead retry 429 and
+          503 responses itself after sleeping for the server's Retry-After, with no upper bound. The response would never reach ES,
+          the request would be re-sent after the caller had given up, and the pooled connection would stay leased for the whole
+          sleep, starving other requests to the same host.
+         */
+        clientBuilder.disableAutomaticRetries();
+
+        /*
           By default, if a keep-alive header is not returned by the server then the connection will be kept alive
           indefinitely. In this situation the default keep alive strategy will return -1. Since we use a connection eviction thread,
           connections that are idle past the max idle time will be closed when the eviction thread executes. If that functionality proves

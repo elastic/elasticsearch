@@ -254,6 +254,43 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     /**
+     * Deep copy this array and return a new independent instance
+     */
+    public BytesRefArray deepCopy() {
+        final BytesRefArray copy = new BytesRefArray(size, bigArrays, lastOffset);
+        boolean success = false;
+        try {
+            long remaining = bytes.size();
+            for (int p = 0; remaining > 0; p++) {
+                final int length = (int) Math.min(remaining, bytes.pages[p].length);
+                copy.bytes.append(bytes.pages[p], 0, length);
+                remaining -= length;
+            }
+            if (intOffsets != null) {
+                copy.intOffsets = new IntOffsets(bigArrays, intOffsets.size);
+                for (long i = 0; i < intOffsets.size; i++) {
+                    copy.intOffsets.append(intOffsets.get(i));
+                }
+            }
+            if (longOffsets != null) {
+                copy.longOffsets = new LongOffsets(bigArrays, longOffsets.size);
+                for (long i = 0; i < longOffsets.size; i++) {
+                    copy.longOffsets.append(longOffsets.get(i));
+                }
+            }
+            copy.fixedLength = fixedLength;
+            copy.lastOffset = lastOffset;
+            copy.size = size;
+            success = true;
+            return copy;
+        } finally {
+            if (success == false) {
+                copy.close();
+            }
+        }
+    }
+
+    /**
      * Truncates this array to {@code newSize} elements, discarding all elements at index
      * {@code >= newSize} and rolling the byte storage back to the end of element
      * {@code newSize - 1}. Subsequent appends overwrite the discarded bytes. No-op when

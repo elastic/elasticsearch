@@ -1038,6 +1038,39 @@ public class SnapshotsServiceUtils {
         String repoName,
         boolean partial
     ) {
+        return shards(
+            snapshotsInProgress,
+            deletionsInProgress,
+            currentState,
+            indices,
+            useShardGenerations,
+            repositoryData,
+            repoName,
+            partial,
+            null
+        );
+    }
+
+    /**
+     * As {@link #shards(SnapshotsInProgress, SnapshotDeletionsInProgress, ProjectState, Collection, boolean, RepositoryData, String,
+     * boolean)}, for indices that may no longer have the name they were resolved under.
+     *
+     * @param indexByRepositoryName the index that each of {@code indices} was resolved to when its snapshot started, for assigning
+     *                              the shards of a snapshot that is already in progress, whose index may have been renamed since; the
+     *                              index is then found by UUID. {@code null} for a snapshot that is just starting, whose indices are
+     *                              found by name.
+     */
+    public static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(
+        SnapshotsInProgress snapshotsInProgress,
+        SnapshotDeletionsInProgress deletionsInProgress,
+        ProjectState currentState,
+        Collection<IndexId> indices,
+        boolean useShardGenerations,
+        RepositoryData repositoryData,
+        String repoName,
+        boolean partial,
+        @Nullable Function<String, Index> indexByRepositoryName
+    ) {
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
         final InFlightShardSnapshotStates inFlightShardStates = InFlightShardSnapshotStates.forEntries(
@@ -1048,12 +1081,15 @@ public class SnapshotsServiceUtils {
         for (IndexId index : indices) {
             final String indexName = index.getName();
             final boolean isNewIndex = repositoryData.getIndices().containsKey(indexName) == false;
-            IndexMetadata indexMetadata = currentState.metadata().index(indexName);
+            final Index startedAs = indexByRepositoryName == null ? null : indexByRepositoryName.apply(indexName);
+            IndexMetadata indexMetadata = startedAs == null
+                ? currentState.metadata().index(indexName)
+                : currentState.metadata().index(startedAs);
             if (indexMetadata == null) {
                 // The index was deleted before we managed to start the snapshot - mark it as missing.
                 builder.put(new ShardId(indexName, IndexMetadata.INDEX_UUID_NA_VALUE, 0), SnapshotsInProgress.ShardSnapshotStatus.MISSING);
             } else {
-                final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexName);
+                final IndexRoutingTable indexRoutingTable = currentState.routingTable().index(indexMetadata.getIndex());
                 assert indexRoutingTable != null;
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                     final ShardId shardId = indexRoutingTable.shard(i).shardId();
@@ -1075,7 +1111,8 @@ public class SnapshotsServiceUtils {
                         shardRepoGeneration = null;
                     }
                     final SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus;
-                    if (readyToExecute == false || inFlightShardStates.isActive(shardId.getIndexName(), shardId.id())) {
+                    // in-flight operations are tracked by repository name, which is not the index's current name once it was renamed
+                    if (readyToExecute == false || inFlightShardStates.isActive(indexName, shardId.id())) {
                         shardSnapshotStatus = SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
                     } else {
                         shardSnapshotStatus = initShardSnapshotStatus(
@@ -1228,9 +1265,19 @@ public class SnapshotsServiceUtils {
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
                 if (entry.partial() == false && entry.isClone() == false) {
                     for (String indexName : entry.indices().keySet()) {
-                        IndexMetadata indexMetadata = projectState.metadata().index(indexName);
-                        if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
-                            result.computeIfAbsent(entry.snapshot(), k -> new HashSet<>()).add(indexMetadata.getIndex());
+                        // The entry knows the index by the name it had when the snapshot started, which a rename may have changed or
+                        // given to another index, so what counts is the index it recorded, matched by UUID.
+                        final Index snapshotIndex = entry.indexByName(indexName);
+                        if (snapshotIndex == null) {
+                            // an entry that has no shards yet has recorded no index, only the name it resolved
+                            final IndexMetadata indexMetadata = projectState.metadata().index(indexName);
+                            if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
+                                result.computeIfAbsent(entry.snapshot(), k -> new HashSet<>()).add(indexMetadata.getIndex());
+                            }
+                        } else if (indicesToCheck.contains(snapshotIndex)) {
+                            final IndexMetadata indexMetadata = projectState.metadata().index(snapshotIndex);
+                            result.computeIfAbsent(entry.snapshot(), k -> new HashSet<>())
+                                .add(indexMetadata == null ? snapshotIndex : indexMetadata.getIndex());
                         }
                     }
                 }

@@ -17,7 +17,9 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -88,9 +91,19 @@ public class RetentionLeaseActions {
 
         @Override
         protected ShardsIterator shards(final ProjectState state, final InternalRequest request) {
-            // resolve through the shard id's Index rather than the name in the request: a remote caller (CCR) may hold the name
-            // the index had before a rename, and RoutingTable#index(Index) falls back to the uuid
-            return state.routingTable().shardRoutingTable(request.request().getShardId()).primaryShardIt();
+            // Route by the index that the name in the request resolved to, because that is the name that was authorized. The shard id
+            // is only trusted if it agrees: one that pairs an authorized name with another index's UUID, or that carries the name an
+            // index had before a rename, must not be followed to an index that was never authorized. A caller that holds a stale
+            // name finds the current one by UUID itself and sends the request again under it.
+            final ShardId shardId = request.request().getShardId();
+            final String concreteIndex = request.concreteIndex();
+            final IndexMetadata resolved = state.metadata().index(concreteIndex);
+            if (resolved == null
+                || (ClusterState.UNKNOWN_UUID.equals(shardId.getIndex().getUUID()) == false
+                    && resolved.getIndexUUID().equals(shardId.getIndex().getUUID()) == false)) {
+                throw new IndexNotFoundException(shardId.getIndex());
+            }
+            return state.routingTable().shardRoutingTable(concreteIndex, shardId.id()).primaryShardIt();
         }
 
         @Override

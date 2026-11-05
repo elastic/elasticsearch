@@ -196,7 +196,38 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 );
                 try (var ignore = threadPool.getThreadContext().newEmptySystemContext()) {
                     // we have to execute under the system context so that if security is enabled the removal is authorized
-                    CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, preservedListener);
+                    CcrRetentionLeases.asyncRemoveRetentionLease(
+                        leaderShardId,
+                        retentionLeaseId,
+                        remoteClient,
+                        ActionListener.wrap(preservedListener::onResponse, e -> {
+                            // The leader is addressed by the name it had when following began. If it was renamed since, that name
+                            // finds nothing, so look the leader up by its UUID and remove the lease under its current name.
+                            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException == false) {
+                                preservedListener.onFailure(e);
+                                return;
+                            }
+                            try (var ignored = threadContext.newEmptySystemContext()) {
+                                CcrRequests.resolveIndexByUuid(remoteClient, leaderShardId.getIndex(), ActionListener.wrap(resolved -> {
+                                    if (resolved.getName().equals(leaderShardId.getIndexName())) {
+                                        preservedListener.onFailure(e);
+                                        return;
+                                    }
+                                    try (var ignoredToo = threadContext.newEmptySystemContext()) {
+                                        CcrRetentionLeases.asyncRemoveRetentionLease(
+                                            new ShardId(resolved, leaderShardId.id()),
+                                            retentionLeaseId,
+                                            remoteClient,
+                                            preservedListener
+                                        );
+                                    }
+                                }, resolveFailure -> {
+                                    e.addSuppressed(resolveFailure);
+                                    preservedListener.onFailure(e);
+                                }));
+                            }
+                        })
+                    );
                 }
             }
 

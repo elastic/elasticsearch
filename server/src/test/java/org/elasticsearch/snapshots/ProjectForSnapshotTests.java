@@ -9,6 +9,9 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
@@ -21,11 +24,13 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -123,4 +128,91 @@ public class ProjectForSnapshotTests extends ESTestCase {
         assertThat(view.index(first.getName()).getIndexUUID(), equalTo(first.getUUID()));
         assertThat(view.index(firstRenamed.getName()), nullValue());
     }
+
+    public void testReviewSnapshotGuardFollowsRename() {
+        final Index original = new Index("source", "uuid-original");
+        final IndexMetadata renamed = index("renamed", original.getUUID());
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(renamed, false).build();
+        final SnapshotsInProgress.Entry snapshot = snapshotOf(false, List.of(), original);
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(snapshot))
+            .build();
+        assertThat(
+            SnapshotsServiceUtils.snapshottingIndicesBySnapshot(state.projectState(ProjectId.DEFAULT), Set.of(renamed.getIndex())),
+            equalTo(Map.of(snapshot.snapshot(), Set.of(renamed.getIndex())))
+        );
+    }
+
+    public void testReviewSnapshotGuardDoesNotBlockReplacement() {
+        final Index original = new Index("source", "uuid-original");
+        final IndexMetadata renamed = index("renamed", original.getUUID());
+        final IndexMetadata replacement = index("source", "uuid-replacement");
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(renamed, false).put(replacement, false).build();
+        final SnapshotsInProgress.Entry snapshot = snapshotOf(false, List.of(), original);
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(snapshot))
+            .build();
+        assertTrue(
+            SnapshotsServiceUtils.snapshottingIndicesBySnapshot(state.projectState(ProjectId.DEFAULT), Set.of(replacement.getIndex()))
+                .isEmpty()
+        );
+    }
+
+    public void testReviewReevaluatingQueuedSnapshotFollowsRename() {
+        final Index original = new Index("source", "uuid-original");
+        final IndexMetadata renamed = index("renamed", original.getUUID());
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(renamed, false).build();
+        final SnapshotsInProgress.Entry snapshot = snapshotOf(false, List.of(), original);
+        final SnapshotsInProgress snapshots = SnapshotsInProgress.EMPTY.withAddedEntry(snapshot);
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(
+                ProjectId.DEFAULT,
+                org.elasticsearch.cluster.routing.RoutingTable.builder(
+                    org.elasticsearch.cluster.TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+                ).addAsNew(renamed).build()
+            )
+            .putCustom(SnapshotsInProgress.TYPE, snapshots)
+            .build();
+        final var assignments = SnapshotsServiceUtils.shards(
+            snapshots,
+            SnapshotDeletionsInProgress.EMPTY,
+            state.projectState(ProjectId.DEFAULT),
+            snapshot.indices().values(),
+            true,
+            RepositoryData.EMPTY,
+            "repo",
+            false,
+            snapshot::indexByName
+        );
+        assertNotNull("the queued snapshot must retain its original shard UUID", assignments.get(new ShardId(original, 0)));
+    }
+
+    public void testReviewDeleteDuringSnapshotMustStillBeRejectedAfterRename() {
+        final Index original = new Index("source", "uuid-original");
+        final IndexMetadata renamed = index("renamed", original.getUUID());
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(renamed, false).build();
+        final SnapshotsInProgress.Entry snapshot = snapshotOf(false, List.of(), original);
+        final ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(
+                ProjectId.DEFAULT,
+                org.elasticsearch.cluster.routing.RoutingTable.builder(
+                    org.elasticsearch.cluster.TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+                ).addAsNew(renamed).build()
+            )
+            .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(snapshot))
+            .build();
+        expectThrows(
+            SnapshotInProgressException.class,
+            () -> org.elasticsearch.cluster.metadata.MetadataDeleteIndexService.deleteIndices(
+                state.projectState(ProjectId.DEFAULT),
+                Set.of(renamed.getIndex()),
+                org.elasticsearch.common.settings.Settings.EMPTY
+            )
+        );
+    }
+
 }

@@ -1442,7 +1442,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 entry.version().onOrAfter(SHARD_GEN_IN_REPO_DATA_VERSION),
                                 repositoryData,
                                 repoName,
-                                entry.partial()
+                                entry.partial(),
+                                entry::indexByName
                             );
                             final ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> updatedAssignmentsBuilder = ImmutableOpenMap
                                 .builder(entry.shards());

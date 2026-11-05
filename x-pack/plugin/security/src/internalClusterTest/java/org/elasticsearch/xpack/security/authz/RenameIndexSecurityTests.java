@@ -18,6 +18,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -157,6 +161,69 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
         assertTrue(indexExists("new-ds-1"));
         // the renamed index is still the data stream's backing index, so access through the data stream name continues
         assertThat(backingIndices("logs").get(0).getName(), equalTo("new-ds-1"));
+    }
+
+    /**
+     * A shard id captured before a rename must not keep working under its old name for a user who is authorized for that name but
+     * not for the index's new one. The request is authorized for the name it carries, so it must be routed by that name, and since
+     * no index has it any more the request fails instead of following the UUID to the renamed index.
+     */
+    public void testStaleShardNameDoesNotRetainPrivilegesAfterRename() {
+        createIndex("old-lease", 1, 0, false);
+        ensureGreen("old-lease");
+        final var oldIndex = clusterService().state().metadata().getProject().index("old-lease").getIndex();
+        final var oldShard = new ShardId(oldIndex, 0);
+        client().execute(RetentionLeaseActions.ADD, new RetentionLeaseActions.AddRequest(oldShard, "review-lease", 0, "review"))
+            .actionGet();
+        rename(client(), "old-lease", "new-lease");
+        final var newIndex = clusterService().state().metadata().getProject().index("new-lease").getIndex();
+        final var newShard = new ShardId(newIndex, 0);
+        final Client restricted = clientAs("rename_source_only");
+        assertThrowsAuthorizationException(
+            () -> restricted.execute(
+                RetentionLeaseActions.RENEW,
+                new RetentionLeaseActions.RenewRequest(newShard, "review-lease", 0, "review")
+            ).actionGet(),
+            RetentionLeaseActions.RENEW.name(),
+            "rename_source_only"
+        );
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> restricted.execute(
+                RetentionLeaseActions.RENEW,
+                new RetentionLeaseActions.RenewRequest(oldShard, "review-lease", 0, "review")
+            ).actionGet()
+        );
+    }
+
+    /**
+     * A shard id that pairs a name the user may access with the UUID of an index they may not must not reach that index, with no
+     * rename involved: the request is authorized for the name, so the name decides where it goes.
+     */
+    public void testForgedShardNameCannotRemoveAnotherIndicesRetentionLease() {
+        createIndex("old-public", 1, 0, false);
+        createIndex("new-private", 1, 0, false);
+        ensureGreen("old-public", "new-private");
+        final var privateIndex = clusterService().state().metadata().getProject().index("new-private").getIndex();
+        final var privateShard = new ShardId(privateIndex, 0);
+        client().execute(RetentionLeaseActions.ADD, new RetentionLeaseActions.AddRequest(privateShard, "private-lease", 0, "review"))
+            .actionGet();
+        final var forgedShard = new ShardId(new Index("old-public", privateIndex.getUUID()), 0);
+        final Client restricted = clientAs("rename_source_only");
+        assertThrowsAuthorizationException(
+            () -> restricted.execute(RetentionLeaseActions.REMOVE, new RetentionLeaseActions.RemoveRequest(privateShard, "private-lease"))
+                .actionGet(),
+            RetentionLeaseActions.REMOVE.name(),
+            "rename_source_only"
+        );
+        expectThrows(
+            IndexNotFoundException.class,
+            () -> restricted.execute(RetentionLeaseActions.REMOVE, new RetentionLeaseActions.RemoveRequest(forgedShard, "private-lease"))
+                .actionGet()
+        );
+        // and the lease is still there
+        final var leases = indicesAdmin().prepareStats("new-private").get().getShards()[0].getRetentionLeaseStats().retentionLeases();
+        assertTrue(leases.contains("private-lease"));
     }
 
     private Client clientAs(String user) {

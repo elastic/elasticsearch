@@ -246,6 +246,20 @@ Three rules come with the fallback:
   resolves by name and compares the UUID strictly. The production change
   should give the strict form its own method and audit every caller that uses
   an `Index` as proof of identity rather than as a key.
+  That check only runs for cross-cluster API key requests, so it does not
+  protect an action that is authorized by the index name in its request and then
+  routed by the shard id inside it. Two single-shard actions were routed by the
+  shard id's `Index`, and so by the fallback: the retention lease actions and
+  `ShardChangesAction`. A user with access to one index name could name it and
+  pair it with another index's UUID to remove a lease from, or read operations
+  of, an index they could not see, with no rename involved, and a shard id
+  captured before a rename kept working after the index moved outside the
+  user's name pattern. Both now route by the index the authorized name resolves
+  to and fail with index not found if the shard id's UUID does not agree
+  (`RenameIndexSecurityTests#testForgedShardNameCannotRemoveAnotherIndicesRetentionLease`,
+  `testStaleShardNameDoesNotRetainPrivilegesAfterRename`). The rule for any
+  action that is authorized by name: route by what the name resolves to, and
+  treat the shard id only as a claim to check.
 
 ### T3. Rename detection costs a by-UUID map per cluster state
 
@@ -336,6 +350,18 @@ its backing indices (`testRenameWhileSnapshotting`,
 `testNameTakenOverWhileSnapshotting`, `ProjectForSnapshotTests`). A name that
 another index took over in the meantime does not mix the two up.
 
+The checks that protect an index with a snapshot in flight find the index the
+same way. Deleting, closing or restoring over an index with a snapshot running
+is refused through `SnapshotsServiceUtils#snapshottingIndicesBySnapshot`, which
+used to look each entry index up by the name the entry holds. Since the entry
+keeps its starting name, that missed a renamed index and wrongly blocked an
+unrelated one that took the old name; it now compares the `Index` the entry
+recorded by UUID. Likewise, a snapshot queued behind a repository deletion gets
+its shard assignments when the deletion ends through `SnapshotsServiceUtils#shards`,
+which now finds each index by the one the entry recorded and keeps the
+shard's original UUID (`ProjectForSnapshotTests`). An entry that has no shards
+yet has recorded no index, only a name, and is checked by name.
+
 One more consequence of an index appearing under two ids: the repository finds
 an index metadata blob by an identifier built from the index UUID and the
 versions of its metadata, but the blob lives in the container of one `id`. A
@@ -378,9 +404,13 @@ disappears fails the shard follow task fatally; a rename keeps the identity,
 so it belongs with the retried cases. What was name-based and now resolves
 through the UUID: the follower's leader metadata requests (mapping, settings
 and alias sync), which on an `IndexNotFoundException` ask the leader cluster
-for the current name by UUID once and remember it; `ShardChangesAction` and
-`RetentionLeaseActions`, which resolve the shard through `RoutingTable#index(Index)`;
-and pause, unfollow and follow-stats, which match tasks by UUID. The requests
+for the current name by UUID once and remember it, as do the shard changes
+requests, the retention lease renewals and additions of the follow task, and the
+lease removal on unfollow: the leader's `ShardChangesAction` and
+`RetentionLeaseActions` are authorized by the name in the request, so they
+route by that name and refuse a shard id whose UUID disagrees (T2), which leaves
+the caller to find the current name; and pause, unfollow and follow-stats, which
+match tasks by UUID. The requests
 the follow task sends to change the follower itself (put mapping, update
 settings, the close, update and open sequence for non-dynamic settings, and
 alias changes) are addressed by name, and the name in the task parameters is
@@ -523,8 +553,9 @@ handling of its own:
   the map outlives a cluster state and anything reads the name from its keys,
   re-key the entries that `indicesRenamed()` reports.
 - React to `indicesDeleted()`, never to "this name is gone".
-- Look indices up with `index(Index)`, except in authorization code, which
-  must resolve by name and compare the UUID strictly. Never pass a shard id's
+- Look indices up with `index(Index)`, except in authorization code, and in
+  an action that is authorized by the name in its request, which must resolve by
+  name and compare the UUID strictly. Never pass a shard id's
   name into a name-keyed lookup (blocks, the indices lookup, settings): a
   swap makes it find the wrong index with no error.
 - A cluster state component that stores an `Index` must compare names in its

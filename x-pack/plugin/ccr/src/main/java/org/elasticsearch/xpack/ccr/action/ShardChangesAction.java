@@ -15,12 +15,11 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,7 +38,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
@@ -501,18 +499,19 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
 
         @Override
         protected ShardsIterator shards(ProjectState state, InternalRequest request) {
-            // resolve through the Index rather than the name in the request: the leader may have been renamed since the follower
-            // captured it, and RoutingTable#index(Index) falls back to the uuid
+            // Route by the index that the name in the request resolved to, because that is the name that was authorized. The shard id
+            // is only trusted if it agrees: one that pairs an authorized name with another index's UUID, or that carries the name the
+            // leader had before a rename, must not be followed to an index that was never authorized. The follower finds the leader's
+            // current name by UUID itself and sends the request again under it.
             final ShardId shardId = request.request().getShard();
-            final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.getIndex());
-            if (indexRoutingTable == null) {
+            final String concreteIndex = request.concreteIndex();
+            final IndexMetadata resolved = state.metadata().index(concreteIndex);
+            if (resolved == null
+                || (ClusterState.UNKNOWN_UUID.equals(shardId.getIndex().getUUID()) == false
+                    && resolved.getIndexUUID().equals(shardId.getIndex().getUUID()) == false)) {
                 throw new IndexNotFoundException(shardId.getIndex());
             }
-            final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.id());
-            if (shardRoutingTable == null) {
-                throw new ShardNotFoundException(shardId);
-            }
-            return shardRoutingTable.activeInitializingShardsRandomIt();
+            return state.routingTable().shardRoutingTable(concreteIndex, shardId.id()).activeInitializingShardsRandomIt();
         }
 
         @Override

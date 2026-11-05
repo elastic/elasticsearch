@@ -540,23 +540,25 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                 Consumer<ShardChangesAction.Response> handler,
                 Consumer<Exception> errorHandler
             ) {
-                ShardChangesAction.Request request = new ShardChangesAction.Request(
-                    params.getLeaderShardId(),
-                    recordedLeaderShardHistoryUUID
-                );
-                request.setFromSeqNo(from);
-                request.setMaxOperationCount(maxOperationCount);
-                request.setMaxBatchSize(params.getMaxReadRequestSize());
-                request.setPollTimeout(params.getReadPollTimeout());
-                try {
-                    remoteClient(params).execute(
-                        ShardChangesAction.REMOTE_TYPE,
-                        request,
-                        ActionListener.wrap(handler::accept, errorHandler)
+                runWithLeaderIndex((leaderIndex, onError) -> {
+                    final ShardChangesAction.Request request = new ShardChangesAction.Request(
+                        new ShardId(leaderIndex, params.getLeaderShardId().id()),
+                        recordedLeaderShardHistoryUUID
                     );
-                } catch (NoSuchRemoteClusterException e) {
-                    errorHandler.accept(e);
-                }
+                    request.setFromSeqNo(from);
+                    request.setMaxOperationCount(maxOperationCount);
+                    request.setMaxBatchSize(params.getMaxReadRequestSize());
+                    request.setPollTimeout(params.getReadPollTimeout());
+                    try {
+                        remoteClient(params).execute(
+                            ShardChangesAction.REMOTE_TYPE,
+                            request,
+                            ActionListener.wrap(handler::accept, onError)
+                        );
+                    } catch (NoSuchRemoteClusterException e) {
+                        onError.accept(e);
+                    }
+                }, errorHandler);
             }
 
             @Override
@@ -605,12 +607,15 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                                 final Throwable innerCause = ExceptionsHelper.unwrapCause(inner);
                                 logRetentionLeaseFailure(retentionLeaseId, innerCause);
                             });
-                            CcrRetentionLeases.asyncAddRetentionLease(
-                                params.getLeaderShardId(),
-                                retentionLeaseId,
-                                followerGlobalCheckpoint.getAsLong() + 1,
-                                remoteClient(params),
-                                wrappedListener
+                            runWithLeaderIndex(
+                                (leaderIndex, onError) -> CcrRetentionLeases.asyncAddRetentionLease(
+                                    new ShardId(leaderIndex, params.getLeaderShardId().id()),
+                                    retentionLeaseId,
+                                    followerGlobalCheckpoint.getAsLong() + 1,
+                                    remoteClient(params),
+                                    ActionListener.wrap(wrappedListener::onResponse, onError)
+                                ),
+                                wrappedListener::onFailure
                             );
                         } catch (NoSuchRemoteClusterException rce) {
                             // we will attempt to renew again after another renew interval has passed
@@ -627,12 +632,15 @@ public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<Shar
                         params.getFollowShardId(),
                         retentionLeaseId
                     );
-                    CcrRetentionLeases.asyncRenewRetentionLease(
-                        params.getLeaderShardId(),
-                        retentionLeaseId,
-                        followerGlobalCheckpoint.getAsLong() + 1,
-                        remoteClient(params),
-                        listener
+                    runWithLeaderIndex(
+                        (leaderIndex, onError) -> CcrRetentionLeases.asyncRenewRetentionLease(
+                            new ShardId(leaderIndex, params.getLeaderShardId().id()),
+                            retentionLeaseId,
+                            followerGlobalCheckpoint.getAsLong() + 1,
+                            remoteClient(params),
+                            ActionListener.wrap(listener::onResponse, onError)
+                        ),
+                        listener::onFailure
                     );
                 }, retentionLeaseRenewInterval, ccrExecutor);
             }

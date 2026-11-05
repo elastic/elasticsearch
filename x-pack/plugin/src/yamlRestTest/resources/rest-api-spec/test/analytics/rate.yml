@@ -211,7 +211,7 @@
   - requires:
       cluster_features: ["gte_v8.7.0"]
       reason: "counter field support added in 8.7"
-      test_runner_features: close_to
+      test_runner_features: [close_to, allowed_warnings]
 
   - do:
       indices.create:
@@ -267,6 +267,8 @@
           - '{"@timestamp": "2021-04-28T18:50:09.000Z", "host": "one", "bytes_counter": 1550, "bytes_gauge": 30, "bytes": 30 }'
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: test-rate
         body:
@@ -334,7 +336,7 @@
   - requires:
       cluster_features: ["gte_v8.7.0"]
       reason: "counter field support added in 8.7"
-      test_runner_features: close_to
+      test_runner_features: [close_to, allowed_warnings]
 
   - do:
       indices.create:
@@ -386,6 +388,8 @@
           - '{"@timestamp": "2021-04-28T21:00:00.000Z", "host": "one", "counter": 888000 }'
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: test-rate
         body:
@@ -448,7 +452,7 @@
   - requires:
       cluster_features: ["gte_v8.7.0"]
       reason: "counter field support added in 8.7"
-      test_runner_features: close_to
+      test_runner_features: [close_to, allowed_warnings]
 
   - do:
       indices.create:
@@ -503,6 +507,8 @@
           - '{"@timestamp": "2021-04-28T18:01:51.000Z", "host": "two", "bytes_counter": 1350 }'
 
   - do:
+      allowed_warnings:
+        - "The [time_series] aggregation, and the aggregations that rely on it (such as [rate] on counter fields and [geo_line] inside a [time_series] aggregation), are deprecated and will be removed in a future version. Use the ES|QL [TS] command instead."
       search:
         index: test-rate
         body:

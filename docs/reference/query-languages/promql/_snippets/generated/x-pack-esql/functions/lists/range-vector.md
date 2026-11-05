@@ -39,6 +39,9 @@
 :::{include} ../min_over_time.md
 :::
 
+:::{include} ../predict_linear.md
+:::
+
 :::{include} ../present_over_time.md
 :::
 

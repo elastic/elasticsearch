@@ -75,6 +75,13 @@ public final class ExemplarsRewriter {
     private static final String METRIC_NAME_FIELD = "metric_name";
     /** The exemplar field holding the observed value. */
     private static final String VALUE_FIELD = "value";
+    /**
+     * The exemplar fields linking it to the trace and span it was recorded in. OTLP exemplars store them as top-level fields. Prometheus
+     * remote write exemplars carry them as exemplar labels, which resolve to these names through their passthrough object, following
+     * the {@code trace_id} and {@code span_id} label names that OpenTelemetry and the Prometheus client libraries use for exemplars.
+     */
+    private static final String TRACE_ID_FIELD = "trace_id";
+    private static final String SPAN_ID_FIELD = "span_id";
 
     private ExemplarsRewriter() {}
 
@@ -180,16 +187,18 @@ public final class ExemplarsRewriter {
     }
 
     /**
-     * The columns an exemplars query returns, in output order: the exemplar's timestamp, the metric it belongs to and its observed
-     * value, then the dimensions identifying its series when {@code timeseries} is requested, and finally its full document. The named
-     * columns are left unresolved so that analysis binds them against the exemplar data streams, or nullifies the ones none of them
-     * maps.
+     * The columns an exemplars query returns, in output order: the exemplar's timestamp, the metric it belongs to, its observed
+     * value and the trace and span it was recorded in, then the dimensions identifying its series when {@code timeseries} is requested,
+     * and finally its full document. The named columns are left unresolved so that analysis binds them against the exemplar data
+     * streams, or nullifies the ones none of them maps.
      */
     private static List<NamedExpression> exemplarProjections(Source source, @Nullable TimeSeriesMetadataAttribute timeseries) {
-        List<NamedExpression> projections = new ArrayList<>(5);
+        List<NamedExpression> projections = new ArrayList<>(7);
         projections.add(new UnresolvedAttribute(source, MetadataAttribute.TIMESTAMP_FIELD));
         projections.add(new UnresolvedAttribute(source, METRIC_NAME_FIELD));
         projections.add(new UnresolvedAttribute(source, VALUE_FIELD));
+        projections.add(new UnresolvedAttribute(source, TRACE_ID_FIELD));
+        projections.add(new UnresolvedAttribute(source, SPAN_ID_FIELD));
         if (timeseries != null) {
             projections.add(timeseries);
         }

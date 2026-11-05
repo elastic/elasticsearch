@@ -13,6 +13,8 @@ import org.elasticsearch.simdjson.internal.fieldnames.FrozenFieldNameTable;
 import org.elasticsearch.simdjson.internal.parsers.BitIndexes;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -273,6 +275,117 @@ public class SimdJsonDirectWalkerTests extends SimdJsonTestCase {
         String name2 = handler2.events.get(0).substring("long(".length(), handler2.events.get(0).indexOf('='));
         assertEquals("field", name1);
         assertEquals("field", name2);
+    }
+
+    // Field name prediction remembers which name followed which. It is only a hint, so a
+    // walker that has learned name sequences from earlier documents must emit exactly what a fresh walker
+    // emits for any document, however the names are reordered, shortened, extended, escaped or nested.
+    public void testFieldNamePredictionNeverChangesEvents() {
+        // Raw JSON key text, as it appears between the quotes. Several share prefixes or straddle the
+        // 8 and 16 byte boundaries the predictor and hash paths branch on; others are written with escapes.
+        String[] keys = {
+            "a",
+            "ab",
+            "abc",
+            "ab\\u0063",
+            "a\\\"",
+            "a\\\\",
+            "abcdefg",
+            "abcdefgh",
+            "abcdefghi",
+            "abcdefghijklmno",
+            "abcdefghijklmnop",
+            "abcdefghijklmnopq",
+            "abcdefghijklmnopqrstuvwxyz0123456789",
+            "",
+            "caf\\u00e9",
+            "caf\u00e9",
+            "x.y.z" };
+        List<String> docs = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            docs.add(randomObject(keys, 3));
+        }
+        List<List<String>> expected = new ArrayList<>();
+        for (String doc : docs) {
+            expected.add(walkJson(doc));
+        }
+
+        SimdJsonDirectWalker shared = newWalker();
+        for (int round = 0; round < 6; round++) {
+            for (int i = 0; i < docs.size(); i++) {
+                // mostly in order so name sequences get learned and hit, sometimes shuffled so predictions miss
+                int which = rarely() ? randomIntBetween(0, docs.size() - 1) : i;
+                int padding = randomFrom(0, 0, 1, 7, 8, 9, 64);
+                assertEquals(
+                    "round " + round + " doc " + which + ": " + docs.get(which),
+                    expected.get(which),
+                    walkWith(shared, docs.get(which), padding)
+                );
+            }
+            if (rarely()) {
+                shared.releaseNames();
+            }
+        }
+    }
+
+    // A shape change in the middle of a stream (what a bulk spanning several indices looks like on one
+    // thread) must keep producing correct names after every switch.
+    public void testFieldNamePredictionSurvivesInterleavedShapes() {
+        String shapeA = "{\"alpha\":1,\"beta\":2,\"gamma\":{\"delta\":3,\"epsilon\":4}}";
+        String shapeB = "{\"beta\":1,\"alpha\":2,\"gamma\":{\"epsilon\":3,\"delta\":4},\"extra\":5}";
+        List<String> expectedA = walkJson(shapeA);
+        List<String> expectedB = walkJson(shapeB);
+        SimdJsonDirectWalker shared = newWalker();
+        for (int i = 0; i < 200; i++) {
+            boolean a = randomBoolean();
+            assertEquals(a ? expectedA : expectedB, walkWith(shared, a ? shapeA : shapeB, randomFrom(0, 8)));
+        }
+    }
+
+    // A key with an escape must never be remembered as its raw bytes: after a document whose key is
+    // a, backslash, backslash (the name a\), a document whose key is a, backslash, quote (the name a")
+    // starts with the same bytes up to a quote.
+    public void testEscapedKeysAreNeverPredicted() {
+        String[] docs = { "{\"a\\\\\":1}", "{\"a\\\"\":1}", "{\"a\\\\\":1}", "{\"\\\"\":1}", "{\"\\\\\":1}", "{\"\\\"\":1}" };
+        SimdJsonDirectWalker shared = newWalker();
+        for (int round = 0; round < 3; round++) {
+            for (String doc : docs) {
+                assertEquals(doc, walkJson(doc), walkWith(shared, doc, randomFrom(0, 8)));
+            }
+        }
+    }
+
+    private static String randomObject(String[] keys, int depth) {
+        List<String> shuffled = new ArrayList<>(List.of(keys));
+        Collections.shuffle(shuffled, random());
+        int count = randomIntBetween(0, 6);
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < count; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append('"').append(shuffled.get(i)).append("\":");
+            if (depth > 0 && rarely()) {
+                sb.append(randomObject(keys, depth - 1));
+            } else {
+                sb.append(randomIntBetween(0, 1000));
+            }
+        }
+        return sb.append('}').toString();
+    }
+
+    /** Walks {@code json} with the given (reused) walker, in a buffer with {@code padding} spare bytes after it. */
+    private List<String> walkWith(SimdJsonDirectWalker walker, String json, int padding) {
+        byte[] jsonBytes = json.getBytes(UTF_8);
+        int len = jsonBytes.length;
+        byte[] buffer = Arrays.copyOf(jsonBytes, len + padding);
+        try (SimdJsonParser parser = newParser(buffer.length)) {
+            parser.stage1(buffer, 0, len);
+            parser.prepareDocumentWindow(0, len);
+            RecordingHandler handler = new RecordingHandler();
+            walker.walkDocument(buffer, parser, handler);
+            return handler.events;
+        }
     }
 
     // ---- Exact buffer length and padding invariance ----

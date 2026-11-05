@@ -114,6 +114,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -452,7 +453,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 indexSettings,
                 searchExecutionContext,
                 bitsetFilterCache,
-                breakerService.getBreaker(CircuitBreaker.REQUEST)
+                breakerService.getBreaker(CircuitBreaker.REQUEST),
+                query
             ),
             bitsetFilterCache,
             randomInt(),
@@ -488,7 +490,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexSettings indexSettings,
         SearchExecutionContext searchExecutionContext,
         BitsetFilterCache bitsetFilterCache,
-        CircuitBreaker breaker
+        CircuitBreaker breaker,
+        Query query
     ) {
         SearchContext ctx = mock(SearchContext.class);
         try {
@@ -537,7 +540,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(ctx.newSourceLoader(null)).thenAnswer(inv -> searchExecutionContext.newSourceLoader(null, false));
         when(ctx.newIdLoader()).thenReturn(IdLoader.fromLeafStoredFieldLoader());
         when(ctx.innerHits()).thenReturn(new InnerHitsContext());
-        var res = new SubSearchContext(ctx);
+        // SearchService gives the SubSearchContext the query of the search. Without it, anything that needs the query, like
+        // track_scores on a top_hits that is sorted, finds none.
+        var res = new SubSearchContext(ctx).parsedQuery(new ParsedQuery(query));
         releasables.add(res); // TODO: nasty workaround for not getting the standard resource handling behavior of a real search context
         return res;
     }

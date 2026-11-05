@@ -967,3 +967,20 @@ ROW x = 100000000000000000
 c:long | b:double
 1      | 1.0E17
 ;
+
+
+Tight long range ending at 2^53 still fills empty buckets
+required_capability: bucket_include_empty_buckets
+required_capability: fn_bucket_unsigned_long_bounds
+
+// Doubles are 2 apart at the exclusive upper bound 2^53, but every key below it is exact at width 1.
+ROW x = 9007199254740990
+| STATS c = COUNT(*)
+  BY b = BUCKET(x, 2, 9007199254740990, 9007199254740992, {"include_empty_buckets": true})
+| SORT b
+;
+
+c:long | b:double
+1      | 9.00719925474099E15
+0      | 9.007199254740991E15
+;

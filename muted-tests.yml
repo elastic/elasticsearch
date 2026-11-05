@@ -339,9 +339,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/45_knn_search_byte/Test nonexistent field is match none}
   issue: https://github.com/elastic/elasticsearch/issues/162766
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/162945
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
@@ -513,11 +510,6 @@ tests:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
   issue: https://github.com/elastic/elasticsearch/issues/164423
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationUnmappedNullifyIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:unmapped-nullify.maxOverTimeOfKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/164433
 - class: org.elasticsearch.cluster.SimpleClusterStateIT
   tasks:
   - :server:internalClusterTest
@@ -562,31 +554,22 @@ tests:
   - :x-pack:plugin:inference:test
   method: testCompletionIsWithheldUntilDemandIsAvailable
   issue: https://github.com/elastic/elasticsearch/issues/164701
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesAvgOverTimeIT
+- class: org.elasticsearch.xpack.stateless.engine.translog.TranslogUploadHedgeIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
-  issue: https://github.com/elastic/elasticsearch/issues/164718
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesAvgOverTimeIT
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testNormalAndHedgeUploadsWithRandomDelays
+  issue: https://github.com/elastic/elasticsearch/issues/164751
+- class: org.elasticsearch.xpack.esql.action.ExternalWorkerFirstStateIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_double_no_grouping}
-  issue: https://github.com/elastic/elasticsearch/issues/164720
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesMaxOverTimeIT
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testWorkerWithoutAnyAppliedStateIsHeldBack
+  issue: https://github.com/elastic/elasticsearch/issues/164755
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  issue: https://github.com/elastic/elasticsearch/issues/164722
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesMinOverTimeIT
+  - :qa:smoke-test-multinode:yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/164771
+- class: org.elasticsearch.compute.lucene.read.FieldPresenceOperatorTests
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  issue: https://github.com/elastic/elasticsearch/issues/164724
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesSumOverTimeIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:k8s-timeseries-sum-over-time.sum_over_time_of_integer}
-  issue: https://github.com/elastic/elasticsearch/issues/164726
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesSumOverTimeIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:k8s-timeseries-sum-over-time.sum_over_time_of_double_no_grouping}
-  issue: https://github.com/elastic/elasticsearch/issues/164728
+  - :x-pack:plugin:esql:compute:test
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/164801

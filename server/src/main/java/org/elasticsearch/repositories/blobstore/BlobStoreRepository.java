@@ -1005,15 +1005,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return getRepositoryData(genToLoad);
     }
 
-    /**
-     * Some repositories (i.e. S3) run at extra risk of corruption when using the pre-7.6.0 repository format, against which we try and
-     * protect by adding some delays in between operations so that things have a chance to settle down. This method is the hook that allows
-     * the delete process to add this protection when necessary.
-     */
-    protected ActionListener<RepositoryData> wrapWithWeakConsistencyProtection(ActionListener<RepositoryData> listener) {
-        return listener;
-    }
-
     @Override
     public void deleteSnapshots(
         Set<SnapshotId> snapshotIds,
@@ -1204,7 +1195,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (useShardGenerations) {
                 runWithUniqueShardMetadataNaming(releasingListener, releasingOnCompletion);
             } else {
-                runWithLegacyNumericShardMetadataNaming(wrapWithWeakConsistencyProtection(releasingListener), releasingOnCompletion);
+                runWithLegacyNumericShardMetadataNaming(releasingListener, releasingOnCompletion);
             }
         }
 

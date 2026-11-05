@@ -1291,8 +1291,11 @@ public abstract class Engine implements Closeable {
         ensureOpen(null);
     }
 
-    /** get commits stats for the last commit */
-    public final CommitStats commitStats() {
+    /**
+     * Get commit stats for the last commit. Engines may override this to avoid reading the last committed segment infos, as long as
+     * the stats are the same as those built from {@link #getLastCommittedSegmentInfos()}.
+     */
+    public CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 

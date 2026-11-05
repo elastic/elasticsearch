@@ -959,8 +959,9 @@ public class NumberFieldMapperColumnarCompatibilityTests extends AbstractColumna
     }
 
     /**
-     * A coerced empty string with no {@code null_value} records a null slot in the row path's offsets sidecar,
-     * which the columnar sidecar cannot emit, so both a scalar and an array occurrence fall back to the row path.
+     * A coerced empty string with no {@code null_value} records a null slot in the row path's offsets sidecar when it is an array
+     * element, which the columnar sidecar cannot emit, so it falls back to the row path. In strict columnar modes a scalar records
+     * nothing, so its fallback is no longer required, but still correct.
      */
     public void testEmptyStringWithOffsetsBailsOutOfColumnarPath() throws IOException {
         final var mapperService = createMapperService(

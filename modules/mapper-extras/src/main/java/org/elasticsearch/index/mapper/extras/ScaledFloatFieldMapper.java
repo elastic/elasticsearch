@@ -760,7 +760,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         if (value == null) {
             if (shouldStoreOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName, offsetsFallback);
+                context.getOffSetContext().recordNull(context, offsetsFieldName, offsetsFallback);
             }
             return;
         }

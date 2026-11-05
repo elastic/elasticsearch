@@ -42,7 +42,9 @@ public class UnionAll extends MergePlan {
 
     @Override
     public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return new UnionAll(source(), newChildren, output());
+        UnionAll replaced = new UnionAll(source(), newChildren, output());
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     @Override
@@ -52,12 +54,16 @@ public class UnionAll extends MergePlan {
 
     @Override
     public UnionAll replaceSubPlans(List<LogicalPlan> subPlans) {
-        return new UnionAll(source(), subPlans, output());
+        UnionAll replaced = new UnionAll(source(), subPlans, output());
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     @Override
     public UnionAll replaceSubPlansAndOutput(List<LogicalPlan> subPlans, List<Attribute> output) {
-        return new UnionAll(source(), subPlans, output);
+        UnionAll replaced = new UnionAll(source(), subPlans, output);
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     /**
@@ -77,7 +83,9 @@ public class UnionAll extends MergePlan {
         if (kept.size() == children().size()) {
             return this;
         }
-        return new UnionAll(source(), kept, output());
+        UnionAll replaced = new UnionAll(source(), kept, output());
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     @Override

@@ -70,7 +70,9 @@ import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @TestLogging(
-    value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE",
+    // The JSON plan logger is under org.elasticsearch.xpack.esql, so TRACE there would also dump every plan of the 100 lookup chains as
+    // JSON
+    value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE,org.elasticsearch.xpack.esql.plan.json:INFO",
     reason = "debug lookup join expression resolution"
 )
 

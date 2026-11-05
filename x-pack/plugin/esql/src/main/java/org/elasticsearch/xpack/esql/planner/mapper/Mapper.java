@@ -101,23 +101,21 @@ public class Mapper {
     }
 
     private PhysicalPlan mapInner(LogicalPlan p) {
+        PhysicalPlan mapped;
         if (p instanceof LeafPlan leaf) {
-            return mapLeaf(leaf);
+            mapped = mapLeaf(leaf);
+        } else if (p instanceof UnaryPlan unary) {
+            mapped = mapUnary(unary);
+        } else if (p instanceof BinaryPlan binary) {
+            mapped = mapBinary(binary);
+        } else if (p instanceof MergePlan merge) {
+            mapped = mapMergePlan(merge);
+        } else {
+            mapped = MapperUtils.unsupported(p);
         }
-
-        if (p instanceof UnaryPlan unary) {
-            return mapUnary(unary);
-        }
-
-        if (p instanceof BinaryPlan binary) {
-            return mapBinary(binary);
-        }
-
-        if (p instanceof MergePlan merge) {
-            return mapMergePlan(merge);
-        }
-
-        return MapperUtils.unsupported(p);
+        // Nodes built in this class (FragmentExec, LimitExec, joins, MergeExec) have no origin yet.
+        // MapperUtils translations stamp themselves; stampOrigin leaves those alone.
+        return MapperUtils.stampOrigin(mapped, p);
     }
 
     private PhysicalPlan mapLeaf(LeafPlan leaf) {

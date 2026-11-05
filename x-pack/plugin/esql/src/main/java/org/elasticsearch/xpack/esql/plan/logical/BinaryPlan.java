@@ -41,15 +41,20 @@ public abstract class BinaryPlan extends LogicalPlan {
 
     @Override
     public final BinaryPlan replaceChildren(List<LogicalPlan> newChildren) {
-        return replaceChildren(newChildren.get(0), newChildren.get(1));
+        return copyingIdentity(replaceChildren(newChildren.get(0), newChildren.get(1)));
     }
 
     public final BinaryPlan replaceLeft(LogicalPlan newLeft) {
-        return replaceChildren(newLeft, right);
+        return copyingIdentity(replaceChildren(newLeft, right));
     }
 
     public final BinaryPlan replaceRight(LogicalPlan newRight) {
-        return replaceChildren(left, newRight);
+        return copyingIdentity(replaceChildren(left, newRight));
+    }
+
+    private BinaryPlan copyingIdentity(BinaryPlan replaced) {
+        replaced.copyIdentityFrom(this);
+        return replaced;
     }
 
     public abstract BinaryPlan replaceChildren(LogicalPlan left, LogicalPlan right);

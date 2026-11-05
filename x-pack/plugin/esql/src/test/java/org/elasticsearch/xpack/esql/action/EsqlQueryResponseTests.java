@@ -1618,6 +1618,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "description" : "test",
                         "cluster_name" : "elasticsearch",
                         "node_name" : "node-1",
+                        "kind" : "test",
                         "start_millis" : 1723489812649,
                         "stop_millis" : 1723489819929,
                         "took_nanos" : 20021,
@@ -1653,6 +1654,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         "description" : "test",
                         "cluster_name" : "elasticsearch",
                         "node_name" : "node-1",
+                        "kind" : "test",
                         "plan" : "plan tree"
                       }
                     ],

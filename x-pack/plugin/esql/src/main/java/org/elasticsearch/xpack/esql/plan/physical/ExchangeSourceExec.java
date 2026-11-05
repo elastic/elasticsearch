@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.ExchangeRef;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,6 +38,7 @@ public class ExchangeSourceExec extends LeafExec {
 
     private ExchangeSourceExec(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Attribute.class), in.readBoolean());
+        initExchange(ExchangeRef.readOptionalFrom(in));
     }
 
     @Override
@@ -44,6 +46,7 @@ public class ExchangeSourceExec extends LeafExec {
         source().writeTo(out);
         out.writeNamedWriteableCollection(output());
         out.writeBoolean(isIntermediateAgg());
+        ExchangeRef.writeOptionalTo(out, exchange());
     }
 
     @Override

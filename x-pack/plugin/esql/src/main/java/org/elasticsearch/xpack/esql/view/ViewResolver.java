@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.datasources.Federation;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
+import org.elasticsearch.xpack.esql.plan.PlanJsonLog;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
@@ -879,6 +880,7 @@ public class ViewResolver {
                         bodySettings.requiresViewIdentity() ? ViewBoundaryPreservation.KEEP_VIEW_IDENTITY : ViewBoundaryPreservation.NONE,
                         planSize,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
+                            PlanJsonLog.debug("resolved", view.name(), fullyResolved);
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
                             resolvedViews.put(view.name(), viewPlan);
                             l3.onResponse(null);

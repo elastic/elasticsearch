@@ -416,6 +416,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             queryExec.estimatedRowSize(),
             queryBuilderAndTags
         );
+        queryExecWithTags.copyIdentityFrom(queryExec);
 
         // Replace RoundTo with new tag field in EvalExec
         List<Alias> updatedFields = evalExec.fields()

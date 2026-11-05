@@ -131,7 +131,7 @@ serverless: preview
 
 In addition to the restrictions above, `LOAD_ALL` has these limitations:
 
-- It supports only a subset of the processing commands, and a query that uses another command fails with an error that lists the supported ones. Notably, the [`TS`](commands/ts.md) source command is not supported.
+- It supports most commands, and a query that uses another command fails with an error that lists the supported ones. Notably, the [`TS`](commands/ts.md) source command is not supported.
 - It doesn't apply inside [views](/reference/query-languages/esql/esql-views.md). The setting stops at a view's boundary: a view doesn't return an `_unmapped_fields` column, and the query returns `null` with a warning for an unmapped field that the view doesn't output. To load such fields, the view definition must itself `SET unmapped_fields="load"` and reference them. A view definition can't use `LOAD_ALL`. Indices and subqueries next to a view are loaded as usual.
 - Reading every unmapped field uses more memory than `LOAD`, especially on documents with many fields or large arrays. If you know which fields you need, name them and use `LOAD`.
 

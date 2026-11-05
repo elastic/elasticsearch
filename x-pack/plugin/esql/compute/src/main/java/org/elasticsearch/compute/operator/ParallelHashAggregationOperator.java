@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -656,6 +657,39 @@ public final class ParallelHashAggregationOperator implements Operator {
             "parallel_hashagg_extra_fields",
             PartitioningStatus::new
         );
+        private static final ProfileSchema<PartitioningStatus> PARTITIONING_SCHEMA = ProfileSchema.of(
+            PartitioningStatus.class,
+            (builder, status, params) -> builder
+        )
+            .required("add_input_nanos", ProfileSchema.integer())
+            .optional("add_input_time", ProfileSchema.string())
+            .required("add_input_inline_count", ProfileSchema.integer())
+            .required("add_input_inline_rows", ProfileSchema.integer())
+            .required("add_input_inline_nanos", ProfileSchema.integer())
+            .optional("add_input_inline_time", ProfileSchema.string())
+            .required("partitioned_blocks_received", ProfileSchema.integer())
+            .required("finish_nanos", ProfileSchema.integer())
+            .optional("finish_time", ProfileSchema.string())
+            .required("split_count", ProfileSchema.integer())
+            .required("split_nanos", ProfileSchema.integer())
+            .optional("split_time", ProfileSchema.string())
+            .required("inline_emit_count", ProfileSchema.integer())
+            .required("inline_emit_rows", ProfileSchema.integer())
+            .required("inline_emit_nanos", ProfileSchema.integer())
+            .optional("inline_emit_time", ProfileSchema.string())
+            .required("worker_tasks", ProfileSchema.integer())
+            .build();
+        public static final ProfileSchema<PartitioningStatus> PROFILE_SCHEMA = ProfileSchema.fragment(
+            PartitioningStatus.class,
+            (builder, status, params) -> {
+                status.writeProfile(builder);
+                return builder;
+            }
+        ).required("partitioning", PARTITIONING_SCHEMA.schema()).build();
+
+        static Map<String, Object> partitioningSchema() {
+            return PARTITIONING_SCHEMA.schema();
+        }
 
         private final long addInputNanos;
         private final long addInputInlineCount;
@@ -744,6 +778,10 @@ public final class ParallelHashAggregationOperator implements Operator {
 
         @Override
         protected void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            PROFILE_SCHEMA.write(builder, this, params);
+        }
+
+        private void writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject("partitioning");
             builder.field("add_input_nanos", addInputNanos);
             if (builder.humanReadable()) {

@@ -51,7 +51,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     @Nullable
     private final ExponentiallyWeightedMovingRate threadUtilizationRate;
     private final LongAdder totalExecutionTime = new LongAdder();
+    /** The part of {@link #totalExecutionTime} of tasks attributed through {@link TaskLoadAttribution}. */
+    private final LongAdder attributedExecutionTime = new LongAdder();
     private final boolean trackOngoingTasks;
+    /** Whether the time of tasks is charged to the work they do, see {@link TaskLoadAttribution}. */
+    private final boolean attributeTaskLoad;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
     private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
@@ -100,6 +104,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             ? new ExponentiallyWeightedMovingRate(threadUtilizationEwmrLambda, System.nanoTime())
             : null;
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
+        this.attributeTaskLoad = trackingConfig.attributeTaskLoad();
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
         this.apmUtilizationTracker = new ThreadUtilizationTracker(() -> System.nanoTime(), totalExecutionTime, getMaximumPoolSize());
         this.allocationUtilizationTracker = new ThreadUtilizationTracker(() -> System.nanoTime(), totalExecutionTime, getMaximumPoolSize());
@@ -173,6 +178,14 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      */
     public long getTotalTaskExecutionTime() {
         return totalExecutionTime.sum();
+    }
+
+    /**
+     * Returns the part of {@link #getTotalTaskExecutionTime()} spent in tasks whose time was attributed through
+     * {@link TaskLoadAttribution}, by a target or by the task itself.
+     */
+    public long getAttributedTaskExecutionTime() {
+        return attributedExecutionTime.sum();
     }
 
     /**
@@ -272,6 +285,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         assert super.unwrap(r) instanceof TimedRunnable : "expected only TimedRunnables in queue";
         final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
         timedRunnable.beforeExecute();
+        if (attributeTaskLoad) {
+            assert t instanceof EsExecutors.EsThread : "a pool attributing its task load must run on EsThreads, got " + t;
+            TaskLoadAttribution.taskStarted();
+        }
         final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
         assert taskQueueLatency >= 0;
         var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueLatency);
@@ -306,6 +323,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 if (threadUtilizationRate != null) {
                     threadUtilizationRate.addIncrement(taskExecutionNanos, timedRunnable.getFinishTimeNanos());
                 }
+                if (attributeTaskLoad) {
+                    attributedExecutionTime.add(TaskLoadAttribution.taskCompleted(taskExecutionNanos, timedRunnable.getFinishTimeNanos()));
+                }
+            } else if (attributeTaskLoad) {
+                TaskLoadAttribution.taskAbandoned();
             }
         } finally {
             // if trackOngoingTasks is false -> ongoingTasks must be empty

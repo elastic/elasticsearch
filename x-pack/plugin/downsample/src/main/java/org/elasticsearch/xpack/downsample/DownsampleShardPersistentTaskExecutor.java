@@ -21,10 +21,12 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -56,10 +58,17 @@ import java.util.stream.Collectors;
 public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecutor<DownsampleShardTaskParams> {
     private static final Logger LOGGER = LogManager.getLogger(DownsampleShardPersistentTaskExecutor.class);
     private final Client client;
+    private final ClusterService clusterService;
 
-    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, final Executor executor) {
+    public DownsampleShardPersistentTaskExecutor(
+        final Client client,
+        final ClusterService clusterService,
+        final String taskName,
+        final Executor executor
+    ) {
         super(taskName, executor);
         this.client = Objects.requireNonNull(client);
+        this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     @Override
@@ -73,10 +82,50 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         final DownsampleShardTaskParams params,
         final PersistentTaskState state
     ) {
-        // We used to search the target index here to determine the lastDownsampleTsid in order to resume. However,
-        // this was not a guaranteed safe point, and we reverted it https://github.com/elastic/elasticsearch/pull/164605
-        // We opened https://github.com/elastic/elasticsearch/issues/164609 to investigate how to reinstate it.
-        delegate(task, params, null);
+        // A previous run of this task published the watermark it reached, resume from it. No state, or a state without a
+        // watermark, means nothing is known to be indexed, so the whole shard is read again. The target index is never consulted:
+        // it may hold documents past the watermark whose predecessors were never written, see ResumeWatermark.
+        final String targetIndexUuid = targetIndexUuid(params);
+        BytesRef resumeTsid = null;
+        if (state instanceof DownsampleShardPersistentTaskState previousRun && previousRun.tsid() != null) {
+            // The watermark was reached on a specific target index. If the target was deleted and re-created under the same name
+            // in the meantime, the new index holds none of the buckets below the watermark, so it cannot be resumed from.
+            if (targetIndexUuid != null && targetIndexUuid.equals(previousRun.targetIndexUuid())) {
+                resumeTsid = previousRun.tsid();
+            } else {
+                LOGGER.info(
+                    "Downsampling task [{}] ignores the resume watermark of a previous run, target index [{}] is not the one it was "
+                        + "reached on",
+                    task.getPersistentTaskId(),
+                    params.downsampleIndex()
+                );
+            }
+        }
+        delegate(
+            task,
+            params,
+            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, resumeTsid, targetIndexUuid)
+        );
+    }
+
+    /**
+     * The UUID of the target index as it currently is in the cluster state, or {@code null} if it does not exist, in which case
+     * the task is about to fail anyway, or if the cluster still has nodes that do not know the UUID. Without a UUID the indexer
+     * publishes no watermark, so none reaches a master on an older version, which would persist it in a form this version
+     * cannot read back, see {@link DownsampleShardPersistentTaskState#DOWNSAMPLE_RESUME_WATERMARK_TARGET_UUID}.
+     */
+    @Nullable
+    private String targetIndexUuid(final DownsampleShardTaskParams params) {
+        final ClusterState clusterState = clusterService.state();
+        if (clusterState.getMinTransportVersion()
+            .supports(DownsampleShardPersistentTaskState.DOWNSAMPLE_RESUME_WATERMARK_TARGET_UUID) == false) {
+            return null;
+        }
+        return clusterState.metadata()
+            .lookupProject(params.shardId().getIndex())
+            .map(project -> project.index(params.downsampleIndex()))
+            .map(IndexMetadata::getIndexUUID)
+            .orElse(null);
     }
 
     @Override
@@ -171,11 +220,15 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         return EsExecutors.DIRECT_EXECUTOR_SERVICE;
     }
 
-    private void delegate(final AllocatedPersistentTask task, final DownsampleShardTaskParams params, final BytesRef lastDownsampleTsid) {
+    private void delegate(
+        final AllocatedPersistentTask task,
+        final DownsampleShardTaskParams params,
+        final DownsampleShardPersistentTaskState initialState
+    ) {
         DownsampleShardTask downsampleShardTask = (DownsampleShardTask) task;
         client.execute(
             DelegatingAction.INSTANCE,
-            new DelegatingAction.Request(downsampleShardTask, lastDownsampleTsid, params),
+            new DelegatingAction.Request(downsampleShardTask, initialState, params),
             ActionListener.wrap(empty -> {}, e -> {
                 LOGGER.error("error while delegating", e);
                 markAsFailed(downsampleShardTask, e);
@@ -194,7 +247,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         DownsampleMetrics downsampleMetrics,
         DownsampleShardTask task,
         DownsampleShardTaskParams params,
-        BytesRef lastDownsampledTsid
+        DownsampleShardPersistentTaskState initialState
     ) {
         client.threadPool().executor(Downsample.DOWNSAMPLE_TASK_THREAD_POOL_NAME).execute(new AbstractRunnable() {
             @Override
@@ -204,10 +257,6 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
             @Override
             protected void doRun() throws Exception {
-                final var initialState = new DownsampleShardPersistentTaskState(
-                    DownsampleShardIndexerStatus.INITIALIZED,
-                    lastDownsampledTsid
-                );
                 try {
                     final var downsampleShardIndexer = new DownsampleShardIndexer(
                         task,
@@ -270,13 +319,18 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         public static class Request extends UntypedActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
             private final DownsampleShardTask task;
-            private final BytesRef lastDownsampleTsid;
+            private final DownsampleShardPersistentTaskState initialState;
             private final DownsampleShardTaskParams params;
 
-            public Request(DownsampleShardTask task, BytesRef lastDownsampleTsid, DownsampleShardTaskParams params) {
+            public Request(DownsampleShardTask task, DownsampleShardPersistentTaskState initialState, DownsampleShardTaskParams params) {
                 this.task = task;
-                this.lastDownsampleTsid = lastDownsampleTsid;
+                this.initialState = initialState;
                 this.params = params;
+            }
+
+            // visible for testing
+            DownsampleShardPersistentTaskState initialState() {
+                return initialState;
             }
 
             @Override
@@ -328,7 +382,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
             @Override
             protected void doExecute(Task t, Request request, ActionListener<ActionResponse.Empty> listener) {
-                realNodeOperation(client, indicesService, downsampleMetrics, request.task, request.params, request.lastDownsampleTsid);
+                realNodeOperation(client, indicesService, downsampleMetrics, request.task, request.params, request.initialState);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
 

@@ -24,13 +24,16 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -46,6 +49,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -93,6 +97,24 @@ class DownsampleShardIndexer {
     public static final int DOWNSAMPLE_BULK_ACTIONS = 10000;
     public static final ByteSizeValue DOWNSAMPLE_BULK_SIZE = ByteSizeValue.of(1, ByteSizeUnit.MB);
     public static final ByteSizeValue DOWNSAMPLE_MAX_BYTES_IN_FLIGHT = ByteSizeValue.of(50, ByteSizeUnit.MB);
+    /**
+     * How long a failing task waits for the resume watermark to be published before it lets itself be reassigned. The
+     * publication must land before the reassignment, which invalidates the task's allocation, or it is rejected and the
+     * reassigned task rescans the whole shard.
+     */
+    static final TimeValue WATERMARK_PUBLISH_TIMEOUT = TimeValue.timeValueSeconds(30);
+    /**
+     * How often, at most, a running task publishes the resume watermark in its state, so that a task reassigned after its node
+     * is lost resumes from it. Every publication is a cluster state update on the master, and many shard tasks may run at once,
+     * hence the throttling; losing an interval's worth of work on a node loss is acceptable. A node setting rather than a
+     * constant so that tests can observe the publication; it is not expected to need tuning.
+     */
+    public static final Setting<TimeValue> WATERMARK_PUBLISH_INTERVAL_SETTING = Setting.timeSetting(
+        "downsample.resume_watermark.publish_interval",
+        TimeValue.timeValueMinutes(10),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
     private final IndexShard indexShard;
     private final Client client;
     private final DownsampleMetrics downsampleMetrics;
@@ -110,6 +132,12 @@ class DownsampleShardIndexer {
     private final AbstractFieldDownsampler.DownsamplerCountPerValueType fieldCounts;
     private final String temporalityFieldName;
     private volatile boolean abort = false;
+    private final ResumeWatermark resumeWatermark;
+    /**
+     * The thread scanning the shard. It is the only thread adding to the bulk processor, so it is also the thread that cuts
+     * the bulks and registers them with the watermark in the order they are sent, which the watermark relies on.
+     */
+    private Thread scanThread;
     ByteSizeValue downsampleBulkSize = DOWNSAMPLE_BULK_SIZE;
     ByteSizeValue downsampleMaxBytesInFlight = DOWNSAMPLE_MAX_BYTES_IN_FLIGHT;
 
@@ -134,6 +162,11 @@ class DownsampleShardIndexer {
         this.downsampleIndex = downsampleIndex;
         this.searcher = indexShard.acquireSearcher("downsampling");
         this.state = state;
+        this.resumeWatermark = new ResumeWatermark(
+            state.tsid(),
+            WATERMARK_PUBLISH_INTERVAL_SETTING.get(client.settings()).millis(),
+            client.threadPool().relativeTimeInMillis()
+        );
         Closeable toClose = searcher;
         try {
             this.searchExecutionContext = indexService.newSearchExecutionContext(
@@ -187,17 +220,34 @@ class DownsampleShardIndexer {
         long startTime = client.threadPool().relativeTimeInMillis();
         task.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
         task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.STARTED);
+        // The resume point is republished so that a task reassigned before the watermark moves resumes from it again
         task.updatePersistentTaskState(
-            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.STARTED, null),
+            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.STARTED, state.tsid(), state.targetIndexUuid()),
             ActionListener.noop()
         );
-        logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " started");
+        logger.info(
+            "Downsampling task [{}] on shard {} started{}",
+            task.getPersistentTaskId(),
+            indexShard.shardId(),
+            state.tsid() == null ? "" : ", resuming from the watermark of a previous run"
+        );
+        scanThread = Thread.currentThread();
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
             TimeSeriesBucketCollector bucketCollector = new TimeSeriesBucketCollector(bulkProcessor, this.dimensions);
             bucketCollector.preCollection();
-            timeSeriesSearcher.search(initialStateQuery, bucketCollector);
+            try {
+                timeSeriesSearcher.search(initialStateQuery, bucketCollector);
+            } catch (Exception e) {
+                // A bulk failure stops the scan in one of two ways: checkCancelled throws when it sees the abort flag, or the bulk
+                // processor rejects the next bucket. Either way it is handled below, once the processor is closed and every bulk
+                // has settled, so that the published watermark is exact. Any other failure is rethrown.
+                if (abort == false) {
+                    throw e;
+                }
+                logger.debug(() -> format("Shard [%s] downsample scan stopped after a bulk failure", indexShard.shardId()), e);
+            }
         }
 
         TimeValue duration = TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime);
@@ -213,21 +263,17 @@ class DownsampleShardIndexer {
             duration
         );
 
-        if (task.getNumIndexed() != task.getNumSent()) {
-            task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
-            final String error = "Downsampling task ["
-                + task.getPersistentTaskId()
-                + "] on shard "
-                + indexShard.shardId()
-                + " failed indexing, "
-                + " indexed ["
-                + task.getNumIndexed()
-                + "] sent ["
-                + task.getNumSent()
-                + "]";
-            logger.info(error);
-            downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.MISSING_DOCS);
-            throw new DownsampleShardIndexerException(error, false);
+        if (abort || task.getNumIndexed() != task.getNumSent()) {
+            // Either a bulk failed, during the scan or while the processor was closing, or closing the processor timed out while
+            // bulks were still in flight. Both are handled the same way: the task state records the watermark, which counts the
+            // unsettled bulks as unconfirmed, and the reassigned task resumes from it.
+            downsampleMetrics.recordShardOperation(
+                duration.millis(),
+                task.getNumIndexed() != task.getNumSent()
+                    ? DownsampleMetrics.ActionStatus.MISSING_DOCS
+                    : DownsampleMetrics.ActionStatus.FAILED
+            );
+            throw bulkFailure();
         }
 
         if (task.getNumFailed() > 0) {
@@ -273,7 +319,11 @@ class DownsampleShardIndexer {
             );
             task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.CANCELLED);
             task.updatePersistentTaskState(
-                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.CANCELLED, null),
+                new DownsampleShardPersistentTaskState(
+                    DownsampleShardIndexerStatus.CANCELLED,
+                    watermarkToPublish(),
+                    state.targetIndexUuid()
+                ),
                 ActionListener.noop()
             );
             logger.info("Downsampling task [" + task.getPersistentTaskId() + "] on shard " + indexShard.shardId() + " cancelled");
@@ -285,20 +335,89 @@ class DownsampleShardIndexer {
 
         }
         if (abort) {
-            logger.warn(
-                "Shard [{}] downsample abort, sent [{}], indexed [{}], failed[{}]",
-                indexShard.shardId(),
-                task.getNumSent(),
-                task.getNumIndexed(),
-                task.getNumFailed()
-            );
-            task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
-            task.updatePersistentTaskState(
-                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null),
-                ActionListener.noop()
-            );
+            // Stop the scan. The failure is handled by execute() once the bulk processor is closed, see there.
             throw new DownsampleShardIndexerException("Bulk indexing failure", true);
         }
+        maybePublishWatermark();
+    }
+
+    /**
+     * The watermark to publish, or {@code null} when the state carries no target index UUID: such a watermark is never resumed
+     * from, see {@link DownsampleShardPersistentTaskState#DOWNSAMPLE_RESUME_WATERMARK_TARGET_UUID}.
+     */
+    @Nullable
+    private BytesRef watermarkToPublish() {
+        return state.targetIndexUuid() == null ? null : resumeWatermark.current();
+    }
+
+    /**
+     * Publishes the resume watermark in the task state while the scan runs, throttled by {@link ResumeWatermark}, so that a task
+     * reassigned after a node loss resumes from it instead of from the beginning of the shard. The publication is not waited for.
+     * It cannot do harm if it lands after the {@code FAILED} publication of a bulk failure: it carries a watermark that is at most
+     * as high as the exact one, and a {@code STARTED} state only makes the waiting downsample request wait for the reassigned
+     * task to finish rather than fail.
+     */
+    private void maybePublishWatermark() {
+        if (state.targetIndexUuid() == null) {
+            return;
+        }
+        BytesRef watermark = resumeWatermark.pollForPublication(client.threadPool().relativeTimeInMillis());
+        if (watermark == null) {
+            return;
+        }
+        ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> published = ActionListener.wrap(
+            ignored -> resumeWatermark.publicationSucceeded(watermark, client.threadPool().relativeTimeInMillis()),
+            e -> {
+                logger.debug(() -> format("Shard [%s] failed to publish the downsample resume watermark", indexShard.shardId()), e);
+                resumeWatermark.publicationFailed(client.threadPool().relativeTimeInMillis());
+            }
+        );
+        // Run through the listener so that a synchronous failure of the update does not leave the publication in flight forever
+        ActionListener.run(
+            published,
+            l -> task.updatePersistentTaskState(
+                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.STARTED, watermark, state.targetIndexUuid()),
+                l
+            )
+        );
+    }
+
+    /**
+     * Publishes the {@code FAILED} state carrying the resume watermark and returns the retriable exception to throw, so that the
+     * persistent task is reassigned and resumes from the watermark rather than from scratch. The publication is waited for: the
+     * reassignment invalidates the task's allocation and a state update that lands after it is rejected. This is called once the
+     * bulk processor is closed, so the watermark is exact, unless closing timed out, in which case the bulks still in flight are
+     * unconfirmed and the watermark stops before them.
+     */
+    private DownsampleShardIndexerException bulkFailure() {
+        logger.warn(
+            "Shard [{}] downsample abort, sent [{}], indexed [{}], failed[{}]",
+            indexShard.shardId(),
+            task.getNumSent(),
+            task.getNumIndexed(),
+            task.getNumFailed()
+        );
+        task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
+        PlainActionFuture<PersistentTasksCustomMetadata.PersistentTask<?>> published = new PlainActionFuture<>();
+        ActionListener.run(
+            published,
+            l -> task.updatePersistentTaskState(
+                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, watermarkToPublish(), state.targetIndexUuid()),
+                l
+            )
+        );
+        try {
+            published.actionGet(WATERMARK_PUBLISH_TIMEOUT);
+        } catch (Exception e) {
+            logger.warn(
+                () -> format(
+                    "Shard [%s] failed to publish the downsample resume watermark, the task will restart from scratch",
+                    indexShard.shardId()
+                ),
+                e
+            );
+        }
+        return new DownsampleShardIndexerException("Bulk indexing failure", true);
     }
 
     private BulkProcessor2 createBulkProcessor() {
@@ -307,6 +426,10 @@ class DownsampleShardIndexer {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
                 task.addNumSent(request.numberOfActions());
+                // Bulks are cut and sent by the scan thread while it adds a bucket, so this bulk holds exactly the buckets added
+                // since the previous one was cut, and the bulks are registered in the order they are sent
+                assert Thread.currentThread() == scanThread : "bulks must be cut by the thread scanning the shard";
+                resumeWatermark.preparingBulkRequest(executionId);
                 task.setBeforeBulkInfo(
                     new DownsampleBeforeBulkInfo(
                         client.threadPool().absoluteTimeInMillis(),
@@ -376,6 +499,8 @@ class DownsampleShardIndexer {
                     logger.error("Shard [{}] failed to populate downsample index. Failures: [{}]", indexShard.shardId(), failures);
 
                     abort = true;
+                } else {
+                    resumeWatermark.succeeded(executionId);
                 }
             }
 
@@ -754,6 +879,9 @@ class DownsampleShardIndexer {
             }
             IndexRequest indexRequest = request.request();
             task.setLastIndexingTimestamp(System.currentTimeMillis());
+            // Reported before the add, because the add may cut a bulk and register it with the watermark. If the add is rejected
+            // instead, the watermark names a bucket that is in no bulk, which only makes a resumed task re-read it.
+            resumeWatermark.addedTsid(downsampleBucketBuilder.tsid());
             bulkProcessor.addWithBackpressure(indexRequest, () -> abort);
         }
 

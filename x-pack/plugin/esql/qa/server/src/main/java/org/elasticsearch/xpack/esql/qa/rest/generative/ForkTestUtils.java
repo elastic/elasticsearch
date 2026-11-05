@@ -66,6 +66,12 @@ public class ForkTestUtils {
                 || testCase.requiredCapabilities.contains(OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN.capabilityName())
         );
         assumeFalse(
+            "BM25 scoring of runtime text supports one part of a query, and FORK duplicates the query into each branch",
+            testCase.requiredCapabilities.contains("fn_match_similarity_function")
+                || testCase.requiredCapabilities.contains("fn_match_phrase_similarity_function")
+        );
+
+        assumeFalse(
             "Tests using PROMQL are not supported for now",
             testCase.requiredCapabilities.contains(PROMQL_COMMAND_V0.capabilityName())
         );

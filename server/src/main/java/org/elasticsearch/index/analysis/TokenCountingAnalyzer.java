@@ -44,14 +44,16 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
      * analyzers are introduced in the future, the reuse strategy here will need to be
      * made reload-aware.
      *
-     * @param delegate the underlying analyzer to wrap; must not be a {@link NamedAnalyzer}, whose reuse
-     *                 strategy only works when it is called directly or through a delegating wrapper,
-     *                 so callers must pass {@link NamedAnalyzer#analyzer()} instead
+     * @param delegate the underlying analyzer to wrap; must use Lucene's global or per-field reuse strategy,
+     *                 for example the analyzer inside a {@link NamedAnalyzer} rather than the
+     *                 {@link NamedAnalyzer} itself
      * @param metrics  metrics instance for recording token counts per field value
      */
     public TokenCountingAnalyzer(Analyzer delegate, TokenCountingMetrics metrics) {
         super(delegate.getReuseStrategy());
-        assert delegate instanceof NamedAnalyzer == false : "wrap the analyzer inside a NamedAnalyzer, not the NamedAnalyzer itself";
+        // The borrowed strategy is called with this wrapper, which only Lucene's built-in strategies support.
+        assert delegate.getReuseStrategy() == GLOBAL_REUSE_STRATEGY || delegate.getReuseStrategy() == PER_FIELD_REUSE_STRATEGY
+            : "cannot borrow reuse strategy of [" + delegate + "]; wrap NamedAnalyzer#analyzer() rather than a delegating analyzer";
         this.delegate = delegate;
         this.metrics = metrics;
     }

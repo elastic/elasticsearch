@@ -575,3 +575,8 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/164825
+- class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/164827

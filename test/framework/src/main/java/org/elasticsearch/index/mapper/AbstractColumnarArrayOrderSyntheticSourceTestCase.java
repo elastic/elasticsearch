@@ -130,7 +130,8 @@ public abstract class AbstractColumnarArrayOrderSyntheticSourceTestCase extends 
 
     public void testColumnarSingleValuedSelectsFastPathReader() throws IOException {
         // Every document is single-valued so the .counts skipper reports maxValue == 1; the loader must select the plain reader, which can
-        // use the OptionalColumnAtATimeReader bulk fast path, rather than the inline-null decoder that always reads document-by-document.
+        // read a page of the string column at a time (ColumnarStringPageReader via StringColumnSource), rather than the inline-null
+        // decoder that always reads document-by-document.
         MapperService mapperService = columnarMapperService();
         assertTrue(mapperService.documentMapper().mappers().getMapper("field").storesArrayValuesInOrder());
 

@@ -280,7 +280,10 @@ public class DownsampleOrchestrator implements ClusterStateListener {
                     .findActiveIndexTasks(
                         projectId,
                         ActionListener.wrap(
-                            tasks -> tasks.forEach(this::reconcile),
+                            // The search is near real time: it only finds the candidates. Each one is read again in real time
+                            // before a phase runs on it, otherwise a stale copy (e.g. still in a phase it has already left) would
+                            // run that phase again; its write would be rejected, but not the side effects of the phase.
+                            tasks -> tasks.forEach(task -> reconcile(task.doc().projectId(), task.doc().targetIndex())),
                             // e.g. the state index was just created and its shard is not started yet: the next sweep retries
                             e -> logger.debug(
                                 () -> Strings.format("failed to load the active downsample operations of project [%s]", projectId),
@@ -313,6 +316,9 @@ public class DownsampleOrchestrator implements ClusterStateListener {
             );
     }
 
+    /**
+     * @param task a real time read or the result of a write, never a search hit: a phase runs on it
+     */
     private void reconcile(Versioned<IndexTaskDoc> task) {
         track(task.doc());
         final Operation operation = new Operation(task.doc().projectId(), task.doc().targetIndex());

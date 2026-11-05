@@ -36,6 +36,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ToXContent;
@@ -74,6 +76,8 @@ import static org.elasticsearch.xpack.downsample.orchestration.DownsampleStateIn
  * against a compromised node.
  */
 public class DownsampleStateStore {
+
+    private static final Logger logger = LogManager.getLogger(DownsampleStateStore.class);
 
     /**
      * Searches are not paginated in the proof of concept, so they fail instead of silently returning a partial result.
@@ -440,6 +444,7 @@ public class DownsampleStateStore {
      */
     private <T extends StateDoc> void write(T doc, @Nullable Versioned<T> current, ActionListener<Versioned<T>> listener)
         throws IOException {
+        logger.trace("writing [{}] of project [{}] (create: [{}])", doc.id(), doc.projectId(), current == null);
         IndexRequest request = new IndexRequest(INDEX_NAME).id(doc.id())
             .source(doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         if (current == null) {

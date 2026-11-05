@@ -310,7 +310,8 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // named build context. This is required with the docker-container buildx driver,
                         // whose isolated image store cannot see daemon images in FROM instructions.
                         // Multiple --output flags require buildx >= 0.13.
-                        spec.args("--output", "type=docker" + rewriteTimestampOption);
+                        // rewrite-timestamp is not applied to the daemon load, see the --load comment below.
+                        spec.args("--output", "type=docker");
                         spec.args(
                             "--output",
                             "type=oci,tar=false,dest="
@@ -327,12 +328,11 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // "no such object". It also prevents issues with newer Docker versions
                         // (23.0+) that may create manifest lists even for single-platform builds
                         // when BuildKit is enabled.
-                        if (rewriteTimestamps) {
-                            // --load is shorthand for --output type=docker, but only the exporter accepts options
-                            spec.args("--output", "type=docker" + rewriteTimestampOption);
-                        } else {
-                            spec.args("--load");
-                        }
+                        // rewrite-timestamp is deliberately not applied here: when the daemon uses the
+                        // containerd image store, --load becomes an image export with unpack=true, which
+                        // buildkit rejects in combination with rewrite-timestamp ("conflicts with unpack").
+                        // Reproducible timestamps only matter for pushed images and OCI layout exports.
+                        spec.args("--load");
                     }
                 }
             });

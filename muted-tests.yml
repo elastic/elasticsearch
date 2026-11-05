@@ -277,9 +277,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/162575
 - class: org.elasticsearch.search.heappressure.LargeTermsFilterHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/162788
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=cluster.state/20_filtering/Filtering the cluster state by indices should work in routing table and metadata}
-  issue: https://github.com/elastic/elasticsearch/issues/162277
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecPrometheusK8sDeltaIT
   method: test {csv-spec:prometheus-k8s-delta.delta_all_value_types_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162319
@@ -321,9 +318,6 @@ tests:
 - class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
   method: testAutomatonStaysChargedUntilSearchContextReleased
   issue: https://github.com/elastic/elasticsearch/issues/162754
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/45_knn_search_byte/Test nonexistent field is match none}
-  issue: https://github.com/elastic/elasticsearch/issues/162766
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
@@ -347,11 +341,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  tasks:
-  - :x-pack:qa:core-rest-tests-with-security:yamlRestTest
-  method: test {yaml=mtermvectors/10_basic/Tests catching other exceptions per item}
-  issue: https://github.com/elastic/elasticsearch/issues/163321
 - class: org.elasticsearch.xpack.stateless.cache.SearchShardCacheWarmingIT
   tasks:
   - :x-pack:plugin:stateless:internalClusterTest

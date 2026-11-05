@@ -23,7 +23,7 @@ import org.junit.ClassRule;
 
 import java.util.Objects;
 
-@TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // as default timeout seems not enough on the jenkins VMs
+@TimeoutSuite(millis = 45 * TimeUnits.MINUTE) // as default timeout seems not enough on the jenkins VMs
 public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final String USER = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username", "test_admin"));
     private static final String PASS = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password", "x-pack-test-password"));

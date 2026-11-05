@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.VersionMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -43,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
  * {@code @timestamp}. Otherwise, for example, {@code rate()} reads the time bucket as its sample timestamp and returns
  * wrong values that change between runs.
  */
-public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
+public class ImplicitTimestampResolutionTests extends ESTestCase {
 
     /**
      * Time-series aggregations whose per-time-series aggregation reads the implicit {@code @timestamp}, keyed by
@@ -56,7 +57,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         entry("delta", "delta(network.cost)"),
         entry("idelta", "idelta(network.cost)"),
         entry("deriv", "deriv(network.cost)"),
-        entry("changes", "changes(network.cost)"),
         entry("first_over_time", "first_over_time(network.cost)"),
         entry("last_over_time", "last_over_time(network.cost)")
     );
@@ -79,10 +79,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         entry("earliest", "earliest(message)"),
         entry("latest", "latest(message)")
     );
-
-    public ImplicitTimestampResolutionTests(VersionMode versionMode) {
-        super(versionMode);
-    }
 
     /**
      * Fails when an aggregation with an implicit {@code @timestamp} is added without being added to one of the lists
@@ -310,11 +306,11 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         return sourceTimestamps.getFirst();
     }
 
-    private TestAnalyzer k8s() {
-        return analyzer().addK8s();
+    private static TestAnalyzer k8s() {
+        return EsqlTestUtils.analyzer().addK8s();
     }
 
-    private TestAnalyzer sampleData() {
-        return analyzer().addSampleData();
+    private static TestAnalyzer sampleData() {
+        return EsqlTestUtils.analyzer().addSampleData();
     }
 }

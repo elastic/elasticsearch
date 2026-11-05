@@ -7,7 +7,7 @@ mapped_pages:
 # Leverage document-level security from connectors in Search Applications [es-dls-e2e-guide]
 
 :::{important}
-This page pertains to a specific implementation of DLS for Elastic content connectors.
+This page pertains to a specific implementation of DLS for Elastic content crawlers.
 Refer to [controlling-access-at-document-field-level](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}} DLS feature.
 :::
 

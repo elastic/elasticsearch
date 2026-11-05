@@ -359,7 +359,6 @@ public final class ThrottlingRecoveryService extends AbstractLifecycleComponent 
         return routing == null || routing.initializing() == false || routing.allocationId().getId().equals(allocationId) == false;
     }
 
-    // visible for testing
     synchronized int currentQueueSize() {
         return pendingRecoveries.size();
     }

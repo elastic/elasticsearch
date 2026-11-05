@@ -432,6 +432,23 @@ unwrapped. `SecurityIndexReaderWrapper` now looks the permissions up by the
 index's current name first and by the reader's name second
 (`RenameIndexDlsFlsTests`).
 
+The request cache of a shard has the same problem one step earlier. Its key has
+to say whether the user's role restricts documents or fields, and
+`DlsFlsRequestCacheDifferentiator` found the restrictions by the index name in
+the request's shard id. A shard-level search accepts concrete names only, so the
+data node's access control normally holds the name the request carries, but a
+search through an alias, from a coordinator that has not yet applied the rename,
+carries the old name in the shard id while the data node resolves the alias to
+the new one. The key then said nothing, the reader still applied the
+restrictions, and a result cached for a user without restrictions was served to
+one with them (`RenameIndexRequestCacheTests` sends exactly that request and gets
+three hits where the role allows one). The differentiator and
+`ShardSearchRequestInterceptor`, which switches the cache off for roles whose
+document queries use stored scripts, now look the index up by its current name
+first and by the name in the request second, as the reader wrapper does. If an
+index was renamed and the access control has an entry under neither name, the
+key stands for every restriction in it.
+
 Not covered: `DotPrefixValidator` filters index creation, auto-creation and
 templates but not a rename, so a rename can produce a dot-prefixed name that
 those paths would refuse.

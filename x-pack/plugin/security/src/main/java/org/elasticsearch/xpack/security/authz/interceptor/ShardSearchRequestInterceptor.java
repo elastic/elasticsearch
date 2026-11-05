@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -18,13 +19,26 @@ import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermission
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
 
 public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
     private static final Logger logger = LogManager.getLogger(ShardSearchRequestInterceptor.class);
 
+    private final Function<ShardId, String> currentIndexName;
+
     public ShardSearchRequestInterceptor(ThreadPool threadPool) {
+        this(threadPool, shardId -> null);
+    }
+
+    /**
+     * @param currentIndexName the name that the index of a shard has now, or {@code null} if it is not known: the name in the request
+     *                         can be the one the index had before a rename, while the access control of the request holds the names that
+     *                         the data node resolved
+     */
+    public ShardSearchRequestInterceptor(ThreadPool threadPool, Function<ShardId, String> currentIndexName) {
         super(threadPool.getThreadContext());
+        this.currentIndexName = currentIndexName;
     }
 
     @Override
@@ -44,7 +58,11 @@ public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurity
     @Override
     String[] requestIndices(IndicesRequest indicesRequest) {
         final ShardSearchRequest request = (ShardSearchRequest) indicesRequest;
-        return new String[] { request.shardId().getIndexName() };
+        final String requestedName = request.shardId().getIndexName();
+        final String currentName = currentIndexName.apply(request.shardId());
+        return currentName == null || currentName.equals(requestedName)
+            ? new String[] { requestedName }
+            : new String[] { currentName, requestedName };
     }
 
     @Override
@@ -56,18 +74,20 @@ public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurity
         ShardSearchRequest request,
         Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex
     ) {
-        final String indexName = request.shardId().getIndexName();
-        final IndicesAccessControl.IndexAccessControl indexAccessControl = indexAccessControlByIndex.get(indexName);
-        assert indexAccessControl != null : "index access control cannot be null";
-        final DocumentPermissions documentPermissions = indexAccessControl.getDocumentPermissions();
-        if (documentPermissions.hasDocumentLevelPermissions()) {
-            try {
-                return documentPermissions.hasStoredScript();
-            } catch (IOException e) {
-                throw new ElasticsearchException(e);
+        // the map holds the entries found for the names of the index that the request is for, which can be two after a rename
+        assert indexAccessControlByIndex.isEmpty() == false : "index access control cannot be null";
+        for (IndicesAccessControl.IndexAccessControl indexAccessControl : indexAccessControlByIndex.values()) {
+            final DocumentPermissions documentPermissions = indexAccessControl.getDocumentPermissions();
+            if (documentPermissions.hasDocumentLevelPermissions()) {
+                try {
+                    if (documentPermissions.hasStoredScript()) {
+                        return true;
+                    }
+                } catch (IOException e) {
+                    throw new ElasticsearchException(e);
+                }
             }
-        } else {
-            return false;
         }
+        return false;
     }
 }

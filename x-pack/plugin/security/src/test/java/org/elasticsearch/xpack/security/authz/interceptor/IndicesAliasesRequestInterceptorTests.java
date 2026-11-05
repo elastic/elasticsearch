@@ -300,4 +300,36 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         });
         assertEquals("Renaming an index is not allowed when the new name has more permissions than the index", e.getMessage());
     }
+
+    /** A request that adds an alias and renames an index says so when an authorization engine of its own refuses it. */
+    @SuppressWarnings("unchecked")
+    public void testMixedRequestIsRefusedWithAMessageForBoth() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(new IndicesAccessControl(true, Collections.emptyMap()));
+        IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+            IndicesAliasesRequest.AliasActions.add().index("one").alias("alias")
+        ).addAliasAction(IndicesAliasesRequest.AliasActions.renameIndex().index("source").newIndex("target"));
+        RequestInfo requestInfo = new RequestInfo(
+            AuthenticationTestHelper.builder().build(),
+            request,
+            TransportIndicesAliasesAction.NAME,
+            null
+        );
+        AuthorizationEngine engine = mock(AuthorizationEngine.class);
+        doAnswer(invocationOnMock -> {
+            ((ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3]).onResponse(AuthorizationResult.deny());
+            return null;
+        }).when(engine)
+            .validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(), anyActionListener());
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
+            interceptorFor(threadContext, false).intercept(requestInfo, engine, EmptyAuthorizationInfo.INSTANCE).addListener(future);
+            future.actionGet();
+        });
+        assertEquals(
+            "Adding an alias or renaming an index is not allowed when the alias or the new name has more permissions than the index",
+            e.getMessage()
+        );
+    }
 }

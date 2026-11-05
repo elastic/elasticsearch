@@ -167,15 +167,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
                             request,
                             authorizationInfo
                         );
-                        listener.onFailure(
-                            Exceptions.authorizationError(
-                                request.getAliasActions()
-                                    .stream()
-                                    .anyMatch(a -> a.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD) == false
-                                        ? "Renaming an index is not allowed when the new name has more permissions than the index"
-                                        : "Adding an alias is not allowed when the alias " + "has more permissions than any of the indices"
-                            )
-                        );
+                        listener.onFailure(Exceptions.authorizationError(deniedMessage(request)));
                     }
                 }, listener::onFailure), threadContext)
             );
@@ -198,5 +190,21 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
             sourcePermissions.add(role.allowedActionsMatcher(dataStream));
         }
         return Automatons.subsetOf(role.allowedActionsMatcher(newName), Automatons.unionAndMinimize(sourcePermissions));
+    }
+
+    private static String deniedMessage(IndicesAliasesRequest request) {
+        final boolean adds = request.getAliasActions()
+            .stream()
+            .anyMatch(a -> a.actionType() == IndicesAliasesRequest.AliasActions.Type.ADD);
+        final boolean renames = request.getAliasActions()
+            .stream()
+            .anyMatch(a -> a.actionType() == IndicesAliasesRequest.AliasActions.Type.RENAME_INDEX);
+        if (renames == false) {
+            return "Adding an alias is not allowed when the alias has more permissions than any of the indices";
+        } else if (adds == false) {
+            return "Renaming an index is not allowed when the new name has more permissions than the index";
+        }
+        return "Adding an alias or renaming an index is not allowed when the alias or the new name has more permissions than "
+            + "the index";
     }
 }

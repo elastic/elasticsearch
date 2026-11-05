@@ -88,4 +88,31 @@ public class ShardSearchRequestInterceptorTests extends ESTestCase {
         verify(shardSearchRequest, never()).requestCache(false);
     }
 
+    public void testRequestIndicesHoldTheCurrentNameOfARenamedIndexBesideTheRequestedOne() {
+        final ShardSearchRequest request = mock(ShardSearchRequest.class);
+        when(request.shardId()).thenReturn(new ShardId("old-name", randomAlphaOfLength(22), randomInt(3)));
+        final ShardSearchRequestInterceptor renamed = new ShardSearchRequestInterceptor(threadPool, shardId -> "new-name");
+        assertArrayEquals(new String[] { "new-name", "old-name" }, renamed.requestIndices(request));
+
+        final ShardSearchRequestInterceptor notRenamed = new ShardSearchRequestInterceptor(threadPool, shardId -> "old-name");
+        assertArrayEquals(new String[] { "old-name" }, notRenamed.requestIndices(request));
+        assertArrayEquals(new String[] { "old-name" }, interceptor.requestIndices(request));
+    }
+
+    /** The access control of a request that went through an alias holds the current name, not the one in the shard id. */
+    public void testRequestCacheWillBeDisabledWhenDlsUsesStoredScriptsUnderTheCurrentNameOfARenamedIndex() {
+        configureMinMondeVersion(Version.CURRENT);
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
+            {"template":{"id":"my-script"}}""")));
+        final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.shardId()).thenReturn(new ShardId("old-name", randomAlphaOfLength(22), randomInt(3)));
+        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        interceptor.disableFeatures(
+            shardSearchRequest,
+            Map.of("new-name", new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
+            listener
+        );
+        listener.actionGet();
+        verify(shardSearchRequest).requestCache(false);
+    }
 }

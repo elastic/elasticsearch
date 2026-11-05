@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
@@ -90,6 +94,18 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
             + "\n"
             + "esc_fls:"
             + hashed
+            + "\n"
+            + "esc_dsdls:"
+            + hashed
+            + "\n"
+            + "esc_fs:"
+            + hashed
+            + "\n"
+            + "esc_fs_name:"
+            + hashed
+            + "\n"
+            + "esc_fs_ok:"
+            + hashed
             + "\n";
     }
 
@@ -104,7 +120,11 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
             + "esc_secret:esc_secret\n"
             + "esc_ds:esc_ds\n"
             + "esc_dls:esc_dls\n"
-            + "esc_fls:esc_fls\n";
+            + "esc_fls:esc_fls\n"
+            + "esc_dsdls:esc_dsdls\n"
+            + "esc_fs:esc_fs\n"
+            + "esc_fs_name:esc_fs_name\n"
+            + "esc_fs_ok:esc_fs_ok\n";
     }
 
     @Override
@@ -150,6 +170,31 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
                   query: '{"term": {"visible": true}}'
                 - names: 'dlsr-dst*'
                   privileges: [ read, manage ]
+            esc_dsdls:
+              indices:
+                - names: 'logs'
+                  privileges: [ read, manage ]
+                  query: '{"term": {"visible": true}}'
+                - names: 'public-*'
+                  privileges: [ read, manage ]
+            esc_fs:
+              indices:
+                - names: 'fslogs::failures'
+                  privileges: [ manage ]
+                - names: 'public-*'
+                  privileges: [ read, manage ]
+            esc_fs_name:
+              indices:
+                - names: '.fs-fslogs-*'
+                  privileges: [ manage ]
+                - names: 'public-*'
+                  privileges: [ read, manage ]
+            esc_fs_ok:
+              indices:
+                - names: '.fs-fslogs-*'
+                  privileges: [ manage ]
+                - names: 'new*'
+                  privileges: [ manage ]
             esc_fls:
               indices:
                 - names: 'flsr-src*'
@@ -334,6 +379,54 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), containsString("the new name has more permissions than the index"));
     }
 
+    /**
+     * Document level security that a role has for the data stream, and so for its backing indices, applies to the backing index as
+     * the source of a rename as it does to any index.
+     */
+    public void testCannotRenameABackingIndexWithDocumentLevelSecurityFromTheDataStreamRole() throws Exception {
+        createDataStream("logs");
+        final String backingIndex = backingIndices("logs").get(0).getName();
+
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> rename(clientAs("esc_dsdls"), backingIndex, "public-logs-2")
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("field or document level security"));
+        assertTrue(indexExists(backingIndex));
+        assertFalse(indexExists("public-logs-2"));
+    }
+
+    /**
+     * A role that has {@code manage} for the {@code ::failures} selector of a data stream does not give the user the alias action on
+     * its failure indices, so renaming one is refused before the rename guards are consulted.
+     */
+    public void testFailuresSelectorDoesNotAuthorizeRenamingAFailureIndex() throws Exception {
+        createDataStreamWithFailureStore("fslogs");
+        final String failureIndex = failureIndices("fslogs").get(0).getName();
+
+        assertThrowsAuthorizationException(
+            () -> rename(clientAs("esc_fs"), failureIndex, "public-fs-1"),
+            TransportIndicesAliasesAction.NAME,
+            "esc_fs"
+        );
+        assertTrue(indexExists(failureIndex));
+    }
+
+    /** A failure store index, authorized by its own name, is held to the same rule as any index. */
+    public void testFailureStoreIndexRenameIsHeldToThePermissionsOfTheIndex() throws Exception {
+        createDataStreamWithFailureStore("fslogs");
+        final String failureIndex = failureIndices("fslogs").get(0).getName();
+
+        assertRefusedForMorePermissions(() -> rename(clientAs("esc_fs_name"), failureIndex, "public-fs-1"));
+        assertTrue(indexExists(failureIndex));
+
+        rename(clientAs("esc_fs_ok"), failureIndex, "new-fs-1");
+        assertFalse(indexExists(failureIndex));
+        assertTrue(indexExists("new-fs-1"));
+        assertThat(failureIndices("fslogs").get(0).getName(), equalTo("new-fs-1"));
+    }
+
     private Client clientAs(String user) {
         return client().filterWithHeader(
             Map.of("Authorization", basicAuthHeaderValue(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING))
@@ -373,5 +466,39 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getDataStreams().size(), equalTo(1));
         final DataStream ds = response.getDataStreams().get(0).getDataStream();
         return ds.getIndices();
+    }
+
+    private void createDataStreamWithFailureStore(String name) throws Exception {
+        final TransportPutComposableIndexTemplateAction.Request template = new TransportPutComposableIndexTemplateAction.Request("fslogs");
+        template.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("fslogs*"))
+                .template(
+                    Template.builder()
+                        .settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                        .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)))
+                )
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, template).get());
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name)
+            ).get()
+        );
+        // the failure store index is created by a rollover of the failure store
+        assertTrue(client().execute(RolloverAction.INSTANCE, new RolloverRequest(name + "::failures", null)).get().isAcknowledged());
+        ensureGreen(name);
+    }
+
+    private List<org.elasticsearch.index.Index> failureIndices(String dataStream) {
+        final GetDataStreamAction.Response response = client().execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStream })
+        ).actionGet();
+        assertThat(response.getDataStreams().size(), equalTo(1));
+        return response.getDataStreams().get(0).getDataStream().getFailureIndices();
     }
 }

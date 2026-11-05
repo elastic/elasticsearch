@@ -497,7 +497,7 @@ setup:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+          capabilities: [ columnar_index_modes, dynamic_flattened ]
         - method: POST
           path: /_query
           parameters: []
@@ -509,9 +509,9 @@ setup:
         body:
           settings:
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
             number_of_shards: 1
           mappings:
+            dynamic: flattened
             properties:
               other:
                 type: keyword
@@ -590,7 +590,7 @@ setup:
       capabilities:
         - method: PUT
           path: /{index}
-          capabilities: [ columnar_index_modes, flattened_unmapped_fields ]
+          capabilities: [ columnar_index_modes, dynamic_flattened ]
         - method: POST
           path: /_query
           parameters: []
@@ -602,9 +602,9 @@ setup:
         body:
           settings:
             index.mode: columnar
-            index.mapping.flattened_unmapped_fields.enabled: true
             number_of_shards: 1
           mappings:
+            dynamic: flattened
             properties:
               other:
                 type: keyword

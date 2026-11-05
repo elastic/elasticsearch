@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -731,7 +732,7 @@ public abstract class FieldMapper extends Mapper {
 
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("type", contentType());
-        getMergeBuilder().toXContent(builder, params);
+        getMergeBuilder().serializeParameters(builder, params);
         builderParams.multiFields.toXContent(builder, params);
         builderParams.copyTo.toXContent(builder);
         if (builderParams.sourceKeepMode.isPresent()) {
@@ -926,16 +927,16 @@ public abstract class FieldMapper extends Mapper {
 
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
+            /**
+             * The same question as {@link #hasSyntheticSourceCompatibleKeywordField}, answered the way mappers did before a
+             * normalizer that skips storing the original value counted. Persisted mappings were written with that answer, so
+             * it decides how a default {@code store} is serialized.
+             */
+            private boolean hasLegacySyntheticSourceCompatibleKeywordField;
+
             public Builder add(FieldMapper.Builder builder) {
                 fieldBuilders.put(builder.leafName(), builder);
-
-                if (builder instanceof KeywordFieldMapper.Builder kwd) {
-                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
-                        && (kwd.docValuesParameters().enabled || kwd.isStored())) {
-                        hasSyntheticSourceCompatibleKeywordField = true;
-                    }
-                }
-
+                updateSyntheticSourceCompatibleKeywordField(builder);
                 return this;
             }
 
@@ -949,6 +950,7 @@ public abstract class FieldMapper extends Mapper {
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
+                        hasLegacySyntheticSourceCompatibleKeywordField = true;
                     }
                 }
             }
@@ -976,6 +978,9 @@ public abstract class FieldMapper extends Mapper {
                         && (kwd.docValuesParameters().enabled || kwd.isStored())) {
                         hasSyntheticSourceCompatibleKeywordField = true;
                     }
+                    if (kwd.hasNormalizer() == false && (kwd.docValuesParameters().enabled || kwd.isStored())) {
+                        hasLegacySyntheticSourceCompatibleKeywordField = true;
+                    }
                 }
             }
 
@@ -989,6 +994,29 @@ public abstract class FieldMapper extends Mapper {
 
             public boolean hasSyntheticSourceCompatibleKeywordField() {
                 return hasSyntheticSourceCompatibleKeywordField;
+            }
+
+            public boolean hasLegacySyntheticSourceCompatibleKeywordField() {
+                return hasLegacySyntheticSourceCompatibleKeywordField;
+            }
+
+            void normalize(MapperBuilderContext context) {
+                for (FieldMapper.Builder fieldBuilder : fieldBuilders.values()) {
+                    fieldBuilder.normalize(context);
+                }
+            }
+
+            /**
+             * Writes the {@code fields} block, sorted by name exactly as {@link MultiFields} sorts its built mappers.
+             */
+            void toXContent(XContentBuilder builder, Params params) throws IOException {
+                if (fieldBuilders.isEmpty() == false) {
+                    builder.startObject("fields");
+                    for (FieldMapper.Builder fieldBuilder : new TreeMap<>(fieldBuilders).values()) {
+                        fieldBuilder.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
             }
 
             public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
@@ -1686,12 +1714,14 @@ public abstract class FieldMapper extends Mapper {
             IndexSettings indexSettings,
             Supplier<Boolean> isDimension
         ) {
-            return Parameter.boolParam("index", false, initializer, () -> {
-                if (indexSettings.isIndexDisabledByDefault()) {
-                    return false;
-                }
-                return useTimeSeriesDocValuesSkippers(indexSettings, isDimension.get()) == false;
-            });
+            return Parameter.boolParam("index", false, initializer, () -> defaultIndexed(indexSettings, isDimension.get()));
+        }
+
+        public static boolean defaultIndexed(IndexSettings indexSettings, boolean isDimension) {
+            if (indexSettings.isIndexDisabledByDefault()) {
+                return false;
+            }
+            return useTimeSeriesDocValuesSkippers(indexSettings, isDimension) == false;
         }
 
         public static boolean useTimeSeriesDocValuesSkippers(IndexSettings indexSettings, boolean isDimension) {
@@ -2199,6 +2229,11 @@ public abstract class FieldMapper extends Mapper {
             return this;
         }
 
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            multiFieldsBuilder.normalize(context.createChildContext(leafName(), null));
+        }
+
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
             return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
         }
@@ -2316,15 +2351,39 @@ public abstract class FieldMapper extends Mapper {
         }
 
         /**
-         * Writes the current builder parameter values as XContent
+         * Writes this field as {@code "<name>": {...}}, exactly as the {@link FieldMapper} built from it does. The
+         * result does not depend on whether the builder has been built: nothing {@code build} derives is serialized.
          */
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(leafName());
+            doXContentBody(builder, params);
+            return builder.endObject();
+        }
+
+        /**
+         * Writes the contents of the field's object: its type, parameters, multi-fields, {@code copy_to} and
+         * {@code synthetic_source_keep}, in the order the mapper has always written them. Builders whose mapper
+         * overrides {@link FieldMapper#doXContentBody} override this to match it.
+         */
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field("type", contentType());
+            serializeParameters(builder, params);
+            multiFieldsBuilder.toXContent(builder, params);
+            copyTo.toXContent(builder);
+            if (sourceKeepMode.isPresent()) {
+                sourceKeepMode.get().toXContent(builder);
+            }
+        }
+
+        /**
+         * Writes the current builder parameter values as XContent
+         */
+        protected void serializeParameters(XContentBuilder builder, Params params) throws IOException {
             boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
-            return builder;
         }
 
         /**
@@ -2521,6 +2580,16 @@ public abstract class FieldMapper extends Mapper {
 
         protected boolean inheritDimensionParameterFromParentObject(MapperBuilderContext context) {
             return inheritDimensionParameterFromParentObject || context.parentObjectContainsDimensions();
+        }
+
+        public abstract DimensionBuilder dimension(boolean dimension);
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            if (inheritDimensionParameterFromParentObject(context)) {
+                dimension(true);
+            }
         }
     }
 

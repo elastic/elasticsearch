@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.wildcard.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -38,6 +41,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.TopDocs;
@@ -46,12 +50,16 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.FiniteStringsIterator;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -121,6 +129,9 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -565,6 +576,360 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         dir.close();
     }
 
+    /**
+     * Characters whose case folding differs from their lowercasing, e.g. a stored {@code ISPARTA} lowercases to {@code isparta}
+     * but is matched case-insensitively by {@code ısparta} (dotless i). The ngram approximation must not drop such documents
+     * before verification sees them.
+     */
+    public void testCaseInsensitiveQueriesFindCaseFoldingVariants() throws IOException {
+        // Look-alike characters are escaped so that it is clear which one each value uses
+        String dotlessI = "\u0131sparta";
+        String microSign = "10 \u00B5s";
+        String greekMu = "10 \u03BCs";
+        String lowerGreek = "\u03BF\u03B4\u03C5\u03C3\u03C3\u03B5\u03C5\u03C2"; // ends in final sigma
+        String upperGreek = "\u039F\u0394\u03A5\u03A3\u03A3\u0395\u03A5\u03A3";
+        String longS = "\u017Ftra\u00DFe";
+        String kelvinSign = "\u212Aelvin";
+        List<String> values = List.of("ISPARTA", dotlessI, microSign, greekMu, lowerGreek, upperGreek, longS, "STRASSE", kelvinSign);
+        withIndex(values, (searcher, wc) -> {
+            for (String query : List.of(dotlessI, "ISPARTA", greekMu, microSign, upperGreek, lowerGreek, "stra\u00DFe", "kelvin")) {
+                for (Query[] queries : caseInsensitiveQueries(wc, query)) {
+                    assertSameHits(searcher, queries[0], queries[1]);
+                }
+            }
+            // The cases from the original report, where the wildcard field used to find only one of the two documents
+            assertThat(searcher.count(wc.termQueryCaseInsensitive(dotlessI, MOCK_CONTEXT)), equalTo(2));
+            assertThat(searcher.count(wc.termQueryCaseInsensitive(greekMu, MOCK_CONTEXT)), equalTo(2));
+            assertThat(searcher.count(wc.termQueryCaseInsensitive(upperGreek, MOCK_CONTEXT)), equalTo(2));
+            assertThat(searcher.count(wc.termQueryCaseInsensitive("stra\u00DFe", MOCK_CONTEXT)), equalTo(1));
+            assertThat(searcher.count(wc.termQueryCaseInsensitive("kelvin", MOCK_CONTEXT)), equalTo(1));
+        });
+    }
+
+    /**
+     * Some ngrams have more case variants that are indexed differently than are worth looking up, e.g. {@code тот} has 18 with
+     * Cyrillic small letter te having three. Over the limit an ngram is left unconstrained, and the query must still check every
+     * candidate against its stored value rather than match every document with a value.
+     */
+    public void testCaseInsensitiveNgramOverFormsLimitIsLeftToVerification() throws IOException {
+        WildcardFieldMapper.WildcardFieldType ft = wildcardFieldType.fieldType();
+        String pattern = "*\u0442\u043E\u0442*";
+
+        Query withinLimit = ft.buildWildcardQuery(
+            pattern,
+            ft.caseInsensitiveNgrams(WildcardFieldMapper.MAX_CASE_INSENSITIVE_NGRAM_FORMS),
+            MOCK_CONTEXT
+        );
+        List<Query> termSets = new ArrayList<>();
+        ((BinaryDvConfirmedQuery) withinLimit).getApproximationQuery().visit(new QueryVisitor() {
+            @Override
+            public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+                termSets.add(query);
+            }
+
+            @Override
+            public QueryVisitor getSubVisitor(Occur occur, Query parent) {
+                return this;
+            }
+        });
+        assertThat(termSets.size(), equalTo(1));
+        assertThat(((TermInSetQuery) termSets.get(0)).getTermsCount(), equalTo(18L));
+
+        Query overLimit = ft.buildWildcardQuery(pattern, ft.caseInsensitiveNgrams(16), MOCK_CONTEXT);
+        assertThat(formatQuery(overLimit), overLimit, instanceOf(BinaryDvConfirmedQuery.class));
+        assertThat(
+            getSimplifiedApproximationQuery(((BinaryDvConfirmedQuery) overLimit).getApproximationQuery()),
+            instanceOf(MatchAllDocsQuery.class)
+        );
+
+        List<String> values = List.of("\u0442\u043E\u0442", "\u0422\u041E\u0422", "\u1C84\u1C82\u1C85", "\u043A\u043E\u0442", "x");
+        withIndex(values, false, (searcher, wc) -> {
+            Query keywordQuery = keywordFieldType.fieldType().wildcardQuery(pattern, null, true, MOCK_CONTEXT);
+            assertSameHits(searcher, keywordQuery, overLimit);
+            assertSameHits(searcher, keywordQuery, withinLimit);
+            assertThat(searcher.count(overLimit), equalTo(3));
+        });
+    }
+
+    /**
+     * {@link WildcardFieldMapper#MAX_CASE_INSENSITIVE_NGRAM_FORMS} is a safety net that should never leave an ngram unconstrained
+     * with Lucene's current case folding. If this fails, a character has gained case variants, and the limit needs revisiting.
+     */
+    public void testCaseInsensitiveNgramFormsStayWithinLimit() {
+        for (WildcardFieldMapper mapper : List.of(wildcardFieldType, wildcardFieldType79)) {
+            int maxFormsPerChar = 1;
+            for (int codePoint : CaseVariantCodePoints.WITH_VARIANTS) {
+                maxFormsPerChar = Math.max(maxFormsPerChar, mapper.fieldType().caseVariantForms(codePoint).size());
+            }
+            long maxFormsPerNgram = (long) Math.pow(maxFormsPerChar, WildcardFieldMapper.NGRAM_SIZE);
+            assertThat(maxFormsPerNgram, lessThanOrEqualTo((long) WildcardFieldMapper.MAX_CASE_INSENSITIVE_NGRAM_FORMS));
+        }
+    }
+
+    /**
+     * Case-insensitive queries expand each character into the forms the index would store it under, which assumes that index
+     * analysis normalizes each character on its own. Check that it does, for every character and both index analyzers.
+     */
+    public void testCaseVariantFormsMatchIndexAnalysis() throws IOException {
+        for (WildcardFieldMapper mapper : List.of(wildcardFieldType, wildcardFieldType79)) {
+            WildcardFieldMapper.WildcardFieldType ft = mapper.fieldType();
+            Analyzer analyzer = mapper == wildcardFieldType
+                ? WildcardFieldMapper.WILDCARD_ANALYZER_7_10
+                : WildcardFieldMapper.WILDCARD_ANALYZER_7_9;
+            for (int codePoint = 0; codePoint <= Character.MAX_CODE_POINT; codePoint++) {
+                if (Character.getType(codePoint) == Character.SURROGATE) {
+                    continue;
+                }
+                String character = Character.toString(codePoint);
+                assertThat(analyze(analyzer, character.repeat(3)), equalTo(ft.normalizeFragment(character).repeat(3)));
+            }
+            for (int i = 0; i < 1000; i++) {
+                int[] codePoints = new int[3];
+                StringBuilder expected = new StringBuilder();
+                for (int c = 0; c < codePoints.length; c++) {
+                    do {
+                        codePoints[c] = between(0, Character.MAX_CODE_POINT);
+                    } while (Character.getType(codePoints[c]) == Character.SURROGATE);
+                    expected.append(ft.normalizeFragment(Character.toString(codePoints[c])));
+                }
+                assertThat(analyze(analyzer, new String(codePoints, 0, 3)), equalTo(expected.toString()));
+            }
+        }
+    }
+
+    /** Analyzes a three-character string, which index analysis turns into exactly one ngram. */
+    private static String analyze(Analyzer analyzer, String text) throws IOException {
+        try (TokenStream tokens = analyzer.tokenStream(WILDCARD_FIELD_NAME, text)) {
+            CharTermAttribute term = tokens.addAttribute(CharTermAttribute.class);
+            tokens.reset();
+            assertTrue(tokens.incrementToken());
+            String ngram = term.toString();
+            assertFalse(tokens.incrementToken());
+            tokens.end();
+            return ngram;
+        }
+    }
+
+    /**
+     * A case-insensitive query looks each ngram up with a single clause however many forms it has, so it must not count more
+     * clauses towards the boolean clause limit than the same query run case-sensitively. A long regexp literal is the worst
+     * case, as nothing caps how many ngrams it is broken into.
+     */
+    public void testCaseInsensitiveQueryDoesNotAddClauses() {
+        List<Integer> alphabet = new ArrayList<>(List.of((int) 'a', (int) 'b', (int) 's', (int) 'S', (int) ' '));
+        for (int codePoint : randomSubsetOf(3, CaseVariantCodePoints.LOWERCASE_DIFFERENTLY)) {
+            alphabet.addAll(caseVariants(codePoint));
+        }
+        String literal = randomString(alphabet, 200);
+        String regexp = ".*\"" + literal + "\".*";
+        MappedFieldType wc = wildcardFieldType.fieldType();
+        Query caseSensitive = wc.regexpQuery(regexp, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
+        Query caseInsensitive = wc.regexpQuery(regexp, RegExp.ALL, RegExp.CASE_INSENSITIVE, 20000, null, MOCK_CONTEXT);
+        int caseSensitiveClauses = countClauses(((BinaryDvConfirmedQuery) caseSensitive).getApproximationQuery());
+        int caseInsensitiveClauses = countClauses(((BinaryDvConfirmedQuery) caseInsensitive).getApproximationQuery());
+        assertThat(caseSensitiveClauses, greaterThan(0));
+        assertThat(caseInsensitiveClauses, lessThanOrEqualTo(caseSensitiveClauses));
+    }
+
+    /** Counts clauses the way the boolean clause limit does, see {@code MaxClauseCountQueryVisitor}. */
+    private static int countClauses(Query query) {
+        int[] count = new int[1];
+        query.visit(new QueryVisitor() {
+            @Override
+            public void visitLeaf(Query q) {
+                count[0]++;
+            }
+
+            @Override
+            public void consumeTerms(Query q, Term... terms) {
+                count[0] += terms.length;
+            }
+
+            @Override
+            public void consumeTermsMatching(Query q, String field, Supplier<ByteRunAutomaton> automaton) {
+                count[0]++;
+            }
+
+            @Override
+            public QueryVisitor getSubVisitor(Occur occur, Query parent) {
+                return this;
+            }
+        });
+        return count[0];
+    }
+
+    /**
+     * Compares case-insensitive queries on the wildcard and keyword fields over text built from characters whose case variants,
+     * according to Lucene, do not all lowercase to the same character. Those characters are found by asking Lucene rather than
+     * listed here, so that the test keeps covering whatever Lucene's case folding does.
+     */
+    public void testCaseInsensitiveSearchResultsVersusKeywordFieldWithUnicode() throws IOException {
+        List<Integer> foldingCodePoints = randomSubsetOf(between(2, 6), CaseVariantCodePoints.LOWERCASE_DIFFERENTLY);
+        List<Integer> alphabet = new ArrayList<>();
+        for (int codePoint : foldingCodePoints) {
+            alphabet.addAll(caseVariants(codePoint));
+        }
+        alphabet.addAll(List.of((int) 'a', (int) 'B', (int) ' '));
+
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i < 100; i++) {
+            values.add(randomString(alphabet, between(1, 8)));
+        }
+        withIndex(values, (searcher, wc) -> {
+            for (int i = 0; i < 100; i++) {
+                String query = randomCaseVariant(randomFrom(values));
+                for (Query[] queries : caseInsensitiveQueries(wc, query)) {
+                    assertSameHits(searcher, queries[0], queries[1]);
+                }
+            }
+        });
+    }
+
+    /** Pairs of keyword and wildcard field queries, of each case-insensitive query type, built from the given text. */
+    private List<Query[]> caseInsensitiveQueries(MappedFieldType wc, String text) {
+        int[] codePoints = text.codePoints().toArray();
+        String prefix = new String(codePoints, 0, between(1, codePoints.length));
+        StringBuilder wildcard = new StringBuilder();
+        StringBuilder regexp = new StringBuilder();
+        // Keep at least one literal character: patterns of only wildcards are matched without verification, a separate issue
+        int alwaysLiteral = between(0, codePoints.length - 1);
+        for (int i = 0; i < codePoints.length; i++) {
+            int codePoint = codePoints[i];
+            // Leave most characters as they are, and replace the others with a single- or multi-character wildcard
+            if (i == alwaysLiteral || rarely() == false) {
+                wildcard.appendCodePoint(codePoint);
+                appendRegexpLiteral(regexp, codePoint);
+            } else if (randomBoolean()) {
+                wildcard.append('?');
+                regexp.append('.');
+            } else {
+                wildcard.append('*');
+                regexp.append(".*");
+            }
+        }
+        MappedFieldType kw = keywordFieldType.fieldType();
+        return List.of(
+            new Query[] { kw.termQueryCaseInsensitive(text, MOCK_CONTEXT), wc.termQueryCaseInsensitive(text, MOCK_CONTEXT) },
+            new Query[] { kw.prefixQuery(prefix, null, true, MOCK_CONTEXT), wc.prefixQuery(prefix, null, true, MOCK_CONTEXT) },
+            new Query[] {
+                kw.wildcardQuery(wildcard.toString(), null, true, MOCK_CONTEXT),
+                wc.wildcardQuery(wildcard.toString(), null, true, MOCK_CONTEXT) },
+            new Query[] {
+                kw.regexpQuery(regexp.toString(), RegExp.ALL, RegExp.CASE_INSENSITIVE, 20000, null, MOCK_CONTEXT),
+                wc.regexpQuery(regexp.toString(), RegExp.ALL, RegExp.CASE_INSENSITIVE, 20000, null, MOCK_CONTEXT) }
+        );
+    }
+
+    /**
+     * Appends a character to a regexp in one of the forms Lucene parses differently: quoted, bare, or as a single-character class,
+     * which case-insensitive parsing expands into a class of the character's case variants.
+     */
+    private static void appendRegexpLiteral(StringBuilder regexp, int codePoint) {
+        if (Character.isLetterOrDigit(codePoint) == false) {
+            regexp.append('"').appendCodePoint(codePoint).append('"');
+            return;
+        }
+        switch (between(0, 2)) {
+            case 0 -> regexp.append('"').appendCodePoint(codePoint).append('"');
+            case 1 -> regexp.appendCodePoint(codePoint);
+            case 2 -> regexp.append('[').appendCodePoint(codePoint).append(']');
+            default -> throw new AssertionError();
+        }
+    }
+
+    /**
+     * Indexes the values into a wildcard field and a keyword field, using at random either the current index analysis or the one
+     * of indices created before 7.10, and passes the matching wildcard field type to the test.
+     */
+    private void withIndex(List<String> values, CheckedBiConsumer<IndexSearcher, MappedFieldType, IOException> test) throws IOException {
+        withIndex(values, randomBoolean(), test);
+    }
+
+    private void withIndex(
+        List<String> values,
+        boolean preV710Analysis,
+        CheckedBiConsumer<IndexSearcher, MappedFieldType, IOException> test
+    ) throws IOException {
+        try (Directory dir = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig(
+                preV710Analysis ? WildcardFieldMapper.WILDCARD_ANALYZER_7_9 : WildcardFieldMapper.WILDCARD_ANALYZER_7_10
+            );
+            iwc.setMergePolicy(newTieredMergePolicy(random()));
+            try (RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
+                for (String value : new HashSet<>(values)) {
+                    indexDoc(iw, value);
+                }
+                try (DirectoryReader reader = iw.getReader()) {
+                    MappedFieldType wc = preV710Analysis ? wildcardFieldType79.fieldType() : wildcardFieldType.fieldType();
+                    test.accept(newSearcher(reader), wc);
+                }
+            }
+        }
+    }
+
+    private void assertSameHits(IndexSearcher searcher, Query keywordFieldQuery, Query wildcardFieldQuery) throws IOException {
+        HashSet<Integer> expected = new HashSet<>();
+        for (ScoreDoc hit : searcher.search(keywordFieldQuery, 1000).scoreDocs) {
+            expected.add(hit.doc);
+        }
+        HashSet<Integer> actual = new HashSet<>();
+        for (ScoreDoc hit : searcher.search(wildcardFieldQuery, 1000).scoreDocs) {
+            actual.add(hit.doc);
+        }
+        assertThat(keywordFieldQuery + "\n" + wildcardFieldQuery, actual, equalTo(expected));
+    }
+
+    /** Scans every code point once, the first time a test needs the result. */
+    private static final class CaseVariantCodePoints {
+        /** Characters that Lucene matches case-insensitively with at least one other character. */
+        static final List<Integer> WITH_VARIANTS;
+        /** Characters whose case variants, according to Lucene, do not all lowercase to the same character. */
+        static final List<Integer> LOWERCASE_DIFFERENTLY;
+
+        static {
+            List<Integer> withVariants = new ArrayList<>();
+            List<Integer> lowercaseDifferently = new ArrayList<>();
+            for (int codePoint = 0; codePoint <= Character.MAX_CODE_POINT; codePoint++) {
+                if (Character.getType(codePoint) == Character.SURROGATE) {
+                    continue;
+                }
+                List<Integer> variants = caseVariants(codePoint);
+                if (variants.size() > 1) {
+                    withVariants.add(codePoint);
+                    if (variants.stream().map(Character::toLowerCase).distinct().count() > 1) {
+                        lowercaseDifferently.add(codePoint);
+                    }
+                }
+            }
+            WITH_VARIANTS = List.copyOf(withVariants);
+            LOWERCASE_DIFFERENTLY = List.copyOf(lowercaseDifferently);
+        }
+    }
+
+    /** The characters Lucene matches case-insensitively for the given one, including itself. */
+    private static List<Integer> caseVariants(int codePoint) {
+        List<Integer> variants = new ArrayList<>();
+        FiniteStringsIterator iterator = new FiniteStringsIterator(Automata.makeCaseInsensitiveChar(codePoint));
+        for (IntsRef variant = iterator.next(); variant != null; variant = iterator.next()) {
+            variants.add(variant.ints[variant.offset]);
+        }
+        return variants;
+    }
+
+    private static String randomCaseVariant(String text) {
+        StringBuilder variant = new StringBuilder();
+        text.codePoints().forEach(codePoint -> variant.appendCodePoint(randomFrom(caseVariants(codePoint))));
+        return variant.toString();
+    }
+
+    private static String randomString(List<Integer> alphabet, int length) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            sb.appendCodePoint(randomFrom(alphabet));
+        }
+        return sb.toString();
+    }
+
     private void indexDoc(RandomIndexWriter iw, String value) throws IOException {
         Document doc = new Document();
         LuceneDocument parseDoc = new LuceneDocument();
@@ -687,6 +1052,15 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
         }
+
+        // Case-insensitive parsing expands each class of case variants, so make sure they still join into contiguous ngrams:
+        // case-insensitively, [Pp][Oo][Ww][Ee][Rr] should be accelerated just like the case-sensitive power
+        String caseVariantClasses = "[Pp][Oo][Ww][Ee][Rr]";
+        testExpectedAccelerationQuery(
+            caseVariantClasses,
+            wildcardFieldType.fieldType().regexpQuery(caseVariantClasses, RegExp.ALL, RegExp.CASE_INSENSITIVE, 20000, null, MOCK_CONTEXT),
+            "+_oo +oow +owe +weq +eq_ +q__".replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR)
+        );
 
         // All these expressions should rewrite to just the verification query (there's no ngram acceleration)
         // TODO we can possibly improve on some of these

@@ -310,8 +310,7 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // named build context. This is required with the docker-container buildx driver,
                         // whose isolated image store cannot see daemon images in FROM instructions.
                         // Multiple --output flags require buildx >= 0.13.
-                        // rewrite-timestamp is not applied to the daemon load, see the --load comment below.
-                        spec.args("--output", "type=docker");
+                        spec.args("--output", daemonExporterSpec(rewriteTimestamps));
                         spec.args(
                             "--output",
                             "type=oci,tar=false,dest="
@@ -328,11 +327,12 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // "no such object". It also prevents issues with newer Docker versions
                         // (23.0+) that may create manifest lists even for single-platform builds
                         // when BuildKit is enabled.
-                        // rewrite-timestamp is deliberately not applied here: when the daemon uses the
-                        // containerd image store, --load becomes an image export with unpack=true, which
-                        // buildkit rejects in combination with rewrite-timestamp ("conflicts with unpack").
-                        // Reproducible timestamps only matter for pushed images and OCI layout exports.
-                        spec.args("--load");
+                        if (rewriteTimestamps) {
+                            // --load is shorthand for --output type=docker, but only the exporter accepts options
+                            spec.args("--output", daemonExporterSpec(true));
+                        } else {
+                            spec.args("--load");
+                        }
                     }
                 }
             });
@@ -383,6 +383,32 @@ public abstract class DockerBuildTask extends DefaultTask {
                 .get()
                 .stream()
                 .anyMatch(any -> any.equals(Architecture.current().dockerPlatform) == false);
+        }
+
+        /**
+         * The {@code --output} value that loads the image into the local daemon, keeping normalized timestamps because
+         * the image is published later ({@code docker push} / {@code docker save}). With the containerd image store,
+         * {@code type=docker} implies {@code unpack=true}, which conflicts with {@code rewrite-timestamp}, so we
+         * export with {@code unpack=false} instead.
+         */
+        private String daemonExporterSpec(boolean rewriteTimestamps) {
+            if (rewriteTimestamps == false) {
+                return "type=docker";
+            }
+            if (usesContainerdImageStore()) {
+                return "type=image,unpack=false,rewrite-timestamp=true";
+            }
+            return "type=docker,rewrite-timestamp=true";
+        }
+
+        private boolean usesContainerdImageStore() {
+            final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+            execOperations.exec(spec -> {
+                spec.setCommandLine(getParameters().getDockerExecutable().get(), "info", "--format", "{{ .DriverStatus }}");
+                spec.setStandardOutput(stdout);
+                spec.setIgnoreExitValue(true);
+            });
+            return stdout.toString().contains("io.containerd.snapshotter.v1");
         }
 
         private String getImageChecksum(String imageTag) {

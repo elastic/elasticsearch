@@ -18,8 +18,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.xpack.stateless.TestUtils;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryMetrics;
@@ -28,6 +31,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -36,9 +40,13 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.rest.action.search.SearchResponseMetrics.CACHE_MISS_WAIT_HISTOGRAM_NAME;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -69,6 +77,7 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(BlobCacheMetricsIT.SynchronousWarmingPlugin.class);
         plugins.add(MockRepository.Plugin.class);
+        plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }
 
@@ -94,9 +103,22 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
 
         clearShardCache(findSearchShard(indexName));
 
+        resetTelemetry();
         Map<String, Long> coldCacheMetrics = searchAndCollectDirectoryMetrics(indexName);
         assertThat(coldCacheMetrics, hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER));
         assertThat(coldCacheMetrics.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER), greaterThan(0L));
+        // the same value reaches the APM metric, in milliseconds. The coordinator reads it from the header entry by its name, so this
+        // also fails if the key in BlobStoreCacheDirectoryMetrics and the one in AbstractSearchAsyncAction drift apart
+        List<Measurement> coldWaitMeasurements = cacheMissWaitMeasurements();
+        assertThat(coldWaitMeasurements, hasSize(1));
+        assertThat(
+            coldWaitMeasurements.get(0).getDouble(),
+            equalTo(
+                coldCacheMetrics.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER) / (double) TimeUnit.MILLISECONDS.toNanos(
+                    1
+                )
+            )
+        );
         if (expectStoreBytesRead) {
             assertThat(coldCacheMetrics, hasKey(StoreMetrics.BYTES_READ_METRIC_KEY));
             // the blob cache directory accounts its own reads, so this also covers the holder reaching its inputs
@@ -105,8 +127,10 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
             assertThat(coldCacheMetrics, not(hasKey(StoreMetrics.BYTES_READ_METRIC_KEY)));
         }
 
+        resetTelemetry();
         Map<String, Long> warmCacheMetrics = searchAndCollectDirectoryMetrics(indexName);
         assertThat(warmCacheMetrics, not(hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER)));
+        assertThat(cacheMissWaitMeasurements(), empty());
         if (expectStoreBytesRead == false) {
             assertThat(warmCacheMetrics, not(hasKey(StoreMetrics.BYTES_READ_METRIC_KEY)));
         }
@@ -129,6 +153,28 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         }
         assertThat(metrics.get(), notNullValue());
         return metrics.get();
+    }
+
+    /** The coordinator that records the metric is whichever node received the search, so look at every node. */
+    private static List<Measurement> cacheMissWaitMeasurements() {
+        List<Measurement> measurements = new ArrayList<>();
+        for (String nodeName : internalCluster().getNodeNames()) {
+            measurements.addAll(getTestTelemetryPlugin(nodeName).getDoubleHistogramMeasurement(CACHE_MISS_WAIT_HISTOGRAM_NAME));
+        }
+        return measurements;
+    }
+
+    private static void resetTelemetry() {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            getTestTelemetryPlugin(nodeName).resetMeter();
+        }
+    }
+
+    private static TestTelemetryPlugin getTestTelemetryPlugin(String nodeName) {
+        return internalCluster().getInstance(PluginsService.class, nodeName)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
     }
 
     private static Map<String, Long> parseDirectoryMetrics(SearchResponse searchResponse) {

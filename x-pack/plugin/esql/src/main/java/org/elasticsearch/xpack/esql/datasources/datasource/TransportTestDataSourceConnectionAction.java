@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.datasources.FederationLicense;
 import org.elasticsearch.xpack.esql.datasources.TestConnectionResult;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.plugin.ExternalWorkerReadiness;
 import org.elasticsearch.xpack.esql.plugin.NodeEligibilityStrategy;
 import org.elasticsearch.xpack.esql.session.EsqlLicenseChecker;
 
@@ -82,6 +83,7 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
     private final ClusterService clusterService;
     private final DataSourceService dataSourceService;
     private final FederationLicense federationLicense;
+    private final ExternalWorkerReadiness externalWorkerReadiness;
 
     @Inject
     public TransportTestDataSourceConnectionAction(
@@ -90,7 +92,8 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         ThreadPool threadPool,
         ClusterService clusterService,
         DataSourceService dataSourceService,
-        FederationLicense federationLicense
+        FederationLicense federationLicense,
+        ExternalWorkerReadiness externalWorkerReadiness
     ) {
         super(TestDataSourceConnectionAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("action [" + TestDataSourceConnectionAction.NAME + "] is local-only");
@@ -99,6 +102,7 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         this.clusterService = clusterService;
         this.dataSourceService = dataSourceService;
         this.federationLicense = federationLicense;
+        this.externalWorkerReadiness = externalWorkerReadiness;
     }
 
     @Override
@@ -129,7 +133,9 @@ public class TransportTestDataSourceConnectionAction extends HandledTransportAct
         }
 
         // --- Step 3: select eligible nodes and fan out ---
-        DiscoveryNodes allNodes = clusterService.state().nodes();
+        // A node that has just joined and not yet applied the state that added it has no credentials to probe with; the
+        // query path leaves it out until it has, and so does the probe.
+        DiscoveryNodes allNodes = externalWorkerReadiness.readyNodes(clusterService.state().nodes());
         List<DiscoveryNode> dataNodes = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(allNodes);
         // Always include the coordinating node: schema resolution and dataset listing run there, so
         // egress blocked on the coordinator causes query failures even when all data nodes report success.

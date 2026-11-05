@@ -938,7 +938,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             "field",
             DenseVectorFieldMapper.BBQIVFIndexOptions.class
         );
-        assertEquals(2, indexOptions.getBits());
+        assertEquals(Integer.valueOf(2), indexOptions.getBits());
         assertTrue(indexOptions.autoCalibrate());
 
         final Map<String, Object> oversampleFourIndexOptionsMap = Maps.copyMapWithAddedOrReplacedEntry(
@@ -1197,6 +1197,115 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             );
             assertThat(e.getMessage(), containsString("'auto_calibrate' is not supported with 'quantization_type' 'ash'"));
         }
+    }
+
+    public void testAshBitsDerivedFromDimsWhenUnset() throws IOException {
+        assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
+
+        // dims -> expected bits and default oversample (null for none); null dims are not known until the first document
+        record Case(Integer dims, int bits, Float oversample) {}
+        List<Case> cases = List.of(
+            new Case(null, 2, 1.5f),
+            new Case(384, 1, DenseVectorFieldMapper.DEFAULT_OVERSAMPLE),
+            new Case(511, 1, DenseVectorFieldMapper.DEFAULT_OVERSAMPLE),
+            new Case(512, 2, 1.5f),
+            new Case(2047, 2, 1.5f),
+            new Case(2048, 4, null),
+            new Case(3072, 4, null)
+        );
+        for (Case c : cases) {
+            Integer dims = c.dims();
+            String message = "dims [" + dims + "]";
+            MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(dims, null, null));
+            var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
+            assertNull(message, indexOptions.getBits());
+            assertNull(message, indexOptions.rescoreVector);
+
+            // unset bits are derived when the field is written, so they must not be pinned in the mapping
+            String mappingSource = mapperService.documentMapper().mappingSource().toString();
+            assertThat(message, mappingSource, not(containsString("\"bits\"")));
+            assertThat(message, mappingSource, not(containsString("rescore_vector")));
+
+            assertEquals(message, c.bits(), indexOptions.effectiveBits(dims));
+            DenseVectorFieldMapper.RescoreVector rescoreVector = indexOptions.effectiveRescoreVector(dims);
+            if (c.oversample() == null) {
+                assertNull(message, rescoreVector);
+            } else {
+                assertEquals(message, c.oversample(), rescoreVector.oversample(), 0f);
+            }
+            if (dims != null) {
+                assertEquals(message, c.bits(), indexOptions.ashConfigResolver().resolve(dims).bitsPerDim());
+            }
+
+            // reparsing the stored mapping must keep the bits unset
+            MapperService recovered = new TestMapperServiceBuilder().settings(EXPERIMENTAL_FEATURES_ENABLED).build();
+            merge(recovered, MapperService.MergeReason.MAPPING_RECOVERY, mappingSource);
+            assertNull(message, getIndexOptions(recovered, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).getBits());
+        }
+    }
+
+    public void testAshConfiguredBitsAreRespected() throws IOException {
+        assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
+
+        for (Integer dims : Arrays.asList(null, 384, 3072)) {
+            String message = "dims [" + dims + "]";
+            MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(dims, 2, null));
+            var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
+            assertEquals(message, Integer.valueOf(2), indexOptions.getBits());
+            assertEquals(message, 2, indexOptions.effectiveBits(dims));
+            assertEquals(message, 1.5f, indexOptions.effectiveRescoreVector(dims).oversample(), 0f);
+            assertThat(message, mapperService.documentMapper().mappingSource().toString(), containsString("\"bits\":2"));
+            if (dims != null) {
+                assertEquals(message, 2, indexOptions.ashConfigResolver().resolve(dims).bitsPerDim());
+            }
+        }
+    }
+
+    public void testAshConfiguredRescoreVectorIsRespectedWithDerivedBits() throws IOException {
+        assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
+
+        MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(3072, null, 2.5f));
+        var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
+        assertNull(indexOptions.getBits());
+        assertEquals(4, indexOptions.effectiveBits(3072));
+        assertEquals(2.5f, indexOptions.effectiveRescoreVector(3072).oversample(), 0f);
+    }
+
+    public void testAshDerivedBitsFollowDynamicDims() throws IOException {
+        assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
+
+        MapperService mapperService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(null, null, null));
+        float[] vector = new float[3072];
+        Arrays.fill(vector, 0.5f);
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", vector)));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, MapperService.MergeReason.MAPPING_UPDATE, doc.dynamicMappingsUpdate().toString());
+
+        DenseVectorFieldMapper mapper = (DenseVectorFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertEquals(3072, mapper.fieldType().getVectorDimensions());
+        var indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) mapper.fieldType().getIndexOptions();
+        assertNull(indexOptions.getBits());
+        assertEquals(4, indexOptions.effectiveBits(mapper.fieldType().getVectorDimensions()));
+        assertThat(mapperService.documentMapper().mappingSource().toString(), not(containsString("\"bits\"")));
+    }
+
+    private static XContentBuilder ashMapping(@Nullable Integer dims, @Nullable Integer bits, @Nullable Float oversample)
+        throws IOException {
+        return fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            if (dims != null) {
+                b.field("dims", dims);
+            }
+            b.field("index", true).field("similarity", "cosine");
+            b.startObject("index_options").field("type", "bbq_disk").field("quantization_type", "ash");
+            if (bits != null) {
+                b.field("bits", bits);
+            }
+            if (oversample != null) {
+                b.startObject("rescore_vector").field("oversample", oversample).endObject();
+            }
+            b.endObject();
+        });
     }
 
     private static XContentBuilder autoCalibrateMapping(@Nullable Object autoCalibrate) throws IOException {

@@ -90,6 +90,71 @@ public class IvfSegmentConfigTests extends ESTestCase {
         assertEquals(90, IvfSegmentConfig.shardMergeBudget(30, 3f));
     }
 
+    public void testAshForDimsDerivesBitsAndProjectedDims() {
+        // dims -> {bits, projected dims}
+        int[][] cases = {
+            { 1, 1, 1 },
+            { 64, 1, 64 },
+            { 100, 1, 100 },
+            { 384, 1, 384 },
+            { 511, 1, 511 },
+            { 512, 2, 256 },
+            { 768, 2, 384 },
+            { 1000, 2, 512 },
+            { 1024, 2, 512 },
+            { 1536, 2, 768 },
+            { 2047, 2, 1024 },
+            { 2048, 4, 512 },
+            { 3072, 4, 768 },
+            { 4096, 4, 1024 },
+            { 8192, 4, 1024 } };
+        for (int[] c : cases) {
+            int dims = c[0];
+            IvfSegmentConfig.AshConfig config = IvfSegmentConfig.AshConfig.forDims(dims, null, 4);
+            assertEquals("bits for dims [" + dims + "]", c[1], config.bitsPerDim());
+            assertEquals("projected dims for dims [" + dims + "]", c[2], config.projectedDims(dims));
+            assertEquals(4, config.queryBitsPerDim());
+        }
+    }
+
+    public void testAshForDimsRespectsConfiguredBits() {
+        for (int dims : new int[] { 384, 1024, 3072 }) {
+            int bits = randomFrom(1, 2, 3, 4, 8);
+            IvfSegmentConfig.AshConfig configured = IvfSegmentConfig.AshConfig.forDims(dims, bits, 4);
+            assertEquals(bits, configured.bitsPerDim());
+            // the projection depends on the dimension only, so changing the bits never changes its shape
+            IvfSegmentConfig.AshConfig derived = IvfSegmentConfig.AshConfig.forDims(dims, null, 4);
+            assertEquals(derived.projectedDims(dims), configured.projectedDims(dims));
+        }
+        expectThrows(IllegalArgumentException.class, () -> IvfSegmentConfig.AshConfig.forDims(1024, 7, 4));
+    }
+
+    public void testAshProjectedDimsAreAligned() {
+        int dims = randomIntBetween(1, 4096);
+        int projectedDims = IvfSegmentConfig.AshConfig.forDims(dims, null, 4).projectedDims(dims);
+        assertTrue(projectedDims > 0);
+        assertTrue(projectedDims <= dims);
+        assertTrue(projectedDims <= IvfSegmentConfig.AshConfig.DEFAULT_MAX_PROJECTED_DIMS);
+        if (dims >= IvfSegmentConfig.AshConfig.LOW_DIMS_THRESHOLD) {
+            assertEquals(0, projectedDims % IvfSegmentConfig.AshConfig.PROJECTED_DIMS_ALIGNMENT);
+        } else {
+            // small vectors are not reduced at all
+            assertEquals(dims, projectedDims);
+        }
+    }
+
+    public void testAshConfigResolvers() {
+        IvfSegmentConfig.AshConfig fixed = IvfSegmentConfig.AshConfig.defaults();
+        AshConfigResolver fixedResolver = AshConfigResolver.fixed(fixed);
+        assertSame(fixed, fixedResolver.resolve(randomIntBetween(1, 4096)));
+        assertEquals(fixed.queryBitsPerDim(), fixedResolver.queryBitsPerDim());
+
+        AshConfigResolver derived = AshConfigResolver.dimsDerived(null, 4);
+        assertEquals(IvfSegmentConfig.AshConfig.forDims(3072, null, 4), derived.resolve(3072));
+        assertEquals(4, derived.queryBitsPerDim());
+        expectThrows(IllegalArgumentException.class, () -> AshConfigResolver.dimsDerived(5, 4));
+    }
+
     /** An oversample below 1 (or absent) must never shrink the budget below the plain k shape. */
     public void testBudgetsFloorOversampleAtOne() {
         assertEquals(20, IvfSegmentConfig.leafCollectorBudget(10, 0.5f));

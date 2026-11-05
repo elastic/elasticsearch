@@ -53,6 +53,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibrationProfile;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfFlushConfigSource;
@@ -164,7 +165,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             + "is deprecated and will be removed in a future version";
 
     private static final int DEFAULT_BBQ_IVF_QUANTIZE_BITS = 1;
-    private static final int DEFAULT_ASH_IVF_QUANTIZE_BITS = 2;
 
     /**
      * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
@@ -2225,28 +2225,31 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
                 boolean isAsh = quantizationType == BBQIVFIndexOptions.QuantizationType.ASH;
                 Object quantizeBitsNode = indexOptionsMap.remove("bits");
-                int defaultBits = isAsh ? DEFAULT_ASH_IVF_QUANTIZE_BITS : DEFAULT_BBQ_IVF_QUANTIZE_BITS;
-                int quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, defaultBits);
-                if (isAsh) {
-                    if (IvfSegmentConfig.AshConfig.isValidBitsPerDim(quantizeBits) == false) {
-                        throw new IllegalArgumentException(
-                            "'bits' must be 1, 2, 3, 4 or 8 for ASH quantization, got: " + quantizeBits + " for field [" + fieldName + "]"
-                        );
+                // ASH leaves unset bits to be derived from the vector dimension when the field is written, see
+                // IvfSegmentConfig.AshConfig#forDims
+                Integer quantizeBits = quantizeBitsNode == null && isAsh
+                    ? null
+                    : XContentMapValues.nodeIntegerValue(quantizeBitsNode, DEFAULT_BBQ_IVF_QUANTIZE_BITS);
+                if (quantizeBits != null) {
+                    if (isAsh) {
+                        if (IvfSegmentConfig.AshConfig.isValidBitsPerDim(quantizeBits) == false) {
+                            throw new IllegalArgumentException(
+                                "'bits' must be 1, 2, 3, 4 or 8 for ASH quantization, got: "
+                                    + quantizeBits
+                                    + " for field ["
+                                    + fieldName
+                                    + "]"
+                            );
+                        }
+                    } else {
+                        if (QuantEncoding.isValidBits(quantizeBits.byteValue()) == false) {
+                            throw new IllegalArgumentException(
+                                "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
+                            );
+                        }
                     }
-                } else {
-                    if (QuantEncoding.isValidBits((byte) quantizeBits) == false) {
-                        throw new IllegalArgumentException(
-                            "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
-                        );
-                    }
-                }
-                if (rescoreVector == null) {
-                    // adjust the oversampling factor based on quantization scheme
-                    // no oversampling with 4 bits
-                    if (quantizeBits == 2) {
-                        rescoreVector = new RescoreVector(1.5f);
-                    } else if (quantizeBits == 1) {
-                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                    if (rescoreVector == null) {
+                        rescoreVector = BBQIVFIndexOptions.defaultRescoreVector(quantizeBits);
                     }
                 }
 
@@ -3044,7 +3047,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
         final IndexVersion indexVersionCreated;
-        final int bits;
+        /** The configured bits; only {@code null} for ASH, which then derives them from the vector dimension. */
+        @Nullable
+        final Integer bits;
         final boolean doPrecondition;
         final boolean experimentalFeaturesEnabled;
         final DenseVectorAutoCalibrate autoCalibrate;
@@ -3085,13 +3090,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             RescoreVector rescoreVector,
             IndexVersion indexVersionCreated,
             boolean doPrecondition,
-            int bits,
+            @Nullable Integer bits,
             boolean experimentalFeaturesEnabled,
             @Nullable DenseVectorAutoCalibrate autoCalibrate,
             QuantizationType quantizationType,
             boolean onDiskMerge
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector, onDiskMerge);
+            if (bits == null && quantizationType != QuantizationType.ASH) {
+                throw new IllegalArgumentException("bits must be set for quantization type [" + quantizationType + "]");
+            }
             this.clusterSize = clusterSize;
             this.flatIndexThreshold = flatIndexThreshold;
             this.defaultVisitPercentage = defaultVisitPercentage;
@@ -3136,14 +3144,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("quantization_type 'ash' is only available in snapshot builds");
                 }
                 if (quantizationType == QuantizationType.ASH && Build.current().isSnapshot()) {
-                    var ashConfig = IvfSegmentConfig.AshConfig.of(
-                        bits,
-                        IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
-                        IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION,
-                        IvfSegmentConfig.AshConfig.DEFAULT_MAX_PROJECTED_DIMS
-                    );
                     return new ESNextDiskASHVectorsFormat(
-                        ashConfig,
+                        ashConfigResolver(),
                         clusterSize,
                         ESNextDiskASHVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -3162,7 +3164,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                         : IvfMergeConfigResolver.useCodecDefault();
                     return new ESNextDiskBBQVectorsFormat(
-                        QuantEncoding.fromBits((byte) bits),
+                        QuantEncoding.fromBits(osqBits()),
                         clusterSize,
                         ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -3183,7 +3185,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                     : IvfMergeConfigResolver.useCodecDefault();
                 return new ES950DiskBBQVectorsFormat(
-                    QuantEncoding.fromBits((byte) bits),
+                    QuantEncoding.fromBits(osqBits()),
                     clusterSize,
                     ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
@@ -3199,7 +3201,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             } else {
                 return new ES940DiskBBQVectorsFormat(
-                    ES940DiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bits),
+                    ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(osqBits()),
                     clusterSize,
                     ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
@@ -3231,7 +3233,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && flatIndexThreshold == that.flatIndexThreshold
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
-                && bits == that.bits
+                && Objects.equals(bits, that.bits)
                 && doPrecondition == that.doPrecondition
                 && Objects.equals(autoCalibrate, that.autoCalibrate)
                 && Objects.equals(quantizationType, that.quantizationType)
@@ -3270,7 +3272,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            builder.field("bits", bits);
+            if (bits != null) {
+                builder.field("bits", bits);
+            }
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
             }
@@ -3308,8 +3312,69 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return autoCalibrate.profile();
         }
 
-        public int getBits() {
+        /**
+         * Returns the configured bits, or {@code null} when ASH is left to derive them from the vector dimension. Use
+         * {@link #effectiveBits} for the bits a field of a given dimension is quantized with.
+         */
+        @Nullable
+        public Integer getBits() {
             return bits;
+        }
+
+        /**
+         * Returns the bits for the OSQ formats. An ASH field written with an OSQ format, as happens when ASH is not
+         * available to the index, keeps the ASH default when its bits are not configured.
+         */
+        public byte osqBits() {
+            return (byte) effectiveBits(null);
+        }
+
+        /**
+         * Returns the bits a field with {@code dims} dimensions is quantized with: the configured bits, or for ASH
+         * without configured bits, those derived from the dimension. When the dimension is not known yet, no vectors
+         * have been indexed, and the ASH default is returned.
+         */
+        public int effectiveBits(@Nullable Integer dims) {
+            if (bits != null) {
+                return bits;
+            }
+            return dims == null ? IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM : IvfSegmentConfig.AshConfig.defaultBitsPerDim(dims);
+        }
+
+        /**
+         * Returns the rescore oversampling for a field with {@code dims} dimensions: the configured one, or when it is
+         * not configured and the bits are derived from the dimension, the default for the derived bits.
+         */
+        @Nullable
+        public RescoreVector effectiveRescoreVector(@Nullable Integer dims) {
+            if (rescoreVector != null || bits != null) {
+                return rescoreVector;
+            }
+            return defaultRescoreVector(effectiveBits(dims));
+        }
+
+        /**
+         * The rescore oversampling a field gets when none is configured, which depends on how coarsely it is quantized.
+         * There is no oversampling above 2 bits.
+         */
+        @Nullable
+        static RescoreVector defaultRescoreVector(int bits) {
+            return switch (bits) {
+                case 1 -> new RescoreVector(DEFAULT_OVERSAMPLE);
+                case 2 -> new RescoreVector(1.5f);
+                case 3, 4, 7, 8 -> null;
+                default -> throw new IllegalArgumentException("unsupported bits [" + bits + "]");
+            };
+        }
+
+        /**
+         * Returns how the ASH codec picks the configuration for each field: from the configured bits, or with bits
+         * derived from the vector dimension when none are configured. The projected dimensions always follow from the
+         * vector dimension.
+         */
+        public AshConfigResolver ashConfigResolver() {
+            assert quantizationType == QuantizationType.ASH;
+            return AshConfigResolver.dimsDerived(bits, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
         }
 
         public QuantizationType getQuantizationType() {
@@ -3544,9 +3609,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (queryOversample != null) {
                 return queryOversample;
             }
-            return indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions && quantizedIndexOptions.rescoreVector != null
-                ? quantizedIndexOptions.rescoreVector.oversample
-                : null;
+            RescoreVector rescoreVector = mappingRescoreVector();
+            return rescoreVector != null ? rescoreVector.oversample : null;
+        }
+
+        /**
+         * The rescore oversampling the index options ask for, including any default that depends on the vector dimension.
+         */
+        @Nullable
+        private RescoreVector mappingRescoreVector() {
+            if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
+                return bbqIndexOptions.effectiveRescoreVector(dims);
+            }
+            return indexOptions instanceof QuantizedIndexOptions quantizedIndexOptions ? quantizedIndexOptions.rescoreVector : null;
         }
 
         /**
@@ -3852,13 +3927,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
                 }
-                float mappingOversample = bbqIndexOptions.rescoreVector != null
-                    ? bbqIndexOptions.rescoreVector.oversample
-                    : DEFAULT_OVERSAMPLE;
+                RescoreVector mappingRescoreVector = mappingRescoreVector();
+                float mappingOversample = mappingRescoreVector != null ? mappingRescoreVector.oversample : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
                     bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
-                    bbqIndexOptions.bits,
+                    bbqIndexOptions.effectiveBits(dims),
                     mappingOversample,
                     queryOversample
                 );
@@ -3977,13 +4051,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     // #getAutoRescoreQuery), or, when post-filtering, after the filter via #finalizeTopK.
                     rescore = false;
                 }
-                float mappingOversample = bbqIndexOptions.rescoreVector != null
-                    ? bbqIndexOptions.rescoreVector.oversample
-                    : DEFAULT_OVERSAMPLE;
+                RescoreVector mappingRescoreVector = mappingRescoreVector();
+                float mappingOversample = mappingRescoreVector != null ? mappingRescoreVector.oversample : DEFAULT_OVERSAMPLE;
                 var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
                     bbqIndexOptions.autoCalibrate(),
                     bbqIndexOptions.doPrecondition,
-                    bbqIndexOptions.bits,
+                    bbqIndexOptions.effectiveBits(dims),
                     mappingOversample,
                     queryOversample
                 );

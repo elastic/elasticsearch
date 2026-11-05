@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.core.Nullable;
+
 import java.util.Set;
 
 /**
@@ -79,6 +81,29 @@ public record IvfSegmentConfig(
         public static final int DEFAULT_TRAINING_FACTOR = 10;
 
         /**
+         * Vector dimension below which {@link #forDims} does not reduce the dimension at all and encodes each dimension
+         * with {@link #LOW_DIMS_BITS_PER_DIM} bit. There is little to gain from projecting such small vectors.
+         */
+        public static final int LOW_DIMS_THRESHOLD = 512;
+        public static final int LOW_DIMS_BITS_PER_DIM = 1;
+
+        /**
+         * Vector dimension at and above which {@link #forDims} projects more aggressively and spends more bits on each
+         * projected dimension. At these sizes building and applying the projection dominates indexing cost, and
+         * {@link #HIGH_DIMS_BITS_PER_DIM} bits over {@link #HIGH_DIMS_PROJECTED_DIMS_FRACTION} of the dimensions keeps
+         * the per-vector size of 1-bit OSQ while projecting to fewer dimensions.
+         */
+        public static final int HIGH_DIMS_THRESHOLD = 2048;
+        public static final int HIGH_DIMS_BITS_PER_DIM = 4;
+        public static final float HIGH_DIMS_PROJECTED_DIMS_FRACTION = 0.25f;
+
+        /**
+         * {@link #forDims} rounds the number of projected dimensions to a multiple of this, so that the packed codes
+         * and the query projection stay aligned to SIMD-friendly widths.
+         */
+        public static final int PROJECTED_DIMS_ALIGNMENT = 64;
+
+        /**
          * Training-sample factor used on the flush path. Training streams the sample through a
          * {@code originalDim x originalDim} second-moment matrix, so its memory no longer grows with the
          * sample size and flush can use the same factor as merge.
@@ -139,6 +164,67 @@ public record IvfSegmentConfig(
                 DEFAULT_TRAINING_ITERATIONS,
                 DEFAULT_TRAINING_FACTOR
             );
+        }
+
+        /**
+         * Returns the ASH configuration for a field with {@code dims} dimensions, deriving whatever the user left unset
+         * from the dimension. Each of the three size tiers spends about one bit per original dimension:
+         * <ul>
+         *     <li>below {@link #LOW_DIMS_THRESHOLD}: {@link #LOW_DIMS_BITS_PER_DIM} bit, no reduction</li>
+         *     <li>up to {@link #HIGH_DIMS_THRESHOLD}: {@link #DEFAULT_BITS_PER_DIM} bits over
+         *     {@link #DEFAULT_PROJECTED_DIMS_FRACTION} of the dimensions</li>
+         *     <li>from {@link #HIGH_DIMS_THRESHOLD}: {@link #HIGH_DIMS_BITS_PER_DIM} bits over
+         *     {@link #HIGH_DIMS_PROJECTED_DIMS_FRACTION} of the dimensions</li>
+         * </ul>
+         * The number of projected dimensions always follows from {@code dims} alone, so that changing {@code bitsPerDim}
+         * on a field never changes the shape of its projection.
+         *
+         * @param dims the vector dimension of the field
+         * @param bitsPerDim the bits per projected dimension the user configured, or {@code null} to derive them
+         * @param queryBitsPerDim query quantization bits (0 for the float scoring path)
+         */
+        public static AshConfig forDims(int dims, @Nullable Integer bitsPerDim, int queryBitsPerDim) {
+            if (dims <= 0) {
+                throw new IllegalArgumentException("ASH dims must be > 0, got: " + dims);
+            }
+            int bits = bitsPerDim != null ? bitsPerDim : defaultBitsPerDim(dims);
+            // The projected dims are fixed exactly, so express them through maxProjectedDims with nothing left to
+            // the fraction.
+            return of(bits, queryBitsPerDim, 1.0f, defaultProjectedDims(dims));
+        }
+
+        /** Returns the bits per projected dimension {@link #forDims} uses when the user did not configure them. */
+        public static int defaultBitsPerDim(int dims) {
+            if (dims < LOW_DIMS_THRESHOLD) {
+                return LOW_DIMS_BITS_PER_DIM;
+            }
+            return dims >= HIGH_DIMS_THRESHOLD ? HIGH_DIMS_BITS_PER_DIM : DEFAULT_BITS_PER_DIM;
+        }
+
+        /**
+         * Returns the number of projected dimensions {@link #forDims} uses: all of {@code dims} below
+         * {@link #LOW_DIMS_THRESHOLD}, otherwise the default fraction of {@code dims} for its size, capped at
+         * {@link #DEFAULT_MAX_PROJECTED_DIMS} and rounded to the nearest multiple of {@link #PROJECTED_DIMS_ALIGNMENT}.
+         */
+        static int defaultProjectedDims(int dims) {
+            if (dims < LOW_DIMS_THRESHOLD) {
+                return dims;
+            }
+            float fraction = dims >= HIGH_DIMS_THRESHOLD ? HIGH_DIMS_PROJECTED_DIMS_FRACTION : DEFAULT_PROJECTED_DIMS_FRACTION;
+            int target = Math.min(DEFAULT_MAX_PROJECTED_DIMS, (int) (dims * fraction));
+            int aligned = Math.max(
+                PROJECTED_DIMS_ALIGNMENT,
+                Math.round((float) target / PROJECTED_DIMS_ALIGNMENT) * PROJECTED_DIMS_ALIGNMENT
+            );
+            return Math.min(aligned, dims);
+        }
+
+        /**
+         * Returns the number of dimensions vectors of {@code originalDim} dimensions are projected to under this
+         * configuration.
+         */
+        public int projectedDims(int originalDim) {
+            return Math.min(maxProjectedDims, (int) (originalDim * projectedDimsFraction));
         }
 
         /** Returns an AshConfig with all default values. */

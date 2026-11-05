@@ -849,6 +849,38 @@ public class AsymmetricHashingQuantizerTests extends ESTestCase {
         }
     }
 
+    public void testWarmStartWithoutDimensionalityReductionSkipsRefinement() throws IOException {
+        // With no dimensionality reduction and no Procrustes iterations there is nothing to refine, so warm-starting must
+        // not read the merged vectors (to build the second-moment matrix) and must return a fresh random rotation
+        int dim = 16;
+        float[][] vectors = new float[200][];
+        for (int i = 0; i < vectors.length; i++) {
+            vectors[i] = VectorTestUtils.randomFloatVector(random(), dim);
+        }
+        float[] zero = new float[dim];
+        AsymmetricHashingQuantizer quantizer = new AsymmetricHashingQuantizer(
+            1.0f,
+            Integer.MAX_VALUE,
+            2,
+            AsymmetricHashingQuantizer.Method.LEARNED,
+            0,
+            10,
+            42L,
+            executor()
+        );
+        var trained = train(quantizer, vectors, i -> zero);
+        assertTrue(trained.learned());
+
+        float[] inherited = AshUtils.randomOrthogonal(random(), dim, executor());
+        var warm = quantizer.trainWarmStart(ord -> { throw new AssertionError("must not read vectors"); }, vectors.length, dim, ord -> {
+            throw new AssertionError("must not read centroids");
+        }, inherited, 2);
+
+        assertTrue(warm.learned());
+        assertOrthonormalRows(warm.wT(), dim, dim, 1e-4f);
+        assertArrayEquals("fresh rotation, as from training", trained.wT(), warm.wT(), 0f);
+    }
+
     public void testProcrustesWithFewerVectorsThanProjectedDimensionsStaysOrthonormal() throws IOException {
         // the Procrustes step needs at least as many vectors as projected dimensions; below that the rotation is random
         int dim = 32;

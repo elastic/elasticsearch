@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.telemetry.DirectClient;
+import org.elasticsearch.xpack.esql.telemetry.QueryEntryPoint;
 import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.io.IOException;
@@ -53,6 +55,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     public static TimeValue DEFAULT_WAIT_FOR_COMPLETION = TimeValue.timeValueSeconds(1);
 
     private boolean async;
+    private QueryEntryPoint entryPoint = QueryEntryPoint.INTERNAL;
+    private DirectClient directClient = DirectClient.OTHER;
 
     private String query;
     private boolean columnar;
@@ -115,6 +119,8 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
      */
     EsqlQueryRequest(EsqlQueryRequest source) {
         this.async = source.async;
+        this.entryPoint = source.entryPoint;
+        this.directClient = source.directClient;
         this.query = source.query;
         this.columnar = source.columnar;
         this.profile = source.profile;
@@ -205,6 +211,33 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
 
     public boolean async() {
         return async;
+    }
+
+    /**
+     * The API this query came in on, for usage telemetry. It is never serialized: the REST handler that builds the request sets it
+     * on the node that runs the query, and a request built inside the cluster keeps {@link QueryEntryPoint#INTERNAL}.
+     */
+    public QueryEntryPoint entryPoint() {
+        return entryPoint;
+    }
+
+    public EsqlQueryRequest entryPoint(QueryEntryPoint entryPoint) {
+        this.entryPoint = Objects.requireNonNull(entryPoint);
+        return this;
+    }
+
+    /**
+     * The tool that sent this query, classified from its HTTP headers, for usage telemetry. Like {@link #entryPoint()} it is never
+     * serialized: the REST handler sets it from the headers it sees, so only this closed value, never a raw header, reaches the
+     * coordinator. A request built inside the cluster keeps {@link DirectClient#OTHER}.
+     */
+    public DirectClient directClient() {
+        return directClient;
+    }
+
+    public EsqlQueryRequest directClient(DirectClient directClient) {
+        this.directClient = Objects.requireNonNull(directClient);
+        return this;
     }
 
     /**

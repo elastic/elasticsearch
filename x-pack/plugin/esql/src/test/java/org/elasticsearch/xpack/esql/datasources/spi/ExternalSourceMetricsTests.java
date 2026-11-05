@@ -11,6 +11,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
 import org.junit.Before;
 
 import java.util.List;
@@ -278,18 +279,15 @@ public class ExternalSourceMetricsTests extends ESTestCase {
         assertThat(measurements(InstrumentType.LONG_COUNTER, ExternalSourceMetrics.QUERIES_CANCELLED_TOTAL), hasSize(0));
     }
 
-    public void testClientFromOriginFoldsHeaderIntoClosedSet() {
-        assertThat(ExternalSourceMetrics.clientFromOrigin(null), equalTo(ExternalSourceMetrics.CLIENT_NONE));
-        assertThat(ExternalSourceMetrics.clientFromOrigin(""), equalTo(ExternalSourceMetrics.CLIENT_NONE));
-        assertThat(ExternalSourceMetrics.clientFromOrigin("   "), equalTo(ExternalSourceMetrics.CLIENT_NONE));
-        assertThat(ExternalSourceMetrics.clientFromOrigin("kibana"), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
-        assertThat(ExternalSourceMetrics.clientFromOrigin("Kibana"), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
-        assertThat(ExternalSourceMetrics.clientFromOrigin("kibana-fleet"), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
-        assertThat(ExternalSourceMetrics.clientFromOrigin("KIBANA-Agent-Builder"), equalTo(ExternalSourceMetrics.CLIENT_KIBANA));
-        // A prefix without the separator is a different product, not a Kibana feature.
-        assertThat(ExternalSourceMetrics.clientFromOrigin("kibanaish"), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
-        assertThat(ExternalSourceMetrics.clientFromOrigin("elastic"), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
-        assertThat(ExternalSourceMetrics.clientFromOrigin("my-unbounded-client-id-1234"), equalTo(ExternalSourceMetrics.CLIENT_OTHER));
+    public void testClientMapsEveryQueryClient() {
+        for (QueryMetric client : QueryMetric.values()) {
+            String expected = switch (client) {
+                case KIBANA -> ExternalSourceMetrics.CLIENT_KIBANA;
+                case REST -> ExternalSourceMetrics.CLIENT_NONE;
+                case FLEET, LOGSTASH, OBSERVABILITY, CONNECTORS, ELASTIC_SYNTHETICS, OTHER -> ExternalSourceMetrics.CLIENT_OTHER;
+            };
+            assertThat(client.toString(), ExternalSourceMetrics.client(client), equalTo(expected));
+        }
     }
 
     public void testRecordQueryTagsClientOnTotalAndDuration() {

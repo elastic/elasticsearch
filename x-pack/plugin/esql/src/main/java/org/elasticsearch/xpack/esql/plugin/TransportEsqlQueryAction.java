@@ -152,7 +152,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ActivityLogWriterProvider logWriterProvider,
         CrossProjectModeDecider crossProjectModeDecider,
         QueryMetricsListener metricsCollector,
-        FederationLicense federationLicense
+        FederationLicense federationLicense,
+        ExternalWorkerReadiness externalWorkerReadiness
     ) {
         super(EsqlQueryAction.NAME, transportService, actionFilters, EsqlQueryRequest::new, threadPool.executor(ThreadPool.Names.SEARCH));
         this.threadPool = threadPool;
@@ -256,7 +257,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,
             dataSourceModule.formatReaderRegistry(),
-            client
+            client,
+            externalWorkerReadiness
         );
 
         this.activityLogger = new QueryLogger<>(

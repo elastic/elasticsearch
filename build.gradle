@@ -17,6 +17,8 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.internal.checks.ValidateBuildGradleScriptsTask
+import org.elasticsearch.gradle.internal.todo.MergeTodoReportTask
+import org.elasticsearch.gradle.internal.todo.TodoReportTask
 import org.elasticsearch.gradle.util.GradleUtils
 
 import groovy.xml.XmlParser;
@@ -666,4 +668,20 @@ tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':spotlessApply')
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
+}
+
+tasks.register('todoReport', MergeTodoReportTask) { merge ->
+  group = 'reporting'
+  description = 'Write a repo-wide TODO and FIXME report as JSON and CSV'
+  outputJson.set(project.layout.buildDirectory.file('reports/todo-report/todos.json'))
+  outputCsv.set(project.layout.buildDirectory.file('reports/todo-report/todos.csv'))
+  // Wired when this task is configured, so a build that does not ask for the report
+  // does not walk every project's todoReport task.
+  project.subprojects { sub ->
+    sub.pluginManager.withPlugin('elasticsearch.todo-report') {
+      def moduleReport = sub.tasks.named('todoReport', TodoReportTask)
+      merge.dependsOn(moduleReport)
+      merge.reportFiles.from(moduleReport.flatMap { it.outputFile })
+    }
+  }
 }

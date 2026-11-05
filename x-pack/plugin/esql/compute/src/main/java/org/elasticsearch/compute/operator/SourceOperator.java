@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -101,18 +102,19 @@ public abstract class SourceOperator implements Operator {
      * resets its internal counters on each invocation.</p>
      *
      * @param extraDriverNanos time the driver held a thread, in nanoseconds, since the previous call
+     * @return whether the time was attributed to shards
      */
-    final void reportSearchLoad(long extraDriverNanos, long now) {
+    final boolean reportSearchLoad(long extraDriverNanos, long now) {
         final List<ShardLoad> delta = shardLoadDelta(now);
         final int size = delta.size();
         if (size == 0) {
-            return;
+            return false;
         }
 
         if (size == 1) {
             // Single shard: attribute all processing to it
-            delta.getFirst().context().stats().accumulateSearchLoad(extraDriverNanos, now);
-            return;
+            TaskLoadAttribution.charge(delta.getFirst().context().stats().searchLoadTarget(), extraDriverNanos, now);
+            return true;
         }
 
         long totalProcess = 0L;
@@ -122,7 +124,7 @@ public abstract class SourceOperator implements Operator {
             totalRows += load.rowsEmitted();
         }
         if (totalRows == 0L && totalProcess == 0L && extraDriverNanos == 0L) {
-            return;
+            return true;
         }
 
         final long rest = Math.max(0L, extraDriverNanos - totalProcess);
@@ -134,8 +136,9 @@ public abstract class SourceOperator implements Operator {
                 weightedExtra += Math.round((double) rest * ((double) load.rowsEmitted() / (double) totalRows));
             }
             if (weightedExtra > 0L) {
-                load.context().stats().accumulateSearchLoad(weightedExtra, now);
+                TaskLoadAttribution.charge(load.context().stats().searchLoadTarget(), weightedExtra, now);
             }
         }
+        return true;
     }
 }

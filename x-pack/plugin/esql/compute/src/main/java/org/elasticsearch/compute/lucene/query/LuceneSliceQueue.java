@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -402,7 +403,7 @@ public final class LuceneSliceQueue {
                  * load attribution.
                  */
                 long now = System.nanoTime();
-                ctx.stats().accumulateSearchLoad(now - startShard, now);
+                TaskLoadAttribution.charge(ctx.stats().searchLoadTarget(), now - startShard, now);
             }
         }
         return new LuceneSliceQueue(contexts::get, slices, partitioningStrategies);

@@ -936,6 +936,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 EsExecutors.TaskTrackingConfig.builder()
                     .trackOngoingTasks()
                     .trackExecutionTime(ESQL_WORKER_EXECUTION_TIME_EWMA_ALPHA)
+                    .attributeTaskLoad()
                     .build()
             ),
             // Dedicated scaling pool for blocking external blob-store I/O and the streaming parse pipeline, kept

@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
@@ -830,6 +831,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 }
             }
             final var doAcquire = ActionRunnable.supply(listener, () -> {
+                // acquiring the search contexts and planning the batch with them is work for its shards
+                TaskLoadAttribution.attribute(shardsLoad(shards));
                 var newContexts = new ArrayList<SearchContext>();
                 for (Tuple<IndexShard, SplitShardCountSummary> targetShard : targetShards) {
                     SearchContext context = null;
@@ -1013,6 +1016,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 parentListener.onFailure(e);
             }
         }
+    }
+
+    /**
+     * Charges the time of tasks equally to {@code shards}.
+     */
+    private TaskLoadAttribution.Target shardsLoad(List<DataNodeRequest.Shard> shards) {
+        return searchService.getIndicesService().searchLoad(shards.stream().map(DataNodeRequest.Shard::shardId).toList());
     }
 
     /**

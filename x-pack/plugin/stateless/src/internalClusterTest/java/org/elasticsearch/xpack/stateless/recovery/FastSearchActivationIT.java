@@ -383,7 +383,7 @@ public class FastSearchActivationIT extends AbstractStatelessPluginIntegTestCase
         }
     }
 
-    public void testFallbackWhenIndexingShardProvidesNoCommit() throws Exception {
+    public void testFallbackWhenIndexingShardProvidesWithoutACommit() throws Exception {
         final Fixture f = setUpIndex();
         setFastActivation(false);
         final String expected = activateAndQuery(f);

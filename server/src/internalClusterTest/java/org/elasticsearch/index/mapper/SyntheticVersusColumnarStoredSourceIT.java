@@ -261,14 +261,26 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Asserts {@code _ignored} contains {@code fieldName} on <em>every</em> copy of the shard, not only on whichever copy a search happens
+     * to be routed to. A replica that recovered via operation replay would otherwise make this check flaky (#157799, #155610).
+     */
     private void assertIgnoredContains(String index, String fieldName) {
-        var resp = client().prepareSearch(index).addFetchField(IgnoredFieldMapper.NAME).get();
-        try {
-            var ignoredField = resp.getHits().getAt(0).field(IgnoredFieldMapper.NAME);
-            assertNotNull(index + ": violation must populate _ignored", ignoredField);
-            assertTrue(index + ": _ignored must contain '" + fieldName + "'", ignoredField.getValues().contains(fieldName));
-        } finally {
-            resp.decRef();
+        ensureGreen(index);
+        var routing = clusterService().state().routingTable().index(index).shard(0);
+        for (var copy : routing.assignedShards()) {
+            var resp = client().prepareSearch(index)
+                .setPreference("_only_nodes:" + copy.currentNodeId())
+                .addFetchField(IgnoredFieldMapper.NAME)
+                .get();
+            try {
+                var ignoredField = resp.getHits().getAt(0).field(IgnoredFieldMapper.NAME);
+                var label = index + " primary=" + copy.primary();
+                assertNotNull(label + ": violation must populate _ignored", ignoredField);
+                assertTrue(label + ": _ignored must contain '" + fieldName + "'", ignoredField.getValues().contains(fieldName));
+            } finally {
+                resp.decRef();
+            }
         }
     }
 
@@ -313,13 +325,19 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
         var columnarStoredSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
 
+        // A replica is required (and therefore a second data node): replicas catch up via operation-based recovery, which re-parses
+        // the source reconstructed from synthetic source, so any value that is not restored faithfully (e.g. a multi-value violation
+        // stored in ._on_failure) makes the replica diverge from the primary. See #157799.
+        internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate("test_synthetic").setMapping(mappingXContent).setSettings(syntheticSettings));
         assertAcked(prepareCreate("test_columnar_stored").setMapping(mappingXContent).setSettings(columnarStoredSettings));
 

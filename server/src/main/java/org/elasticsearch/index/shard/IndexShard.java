@@ -213,6 +213,7 @@ import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.indices.recovery.FailureStrategy.ABORT;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SEND;
+import static org.elasticsearch.indices.recovery.FailureStrategy.RETRY;
 import static org.elasticsearch.threadpool.ThreadPool.Names.WRITE;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
@@ -3993,11 +3994,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ActionListener<Void> actionListener = ActionListener.wrap(
             ignored -> recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange()),
             e -> {
-                // ABORT skips notifying the master, so we only use it only if this shard copy is CLOSED. Whatever closed it
-                // has either already been reflected in a cluster state from the master (e.g. the shard moved or the index
-                // was deleted), or will send its own shard-failed request.
-                final FailureStrategy result = state() == IndexShardState.CLOSED ? ABORT : FAIL_SEND;
-                recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), result);
+                final FailureStrategy failureStrategy;
+                if (state() == IndexShardState.CLOSED) {
+                    // ABORT skips notifying the master, so we only use it only if this shard copy is CLOSED. Whatever closed it
+                    // has either already been reflected in a cluster state from the master (e.g. the shard moved or the index
+                    // was deleted), or will send its own shard-failed request.
+                    failureStrategy = ABORT;
+                } else if (ExceptionsHelper.unwrap(e, RecoveryCancelledException.class) != null) {
+                    failureStrategy = FAIL_SEND;
+                } else {
+                    // No local recovery retry mechanism exists yet, so IndicesClusterStateService#handleRecoveryFailure
+                    // currently always turns this into FAIL_SEND. Once local retry exists, that will become conditional
+                    // on IndicesClusterStateService#INDICES_RECOVERY_LOCAL_RETRY_SETTING instead.
+                    failureStrategy = RETRY;
+                }
+                recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), failureStrategy);
             }
         );
         ActionListener.run(actionListener, action);

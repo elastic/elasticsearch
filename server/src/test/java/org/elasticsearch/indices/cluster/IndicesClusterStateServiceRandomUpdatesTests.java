@@ -87,14 +87,23 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.recovery.FailureStrategy.FAIL_SILENT;
+import static org.elasticsearch.indices.recovery.FailureStrategy.RETRY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndicesClusterStateServiceTestCase {
 
     private ThreadPool threadPool;
     private ClusterStateChanges cluster;
+
+    /// Set by {@link #createIndicesClusterStateService} to the mock created for the most recently created service,
+    /// for tests that need to verify interactions with it.
+    private ShardStateAction lastShardStateAction;
 
     @Before
     public void startCluster() throws Exception {
@@ -447,6 +456,40 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
     }
 
+    /// No local recovery retry mechanism exists yet, so handleRecoveryFailure must still notify master for a
+    /// RETRY classification -- unlike FAIL_SILENT (see testRecoveryFailures), which must not.
+    public void testRecoveryFailureRetryIsDowngradedToFailSend() {
+        disableRandomFailures();
+        String index = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        ClusterState state = ClusterStateCreationUtils.state(
+            index,
+            randomBoolean(),
+            ShardRoutingState.STARTED,
+            ShardRoutingState.INITIALIZING
+        );
+        ClusterState previousState = ClusterState.builder(state)
+            .metadata(Metadata.builder(state.metadata()).remove(index))
+            .routingTable(RoutingTable.builder().build())
+            .build();
+
+        final ShardRouting shardRouting = state.routingTable().index(index).shard(0).replicaShards().get(0);
+        final ShardId shardId = shardRouting.shardId();
+        DiscoveryNode node = state.nodes().get(shardRouting.currentNodeId());
+
+        ClusterState localState = adaptClusterStateToLocalNode(state, node);
+        ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
+        IndicesClusterStateService indicesCSSvc = createIndicesClusterStateService(node, RecordingIndicesService::new);
+        indicesCSSvc.start();
+        indicesCSSvc.applyClusterState(new ClusterChangedEvent("cluster state change that adds the index", localState, previousLocalState));
+        assertNotNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+
+        final long primaryTerm = localState.metadata().getProject().index(index).primaryTerm(shardId.id());
+        indicesCSSvc.handleRecoveryFailure(shardRouting, RETRY, primaryTerm, new Exception("dummy"));
+
+        assertNull(indicesCSSvc.indicesService.getShardOrNull(shardId));
+        verify(lastShardStateAction).localShardFailed(eq(shardRouting), anyString(), any(), any(), any());
+    }
+
     public ClusterState randomInitialClusterState(
         Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
         Supplier<MockIndicesService> indicesServiceSupplier
@@ -704,6 +747,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             mock(SnapshotFilesProvider.class)
         );
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
+        lastShardStateAction = shardStateAction;
         final PrimaryReplicaSyncer primaryReplicaSyncer = mock(PrimaryReplicaSyncer.class);
         return new IndicesClusterStateService(
             settings,

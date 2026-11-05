@@ -1380,13 +1380,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         Exception failure
     ) {
+        // No local recovery retry mechanism exists yet; always fall back to notifying master for a RETRY
+        // classification, matching what IndexShard's only call site produced for a non-CLOSED failure before
+        // RETRY existed (always FAIL_SEND).
+        final FailureStrategy finalStrategy = failureStrategy == FailureStrategy.RETRY ? FailureStrategy.FAIL_SEND : failureStrategy;
         final String message = isRecoveryCancellation(failure) ? "recovery cancelled by master" : "failed recovery";
         try {
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
-                    failureStrategy.notifyMaster(),
+                    finalStrategy.notifyMaster(),
                     message,
                     failure,
                     clusterService.state(),

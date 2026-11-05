@@ -51,7 +51,7 @@ public class WriteActionsTests extends SecurityIntegTestCase {
                   privileges: [ manage ]
                 - names: ['/(temp_)?test.*/']
                   privileges: [ manage, write ]
-                - names: '/test.*/'
+                - names: '/(temp_)?test.*/'
                   privileges: [ read ]
             """, SecuritySettingsSource.TEST_ROLE);
     }

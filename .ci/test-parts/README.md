@@ -7,7 +7,7 @@ non-test verification). Running every part runs exactly what `check` runs.
 
 | File | Edited by | Content |
 |---|---|---|
-| `config.json` | hand | part count, effective workers per job, test tasks to split, task groups that must not share a part, and `runFirstSeconds`: test tasks at least this long in their part start before the part's other work |
+| `config.json` | hand | part count, effective workers per job, test tasks to split, task groups that must not share a part, `runFirstSeconds` (test tasks at least this long in their part start before the part's other work), `heavyTestLimit` (cluster test tasks a part runs at once, see below) and `shardOverheadSeconds` (the fixed cost every shard of a split task pays again, where `durations.json` has no measured `overheads` entry) |
 | `durations.json` | export script | median executed duration (s) of each test task, and of each project's non-test tasks (without compilation and jars, which every part running its tests pays), in PR `part-*` jobs |
 | `assignment.json` | `./gradlew generateCiPartAssignment` | the generated assignment; do not edit |
 
@@ -16,6 +16,10 @@ go to a part chosen by a stable hash of their path, so the assignment only needs
 keep the parts balanced, never to keep them correct.
 
 When the part count changes, every pipeline that runs `checkPartN` must list all parts.
+
+When part tasks are requested, test tasks that start clusters (REST, cluster and spec tests) share a
+throttle, by default half the Gradle workers (8 on PR agents); `-Dtests.ci.maxParallelHeavyTests=N`
+overrides it and 0 turns it off. Keep `heavyTestLimit` in `config.json` in line with it.
 
 ## bcUpgradeTest parts
 

@@ -73,6 +73,20 @@ issued when it occurs.
 
 ## Where a runtime search can appear [esql-runtime-search-position]
 
+```{applies_to}
+stack: ga 9.6+
+serverless: ga
+```
+
+A runtime search can appear anywhere in the query, including after `STATS`, `LIMIT`, and `FORK`. The
+[position restriction](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search-position)
+on searches of indexed fields doesn't apply to it.
+
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+`KNN` on an expression is the exception: it needs a `LIMIT` after it. Refer to
+[`KNN` on `dense_vector` expressions](#esql-runtime-search-knn).
+
+This query searches a computed column after `LIMIT`:
 
 ```esql
 FROM books
@@ -117,6 +131,7 @@ Options such as `operator` and `fuzziness` behave the same way as on an indexed 
 * `boolean`, `date`, `date_nanos`, `double`, `integer`, `long`, `unsigned_long`, `ip` and `version`: the query must
   equal a value. The query must be convertible to the type of the expression.
 
+{applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
 `MATCH_PHRASE` can search `text` and `keyword` expressions. On a `keyword` expression the whole query must equal a
 value exactly, as for an indexed `keyword` field.
 
@@ -135,6 +150,10 @@ cross value boundaries with the default `slop`. A sufficiently large `slop` can 
 
 ### Analyzers [esql-runtime-search-analyzers]
 
+```{applies_to}
+stack: ga 9.6+
+serverless: ga
+```
 
 A runtime search on a `text` expression uses two analyzers, like a search on an indexed `text` field:
 
@@ -223,12 +242,22 @@ can only have one.
 
 ### Options [esql-runtime-search-options]
 
+```{applies_to}
+stack: ga 9.6+
+serverless: ga
+```
+
 On `text` expressions, `MATCH` and `MATCH_PHRASE` support the same
 [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params) as on an indexed
 field. On other types, `MATCH` supports only `lenient`, and `MATCH_PHRASE` supports none. When the query can't be
 converted to the type of the expression, `lenient` makes the search match no rows instead of failing.
 
 ### Scoring [esql-runtime-search-scoring]
+
+```{applies_to}
+stack: ga 9.6+
+serverless: ga
+```
 
 When the query requests [`METADATA _score`](/reference/query-languages/esql/esql-metadata-fields.md), a runtime
 full-text search contributes to the relevance score. There are no index statistics for an expression, so the score is

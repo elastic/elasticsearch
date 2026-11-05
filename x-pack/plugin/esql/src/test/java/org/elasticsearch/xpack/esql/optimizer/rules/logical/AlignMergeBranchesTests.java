@@ -38,7 +38,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.hamcrest.Matchers.contains;
@@ -102,8 +101,7 @@ public class AlignMergeBranchesTests extends ESTestCase {
     }
 
     /**
-     * A null fill is typed like the column, except for types an {@code EVAL} cannot return: {@code UNSUPPORTED} is filled as
-     * {@code KEYWORD} and a counter as its non-counter type.
+     * A null fill is typed like the column, except for a counter, which is filled as its non-counter type.
      */
     public void testNullFillTypes() {
         List<Attribute> output = List.of(
@@ -117,7 +115,7 @@ public class AlignMergeBranchesTests extends ESTestCase {
 
         for (LogicalPlan branch : aligned.children()) {
             Eval fill = as(as(branch, Project.class).child(), Eval.class);
-            assertNullFills(fill, Map.of("unsupported", KEYWORD, "counter", LONG));
+            assertNullFills(fill, Map.of("unsupported", UNSUPPORTED, "counter", LONG));
         }
     }
 

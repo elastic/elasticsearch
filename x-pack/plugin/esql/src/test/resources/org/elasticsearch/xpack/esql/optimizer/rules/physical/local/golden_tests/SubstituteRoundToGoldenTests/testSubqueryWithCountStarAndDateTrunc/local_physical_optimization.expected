@@ -1,16 +1,16 @@
 ProjectExec[[x{r}#0, cnt{r}#1, date{r}#2]]
 \_LimitExec[1000[INTEGER],null]
   \_MergeExec[[!alias_integer, boolean{r}#3, byte{r}#4, constant_keyword-foo{r}#5, date{r}#2, date_nanos{r}#6, dense_vector{r}#7, double{r}#8, float{r}#9, half_float{r}#10, integer{r}#11, ip{r}#12, keyword{r}#13, long{r}#14, scaled_float{r}#15, semantic_text{r}#16, short{r}#17, text{r}#18, unsigned_long{r}#19, version{r}#20, wildcard{r}#21, cnt{r}#1, x{r}#0],UNION]
-    |_ExchangeExec[[alias_integer{r}#22, boolean{f}#23, byte{f}#24, constant_keyword-foo{f}#25, date{f}#26, date_nanos{f}#27, dense_vector{f}#28, double{f}#29, float{f}#30, half_float{f}#31, integer{f}#32, ip{f}#33, keyword{f}#34, long{f}#35, scaled_float{f}#36, semantic_text{f}#37, short{f}#38, text{f}#39, unsigned_long{f}#40, version{f}#41, wildcard{f}#42, cnt{r}#43, x{r}#44],false]
-    | \_ProjectExec[[alias_integer{r}#22, boolean{f}#23, byte{f}#24, constant_keyword-foo{f}#25, date{f}#26, date_nanos{f}#27, dense_vector{f}#28, double{f}#29, float{f}#30, half_float{f}#31, integer{f}#32, ip{f}#33, keyword{f}#34, long{f}#35, scaled_float{f}#36, semantic_text{f}#37, short{f}#38, text{f}#39, unsigned_long{f}#40, version{f}#41, wildcard{f}#42, cnt{r}#43, x{r}#44]]
-    |   \_FieldExtractExec[[boolean{f}#23, byte{f}#24, constant_keyword-foo{f}#25, date{f}#26, date_nanos{f}#27, dense_vector{f}#28, double{f}#29, float{f}#30, half_float{f}#31, integer{f}#32, ip{f}#33, keyword{f}#34, long{f}#35, scaled_float{f}#36, semantic_text{f}#37, short{f}#38, text{f}#39, unsigned_long{f}#40, version{f}#41, wildcard{f}#42]<[],[],[]>,_doc{f}#45]
-    |     \_EvalExec[[null[KEYWORD] AS alias_integer#22, null[LONG] AS cnt#43, null[DATETIME] AS x#44]]
-    |       \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#45], limit[], sort[] estimatedRowSize[6472] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
-    \_ProjectExec[[alias_integer{r}#46, boolean{r}#47, byte{r}#48, constant_keyword-foo{r}#49, date{r}#50, date_nanos{r}#51, dense_vector{r}#52, double{r}#53, float{r}#54, half_float{r}#55, integer{r}#56, ip{r}#57, keyword{r}#58, long{r}#59, scaled_float{r}#60, semantic_text{r}#61, short{r}#62, text{r}#63, unsigned_long{r}#64, version{r}#65, wildcard{r}#66, cnt{r}#67, x{r}#68]]
-      \_EvalExec[[null[KEYWORD] AS alias_integer#46, null[BOOLEAN] AS boolean#47, null[INTEGER] AS byte#48, null[KEYWORD] AS constant_keyword-foo#49, null[DATETIME] AS date#50, null[DATE_NANOS] AS date_nanos#51, null[DENSE_VECTOR] AS dense_vector#52, null[DOUBLE] AS double#53, null[DOUBLE] AS float#54, null[DOUBLE] AS half_float#55, null[INTEGER] AS integer#56, null[IP] AS ip#57, null[KEYWORD] AS keyword#58, null[LONG] AS long#59, null[DOUBLE] AS scaled_float#60, null[TEXT] AS semantic_text#61, null[INTEGER] AS short#62, null[TEXT] AS text#63, null[UNSIGNED_LONG] AS unsigned_long#64, null[VERSION] AS version#65, null[KEYWORD] AS wildcard#66]]
-        \_AggregateExec[[x{r}#68],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#67, x{r}#68],FINAL,[x{r}#68, $$cnt$count{r}#69, $$cnt$seen{r}#70],null]
-          \_ExchangeExec[[x{r}#68, $$cnt$count{r}#69, $$cnt$seen{r}#70],true]
-            \_FilterExec[$$cnt$count{r}#71 > 0[LONG]]
+    |_ExchangeExec[[!alias_integer, boolean{f}#22, byte{f}#23, constant_keyword-foo{f}#24, date{f}#25, date_nanos{f}#26, dense_vector{f}#27, double{f}#28, float{f}#29, half_float{f}#30, integer{f}#31, ip{f}#32, keyword{f}#33, long{f}#34, scaled_float{f}#35, semantic_text{f}#36, short{f}#37, text{f}#38, unsigned_long{f}#39, version{f}#40, wildcard{f}#41, cnt{r}#42, x{r}#43],false]
+    | \_ProjectExec[[!alias_integer, boolean{f}#22, byte{f}#23, constant_keyword-foo{f}#24, date{f}#25, date_nanos{f}#26, dense_vector{f}#27, double{f}#28, float{f}#29, half_float{f}#30, integer{f}#31, ip{f}#32, keyword{f}#33, long{f}#34, scaled_float{f}#35, semantic_text{f}#36, short{f}#37, text{f}#38, unsigned_long{f}#39, version{f}#40, wildcard{f}#41, cnt{r}#42, x{r}#43]]
+    |   \_FieldExtractExec[[!alias_integer, boolean{f}#22, byte{f}#23, constant_keyword-foo{f}#24, date{f}#25, date_nanos{f}#26, dense_vector{f}#27, double{f}#28, float{f}#29, half_float{f}#30, integer{f}#31, ip{f}#32, keyword{f}#33, long{f}#34, scaled_float{f}#35, semantic_text{f}#36, short{f}#37, text{f}#38, unsigned_long{f}#39, version{f}#40, wildcard{f}#41]<[],[],[]>,_doc{f}#44]
+    |     \_EvalExec[[null[LONG] AS cnt#42, null[DATETIME] AS x#43]]
+    |       \_EsQueryExec[all_types], indexMode[standard], [_doc{f}#44], limit[], sort[] estimatedRowSize[7446] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]
+    \_ProjectExec[[alias_integer{r}#45, boolean{r}#46, byte{r}#47, constant_keyword-foo{r}#48, date{r}#49, date_nanos{r}#50, dense_vector{r}#51, double{r}#52, float{r}#53, half_float{r}#54, integer{r}#55, ip{r}#56, keyword{r}#57, long{r}#58, scaled_float{r}#59, semantic_text{r}#60, short{r}#61, text{r}#62, unsigned_long{r}#63, version{r}#64, wildcard{r}#65, cnt{r}#66, x{r}#67]]
+      \_EvalExec[[null[UNSUPPORTED] AS alias_integer#45, null[BOOLEAN] AS boolean#46, null[INTEGER] AS byte#47, null[KEYWORD] AS constant_keyword-foo#48, null[DATETIME] AS date#49, null[DATE_NANOS] AS date_nanos#50, null[DENSE_VECTOR] AS dense_vector#51, null[DOUBLE] AS double#52, null[DOUBLE] AS float#53, null[DOUBLE] AS half_float#54, null[INTEGER] AS integer#55, null[IP] AS ip#56, null[KEYWORD] AS keyword#57, null[LONG] AS long#58, null[DOUBLE] AS scaled_float#59, null[TEXT] AS semantic_text#60, null[INTEGER] AS short#61, null[TEXT] AS text#62, null[UNSIGNED_LONG] AS unsigned_long#63, null[VERSION] AS version#64, null[KEYWORD] AS wildcard#65]]
+        \_AggregateExec[[x{r}#67],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#66, x{r}#67],FINAL,[x{r}#67, $$cnt$count{r}#68, $$cnt$seen{r}#69],null]
+          \_ExchangeExec[[x{r}#67, $$cnt$count{r}#68, $$cnt$seen{r}#69],true]
+            \_FilterExec[$$cnt$count{r}#70 > 0[LONG]]
               \_EsStatsQueryExec[all_types], stats[ByStat{queryBuilderAndTags=[QueryBuilderAndTags[query={
   "esql_single_value" : {
     "field" : "date",
@@ -85,4 +85,4 @@ ProjectExec[[x{r}#0, cnt{r}#1, date{r}#2]]
     ],
     "boost" : 1.0
   }
-}, tags=[null]]]}], query[][x{r}#68, $$cnt$count{r}#71, $$cnt$seen{r}#72], limit[], 
+}, tags=[null]]]}], query[][x{r}#67, $$cnt$count{r}#70, $$cnt$seen{r}#71], limit[], 

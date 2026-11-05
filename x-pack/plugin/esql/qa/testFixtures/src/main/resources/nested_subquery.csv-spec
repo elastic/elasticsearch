@@ -2186,6 +2186,6 @@ FROM (FROM (FROM employees), (FROM employees, employees_incompatible)
 | STATS c = COUNT(*) BY emp_no, does_not_exist, e
 ;
 
-c:long | emp_no:keyword | does_not_exist:null | e:keyword
+c:long | emp_no:unsupported | does_not_exist:null | e:keyword
 4      | null           | null                | 10001
 ;

@@ -454,7 +454,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("client_ip", leftAlias.name());
         Literal leftNull = as(leftAlias.child(), Literal.class);
         assertNull(leftNull.value());
-        assertEquals(KEYWORD, leftNull.dataType());
+        assertEquals(UNSUPPORTED, leftNull.dataType());
 
         EsRelation leftRelation = as(leftEval.child(), EsRelation.class);
 
@@ -467,7 +467,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("client_ip", rightAlias.name());
         Literal rightNull = as(rightAlias.child(), Literal.class);
         assertNull(rightNull.value());
-        assertEquals(KEYWORD, rightNull.dataType());
+        assertEquals(UNSUPPORTED, rightNull.dataType());
 
         Eval innerEval = as(rightEval.child(), Eval.class);
         List<Alias> innerAliases = innerEval.fields();
@@ -656,7 +656,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
             assertEquals("x", legConflictEval.fields().get(0).name());
             Literal legNull = as(legConflictEval.fields().get(0).child(), Literal.class);
             assertNull(legNull.value());
-            assertEquals(KEYWORD, legNull.dataType());
+            assertEquals(UNSUPPORTED, legNull.dataType());
 
             Row row = as(legConflictEval.child(), Row.class);
             assertEquals(1, row.fields().size());
@@ -813,7 +813,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("client_ip", fromConflictEval.fields().get(0).name());
         Literal fromNull = as(fromConflictEval.fields().get(0).child(), Literal.class);
         assertNull(fromNull.value());
-        assertEquals(KEYWORD, fromNull.dataType());
+        assertEquals(UNSUPPORTED, fromNull.dataType());
         EsRelation fromRelation = as(fromConflictEval.child(), EsRelation.class);
         assertEquals("sample_data", fromRelation.indexPattern());
 
@@ -827,7 +827,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("client_ip", rowConflictEval.fields().get(0).name());
         Literal rowNull = as(rowConflictEval.fields().get(0).child(), Literal.class);
         assertNull(rowNull.value());
-        assertEquals(KEYWORD, rowNull.dataType());
+        assertEquals(UNSUPPORTED, rowNull.dataType());
         Row row = as(rowConflictEval.child(), Row.class);
         assertEquals("client_ip", row.fields().get(0).name());
         Literal rowLiteral = as(row.fields().get(0).child(), Literal.class);
@@ -878,7 +878,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("emp_no", indexConflictEval.fields().get(0).name());
         Literal indexNull = as(indexConflictEval.fields().get(0).child(), Literal.class);
         assertNull(indexNull.value());
-        assertEquals(KEYWORD, indexNull.dataType());
+        assertEquals(UNSUPPORTED, indexNull.dataType());
         EsRelation indexRelation = as(indexConflictEval.child(), EsRelation.class);
         assertEquals("employees", indexRelation.indexPattern());
 
@@ -892,7 +892,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("emp_no", rowConflictEval.fields().get(0).name());
         Literal rowNull = as(rowConflictEval.fields().get(0).child(), Literal.class);
         assertNull(rowNull.value());
-        assertEquals(KEYWORD, rowNull.dataType());
+        assertEquals(UNSUPPORTED, rowNull.dataType());
         Row row = as(rowConflictEval.child(), Row.class);
         assertEquals("emp_no", row.fields().get(0).name());
         Literal rowLiteral = as(row.fields().get(0).child(), Literal.class);
@@ -1000,7 +1000,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         Eval indexMissingEval = as(indexProject.child(), Eval.class);
         assertEquals(2, indexMissingEval.fields().size());
         for (Alias fill : indexMissingEval.fields()) {
-            assertEquals(KEYWORD, as(fill.child(), Literal.class).dataType());
+            assertEquals(UNSUPPORTED, as(fill.child(), Literal.class).dataType());
         }
         EsRelation indexRelation = as(indexMissingEval.child(), EsRelation.class);
         assertEquals("employees", indexRelation.indexPattern());
@@ -1070,7 +1070,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("m", tsNullMAlias.name());
         Literal tsNullMLit = as(tsNullMAlias.child(), Literal.class);
         assertNull(tsNullMLit.value());
-        assertEquals(KEYWORD, tsNullMLit.dataType());
+        assertEquals(UNSUPPORTED, tsNullMLit.dataType());
 
         Project tsInnerProject = as(tsNullM.child(), Project.class);
         UnpackDims tsUnpack = as(tsInnerProject.child(), UnpackDims.class);
@@ -1104,7 +1104,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals("m", sampleNullMAlias.name());
         Literal sampleNullMLit = as(sampleNullMAlias.child(), Literal.class);
         assertNull(sampleNullMLit.value());
-        assertEquals(KEYWORD, sampleNullMLit.dataType());
+        assertEquals(UNSUPPORTED, sampleNullMLit.dataType());
 
         Eval innerEval = as(sampleNullM.child(), Eval.class);
         assertEquals(1, innerEval.fields().size());
@@ -1296,7 +1296,7 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         assertEquals(4, tsNullSampleFields.fields().size());
         Eval tsNullM = as(tsNullSampleFields.child(), Eval.class);
         assertEquals("m", tsNullM.fields().get(0).name());
-        assertEquals(KEYWORD, as(tsNullM.fields().get(0).child(), Literal.class).dataType());
+        assertEquals(UNSUPPORTED, as(tsNullM.fields().get(0).child(), Literal.class).dataType());
         // No BY clause: outer Aggregate -> inner TimeSeriesAggregate (no PACK/UNPACK layers)
         Aggregate tsOuterAggregate = as(tsNullM.child(), Aggregate.class);
         assertFalse(tsOuterAggregate instanceof TimeSeriesAggregate);
@@ -1890,12 +1890,12 @@ public class AnalyzerSubqueryTests extends AnalyzerTestCase {
         List<ConvertFunction> pushedDownConversions = new ArrayList<>();
         plan.forEachDown(Eval.class, eval -> {
             for (Alias alias : eval.fields()) {
-                // The keyword-typed null is the union-type null-fill of the multi-typed column; the ip-typed null that the
+                // The unsupported-typed null is the union-type null-fill of the multi-typed column; the ip-typed null that the
                 // UnionAll alignment adds to the employees branch is a legitimate conversion input.
                 if (alias.name().equals("client_ip")
                     && alias.child() instanceof Literal literal
                     && literal.value() == null
-                    && literal.dataType() == DataType.KEYWORD) {
+                    && literal.dataType() == DataType.UNSUPPORTED) {
                     nullFilledClientIps.add(alias.id());
                 } else if (alias.child() instanceof ConvertFunction convert && convert.dataType() == DataType.IP) {
                     pushedDownConversions.add(convert);

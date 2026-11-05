@@ -15,7 +15,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfQueryConfigResolver;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.LongAccumulator;
 
 /**
  * IVF kNN search over a slice of an index, with nested (block-join) diversification so at most one
@@ -69,8 +68,8 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
     }
 
     @Override
-    protected IVFCollectorManager getKnnCollectorManager(int k, LongAccumulator longAccumulator) {
-        return new DiversifiedIVFKnnCollectorManager(k, longAccumulator, parentsFilter);
+    protected IVFCollectorManager getKnnCollectorManager(int k, SharedMinCompetitiveScore sharedScore) {
+        return new DiversifiedIVFKnnCollectorManager(k, sharedScore, parentsFilter);
     }
 
     @Override

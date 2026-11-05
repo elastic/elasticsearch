@@ -53,7 +53,8 @@ public class SharedBytes extends AbstractRefCounted {
 
     public static final int PAGE_SIZE = 4096;
 
-    private static final String CACHE_FILE_NAME = "shared_snapshot_cache";
+    /** The default name of the cache file, which the cache of searchable snapshots and of stateless use. */
+    static final String CACHE_FILE_NAME = "shared_snapshot_cache";
 
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
         StandardOpenOption.READ,
@@ -85,12 +86,28 @@ public class SharedBytes extends AbstractRefCounted {
 
     SharedBytes(int numRegions, int regionSize, NodeEnvironment environment, IntConsumer writeBytes, IntConsumer readBytes, boolean mmap)
         throws IOException {
+        this(numRegions, regionSize, environment, writeBytes, readBytes, mmap, CACHE_FILE_NAME);
+    }
+
+    /**
+     * @param cacheFileName the name of the cache file in the data path. Two caches in one node must use different names, because the
+     *                      file is not locked, and a cache of size zero deletes the file of its name when it starts.
+     */
+    SharedBytes(
+        int numRegions,
+        int regionSize,
+        NodeEnvironment environment,
+        IntConsumer writeBytes,
+        IntConsumer readBytes,
+        boolean mmap,
+        String cacheFileName
+    ) throws IOException {
         this.numRegions = numRegions;
         this.regionSize = regionSize;
         final long fileSize = (long) numRegions * regionSize;
         Path cacheFile = null;
         if (fileSize > 0) {
-            cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
+            cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize, cacheFileName);
             preallocate(cacheFile, fileSize);
             // we need to unwrap our test-only file system layers
             cacheFile = Unwrappable.unwrapAll(cacheFile);
@@ -99,7 +116,7 @@ public class SharedBytes extends AbstractRefCounted {
         } else {
             this.fileChannel = null;
             for (Path path : environment.nodeDataPaths()) {
-                Files.deleteIfExists(path.resolve(CACHE_FILE_NAME));
+                Files.deleteIfExists(path.resolve(cacheFileName));
             }
         }
         this.path = cacheFile;
@@ -148,12 +165,17 @@ public class SharedBytes extends AbstractRefCounted {
      * @return path for the cache file or {@code null} if none could be found
      */
     public static Path findCacheSnapshotCacheFilePath(NodeEnvironment environment, long fileSize) throws IOException {
+        return findCacheSnapshotCacheFilePath(environment, fileSize, CACHE_FILE_NAME);
+    }
+
+    /** The same for a cache file with another name: two caches in one node must not use the same file. */
+    public static Path findCacheSnapshotCacheFilePath(NodeEnvironment environment, long fileSize, String cacheFileName) throws IOException {
         assert environment.nodeDataPaths().length == 1;
         Path path = environment.nodeDataPaths()[0];
         Files.createDirectories(path);
         // TODO: be resilient to this check failing and try next path?
         long usableSpace = Environment.getUsableSpace(path);
-        Path p = path.resolve(CACHE_FILE_NAME);
+        Path p = path.resolve(cacheFileName);
         if (Files.exists(p)) {
             usableSpace += Files.size(p);
         }

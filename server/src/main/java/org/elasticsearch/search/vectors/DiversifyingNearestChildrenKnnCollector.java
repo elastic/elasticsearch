@@ -105,14 +105,16 @@ class DiversifyingNearestChildrenKnnCollector extends AbstractMaxScoreKnnCollect
 
     @Override
     public long getMinCompetitiveDocScore() {
-        return heap.size() > 0
+        return heap.size() >= k()
             ? Math.max(NeighborQueue.encodeRaw(heap.topNode(), heap.topScore()), minCompetitiveDocScore)
             : minCompetitiveDocScore;
     }
 
     @Override
     void updateMinCompetitiveDocScore(long minCompetitiveDocScore) {
-        long queueMinCompetitiveDocScore = heap.size() > 0 ? NeighborQueue.encodeRaw(heap.topNode(), heap.topScore()) : LEAST_COMPETITIVE;
+        long queueMinCompetitiveDocScore = heap.size() >= k()
+            ? NeighborQueue.encodeRaw(heap.topNode(), heap.topScore())
+            : LEAST_COMPETITIVE;
         this.minCompetitiveDocScore = Math.max(this.minCompetitiveDocScore, Math.max(queueMinCompetitiveDocScore, minCompetitiveDocScore));
         this.minCompetitiveScore = NeighborQueue.decodeScoreRaw(this.minCompetitiveDocScore);
     }

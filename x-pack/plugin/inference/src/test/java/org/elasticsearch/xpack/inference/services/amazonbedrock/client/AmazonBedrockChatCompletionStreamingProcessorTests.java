@@ -660,6 +660,25 @@ public class AmazonBedrockChatCompletionStreamingProcessorTests extends ESTestCa
     }
 
     /**
+     * Events are mapped to chunks on the thread that delivers them, outside the utility pool task that sends them downstream. A failure
+     * while mapping, here an invalid role, must still cancel the upstream and reach the downstream as an error instead of being lost.
+     */
+    public void testMappingFailureIsDeliveredAsError() {
+        var upstream = mock(Flow.Subscription.class);
+        var downstream = subscribedDownstream(upstream);
+
+        processor.onNext(messageStartOutput("not-a-role"));
+
+        verify(upstream, times(1)).cancel();
+        verify(downstream, times(1)).onError(assertArg(e -> {
+            assertThat(e, isA(UnifiedChatCompletionException.class));
+            assertThat(e.getCause().getMessage(), is("Received invalid role [not-a-role]"));
+        }));
+        verify(downstream, never()).onNext(any());
+        verify(downstream, never()).onComplete();
+    }
+
+    /**
      * Errors reported by the AWS SDK itself (outside of event processing) arrive at onError directly and must carry the Bedrock status.
      */
     public void testOnErrorFromSdkPropagatesBedrockStatus() {

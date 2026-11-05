@@ -114,7 +114,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             return new GetFieldMappingsResponse(Map.of(shardId.getIndexName(), Map.of()));
         }
         MappingBuilder mappingBuilder;
-        // We re-parse mappings here which may emit deprecation warnings.  We don't want these to appear
+        // We re-parse mappings here which may emit deprecation warnings. We don't want these to appear
         // in a get-mappings request, so we use a new ThreadContext to swallow them and avoid posting
         // them back to the client.
         try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {

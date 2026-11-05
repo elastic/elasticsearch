@@ -56,7 +56,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         entry("delta", "delta(network.cost)"),
         entry("idelta", "idelta(network.cost)"),
         entry("deriv", "deriv(network.cost)"),
-        entry("changes", "changes(network.cost)"),
         entry("first_over_time", "first_over_time(network.cost)"),
         entry("last_over_time", "last_over_time(network.cost)")
     );

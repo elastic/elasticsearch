@@ -1623,7 +1623,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             onBeforeUpload.run();
 
             var before = threadPool.relativeTimeInMillis();
-            blobContainer.writeBlob(OperationPurpose.TRANSLOG, fileName, reference, false);
+            blobContainer.writeBlobAtomic(OperationPurpose.TRANSLOG, fileName, reference, false);
             var uploadDuration = threadPool.relativeTimeInMillis() - before;
             translogUploadDurationHistogram.record(uploadDuration);
             translogUploadSizeHistogram.record(ByteSizeUnit.BYTES.toKB(reference.length()));

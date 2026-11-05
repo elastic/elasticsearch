@@ -699,6 +699,20 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                 }
                 super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
             }
+
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                BytesReference bytes,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                if (failWrites) {
+                    failIfNeeded(purpose, blobName);
+                }
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, bytes, failIfAlreadyExists);
+            }
         });
     }
 

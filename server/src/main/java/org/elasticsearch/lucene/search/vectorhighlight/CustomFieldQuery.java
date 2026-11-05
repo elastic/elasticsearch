@@ -12,13 +12,14 @@ package org.elasticsearch.lucene.search.vectorhighlight;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.sandbox.search.CombinedFieldQuery;
+import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
@@ -29,7 +30,10 @@ import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 // LUCENE MONITOR
 // TODO: remove me!
@@ -74,7 +78,14 @@ public class CustomFieldQuery extends FieldQuery {
                 flatten(new TermQuery(term), searcher, flatQueries, boost);
             }
         } else if (sourceQuery instanceof CombinedFieldQuery combinedFieldQuery) {
-            for (Term term : combinedFieldQuery.getTerms()) {
+            List<Term> collectedTerms = new ArrayList<>();
+            combinedFieldQuery.visit(new QueryVisitor() {
+                @Override
+                public void consumeTerms(Query query, Term... terms) {
+                    collectedTerms.addAll(Arrays.asList(terms));
+                }
+            });
+            for (Term term : collectedTerms) {
                 flatten(new TermQuery(term), searcher, flatQueries, boost);
             }
         } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {

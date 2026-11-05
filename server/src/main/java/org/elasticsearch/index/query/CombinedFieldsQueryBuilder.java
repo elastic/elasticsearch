@@ -12,7 +12,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.sandbox.search.CombinedFieldQuery;
+import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
@@ -398,11 +398,10 @@ public final class CombinedFieldsQueryBuilder extends LeafQueryBuilder<CombinedF
 
         @Override
         protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
-            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
+            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder(field);
             for (TermAndBoost termAndBoost : terms) {
                 assert termAndBoost.boost() == BoostAttribute.DEFAULT_BOOST;
-                BytesRef bytes = termAndBoost.term();
-                query.addTerm(bytes);
+                query.addField(termAndBoost.term().utf8ToString());
             }
             for (FieldAndBoost fieldAndBoost : fields) {
                 MappedFieldType fieldType = fieldAndBoost.fieldType;

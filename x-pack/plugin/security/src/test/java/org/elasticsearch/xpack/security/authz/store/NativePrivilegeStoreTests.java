@@ -38,6 +38,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,6 +59,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.ClearPrivilegesCac
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore.DescriptorsAndApplicationNamesCache;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
@@ -72,7 +76,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -182,7 +185,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             client,
             securityIndex,
             cacheInvalidatorRegistry,
-            clusterService
+            clusterService,
+            threadPool
         );
     }
 
@@ -591,60 +595,183 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertEquals(0, store.getDescriptorsCache().count());
     }
 
-    public void testWhenStaleResultsAreCachedTheyWillBeCleared() throws InterruptedException {
-        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = singletonList(
-            new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap())
+    /**
+     * A load that is still running when the cache is invalidated must not be cached when it completes. Its caller still receives the
+     * result, but the next caller must load again rather than read a result that predates the invalidation.
+     */
+    public void testLoadStartedBeforeInvalidationIsNotCached() throws Exception {
+        final ApplicationPrivilegeDescriptor descriptor = myappAdminPrivilege();
+        final DescriptorsAndApplicationNamesCache cache = newPrivilegeCache();
+
+        // Hold the load open so that the invalidation happens while it is in flight
+        final List<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> firstLoads = new ArrayList<>();
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        cache.get(Set.of("myapp"), true, firstLoads::add, future);
+        assertThat(firstLoads, hasSize(1));
+
+        cache.invalidateAll();
+        firstLoads.get(0).onResponse(List.of(descriptor));
+        assertThat(future.get(1, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
+
+        // Nothing was cached, so the next caller loads again
+        final List<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> secondLoads = new ArrayList<>();
+        cache.get(Set.of("myapp"), true, secondLoads::add, new PlainActionFuture<>());
+        assertThat(secondLoads, hasSize(1));
+    }
+
+    /**
+     * Concurrent cache misses for the same application names share one load, so a burst of requests after a cache clear runs one
+     * .security search rather than one per caller (elastic/elasticsearch-team#5464). The shared result is cached for later callers.
+     */
+    public void testConcurrentCacheMissesShareOneLoad() throws Exception {
+        final ApplicationPrivilegeDescriptor descriptor = myappAdminPrivilege();
+        final DescriptorsAndApplicationNamesCache cache = newPrivilegeCache();
+
+        // Issue every caller before the load completes, as a burst of requests after a cache clear would
+        final List<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> loads = new ArrayList<>();
+        final List<PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>>> futures = new ArrayList<>();
+        final int concurrentCallers = randomIntBetween(2, 20);
+        for (int i = 0; i < concurrentCallers; i++) {
+            final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+            cache.get(Set.of("myapp"), true, loads::add, future);
+            futures.add(future);
+        }
+        assertThat("concurrent cache misses should share one load", loads, hasSize(1));
+
+        loads.get(0).onResponse(List.of(descriptor));
+        for (PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future : futures) {
+            assertThat(future.get(1, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
+        }
+
+        // The shared result was cached, so a later caller is answered without a load
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> cachedFuture = new PlainActionFuture<>();
+        cache.get(Set.of("myapp"), true, l -> fail("expected a cache hit"), cachedFuture);
+        assertThat(cachedFuture.get(1, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
+    }
+
+    /**
+     * A loader that throws instead of completing its listener must fail the shared load. If it did not, the in-flight entry would
+     * never complete or be removed, and every later caller for the same key would wait on it forever. The failure must not be cached:
+     * the next caller starts a fresh load.
+     */
+    public void testThrowingLoaderFailsCallerAndIsNotCached() throws Exception {
+        final DescriptorsAndApplicationNamesCache cache = newPrivilegeCache();
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        cache.get(Set.of("myapp"), true, l -> { throw new IllegalStateException("loader is broken"); }, future);
+        final ExecutionException e = expectThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
+        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+
+        final List<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> loads = new ArrayList<>();
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> retryFuture = new PlainActionFuture<>();
+        cache.get(Set.of("myapp"), true, loads::add, retryFuture);
+        assertThat("the failed load should not be joined or cached", loads, hasSize(1));
+        final ApplicationPrivilegeDescriptor descriptor = myappAdminPrivilege();
+        loads.get(0).onResponse(List.of(descriptor));
+        assertThat(retryFuture.get(1, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
+    }
+
+    /**
+     * A shared load completes on the thread, and under the thread context, of the caller that started it. A caller that joined the
+     * load must still observe its own thread context when its listener runs, not the creating caller's, or security state and response
+     * headers would leak between unrelated requests.
+     */
+    public void testJoiningCallerIsCompletedUnderItsOwnThreadContext() throws Exception {
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final DescriptorsAndApplicationNamesCache cache = new DescriptorsAndApplicationNamesCache(
+            TimeValue.timeValueMinutes(10),
+            100,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            threadContext
         );
 
-        final CountDownLatch getPrivilegeCountDown = new CountDownLatch(1);
-        final CountDownLatch invalidationCountDown = new CountDownLatch(1);
-        // Use subclass so we can put the caching process on hold, which allows time to fire the cache invalidation call
-        // When the process reaches the overridden method, it already acquires the read lock.
-        // Hence the cache invalidation will be block at acquiring the write lock.
-        // This simulates the scenario when stale results are cached just before the invalidation call arrives.
-        // In this case, we guarantee the cache will be invalidate and the stale results won't stay for long.
-        final NativePrivilegeStore store1 = new NativePrivilegeStore(
-            setAllowExpensiveQueries(Settings.EMPTY),
-            client,
-            securityIndex,
-            new CacheInvalidatorRegistry(),
-            clusterService
-        ) {
-            @Override
-            protected void cacheFetchedDescriptors(
-                Set<String> applicationNamesCacheKey,
-                Map<String, Set<ApplicationPrivilegeDescriptor>> mapOfFetchedDescriptors,
-                long invalidationCount
-            ) {
-                getPrivilegeCountDown.countDown();
-                try {
-                    // wait till the invalidation call is at the door step
-                    invalidationCountDown.await(5, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                super.cacheFetchedDescriptors(applicationNamesCacheKey, mapOfFetchedDescriptors, invalidationCount);
-                // Assert that cache is successful
-                assertEquals(1, getApplicationNamesCache().count());
-                assertEquals(1, getDescriptorsCache().count());
-            }
-        };
-        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store1.getPrivileges(null, null, future);
-        final SearchHit[] hits = buildHits(sourcePrivileges);
-        ActionListener.respondAndRelease(listener.get(), buildSearchResponse(hits));
+        final List<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> loads = new ArrayList<>();
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> creatorFuture = new PlainActionFuture<>();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("caller", "creator");
+            cache.get(Set.of("myapp"), true, loads::add, creatorFuture);
+        }
+        assertThat(loads, hasSize(1));
 
-        // Make sure the caching is about to happen
-        getPrivilegeCountDown.await(5, TimeUnit.SECONDS);
-        // Fire the invalidation call in another thread
-        new Thread(() -> {
-            // Let the caching proceed
-            invalidationCountDown.countDown();
-            store.getDescriptorsAndApplicationNamesCache().invalidateAll();
-        }).start();
-        // The cache should be cleared
-        assertEquals(0, store.getApplicationNamesCache().count());
-        assertEquals(0, store.getDescriptorsCache().count());
+        final AtomicReference<String> headerSeenByJoiner = new AtomicReference<>();
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> joinerFuture = new PlainActionFuture<>();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("caller", "joiner");
+            cache.get(
+                Set.of("myapp"),
+                true,
+                l -> fail("should have joined the in-flight load"),
+                ActionListener.runBefore(joinerFuture, () -> headerSeenByJoiner.set(threadContext.getHeader("caller")))
+            );
+        }
+
+        final ApplicationPrivilegeDescriptor descriptor = myappAdminPrivilege();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("caller", "creator");
+            loads.get(0).onResponse(List.of(descriptor));
+        }
+        assertThat(joinerFuture.get(1, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
+        assertThat(headerSeenByJoiner.get(), equalTo("joiner"));
+    }
+
+    /**
+     * Sharing a load must not copy the creating caller's response headers into the joining caller's response.
+     */
+    public void testJoinedLoadDoesNotInheritCreatorResponseHeaders() throws Exception {
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final DescriptorsAndApplicationNamesCache cache = new DescriptorsAndApplicationNamesCache(
+            TimeValue.timeValueMinutes(10),
+            100,
+            threadPool.generic(),
+            threadContext
+        );
+
+        final List<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> loads = new ArrayList<>();
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> creatorFuture = new PlainActionFuture<>();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.addResponseHeader("X-Test-Response", "creator");
+            cache.get(Set.of("myapp"), true, loads::add, creatorFuture);
+        }
+        assertThat(loads, hasSize(1));
+
+        final AtomicReference<Map<String, List<String>>> headersSeenByJoiner = new AtomicReference<>();
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> joinerFuture = new PlainActionFuture<>();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.addResponseHeader("X-Test-Response", "joiner");
+            cache.get(
+                Set.of("myapp"),
+                true,
+                l -> fail("should have joined the in-flight load"),
+                ActionListener.runBefore(joinerFuture, () -> headersSeenByJoiner.set(threadContext.getResponseHeaders()))
+            );
+        }
+
+        final ApplicationPrivilegeDescriptor descriptor = myappAdminPrivilege();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.addResponseHeader("X-Test-Response", "creator");
+            loads.get(0).onResponse(List.of(descriptor));
+        }
+        assertThat(creatorFuture.get(10, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
+        assertThat(joinerFuture.get(10, TimeUnit.SECONDS), containsInAnyOrder(descriptor));
+        assertThat(headersSeenByJoiner.get(), equalTo(Map.of("X-Test-Response", List.of("joiner"))));
+    }
+
+    private static DescriptorsAndApplicationNamesCache newPrivilegeCache() {
+        return new DescriptorsAndApplicationNamesCache(
+            TimeValue.timeValueMinutes(10),
+            100,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new ThreadContext(Settings.EMPTY)
+        );
+    }
+
+    private static ApplicationPrivilegeDescriptor myappAdminPrivilege() {
+        return new ApplicationPrivilegeDescriptor(
+            "myapp",
+            "admin",
+            newHashSet("action:admin/*", "action:login", "data:read/*"),
+            emptyMap()
+        );
     }
 
     public void testPutPrivileges() throws Exception {
@@ -730,7 +857,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
                 mockClient,
                 mockSecurityIndexManager,
                 new CacheInvalidatorRegistry(),
-                clusterService
+                clusterService,
+                threadPool
             );
             store1.getPrivileges(applications, actions, future);
             assertResult(emptyList(), future);
@@ -839,7 +967,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             client,
             securityIndex,
             new CacheInvalidatorRegistry(),
-            clusterService
+            clusterService,
+            threadPool
         );
         assertNull(store1.getApplicationNamesCache());
         assertNull(store1.getDescriptorsCache());
@@ -852,7 +981,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             client,
             securityIndex,
             new CacheInvalidatorRegistry(),
-            clusterService
+            clusterService,
+            threadPool
         );
         assertNull(store1.getDescriptorsAndApplicationNamesCache());
         final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(

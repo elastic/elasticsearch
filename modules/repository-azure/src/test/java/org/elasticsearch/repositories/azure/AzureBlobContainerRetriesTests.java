@@ -721,7 +721,7 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
     }
 
     public void testContentsChangeWhileStreaming() throws Exception {
-        final byte[] bytes = randomBlobContent();
+        final byte[] bytes = randomBlobContent(2);
         final BlobContainer blobContainer = createBlobContainer(1);
         httpServer.createContext(
             downloadStorageEndpoint(blobContainer, "contents_change_while_streaming"),
@@ -742,8 +742,15 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
                         );
                         return;
                     }
-                    // do not send the whole blob so we have a resume
-                    sendIncompleteContent(exchange, bytes);
+                    // We only send 1 byte (of the at least 2 in `bytes`) so we have a resume.
+                    // Note that the following code is similar to `sendIncompleteContent` but here we guarantee that we sent at least
+                    // 1 byte, while `sendIncompleteContent` might not send any (i.e., empty body) in which case because
+                    // `AzureBlobStore.AzureInputStream` reads eagerly in its constructor, a zero-byte body would fail the open (so retry
+                    // would carry no "If-Match") for the resume to fail (see above).
+                    addSuccessfulDownloadHeaders(exchange, bytes, bytes.length);
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), bytes.length);
+                    exchange.getResponseBody().write(bytes, 0, 1);
+                    exchange.getResponseBody().flush();
                 } finally {
                     exchange.close();
                 }

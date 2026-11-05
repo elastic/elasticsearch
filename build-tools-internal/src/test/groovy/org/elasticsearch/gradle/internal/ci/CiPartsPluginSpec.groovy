@@ -43,6 +43,13 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
             [(":lib:bcUpgradeTest#0"): 1, (":lib:bcUpgradeTest#1"): 2, (":lib:bcUpgradeTest#2"): 2],
             [(":lib"): 2]
         ).toJson()
+        new File(workspace, ".ci/test-parts/esql-release").mkdirs()
+        new File(workspace, CiPartsPlugin.ESQL_RELEASE_ASSIGNMENT_FILE).text = new CiPartAssignment(
+            2,
+            [:],
+            [(":lib:internalClusterTest"): 2],
+            [(":lib"): 1]
+        ).toJson()
         rootProject = buildProject("elasticsearch", null, workspace)
         project = buildProject("lib", rootProject)
         project.pluginManager.apply(JavaPlugin)
@@ -206,6 +213,28 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         project.tasks.getByName("yamlRestTest").systemProperties["tests.rest.shard"] == null
     }
 
+    def "ES|QL release parts split esqlReleaseTestCheck and never assemble"() {
+        given:
+        // like the single-node QA project, the release suite can cover just part of a project's check
+        project.tasks.register("esqlReleaseTestCheck") { dependsOn "internalClusterTest", "precommitThing" }
+        applyPluginUnderTest(project)
+        project.extensions.getByType(CiPartsExtension).includeAssemble.set(true)
+
+        expect:
+        releaseNames(1) == [":lib:precommitThing"] as Set
+        releaseNames(2) == [":lib:internalClusterTest"] as Set
+    }
+
+    def "projects without esqlReleaseTestCheck get empty ES|QL release parts"() {
+        given:
+        applyPluginUnderTest(project)
+        project.extensions.getByType(CiPartsExtension).includeAssemble.set(true)
+
+        expect:
+        releaseNames(1) == [] as Set
+        releaseNames(2) == [] as Set
+    }
+
     def "projects without bcUpgradeTest get empty bcUpgradeTest parts but for assemble"() {
         given:
         applyPluginUnderTest(project)
@@ -291,6 +320,11 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
     private Set<String> added(String taskName) {
         def task = project.tasks.getByName(taskName)
         return (task.shouldRunAfter.getDependencies(task).collect { it.path } as Set) - ":lib:jar"
+    }
+
+    private Set<String> releaseNames(int part) {
+        def task = project.tasks.getByName("releaseTestCheckEsqlPart$part")
+        return task.taskDependencies.getDependencies(task).collect { it.path } as Set
     }
 
     private Set<String> bcNames(int part) {

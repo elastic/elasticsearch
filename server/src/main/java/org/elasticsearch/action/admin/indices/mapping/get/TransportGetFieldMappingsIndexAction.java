@@ -24,9 +24,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -43,7 +45,10 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.singletonMap;
@@ -108,10 +113,19 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         if (documentMapper == null) {
             return new GetFieldMappingsResponse(Map.of(shardId.getIndexName(), Map.of()));
         }
-        MappingBuilder mappingBuilder = mapperService.parseMappings(documentMapper.mappingSource(), MergeReason.MAPPING_RECOVERY);
+        MappingBuilder mappingBuilder;
+        // We re-parse mappings here which may emit deprecation warnings.  We don't want these to appear
+        // in a get-mappings request, so we use a new ThreadContext to swallow them and avoid posting
+        // them back to the client.
+        try (ThreadContext.StoredContext ignored = threadPool.getThreadContext().stashContext()) {
+            mappingBuilder = mapperService.parseMappings(documentMapper.mappingSource(), MergeReason.MAPPING_RECOVERY);
+        }
         Map<String, FieldMappingMetadata> fieldMapping = findFieldMappings(fieldPredicate, mappingBuilder, request);
-        assert fieldMapping.equals(findFieldMappingsFromMappers(fieldPredicate, documentMapper.mappers(), request))
-            : "field mappings written from builders differ from those written from mappers";
+        assert sameExceptGeneratedFields(
+            fieldMapping,
+            findFieldMappingsFromMappers(fieldPredicate, documentMapper.mappers(), request),
+            generatedFieldPaths(documentMapper.mappers())
+        ) : "field mappings written from builders differ from those written from mappers";
         return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), fieldMapping));
     }
 
@@ -177,6 +191,54 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             }
         });
         return Collections.unmodifiableMap(fieldMappings);
+    }
+
+    /**
+     * Paths of all mappers that are internally generated (eg TextFieldMapper's special sub-mappers
+     * for indexed prefixes or phrases).  These should not be reported, as they are not part of the
+     * user-defined mappings.
+     */
+    private static Set<String> generatedFieldPaths(MappingLookup mappingLookup) {
+        Set<String> generated = new HashSet<>();
+        for (Mapper mapper : mappingLookup.fieldMappers()) {
+            if (mapper instanceof FieldMapper fieldMapper) {
+                Set<Mapper> multiFields = Collections.newSetFromMap(new IdentityHashMap<>());
+                fieldMapper.multiFields().forEach(multiFields::add);
+                for (Mapper child : fieldMapper) {
+                    if (multiFields.contains(child) == false) {
+                        addPathsOfSubtree(child, generated);
+                    }
+                }
+            }
+        }
+        return generated;
+    }
+
+    private static void addPathsOfSubtree(Mapper mapper, Set<String> paths) {
+        paths.add(mapper.fullPath());
+        for (Mapper child : mapper) {
+            addPathsOfSubtree(child, paths);
+        }
+    }
+
+    /**
+     * Check equivalence between mappings generated from a Builder and from a serialized Mapper.  Mappers
+     * also report internally generated Mappers, which we want to avoid because these do not appear in the
+     * actual mappings json; therefore this check ignores these generated sub-mappings.
+     */
+    private static boolean sameExceptGeneratedFields(
+        Map<String, FieldMappingMetadata> fromBuilders,
+        Map<String, FieldMappingMetadata> fromMappers,
+        Set<String> generated
+    ) {
+        for (Map.Entry<String, FieldMappingMetadata> entry : fromMappers.entrySet()) {
+            FieldMappingMetadata fromBuilder = fromBuilders.get(entry.getKey());
+            boolean same = fromBuilder == null ? generated.contains(entry.getKey()) : fromBuilder.equals(entry.getValue());
+            if (same == false) {
+                return false;
+            }
+        }
+        return fromMappers.keySet().containsAll(fromBuilders.keySet());
     }
 
     /**

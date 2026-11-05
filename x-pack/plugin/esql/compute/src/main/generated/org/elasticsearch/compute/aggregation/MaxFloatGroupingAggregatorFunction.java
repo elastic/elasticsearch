@@ -404,7 +404,7 @@ public final class MaxFloatGroupingAggregatorFunction implements GroupingAggrega
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

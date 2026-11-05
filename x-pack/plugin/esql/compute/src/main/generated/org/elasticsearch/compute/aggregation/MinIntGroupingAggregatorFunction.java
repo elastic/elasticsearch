@@ -403,7 +403,7 @@ public final class MinIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public boolean supportPartitioning() {
+  public boolean supportPartitioning(AggregatorMode mode) {
     return true;
   }
 

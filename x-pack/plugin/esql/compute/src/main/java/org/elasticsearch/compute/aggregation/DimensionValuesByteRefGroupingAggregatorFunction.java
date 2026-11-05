@@ -296,7 +296,7 @@ public final class DimensionValuesByteRefGroupingAggregatorFunction implements G
     }
 
     @Override
-    public boolean supportPartitioning() {
+    public boolean supportPartitioning(AggregatorMode mode) {
         return true;
     }
 

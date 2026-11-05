@@ -26,19 +26,22 @@ public class StatelessMemoryMetricsServiceTestUtils {
     /// even if the service is configured to use it
     public static long estimateShardHeapUsageExcludingPostingsAndIgnoringSelfReportedOverheads(
         StatelessMemoryMetricsService statelessMemoryMetricsService,
+        int totalIndices,
         StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics
     ) {
-        return statelessMemoryMetricsService.createShardHeapEstimator(StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE)
-            .computeShardHeapUsage(shardMemoryMetrics)
-            .shardHeapUsageBytesExcludingPostings();
+        return statelessMemoryMetricsService.createShardHeapEstimator(
+            totalIndices,
+            StatelessMemoryMetricsService.SelfReportedShardOverhead.DISABLE
+        ).computeShardHeapUsage(shardMemoryMetrics).shardHeapUsageBytesExcludingPostings();
     }
 
     /// Convenience method for computing the shard estimate with the specified parameters
     /// and the current settings active on the [StatelessMemoryMetricsService]
     public static ShardAndIndexHeapUsage computeShardHeapEstimate(
         StatelessMemoryMetricsService statelessMemoryMetricsService,
+        int totalIndices,
         StatelessMemoryMetricsService.ShardMemoryMetrics memoryMetrics
     ) {
-        return statelessMemoryMetricsService.createShardHeapEstimator().computeShardHeapUsage(memoryMetrics);
+        return statelessMemoryMetricsService.createShardHeapEstimator(totalIndices).computeShardHeapUsage(memoryMetrics);
     }
 }

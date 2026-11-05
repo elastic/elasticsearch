@@ -99,7 +99,7 @@ public class ShardHeapEstimator {
 
     /// Computes the index-level heap usage for a shard. [StatelessMemoryMetricsService#INDEX_MEMORY_OVERHEAD] is not included because
     /// all nodes include an overhead for all indices regardless of shard assignments: see
-    /// [StatelessMemoryMetricsService#getNodeBaseHeapEstimateInBytes()].
+    /// [StatelessMemoryMetricsService#getNodeBaseHeapEstimateInBytes(int)].
     private long computeIndexHeapUsage(StatelessMemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics) {
         return shardMemoryMetrics.getMappingSizeInBytes();
     }

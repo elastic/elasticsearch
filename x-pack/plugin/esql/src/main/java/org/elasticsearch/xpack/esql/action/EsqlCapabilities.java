@@ -4704,6 +4704,13 @@ public class EsqlCapabilities {
          */
         FIX_NULLS_FILTERED_WITH_QUERY_AND_TAGS_PUSHDOWN,
 
+        /**
+         * A column whose types conflict between the branches of a nested union ({@code FROM} subqueries, views or {@code FORK}) is
+         * reported as {@code unsupported} by the outer union straight away, also under {@code unmapped_fields}. Older nodes could
+         * report it as {@code keyword}, with null values, because a null fill of the conflicting column was typed {@code keyword}.
+         */
+        NESTED_UNION_TYPE_CONFLICT_IS_UNSUPPORTED,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

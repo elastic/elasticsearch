@@ -1,6 +1,8 @@
 {
   "parts": 10,
   "workers": 13,
+  "heavyTestLimit": 8,
+  "shardOverheadSeconds": 90,
   "runFirstSeconds": 240,
   "antiAffinity": [
     [
@@ -13,10 +15,6 @@
       "by": "yamlFile",
       "count": 3
     },
-    ":qa:ccs-common-rest:yamlRestTest": {
-      "by": "class",
-      "count": 2
-    },
     ":qa:lucene-index-compatibility:javaRestTest": {
       "by": "class",
       "count": 3
@@ -27,7 +25,7 @@
     },
     ":rest-api-spec:yamlRestTest": {
       "by": "yamlFile",
-      "count": 3
+      "count": 2
     },
     ":server:internalClusterTest": {
       "by": "class",
@@ -35,33 +33,25 @@
     },
     ":server:test": {
       "by": "class",
-      "count": 2
+      "count": 3
     },
     ":test:external-modules:test-esql-heap-attack:javaRestTest": {
       "by": "class",
-      "count": 4
-    },
-    ":x-pack:plugin:eql:test": {
-      "by": "class",
-      "count": 2
+      "count": 5
     },
     ":x-pack:plugin:esql-datasource-csv:qa:csvSpecTests": {
       "by": "class",
       "count": 3
     },
-    ":x-pack:plugin:esql-datasource-s3:javaRestTest": {
-      "by": "class",
-      "count": 2
-    },
-    ":x-pack:plugin:esql:compute:test": {
+    ":x-pack:plugin:esql-datasource-ndjson:qa:csvSpecTests": {
       "by": "class",
       "count": 3
     },
-    ":x-pack:plugin:esql:qa:security:javaRestTest": {
+    ":x-pack:plugin:esql:qa:server:multi-clusters:csvSpecTestsCurrentToCurrent": {
       "by": "class",
       "count": 4
     },
-    ":x-pack:plugin:esql:qa:server:multi-clusters:csvSpecTestsCurrentToCurrent": {
+    ":x-pack:plugin:esql:qa:server:multi-node:csvSpecTests": {
       "by": "class",
       "count": 2
     },
@@ -81,29 +71,17 @@
       "by": "class",
       "count": 5
     },
-    ":x-pack:plugin:ml:qa:single-node-tests:javaRestTest": {
-      "by": "class",
-      "count": 3
-    },
     ":x-pack:plugin:ml:test": {
       "by": "class",
-      "count": 3
+      "count": 2
     },
     ":x-pack:plugin:security:qa:multi-cluster:javaRestTest": {
       "by": "class",
-      "count": 4
-    },
-    ":x-pack:plugin:security:qa:security-basic:javaRestTest": {
-      "by": "class",
-      "count": 3
+      "count": 5
     },
     ":x-pack:plugin:security:qa:security-trial:javaRestTest": {
       "by": "class",
       "count": 4
-    },
-    ":x-pack:plugin:security:qa:smoke-test-all-realms:javaRestTest": {
-      "by": "class",
-      "count": 2
     },
     ":x-pack:plugin:security:test": {
       "by": "class",
@@ -111,47 +89,35 @@
     },
     ":x-pack:plugin:sql:qa:server:multi-cluster-with-security:javaRestTest": {
       "by": "class",
-      "count": 3
-    },
-    ":x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest": {
-      "by": "class",
-      "count": 3
-    },
-    ":x-pack:plugin:sql:qa:server:security:without-ssl:javaRestTest": {
-      "by": "class",
       "count": 2
     },
-    ":x-pack:plugin:sql:qa:server:single-node:javaRestTest": {
+    ":x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest": {
       "by": "class",
       "count": 2
     },
     ":x-pack:plugin:stateless:internalClusterTest": {
       "by": "class",
-      "count": 2
-    },
-    ":x-pack:plugin:transform:qa:multi-node-tests:javaRestTest": {
-      "by": "class",
-      "count": 2
+      "count": 3
     },
     ":x-pack:plugin:transform:qa:single-node-tests:javaRestTest": {
       "by": "class",
-      "count": 3
+      "count": 2
     },
     ":x-pack:plugin:yamlRestTest": {
       "by": "yamlFile",
-      "count": 7
+      "count": 4
     },
     ":x-pack:qa:core-rest-tests-with-security:yamlRestTest": {
       "by": "yamlFile",
-      "count": 3
+      "count": 2
     },
     ":x-pack:qa:multi-project:core-rest-tests-with-multiple-projects:yamlRestTest": {
       "by": "yamlFile",
-      "count": 3
+      "count": 2
     },
     ":x-pack:qa:multi-project:xpack-rest-tests-with-multiple-projects:yamlRestTest": {
       "by": "yamlFile",
-      "count": 3
+      "count": 4
     }
   }
 }

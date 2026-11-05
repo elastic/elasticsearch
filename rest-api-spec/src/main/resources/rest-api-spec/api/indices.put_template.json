@@ -54,6 +54,10 @@
         "type": "time",
         "default": "30s",
         "description": "Specify timeout for connection to master"
+      },
+      "index_patterns": {
+        "type": "list",
+        "description": "Comma-separated list of index patterns the template applies to"
       }
     },
     "body": {

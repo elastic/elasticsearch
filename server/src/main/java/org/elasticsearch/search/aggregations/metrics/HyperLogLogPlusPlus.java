@@ -16,6 +16,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.LongArray;
@@ -261,7 +262,34 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
     }
 
+    /**
+     * Length of a serialized linear counting state with one value: a one byte precision, the linear counting flag,
+     * a one byte size of 1 and the four byte encoded hash.
+     */
+    private static final int SERIALIZED_SINGLE_LENGTH = 7;
+
+    @Override
+    public void writeTo(long bucket, StreamOutput out) throws IOException {
+        if (getMode(bucket) == Mode.LC_SINGLE) {
+            // Same bytes as the generic path, without the iterator allocation. Single value groups are the common case.
+            out.writeVInt(precision());
+            out.writeBoolean(LINEAR_COUNTING);
+            out.writeVLong(1);
+            out.writeInt((int) bucketState.get(bucket));
+        } else {
+            super.writeTo(bucket, out);
+        }
+    }
+
     public void combine(long bucket, BytesRef other) throws IOException {
+        if (other.length == SERIALIZED_SINGLE_LENGTH && other.bytes[other.offset + 1] == (byte) 0 && other.bytes[other.offset + 2] == 1) {
+            // A serialized single value linear counting state (precision < 128, so one byte). Read the hash without a stream.
+            final byte[] b = other.bytes;
+            final int o = other.offset;
+            assert b[o] == precision() : "precision [" + b[o] + "] differs from [" + precision() + "]";
+            addEncoded(bucket, (b[o + 3] & 0xFF) << 24 | (b[o + 4] & 0xFF) << 16 | (b[o + 5] & 0xFF) << 8 | (b[o + 6] & 0xFF));
+            return;
+        }
         ByteArrayStreamInput in = new ByteArrayStreamInput(other.bytes);
         in.reset(other.bytes, other.offset, other.length);
         final int precision = in.readVInt();

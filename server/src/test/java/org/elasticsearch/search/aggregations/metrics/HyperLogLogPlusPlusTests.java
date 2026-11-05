@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -286,6 +287,62 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             }
             dst.combine(0, serialized);
             assertEquals(1, dst.cardinality(0));
+        }
+    }
+
+    /**
+     * The LC_SINGLE fast paths of {@code writeTo} and {@code combine} must use the same bytes as the generic format, which
+     * {@link AbstractHyperLogLogPlusPlus#readFrom} reads, and {@code combine} must also accept a slice at a non-zero offset
+     * and merge it into a bucket in any mode.
+     */
+    public void testLcSingleFastPathsMatchGenericFormat() throws Exception {
+        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        try (
+            HyperLogLogPlusPlus src = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0);
+            HyperLogLogPlusPlus dst = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0)
+        ) {
+            final long hash = randomLong();
+            src.collect(0, hash);
+            final BytesRef serialized;
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                src.writeTo(0, out);
+                serialized = out.bytes().toBytesRef();
+            }
+            // Expected bytes: precision, linear counting flag, size 1, big-endian encoded hash.
+            final int encoded = AbstractLinearCounting.encodeHash(hash, p);
+            try (BytesStreamOutput expected = new BytesStreamOutput()) {
+                expected.writeVInt(p);
+                expected.writeBoolean(AbstractHyperLogLogPlusPlus.LINEAR_COUNTING);
+                expected.writeVLong(1);
+                expected.writeInt(encoded);
+                assertEquals(expected.bytes().toBytesRef(), serialized);
+            }
+            try (
+                AbstractHyperLogLogPlusPlus read = AbstractHyperLogLogPlusPlus.readFrom(
+                    new BytesArray(serialized).streamInput(),
+                    BigArrays.NON_RECYCLING_INSTANCE
+                )
+            ) {
+                assertEquals(1, read.cardinality(0));
+            }
+
+            // Combine from a slice at a non-zero offset into an empty bucket, the same bucket again, and a bucket with other values.
+            final byte[] padded = new byte[serialized.length + 5];
+            System.arraycopy(serialized.bytes, serialized.offset, padded, 3, serialized.length);
+            final BytesRef slice = new BytesRef(padded, 3, serialized.length);
+            dst.combine(0, slice);
+            dst.combine(0, slice);
+            assertEquals(1, dst.cardinality(0));
+            dst.collect(1, randomLong());
+            dst.combine(1, slice);
+            assertTrue(dst.cardinality(1) >= 1);
+            while (dst.getAlgorithm(2) == AbstractHyperLogLogPlusPlus.LINEAR_COUNTING) {
+                dst.collect(2, randomLong());
+            }
+            final long before = dst.cardinality(2);
+            dst.combine(2, slice);
+            assertTrue(dst.cardinality(2) >= before);
         }
     }
 

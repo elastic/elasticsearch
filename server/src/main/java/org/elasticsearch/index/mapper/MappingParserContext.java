@@ -46,7 +46,6 @@ public class MappingParserContext {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final Function<Query, BitSetProducer> bitSetProducer;
-    private final long mappingObjectDepthLimit;
     // Start at 1 to account for the root object, so the limit semantics match the post-build
     // checkObjectDepthLimit formula (path depth = dots + 2, where root = 1).
     private long mappingObjectDepth = 1;
@@ -83,7 +82,6 @@ public class MappingParserContext {
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
-        this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
         this.bitSetProducer = bitSetProducer;
         this.vectorsFormatProviders = vectorsFormatProviders;
         this.namespaceValidator = namespaceValidator;
@@ -123,6 +121,7 @@ public class MappingParserContext {
             namespaceValidator,
             projectMetadataSupplier,
             new ParseFieldLimits(
+                indexSettings.getMappingDepthLimit(),
                 indexSettings.getMappingFieldNameLengthLimit(),
                 indexSettings.getMappingNestedFieldsLimit(),
                 NewFieldsBudget.unlimited(),
@@ -247,8 +246,8 @@ public class MappingParserContext {
 
     void incrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth++;
-        if (mappingObjectDepth > mappingObjectDepthLimit) {
-            throw new MapperParsingException("Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded");
+        if (mappingObjectDepth > parseFieldLimits.mappingDepthLimit()) {
+            throw new MapperParsingException("Limit of mapping depth [" + parseFieldLimits.mappingDepthLimit() + "] has been exceeded");
         }
     }
 
@@ -269,9 +268,10 @@ public class MappingParserContext {
             }
         }
         int depth = numDots + 2;
-        if (depth > mappingObjectDepthLimit) {
+        long depthLimit = indexSettings.getMappingDepthLimit();
+        if (depth > depthLimit) {
             throw new MapperParsingException(
-                "Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded due to object field [" + fullPath + "]"
+                "Limit of mapping depth [" + depthLimit + "] has been exceeded due to object field [" + fullPath + "]"
             );
         }
     }

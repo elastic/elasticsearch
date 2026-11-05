@@ -18,14 +18,28 @@ import org.elasticsearch.index.IndexSettings;
  */
 public class ParseFieldLimits {
 
-    public static final ParseFieldLimits UNLIMITED = new ParseFieldLimits(Long.MAX_VALUE, Long.MAX_VALUE, NewFieldsBudget.unlimited(), 0);
+    public static final ParseFieldLimits UNLIMITED = new ParseFieldLimits(
+        Long.MAX_VALUE,
+        Long.MAX_VALUE,
+        Long.MAX_VALUE,
+        NewFieldsBudget.unlimited(),
+        0
+    );
 
+    private final long mappingDepthLimit;
     private final long fieldNameLengthLimit;
     private final long nestedFieldsLimit;
     private long nestedFieldsCount;
     private final NewFieldsBudget totalFieldsBudget;
 
-    ParseFieldLimits(long fieldNameLengthLimit, long nestedFieldsLimit, NewFieldsBudget totalFieldsBudget, long initialNestedCount) {
+    ParseFieldLimits(
+        long mappingDepthLimit,
+        long fieldNameLengthLimit,
+        long nestedFieldsLimit,
+        NewFieldsBudget totalFieldsBudget,
+        long initialNestedCount
+    ) {
+        this.mappingDepthLimit = mappingDepthLimit;
         this.fieldNameLengthLimit = fieldNameLengthLimit;
         this.nestedFieldsLimit = nestedFieldsLimit;
         this.totalFieldsBudget = totalFieldsBudget;
@@ -42,13 +56,14 @@ public class ParseFieldLimits {
         if (reason == MapperService.MergeReason.MAPPING_RECOVERY) {
             return ParseFieldLimits.UNLIMITED;
         }
+        long depthLimit = indexSettings.getMappingDepthLimit();
         long nameLimit = indexSettings.getMappingFieldNameLengthLimit();
         long nestedLimit = indexSettings.getMappingNestedFieldsLimit();
         if (reason.isAutoUpdate() && indexSettings.isIgnoreDynamicFieldsBeyondLimit()) {
-            return new ParseFieldLimits(nameLimit, nestedLimit, NewFieldsBudget.unlimited(), 0);
+            return new ParseFieldLimits(depthLimit, nameLimit, nestedLimit, NewFieldsBudget.unlimited(), 0);
         }
         long totalLimit = indexSettings.getMappingTotalFieldsLimit();
-        return new ParseFieldLimits(nameLimit, nestedLimit, NewFieldsBudget.throwing(totalLimit, totalLimit), 0);
+        return new ParseFieldLimits(depthLimit, nameLimit, nestedLimit, NewFieldsBudget.throwing(totalLimit, totalLimit), 0);
     }
 
     /**
@@ -56,14 +71,14 @@ public class ParseFieldLimits {
      * Use when no existing mapper is present (existing nested count is zero).
      */
     public static ParseFieldLimits forMerge(long nestedFieldsLimit) {
-        return new ParseFieldLimits(Long.MAX_VALUE, nestedFieldsLimit, NewFieldsBudget.unlimited(), 0);
+        return new ParseFieldLimits(Long.MAX_VALUE, Long.MAX_VALUE, nestedFieldsLimit, NewFieldsBudget.unlimited(), 0);
     }
 
     /**
      * Creates limits for use at merge time, enforcing nested fields count relative to an existing mapper.
      */
     public static ParseFieldLimits forMerge(long nestedFieldsLimit, long existingNestedCount, NewFieldsBudget totalFieldsBudget) {
-        return new ParseFieldLimits(Long.MAX_VALUE, nestedFieldsLimit, totalFieldsBudget, existingNestedCount);
+        return new ParseFieldLimits(Long.MAX_VALUE, Long.MAX_VALUE, nestedFieldsLimit, totalFieldsBudget, existingNestedCount);
     }
 
     /**
@@ -71,7 +86,11 @@ public class ParseFieldLimits {
      * construction of a {@link MapperMergeContext} that does not enforce nested field counts.
      */
     public static ParseFieldLimits withBudget(NewFieldsBudget budget) {
-        return new ParseFieldLimits(Long.MAX_VALUE, Long.MAX_VALUE, budget, 0);
+        return new ParseFieldLimits(Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE, budget, 0);
+    }
+
+    long mappingDepthLimit() {
+        return mappingDepthLimit;
     }
 
     void checkFieldNameLength(String leafName) {

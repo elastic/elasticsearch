@@ -2329,4 +2329,24 @@ public class MapperServiceTests extends MapperServiceTestCase {
             );
         }
     }
+
+    public void testRecoveredMappingIgnoresDepthLimitLoweredAfterwards() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("obj").startObject("properties");
+            b.startObject("leaf").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        }));
+
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        Settings lowered = Settings.builder()
+            .put(indexSettings.getSettings())
+            .put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 1)
+            .build();
+        assertTrue(indexSettings.updateIndexMetadata(IndexMetadata.builder(indexSettings.getIndexMetadata()).settings(lowered).build()));
+        assertEquals(1L, indexSettings.getMappingDepthLimit());
+
+        CompressedXContent source = mapperService.documentMapper().mappingSource();
+        DocumentMapper recovered = mapperService.merge("_doc", source, MergeReason.MAPPING_RECOVERY);
+        assertNotNull(recovered.mappers().getMapper("obj.leaf"));
+    }
 }

@@ -90,7 +90,7 @@ public interface ClusterPlugin {
     }
 
     /**
-     * Return sinks that receive every {@link org.elasticsearch.cluster.routing.allocation.ShardMovementEvent} made by the master. Sinks
+     * Return sinks that receive every change the master makes to the location of a shard copy. Sinks
      * from all plugins receive all events. This is called before {@link Plugin#createComponents}, so a sink that needs node services
      * must be created in a state that can queue (or drop and count) events until those services become available.
      */

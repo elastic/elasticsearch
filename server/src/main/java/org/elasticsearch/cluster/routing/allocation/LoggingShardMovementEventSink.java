@@ -11,11 +11,13 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.logging.ESLogMessage;
 
 /**
- * Logs every {@link ShardMovementEvent} as a structured {@link ESLogMessage} at DEBUG. Enable with
+ * Logs every shard movement event as a structured {@link ESLogMessage} at DEBUG. Enable with
  * {@code logger.org.elasticsearch.cluster.routing.allocation.LoggingShardMovementEventSink: DEBUG}. Event fields are prefixed
  * {@code es.shard.} (the copy concerned) and {@code es.relocation.} (relocation details).
  */
@@ -42,43 +44,69 @@ public class LoggingShardMovementEventSink implements ShardMovementEventSink {
     public static final String RECOVERY_SOURCE = "es.shard.recovery_source";
 
     @Override
-    public void accept(ShardMovementEvent event) {
-        if (logger.isDebugEnabled() == false) {
-            return;
-        }
-        logger.debug(switch (event) {
-            case ShardMovementEvent.RelocationStarted e -> message(
-                "shard_relocation_started",
-                e.shard(),
-                "{} relocating from [{}] to [{}]: {}"
-            ).argAndField(NODE, e.shard().currentNodeId())
-                .argAndField(TARGET_NODE, e.target().currentNodeId())
-                .argAndField(REASON, e.reason().type().reason())
-                .field(CAN_REMAIN_DECIDER, e.reason().canRemainDecider())
-                .field(RECOVERY_PRIORITY, e.target().recoveryPriority());
-            case ShardMovementEvent.RelocationCompleted e -> message(
-                "shard_relocation_completed",
-                e.shard(),
-                "{} relocated from [{}] to [{}]"
-            ).argAndField(NODE, e.shard().currentNodeId()).argAndField(TARGET_NODE, e.shard().relocatingNodeId());
-            case ShardMovementEvent.ShardInitialized e -> message("shard_initialized", e.shard(), "{} initializing on [{}] from {}: {}")
-                .argAndField(NODE, e.initializedShard().currentNodeId())
-                .argAndField(RECOVERY_SOURCE, e.initializedShard().recoverySource().getType())
-                .argAndField(UNASSIGNED_REASON, e.shard().unassignedInfo() == null ? "unknown" : e.shard().unassignedInfo().reason())
-                .field(RECOVERY_PRIORITY, e.initializedShard().recoveryPriority());
-            case ShardMovementEvent.ShardStarted e -> message("shard_started", e.shard(), "{} started on [{}]").argAndField(
-                NODE,
-                e.startedShard().currentNodeId()
+    public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                message("shard_initialized", unassignedShard, "{} initializing on [{}] from {}: {}").argAndField(
+                    NODE,
+                    initializedShard.currentNodeId()
+                )
+                    .argAndField(RECOVERY_SOURCE, initializedShard.recoverySource().getType())
+                    .argAndField(
+                        UNASSIGNED_REASON,
+                        unassignedShard.unassignedInfo() == null ? "unknown" : unassignedShard.unassignedInfo().reason()
+                    )
+                    .field(RECOVERY_PRIORITY, initializedShard.recoveryPriority())
             );
-            case ShardMovementEvent.ShardFailed e -> message("shard_failed", e.shard(), "{} failed on [{}]: {}").argAndField(
-                NODE,
-                e.shard().currentNodeId()
-            )
-                .argAndField(UNASSIGNED_REASON, e.unassignedInfo().reason())
-                .field(UNASSIGNED_MESSAGE, e.unassignedInfo().message())
-                .field(UNASSIGNED_FAILURE, e.unassignedInfo().failure() == null ? null : e.unassignedInfo().failure().getClass().getName())
-                .field(TARGET_NODE, e.shard().relocatingNodeId());
-        });
+        }
+    }
+
+    @Override
+    public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(message("shard_started", initializingShard, "{} started on [{}]").argAndField(NODE, startedShard.currentNodeId()));
+        }
+    }
+
+    @Override
+    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, MoveReason reason) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                message("shard_relocation_started", startedShard, "{} relocating from [{}] to [{}]: {}").argAndField(
+                    NODE,
+                    startedShard.currentNodeId()
+                )
+                    .argAndField(TARGET_NODE, targetRelocatingShard.currentNodeId())
+                    .argAndField(REASON, reason.type().reason())
+                    .field(CAN_REMAIN_DECIDER, reason.canRemainDecider())
+                    .field(RECOVERY_PRIORITY, targetRelocatingShard.recoveryPriority())
+            );
+        }
+    }
+
+    @Override
+    public void relocationCompleted(ShardRouting removedRelocationSource) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                message("shard_relocation_completed", removedRelocationSource, "{} relocated from [{}] to [{}]").argAndField(
+                    NODE,
+                    removedRelocationSource.currentNodeId()
+                ).argAndField(TARGET_NODE, removedRelocationSource.relocatingNodeId())
+            );
+        }
+    }
+
+    @Override
+    public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                message("shard_failed", failedShard, "{} failed on [{}]: {}").argAndField(NODE, failedShard.currentNodeId())
+                    .argAndField(UNASSIGNED_REASON, unassignedInfo.reason())
+                    .field(UNASSIGNED_MESSAGE, unassignedInfo.message())
+                    .field(UNASSIGNED_FAILURE, unassignedInfo.failure() == null ? null : unassignedInfo.failure().getClass().getName())
+                    .field(TARGET_NODE, failedShard.relocatingNodeId())
+            );
+        }
     }
 
     private static ESLogMessage message(String action, ShardRouting shard, String pattern) {

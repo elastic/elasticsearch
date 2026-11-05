@@ -28,7 +28,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 /// Observes shard state transitions during allocation rounds, logging them, emitting APM timing metrics and forwarding them as
-/// [ShardMovementEvent]s to the configured [ShardMovementEventSink].
+/// shard movement events to the configured [ShardMovementEventSink].
 class ShardChangesObserver implements RoutingChangesObserver {
     private static final Logger logger = LogManager.getLogger(ShardChangesObserver.class);
 
@@ -120,7 +120,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
             unassignedToInitializingDuration.record(Math.max(0, durationMillis), attrs);
             shardInitializingCounter.incrementBy(1, attrs);
         }
-        eventSink.accept(new ShardMovementEvent.ShardInitialized(unassignedShard, initializedShard));
+        eventSink.shardInitialized(unassignedShard, initializedShard);
     }
 
     @Override
@@ -137,7 +137,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
             long durationMillis = currentTimeMillisSupplier.getAsLong() - info.unassignedTimeMillis();
             unassignedToStartedDuration.record(Math.max(0, durationMillis), attributes(info, startedShard));
         }
-        eventSink.accept(new ShardMovementEvent.ShardStarted(initializingShard, startedShard));
+        eventSink.shardStarted(initializingShard, startedShard);
     }
 
     @Override
@@ -153,18 +153,18 @@ class ShardChangesObserver implements RoutingChangesObserver {
             1,
             relocationAttributes.computeIfAbsent(RelocationAttributes.of(reason, startedShard.primary()), RelocationAttributes::toMap)
         );
-        eventSink.accept(new ShardMovementEvent.RelocationStarted(startedShard, targetRelocatingShard, reason));
+        eventSink.relocationStarted(startedShard, targetRelocatingShard, reason);
     }
 
     @Override
     public void relocationCompleted(ShardRouting removedRelocationSource) {
-        eventSink.accept(new ShardMovementEvent.RelocationCompleted(removedRelocationSource));
+        eventSink.relocationCompleted(removedRelocationSource);
     }
 
     @Override
     public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
         logger.debug("{} has failed on [{}]: {}", shardIdentifier(failedShard), failedShard.currentNodeId(), unassignedInfo.reason());
-        eventSink.accept(new ShardMovementEvent.ShardFailed(failedShard, unassignedInfo));
+        eventSink.shardFailed(failedShard, unassignedInfo);
     }
 
     @Override

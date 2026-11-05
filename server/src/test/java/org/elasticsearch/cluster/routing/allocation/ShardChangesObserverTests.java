@@ -272,7 +272,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var reason = new MoveReason(randomFrom(MoveType.values()), randomBoolean() ? null : randomIdentifier());
         final var moveCount = randomIntBetween(1, 10);
         for (int i = 0; i < moveCount; i++) {
-            observer.relocationStarted(startedShard, targetShard, reason, null);
+            observer.relocationStarted(startedShard, targetShard, reason);
         }
         final var attributes = assertMovementCount(recorder, moveCount);
         assertThat(attributes, everyItem(hasEntry("es_relocation_reason", reason.type().reason())));
@@ -280,27 +280,9 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             attributes,
             everyItem(hasEntry("es_can_remain_decider", Objects.requireNonNullElse(reason.canRemainDecider(), "missing")))
         );
-        assertThat(attributes, everyItem(hasEntry("es_reason_source", "reconciled")));
         assertThat(attributes, everyItem(hasEntry("es_shard_primary", primary)));
         // the attribute map is cached
         assertThat(attributes, everyItem(sameInstance(attributes.getFirst())));
-
-        // the computation's reason wins over the reconciler's
-        final var computedReason = new MoveReason(randomFrom(MoveType.values()), randomBoolean() ? null : randomIdentifier());
-        final var computedMoveCount = randomIntBetween(1, 10);
-        for (int i = 0; i < computedMoveCount; i++) {
-            observer.relocationStarted(startedShard, targetShard, reason, computedReason);
-        }
-        final var computedAttributes = assertMovementCount(recorder, moveCount + computedMoveCount).stream()
-            .filter(attrs -> attrs.get("es_reason_source").equals("computed"))
-            .toList();
-        assertThat(computedAttributes, hasSize(computedMoveCount));
-        assertThat(computedAttributes, everyItem(hasEntry("es_relocation_reason", computedReason.type().reason())));
-        assertThat(
-            computedAttributes,
-            everyItem(hasEntry("es_can_remain_decider", Objects.requireNonNullElse(computedReason.canRemainDecider(), "missing")))
-        );
-        assertThat(computedAttributes, everyItem(hasEntry("es_shard_primary", primary)));
     }
 
     public void testRelocationMetricReportsComputedReason() {
@@ -322,7 +304,6 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var attributes = relocationAttributesAfterReroute(indexMetadata, allocationId, settings, List.of());
         assertThat(attributes, hasEntry("es_relocation_reason", MoveType.CANNOT_REMAIN.reason()));
         assertThat(attributes, hasEntry("es_can_remain_decider", preserveLabels ? "filter" : "missing"));
-        assertThat(attributes, hasEntry("es_reason_source", desiredBalance ? "computed" : "reconciled"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
     }
 
@@ -361,7 +342,6 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var attributes = relocationAttributesAfterReroute(indexMetadata, allocationId, settings, plugins);
         assertThat(attributes, hasEntry("es_relocation_reason", MoveType.CANNOT_REMAIN.reason()));
         assertThat(attributes, hasEntry("es_can_remain_decider", "simulation_only"));
-        assertThat(attributes, hasEntry("es_reason_source", "computed"));
     }
 
     /**

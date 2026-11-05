@@ -393,6 +393,7 @@ class DownsampleShardIndexer {
 
                     abort = true;
                 }
+                reporter.onBulkCompleted();
             }
 
             @Override
@@ -404,6 +405,7 @@ class DownsampleShardIndexer {
 
                     abort = true;
                 }
+                reporter.onBulkCompleted();
             }
         };
 

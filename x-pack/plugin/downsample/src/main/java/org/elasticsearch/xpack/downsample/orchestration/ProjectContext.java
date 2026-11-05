@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Runs an asynchronous operation in the context of a given project, whatever the context of the caller is.
@@ -37,8 +38,35 @@ final class ProjectContext {
         ActionListener<T> listener,
         Consumer<ActionListener<T>> operation
     ) {
+        run(threadContext, threadContext::newEmptyContext, projectResolver, projectId, listener, operation);
+    }
+
+    /**
+     * Like {@link #run} but in a system context, which security turns into the internal {@code _system} user when no other user or
+     * origin is set. This is what the persistent task framework does for the shard work of downsampling (it starts tasks from the
+     * cluster applier thread, which runs in an empty system context, with the project id), so the shard work runs as the same user
+     * on both paths.
+     */
+    static <T> void runAsSystem(
+        ThreadContext threadContext,
+        ProjectResolver projectResolver,
+        ProjectId projectId,
+        ActionListener<T> listener,
+        Consumer<ActionListener<T>> operation
+    ) {
+        run(threadContext, threadContext::newEmptySystemContext, projectResolver, projectId, listener, operation);
+    }
+
+    private static <T> void run(
+        ThreadContext threadContext,
+        Supplier<ThreadContext.StoredContext> newContext,
+        ProjectResolver projectResolver,
+        ProjectId projectId,
+        ActionListener<T> listener,
+        Consumer<ActionListener<T>> operation
+    ) {
         ActionListener<T> inCallerContext = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
-        try (ThreadContext.StoredContext ignored = threadContext.newEmptyContext()) {
+        try (ThreadContext.StoredContext ignored = newContext.get()) {
             projectResolver.executeOnProject(projectId, () -> operation.accept(inCallerContext));
         } catch (Exception e) {
             inCallerContext.onFailure(e);

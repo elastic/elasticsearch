@@ -39,6 +39,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -46,15 +47,18 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Drives downsample operations through {@link DownsampleOrchestrator} on a single node with a real time series source index.
- * The shard work is not run here (that is the node runner's job): the test plays the node, through the store's node view.
+ * Most tests play the node through the store's node view, to control the shard tasks. The last ones run the real shard work: the
+ * poller only polls when the test calls it, so each step is deterministic.
  */
 public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
 
     private static final String SOURCE = "source";
     private static final String TARGET = "target";
+    private static final int SOURCE_DOCS = 10;
 
     private DownsampleStateStore store;
     private DownsampleOrchestrator orchestrator;
+    private ShardTaskPoller poller;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -66,6 +70,8 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
+            // the tests play the node, keep the real poller out of the way
+            .put(ShardTaskPoller.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1))
             .build();
     }
 
@@ -74,6 +80,7 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
         assumeTrue("the system index is only registered with the feature flag", DownsampleStateIndex.FEATURE_FLAG.isEnabled());
         store = getInstanceFromNode(DownsampleStateStore.class);
         orchestrator = getInstanceFromNode(DownsampleOrchestrator.class);
+        poller = getInstanceFromNode(ShardTaskPoller.class);
     }
 
     public void testDrivesAnOperationToCompletion() throws Exception {
@@ -161,7 +168,58 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
         assertThat(indexTask().doc().lastError(), containsString("target index [" + TARGET + "]"));
     }
 
+    // ---- with the real shard work ----
+
+    public void testDownsamplesThroughThePoller() throws Exception {
+        int shards = between(1, 3);
+        IndexMetadata source = createSource(shards);
+        requestDownsample(source);
+        awaitShardTasks(shards, ShardTaskStatus.ASSIGNED);
+
+        poll();
+
+        assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.DONE)));
+        // every source document is in its own (dimension, hour) bucket
+        assertHitCount(client().prepareSearch(TARGET).setSize(0), SOURCE_DOCS);
+        long received = 0;
+        for (Versioned<ShardTaskDoc> task : shardTasks(shards)) {
+            assertThat(task.doc().status(), equalTo(ShardTaskStatus.COMPLETED));
+            assertNotNull(task.doc().runId());
+            received += ((Number) task.doc().progress().get("in_num_docs_received")).longValue();
+        }
+        assertThat(received, equalTo((long) SOURCE_DOCS));
+        assertBusy(() -> assertThat(poller.activeRuns(), equalTo(0)));
+    }
+
+    /**
+     * After a node restart, its tasks are still {@code RUNNING} on it but it has no local run: the poller starts a new run.
+     */
+    public void testResumesARunningTaskWithoutALocalRun() throws Exception {
+        IndexMetadata source = createSource(1);
+        requestDownsample(source);
+        Versioned<ShardTaskDoc> task = awaitShardTasks(1, ShardTaskStatus.ASSIGNED).get(0);
+        nodeWrite(task, task.doc().running("before-restart", Map.of()), task.doc().epoch());
+
+        poll();
+
+        assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.DONE)));
+        ShardTaskDoc completed = shardTasks(1).get(0).doc();
+        assertThat(completed.status(), equalTo(ShardTaskStatus.COMPLETED));
+        assertNotEquals("before-restart", completed.runId());
+        assertHitCount(client().prepareSearch(TARGET).setSize(0), SOURCE_DOCS);
+    }
+
     // ---- helpers ----
+
+    /**
+     * One round of the poller, after a refresh: its search is near real time.
+     */
+    private void poll() {
+        client().admin().indices().prepareRefresh(DownsampleStateIndex.INDEX_NAME).get();
+        PlainActionFuture<Void> polled = new PlainActionFuture<>();
+        poller.poll(polled);
+        polled.actionGet(TimeValue.timeValueSeconds(10));
+    }
 
     private IndexMetadata createSource(int shards) {
         Settings settings = Settings.builder()
@@ -187,7 +245,7 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
                 )
         );
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < SOURCE_DOCS; i++) {
             bulk.add(
                 client().prepareIndex(SOURCE)
                     .setSource(

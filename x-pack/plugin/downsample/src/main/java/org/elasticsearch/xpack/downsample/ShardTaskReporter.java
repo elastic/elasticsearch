@@ -37,4 +37,10 @@ public interface ShardTaskReporter {
      * best effort and never blocks or fails the indexer.
      */
     void publishStatus(DownsampleShardIndexerStatus status);
+
+    /**
+     * Called after each bulk request of the indexer completed (successfully or not), once its counters are in {@link #progress()}.
+     * Runs on the thread that completed the bulk, so it must not block.
+     */
+    default void onBulkCompleted() {}
 }

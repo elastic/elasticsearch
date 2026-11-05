@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateIndex;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore;
+import org.elasticsearch.xpack.downsample.orchestration.ShardTaskPoller;
 
 import java.util.Collection;
 import java.util.List;
@@ -139,12 +141,20 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         if (DownsampleStateIndex.FEATURE_FLAG.isEnabled()) {
             services.clusterService().addListener(orchestrator);
         }
-        return List.of(DownsampleMetrics.class, store, orchestrator);
+        ShardTaskPoller poller = new ShardTaskPoller(
+            services.client(),
+            store,
+            services.clusterService(),
+            services.threadPool(),
+            services.projectResolver(),
+            DownsampleStateIndex.FEATURE_FLAG.isEnabled() && DiscoveryNode.canContainData(services.clusterService().getSettings())
+        );
+        return List.of(DownsampleMetrics.class, store, orchestrator, poller);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING);
+        return List.of(DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING, ShardTaskPoller.POLL_INTERVAL_SETTING);
     }
 
     @Override

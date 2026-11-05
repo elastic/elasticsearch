@@ -14,17 +14,16 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.downsample.Downsample;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore.Versioned;
 import org.junit.Before;
 
@@ -59,12 +58,32 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class, Downsample.class, AggregateMetricMapperPlugin.class, DataStreamsPlugin.class);
+        return List.of(StateIndexOnlyPlugin.class);
+    }
+
+    /**
+     * Registers the state index only: the downsample plugin would also run the orchestrator and the poller, which would act on
+     * the documents of these tests concurrently.
+     */
+    public static class StateIndexOnlyPlugin extends Plugin implements SystemIndexPlugin {
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(DownsampleStateIndex.descriptor());
+        }
+
+        @Override
+        public String getFeatureName() {
+            return "downsample_state_index_test";
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "the downsample state index, for tests";
+        }
     }
 
     @Before
     public void setUpStore() {
-        assumeTrue("the system index is only registered with the feature flag", DownsampleStateIndex.FEATURE_FLAG.isEnabled());
         store = new DownsampleStateStore(client(), getInstanceFromNode(ClusterService.class), getInstanceFromNode(ProjectResolver.class));
         project = ProjectId.DEFAULT;
     }

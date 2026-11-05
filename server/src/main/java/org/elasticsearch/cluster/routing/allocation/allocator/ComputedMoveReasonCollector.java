@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -38,12 +37,7 @@ final class ComputedMoveReasonCollector implements RoutingChangesObserver {
     }
 
     @Override
-    public void relocationStarted(
-        ShardRouting startedShard,
-        ShardRouting targetRelocatingShard,
-        MoveReason reason,
-        @Nullable MoveReason computedReason
-    ) {
+    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, MoveReason reason) {
         final var key = new DesiredBalance.ShardCopy(startedShard.shardId(), startedShard.currentNodeId());
         switch (reason.type()) {
             case INHERITED -> {

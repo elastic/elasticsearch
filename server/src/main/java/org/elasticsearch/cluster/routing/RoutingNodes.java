@@ -524,28 +524,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         RoutingChangesObserver changes,
         RecoveryPriority recoveryPriority
     ) {
-        return relocateShard(startedShard, nodeId, expectedShardSize, reason, null, changes, recoveryPriority);
-    }
-
-    /**
-     * Relocate a shard to another node, adding the target initializing
-     * shard as well as assigning it.
-     *
-     * @param computedReason why the desired balance computation decided the shard should leave its node, if it did
-     * @return pair of source relocating and target initializing shards.
-     */
-    public Tuple<ShardRouting, ShardRouting> relocateShard(
-        ShardRouting startedShard,
-        String nodeId,
-        long expectedShardSize,
-        MoveReason reason,
-        @Nullable MoveReason computedReason,
-        RoutingChangesObserver changes,
-        RecoveryPriority recoveryPriority
-    ) {
         ensureMutable();
-        assert reason.type().recoveryPriority() == null || reason.type().recoveryPriority() == recoveryPriority
-            : "relocation priority [" + recoveryPriority + "] does not match reason [" + reason + "]";
         relocatingShards++;
         if (isDedicatedFrozenNode(nodeId)) {
             relocatingFrozenShards++;
@@ -556,7 +535,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         node(target.currentNodeId()).add(target);
         assignedShardsAdd(target);
         addRecovery(target);
-        changes.relocationStarted(startedShard, target, reason, computedReason);
+        changes.relocationStarted(startedShard, target, reason);
         return Tuple.tuple(source, target);
     }
 

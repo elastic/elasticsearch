@@ -45,18 +45,12 @@ class ShardChangesObserver implements RoutingChangesObserver {
     }
 
     /**
-     * The attributes of {@link #RELOCATION_STARTED_METRIC}. The reason is the desired balance computation's reason for the move when it
-     * has one, since the reconciler only moves shards the computation wants moved and its own {@code canRemain} decision is made
-     * against a different cluster state; otherwise it is the reason of whoever started the relocation.
-     *
-     * @param computed whether the reason comes from the desired balance computation
+     * The attributes of {@link #RELOCATION_STARTED_METRIC}
      */
-    record RelocationAttributes(MoveType type, @Nullable String canRemainDecider, boolean computed, boolean primary) {
+    record RelocationAttributes(MoveType type, @Nullable String canRemainDecider, boolean primary) {
 
-        static RelocationAttributes of(MoveReason reason, @Nullable MoveReason computedReason, boolean primary) {
-            return computedReason == null
-                ? new RelocationAttributes(reason.type(), reason.canRemainDecider(), false, primary)
-                : new RelocationAttributes(computedReason.type(), computedReason.canRemainDecider(), true, primary);
+        static RelocationAttributes of(MoveReason reason, boolean primary) {
+            return new RelocationAttributes(reason.type(), reason.canRemainDecider(), primary);
         }
 
         Map<String, Object> toMap() {
@@ -65,15 +59,13 @@ class ShardChangesObserver implements RoutingChangesObserver {
                 type.reason(),
                 "es_can_remain_decider",
                 canRemainDecider == null ? "missing" : canRemainDecider,
-                "es_reason_source",
-                computed ? "computed" : "reconciled",
                 "es_shard_primary",
                 primary
             );
         }
     }
 
-    // Cache the attribute maps: the set of distinct combinations is small (move types x deciders x 2 x 2)
+    // Cache the attribute maps: the set of distinct combinations is small (move types x deciders x 2)
     private final Map<RelocationAttributes, Map<String, Object>> relocationAttributes = new ConcurrentHashMap<>();
 
     private final LongHistogram unassignedToInitializingDuration;
@@ -144,12 +136,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
     }
 
     @Override
-    public void relocationStarted(
-        ShardRouting startedShard,
-        ShardRouting targetRelocatingShard,
-        MoveReason reason,
-        @Nullable MoveReason computedReason
-    ) {
+    public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, MoveReason reason) {
         logger.debug(
             "{} is relocating ({}) from [{}] to [{}]",
             shardIdentifier(startedShard),
@@ -159,10 +146,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
         );
         relocationStartedCounter.incrementBy(
             1,
-            relocationAttributes.computeIfAbsent(
-                RelocationAttributes.of(reason, computedReason, startedShard.primary()),
-                RelocationAttributes::toMap
-            )
+            relocationAttributes.computeIfAbsent(RelocationAttributes.of(reason, startedShard.primary()), RelocationAttributes::toMap)
         );
     }
 

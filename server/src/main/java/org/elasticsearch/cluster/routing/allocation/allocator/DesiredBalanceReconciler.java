@@ -33,7 +33,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.time.TimeProvider;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
@@ -546,7 +545,6 @@ public class DesiredBalanceReconciler {
                             moveTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
                             new MoveReason(moveType, canRemainDecision.label()),
-                            computedMoveReason(shardRouting),
                             allocation.changes(),
                             moveType.recoveryPriority()
                         );
@@ -642,8 +640,7 @@ public class DesiredBalanceReconciler {
                             shardRouting,
                             rebalanceTarget.getId(),
                             allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                            MoveReason.of(MoveType.REBALANCE),
-                            computedMoveReason(shardRouting),
+                            rebalanceReason(shardRouting),
                             allocation.changes(),
                             MoveType.REBALANCE.recoveryPriority()
                         );
@@ -694,10 +691,14 @@ public class DesiredBalanceReconciler {
             }
         }
 
-        @Nullable
-        private MoveReason computedMoveReason(ShardRouting shardRouting) {
-            return desiredBalance.computedMoveReasons()
+        /**
+         * A shard reaching {@link #balance()} may remain where it is as far as the reconciler's deciders are concerned, so the only
+         * explanation for the move is the computation's, when it recorded one.
+         */
+        private MoveReason rebalanceReason(ShardRouting shardRouting) {
+            final var computedReason = desiredBalance.computedMoveReasons()
                 .get(new DesiredBalance.ShardCopy(shardRouting.shardId(), shardRouting.currentNodeId()));
+            return computedReason != null ? computedReason : MoveReason.of(MoveType.REBALANCE);
         }
 
         private DiscoveryNode findRelocationTarget(final ShardRouting shardRouting, Set<String> desiredNodeIds) {

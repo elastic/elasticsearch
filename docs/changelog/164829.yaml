@@ -1,0 +1,5 @@
+area: Transform
+issues: []
+pr: 164829
+summary: Break out of dangling task check
+type: bug

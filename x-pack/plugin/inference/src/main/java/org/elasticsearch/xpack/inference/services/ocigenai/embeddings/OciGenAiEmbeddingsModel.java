@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.embeddings;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -79,7 +79,7 @@ public class OciGenAiEmbeddingsModel extends OciGenAiModel {
         OciGenAiEmbeddingsServiceSettings serviceSettings,
         OciGenAiEmbeddingsTaskSettings taskSettings,
         @Nullable OciGenAiSecretSettings secrets,
-        BiConsumer<HttpPost, OciGenAiModel> requestSigner
+        BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),

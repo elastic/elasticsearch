@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.client5.http.async.methods.SimpleRequestBuilder;
+import org.apache.hc.core5.http.ContentType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
@@ -47,7 +46,7 @@ public class OciGenAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
 
     @Override
     public void createHttpRequest(ActionListener<HttpRequest> listener) {
-        HttpPost httpPost = new HttpPost(model.uri());
+        SimpleHttpRequest httpPost = SimpleRequestBuilder.post(model.uri()).build();
 
         var entity = new OciGenAiEmbeddingsRequestEntity(
             truncationResult.input(),
@@ -55,8 +54,7 @@ public class OciGenAiEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
             OciGenAiEmbeddingsRequestEntity.resolveInputType(inputType, model.getTaskSettings()),
             model.getTaskSettings().getTruncation()
         );
-        httpPost.setEntity(new ByteArrayEntity(Strings.toString(entity).getBytes(StandardCharsets.UTF_8)));
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
+        httpPost.setBody(Strings.toString(entity).getBytes(StandardCharsets.UTF_8), ContentType.APPLICATION_JSON);
 
         model.requestSigner().accept(httpPost, model);
 

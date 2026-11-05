@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.request;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.util.EntityUtils;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiModel;
 import org.elasticsearch.xpack.inference.services.ocigenai.OciGenAiServiceSettings;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
 
@@ -32,9 +32,10 @@ public final class OciGenAiRequestUtils {
 
     /**
      * Signs the request with the model's API signing key, adding the {@code date}, {@code host}, {@code x-content-sha256} and
-     * {@code authorization} headers. Must be called after the entity and the {@code Content-Type} header have been set.
+     * {@code authorization} headers. Must be called after the body has been set, because the body bytes and the content type are
+     * part of the signed data.
      */
-    public static void signRequest(HttpPost httpPost, OciGenAiModel model) {
+    public static void signRequest(SimpleHttpRequest httpPost, OciGenAiModel model) {
         var secretSettings = model.getSecretSettings();
         if (secretSettings == null) {
             throw new ElasticsearchStatusException(
@@ -48,12 +49,9 @@ public final class OciGenAiRequestUtils {
             var privateKey = OciGenAiPrivateKeyParser.parse(secretSettings.privateKey().toString());
             var signer = new OciGenAiRequestSigner(secretSettings.keyId(), privateKey, Clock.systemUTC());
 
-            var contentTypeHeader = httpPost.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-            var contentType = contentTypeHeader == null ? null : contentTypeHeader.getValue();
-            var body = httpPost.getEntity() == null ? null : EntityUtils.toByteArray(httpPost.getEntity());
-
-            signer.sign(httpPost.getMethod(), httpPost.getURI(), contentType, body).forEach(httpPost::setHeader);
-        } catch (GeneralSecurityException | IOException e) {
+            signer.sign(httpPost.getMethod(), httpPost.getUri(), contentType(httpPost), httpPost.getBodyBytes())
+                .forEach(httpPost::setHeader);
+        } catch (GeneralSecurityException | URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to sign the OCI Generative AI request from inference entity id [{}]: {}",
                 RestStatus.BAD_REQUEST,
@@ -62,6 +60,19 @@ public final class OciGenAiRequestUtils {
                 e.getMessage()
             );
         }
+    }
+
+    /**
+     * The {@code Content-Type} value the HTTP client will send: an explicitly set header wins, otherwise the content type of the
+     * body, which the client adds as a header when none is present.
+     */
+    private static String contentType(SimpleHttpRequest httpPost) {
+        var contentTypeHeader = httpPost.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+        if (contentTypeHeader != null) {
+            return contentTypeHeader.getValue();
+        }
+        var body = httpPost.getBody();
+        return body == null || body.getContentType() == null ? null : body.getContentType().toString();
     }
 
     /**

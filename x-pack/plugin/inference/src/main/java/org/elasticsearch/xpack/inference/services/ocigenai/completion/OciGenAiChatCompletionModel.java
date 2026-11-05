@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.completion;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -90,7 +90,7 @@ public class OciGenAiChatCompletionModel extends OciGenAiModel {
         @Nullable String url,
         OciGenAiChatCompletionServiceSettings serviceSettings,
         @Nullable OciGenAiSecretSettings secrets,
-        BiConsumer<HttpPost, OciGenAiModel> requestSigner
+        BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner
     ) {
         super(
             new ModelConfigurations(

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -33,11 +33,11 @@ public abstract class OciGenAiModel extends RateLimitGroupingModel {
     private final URI uri;
 
     /**
-     * Applies the OCI request signature headers to a {@link HttpPost}. By default this is
-     * {@link OciGenAiRequestUtils#signRequest(HttpPost, OciGenAiModel)}; unit tests may provide different behaviour so that requests
-     * can be created without a real signing key.
+     * Applies the OCI request signature headers to a {@link SimpleHttpRequest}. By default this is
+     * {@link OciGenAiRequestUtils#signRequest(SimpleHttpRequest, OciGenAiModel)}; unit tests may provide different behaviour so that
+     * requests can be created without a real signing key.
      */
-    private final BiConsumer<HttpPost, OciGenAiModel> requestSigner;
+    private final BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner;
 
     protected OciGenAiModel(ModelConfigurations configurations, ModelSecrets secrets, String action) {
         this(configurations, secrets, action, null, OciGenAiRequestUtils::signRequest);
@@ -51,7 +51,7 @@ public abstract class OciGenAiModel extends RateLimitGroupingModel {
         ModelSecrets secrets,
         String action,
         @Nullable String urlOverride,
-        BiConsumer<HttpPost, OciGenAiModel> requestSigner
+        BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner
     ) {
         super(configurations, secrets);
         var serviceSettings = (OciGenAiServiceSettings) configurations.getServiceSettings();
@@ -82,7 +82,7 @@ public abstract class OciGenAiModel extends RateLimitGroupingModel {
         return uri;
     }
 
-    public BiConsumer<HttpPost, OciGenAiModel> requestSigner() {
+    public BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner() {
         return requestSigner;
     }
 

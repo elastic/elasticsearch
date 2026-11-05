@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.rerank;
 
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -72,7 +72,7 @@ public class OciGenAiRerankModel extends OciGenAiModel {
         OciGenAiRerankServiceSettings serviceSettings,
         OciGenAiRerankTaskSettings taskSettings,
         @Nullable OciGenAiSecretSettings secrets,
-        BiConsumer<HttpPost, OciGenAiModel> requestSigner
+        BiConsumer<SimpleHttpRequest, OciGenAiModel> requestSigner
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),

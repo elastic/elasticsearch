@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.hc.client5.http.async.methods.SimpleHttpRequest;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -234,11 +234,11 @@ public final class OciGenAiTestUtils {
     /**
      * A request signer replacement that sets a fixed {@code Authorization} header instead of computing a real OCI signature.
      */
-    public static BiConsumer<HttpPost, OciGenAiModel> fixedAuthHeader(String value) {
+    public static BiConsumer<SimpleHttpRequest, OciGenAiModel> fixedAuthHeader(String value) {
         return (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, value);
     }
 
-    public static BiConsumer<HttpPost, OciGenAiModel> fixedAuthHeader() {
+    public static BiConsumer<SimpleHttpRequest, OciGenAiModel> fixedAuthHeader() {
         return fixedAuthHeader(AUTH_HEADER_VALUE);
     }
 

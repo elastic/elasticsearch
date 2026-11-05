@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai.request;
 
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.request.RequestTests;
@@ -43,8 +42,7 @@ public class OciGenAiRerankRequestEntityTests extends ESTestCase {
         var model = OciGenAiRerankModelTests.createModel(null, "cohere.rerank-v3.5", 2, true);
         var request = new OciGenAiRerankRequest("query", List.of("doc"), 7, false, model);
 
-        var httpPost = (HttpPost) RequestTests.getHttpRequestSync(request).httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(RequestTests.getHttpRequestSync(request).httpRequest().getBodyText());
 
         assertThat(requestMap.get("topN"), is(7));
         assertThat(requestMap.get("isEcho"), is(false));
@@ -54,8 +52,7 @@ public class OciGenAiRerankRequestEntityTests extends ESTestCase {
         var model = OciGenAiRerankModelTests.createModel(null, "cohere.rerank-v3.5", 2, null);
         var request = new OciGenAiRerankRequest("query", List.of("doc"), null, null, model);
 
-        var httpPost = (HttpPost) RequestTests.getHttpRequestSync(request).httpRequestBase();
-        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        var requestMap = entityAsMap(RequestTests.getHttpRequestSync(request).httpRequest().getBodyText());
 
         assertThat(requestMap.get("topN"), is(2));
         assertFalse(requestMap.containsKey("isEcho"));

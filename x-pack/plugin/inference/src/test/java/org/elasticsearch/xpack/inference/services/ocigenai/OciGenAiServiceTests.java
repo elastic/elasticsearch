@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ocigenai;
 
-import org.apache.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -380,7 +380,7 @@ public class OciGenAiServiceTests extends InferenceServiceTestCase {
 
             var request = webServer.requests().get(0);
             assertThat(request.getUri().getPath(), is("/20231130/actions/embedText"));
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), is("application/json; charset=UTF-8"));
 
             var requestMap = entityAsMap(request.getBody());
             assertThat(

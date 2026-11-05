@@ -398,15 +398,21 @@ public abstract class DockerBuildTask extends DefaultTask {
             if (rewriteTimestamps == false) {
                 return "type=docker";
             }
-            if (builderIsDaemon(isCrossPlatform) && daemonUsesContainerdImageStore()) {
+            return timestampRewritingExporterSpec(builderIsDaemon(isCrossPlatform), daemonUsesContainerdImageStore());
+        }
+
+        private static String timestampRewritingExporterSpec(boolean builderIsDaemon, boolean containerdStore) {
+            if (builderIsDaemon && containerdStore) {
                 return "type=image,unpack=false,rewrite-timestamp=true";
             }
             return "type=docker,rewrite-timestamp=true";
         }
 
         private boolean builderIsDaemon(boolean isCrossPlatform) {
-            if (isCrossPlatform == false) {
-                // plain `docker build` ignores the builder selected with `docker buildx use`, it always uses the daemon's
+            // Plain `docker build` ignores `docker buildx use` but honors `BUILDX_BUILDER`, so without the variable it always
+            // uses the daemon's builder. Otherwise, inspect which honors both ways of selecting a builder.
+            final String builderOverride = System.getenv("BUILDX_BUILDER");
+            if (isCrossPlatform == false && (builderOverride == null || builderOverride.isBlank())) {
                 return true;
             }
             final String inspect = dockerOutput("buildx", "inspect");

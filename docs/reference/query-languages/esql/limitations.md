@@ -227,6 +227,16 @@ field sharing the command still fails. (e.g. if `content` was an indexed field i
 [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md)
 supports targeting `text` and `keyword` expressions in the same way, with the same limitations.
 
+{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+[`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md)
+supports targeting a `dense_vector` expression (such as a column produced by `EVAL` or the `DENSE_VECTOR`
+command) instead of an indexed field. It performs an exact search by comparing the query vector against
+every row rather than using a vector index. The `similarity_function` option sets the similarity metric.
+When used on an expression, `KNN` can appear anywhere in the query, but a later `LIMIT` must set the number of
+nearest neighbors to find. In 9.6.0, a `LIMIT` after `STATS` doesn't count, so add a `LIMIT` before `STATS`.
+For details, refer to [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
+To get the k nearest results, sort and limit explicitly, for example `SORT _score DESC | LIMIT 10`.
+
 {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
 When searching expressions, [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params)
 (match query options) are supported on `text` expressions. As on an indexed field, the `analyzer`
@@ -299,6 +309,19 @@ FROM books
 | MV_EXPAND author
 | WHERE MATCH(title, "Tolkien")
 ```
+
+### `KNN` on expressions during rolling upgrades and CCS [esql-limitations-knn-expression-upgrade]
+
+{applies_to}`stack: preview 9.6+`
+`KNN` on a `dense_vector` expression requires every participating node to run version 9.6 or later.
+During a rolling upgrade, or when a remote cluster in a cross-cluster search (CCS) runs an earlier version,
+the coordinating node rejects the query before it runs with this error:
+
+```text
+KNN over a non-index-mapped field or expression is not supported on every participating node; rolling upgrade in progress, or a remote cluster is on an older version
+```
+
+Upgrade all nodes and remote clusters before you run queries that use `KNN` on an expression.
 
 ### Scoring for a runtime search [esql-limitations-full-text-search-scoring]
 

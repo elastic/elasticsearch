@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 155639
-summary: "Support geohash, geotile and geohex in COUNT_DISTINCT"
+summary: Support `geohash`, `geotile` and `geohex` in `COUNT_DISTINCT`
 type: enhancement

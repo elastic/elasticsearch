@@ -17,9 +17,11 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -28,6 +30,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
@@ -435,4 +439,204 @@ public class InboundAggregatorTests extends ESTestCase {
         assertThat("everything buffered must have been released", heapUsed.getAsLong(), equalTo(0L));
     }
 
+    public void testResponseIsReservedByItsHandlerPieceByPiece() throws IOException {
+        final CircuitBreaker inFlightBreaker = newLimitedBreaker(ByteSizeValue.ofKb(1));
+        final ReservingResponseHandler responseHandler = new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1)));
+        final long requestId = randomNonNegativeLong();
+        aggregator = responseAggregator(inFlightBreaker, requestId, responseHandler);
+
+        startAggregatingResponse(requestId, TransportStatus.setResponse((byte) 0));
+        final int fragment1Length = 40;
+        final ReleasableBytesReference fragment1 = fragment(fragment1Length);
+        aggregator.aggregate(fragment1);
+        fragment1.close();
+        assertThat(responseHandler.breaker.getUsed(), equalTo((long) fragment1Length));
+
+        final int fragment2Length = 30;
+        final ReleasableBytesReference fragment2 = fragment(fragment2Length);
+        aggregator.aggregate(fragment2);
+        fragment2.close();
+        assertThat(responseHandler.breaker.getUsed(), equalTo((long) (fragment1Length + fragment2Length)));
+        assertThat(responseHandler.reserved, equalTo(List.of(fragment1Length, fragment2Length)));
+
+        final InboundMessage aggregated = aggregator.finishAggregation();
+        assertFalse(aggregated.isShortCircuit());
+        assertTrue(fragment1.hasReferences());
+        assertThat(responseHandler.breaker.getUsed(), equalTo((long) (fragment1Length + fragment2Length)));
+        // Unlike a request, a response isn't charged to the in-flight requests breaker
+        assertThat(inFlightBreaker.getUsed(), equalTo(0L));
+
+        aggregated.close();
+        assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testResponseHandlerTripCutsResponseShort() throws IOException {
+        final int fragmentLength = 40;
+        final ReservingResponseHandler responseHandler = new ReservingResponseHandler(
+            newLimitedBreaker(ByteSizeValue.ofBytes(fragmentLength + fragmentLength / 2))
+        );
+        final long requestId = randomNonNegativeLong();
+        aggregator = responseAggregator(circuitBreaker, requestId, responseHandler);
+
+        startAggregatingResponse(requestId, TransportStatus.setResponse((byte) 0));
+        final ReleasableBytesReference fragment1 = fragment(fragmentLength);
+        aggregator.aggregate(fragment1);
+        fragment1.close();
+        assertTrue(fragment1.hasReferences());
+
+        // The second piece trips, and what arrived is released straight away, as for a request
+        final ReleasableBytesReference fragment2 = fragment(fragmentLength);
+        aggregator.aggregate(fragment2);
+        fragment2.close();
+        assertFalse(fragment1.hasReferences());
+        assertFalse(fragment2.hasReferences());
+        assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
+        assertThat(responseHandler.breaker.getTrippedCount(), equalTo(1L));
+
+        // The rest is dropped without asking the handler again
+        final ReleasableBytesReference fragment3 = fragment(fragmentLength);
+        aggregator.aggregate(fragment3);
+        fragment3.close();
+        assertFalse(fragment3.hasReferences());
+        assertThat(responseHandler.reserved, equalTo(List.of(fragmentLength, fragmentLength)));
+
+        try (InboundMessage aggregated = aggregator.finishAggregation()) {
+            assertTrue(aggregated.isShortCircuit());
+            assertThat(aggregated.getException(), instanceOf(CircuitBreakingException.class));
+        }
+        assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testResponseHandlerThatReservesNothingIsNotAskedAgain() throws IOException {
+        final AtomicInteger asked = new AtomicInteger();
+        final ReservingResponseHandler responseHandler = new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1))) {
+            @Override
+            public Releasable reserveResponseBytes(int bytes) {
+                asked.incrementAndGet();
+                return NO_RESERVATION;
+            }
+        };
+        final long requestId = randomNonNegativeLong();
+        aggregator = responseAggregator(circuitBreaker, requestId, responseHandler);
+
+        startAggregatingResponse(requestId, TransportStatus.setResponse((byte) 0));
+        final int fragments = between(2, 5);
+        for (int i = 0; i < fragments; i++) {
+            final ReleasableBytesReference fragment = fragment(between(1, 100));
+            aggregator.aggregate(fragment);
+            fragment.close();
+            assertThat(asked.get(), equalTo(1));
+        }
+        try (InboundMessage aggregated = aggregator.finishAggregation()) {
+            assertFalse(aggregated.isShortCircuit());
+        }
+    }
+
+    public void testHandshakeErrorAndUnknownResponsesAreNotReserved() throws IOException {
+        final ReservingResponseHandler responseHandler = new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1))) {
+            @Override
+            public Releasable reserveResponseBytes(int bytes) {
+                throw new AssertionError("must not be reserved");
+            }
+        };
+        final long requestId = randomNonNegativeLong();
+        aggregator = responseAggregator(circuitBreaker, requestId, responseHandler);
+
+        final byte response = TransportStatus.setResponse((byte) 0);
+        assertNotReserved(requestId, TransportStatus.setHandshake(response));
+        assertNotReserved(requestId, TransportStatus.setError(response));
+        // No handler for this request ID, for instance because it timed out
+        assertNotReserved(randomValueOtherThan(requestId, ESTestCase::randomNonNegativeLong), response);
+    }
+
+    private void assertNotReserved(long requestId, byte status) throws IOException {
+        startAggregatingResponse(requestId, status);
+        final ReleasableBytesReference fragment = fragment(between(1, 100));
+        aggregator.aggregate(fragment);
+        fragment.close();
+        try (InboundMessage aggregated = aggregator.finishAggregation()) {
+            assertFalse(aggregated.isShortCircuit());
+            assertTrue(fragment.hasReferences());
+        }
+        assertFalse(fragment.hasReferences());
+    }
+
+    public void testCloseReleasesResponseReservation() {
+        final ReservingResponseHandler responseHandler = new ReservingResponseHandler(newLimitedBreaker(ByteSizeValue.ofKb(1)));
+        final long requestId = randomNonNegativeLong();
+        aggregator = responseAggregator(circuitBreaker, requestId, responseHandler);
+
+        startAggregatingResponse(requestId, TransportStatus.setResponse((byte) 0));
+        final ReleasableBytesReference fragment = fragment(between(1, 100));
+        aggregator.aggregate(fragment);
+        fragment.close();
+        assertThat(responseHandler.breaker.getUsed(), greaterThan(0L));
+
+        // As when the connection closes part-way through the response
+        aggregator.close();
+        assertThat(responseHandler.breaker.getUsed(), equalTo(0L));
+        assertFalse(fragment.hasReferences());
+    }
+
+    private static InboundAggregator responseAggregator(
+        CircuitBreaker inFlightBreaker,
+        long requestId,
+        TransportResponseHandler<?> responseHandler
+    ) {
+        return new InboundAggregator(() -> inFlightBreaker, action -> true, id -> id == requestId ? responseHandler : null);
+    }
+
+    private void startAggregatingResponse(long requestId, byte status) {
+        final boolean compressed = randomBoolean();
+        final Header header = new Header(
+            between(1, 1000),
+            requestId,
+            compressed ? TransportStatus.setCompress(status) : status,
+            TransportVersion.current()
+        );
+        header.headers = new Tuple<>(Collections.emptyMap(), Collections.emptyMap());
+        aggregator.headerReceived(header);
+        if (compressed) {
+            aggregator.updateCompressionScheme(randomFrom(Compression.Scheme.values()));
+        }
+    }
+
+    /**
+     * Stands in for a search handler: reserves each piece of its response on its own breaker and records the sizes.
+     */
+    private static class ReservingResponseHandler implements TransportResponseHandler<TransportResponse> {
+        private final CircuitBreaker breaker;
+        private final List<Integer> reserved = new ArrayList<>();
+
+        ReservingResponseHandler(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        @Override
+        public Releasable reserveResponseBytes(int bytes) {
+            reserved.add(bytes);
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "response");
+            return () -> breaker.addWithoutBreaking(-bytes);
+        }
+
+        @Override
+        public Executor executor() {
+            throw new AssertionError("not used by the aggregator");
+        }
+
+        @Override
+        public void handleResponse(TransportResponse response) {
+            throw new AssertionError("not used by the aggregator");
+        }
+
+        @Override
+        public void handleException(TransportException exp) {
+            throw new AssertionError("not used by the aggregator");
+        }
+
+        @Override
+        public TransportResponse read(StreamInput in) {
+            throw new AssertionError("not used by the aggregator");
+        }
+    }
 }

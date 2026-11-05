@@ -64,23 +64,27 @@ public final class UnmappedFields {
     }
 
     /**
-     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. It
-     * returns {@code false} when the index mode is strict columnar and unmapped fields are not routed to the flattened
-     * {@code _unmapped} field, when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
+     * Whether a document of this shard may hold, in its {@code _source}, a field that the mapping does not declare. When the
+     * index mode is strict columnar, only fields absorbed by the flattened {@code _unmapped} sink are read, so it
+     * returns {@code false} when the index has no sink, when no mapping the index has or had can keep an unmapped field (the
+     * sink absorbs only under a root {@code dynamic: flattened}, which can), or when no segment has the sink's keyed field. Otherwise,
+     * it returns {@code false} when {@code _source} is synthetic and no segment has an {@code _ignored_source} field, and
      * when {@code _source} is stored, no mapping the index has or had can keep an unmapped field (see
      * {@link IndexSettings#retainsUnmappedFields()} and {@link RootObjectMapper#canRetainUnmappedFields()}) and no segment
      * has an {@code _ignored} field. When the segments cannot be inspected it returns {@code true} unless the index mode
      * decides. An {@code _ignored_source} field also holds values of mapped fields, so a shard that has one may still hold
-     * no unmapped field. It returns {@code true} when a segment has the keyed field of the {@code _unmapped} sink, whatever the source.
+     * no unmapped field.
      */
     public boolean mayExist() {
-        if (indexSettings.getMode().isStrictColumnar() && indexSettings.isFlattenedUnmappedFieldsEnabled() == false) {
-            return false;
+        if (indexSettings.getMode().isStrictColumnar()) {
+            // The mapping checks come first: a sink whose root's dynamic was never flattened absorbed nothing, and inspecting the segments
+            // collects the name of every field in every segment. With dynamic: flattened, the segments still tell whether it absorbed.
+            return UnmappedSinkFieldMapper.isEnabled(indexSettings)
+                && (indexSettings.retainsUnmappedFields() || mappingLookup.getMapping().getRoot().canRetainUnmappedFields())
+                && (existsInSegments == null
+                    || existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX));
         }
         if (existsInSegments == null) {
-            return true;
-        }
-        if (existsInSegments.test(FlattenedFieldMapper.UNMAPPED_SINK_NAME + FlattenedFieldMapper.KEYED_FIELD_SUFFIX)) {
             return true;
         }
         if (mappingLookup.isSourceSynthetic()) {
@@ -93,10 +97,15 @@ public final class UnmappedFields {
 
     /**
      * Whether {@code name}, which this shard does not map, may be an unmapped field of one of its documents. It decides as
-     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}.
+     * {@link #extract} does, so that a field is found by name exactly where it is found in {@code _source}, except at an
+     * object the mapping parses: a document with a value there is rejected, so the mapping alone rules it out.
      */
     public boolean mayExist(String name) {
-        return skipped("", name) == false && mayExist();
+        return isParsedObject(name) == false && skipped("", name) == false && mayExist();
+    }
+
+    private boolean isParsedObject(String name) {
+        return mappingLookup.objectMappers().get(name) instanceof ObjectMapper object && object.isEnabled();
     }
 
     /**
@@ -180,6 +189,11 @@ public final class UnmappedFields {
 
         private boolean mayIncludeBelow(String path) {
             return aboveNames.contains(path) || (filter != null && filter.mayIncludeBelow(path));
+        }
+
+        /** Whether this walk reads the unmapped field {@code name}. */
+        public boolean reads(String name) {
+            return names.contains(name);
         }
     }
 
@@ -600,20 +614,11 @@ public final class UnmappedFields {
     /**
      * Loads the unmapped field {@code name}, one of the names of {@code walk}, as keywords, read by the walk of each
      * document that the loaders made with {@code walk} share. Loads nothing where {@link #mayExist(String)} rules it out.
-     * Where the {@code _unmapped} sink absorbs unmapped fields, a field that is not below a nested object is read from the sink's doc
-     * values instead (see {@link UnmappedSinkFieldMapper#blockLoader(String)}).
      */
     public BlockLoader blockLoader(String name, Walk walk) {
         assert walk.names.contains(name) : name + " is not read by the walk";
         if (mayExist(name) == false) {
             return ConstantNull.INSTANCE;
-        }
-
-        // A field absorbed below a nested object is in the sink of the nested doc, which is never loaded by ESQL (ESQL doesn't currently
-        // support nested docs), so must be read from _source.
-        UnmappedSinkFieldMapper sink = mappingLookup.getMapping().getMetadataMapperByClass(UnmappedSinkFieldMapper.class);
-        if (sink != null && mappingLookup.nestedLookup().getNestedParent(name) == null) {
-            return sink.blockLoader(name);
         }
 
         // Naming the paths restricts the read to them; without any, the whole of _source is loaded.

@@ -1,0 +1,5 @@
+area: Infra/Core
+issues: []
+pr: 164530
+summary: Upgrade `JaCoCo` to 0.8.16
+type: upgrade

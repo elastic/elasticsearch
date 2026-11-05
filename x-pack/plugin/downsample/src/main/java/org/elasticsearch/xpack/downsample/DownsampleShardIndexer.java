@@ -15,7 +15,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
@@ -62,6 +61,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleBeforeBulkInfo;
 import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
+import org.elasticsearch.xpack.core.downsample.DownsampleShardProgress;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
@@ -104,7 +104,8 @@ class DownsampleShardIndexer {
     private final Rounding.Prepared rounding;
     private final List<AbstractFieldDownsampler<?>> fieldDownsamplers;
     private final TimestampValueFetcher timestampValueFetcher;
-    private final DownsampleShardTask task;
+    private final ShardTaskReporter reporter;
+    private final DownsampleShardProgress progress;
     private final DownsampleShardPersistentTaskState state;
     private final String[] dimensions;
     private final AbstractFieldDownsampler.DownsamplerCountPerValueType fieldCounts;
@@ -127,7 +128,38 @@ class DownsampleShardIndexer {
         final Map<String, String> multiFieldSources,
         final DownsampleShardPersistentTaskState state
     ) {
-        this.task = task;
+        this(
+            new PersistentTaskShardReporter(task),
+            client,
+            indexService,
+            downsampleMetrics,
+            shardId,
+            downsampleIndex,
+            config,
+            metrics,
+            labels,
+            dimensions,
+            multiFieldSources,
+            state
+        );
+    }
+
+    DownsampleShardIndexer(
+        final ShardTaskReporter reporter,
+        final Client client,
+        final IndexService indexService,
+        final DownsampleMetrics downsampleMetrics,
+        final ShardId shardId,
+        final String downsampleIndex,
+        final DownsampleConfig config,
+        final String[] metrics,
+        final String[] labels,
+        final String[] dimensions,
+        final Map<String, String> multiFieldSources,
+        final DownsampleShardPersistentTaskState state
+    ) {
+        this.reporter = reporter;
+        this.progress = reporter.progress();
         this.client = client;
         this.downsampleMetrics = downsampleMetrics;
         this.indexShard = indexService.getShard(shardId.id());
@@ -182,16 +214,12 @@ class DownsampleShardIndexer {
     public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
         final Query initialStateQuery = createQuery();
         if (initialStateQuery instanceof MatchNoDocsQuery) {
-            return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
+            return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), progress.getNumIndexed());
         }
         long startTime = client.threadPool().relativeTimeInMillis();
-        task.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
-        task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.STARTED);
-        task.updatePersistentTaskState(
-            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.STARTED, null),
-            ActionListener.noop()
-        );
-        logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " started");
+        progress.setTotalShardDocCount(searcher.getDirectoryReader().numDocs());
+        reporter.publishStatus(DownsampleShardIndexerStatus.STARTED);
+        logger.info("Downsampling task [" + reporter.id() + " on shard " + indexShard.shardId() + " started");
         BulkProcessor2 bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of(this::checkCancelled));
@@ -205,52 +233,48 @@ class DownsampleShardIndexer {
             "Shard [{}] successfully sent [{}], received source doc [{}], indexed downsampled doc [{}], "
                 + "skipped already indexed [{}], failed [{}], took [{}]",
             indexShard.shardId(),
-            task.getNumReceived(),
-            task.getNumSent(),
-            task.getNumIndexed(),
-            task.getNumSkippedAlreadyIndexed(),
-            task.getNumFailed(),
+            progress.getNumReceived(),
+            progress.getNumSent(),
+            progress.getNumIndexed(),
+            progress.getNumSkippedAlreadyIndexed(),
+            progress.getNumFailed(),
             duration
         );
 
-        if (task.getNumIndexed() != task.getNumSent()) {
-            task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
+        if (progress.getNumIndexed() != progress.getNumSent()) {
+            progress.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
             final String error = "Downsampling task ["
-                + task.getPersistentTaskId()
+                + reporter.id()
                 + "] on shard "
                 + indexShard.shardId()
                 + " failed indexing, "
                 + " indexed ["
-                + task.getNumIndexed()
+                + progress.getNumIndexed()
                 + "] sent ["
-                + task.getNumSent()
+                + progress.getNumSent()
                 + "]";
             logger.info(error);
             downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.MISSING_DOCS);
             throw new DownsampleShardIndexerException(error, false);
         }
 
-        if (task.getNumFailed() > 0) {
+        if (progress.getNumFailed() > 0) {
             final String error = "Downsampling task ["
-                + task.getPersistentTaskId()
+                + reporter.id()
                 + "] on shard "
                 + indexShard.shardId()
                 + " failed indexing ["
-                + task.getNumFailed()
+                + progress.getNumFailed()
                 + "]";
             logger.info(error);
             downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.FAILED);
             throw new DownsampleShardIndexerException(error, false);
         }
 
-        task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.COMPLETED);
-        task.updatePersistentTaskState(
-            new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.COMPLETED, null),
-            ActionListener.noop()
-        );
-        logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " completed");
+        reporter.publishStatus(DownsampleShardIndexerStatus.COMPLETED);
+        logger.info("Downsampling task [" + reporter.id() + " on shard " + indexShard.shardId() + " completed");
         downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.SUCCESS);
-        return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
+        return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), progress.getNumIndexed());
     }
 
     private Query createQuery() {
@@ -263,20 +287,16 @@ class DownsampleShardIndexer {
     }
 
     private void checkCancelled() {
-        if (task.isCancelled()) {
+        if (reporter.isCancelled()) {
             logger.warn(
                 "Shard [{}] downsampled abort, sent [{}], indexed [{}], failed[{}]",
                 indexShard.shardId(),
-                task.getNumSent(),
-                task.getNumIndexed(),
-                task.getNumFailed()
+                progress.getNumSent(),
+                progress.getNumIndexed(),
+                progress.getNumFailed()
             );
-            task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.CANCELLED);
-            task.updatePersistentTaskState(
-                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.CANCELLED, null),
-                ActionListener.noop()
-            );
-            logger.info("Downsampling task [" + task.getPersistentTaskId() + "] on shard " + indexShard.shardId() + " cancelled");
+            reporter.publishStatus(DownsampleShardIndexerStatus.CANCELLED);
+            logger.info("Downsampling task [" + reporter.id() + "] on shard " + indexShard.shardId() + " cancelled");
             throw new DownsampleShardIndexerException(
                 new TaskCancelledException(format("Shard %s downsample cancelled", indexShard.shardId())),
                 format("Shard %s downsample cancelled", indexShard.shardId()),
@@ -288,15 +308,11 @@ class DownsampleShardIndexer {
             logger.warn(
                 "Shard [{}] downsample abort, sent [{}], indexed [{}], failed[{}]",
                 indexShard.shardId(),
-                task.getNumSent(),
-                task.getNumIndexed(),
-                task.getNumFailed()
+                progress.getNumSent(),
+                progress.getNumIndexed(),
+                progress.getNumFailed()
             );
-            task.setDownsampleShardIndexerStatus(DownsampleShardIndexerStatus.FAILED);
-            task.updatePersistentTaskState(
-                new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.FAILED, null),
-                ActionListener.noop()
-            );
+            reporter.publishStatus(DownsampleShardIndexerStatus.FAILED);
             throw new DownsampleShardIndexerException("Bulk indexing failure", true);
         }
     }
@@ -306,8 +322,8 @@ class DownsampleShardIndexer {
 
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {
-                task.addNumSent(request.numberOfActions());
-                task.setBeforeBulkInfo(
+                progress.addNumSent(request.numberOfActions());
+                progress.setBeforeBulkInfo(
                     new DownsampleBeforeBulkInfo(
                         client.threadPool().absoluteTimeInMillis(),
                         executionId,
@@ -321,7 +337,7 @@ class DownsampleShardIndexer {
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
                 long bulkIngestTookMillis = response.getIngestTookInMillis() >= 0 ? response.getIngestTookInMillis() : 0;
                 long bulkTookMillis = response.getTook().getMillis();
-                task.addNumIndexed(request.numberOfActions());
+                progress.addNumIndexed(request.numberOfActions());
                 List<BulkItemResponse> failedItems = List.of();
                 if (response.hasFailures()) {
                     // Version conflicts are expected when a task resumes after an interruption, the documents are created with op type
@@ -342,7 +358,7 @@ class DownsampleShardIndexer {
                         }
                     }
                     if (conflicts > 0) {
-                        task.addNumSkippedAlreadyIndexed(conflicts);
+                        progress.addNumSkippedAlreadyIndexed(conflicts);
                         logger.debug(
                             "Shard [{}] skipped [{}] downsampled documents that were already indexed",
                             indexShard.shardId(),
@@ -350,7 +366,7 @@ class DownsampleShardIndexer {
                         );
                     }
                 }
-                task.setAfterBulkInfo(
+                progress.setAfterBulkInfo(
                     new DownsampleAfterBulkInfo(
                         client.threadPool().absoluteTimeInMillis(),
                         executionId,
@@ -360,10 +376,10 @@ class DownsampleShardIndexer {
                         RestStatus.OK.getStatus()
                     )
                 );
-                task.updateBulkInfo(bulkIngestTookMillis, bulkTookMillis);
+                progress.updateBulkInfo(bulkIngestTookMillis, bulkTookMillis);
 
                 if (failedItems.isEmpty() == false) {
-                    task.addNumFailed(failedItems.size());
+                    progress.addNumFailed(failedItems.size());
 
                     Map<String, String> failures = failedItems.stream()
                         .collect(
@@ -383,7 +399,7 @@ class DownsampleShardIndexer {
             public void afterBulk(long executionId, BulkRequest request, Exception failure) {
                 if (failure != null) {
                     long items = request.numberOfActions();
-                    task.addNumFailed(items);
+                    progress.addNumFailed(items);
                     logger.error(() -> format("Shard [%s] failed to populate downsample index.", indexShard.shardId()), failure);
 
                     abort = true;
@@ -605,7 +621,7 @@ class DownsampleShardIndexer {
                     bulkCollection();
                     currentLeafCollector = this;
                 }
-                task.addNumReceived(1);
+                progress.addNumReceived(1);
                 final BytesRef tsidHash = aggCtx.getTsidHash();
                 assert tsidHash != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                 final int tsidHashOrd = aggCtx.getTsidHashOrd();
@@ -615,8 +631,8 @@ class DownsampleShardIndexer {
                 if (tsidChanged || timestamp < lastHistoTimestamp) {
                     lastHistoTimestamp = Math.max(rounding.round(timestamp), timestampBoundStartTime);
                 }
-                task.setLastSourceTimestamp(timestamp);
-                task.setLastTargetTimestamp(lastHistoTimestamp);
+                progress.setLastSourceTimestamp(timestamp);
+                progress.setLastTargetTimestamp(lastHistoTimestamp);
 
                 if (logger.isTraceEnabled()) {
                     logger.trace(
@@ -695,7 +711,7 @@ class DownsampleShardIndexer {
                 }
 
                 docsProcessed += docIdBuffer.size();
-                task.setDocsProcessed(docsProcessed);
+                progress.setDocsProcessed(docsProcessed);
 
                 // buffer.clean() also overwrites all slots with zeros
                 docIdBuffer.elementsCount = 0;
@@ -753,7 +769,7 @@ class DownsampleShardIndexer {
                 logger.trace("Indexing downsample doc: [{}]", Strings.toString(doc));
             }
             IndexRequest indexRequest = request.request();
-            task.setLastIndexingTimestamp(System.currentTimeMillis());
+            progress.setLastIndexingTimestamp(System.currentTimeMillis());
             bulkProcessor.addWithBackpressure(indexRequest, () -> abort);
         }
 

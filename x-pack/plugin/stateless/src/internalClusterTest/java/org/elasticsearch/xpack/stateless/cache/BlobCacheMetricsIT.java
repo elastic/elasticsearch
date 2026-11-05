@@ -53,6 +53,7 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -203,7 +204,9 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
     }
 
     public void testWarmingMetricsArePublishedOnIndexNode() {
-        var originalIndexNode = startMasterAndIndexNode();
+        // the relocation of a hollow shard does not warm the cache
+        final var indexNodeSettings = Settings.builder().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build();
+        var originalIndexNode = startMasterAndIndexNode(indexNodeSettings);
 
         // Create an index
         final String indexName = createIndexWithNoReplicas("index");
@@ -214,7 +217,7 @@ public class BlobCacheMetricsIT extends AbstractBlobCacheMetricsIntegTestCase {
         flush(indexName);
 
         // Start a second index node
-        String otherIndexNode = startIndexNode();
+        String otherIndexNode = startIndexNode(indexNodeSettings);
         ensureStableCluster(2);
 
         // Trigger relocation, wait till it's complete

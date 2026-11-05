@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ShardSearchStatsTests extends IndexShardTestCase {
 
@@ -103,8 +104,8 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         SearchStatsSettings searchStatsSettings = new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings());
         List<ShardSearchStats> shards = randomList(1, 5, () -> new ShardSearchStats(searchStatsSettings));
         long nanos = randomLongBetween(0, 1000);
-        ShardSearchStats.charge(List.of(), nanos, System.nanoTime());
-        ShardSearchStats.charge(shards, nanos, System.nanoTime());
+        ShardSearchStats.charge(List.of(), nanos, nanos, System.nanoTime());
+        ShardSearchStats.charge(shards, nanos, randomLongBetween(0, nanos), System.nanoTime());
         assertEquals(nanos, shards.stream().mapToLong(ShardSearchStats::totalSearchLoadNanos).sum());
     }
 
@@ -120,8 +121,8 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
             weights[i] = randomLongBetween(1, Long.MAX_VALUE / weights.length);
         }
         long nanos = randomLongBetween(0, TimeUnit.HOURS.toNanos(1));
-        ShardSearchStats.charge(List.of(), new long[0], nanos, System.nanoTime());
-        ShardSearchStats.charge(shards, weights, nanos, System.nanoTime());
+        ShardSearchStats.charge(List.of(), new long[0], nanos, nanos, System.nanoTime());
+        ShardSearchStats.charge(shards, weights, nanos, randomLongBetween(0, nanos), System.nanoTime());
         assertEquals(nanos, shards.stream().mapToLong(ShardSearchStats::totalSearchLoadNanos).sum());
         assertEquals(0, shards.get(0).totalSearchLoadNanos());
         double totalWeight = Arrays.stream(weights).asDoubleStream().sum();
@@ -130,7 +131,7 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
         }
 
         List<ShardSearchStats> unweighted = randomList(1, 5, () -> new ShardSearchStats(searchStatsSettings));
-        ShardSearchStats.charge(unweighted, new long[unweighted.size()], nanos, System.nanoTime());
+        ShardSearchStats.charge(unweighted, new long[unweighted.size()], nanos, nanos, System.nanoTime());
         for (ShardSearchStats shard : unweighted) {
             assertEquals(nanos / unweighted.size(), shard.totalSearchLoadNanos(), 1.0);
         }
@@ -157,6 +158,51 @@ public class ShardSearchStatsTests extends IndexShardTestCase {
 
             stats = Objects.requireNonNull(searchStats.getGroupStats()).get("group1");
             assertTrue(stats.getSearchLoadRate() > 0.0);
+        }
+    }
+
+    /**
+     * The CPU time is kept next to the search load it is part of, and shared between shards like it, equally or by weight.
+     */
+    public void testChargesCpuWithTheLoad() {
+        SearchStatsSettings searchStatsSettings = new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings());
+        ShardSearchStats other = new ShardSearchStats(searchStatsSettings);
+        long nanos = TimeUnit.SECONDS.toNanos(between(2, 10));
+        long cpu = randomLongBetween(0, nanos);
+        ShardSearchStats.target(List.of(shardSearchStatsListener, other)).charge(nanos, cpu, System.nanoTime());
+        assertCpuIsTheShareOfTheLoad(List.of(shardSearchStatsListener, other), cpu, nanos);
+
+        List<ShardSearchStats> weighted = randomList(2, 5, () -> new ShardSearchStats(searchStatsSettings));
+        long[] weights = new long[weighted.size()];
+        Arrays.setAll(weights, i -> randomLongBetween(1, 1000));
+        ShardSearchStats.charge(weighted, weights, nanos, cpu, System.nanoTime());
+        assertCpuIsTheShareOfTheLoad(weighted, cpu, nanos);
+    }
+
+    /**
+     * Rounding the shares never gives a shard more CPU time than time: the second of four equal shares of 10 nanoseconds with
+     * 9 of CPU time would round to 3 of CPU time for 2 of time.
+     */
+    public void testNoShardIsChargedMoreCpuTimeThanTime() {
+        SearchStatsSettings searchStatsSettings = new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings());
+        List<ShardSearchStats> shards = List.of(
+            new ShardSearchStats(searchStatsSettings),
+            new ShardSearchStats(searchStatsSettings),
+            new ShardSearchStats(searchStatsSettings),
+            new ShardSearchStats(searchStatsSettings)
+        );
+        ShardSearchStats.charge(shards, new long[] { 1, 1, 1, 1 }, 10, 9, System.nanoTime());
+        for (ShardSearchStats shard : shards) {
+            SearchStats.Stats stats = shard.stats().getTotal();
+            assertThat(stats.getSearchCpuRate(), lessThanOrEqualTo(stats.getSearchLoadRate()));
+        }
+    }
+
+    private static void assertCpuIsTheShareOfTheLoad(List<ShardSearchStats> shards, long cpu, long nanos) {
+        for (ShardSearchStats shard : shards) {
+            SearchStats.Stats stats = shard.stats().getTotal();
+            assertTrue(stats.getSearchLoadRate() > 0);
+            assertEquals(stats.getSearchLoadRate() * cpu / nanos, stats.getSearchCpuRate(), stats.getSearchLoadRate() * 1e-6);
         }
     }
 

@@ -1324,7 +1324,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             numShards,
             false,
-            (shardIds, weight) -> (nanos, finishNanos) -> {},
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {},
             new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")),
             result -> {
                 openedContexts.add(result.getContextId());
@@ -1448,7 +1448,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             newLimitedBreakerService(ByteSizeValue.ofMb(10)),
             shards,
             false,
-            (shardIds, weight) -> (nanos, finishNanos) -> {
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {
                 merged.addAndGet(nanos);
                 shardIds.forEach(shardId -> weights.put(shardId, weight.applyAsLong(shardId)));
             }
@@ -1467,7 +1467,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         int shards,
         boolean failWrites
     ) throws Exception {
-        return runBatchedNodeQuery(channelVersion, breakerService, shards, failWrites, (shardIds, weight) -> (nanos, finishNanos) -> {});
+        return runBatchedNodeQuery(
+            channelVersion,
+            breakerService,
+            shards,
+            failWrites,
+            (shardIds, weight) -> (nanos, cpuNanos, finishNanos) -> {}
+        );
     }
 
     /**
@@ -1732,7 +1738,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         ) {
             @Override
             public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds, ToLongFunction<ShardId> weight) {
-                return (nanos, finishNanos) -> {};
+                return (nanos, cpuNanos, finishNanos) -> {};
             }
 
             @Override

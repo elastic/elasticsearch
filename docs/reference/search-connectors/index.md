@@ -8,16 +8,16 @@ mapped_pages:
   - https://www.elastic.co/guide/en/enterprise-search/current/connectors.html
 ---
 
-# Content connectors
+# Content crawlers
 
 $$$es-connectors-native$$$
 
 
 :::{note}
-This page is about Content connectors that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
+This page is about content crawlers that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
 :::
 
-A _connector_ is an Elastic integration that syncs data from an original data source to {{es}}. Use connectors to create searchable, read-only replicas of your data in {{es}}.
+Content crawlers, previously called content connectors, are made up of individual connectors. A _connector_ is an Elastic integration that syncs data from an original data source to {{es}}. Use connectors to create searchable, read-only replicas of your data in {{es}}.
 
 Each connector extracts the original files, records, or objects; and transforms them into documents within {{es}}.
 
@@ -25,12 +25,12 @@ These connectors are written in Python and the source code is available in the [
 
 ## Setup modes [setup-modes]
 
-You can set up content connectors in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content connectors** page.
+You can set up content crawlers in two ways. The availability of each setup mode is indicated on the interface of your {{kib}} **Content crawlers** page.
 
 | | **[Self-managed](self-managed-connectors.md)** | **Elastic managed** |
 |---|---|---|
 | **Infrastructure** | You deploy the connector service | Elastic hosts it for you |
-| **Availability** | Any Elastic environment, including {{es-serverless}} | {{ecloud}} only, where the option is enabled on the **Content connectors** page (for example, for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md)) |
+| **Availability** | Any Elastic environment, including {{es-serverless}} | {{ecloud}} only, where the option is enabled on the **Content crawlers** page (for example, for {{product.observability}} and [{{product.security}}](docs-content://solutions/security/get-started/content-connectors.md)) |
 | **Can send data to** | Any {{es}} instance | Deployment or project the connector is deployed within only |
 | **Customization** | Supported | Not supported |
 

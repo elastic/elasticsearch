@@ -113,8 +113,8 @@ public final class Expressions {
 
     /**
      * Keep {@link UnsupportedAttribute}s already on {@code existingOutput}. LOAD_ALL UnionAll type conflicts put that
-     * attribute on the union output while the children hold null-keyword aliases so they can still execute; rebuilding
-     * from the children would report {@code keyword} and drop {@code original_types}.
+     * attribute on the union output while the children hold null aliases so they can still execute; rebuilding
+     * from the children would report a plain unsupported column and drop {@code original_types}.
      */
     public static List<Attribute> keepExistingUnsupportedAttributes(List<Attribute> converted, List<Attribute> existingOutput) {
         Map<String, Attribute> existing = existingOutput.stream()

@@ -5691,7 +5691,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
 
             // Each branch's columns, by position in the UnionAll output, matched by name.
-            List<List<Attribute>> outputs = unionAll.children().stream().map(child -> MergeBranchAlignment.alignedColumns(unionAll.output(), child)).toList();
+            List<List<Attribute>> outputs = unionAll.children()
+                .stream()
+                .map(child -> MergeBranchAlignment.alignedColumns(unionAll.output(), child))
+                .toList();
             // only do implicit casting for date and date_nanos types for now, to be consistent with queries without subqueries
             List<DataType> commonTypes = commonTypes(outputs);
 
@@ -5856,10 +5859,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return unsupported;
             } else {
                 // Not referenced by downstream plans:
-                // Return a null KEYWORD alias for the child output (so child plans work correctly).
+                // Return a null UNSUPPORTED alias for the child output (so child plans work correctly).
                 // The UnsupportedAttribute is already stored in the side-channel map above
                 // for rebuildUnionAllOutput to use in the UnionAll output, preserving original_types metadata.
-                Alias nullAlias = new Alias(oldAttr.source(), oldAttr.name(), new Literal(oldAttr.source(), null, KEYWORD));
+                Alias nullAlias = new Alias(oldAttr.source(), oldAttr.name(), new Literal(oldAttr.source(), null, UNSUPPORTED));
                 newAliases.add(nullAlias);
                 return nullAlias.toAttribute();
             }

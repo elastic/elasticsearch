@@ -258,13 +258,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     submitReconcileTask(currentDesiredBalance);
                 } else {
                     logger.debug("Desired balance computation for [{}] is superseded by newer input", index);
-                    // No reconciliation is scheduled here. The newer input already reconciles eagerly against this
-                    // intermediate balance in allocate(). Without cancelling here, recoveries that cannot remain on their
-                    // current node would only be cancelled once a computation converges or stops early, which may not
-                    // happen for a long time on a cluster with a steady stream of new input. Because this balance did not
-                    // converge with the latest input, the callback only cancels queued recoveries of shards that are not
-                    // on a desired node in this balance and whose canRemain decision on their current node is NO. Shards
-                    // that were only moved for rebalancing are left alone, since a later computation may move them back.
+                    // Trigger cancellation even if the desired balance computation got superseeded by a newer input.
+                    // On a large busy cluster with a steady stream of new input (e.g. during a rolling upgrade) a
+                    // computation may not converge for a little time. However, because this balance did not have the
+                    // latest input, only cancel queued recoveries of shards whose canRemain decision on their current node
+                    // is NO. Shards moved for rebalancing purposes are more likely to be moved back by the later computation.
                     if (DesiredBalance.hasChanges(previousDesiredBalance.get(), currentDesiredBalance)) {
                         final RoutingAllocation currentAllocation = desiredBalanceInput.routingAllocation().immutableClone();
                         recoveryCancellationCallback.apply(currentDesiredBalance, currentAllocation, false);

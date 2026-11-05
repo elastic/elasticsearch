@@ -68,6 +68,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.NodeShutdownTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -913,6 +914,13 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         });
     }
 
+    /// Asserts the first direct cancellation request received by `node` and its response, and passes any later requests
+    /// through unchecked. The returned latch is released once that first exchange has completed.
+    ///
+    /// A desired balance computation that is superseded by newer input, for example because of an unrelated concurrent
+    /// reroute, sends a restricted cancellation pass, which never interrupts started recoveries. The first request may
+    /// therefore come from such a pass and carry `cancelIfStarted=false` where `cancelIfStarted=true` is expected. This
+    /// helper accounts for this.
     private CountDownLatch assertDirectCancellationExchange(
         String node,
         ClusterState state,
@@ -920,9 +928,10 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
         Set<CancelRecoveriesAction.CancelledInQueue> expectedCancelledInQueue
     ) {
         final CountDownLatch requestAndResponse = new CountDownLatch(2);
+        final AtomicBoolean requestReceived = new AtomicBoolean();
         MockTransportService.getInstance(node)
             .addRequestHandlingBehavior(CancelRecoveriesAction.TYPE.name(), (handler, request, channel, task) -> {
-                if (request instanceof CancelRecoveriesAction.Request cancelRequest) {
+                if (request instanceof CancelRecoveriesAction.Request cancelRequest && requestReceived.compareAndSet(false, true)) {
                     assertExpectedRequest(cancelRequest, state, expectedCancellations);
                     requestAndResponse.countDown();
                     handler.messageReceived(request, new TransportChannel() {
@@ -958,10 +967,16 @@ public class MasterTriggeredDirectCancellationIT extends AbstractIndexRecoveryIn
     ) {
         assertThat(request.term(), greaterThanOrEqualTo(state.term()));
         assertThat(request.clusterStateVersion(), greaterThanOrEqualTo(state.version()));
-        assertThat(request.cancellations().size(), equalTo(expectedCancellations.size()));
+        // A restricted cancellation pass sends each expected cancellation with cancelIfStarted=false
+        final var restrictedCancellations = expectedCancellations.stream()
+            .map(cancellation -> new ShardRecoveryCancellation(cancellation.shardId(), cancellation.allocationId(), false))
+            .toList();
         assertThat(
             request.cancellations(),
-            containsInAnyOrder(expectedCancellations.toArray(new ShardRecoveryCancellation[expectedCancellations.size()]))
+            anyOf(
+                containsInAnyOrder(expectedCancellations.toArray(new ShardRecoveryCancellation[0])),
+                containsInAnyOrder(restrictedCancellations.toArray(new ShardRecoveryCancellation[0]))
+            )
         );
     }
 

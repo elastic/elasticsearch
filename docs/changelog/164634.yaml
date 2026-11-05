@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 164634
+summary: Add S3 setting to omit optional checksums
+type: enhancement

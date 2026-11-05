@@ -540,3 +540,8 @@ tests:
   - :server:test
   method: testReconstructedDotProductApproximatesTrueDotProduct
   issue: https://github.com/elastic/elasticsearch/issues/164839
+- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesStringIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: testCaseInsensitiveEquality {UNMAPPED_CONTAINER}
+  issue: https://github.com/elastic/elasticsearch/issues/164863

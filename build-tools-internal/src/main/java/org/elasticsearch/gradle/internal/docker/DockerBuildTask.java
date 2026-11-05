@@ -311,7 +311,7 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // named build context. This is required with the docker-container buildx driver,
                         // whose isolated image store cannot see daemon images in FROM instructions.
                         // Multiple --output flags require buildx >= 0.13.
-                        spec.args("--output", daemonExporterSpec(rewriteTimestamps));
+                        spec.args("--output", daemonExporterSpec(rewriteTimestamps, isCrossPlatform));
                         spec.args(
                             "--output",
                             "type=oci,tar=false,dest="
@@ -330,7 +330,7 @@ public abstract class DockerBuildTask extends DefaultTask {
                         // when BuildKit is enabled.
                         if (rewriteTimestamps) {
                             // --load is shorthand for --output type=docker, but only the exporter accepts options
-                            spec.args("--output", daemonExporterSpec(true));
+                            spec.args("--output", daemonExporterSpec(true, isCrossPlatform));
                         } else {
                             spec.args("--load");
                         }
@@ -394,21 +394,23 @@ public abstract class DockerBuildTask extends DefaultTask {
          * builders (e.g. {@code docker-container}) stream the image to the client, which loads it into the daemon,
          * so {@code type=docker} must be kept there: {@code type=image} would only export into the builder.
          */
-        private String daemonExporterSpec(boolean rewriteTimestamps) {
+        private String daemonExporterSpec(boolean rewriteTimestamps, boolean isCrossPlatform) {
             if (rewriteTimestamps == false) {
                 return "type=docker";
             }
-            if (builderIsDaemon() && daemonUsesContainerdImageStore()) {
+            if (builderIsDaemon(isCrossPlatform) && daemonUsesContainerdImageStore()) {
                 return "type=image,unpack=false,rewrite-timestamp=true";
             }
             return "type=docker,rewrite-timestamp=true";
         }
 
-        private boolean builderIsDaemon() {
-            // the selected builder (docker buildx use / BUILDX_BUILDER) applies to plain `docker build` as well
+        private boolean builderIsDaemon(boolean isCrossPlatform) {
+            if (isCrossPlatform == false) {
+                // plain `docker build` ignores the builder selected with `docker buildx use`, it always uses the daemon's
+                return true;
+            }
             final String inspect = dockerOutput("buildx", "inspect");
             if (inspect == null) {
-                // without the buildx plugin, `docker build` uses the daemon's built-in builder
                 return true;
             }
             return inspect.lines().anyMatch(line -> line.trim().matches("Driver:\\s+docker"));

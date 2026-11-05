@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -156,6 +157,21 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
             var split = indexMetadata.getReshardingMetadata().getSplit();
 
             if (split.isTargetShard(shardId)) {
+                // A split target in `DONE` no longer recovers from its source. Once the other remaining source shards are
+                // done the resharding metadata could be removed regardless of this shard's routing, which would leave a
+                // `RESHARD_SPLIT` recovery source without a matching split target. Once resharding completes, this shard
+                // can be allocated as a regular empty primary.
+                if (split.targetStateAtLeast(shardId, IndexReshardingState.Split.TargetShardState.DONE)) {
+                    return explainOrThrowRejectedCommand(
+                        explain,
+                        allocation,
+                        "allocating an empty primary for ["
+                            + index
+                            + "]["
+                            + shardId
+                            + "] is not allowed while resharding of the index is completing, retry once resharding has finished"
+                    );
+                }
                 var sourceShard = new ShardId(shardRouting.index(), split.sourceShard(shardId));
                 recoverySource = new RecoverySource.ReshardSplitRecoverySource(sourceShard);
             }

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -792,6 +793,100 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         var newRouting = newState.getRoutingNodes().node("node1").getByShardId(shardId);
         assertTrue(newRouting.initializing());
         assertEquals(RecoverySource.Type.RESHARD_SPLIT, newRouting.recoverySource().getType());
+    }
+
+    public void testAllocateEmptyPrimaryRejectedForDoneSplitTarget() {
+        final String indexName = randomIndexName();
+        final AllocationService allocation = createAllocationService();
+
+        // Index with one source shard splitting into a new target shard 1.
+        final IndexMetadata initialIndexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(2)
+            .numberOfReplicas(0)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+            .build();
+        final ShardId shardId = new ShardId(initialIndexMetadata.getIndex(), 1);
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(initialIndexMetadata, false)))
+            .routingTable(
+                GlobalRoutingTable.builder()
+                    .put(
+                        projectId,
+                        RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(initialIndexMetadata).build()
+                    )
+                    .build()
+            )
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2", singleton(DiscoveryNodeRole.MASTER_ROLE))))
+            .build();
+        assertThat(
+            clusterState.routingTable(projectId).shardRoutingTable(shardId).primaryShard().recoverySource().getType(),
+            equalTo(RecoverySource.Type.RESHARD_SPLIT)
+        );
+
+        // The target primary is allocated and started.
+        clusterState = allocation.reroute(clusterState, "reroute", ActionListener.noop());
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
+        assertTrue(clusterState.routingTable(projectId).shardRoutingTable(shardId).primaryShard().started());
+
+        // The target goes through the split and reaches DONE, while the source shard has not finished yet.
+        final IndexMetadata startedIndexMetadata = clusterState.metadata().getProject(projectId).index(indexName);
+        final IndexReshardingMetadata doneReshardingMetadata = startedIndexMetadata.getReshardingMetadata()
+            .transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF)
+            .transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.SPLIT)
+            .transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.DONE);
+        clusterState = ClusterState.builder(clusterState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
+                    .put(IndexMetadata.builder(startedIndexMetadata).reshardingMetadata(doneReshardingMetadata).build(), true)
+            )
+            .build();
+
+        // Then the target primary fails. It has no other copy so it stays unassigned, recovering from its existing store.
+        clusterState = allocation.applyFailedShards(
+            clusterState,
+            List.of(
+                new FailedShard(
+                    clusterState.routingTable(projectId).shardRoutingTable(shardId).primaryShard(),
+                    "test",
+                    new Exception("test"),
+                    false
+                )
+            ),
+            List.of()
+        );
+        final var primary = clusterState.routingTable(projectId).shardRoutingTable(shardId).primaryShard();
+        assertTrue(primary.unassigned());
+        assertThat(primary.recoverySource().getType(), equalTo(RecoverySource.Type.EXISTING_STORE));
+
+        final AllocationCommands commands = new AllocationCommands(
+            new AllocateEmptyPrimaryAllocationCommand(indexName, shardId.id(), "node1", true, projectId)
+        );
+
+        final ClusterState failedState = clusterState;
+        final var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> allocation.reroute(failedState, commands, false, false, false, ActionListener.noop())
+        );
+        assertThat(e.getMessage(), containsString("is not allowed while resharding of the index is completing"));
+
+        // Once resharding completes and its metadata is removed, the shard is allocated as a regular empty primary.
+        final ClusterState reshardingCompleted = ClusterState.builder(clusterState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
+                    .put(
+                        IndexMetadata.builder(clusterState.metadata().getProject(projectId).index(indexName))
+                            .reshardingMetadata(null)
+                            .build(),
+                        true
+                    )
+            )
+            .build();
+        final ClusterState newState = allocation.reroute(reshardingCompleted, commands, false, false, false, ActionListener.noop())
+            .clusterState();
+        final var newRouting = newState.getRoutingNodes().node("node1").getByShardId(shardId);
+        assertTrue(newRouting.initializing());
+        assertEquals(RecoverySource.Type.EMPTY_STORE, newRouting.recoverySource().getType());
     }
 
     public void testCanceledShardIsInitializedRespectingAllocationDeciders() {

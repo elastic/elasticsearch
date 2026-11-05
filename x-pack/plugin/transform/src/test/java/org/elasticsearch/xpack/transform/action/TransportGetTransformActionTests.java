@@ -29,6 +29,8 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -52,12 +54,14 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.transform.action.TransportGetTransformAction.TRANSFORM_ID_PAGE_SIZE;
+import static org.elasticsearch.xpack.transform.action.TransportGetTransformAction.respondWithDanglingTasks;
 import static org.elasticsearch.xpack.transform.action.TransportGetTransformAction.respondWithoutDanglingTaskCheckOnFailure;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportGetTransformActionTests extends ESTestCase {
@@ -92,6 +96,7 @@ public class TransportGetTransformActionTests extends ESTestCase {
             assertThat(search.source().from(), equalTo(-1));
             assertThat(search.source().size(), equalTo(TRANSFORM_ID_PAGE_SIZE));
             assertThat(search.getParentTask(), equalTo(PARENT_TASK_ID));
+            assertThat(((FieldSortBuilder) search.source().sorts().getFirst()).unmappedType(), equalTo("keyword"));
             assertThat(search.allowPartialSearchResults(), is(false));
             assertThat(search.indicesOptions().ignoreUnavailable(), is(true));
         }
@@ -126,14 +131,15 @@ public class TransportGetTransformActionTests extends ESTestCase {
     }
 
     /**
-     * A partial page would look like the last page, so a timed out search must fail rather than return the ids collected so far.
+     * With partial results disallowed, a shard timeout fails the search, which must fail the collection rather than return the ids
+     * collected so far.
      */
-    public void testTimedOutSearchFails() {
+    public void testSearchTimeoutFailsCollection() {
         var client = new TransformIdSearchClient(threadPool, transformIds(10));
-        client.timedOut = true;
+        client.failure = searchTimeout();
 
-        var e = expectThrows(ElasticsearchTimeoutException.class, () -> collect(client, task(), () -> TIMEOUT));
-        assertThat(e.getMessage(), containsString("Timed out after [30s] while collecting transform ids"));
+        var e = expectThrows(SearchPhaseExecutionException.class, () -> collect(client, task(), () -> TIMEOUT));
+        assertThat(e, sameInstance(client.failure));
         assertThat(client.searches, hasSize(1));
     }
 
@@ -181,7 +187,7 @@ public class TransportGetTransformActionTests extends ESTestCase {
         var future = new PlainActionFuture<GetTransformAction.Response>();
 
         respondWithoutDanglingTaskCheckOnFailure("_all", task(), withoutCheck, future).onFailure(
-            new ElasticsearchTimeoutException("timed out")
+            randomFrom(new ElasticsearchTimeoutException("timed out"), searchTimeout())
         );
 
         assertThat(future.actionGet(), sameInstance(withoutCheck));
@@ -223,10 +229,96 @@ public class TransportGetTransformActionTests extends ESTestCase {
         assertThat(future.actionGet(), sameInstance(withCheck));
     }
 
+    public void testRespondsWithTasksWithoutConfig() {
+        var future = new PlainActionFuture<GetTransformAction.Response>();
+
+        respondWithDanglingTasks("_all", task(), Set.of("b", "c"), List.of(), 2, future).onResponse(Set.of("a", "b"));
+
+        var response = org.elasticsearch.common.Strings.toString(future.actionGet());
+        assertThat(response, containsString("\"dangling_task\""));
+        assertThat(response, containsString("Found task for transform [c], but no configuration for it"));
+        assertThat(response, not(containsString("[b]")));
+    }
+
+    public void testRespondsWithoutErrorsWhenEveryTaskHasAConfig() {
+        var future = new PlainActionFuture<GetTransformAction.Response>();
+
+        respondWithDanglingTasks("_all", task(), Set.of("b"), List.of(), 2, future).onResponse(Set.of("a", "b"));
+
+        assertThat(org.elasticsearch.common.Strings.toString(future.actionGet()), not(containsString("errors")));
+    }
+
+    public void testCollectionFailureRespondsWithWarning() {
+        var future = new PlainActionFuture<GetTransformAction.Response>();
+
+        respondWithDanglingTasks("_all", task(), Set.of("b"), List.of(), 2, future).onFailure(
+            new SearchPhaseExecutionException("query", "all shards failed", ShardSearchFailure.EMPTY_ARRAY)
+        );
+
+        assertThat(org.elasticsearch.common.Strings.toString(future.actionGet()), not(containsString("errors")));
+        assertWarnings(TransformMessages.REST_WARN_DANGLING_TASK_CHECK_FAILED);
+    }
+
+    /**
+     * Listeners must not throw, and the listener utilities assert that. Without assertions, a throwing downstream listener must not be
+     * turned into a second response by the dangling task check's fallback.
+     */
+    public void testThrowingDownstreamListenerIsNotRespondedToTwice() {
+        var listener = new ThrowingListener<GetTransformAction.Response>();
+
+        expectThrows(
+            AssertionError.class,
+            () -> respondWithDanglingTasks("_all", task(), Set.of("b"), List.of(), 2, listener).onResponse(Set.of("b"))
+        );
+
+        assertThat(listener.responses, equalTo(1));
+        assertThat(listener.failures, equalTo(0));
+    }
+
+    public void testThrowingListenerOnLastPageIsNotFailed() {
+        var client = new TransformIdSearchClient(threadPool, transformIds(10));
+        var listener = new ThrowingListener<Set<String>>();
+
+        expectThrows(
+            AssertionError.class,
+            () -> new TransformIdCollector(client, new String[] { "*" }, task(), PARENT_TASK_ID, TIMEOUT, () -> TIMEOUT).collect(listener)
+        );
+
+        assertThat(listener.responses, equalTo(1));
+        assertThat(listener.failures, equalTo(0));
+    }
+
+    private static class ThrowingListener<T> implements ActionListener<T> {
+        int responses;
+        int failures;
+
+        @Override
+        public void onResponse(T response) {
+            responses++;
+            throw new IllegalStateException("downstream failure");
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            failures++;
+        }
+    }
+
     private static Set<String> collect(TransformIdSearchClient client, CancellableTask task, RemainingTime remainingTime) {
         var future = new PlainActionFuture<Set<String>>();
         new TransformIdCollector(client, new String[] { "*" }, task, PARENT_TASK_ID, TIMEOUT, remainingTime).collect(future);
         return future.actionGet();
+    }
+
+    /**
+     * How a shard timeout surfaces when partial results are disallowed.
+     */
+    private static SearchPhaseExecutionException searchTimeout() {
+        return new SearchPhaseExecutionException(
+            "query",
+            "all shards failed",
+            new ShardSearchFailure[] { new ShardSearchFailure(new SearchTimeoutException(null, "Time exceeded")) }
+        );
     }
 
     private static CancellableTask task() {
@@ -245,7 +337,7 @@ public class TransportGetTransformActionTests extends ESTestCase {
     private static class TransformIdSearchClient extends NoOpClient {
         private final List<String> transformIds;
         final List<SearchRequest> searches = new ArrayList<>();
-        boolean timedOut = false;
+        Exception failure;
 
         TransformIdSearchClient(ThreadPool threadPool, List<String> transformIds) {
             super(threadPool);
@@ -264,6 +356,10 @@ public class TransportGetTransformActionTests extends ESTestCase {
             assertThat(action, equalTo(TransportSearchAction.TYPE));
             var searchRequest = (SearchRequest) request;
             searches.add(searchRequest);
+            if (failure != null) {
+                listener.onFailure(failure);
+                return;
+            }
 
             int size = searchRequest.source().size();
             int from = Math.max(searchRequest.source().from(), 0);
@@ -280,7 +376,7 @@ public class TransportGetTransformActionTests extends ESTestCase {
             int to = Math.min(from + size, transformIds.size());
             var hits = transformIds.subList(from, to).stream().map(TransformIdSearchClient::hit).toArray(SearchHit[]::new);
             var searchHits = new SearchHits(hits, new TotalHits(transformIds.size(), TotalHits.Relation.EQUAL_TO), 1.0f);
-            var response = SearchResponseUtils.response(searchHits).timedOut(timedOut).build();
+            var response = SearchResponseUtils.successfulResponse(searchHits);
             searchHits.decRef(); // transfer ownership to response
 
             beforeResponse();

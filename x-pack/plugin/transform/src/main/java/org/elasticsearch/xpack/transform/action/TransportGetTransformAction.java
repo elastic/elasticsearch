@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
@@ -32,6 +33,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
+import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -118,8 +121,8 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         final ClusterState clusterState = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
-        // -1 means no timeout, as in other APIs
-        TimeValue timeout = TimeValue.MINUS_ONE.equals(request.timeout()) ? TimeValue.MAX_VALUE : request.timeout();
+        // -1, in any unit, means no timeout, as in other APIs
+        TimeValue timeout = request.timeout().duration() == -1 ? TimeValue.MAX_VALUE : request.timeout();
         RemainingTime remainingTime = RemainingTime.from(Instant::now, timeout);
 
         // When CPS is enabled and there are linked projects, unmigrated transforms (no credentialId, no explicit
@@ -132,6 +135,17 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = listener.delegateFailureAndWrap((l, r) -> {
             List<TransformConfig> configs = applyDisplayDefault ? withLocalOnlyDisplayDefault(r.results()) : r.results();
             if (request.checkForDanglingTasks()) {
+                var configIdsInPage = r.results().stream().map(TransformConfig::getId).collect(toSet());
+                var unverifiedTaskIds = TransformTask.findTransformTasks(request.getId(), projectResolver.getProjectMetadata(clusterState))
+                    .stream()
+                    .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                    .filter(not(configIdsInPage::contains))
+                    .collect(toSet());
+                if (unverifiedTaskIds.isEmpty()) {
+                    // every matching task has its config in the requested page, so no task can be dangling
+                    l.onResponse(new Response(configs, r.count(), null));
+                    return;
+                }
                 // AbstractGetResourcesRequest#createTask always creates a CancellableTask
                 var cancellableTask = (CancellableTask) task;
                 getAllTransformIds(
@@ -141,21 +155,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                     parentTaskId,
                     timeout,
                     remainingTime,
-                    respondWithoutDanglingTaskCheckOnFailure(request.getId(), cancellableTask, new Response(configs, r.count(), null), l)
-                        .delegateFailureAndWrap((ll, transformConfigIds) -> {
-                            var errors = TransformTask.findTransformTasks(request.getId(), projectResolver.getProjectMetadata(clusterState))
-                                .stream()
-                                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
-                                .filter(not(transformConfigIds::contains))
-                                .map(
-                                    transformId -> new Response.Error(
-                                        "dangling_task",
-                                        Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId)
-                                    )
-                                )
-                                .toList();
-                            ll.onResponse(new Response(configs, r.count(), errors.isEmpty() ? null : errors));
-                        })
+                    respondWithDanglingTasks(request.getId(), cancellableTask, unverifiedTaskIds, configs, r.count(), l)
                 );
             } else {
                 l.onResponse(new Response(configs, r.count(), null));
@@ -167,11 +167,38 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
     }
 
     /**
+     * Responds with the dangling tasks once the transform config ids are collected. Only a failure to collect them reaches
+     * {@link #respondWithoutDanglingTaskCheckOnFailure}: {@code map} does not pass an exception thrown by the downstream listener to
+     * {@code onFailure}, so it cannot turn into a second response.
+     */
+    static ActionListener<Set<String>> respondWithDanglingTasks(
+        String idExpression,
+        CancellableTask task,
+        Set<String> unverifiedTaskIds,
+        List<TransformConfig> configs,
+        long count,
+        ActionListener<Response> listener
+    ) {
+        return respondWithoutDanglingTaskCheckOnFailure(idExpression, task, new Response(configs, count, null), listener).map(
+            transformConfigIds -> {
+                var errors = unverifiedTaskIds.stream()
+                    .filter(not(transformConfigIds::contains))
+                    .sorted()
+                    .map(
+                        transformId -> new Response.Error("dangling_task", Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId))
+                    )
+                    .toList();
+                return new Response(configs, count, errors.isEmpty() ? null : errors);
+            }
+        );
+    }
+
+    /**
      * The dangling task check is diagnostic, so when it fails (for example by timing out or hitting unavailable shards) the configs are
      * still returned, with a warning header in place of the check's result and the cause logged. Cancellation still fails the request.
      */
     static ActionListener<Response> respondWithoutDanglingTaskCheckOnFailure(
-        String transformId,
+        String idExpression,
         CancellableTask task,
         Response withoutDanglingTaskCheck,
         ActionListener<Response> listener
@@ -181,11 +208,12 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                 l.onFailure(e);
                 return;
             }
-            if (e instanceof ElasticsearchTimeoutException) {
-                logger.debug(() -> Strings.format("Timed out checking for dangling tasks of transform [%s]", transformId), e);
+            // the warning header already tells the caller, and GET is polled, so a failed check is not worth more than a debug log
+            logger.debug(() -> Strings.format("Failed to check for dangling tasks of transforms matching [%s]", idExpression), e);
+            // with partial results disallowed, a shard timeout fails the search with a SearchTimeoutException
+            if (ExceptionsHelper.unwrap(e, ElasticsearchTimeoutException.class, SearchTimeoutException.class) != null) {
                 HeaderWarning.addWarning(TransformMessages.REST_WARN_DANGLING_TASK_CHECK_TIMED_OUT);
             } else {
-                logger.warn(() -> Strings.format("Failed to check for dangling tasks of transform [%s]", transformId), e);
                 HeaderWarning.addWarning(TransformMessages.REST_WARN_DANGLING_TASK_CHECK_FAILED);
             }
             l.onResponse(withoutDanglingTaskCheck);
@@ -327,7 +355,8 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                 TransformInternalIndexConstants.INDEX_NAME_PATTERN,
                 TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
             )
-                .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
+                // an internal index without an id mapping must not fail the search, now that partial results are disallowed
+                .addSort(SortBuilders.fieldSort(TransformField.ID.getPreferredName()).order(SortOrder.ASC).unmappedType("keyword"))
                 .setSize(TRANSFORM_ID_PAGE_SIZE)
                 .setTimeout(pageTimeout)
                 .setFetchSource(false)
@@ -347,18 +376,20 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                 client.threadPool().getThreadContext(),
                 TRANSFORM_ORIGIN,
                 searchRequest,
-                listener.<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
-                    if (searchResponse.isTimedOut()) {
-                        l.onFailure(timeoutException(transformIds));
-                        return;
-                    }
+                // not delegateFailureAndWrap: an exception from completing the listener must not reach onFailure, which responds again
+                listener.<SearchResponse>delegateFailure((l, searchResponse) -> {
                     var hits = searchResponse.getHits().getHits();
-                    for (var hit : hits) {
-                        DocumentField idField = hit.field(TransformField.ID.getPreferredName());
-                        String transformId = idField == null ? null : idField.getValue();
-                        if (org.elasticsearch.common.Strings.isNullOrEmpty(transformId) == false) {
-                            transformIds.add(transformId);
+                    try {
+                        for (var hit : hits) {
+                            DocumentField idField = hit.field(TransformField.ID.getPreferredName());
+                            String transformId = idField == null ? null : idField.getValue();
+                            if (org.elasticsearch.common.Strings.isNullOrEmpty(transformId) == false) {
+                                transformIds.add(transformId);
+                            }
                         }
+                    } catch (RuntimeException e) {
+                        l.onFailure(e);
+                        return;
                     }
 
                     if (hits.length == TRANSFORM_ID_PAGE_SIZE) {

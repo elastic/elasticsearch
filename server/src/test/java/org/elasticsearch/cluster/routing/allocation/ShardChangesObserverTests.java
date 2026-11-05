@@ -46,6 +46,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -58,10 +59,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.elasticsearch.test.MockLog.assertThatLogger;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -178,7 +181,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         final var meterRegistry = new RecordingMeterRegistry();
         final long unassignedAtMillis = randomLongBetween(0, System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1));
         final AtomicLong nowMillis = new AtomicLong(unassignedAtMillis);
-        final var observer = new ShardChangesObserver(meterRegistry, nowMillis::get);
+        final var observer = new ShardChangesObserver(meterRegistry, nowMillis::get, ShardMovementEventSink.NOOP);
 
         final var reason = randomFrom(UnassignedInfo.Reason.values());
         // ALLOCATION_FAILED needs failedAllocations > 0
@@ -259,7 +262,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
 
     public void testRelocationStartedMetric() {
         final var meterRegistry = new RecordingMeterRegistry();
-        final var observer = new ShardChangesObserver(meterRegistry, System::currentTimeMillis);
+        final var observer = new ShardChangesObserver(meterRegistry, System::currentTimeMillis, ShardMovementEventSink.NOOP);
         final var recorder = meterRegistry.getRecorder();
 
         final var shardId = new ShardId("test-index", "_na_", 0);
@@ -305,6 +308,49 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(attributes, hasEntry("es_relocation_reason", MoveType.CANNOT_REMAIN.reason()));
         assertThat(attributes, hasEntry("es_can_remain_decider", preserveLabels ? "filter" : "missing"));
         assertThat(attributes, hasEntry("es_shard_primary", true));
+
+        // the event carries the same reason
+        final var relocation = (ShardMovementEvent.RelocationStarted) events.stream()
+            .filter(e -> e instanceof ShardMovementEvent.RelocationStarted)
+            .findFirst()
+            .orElseThrow();
+        assertThat(relocation.shard().currentNodeId(), equalTo("node-1"));
+        assertThat(relocation.target().currentNodeId(), equalTo("node-2"));
+        assertThat(relocation.reason(), equalTo(new MoveReason(MoveType.CANNOT_REMAIN, preserveLabels ? "filter" : null)));
+        assertThat(events.getLast(), instanceOf(ShardMovementEvent.RelocationCompleted.class));
+    }
+
+    public void testEventsForwardedToSink() {
+        final var observer = new ShardChangesObserver(new RecordingMeterRegistry(), System::currentTimeMillis, events::add);
+
+        final var shardId = new ShardId("test-index", "_na_", 0);
+        final var primary = randomBoolean();
+        final var unassignedShard = shardRoutingBuilder(shardId, null, primary, ShardRoutingState.UNASSIGNED).build();
+        final var initializingShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.INITIALIZING).build();
+        final var startedShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.STARTED).build();
+        final var relocatingShard = shardRoutingBuilder(shardId, "node-1", primary, ShardRoutingState.RELOCATING).withRelocatingNodeId(
+            "node-2"
+        ).build();
+        final var targetShard = shardRoutingBuilder(shardId, "node-2", primary, ShardRoutingState.INITIALIZING).build();
+        final var reason = new MoveReason(randomFrom(MoveType.values()), randomBoolean() ? null : randomIdentifier());
+        final var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "boom");
+
+        observer.shardInitialized(unassignedShard, initializingShard);
+        observer.shardStarted(initializingShard, startedShard);
+        observer.relocationStarted(startedShard, targetShard, reason);
+        observer.relocationCompleted(relocatingShard);
+        observer.shardFailed(startedShard, unassignedInfo);
+
+        assertThat(
+            events,
+            contains(
+                new ShardMovementEvent.ShardInitialized(unassignedShard, initializingShard),
+                new ShardMovementEvent.ShardStarted(initializingShard, startedShard),
+                new ShardMovementEvent.RelocationStarted(startedShard, targetShard, reason),
+                new ShardMovementEvent.RelocationCompleted(relocatingShard),
+                new ShardMovementEvent.ShardFailed(startedShard, unassignedInfo)
+            )
+        );
     }
 
     public void testRelocationMetricReportsComputedReasonWhenReconcilerDisagrees() {
@@ -344,9 +390,12 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(attributes, hasEntry("es_can_remain_decider", "simulation_only"));
     }
 
+    /** the events emitted by the allocation service built by {@link #relocationAttributesAfterReroute} */
+    private final List<ShardMovementEvent> events = new ArrayList<>();
+
     /**
      * Reroutes a one-shard cluster where the shard starts on node-1 and returns the attributes of the single relocation the allocation
-     * service with the given settings and plugins starts
+     * service with the given settings and plugins starts. The events emitted along the way are collected in {@link #events}.
      */
     private Map<String, Object> relocationAttributesAfterReroute(
         IndexMetadata indexMetadata,
@@ -371,7 +420,8 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             meterRegistry,
-            clusterSettings
+            clusterSettings,
+            events::add
         );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
         applyStartedShardsUntilNoChange(clusterState, allocationService);

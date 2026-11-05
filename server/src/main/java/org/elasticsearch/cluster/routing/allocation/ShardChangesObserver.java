@@ -27,7 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-/// Observes shard state transitions during allocation rounds, logging them and emitting APM timing metrics.
+/// Observes shard state transitions during allocation rounds, logging them, emitting APM timing metrics and forwarding them as
+/// [ShardMovementEvent]s to the configured [ShardMovementEventSink].
 class ShardChangesObserver implements RoutingChangesObserver {
     private static final Logger logger = LogManager.getLogger(ShardChangesObserver.class);
 
@@ -73,12 +74,14 @@ class ShardChangesObserver implements RoutingChangesObserver {
     private final LongCounter shardInitializingCounter;
     private final LongCounter relocationStartedCounter;
     private final LongSupplier currentTimeMillisSupplier;
+    private final ShardMovementEventSink eventSink;
 
-    ShardChangesObserver(MeterRegistry meterRegistry) {
-        this(meterRegistry, System::currentTimeMillis);
+    ShardChangesObserver(MeterRegistry meterRegistry, ShardMovementEventSink eventSink) {
+        this(meterRegistry, System::currentTimeMillis, eventSink);
     }
 
-    ShardChangesObserver(MeterRegistry meterRegistry, LongSupplier currentTimeMillisSupplier) {
+    ShardChangesObserver(MeterRegistry meterRegistry, LongSupplier currentTimeMillisSupplier, ShardMovementEventSink eventSink) {
+        this.eventSink = eventSink;
         this.unassignedToInitializingDuration = meterRegistry.registerLongHistogram(
             UNASSIGNED_TO_INITIALIZING_METRIC,
             "Duration a shard spent in UNASSIGNED state before being assigned to a node",
@@ -117,6 +120,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
             unassignedToInitializingDuration.record(Math.max(0, durationMillis), attrs);
             shardInitializingCounter.incrementBy(1, attrs);
         }
+        eventSink.accept(new ShardMovementEvent.ShardInitialized(unassignedShard, initializedShard));
     }
 
     @Override
@@ -133,6 +137,7 @@ class ShardChangesObserver implements RoutingChangesObserver {
             long durationMillis = currentTimeMillisSupplier.getAsLong() - info.unassignedTimeMillis();
             unassignedToStartedDuration.record(Math.max(0, durationMillis), attributes(info, startedShard));
         }
+        eventSink.accept(new ShardMovementEvent.ShardStarted(initializingShard, startedShard));
     }
 
     @Override
@@ -148,11 +153,18 @@ class ShardChangesObserver implements RoutingChangesObserver {
             1,
             relocationAttributes.computeIfAbsent(RelocationAttributes.of(reason, startedShard.primary()), RelocationAttributes::toMap)
         );
+        eventSink.accept(new ShardMovementEvent.RelocationStarted(startedShard, targetRelocatingShard, reason));
+    }
+
+    @Override
+    public void relocationCompleted(ShardRouting removedRelocationSource) {
+        eventSink.accept(new ShardMovementEvent.RelocationCompleted(removedRelocationSource));
     }
 
     @Override
     public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
         logger.debug("{} has failed on [{}]: {}", shardIdentifier(failedShard), failedShard.currentNodeId(), unassignedInfo.reason());
+        eventSink.accept(new ShardMovementEvent.ShardFailed(failedShard, unassignedInfo));
     }
 
     @Override

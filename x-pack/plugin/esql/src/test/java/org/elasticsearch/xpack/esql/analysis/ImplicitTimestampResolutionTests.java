@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.VersionMode;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
  * {@code @timestamp}. Otherwise, for example, {@code rate()} reads the time bucket as its sample timestamp and returns
  * wrong values that change between runs.
  */
-public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
+public class ImplicitTimestampResolutionTests extends ESTestCase {
 
     /**
      * Time-series aggregations whose per-time-series aggregation reads the implicit {@code @timestamp}, keyed by
@@ -56,22 +56,8 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         entry("delta", "delta(network.cost)"),
         entry("idelta", "idelta(network.cost)"),
         entry("deriv", "deriv(network.cost)"),
-        entry("changes", "changes(network.cost)"),
         entry("first_over_time", "first_over_time(network.cost)"),
         entry("last_over_time", "last_over_time(network.cost)")
-    );
-
-    /**
-     * Time-series aggregations that take an implicit {@code @timestamp} but drop it when they are translated to their
-     * per-time-series aggregation, so the column it resolves to does not change their results.
-     */
-    private static final Map<String, String> TIMESTAMP_DROPPING_TIME_SERIES_AGGREGATIONS = Map.ofEntries(
-        entry("max_over_time", "max_over_time(network.cost)"),
-        entry("min_over_time", "min_over_time(network.cost)"),
-        entry("sum_over_time", "sum_over_time(network.cost)"),
-        entry("count_over_time", "count_over_time(network.cost)"),
-        entry("avg_over_time", "avg_over_time(network.cost)"),
-        entry("percentile_over_time", "percentile_over_time(network.cost, 50)")
     );
 
     /** Aggregations outside {@code TS} that take an implicit {@code @timestamp}, keyed by function name. */
@@ -79,10 +65,6 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         entry("earliest", "earliest(message)"),
         entry("latest", "latest(message)")
     );
-
-    public ImplicitTimestampResolutionTests(VersionMode versionMode) {
-        super(versionMode);
-    }
 
     /**
      * Fails when an aggregation with an implicit {@code @timestamp} is added without being added to one of the lists
@@ -97,27 +79,9 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
             .collect(Collectors.toSet());
         Set<String> covered = new HashSet<>();
         covered.addAll(TIMESTAMP_READING_TIME_SERIES_AGGREGATIONS.keySet());
-        covered.addAll(TIMESTAMP_DROPPING_TIME_SERIES_AGGREGATIONS.keySet());
         covered.addAll(REGULAR_AGGREGATIONS.keySet());
 
         assertThat(covered, equalTo(registered));
-    }
-
-    /**
-     * Fails when one of these aggregations starts to read the implicit {@code @timestamp}. It then belongs to
-     * {@link #TIMESTAMP_READING_TIME_SERIES_AGGREGATIONS}.
-     */
-    public void testTimestampDroppingTimeSeriesAggregationsReadNoTimestamp() {
-        Map<String, List<Expression>> timestampsByQuery = new TreeMap<>();
-        for (String aggregation : TIMESTAMP_DROPPING_TIME_SERIES_AGGREGATIONS.values()) {
-            String query = "TS k8s | STATS v = " + aggregation + " BY bucket = TBUCKET(1 minute) | LIMIT 10";
-            List<Expression> timestamps = implicitTimestamps(k8s().query(query));
-            if (timestamps.isEmpty() == false) {
-                timestampsByQuery.put(query, timestamps);
-            }
-        }
-
-        assertThat(timestampsByQuery, equalTo(Map.of()));
     }
 
     public void testTimeSeriesAggregationsReadSourceTimestampWhenTimeBucketHasOtherName() {
@@ -155,12 +119,7 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
      * is used because {@code DATE_TRUNC} is not accepted as a grouping of a bare time-series aggregation.
      */
     public void testRateIgnoresTimeBucketNamedTimestampForEveryTimeBucketFunction() {
-        List<String> timeBuckets = new ArrayList<>(
-            List.of("TBUCKET(1 minute)", "BUCKET(@timestamp, 1 minute)", "DATE_TRUNC(1 minute, @timestamp)")
-        );
-        if (EsqlCapabilities.Cap.TSTEP.isEnabled()) {
-            timeBuckets.add("TSTEP(1 minute)");
-        }
+        List<String> timeBuckets = List.of("TBUCKET(1 minute)", "BUCKET(@timestamp, 1 minute)", "DATE_TRUNC(1 minute, @timestamp)");
         var bounds = new QueryDslTimestampBoundsExtractor.TimestampBounds(
             Instant.parse("2024-05-10T00:00:00Z"),
             Instant.parse("2024-05-10T01:00:00Z")
@@ -310,11 +269,11 @@ public class ImplicitTimestampResolutionTests extends AnalyzerTestCase {
         return sourceTimestamps.getFirst();
     }
 
-    private TestAnalyzer k8s() {
-        return analyzer().addK8s();
+    private static TestAnalyzer k8s() {
+        return EsqlTestUtils.analyzer().addK8s();
     }
 
-    private TestAnalyzer sampleData() {
-        return analyzer().addSampleData();
+    private static TestAnalyzer sampleData() {
+        return EsqlTestUtils.analyzer().addSampleData();
     }
 }

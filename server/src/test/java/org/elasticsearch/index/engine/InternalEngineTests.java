@@ -8718,6 +8718,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(results.get(1).getSeqNo(), equalTo(1L));
         for (int i = 2; i < 4; i++) {
             assertThat(results.get(i).getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            assertTrue(results.get(i).isBatchAborted());
             assertThat(results.get(i).getFailure(), sameInstance(lookupFailure));
             assertThat(results.get(i).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
             assertThat(results.get(i).getTranslogLocation(), nullValue());

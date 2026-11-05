@@ -209,6 +209,15 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         return new IndexRequest("index").id(id).source(XContentType.JSON, "title", "hello", "tag", "bulk");
     }
 
+    /** Items {@code 0 .. numDocs-1}, each a {@link #columnarIndexRequest} with its index as id. */
+    private static BulkItemRequest[] columnarItems(int numDocs) {
+        BulkItemRequest[] items = new BulkItemRequest[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            items[i] = new BulkItemRequest(i, columnarIndexRequest(Integer.toString(i)));
+        }
+        return items;
+    }
+
     private static SourceBatch buildColumnarBatch(int numDocs) throws IOException {
         List<BytesReference> sources = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
@@ -638,6 +647,57 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         for (int i = 0; i < retry.length; i++) {
             BulkItemResponse response = retry[i].getPrimaryResponse();
             assertFalse(response.isFailed());
+            assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(response.getResponse().getSeqNo(), equalTo((long) i));
+        }
+
+        closeShards(shard);
+    }
+
+    public void testBatchIndexOnPrimaryEngineStopFailsRemainingChunks() throws Exception {
+        final EngineException lookupFailure = new EngineException(new ShardId("index", "_na_", 0), "simulated version lookup failure");
+        final AtomicBoolean failNextLookup = new AtomicBoolean();
+        IndexShard shard = newColumnarPrimaryShard(config -> new InternalEngine(config) {
+            // Fails the Lucene version lookup the engine performs while planning a sub-batch, i.e. before any sequence
+            // number has been consumed for it
+            @Override
+            protected <T> T performActionWithDirectoryReader(
+                Engine.SearcherScope scope,
+                CheckedFunction<DirectoryReader, T, IOException> action
+            ) throws EngineException {
+                if (failNextLookup.compareAndSet(true, false)) {
+                    throw lookupFailure;
+                }
+                return super.performActionWithDirectoryReader(scope, action);
+            }
+        });
+
+        // more items than one engine chunk: the engine stops the first chunk while planning its first sub-batch, and the
+        // stop must cover the later chunks too, although the lookups they would need succeed
+        int numDocs = ShardBatchIndexer.BATCH_CHUNK_SIZE + randomIntBetween(1, 32);
+        failNextLookup.set(true);
+        BulkItemRequest[] items = columnarItems(numDocs);
+        BulkPrimaryExecutionContext context = batchIndexOnPrimary(shard, items);
+
+        assertFalse(context.hasMoreOperationsToExecute());
+        for (BulkItemRequest item : items) {
+            BulkItemResponse response = item.getPrimaryResponse();
+            assertTrue("item " + item.id() + " should have failed", response.isFailed());
+            assertThat(response.getFailure().getCause(), sameInstance(lookupFailure));
+            assertThat(response.getFailure().getSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
+        }
+        shard.refresh("test");
+        try (Engine.Searcher searcher = shard.acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
+            assertThat(searcher.getIndexReader().numDocs(), equalTo(0));
+        }
+
+        // the shard is still healthy and no chunk consumed sequence numbers: the retry creates every item from seq# 0
+        BulkItemRequest[] retry = columnarItems(numDocs);
+        context = batchIndexOnPrimary(shard, retry);
+        assertFalse(context.hasMoreOperationsToExecute());
+        for (int i = 0; i < retry.length; i++) {
+            BulkItemResponse response = retry[i].getPrimaryResponse();
+            assertFalse("item " + i + " should not have failed", response.isFailed());
             assertThat(response.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
             assertThat(response.getResponse().getSeqNo(), equalTo((long) i));
         }

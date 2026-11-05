@@ -882,10 +882,12 @@ public abstract class Engine implements Closeable {
     public static class IndexResult extends Result {
 
         private final boolean created;
+        private final boolean batchAborted;
 
         public IndexResult(long version, long term, long seqNo, boolean created, String id) {
             super(Operation.TYPE.INDEX, version, term, seqNo, id);
             this.created = created;
+            this.batchAborted = false;
         }
 
         /**
@@ -896,17 +898,38 @@ public abstract class Engine implements Closeable {
         }
 
         public IndexResult(Exception failure, long version, long term, long seqNo, String id) {
+            this(failure, version, term, seqNo, id, false);
+        }
+
+        private IndexResult(Exception failure, long version, long term, long seqNo, String id, boolean batchAborted) {
             super(Operation.TYPE.INDEX, failure, version, term, seqNo, id);
             this.created = false;
+            this.batchAborted = batchAborted;
         }
 
         public IndexResult(CompressedXContent requiredMappingUpdate, String id) {
             super(Operation.TYPE.INDEX, requiredMappingUpdate, id);
             this.created = false;
+            this.batchAborted = false;
+        }
+
+        /**
+         * The failed result of an operation that {@link Engine#indexBatch} never attempted because an earlier operation of
+         * the batch failed while being planned. Nothing was consumed for it: no sequence number, no Lucene or translog
+         * write. A caller that splits its request into several batches can fail the rest of the request the same way
+         * instead of attempting it.
+         */
+        public static IndexResult batchAborted(Exception failure, long term, String id) {
+            return new IndexResult(failure, Versions.MATCH_ANY, term, UNASSIGNED_SEQ_NO, id, true);
         }
 
         public boolean isCreated() {
             return created;
+        }
+
+        /** Whether this is a {@link #batchAborted} result. */
+        public boolean isBatchAborted() {
+            return batchAborted;
         }
     }
 

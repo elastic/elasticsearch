@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.CheckedFunction;
@@ -248,7 +249,10 @@ public class BatchMidBatchFailureIT extends ESIntegTestCase {
                 assertThat(replica.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
                 assertThat(replica.unassignedInfo().message(), containsString("did not complete after its sequence numbers were reserved"));
             });
-            assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, index).get().getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+            assertThat(
+                clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, index).setWaitForEvents(Priority.LANGUID).get().getStatus(),
+                equalTo(ClusterHealthStatus.YELLOW)
+            );
         } finally {
             updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()));
         }

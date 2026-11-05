@@ -1592,7 +1592,7 @@ public class InternalEngine extends Engine {
         final long took = relativeTimeInNanosSupplier.getAsLong() - batch.startTime();
         for (int i = firstIdx; i < batch.docCount(); i++) {
             assert allResults[i] == null : "operation [" + i + "] already has a result";
-            final IndexResult result = new IndexResult(e, Versions.MATCH_ANY, batch.primaryTerm(), UNASSIGNED_SEQ_NO, batch.id(i));
+            final IndexResult result = IndexResult.batchAborted(e, batch.primaryTerm(), batch.id(i));
             result.setTook(took);
             result.freeze();
             allResults[i] = result;

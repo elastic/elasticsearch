@@ -282,6 +282,34 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     /**
+     * Listeners hear about every child cancellation, also when no child task is running any more.
+     */
+    public void testCancelChildLocalNotifiesCancelledChildRequestListeners() {
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final List<String> cancelled = new ArrayList<>();
+        final CancelledChildRequestListener listener = (parentTaskId, childRequestId) -> cancelled.add(parentTaskId + "/" + childRequestId);
+        taskManager.registerCancelledChildRequestListener(listener);
+        final TaskId parentTaskId = new TaskId("parent_node", 1);
+
+        final CancellableRequest runningRequest = new CancellableRequest("running");
+        runningRequest.setParentTask(parentTaskId);
+        runningRequest.setRequestId(2);
+        final CancellableTask runningChild = (CancellableTask) taskManager.register("transport", "test", runningRequest);
+        taskManager.cancelChildLocal(parentTaskId, 2, "test");
+        assertTrue(runningChild.isCancelled());
+        // No child task runs for this request any more.
+        taskManager.cancelChildLocal(parentTaskId, 3, "test");
+        // Not a child request.
+        taskManager.cancelChildLocal(parentTaskId, -1, "test");
+        assertThat(cancelled, equalTo(List.of("parent_node:1/2", "parent_node:1/3")));
+
+        taskManager.unregisterCancelledChildRequestListener(listener);
+        taskManager.cancelChildLocal(parentTaskId, 4, "test");
+        assertThat(cancelled, equalTo(List.of("parent_node:1/2", "parent_node:1/3")));
+        taskManager.unregister(runningChild);
+    }
+
+    /**
      * Check that registering a task also causes tracing to be started on that task.
      */
     public void testRegisterTaskStartsTracingIfTraceParentExists() {

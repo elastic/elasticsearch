@@ -53,7 +53,7 @@ Follow the index creation workflow then optionally define field mappings.
 For example, to add semantic search capabilities, you could add an extra field that stores your vectors for semantic search.
 ::::
 ::::{step} Create the connector
-Navigate to **{{content-crawlers-app}}** or use the global search field. In {{kib}} 9.6 and earlier, search for **Connectors** or **Content connectors** instead.
+Navigate to **{{content-crawlers-app}}** or use the global search field. {applies_to}`stack: ga 9.0-9.6` Search for **Connectors** or **Content connectors** instead.
 Follow the connector creation process in the UI. For example:
 
 1. Select **PostgreSQL** from the list of connectors.

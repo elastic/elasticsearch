@@ -20,7 +20,6 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.LiveVersionMap;
 import org.elasticsearch.index.engine.LiveVersionMap2;
 import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.shard.IndexShard;

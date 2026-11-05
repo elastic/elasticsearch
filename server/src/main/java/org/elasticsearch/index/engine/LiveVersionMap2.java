@@ -25,14 +25,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.StampedLock;
 
 public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accountable {
-    // Per-document per-operation lock.
+    // Per-document lock.
     private final KeyedLock<BytesRef> keyedLock = new KeyedLock<>();
 
     private final StampedLock stateLock = new StampedLock();
-    private volatile State state = new State(new Generation(), new LinkedList<>());
+    private volatile State state = new State(new Generation(-1, false), new LinkedList<>());
 
     // Holds a version where this document was deleted.
-    // Needs to survive refreshses bla bla bla.
+    // Needs to survive refreshes bla bla bla.
     private final ConcurrentMap<BytesRef, DeleteVersionValue> tombstones = new ConcurrentHashMap<>();
 
     private final AtomicLong safeAccessRequests = new AtomicLong();
@@ -47,10 +47,6 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
         private final ConcurrentMap<BytesRef, VersionValue> versions;
 
         private volatile boolean unsafe;
-
-        Generation() {
-            this(-1, true);
-        }
 
         Generation(int initialCapacity, boolean unsafe) {
             this.versions = initialCapacity < 0 ? new ConcurrentHashMap<>() : new ConcurrentHashMap<>(initialCapacity);
@@ -83,22 +79,39 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
     VersionValue getUnderLock(final BytesRef uid) {
         assert assertKeyedLockHeldByCurrentThread(uid);
 
-        long stamp;
-        VersionValue result;
-        do {
-            // Optimistically read from the current version of state.
-            // It is possible that a refresh invalidates this state which we'll see in validate(stamp) below, but we can just retry.
-            stamp = stateLock.tryOptimisticRead();
-            result = readVersion(this.state, uid);
-        } while (stateLock.validate(stamp) == false);
+        // We are holding a per-document lock here so concurrent modifications are not possible.
+        // It is possible that any number of concurrent refreshes happen.
+        // This is also fine because as established before, concurrent operations can't happen.
+        // So either we'll read the latest version from state (even though it is maybe stale with regard to refreshes, it's still correct),
+        // or we'll read `null` because of the refresh which is also correct.
+        var state = this.state;
+        return readVersion(state, uid);
 
-        return result;
+        // long stamp;
+        // VersionValue result;
+        // do {
+        // // Optimistically read from the current version of state.
+        // // It is possible that a refresh invalidates this state which we'll see in validate(stamp) below, but we can just retry.
+        // stamp = stateLock.tryOptimisticRead();
+        // var state = this.state;
+        // result = readVersion(state, uid);
+        // } while (stateLock.validate(stamp) == false);
+        //
+        // return result;
     }
 
     private VersionValue readVersion(LiveVersionMap2.State state, BytesRef uid) {
         // We know here that the caller checked if the map is unsafe, enforced safe access and triggered refresh if needed.
         // TODO is this the best API?
-        assert state.current.unsafe == false;
+
+        // The map can actually be unsafe at this point because concurrent append of a different document marked it as so.
+        // That doesn't impact this read.
+        // We know that callers called `enforceSafeAccess`, and then check for unsafe and refreshed if needed
+        // under a key lock.
+        // So while the map can be unsafe, it's definitely safe _for this specific document_:
+        // * no unsafe operations could have been performed concurrently due to key lock
+        // * if any such operations were performed before taking the lock, the refresh fixed that
+
         var currentVersion = state.current.versions.get(uid);
         if (currentVersion != null) {
             return currentVersion;
@@ -108,12 +121,7 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
         // It still contains valid data (unless it's unsafe) and we can use it.
         // TODO double check, what if this generation is unsafe? It's possible in stateless, right?
         for (var generation : state.previous) {
-            // TODO should never happen in stateful?
-            //  probably should be an assert
-            if (generation.unsafe) {
-                continue;
-            }
-
+            // This generation can be unsafe, but the same logic as explained above applies.
             var version = generation.versions.get(uid);
             if (version != null) {
                 return version;
@@ -128,23 +136,46 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
         return null;
     }
 
+    /// Callers are expected to call `enforceSafeAccess()` and hold the releasable for the duration of the operation
+    /// at this point.
+    /// Because of that the next refresh has to produce a safe map.
+    ///
     boolean isUnsafe() {
-        return false;
+        long stamp;
+        boolean unsafe = false;
+        do {
+            stamp = stateLock.tryOptimisticRead();
+            var state = this.state;
+            if (state.current.unsafe) {
+                unsafe = true;
+            } else {
+                for (var generation : state.previous) {
+                    if (generation.unsafe) {
+                        unsafe = true;
+                        break;
+                    }
+                }
+            }
+        } while (stateLock.validate(stamp) == false);
+
+        return unsafe;
     }
 
     /// Returns if the map is unsafe specifically in the context of executing a realtime get.
     /// See `StatelessLiveVersionMap`, [InternalEngine#getVersionForRead], [org.elasticsearch.action.get.TransportGetFromTranslogAction].
     boolean isUnsafeForGets() {
-        return false;
+        // TODO stateful only code
+        return isUnsafe();
     }
 
     long safeGenerationForGets(long lastCommittedGeneration) {
-        return 0;
+        return -1;
     }
 
     /// Identifies that an operation is requesting safe access on the map until the provided [Releasable] is closed.
     /// This is a signal that the map needs to be kept safe across any number of concurrent refreshes.
     Releasable enforceSafeAccess() {
+        safeAccessRequests.incrementAndGet();
         return safeAccessReleasable;
     }
 
@@ -161,39 +192,21 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
             stamp = stateLock.tryOptimisticRead();
             var state = this.state;
 
-            // TODO should this be isSafeAccessRequired()?? I don't think so, we should only update it during refresh probably?
-
-
-            // We can do either way:
-            // 1. Check current.unsafe and update `unsafe` based on isSafeAccessRequired() _during refresh_
-            // 2. Check isSafeAccessRequired() here directly and write to current.unsafe. The write should be safe since we are under
-            // a per-uid lock and therefore any reads for this uid will only happen after the write to `current.unsafe`.
-            //   Concurrent writes may or may not observe this write but still, corresponding reads will see it.
-            if (state.current.unsafe == false) {
-                putIndexUnderLock(uid, version);
+            if (isSafeAccessRequired()) {
+                // It is still possible that current generation is unsafe due to previous/concurrent unsafe operations.
+                // A refresh should make it safe, and whoever requested safe access that we just read should refresh.
+                // TODO we could skip this operation then??
+                state.current.versions.put(uid, version);
+                removeTombstoneUnderLock(uid);
             } else {
 
-
                 // TODO why exactly is this required?
+                // document it
                 removeTombstoneUnderLock(uid);
                 // Since we skipped recording a version, current generation is unsafe.
                 state.current.unsafe = true;
             }
-
-            state.current.versions.put(uid, version);
         } while (stateLock.validate(stamp) == false);
-
-//        LiveVersionMap.Maps maps = this.maps;
-//        if (maps.isSafeAccessMode()) {
-//            putIndexUnderLock(uid, version);
-//        } else {
-//            // Even though we don't store a record of the indexing operation (and mark as unsafe),
-//            // we should still remove any previous delete for this uuid (avoid accidental accesses).
-//            // Not this should not hurt performance because the tombstone is small (or empty) when unsafe is relevant.
-//            removeTombstoneUnderLock(uid);
-//            maps.current.markAsUnsafe();
-//            assert putAssertionMap(uid, version);
-//        }
     }
 
     void putIndexUnderLock(BytesRef uid, IndexVersionValue version) {
@@ -229,9 +242,9 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
             /// It's okay since we were going to remove the version from `previous` anyway below.
             state.current.versions.remove(uid);
 
-            // Again, `state.previous` can point to a previous `state` instance.
-            // We need to remove all the version from all previous generations anyway, and we'll retry
-            // to make sure we caught them all.
+            /// Again, `state.previous` can point to a previous `state` instance.
+            /// We need to remove the version from all previous generations anyway, and we'll retry
+            /// to make sure we caught them all.
             for (var generation : state.previous) {
                 generation.versions.remove(uid);
             }
@@ -282,8 +295,8 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
         long stamp = stateLock.writeLock();
         var state = this.state;
 
-        // TODO do we need a new reference for `previous` here? I don't think so.
-        var newState = new State(new Generation(state.current.versions.size(), isSafeAccessRequired()), new LinkedList<>(state.previous));
+        // New map is safe by definition since it contains no unsafe operations.
+        var newState = new State(new Generation(state.current.versions.size(), false), new LinkedList<>(state.previous));
         // Note that there are concurrent writes being made into `state.current` by methods that use optimistic read locks.
         // They'll retry and write the same version into the new `current` map so that's okay.
         newState.previous.addFirst(state.current);
@@ -304,8 +317,7 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
         var state = this.state;
 
         // TODO stateful only logic
-        // TODO should this be clear() or a reference swap? Probably reference swap makes more sense
-        state.previous.clear();
+        this.state = new State(state.current, new LinkedList<>());
 
         stateLock.unlockWrite(stamp);
     }

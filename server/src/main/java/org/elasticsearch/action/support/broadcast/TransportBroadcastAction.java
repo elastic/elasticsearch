@@ -87,8 +87,7 @@ public abstract class TransportBroadcastAction<
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
-        // Construction throws on cluster blocks; convert to listener failure for direct doExecute callers.
-        ActionListener.run(listener, l -> new AsyncBroadcastAction(task, request, l).start());
+        new AsyncBroadcastAction(task, request, listener).start();
     }
 
     protected abstract Response newResponse(Request request, AtomicReferenceArray<?> shardsResponses, ClusterState clusterState);

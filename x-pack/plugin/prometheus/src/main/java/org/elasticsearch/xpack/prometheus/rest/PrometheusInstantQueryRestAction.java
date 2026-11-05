@@ -28,6 +28,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
+import static org.elasticsearch.xpack.prometheus.rest.PrometheusQueryRangeRestAction.getRequiredParam;
 
 /**
  * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/query} instant query endpoint.
@@ -127,13 +128,4 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
             )
         );
     }
-
-    private static String getRequiredParam(RestRequest request, String name) {
-        String value = request.param(name);
-        if (value == null || value.isEmpty()) {
-            throw new IllegalArgumentException("required parameter \"" + name + "\" is missing");
-        }
-        return value;
-    }
-
 }

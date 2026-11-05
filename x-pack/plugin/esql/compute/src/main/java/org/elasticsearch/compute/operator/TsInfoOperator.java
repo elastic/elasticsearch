@@ -647,6 +647,16 @@ public class TsInfoOperator implements Operator {
             "ts_info",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(
+            Status.class,
+            (builder, status, params) -> status.writeProfile(builder)
+        )
+            .required("mode", ProfileSchema.string())
+            .required("pages_received", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .required("entries_accumulated", ProfileSchema.integer())
+            .build();
 
         private static final TransportVersion ESQL_TS_INFO_OPERATOR_STATUS = TransportVersion.fromName("esql_ts_info_operator_status");
 
@@ -668,8 +678,7 @@ public class TsInfoOperator implements Operator {
             return ENTRY.name;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private XContentBuilder writeProfile(XContentBuilder builder) throws IOException {
             builder.startObject();
             builder.field("mode", mode);
             builder.field("pages_received", pagesReceived);
@@ -677,6 +686,11 @@ public class TsInfoOperator implements Operator {
             builder.field("rows_emitted", rowsEmitted);
             builder.field("entries_accumulated", entriesAccumulated);
             return builder.endObject();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         @Override

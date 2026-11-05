@@ -10,7 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,6 +39,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
+import static org.elasticsearch.tasks.TaskResultsService.TASK_START_TIME_IN_MILLIS_PATH;
 
 /**
  * Periodically deletes old task results from the {@code .tasks} index.
@@ -60,7 +61,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
      */
     public static final Setting<TimeValue> TASK_RESULTS_RETENTION_PERIOD_SETTING = Setting.positiveTimeSetting(
         "tasks.results.retention_period",
-        TimeValue.timeValueDays(7),
+        TimeValue.timeValueDays(30),
         Property.NodeScope,
         Property.Dynamic
     );
@@ -76,8 +77,6 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         Property.Dynamic
     );
 
-    private static final String START_TIME_FIELD = "task.start_time_in_millis";
-
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final String localNodeId;
@@ -89,7 +88,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
 
     private boolean isCleanupRunning;
     private Collection<ProjectId> projectsToCleanup;
-    private volatile Scheduler.Cancellable cancellable;
+    private Scheduler.Cancellable cancellable;
 
     public TaskResultsCleanupService(
         ClusterService clusterService,
@@ -119,7 +118,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     }
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() {}
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
@@ -150,10 +149,8 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         }).toList();
 
         if (projectsOnLocalNode.isEmpty()) {
-            this.projectsToCleanup = null;
-            if (isCleanupRunning) {
-                stopCleanup();
-            }
+            this.projectsToCleanup = List.of();
+            stopCleanup();
         } else {
             this.projectsToCleanup = List.copyOf(projectsOnLocalNode);
             if (isCleanupRunning == false) {
@@ -165,12 +162,10 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
 
     synchronized void executeNextCleanup() {
         if (isCleanupRunning) {
-            final ActionListener<Void> listener = new CountDownActionListener(
-                projectsToCleanup.size(),
-                ActionListener.running(this::scheduleNextCleanup)
-            );
-            for (ProjectId project : projectsToCleanup) {
-                cleanupIndex(project, listener);
+            try (var refs = new RefCountingListener(ActionListener.running(this::scheduleNextCleanup))) {
+                for (ProjectId project : projectsToCleanup) {
+                    cleanupIndex(project, refs.acquire());
+                }
             }
         }
     }
@@ -183,9 +178,8 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
                 logger.debug("deleted [{}] expired task results from [{}] in project [{}]", response.getDeleted(), TASK_INDEX, projectId);
                 listener.onResponse(null);
             }, e -> {
-                // A failure is logged and retried on the next run; it must not stop the schedule.
                 logger.warn(() -> "failed to delete expired task results from [" + TASK_INDEX + "] in project [" + projectId + "]", e);
-                listener.onResponse(null);
+                listener.onFailure(e);
             }))
         );
     }
@@ -193,7 +187,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     static DeleteByQueryRequest buildDeleteRequest(long nowInMillis, TimeValue retentionPeriod) {
         final long cutoffInMillis = nowInMillis - retentionPeriod.millis();
         final DeleteByQueryRequest request = new DeleteByQueryRequest(TASK_INDEX).setQuery(
-            QueryBuilders.rangeQuery(START_TIME_FIELD).lte(cutoffInMillis)
+            QueryBuilders.rangeQuery(TASK_START_TIME_IN_MILLIS_PATH).lte(cutoffInMillis)
         );
         // A conflict means the result was rewritten after it was matched; leave it for the next run.
         request.setAbortOnVersionConflict(false);

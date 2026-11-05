@@ -1,0 +1,6 @@
+area: Analysis
+issues:
+ - 164857
+pr: 164859
+summary: Determinize `simple_pattern` tokenizer automaton
+type: bug

@@ -5297,28 +5297,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 convertFunctionsToAttributes
             );
 
-            // TODO: remove together with the KEYWORD null fill of UNSUPPORTED merge columns (MergeBranchAlignment#nullFillType);
-            // tracked in https://github.com/elastic/elasticsearch/issues/150207.
-            // A union decides its common types from its branches as they were before this pass, not as a nested union in them was
-            // just rebuilt by this pass. This keeps the outcome of a type conflict in a nested union the same as when the analyzer
-            // still aligned branches with Projects, which held on to the nested union's output from before the pass. A nested union's
-            // conflict then only reaches the outer union after a later pass, which under unmapped_fields may first have re-derived
-            // the nested union's output from its branches' KEYWORD null fills.
-            Map<Set<NameId>, UnionAll> unionAllsBeforeImplicitCasting = new HashMap<>();
-            planWithConvertFunctionsReplaced.forEachDown(
-                UnionAll.class,
-                ua -> unionAllsBeforeImplicitCasting.put(ua.output().stream().map(Attribute::id).collect(Collectors.toSet()), ua)
-            );
             // Next implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
             LogicalPlan planWithImplicitCasting = planWithConvertFunctionsReplaced.transformUp(
                 UnionAll.class,
                 unionAll -> unionAll.resolved()
                     ? implicitCastingUnionAllOutput(
                         unionAll,
-                        unionAllsBeforeImplicitCasting.getOrDefault(
-                            unionAll.output().stream().map(Attribute::id).collect(Collectors.toSet()),
-                            unionAll
-                        ),
                         planWithConvertFunctionsReplaced,
                         updatedUnionAllOutput,
                         context.configuration()
@@ -5695,12 +5679,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
-         * Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only.
-         * The common types are decided from {@code typesFrom}, {@code unionAll} as it was before this pass; see the caller.
+         * Implicitly cast the outputs of the UnionAll branches to the common type, this applies to date and date_nanos types only
          */
         private static LogicalPlan implicitCastingUnionAllOutput(
             UnionAll unionAll,
-            UnionAll typesFrom,
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput,
             Configuration configuration
@@ -5709,10 +5691,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<Attribute, List<LogicalPlan>> outputToPlans = outputToPlans(unionAll, plan);
 
             // Each branch's columns, by position in the UnionAll output, matched by name.
-            List<List<Attribute>> outputs = typesFrom.children()
-                .stream()
-                .map(child -> MergeBranchAlignment.alignedColumns(typesFrom.output(), child))
-                .toList();
+            List<List<Attribute>> outputs = unionAll.children().stream().map(child -> MergeBranchAlignment.alignedColumns(unionAll.output(), child)).toList();
             // only do implicit casting for date and date_nanos types for now, to be consistent with queries without subqueries
             List<DataType> commonTypes = commonTypes(outputs);
 
@@ -5727,7 +5706,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (int childIndex = 0; childIndex < unionAll.children().size(); childIndex++) {
                 LogicalPlan child = unionAll.children().get(childIndex);
                 List<Attribute> columns = outputs.get(childIndex);
-                Set<Attribute> produced = new HashSet<>(typesFrom.children().get(childIndex).output());
+                List<Attribute> childOutput = child.output();
+                Set<Attribute> produced = new HashSet<>(childOutput);
                 List<Alias> newAliases = new ArrayList<>();
                 for (int i = 0; i < columns.size(); i++) {
                     Attribute oldOutput = columns.get(i);

@@ -116,4 +116,5 @@ subs:
   nlp:   "natural language processing"
   index-manage-app:   "Index Management"
   connectors-app:   "Connectors"
+  content-crawlers-app:   "Content crawlers"
   es-labs:   "Elasticsearch Labs"

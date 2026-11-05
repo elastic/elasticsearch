@@ -38,6 +38,21 @@ final class BytesPageDecoder implements ColumnChunkReader.PageDecoder {
         return scratch;
     }
 
+    /** The bytes that the values of the current page are slices of. They belong to the decoder, and the next page replaces them. */
+    byte[] pageBytes() {
+        return buffer;
+    }
+
+    /** The start in {@link #pageBytes()} of the value of a row of the current page. Only valid for a row that is present. */
+    int valueStart(int row) {
+        return starts[row];
+    }
+
+    /** The length of the value of a row of the current page. Only valid for a row that is present. */
+    int valueLength(int row) {
+        return lengths[row];
+    }
+
     @Override
     public void startChunk() {
         dictionaryBuffer = null;

@@ -41,6 +41,14 @@ final class LongPageDecoder implements ColumnChunkReader.PageDecoder {
         return values[row];
     }
 
+    /**
+     * The values of the rows of the current page, with a row for every row of the page (a row without a value holds {@code 0}). The
+     * array belongs to the decoder and is replaced by the next page, so a caller reads from it before it loads another page.
+     */
+    long[] pageValues() {
+        return values;
+    }
+
     @Override
     public void startChunk() {
         dictionary = null;

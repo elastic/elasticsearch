@@ -1298,7 +1298,7 @@ public class LocalExecutionPlanner {
         SharedGlobalTopK.Supplier globalTopKSupplier = topCount > 0
             ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), topCount, supplier)
             : null;
-        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName(), globalTopKSupplier);
+        return new LuceneMinCompetitiveTimestampTopN(supplier, sortField.qualifiedName(), sortField.dataType(), globalTopKSupplier);
     }
 
     @Nullable

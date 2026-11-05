@@ -663,6 +663,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             EsMinCompetitiveQueries minCompetitiveQueries = new EsMinCompetitiveQueries(
                 pilot.supplier(),
                 pilot.sortFieldName(),
+                pilot.sortFieldType(),
                 executionContext
             );
             Query q = minCompetitiveQueries.buildMinCompetitiveQuery(page);

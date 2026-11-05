@@ -119,6 +119,7 @@ import static org.elasticsearch.xpack.stateless.commits.GetVirtualBatchedCompoun
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC;
+import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.NOTIFICATION_UPLOADED_ATTRIBUTE_KEY;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE;
@@ -135,6 +136,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -1604,8 +1606,40 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
             assertThat(measurements.get(0).getLong(), greaterThanOrEqualTo(0L));
             assertThat(
                 measurements.get(0).attributes(),
-                equalTo(Map.of(BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(totalSize)))
+                equalTo(
+                    Map.of(NOTIFICATION_UPLOADED_ATTRIBUTE_KEY, true, BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(totalSize))
+                )
             );
+        });
+    }
+
+    /**
+     * Verifies that the notification-time histogram is also recorded for the new-commit notification sent on refresh, before the commit
+     * is uploaded, and that it is tagged as not uploaded.
+     */
+    public void testNewCommitNotificationTimeMetricRecordedOnRefresh() throws Exception {
+        final var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        final var metricsPlugin = findPlugin(indexNode, TestTelemetryPlugin.class);
+        metricsPlugin.resetMeter();
+
+        indexDocsAndRefresh(indexName);
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = metricsPlugin.getLongHistogramMeasurement(BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC)
+                .stream()
+                .filter(m -> Boolean.FALSE.equals(m.attributes().get(NOTIFICATION_UPLOADED_ATTRIBUTE_KEY)))
+                .toList();
+            assertThat(measurements, not(empty()));
+            for (final var measurement : measurements) {
+                assertThat(measurement.getLong(), greaterThanOrEqualTo(0L));
+                assertThat(measurement.attributes(), equalTo(Map.of(NOTIFICATION_UPLOADED_ATTRIBUTE_KEY, false)));
+            }
         });
     }
 

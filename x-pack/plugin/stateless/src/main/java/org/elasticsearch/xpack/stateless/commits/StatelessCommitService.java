@@ -239,6 +239,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     );
 
     public static final String BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC = "es.bcc.notification_time.histogram";
+    public static final String NOTIFICATION_UPLOADED_ATTRIBUTE_KEY = "es_notification_uploaded";
 
     private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
@@ -364,8 +365,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccNotificationTimeHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_NOTIFICATION_TIME_HISTOGRAM_METRIC,
-                "Histogram for time in milliseconds from sending a new-uploaded-commit notification until the search tier responds "
-                    + "(or the notification timeout fires), broken down by the ["
+                "Histogram for time in milliseconds from sending a new-commit notification until the search tier responds (or the "
+                    + "notification timeout fires for uploaded commits), broken down by whether the commit was uploaded ["
+                    + NOTIFICATION_UPLOADED_ATTRIBUTE_KEY
+                    + "] and, for uploaded commits, by the ["
                     + BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY
                     + "] size bucket",
                 "ms"
@@ -1121,7 +1124,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         gen,
                         () -> bccNotificationTimeHistogram.record(
                             threadPool.relativeTimeInMillis() - notificationSentAt,
-                            Map.of(BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY, BccUploadMetrics.bccSizeBucket(bccBlobLength))
+                            Map.of(
+                                NOTIFICATION_UPLOADED_ATTRIBUTE_KEY,
+                                true,
+                                BccUploadMetrics.BCC_SIZE_ATTRIBUTE_KEY,
+                                BccUploadMetrics.bccSizeBucket(bccBlobLength)
+                            )
                         )
                     );
                     if (commitState.isClosed()) {
@@ -2587,7 +2595,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + " state="
                     + state;
 
-            lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+            final long sentAt = threadPool.relativeTimeInMillis();
+            lastNewCommitNotificationSentTimestamp = sentAt;
             statelessCommitNotificationPublisher.sendNewCommitNotification(
                 shardRoutingTable,
                 lastCompoundCommit,
@@ -2595,12 +2604,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 maxUploadedBccTermAndGen,
                 clusterService.state().version(),
                 clusterService.localNode().getId(),
-                ActionListener.wrap(Void -> {
+                ActionListener.runBefore(ActionListener.wrap(Void -> {
                     // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
                     // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload
                     // notification
                     notifyCommitNotificationSuccessListeners(lastCompoundCommit.generation());
-                }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e))
+                }, e -> logNotificationException(lastCompoundCommit.generation(), batchedCompoundCommitGeneration, "create", e)),
+                    () -> bccNotificationTimeHistogram.record(
+                        threadPool.relativeTimeInMillis() - sentAt,
+                        Map.of(NOTIFICATION_UPLOADED_ATTRIBUTE_KEY, false)
+                    )
+                )
             );
         }
 

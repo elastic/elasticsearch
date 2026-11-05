@@ -20,6 +20,9 @@ public class DownsampleWithBasicRestIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-downsample")
+        // downsampling runs through the system index: poll and reconcile often to keep the tests fast
+        .setting("xpack.downsample.store.poll_interval", "1s")
+        .setting("xpack.downsample.store.reconcile_interval", "100ms")
         .module("x-pack-esql")
         .module("x-pack-ilm")
         .module("lang-painless")

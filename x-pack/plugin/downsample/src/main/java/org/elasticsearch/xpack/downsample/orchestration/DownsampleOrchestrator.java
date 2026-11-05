@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -191,7 +192,13 @@ public class DownsampleOrchestrator implements ClusterStateListener {
      * with a {@link NotMasterException} if this node is or stops being the master: the master node action retries on the new
      * master, where it joins the same operation, since recording an operation is idempotent.
      */
-    public void submit(IndexTaskDoc doc, TimeValue timeout, ActionListener<IndexTaskDoc> listener) {
+    public void submit(IndexTaskDoc doc, TimeValue timeout, ActionListener<IndexTaskDoc> originalListener) {
+        // The listener completes on whichever thread finishes the operation; restore the caller's thread context for it, which holds
+        // e.g. the response headers of the REST request (the product header, deprecation warnings).
+        final ActionListener<IndexTaskDoc> listener = ContextPreservingActionListener.wrapPreservingContext(
+            originalListener,
+            threadPool.getThreadContext()
+        );
         if (isMaster == false) {
             listener.onFailure(new NotMasterException("only the elected master can run downsample operations"));
             return;

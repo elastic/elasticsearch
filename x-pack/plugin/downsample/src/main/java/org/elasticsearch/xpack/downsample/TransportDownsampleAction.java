@@ -341,7 +341,24 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         if (orchestrator != null && featureService.clusterHasFeature(state, DownsampleFeatures.SYSTEM_INDEX_ORCHESTRATION)) {
-            downsampleThroughStateIndex(projectMetadata.id(), request, sourceIndexMetadata, startTime, listener);
+            // Validate the configuration against the source mapping up front, like the persistent task path, so an invalid one fails the
+            // request with its own error (and status) instead of failing the operation later. The orchestrator validates it again.
+            steps.prepare(
+                sourceIndexMetadata,
+                request.getDownsampleConfig(),
+                state,
+                request.masterNodeTimeout(),
+                parentTask,
+                ActionListener.wrap(
+                    prepared -> downsampleThroughStateIndex(projectMetadata.id(), request, sourceIndexMetadata, startTime, listener),
+                    e -> {
+                        if (e instanceof ActionRequestValidationException) {
+                            recordInvalidConfigurationMetrics(startTime);
+                        }
+                        listener.onFailure(e);
+                    }
+                )
+            );
             return;
         }
 

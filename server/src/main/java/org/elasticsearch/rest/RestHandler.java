@@ -132,7 +132,7 @@ public interface RestHandler {
      * The set of capabilities this rest handler supports.
      */
     default Set<String> supportedCapabilities(RestApiVersion restApiVersion) {
-        return Set.of();
+        return supportedCapabilities();
     }
 
     /**

@@ -6,17 +6,22 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -28,6 +33,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class AddDatetimesEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AddDatetimesEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(AddDatetimesEvaluator.class, long.class, List.of(EvaluatorKernel.value(long.class), EvaluatorKernel.fixed(TemporalAmount.class), EvaluatorKernel.fixed(ZoneId.class)), List.of(ArithmeticException.class, DateTimeException.class));
 
   private final Source source;
 
@@ -66,6 +76,13 @@ public final class AddDatetimesEvaluator implements ExpressionEvaluator {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += datetime.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static long process(long datetime, TemporalAmount temporalAmount, ZoneId zoneId) {
+    return Add.processDatetimes(datetime, temporalAmount, zoneId);
   }
 
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
@@ -127,7 +144,7 @@ public final class AddDatetimesEvaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory datetime;
@@ -152,6 +169,26 @@ public final class AddDatetimesEvaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "AddDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + ", zoneId=" + zoneId + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(datetime);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return Arrays.<Object>asList(temporalAmount, zoneId);
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

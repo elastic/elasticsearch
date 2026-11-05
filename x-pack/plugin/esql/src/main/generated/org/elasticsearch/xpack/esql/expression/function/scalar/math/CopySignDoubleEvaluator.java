@@ -5,14 +5,18 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -24,6 +28,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class CopySignDoubleEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CopySignDoubleEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(CopySignDoubleEvaluator.class, double.class, List.of(EvaluatorKernel.value(double.class), EvaluatorKernel.value(double.class)), List.of());
 
   private final Source source;
 
@@ -66,6 +75,13 @@ public final class CopySignDoubleEvaluator implements ExpressionEvaluator {
     baseRamBytesUsed += magnitude.baseRamBytesUsed();
     baseRamBytesUsed += sign.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static double process(double magnitude, double sign) {
+    return CopySign.processDouble(magnitude, sign);
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock magnitudeBlock, DoubleBlock signBlock) {
@@ -132,7 +148,7 @@ public final class CopySignDoubleEvaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory magnitude;
@@ -154,6 +170,26 @@ public final class CopySignDoubleEvaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "CopySignDoubleEvaluator[" + "magnitude=" + magnitude + ", sign=" + sign + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(magnitude, sign);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return List.of();
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

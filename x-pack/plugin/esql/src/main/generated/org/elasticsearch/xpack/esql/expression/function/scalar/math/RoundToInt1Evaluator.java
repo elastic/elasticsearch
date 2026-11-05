@@ -5,14 +5,19 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -24,6 +29,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class RoundToInt1Evaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToInt1Evaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(RoundToInt1Evaluator.class, int.class, List.of(EvaluatorKernel.value(int.class), EvaluatorKernel.fixed(int.class)), List.of());
 
   private final Source source;
 
@@ -59,6 +69,13 @@ public final class RoundToInt1Evaluator implements ExpressionEvaluator {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += field.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static int process(int field, int p0) {
+    return RoundToInt.process(field, p0);
   }
 
   public IntBlock eval(int positionCount, IntBlock fieldBlock) {
@@ -110,7 +127,7 @@ public final class RoundToInt1Evaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory field;
@@ -131,6 +148,26 @@ public final class RoundToInt1Evaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "RoundToInt1Evaluator[" + "field=" + field + ", p0=" + p0 + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(field);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return Arrays.<Object>asList(p0);
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

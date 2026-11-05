@@ -5,14 +5,18 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.approximate;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -24,6 +28,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class RandomEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RandomEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(RandomEvaluator.class, int.class, List.of(EvaluatorKernel.value(int.class)), List.of());
 
   private final Source source;
 
@@ -55,6 +64,13 @@ public final class RandomEvaluator implements ExpressionEvaluator {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += bound.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static int process(int bound) {
+    return Random.process(bound);
   }
 
   public IntBlock eval(int positionCount, IntBlock boundBlock) {
@@ -106,7 +122,7 @@ public final class RandomEvaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory bound;
@@ -124,6 +140,26 @@ public final class RandomEvaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "RandomEvaluator[" + "bound=" + bound + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(bound);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return List.of();
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

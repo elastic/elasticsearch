@@ -5,16 +5,21 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
 import java.time.ZoneId;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -27,6 +32,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class DateDiffConstantMillisEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateDiffConstantMillisEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(DateDiffConstantMillisEvaluator.class, int.class, List.of(EvaluatorKernel.fixed(DateDiff.Part.class), EvaluatorKernel.value(long.class), EvaluatorKernel.value(long.class), EvaluatorKernel.fixed(ZoneId.class)), List.of(IllegalArgumentException.class, InvalidArgumentException.class));
 
   private final Source source;
 
@@ -76,6 +86,14 @@ public final class DateDiffConstantMillisEvaluator implements ExpressionEvaluato
     baseRamBytesUsed += startTimestamp.baseRamBytesUsed();
     baseRamBytesUsed += endTimestamp.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static int process(DateDiff.Part datePartFieldUnit, long startTimestamp, long endTimestamp,
+      ZoneId zoneId) {
+    return DateDiff.processMillis(datePartFieldUnit, startTimestamp, endTimestamp, zoneId);
   }
 
   public IntBlock eval(int positionCount, LongBlock startTimestampBlock,
@@ -153,7 +171,7 @@ public final class DateDiffConstantMillisEvaluator implements ExpressionEvaluato
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final DateDiff.Part datePartFieldUnit;
@@ -182,6 +200,26 @@ public final class DateDiffConstantMillisEvaluator implements ExpressionEvaluato
     @Override
     public String toString() {
       return "DateDiffConstantMillisEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + ", zoneId=" + zoneId + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(startTimestamp, endTimestamp);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return Arrays.<Object>asList(datePartFieldUnit, zoneId);
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

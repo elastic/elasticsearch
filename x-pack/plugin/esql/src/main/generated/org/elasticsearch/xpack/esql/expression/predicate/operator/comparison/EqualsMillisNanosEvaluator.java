@@ -5,8 +5,10 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -14,7 +16,9 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -26,6 +30,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class EqualsMillisNanosEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(EqualsMillisNanosEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(EqualsMillisNanosEvaluator.class, boolean.class, List.of(EvaluatorKernel.value(long.class), EvaluatorKernel.value(long.class)), List.of());
 
   private final Source source;
 
@@ -68,6 +77,13 @@ public final class EqualsMillisNanosEvaluator implements ExpressionEvaluator {
     baseRamBytesUsed += lhs.baseRamBytesUsed();
     baseRamBytesUsed += rhs.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static boolean process(long lhs, long rhs) {
+    return Equals.processMillisNanos(lhs, rhs);
   }
 
   public BooleanBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
@@ -133,7 +149,7 @@ public final class EqualsMillisNanosEvaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory lhs;
@@ -155,6 +171,26 @@ public final class EqualsMillisNanosEvaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "EqualsMillisNanosEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(lhs, rhs);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return List.of();
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

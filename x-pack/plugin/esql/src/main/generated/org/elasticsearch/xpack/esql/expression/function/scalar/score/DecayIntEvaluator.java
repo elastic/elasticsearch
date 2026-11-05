@@ -5,8 +5,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.score;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -14,7 +17,9 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -26,6 +31,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class DecayIntEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DecayIntEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(DecayIntEvaluator.class, double.class, List.of(EvaluatorKernel.value(int.class), EvaluatorKernel.fixed(int.class), EvaluatorKernel.fixed(int.class), EvaluatorKernel.fixed(int.class), EvaluatorKernel.fixed(double.class), EvaluatorKernel.fixed(Decay.DecayFunction.class)), List.of());
 
   private final Source source;
 
@@ -73,6 +83,14 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += value.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static double process(int value, int origin, int scale, int offset, double decay,
+      Decay.DecayFunction decayFunction) {
+    return Decay.process(value, origin, scale, offset, decay, decayFunction);
   }
 
   public DoubleBlock eval(int positionCount, IntBlock valueBlock) {
@@ -124,7 +142,7 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory value;
@@ -158,6 +176,26 @@ public final class DecayIntEvaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "DecayIntEvaluator[" + "value=" + value + ", origin=" + origin + ", scale=" + scale + ", offset=" + offset + ", decay=" + decay + ", decayFunction=" + decayFunction + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(value);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return Arrays.<Object>asList(origin, scale, offset, decay, decayFunction);
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

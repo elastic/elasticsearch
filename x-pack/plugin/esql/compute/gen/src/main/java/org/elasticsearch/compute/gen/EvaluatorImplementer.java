@@ -8,18 +8,22 @@
 package org.elasticsearch.compute.gen;
 
 import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.gen.argument.Argument;
 import org.elasticsearch.compute.gen.argument.BlockArgument;
 import org.elasticsearch.compute.gen.argument.BuilderArgument;
 import org.elasticsearch.compute.gen.argument.ConstantSpecializedFixedArgument;
 import org.elasticsearch.compute.gen.argument.FixedArgument;
+import org.elasticsearch.compute.gen.argument.StandardArgument;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +41,10 @@ import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.CONSTANT_METHOD_RESULT_SPECIALIZER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
+import static org.elasticsearch.compute.gen.Types.EVALUATOR_KERNEL;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
+import static org.elasticsearch.compute.gen.Types.FUSABLE_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.RAM_USAGE_ESIMATOR;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
@@ -50,12 +56,21 @@ import static org.elasticsearch.compute.gen.Types.vectorFixedBuilderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class EvaluatorImplementer {
+    /** Must match {@code EvaluatorKernel.METHOD_NAME}. */
+    private static final String KERNEL_METHOD_NAME = "process";
+    private static final ClassName LIST = ClassName.get(List.class);
+
     private final TypeElement declarationType;
     private final ProcessFunction processFunction;
     private final ClassName implementation;
     private final boolean processOutputsMultivalued;
     private final boolean vectorsUnsupported;
     private final boolean allNullsIsNull;
+    /**
+     * Whether the per-row function is simple enough to be exposed as an {@code EvaluatorKernel} so that
+     * a fused evaluator can call it directly. See {@link #fusable}.
+     */
+    private final boolean fusable;
 
     public EvaluatorImplementer(
         Elements elements,
@@ -77,6 +92,38 @@ public class EvaluatorImplementer {
         boolean returnTypeWithoutVectorSupport = vectorType(elementType(this.processFunction.resultDataType(true))) == null;
         vectorsUnsupported = processOutputsMultivalued || anyParameterNotSupportingVectors || returnTypeWithoutVectorSupport;
         this.allNullsIsNull = allNullsIsNull;
+        this.fusable = fusable(this.processFunction, vectorsUnsupported, allNullsIsNull);
+    }
+
+    /**
+     * A per-row function can be exposed as a kernel when the generated evaluator does nothing beyond
+     * the standard per-row contract that a fused evaluator reproduces: unpack one primitive per value
+     * parameter, pass the fixed parameters along, append the primitive result, and turn
+     * {@code warnExceptions} into a warning and a {@code null}. Everything else - builders, block or
+     * array parameters, positions, {@code BytesRef}s, releasable or thread local fixed values, and
+     * jit-constants that need their own specialized subclass - is left to the generated evaluator.
+     */
+    private static boolean fusable(ProcessFunction processFunction, boolean vectorsUnsupported, boolean allNullsIsNull) {
+        if (vectorsUnsupported || allNullsIsNull == false || processFunction.builderArg != null) {
+            return false;
+        }
+        if (processFunction.returnType().isPrimitive() == false) {
+            return false;
+        }
+        for (Argument arg : processFunction.args) {
+            if (arg instanceof StandardArgument s) {
+                if (s.type().isPrimitive() == false) {
+                    return false;
+                }
+            } else if (arg instanceof FixedArgument f) {
+                if (f.scope() != Fixed.Scope.SINGLETON || f.releasable()) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
     }
 
     public JavaFile sourceFile() {
@@ -104,6 +151,9 @@ public class EvaluatorImplementer {
         }
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
         builder.addField(baseRamBytesUsed(implementation));
+        if (fusable) {
+            builder.addField(kernel());
+        }
         builder.addType(factory());
 
         builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
@@ -131,6 +181,9 @@ public class EvaluatorImplementer {
         builder.addMethod(parentCtor);
         builder.addMethod(eval());
         builder.addMethod(processFunction.baseRamBytesUsed());
+        if (fusable) {
+            builder.addMethod(kernelForwarder());
+        }
 
         if (vectorsUnsupported) {
             if (processFunction.args.stream().anyMatch(x -> x instanceof FixedArgument == false)) {
@@ -300,6 +353,61 @@ public class EvaluatorImplementer {
         return builder.build();
     }
 
+    /**
+     * {@code public static final EvaluatorKernel KERNEL} describing {@link #kernelForwarder()}.
+     */
+    private FieldSpec kernel() {
+        CodeBlock parameters = processFunction.args.stream()
+            .map(
+                a -> a instanceof FixedArgument
+                    ? CodeBlock.of("$T.fixed($T.class)", EVALUATOR_KERNEL, rawType(a.type()))
+                    : CodeBlock.of("$T.value($T.class)", EVALUATOR_KERNEL, a.type())
+            )
+            .collect(CodeBlock.joining(", "));
+        CodeBlock warnExceptions = processFunction.warnExceptions.stream()
+            .map(e -> CodeBlock.of("$T.class", TypeName.get(e)))
+            .collect(CodeBlock.joining(", "));
+        return FieldSpec.builder(EVALUATOR_KERNEL, "KERNEL", Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
+            .addJavadoc("The per-row function of this evaluator, callable through {@link #process}.\n")
+            .initializer(
+                "new $T($T.class, $T.class, $T.of($L), $T.of($L))",
+                EVALUATOR_KERNEL,
+                implementation,
+                processFunction.returnType(),
+                LIST,
+                parameters,
+                LIST,
+                warnExceptions
+            )
+            .build();
+    }
+
+    /**
+     * {@code public static R process(...)} forwarding to the package private annotated method, so that code
+     * outside this package - a fused evaluator spun at runtime - can call the per-row function directly.
+     */
+    private MethodSpec kernelForwarder() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(KERNEL_METHOD_NAME)
+            .addJavadoc("The per-row function of this evaluator, described by {@link #KERNEL}.\n")
+            .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+            .returns(processFunction.returnType());
+        processFunction.args.forEach(a -> builder.addParameter(a.type(), a.name()));
+        builder.addStatement(
+            "return $T.$N($L)",
+            declarationType,
+            processFunction.function.getSimpleName(),
+            processFunction.args.stream().map(Argument::name).collect(Collectors.joining(", "))
+        );
+        return builder.build();
+    }
+
+    /**
+     * The class literal of a type: a parameterized type has no class literal of its own.
+     */
+    private static TypeName rawType(TypeName type) {
+        return type instanceof ParameterizedTypeName p ? p.rawType : type;
+    }
+
     static MethodSpec warnings() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("warnings");
         builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
@@ -383,7 +491,7 @@ public class EvaluatorImplementer {
 
     private TypeSpec factory() {
         TypeSpec.Builder builder = TypeSpec.classBuilder("Factory");
-        builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
+        builder.addSuperinterface(fusable ? FUSABLE_EVALUATOR_FACTORY : EXPRESSION_EVALUATOR_FACTORY);
         builder.addModifiers(Modifier.STATIC);
 
         builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
@@ -392,8 +500,63 @@ public class EvaluatorImplementer {
         builder.addMethod(processFunction.factoryCtor());
         builder.addMethod(processFunction.factoryGet(implementation));
         builder.addMethod(processFunction.factoryToStringMethod(implementation));
+        if (fusable) {
+            fusableFactoryMethods(builder);
+        }
 
         return builder.build();
+    }
+
+    /**
+     * The {@code FusableEvaluatorFactory} accessors: the kernel, the input factories feeding its value
+     * parameters and the values of its fixed parameters, both in parameter order, and the source.
+     */
+    private void fusableFactoryMethods(TypeSpec.Builder builder) {
+        builder.addMethod(
+            MethodSpec.methodBuilder("kernel")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(EVALUATOR_KERNEL)
+                .addStatement("return KERNEL")
+                .build()
+        );
+        String inputs = processFunction.args.stream()
+            .filter(a -> a instanceof StandardArgument)
+            .map(Argument::name)
+            .collect(Collectors.joining(", "));
+        builder.addMethod(
+            MethodSpec.methodBuilder("inputs")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(ParameterizedTypeName.get(LIST, EXPRESSION_EVALUATOR_FACTORY))
+                .addStatement("return $T.of($L)", LIST, inputs)
+                .build()
+        );
+        List<String> fixed = processFunction.args.stream().filter(a -> a instanceof FixedArgument).map(Argument::name).toList();
+        MethodSpec.Builder fixedValues = MethodSpec.methodBuilder("fixedValues")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(ParameterizedTypeName.get(LIST, TypeName.OBJECT));
+        if (fixed.isEmpty()) {
+            fixedValues.addStatement("return $T.of()", LIST);
+        } else {
+            // Arrays.asList rather than List.of because a fixed value may legitimately be null.
+            fixedValues.addStatement(
+                "return $T.<$T>asList($L)",
+                ClassName.get(java.util.Arrays.class),
+                TypeName.OBJECT,
+                String.join(", ", fixed)
+            );
+        }
+        builder.addMethod(fixedValues.build());
+        builder.addMethod(
+            MethodSpec.methodBuilder("source")
+                .addAnnotation(Override.class)
+                .addModifiers(Modifier.PUBLIC)
+                .returns(SOURCE)
+                .addStatement("return source")
+                .build()
+        );
     }
 
     static class ProcessFunction {

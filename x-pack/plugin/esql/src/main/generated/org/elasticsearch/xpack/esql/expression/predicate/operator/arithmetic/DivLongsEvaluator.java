@@ -6,14 +6,18 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -25,6 +29,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class DivLongsEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DivLongsEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(DivLongsEvaluator.class, long.class, List.of(EvaluatorKernel.value(long.class), EvaluatorKernel.value(long.class)), List.of(ArithmeticException.class));
 
   private final Source source;
 
@@ -67,6 +76,13 @@ public final class DivLongsEvaluator implements ExpressionEvaluator {
     baseRamBytesUsed += lhs.baseRamBytesUsed();
     baseRamBytesUsed += rhs.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static long process(long lhs, long rhs) {
+    return Div.processLongs(lhs, rhs);
   }
 
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
@@ -142,7 +158,7 @@ public final class DivLongsEvaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory lhs;
@@ -164,6 +180,26 @@ public final class DivLongsEvaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "DivLongsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(lhs, rhs);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return List.of();
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

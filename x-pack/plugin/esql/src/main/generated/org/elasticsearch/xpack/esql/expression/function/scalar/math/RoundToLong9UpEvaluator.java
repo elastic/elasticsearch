@@ -5,14 +5,19 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -24,6 +29,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class RoundToLong9UpEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLong9UpEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(RoundToLong9UpEvaluator.class, long.class, List.of(EvaluatorKernel.value(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class)), List.of());
 
   private final Source source;
 
@@ -85,6 +95,14 @@ public final class RoundToLong9UpEvaluator implements ExpressionEvaluator {
     return baseRamBytesUsed;
   }
 
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static long process(long field, long p0, long p1, long p2, long p3, long p4, long p5,
+      long p6, long p7, long p8) {
+    return RoundToLong.processUp(field, p0, p1, p2, p3, p4, p5, p6, p7, p8);
+  }
+
   public LongBlock eval(int positionCount, LongBlock fieldBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -134,7 +152,7 @@ public final class RoundToLong9UpEvaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory field;
@@ -180,6 +198,26 @@ public final class RoundToLong9UpEvaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "RoundToLong9UpEvaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(field);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return Arrays.<Object>asList(p0, p1, p2, p3, p4, p5, p6, p7, p8);
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

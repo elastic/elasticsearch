@@ -6,14 +6,18 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -25,6 +29,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class RoundUnsignedLongEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundUnsignedLongEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(RoundUnsignedLongEvaluator.class, long.class, List.of(EvaluatorKernel.value(long.class), EvaluatorKernel.value(long.class)), List.of(ArithmeticException.class));
 
   private final Source source;
 
@@ -67,6 +76,13 @@ public final class RoundUnsignedLongEvaluator implements ExpressionEvaluator {
     baseRamBytesUsed += val.baseRamBytesUsed();
     baseRamBytesUsed += decimals.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static long process(long val, long decimals) {
+    return Round.processUnsignedLong(val, decimals);
   }
 
   public LongBlock eval(int positionCount, LongBlock valBlock, LongBlock decimalsBlock) {
@@ -142,7 +158,7 @@ public final class RoundUnsignedLongEvaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory val;
@@ -164,6 +180,26 @@ public final class RoundUnsignedLongEvaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "RoundUnsignedLongEvaluator[" + "val=" + val + ", decimals=" + decimals + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(val, decimals);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return List.of();
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

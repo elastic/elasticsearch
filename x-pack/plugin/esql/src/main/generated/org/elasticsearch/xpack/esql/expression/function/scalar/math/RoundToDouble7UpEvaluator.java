@@ -5,14 +5,19 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -24,6 +29,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class RoundToDouble7UpEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToDouble7UpEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(RoundToDouble7UpEvaluator.class, double.class, List.of(EvaluatorKernel.value(double.class), EvaluatorKernel.fixed(double.class), EvaluatorKernel.fixed(double.class), EvaluatorKernel.fixed(double.class), EvaluatorKernel.fixed(double.class), EvaluatorKernel.fixed(double.class), EvaluatorKernel.fixed(double.class), EvaluatorKernel.fixed(double.class)), List.of());
 
   private final Source source;
 
@@ -79,6 +89,14 @@ public final class RoundToDouble7UpEvaluator implements ExpressionEvaluator {
     return baseRamBytesUsed;
   }
 
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static double process(double field, double p0, double p1, double p2, double p3, double p4,
+      double p5, double p6) {
+    return RoundToDouble.processUp(field, p0, p1, p2, p3, p4, p5, p6);
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock fieldBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -128,7 +146,7 @@ public final class RoundToDouble7UpEvaluator implements ExpressionEvaluator {
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory field;
@@ -168,6 +186,26 @@ public final class RoundToDouble7UpEvaluator implements ExpressionEvaluator {
     @Override
     public String toString() {
       return "RoundToDouble7UpEvaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(field);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return Arrays.<Object>asList(p0, p1, p2, p3, p4, p5, p6);
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

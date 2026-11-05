@@ -5,14 +5,19 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import java.lang.IllegalArgumentException;
+import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.EvaluatorKernel;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.FusableEvaluatorFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
@@ -24,6 +29,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  */
 public final class RoundToLongFixedIntervalEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToLongFixedIntervalEvaluator.class);
+
+  /**
+   * The per-row function of this evaluator, callable through {@link #process}.
+   */
+  public static final EvaluatorKernel KERNEL = new EvaluatorKernel(RoundToLongFixedIntervalEvaluator.class, long.class, List.of(EvaluatorKernel.value(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class), EvaluatorKernel.fixed(long.class)), List.of());
 
   private final Source source;
 
@@ -65,6 +75,13 @@ public final class RoundToLongFixedIntervalEvaluator implements ExpressionEvalua
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += field.baseRamBytesUsed();
     return baseRamBytesUsed;
+  }
+
+  /**
+   * The per-row function of this evaluator, described by {@link #KERNEL}.
+   */
+  public static long process(long field, long first, long last, long interval) {
+    return RoundToLong.processFixed(field, first, last, interval);
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldBlock) {
@@ -116,7 +133,7 @@ public final class RoundToLongFixedIntervalEvaluator implements ExpressionEvalua
     return warnings;
   }
 
-  static class Factory implements ExpressionEvaluator.Factory {
+  static class Factory implements FusableEvaluatorFactory {
     private final Source source;
 
     private final ExpressionEvaluator.Factory field;
@@ -144,6 +161,26 @@ public final class RoundToLongFixedIntervalEvaluator implements ExpressionEvalua
     @Override
     public String toString() {
       return "RoundToLongFixedIntervalEvaluator[" + "field=" + field + ", first=" + first + ", last=" + last + ", interval=" + interval + "]";
+    }
+
+    @Override
+    public EvaluatorKernel kernel() {
+      return KERNEL;
+    }
+
+    @Override
+    public List<ExpressionEvaluator.Factory> inputs() {
+      return List.of(field);
+    }
+
+    @Override
+    public List<Object> fixedValues() {
+      return Arrays.<Object>asList(first, last, interval);
+    }
+
+    @Override
+    public Source source() {
+      return source;
     }
   }
 }

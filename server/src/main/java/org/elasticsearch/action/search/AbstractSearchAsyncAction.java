@@ -734,10 +734,6 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         if (storeMetrics != null) {
             searchResponseMetrics.recordStoreBytesRead(storeMetrics.cast(StoreMetrics.class).getBytesRead(), searchRequestAttributes);
         }
-        recordCacheMissWait(directoryMetrics);
-    }
-
-    private void recordCacheMissWait(DirectoryMetrics directoryMetrics) {
         // the entry is absent when the request did not wait, so only requests that waited are recorded
         String waitNanos = directoryMetrics.entries().get(DirectoryMetrics.CACHE_MISS_WAIT_NANOS_ENTRY_KEY);
         if (waitNanos != null) {

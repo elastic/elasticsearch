@@ -351,10 +351,6 @@ public class SearchResponseMetrics {
         storeBytesReadHistogram.record(bytesRead, attributes);
     }
 
-    /**
-     * Records the time one search request spent waiting on blob store cache misses. The wait is given in nanoseconds, as
-     * the search metrics header reports it, and recorded in milliseconds with the fractional part kept.
-     */
     public void recordCacheMissWait(long waitNanos, Map<String, Object> attributes) {
         cacheMissWaitHistogram.record(waitNanos / (double) TimeUnit.MILLISECONDS.toNanos(1), attributes);
     }

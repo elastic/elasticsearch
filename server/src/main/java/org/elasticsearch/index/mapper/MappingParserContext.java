@@ -362,8 +362,8 @@ public class MappingParserContext {
                 in.vectorsFormatProviders,
                 in.namespaceValidator,
                 null,
-                // Use UNLIMITED so that parsing a dynamic template definition does not count against field limits.
-                ParseFieldLimits.UNLIMITED
+                // Dynamic templates should not count towards the total field budget
+                in.parseFieldLimits.withoutTotalFieldsBudget()
             );
             this.dateFormatter = dateFormatter;
         }

@@ -2349,4 +2349,40 @@ public class MapperServiceTests extends MapperServiceTestCase {
         DocumentMapper recovered = mapperService.merge("_doc", source, MergeReason.MAPPING_RECOVERY);
         assertNotNull(recovered.mappers().getMapper("obj.leaf"));
     }
+
+    private static XContentBuilder deepDynamicTemplateMapping(int depth) throws IOException {
+        return topMapping(b -> {
+            b.startArray("dynamic_templates").startObject().startObject("deep");
+            b.field("match", "deep_*");
+            b.startObject("mapping").field("type", "object");
+            for (int i = 0; i < depth; i++) {
+                b.startObject("properties").startObject("o" + i).field("type", "object");
+            }
+            for (int i = 0; i < depth; i++) {
+                b.endObject().endObject();
+            }
+            b.endObject().endObject().endObject().endArray();
+        });
+    }
+
+    public void testDynamicTemplateDepthLimitEnforcedOnUpdate() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
+        expectThrows(MapperParsingException.class, () -> mapperService.merge("_doc", source, MergeReason.MAPPING_UPDATE));
+    }
+
+    public void testDynamicTemplateDepthLimitEnforcedOnIndexTemplate() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
+        expectThrows(MapperParsingException.class, () -> mapperService.merge("_doc", source, MergeReason.INDEX_TEMPLATE));
+    }
+
+    public void testDynamicTemplateDepthLimitIgnoredOnRecovery() throws IOException {
+        Settings settings = Settings.builder().put(MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 3).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+        CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
+        assertNotNull(mapperService.merge("_doc", source, MergeReason.MAPPING_RECOVERY));
+    }
 }

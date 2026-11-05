@@ -89,6 +89,13 @@ public class ParseFieldLimits {
         return new ParseFieldLimits(Long.MAX_VALUE, Long.MAX_VALUE, Long.MAX_VALUE, budget, 0);
     }
 
+    /**
+     * Returns a copy of this ParseFieldLimits with an unlimited total fields budget.
+     */
+    ParseFieldLimits withoutTotalFieldsBudget() {
+        return new ParseFieldLimits(mappingDepthLimit, fieldNameLengthLimit, nestedFieldsLimit, NewFieldsBudget.unlimited(), 0);
+    }
+
     long mappingDepthLimit() {
         return mappingDepthLimit;
     }

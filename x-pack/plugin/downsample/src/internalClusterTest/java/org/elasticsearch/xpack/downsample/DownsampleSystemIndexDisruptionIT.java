@@ -262,7 +262,48 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
         assertCompleteTarget(1);
     }
 
+    /**
+     * The master takes a task away from a node whose run is still going (as it does when it believes the node is gone, e.g. after a
+     * network partition), and that run goes on concurrently with the new one on another node: it is fenced (its writes fail on the
+     * epoch, or its poller confirms the task is no longer its), and the target still holds every bucket exactly once, since both
+     * runs create the same documents and the second creation of a bucket is rejected.
+     */
+    public void testReassignedRunIsFencedWithoutDuplicates() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
+        createSource(1, 1);
+        ParkingPlugin.parkingNodes.addAll(dataNodes);
+
+        ActionFuture<AcknowledgedResponse> downsample = requestDownsample(master);
+        assertBusy(() -> assertThat(ParkingPlugin.parked, hasSize(1)));
+        Versioned<ShardTaskDoc> running = shardTasks(1).get(0);
+        String taskNode = nodeName(running.doc().assignedNode());
+        String otherNode = dataNodes.stream().filter(n -> n.equals(taskNode) == false).findFirst().orElseThrow();
+        String otherNodeId = internalCluster().clusterService(otherNode).localNode().getId();
+
+        // the master's decision, made directly: the task goes to the other node at the next epoch
+        ParkingPlugin.parkingNodes.remove(otherNode);
+        PlainActionFuture<Versioned<ShardTaskDoc>> reassigned = new PlainActionFuture<>();
+        internalCluster().getCurrentMasterNodeInstance(DownsampleStateStore.class)
+            .forMaster()
+            .updateShardTask(running, running.doc().assignTo(otherNodeId, false), reassigned);
+        reassigned.actionGet(TEST_REQUEST_TIMEOUT);
+        // the old run, released, now runs its indexer concurrently with the new run
+        ParkingPlugin.release();
+
+        assertTrue(downsample.actionGet(TimeValue.timeValueMinutes(2)).isAcknowledged());
+        ShardTaskDoc completed = shardTasks(1).get(0).doc();
+        assertThat("the new run, not the fenced one, completed the task", completed.assignedNode(), equalTo(otherNodeId));
+        assertThat(completed.epoch(), equalTo(running.doc().epoch() + 1));
+        assertCompleteTarget(1);
+        assertBusy(() -> assertThat("the fenced run stopped", activeRuns(taskNode), equalTo(0)));
+    }
+
     // ---- helpers ----
+
+    private int activeRuns(String node) {
+        return internalCluster().getInstance(ShardTaskPoller.class, node).activeRuns();
+    }
 
     private void createSource(int shards) throws Exception {
         createSource(shards, 1);

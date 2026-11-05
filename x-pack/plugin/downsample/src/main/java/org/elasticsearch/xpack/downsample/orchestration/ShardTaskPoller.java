@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 
 /**
  * Runs, on a data node, the shard tasks the master assigned to it. Every {@link #POLL_INTERVAL_SETTING} it searches the state
@@ -65,6 +67,7 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final ProjectResolver projectResolver;
     private final boolean enabled;
+    private final BiConsumer<ShardTaskRun, ActionListener<Void>> indexer;
     private final Map<RunKey, ShardTaskRun> runs = new ConcurrentHashMap<>();
     private volatile TimeValue pollInterval;
     private volatile Scheduler.Cancellable scheduledPoll;
@@ -81,7 +84,24 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
         ProjectResolver projectResolver,
         boolean enabled
     ) {
+        this(client, store, clusterService, threadPool, projectResolver, enabled, null);
+    }
+
+    /**
+     * @param indexer runs the indexer of a shard task and notifies the listener when it is done; {@code null} for the real one.
+     *                Tests supply their own to control when a run completes.
+     */
+    ShardTaskPoller(
+        Client client,
+        DownsampleStateStore store,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ProjectResolver projectResolver,
+        boolean enabled,
+        @Nullable BiConsumer<ShardTaskRun, ActionListener<Void>> indexer
+    ) {
         this.client = client;
+        this.indexer = indexer == null ? this::runIndexer : indexer;
         this.store = store;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -142,10 +162,7 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
         try (RefCountingListener refs = new RefCountingListener(listener)) {
             for (ProjectId projectId : projects) {
                 ActionListener<Void> ref = refs.acquire();
-                node.findMyShardTasks(projectId, ActionListener.wrap(found -> {
-                    reconcile(node, projectId, found);
-                    ref.onResponse(null);
-                }, e -> {
+                node.findMyShardTasks(projectId, ActionListener.wrap(found -> reconcile(node, projectId, found, ref), e -> {
                     logger.debug(() -> Strings.format("failed to find the downsample shard tasks of project [%s]", projectId), e);
                     ref.onResponse(null);
                 }));
@@ -153,14 +170,24 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
         }
     }
 
-    private void reconcile(DownsampleStateStore.NodeView node, ProjectId projectId, List<Versioned<ShardTaskDoc>> found) {
+    /**
+     * Reconciles the local runs of a project with the shard tasks found by the (near real time) search, and notifies the listener
+     * once the real time confirmations it needed are done.
+     */
+    void reconcile(
+        DownsampleStateStore.NodeView node,
+        ProjectId projectId,
+        List<Versioned<ShardTaskDoc>> found,
+        ActionListener<Void> done
+    ) {
         Set<String> seen = new HashSet<>();
         for (Versioned<ShardTaskDoc> task : found) {
             ShardTaskDoc doc = task.doc();
             seen.add(doc.id());
             RunKey key = new RunKey(projectId, doc.id());
             ShardTaskRun existing = runs.get(key);
-            if (existing != null && existing.epoch() == doc.epoch()) {
+            if (existing != null && existing.epoch() >= doc.epoch()) {
+                // the same epoch, or a stale hit from before the current run: keep the current run
                 continue;
             }
             if (existing != null) {
@@ -170,11 +197,13 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
             }
             start(node, key, task);
         }
-        runs.forEach((key, run) -> {
-            if (key.projectId().equals(projectId) && seen.contains(key.docId()) == false) {
-                confirmAndCancel(node, key, run);
-            }
-        });
+        try (RefCountingListener refs = new RefCountingListener(done)) {
+            runs.forEach((key, run) -> {
+                if (key.projectId().equals(projectId) && seen.contains(key.docId()) == false) {
+                    confirmAndCancel(node, key, run, refs.acquire());
+                }
+            });
+        }
     }
 
     private void start(DownsampleStateStore.NodeView node, RunKey key, Versioned<ShardTaskDoc> task) {
@@ -182,7 +211,7 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
         if (runs.putIfAbsent(key, run) != null) {
             return;
         }
-        run.start(completion -> runIndexer(run, completion));
+        run.start(completion -> indexer.accept(run, completion));
     }
 
     /**
@@ -204,7 +233,7 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
      * A local run whose task was not found by the (near real time) search: cancel it only if a real time read confirms that the
      * task is no longer assigned to this node at the run's epoch.
      */
-    private void confirmAndCancel(DownsampleStateStore.NodeView node, RunKey key, ShardTaskRun run) {
+    private void confirmAndCancel(DownsampleStateStore.NodeView node, RunKey key, ShardTaskRun run, ActionListener<Void> done) {
         node.getShardTask(key.projectId(), key.docId(), ActionListener.wrap(found -> {
             ShardTaskDoc doc = found.map(Versioned::doc).orElse(null);
             boolean stillOurs = doc != null
@@ -215,11 +244,17 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
                 run.cancel();
                 runs.remove(key, run);
             }
-        }, e -> logger.debug(() -> Strings.format("failed to read downsample shard task [%s]", key.docId()), e)));
+            done.onResponse(null);
+        }, e -> {
+            logger.debug(() -> Strings.format("failed to read downsample shard task [%s]", key.docId()), e);
+            done.onResponse(null);
+        }));
     }
 
-    // visible for testing
-    int activeRuns() {
+    /**
+     * The number of local runs, for tests.
+     */
+    public int activeRuns() {
         return runs.size();
     }
 }

@@ -2175,6 +2175,7 @@ required_capability: nested_subquery_in_from_command
 required_capability: nested_subquery_in_from_command_with_view_fork_dataset
 required_capability: subquery_in_from_command_conversion_resolved_on_later_pass
 required_capability: optional_fields_nullify_tech_preview
+required_capability: nested_union_type_conflict_is_unsupported
 
 SET unmapped_fields="nullify"\;
 FROM (FROM (FROM employees), (FROM employees, employees_incompatible)

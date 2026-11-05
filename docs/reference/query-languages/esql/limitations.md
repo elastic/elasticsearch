@@ -498,10 +498,10 @@ serverless: unavailable
 
 ## Kibana limitations [esql-limitations-kibana]
 
-* The filter bar interface is not enabled when Discover is in {{esql}} mode. To filter data, use [variable controls](docs-content://explore-analyze/discover/try-esql.md#add-variable-control), filter buttons within the table and field list, or write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
+* The filter bar interface is not enabled when Discover is in {{esql}} mode. To filter data, use [variable controls](docs-content://explore-analyze/discover/esql-variable-controls.md#add-variable-control), filter buttons within the table and field list, or write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
 * Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
-* Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
-* CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
+* When a query uses `KEEP`, `STATS`, or `PROMQL` and returns more than 50 columns, Discover shows the first 50 columns by default.
+* By default, CSV export from Discover includes no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query. Queries and aggregations run on the full data set. For the limits that apply to your version and deployment, refer to [Export results and sessions from Discover](docs-content://explore-analyze/discover/export-discover-session.md#export-discover-session-csv).
 * Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) or [`KEEP`](/reference/query-languages/esql/commands/keep.md) to limit the number of fields returned.
 
 ## Known issues [esql-known-issues]

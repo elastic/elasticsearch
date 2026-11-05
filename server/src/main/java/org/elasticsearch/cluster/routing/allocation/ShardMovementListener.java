@@ -173,7 +173,7 @@ public interface ShardMovementListener {
         private void onFailure(Exception e) {
             if (warned.compareAndSet(false, true)) {
                 logger.warn(() -> "shard movement listener [" + delegate + "] failed, further failures will be logged at DEBUG", e);
-            } else {
+            } else if (logger.isDebugEnabled()) {
                 logger.debug(() -> "shard movement listener [" + delegate + "] failed", e);
             }
         }

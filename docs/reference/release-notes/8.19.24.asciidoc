@@ -13,7 +13,7 @@ Please see our https://discuss.elastic.co/c/announcements/security-announcements
 [float]
 === Known issues
 
-* When a downsample shard task resumes on a partially populated target index, it searches for the single highest _tsid present and resumes indexing from that point. Because bulk items can complete out of order, previous _tsids below the highest recorded one may not have finished downsampling, potentially resulting in missing data or data loss. Fixed in: Elasticsearch v8.19.25, which disables resuming from the last _tsid.
+* When resuming an incomplete downsampling operation, Elasticsearch uses a checkpoint to avoid rescanning the entire shard. In certain edge cases, Elasticsearch may incorrectly identify this checkpoint and skip source data, resulting in an incomplete downsampled index. Fixed by ([#164646](https://github.com/elastic/elasticsearch/pull/164646)).
 
 [[bug-8.19.24]]
 [float]

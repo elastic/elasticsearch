@@ -583,3 +583,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testFailRecoveryCommitRegistrationIfIndexGetsDeleted
   issue: https://github.com/elastic/elasticsearch/issues/164232
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testRelocateHollowableShards
+  issue: https://github.com/elastic/elasticsearch/issues/164753

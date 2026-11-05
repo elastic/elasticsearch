@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
@@ -76,6 +78,8 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
+import org.elasticsearch.xpack.downsample.orchestration.IndexTaskDoc;
+import org.elasticsearch.xpack.downsample.orchestration.IndexTaskPhase;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -118,6 +122,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final ProjectResolver projectResolver;
     private final Supplier<Long> nowSupplier;
     private final DownsampleSteps steps;
+    /**
+     * Runs downsample operations through the system index; {@code null} in unit tests that build this action directly.
+     */
+    @Nullable
+    private DownsampleOrchestrator orchestrator;
 
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
@@ -179,6 +188,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // The orchestrator is a plugin component, it cannot get the services the steps need (e.g. MetadataCreateIndexService)
         // from the plugin, so this action, which gets them injected, hands it the steps.
         orchestrator.setSteps(steps);
+        this.orchestrator = orchestrator;
     }
 
     // For testing
@@ -328,6 +338,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             MetadataCreateIndexService.validateIndexName(downsampleIndexName, projectMetadata, state.routingTable(projectMetadata.id()));
         } catch (ResourceAlreadyExistsException e) {
             // ignore index already exists
+        }
+
+        if (orchestrator != null && featureService.clusterHasFeature(state, DownsampleFeatures.SYSTEM_INDEX_ORCHESTRATION)) {
+            downsampleThroughStateIndex(projectMetadata.id(), request, sourceIndexMetadata, startTime, listener);
+            return;
         }
 
         // Downsample will perform the following tasks:
@@ -513,6 +528,54 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             return true;
         }
         return false;
+    }
+
+    /**
+     * Runs the operation through the system index: the master records it and drives it ({@link DownsampleOrchestrator}), the
+     * nodes holding the source shards run the shard tasks. This request only waits for the outcome, up to its wait timeout; the
+     * operation does not depend on it, and a retried request joins it.
+     * <p>
+     * The source mapping is validated by the orchestrator, so an invalid configuration fails the operation rather than the
+     * request up front, and is recorded as a failure, not as an invalid configuration, in the metrics.
+     */
+    private void downsampleThroughStateIndex(
+        ProjectId projectId,
+        DownsampleAction.Request request,
+        IndexMetadata sourceIndexMetadata,
+        long startTime,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        long now = threadPool.absoluteTimeInMillis();
+        IndexTaskDoc operation = IndexTaskDoc.newTask(
+            projectId,
+            request.getTargetIndex(),
+            request.getSourceIndex(),
+            sourceIndexMetadata.getIndexUUID(),
+            request.getDownsampleConfig(),
+            now,
+            now + request.getWaitTimeout().millis()
+        );
+        orchestrator.submit(operation, request.getWaitTimeout(), ActionListener.wrap(finished -> {
+            if (finished.phase() == IndexTaskPhase.DONE) {
+                recordSuccessMetrics(startTime);
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            } else {
+                recordFailureMetrics(startTime);
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "downsampling [{}] into [{}] failed: {}",
+                        request.getSourceIndex(),
+                        request.getTargetIndex(),
+                        finished.lastError()
+                    )
+                );
+            }
+        }, e -> {
+            if (e instanceof NotMasterException == false) {
+                recordFailureMetrics(startTime);
+            }
+            listener.onFailure(e);
+        }));
     }
 
     // 3. downsample index created or already exist (in case of retry). Run downsample indexer persistent task on each shard.

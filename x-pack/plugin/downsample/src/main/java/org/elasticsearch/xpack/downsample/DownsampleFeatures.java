@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateIndex;
 
 import java.util.Set;
 
@@ -24,8 +25,16 @@ public class DownsampleFeatures implements FeatureSpecification {
         "downsample.cumulative_histogram_consecutive_resets_fix"
     );
 
+    /**
+     * The node runs downsample operations through the system index (master orchestration, shard tasks polled by the nodes). Only
+     * advertised with the feature flag, so that the downsample API switches to the new path only once every node can run it.
+     */
+    public static final NodeFeature SYSTEM_INDEX_ORCHESTRATION = new NodeFeature("downsample.system_index_orchestration");
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(CUMULATIVE_HISTOGRAM_CONSECUTIVE_RESETS_FIX);
+        return DownsampleStateIndex.FEATURE_FLAG.isEnabled()
+            ? Set.of(CUMULATIVE_HISTOGRAM_CONSECUTIVE_RESETS_FIX, SYSTEM_INDEX_ORCHESTRATION)
+            : Set.of(CUMULATIVE_HISTOGRAM_CONSECUTIVE_RESETS_FIX);
     }
 }

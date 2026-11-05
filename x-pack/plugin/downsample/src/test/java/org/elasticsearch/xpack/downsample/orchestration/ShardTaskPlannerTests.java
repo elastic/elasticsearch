@@ -126,9 +126,11 @@ public class ShardTaskPlannerTests extends ESTestCase {
             .addShard(TestShardRouting.newShardRouting(shardId, "node-2", false, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(shardId, "node-3", false, ShardRoutingState.INITIALIZING))
             .build();
-        assertThat(ShardTaskPlanner.candidateNodes(routing, Map.of()), contains("node-1", "node-2"));
-        assertThat(ShardTaskPlanner.candidateNodes(routing, Map.of("node-1", 2, "node-2", 1)), contains("node-2", "node-1"));
-        assertThat(ShardTaskPlanner.candidateNodes(null, Map.of()), empty());
+        assertThat(ShardTaskPlanner.candidateNodes(routing, Map.of(), Set.of()), contains("node-1", "node-2"));
+        assertThat(ShardTaskPlanner.candidateNodes(routing, Map.of("node-1", 2, "node-2", 1), Set.of()), contains("node-2", "node-1"));
+        assertThat(ShardTaskPlanner.candidateNodes(null, Map.of(), Set.of()), empty());
+        // like persistent tasks, nodes marked for shutdown get no new task
+        assertThat(ShardTaskPlanner.candidateNodes(routing, Map.of(), Set.of("node-1")), contains("node-2"));
     }
 
     public void testLoadCountsOwnedTasks() {

@@ -51,6 +51,8 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
+import org.elasticsearch.xpack.downsample.orchestration.ShardTaskPoller;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -74,6 +76,19 @@ import static org.hamcrest.Matchers.nullValue;
 public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
 
     public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
+
+    /**
+     * Downsampling runs through the system index: nodes poll for their shard tasks and the master reconciles periodically, so
+     * keep both intervals short (the poll interval is at its minimum) to keep the tests fast.
+     */
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(ShardTaskPoller.POLL_INTERVAL_SETTING.getKey(), "1s")
+            .put(DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING.getKey(), "100ms")
+            .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

@@ -130,6 +130,10 @@ public class DownsampleStateStore {
          * not terminal it is returned unchanged, which makes the call idempotent; a terminal one is replaced.
          */
         public void createIndexTask(IndexTaskDoc doc, ActionListener<Versioned<IndexTaskDoc>> listener) {
+            createIndexTask(doc, true, listener);
+        }
+
+        private void createIndexTask(IndexTaskDoc doc, boolean retryOnConflict, ActionListener<Versioned<IndexTaskDoc>> listener) {
             ActionListener.run(listener, l -> {
                 ensureMaster();
                 get(doc.projectId(), doc.id(), IndexTaskDoc::fromXContent, l.delegateFailureAndWrap((delegate, existing) -> {
@@ -139,7 +143,14 @@ public class DownsampleStateStore {
                     }
                     Versioned<IndexTaskDoc> current = existing.orElse(null);
                     StateTransitions.validateMasterIndexTaskWrite(current == null ? null : current.doc(), doc);
-                    write(doc, current, delegate);
+                    write(doc, current, ActionListener.wrap(delegate::onResponse, e -> {
+                        if (retryOnConflict && ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            // a concurrent request for the same target won: join its operation
+                            createIndexTask(doc, false, delegate);
+                        } else {
+                            delegate.onFailure(e);
+                        }
+                    }));
                 }));
             });
         }

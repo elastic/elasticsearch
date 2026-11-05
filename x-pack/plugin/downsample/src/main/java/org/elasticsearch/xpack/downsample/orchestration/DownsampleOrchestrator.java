@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample.orchestration;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -19,6 +20,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -41,12 +44,14 @@ import org.elasticsearch.xpack.downsample.DownsampleSteps;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore.Versioned;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
@@ -95,6 +100,14 @@ public class DownsampleOrchestrator implements ClusterStateListener {
     private final SetOnce<DownsampleSteps> steps = new SetOnce<>();
     private final Set<Operation> inFlight = ConcurrentHashMap.newKeySet();
     private final Set<Operation> dirty = ConcurrentHashMap.newKeySet();
+    /**
+     * The downsample requests waiting on this master for their operation to finish.
+     */
+    private final Map<Operation, List<ActionListener<IndexTaskDoc>>> waiters = new ConcurrentHashMap<>();
+    /**
+     * The source index of every operation this master knows is active, for {@link #activeSourceIndices}.
+     */
+    private final Map<Operation, Index> activeSources = new ConcurrentHashMap<>();
     private volatile boolean isMaster;
     private volatile Scheduler.Cancellable periodicReconcile;
 
@@ -115,6 +128,13 @@ public class DownsampleOrchestrator implements ClusterStateListener {
         this.threadPool = threadPool;
         this.projectResolver = projectResolver;
         this.reconcileInterval = RECONCILE_INTERVAL_SETTING.get(settings);
+    }
+
+    /**
+     * Whether this node is the elected master, as far as this orchestrator knows (it follows the applied cluster states).
+     */
+    public boolean isMaster() {
+        return isMaster;
     }
 
     /**
@@ -140,6 +160,105 @@ public class DownsampleOrchestrator implements ClusterStateListener {
             if (scheduled != null) {
                 scheduled.cancel();
             }
+            activeSources.clear();
+            // the requests waiting here are retried on the new master, where they join the same operations
+            for (Operation operation : waiters.keySet()) {
+                List<ActionListener<IndexTaskDoc>> waiting = waiters.remove(operation);
+                if (waiting != null) {
+                    waiting.forEach(
+                        w -> w.onFailure(new NotMasterException("no longer the master, the downsample continues on the new one"))
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Records a new downsample operation, or joins the one in progress for the same target index, triggers it, and notifies the
+     * listener with the operation once it is finished ({@code DONE} or {@code FAILED}).
+     * <p>
+     * Fails with an {@link ElasticsearchTimeoutException} after {@code timeout}, the operation continues in the background. Fails
+     * with a {@link NotMasterException} if this node is or stops being the master: the master node action retries on the new
+     * master, where it joins the same operation, since recording an operation is idempotent.
+     */
+    public void submit(IndexTaskDoc doc, TimeValue timeout, ActionListener<IndexTaskDoc> listener) {
+        if (isMaster == false) {
+            listener.onFailure(new NotMasterException("only the elected master can run downsample operations"));
+            return;
+        }
+        final Operation operation = new Operation(doc.projectId(), doc.targetIndex());
+        final AtomicReference<Scheduler.ScheduledCancellable> timeoutRef = new AtomicReference<>();
+        final ActionListener<IndexTaskDoc> waiter = ActionListener.notifyOnce(ActionListener.runBefore(listener, () -> {
+            Scheduler.ScheduledCancellable scheduled = timeoutRef.get();
+            if (scheduled != null) {
+                scheduled.cancel();
+            }
+        }));
+        waiters.compute(operation, (key, waiting) -> {
+            List<ActionListener<IndexTaskDoc>> list = waiting == null ? new ArrayList<>() : waiting;
+            list.add(waiter);
+            return list;
+        });
+        timeoutRef.set(threadPool.schedule(() -> {
+            removeWaiter(operation, waiter);
+            waiter.onFailure(
+                new ElasticsearchTimeoutException(
+                    "downsample [" + doc.targetIndex() + "] did not complete within [" + timeout + "], it continues in the background"
+                )
+            );
+        }, timeout, threadPool.generic()));
+        store.forMaster().createIndexTask(doc, ActionListener.wrap(recorded -> {
+            if (recorded.doc().phase().isTerminal()) {
+                completeWaiters(recorded.doc());
+            } else {
+                reconcile(recorded);
+            }
+        }, e -> {
+            removeWaiter(operation, waiter);
+            waiter.onFailure(e);
+        }));
+    }
+
+    /**
+     * The source indices of a project that are being downsampled through the system index, as far as this master knows: the
+     * operations it recorded or reconciled and that are not finished. Right after a master failover it is empty until the first
+     * reconciliation of the new master (at most {@link #RECONCILE_INTERVAL_SETTING}).
+     * <p>
+     * Synchronous on purpose, for {@link org.elasticsearch.datastreams.DownsamplingOperations}, which the data stream lifecycle uses to
+     * limit the number of concurrent downsample operations.
+     */
+    public Set<Index> activeSourceIndices(ProjectId projectId) {
+        Set<Index> sources = new HashSet<>();
+        activeSources.forEach((operation, source) -> {
+            if (operation.projectId().equals(projectId)) {
+                sources.add(source);
+            }
+        });
+        return sources;
+    }
+
+    private void track(IndexTaskDoc doc) {
+        Operation operation = new Operation(doc.projectId(), doc.targetIndex());
+        if (doc.phase().isTerminal()) {
+            activeSources.remove(operation);
+        } else {
+            activeSources.put(operation, new Index(doc.sourceIndex(), doc.sourceIndexUuid()));
+        }
+    }
+
+    private void removeWaiter(Operation operation, ActionListener<IndexTaskDoc> waiter) {
+        waiters.computeIfPresent(operation, (key, waiting) -> {
+            waiting.remove(waiter);
+            return waiting.isEmpty() ? null : waiting;
+        });
+    }
+
+    private void completeWaiters(IndexTaskDoc finished) {
+        assert finished.phase().isTerminal() : finished.phase();
+        track(finished);
+        List<ActionListener<IndexTaskDoc>> waiting = waiters.remove(new Operation(finished.projectId(), finished.targetIndex()));
+        if (waiting != null) {
+            waiting.forEach(w -> w.onResponse(finished));
         }
     }
 
@@ -162,7 +281,8 @@ public class DownsampleOrchestrator implements ClusterStateListener {
                         projectId,
                         ActionListener.wrap(
                             tasks -> tasks.forEach(this::reconcile),
-                            e -> logger.warn(
+                            // e.g. the state index was just created and its shard is not started yet: the next sweep retries
+                            e -> logger.debug(
                                 () -> Strings.format("failed to load the active downsample operations of project [%s]", projectId),
                                 e
                             )
@@ -194,6 +314,7 @@ public class DownsampleOrchestrator implements ClusterStateListener {
     }
 
     private void reconcile(Versioned<IndexTaskDoc> task) {
+        track(task.doc());
         final Operation operation = new Operation(task.doc().projectId(), task.doc().targetIndex());
         if (inFlight.add(operation) == false) {
             // picked up by the running reconciliation when it completes (or, in a rare race, by the next periodic one)
@@ -211,7 +332,13 @@ public class DownsampleOrchestrator implements ClusterStateListener {
 
     private void runPhase(Versioned<IndexTaskDoc> task, ActionListener<Void> done) {
         final IndexTaskDoc doc = task.doc();
-        if (isMaster == false || doc.phase().isTerminal()) {
+        if (isMaster == false) {
+            done.onResponse(null);
+            return;
+        }
+        if (doc.phase().isTerminal()) {
+            // e.g. a request joined the operation just before it finished
+            completeWaiters(doc);
             done.onResponse(null);
             return;
         }
@@ -253,12 +380,15 @@ public class DownsampleOrchestrator implements ClusterStateListener {
         final String targetIndex = next.targetIndex();
         store.forMaster().updateIndexTask(current, next, ActionListener.wrap(written -> {
             IndexTaskDoc doc = written.doc();
+            track(doc);
             logger.debug("downsample [{}]: phase [{}] attempt [{}]", targetIndex, doc.phase(), doc.attempt());
             if (doc.phase() == IndexTaskPhase.FAILED) {
                 logger.warn("downsample [{}] of project [{}] failed: [{}]", targetIndex, doc.projectId(), doc.lastError());
+                completeWaiters(doc);
                 done.onResponse(null);
             } else if (doc.phase().isTerminal()) {
                 logger.info("downsample [{}] of project [{}] completed", targetIndex, doc.projectId());
+                completeWaiters(doc);
                 done.onResponse(null);
             } else {
                 runPhase(written, done);
@@ -402,6 +532,7 @@ public class DownsampleOrchestrator implements ClusterStateListener {
     private void planShardTasks(IndexTaskDoc doc, List<Versioned<ShardTaskDoc>> tasks, ActionListener<IndexTaskDoc> listener) {
         final ClusterState state = clusterService.state();
         final Set<String> nodes = state.nodes().getNodes().keySet();
+        final Set<String> shuttingDown = state.metadata().nodeShutdowns().getAllNodeIds();
         final IndexRoutingTable sourceRouting = state.routingTable(doc.projectId()).index(tasks.get(0).doc().sourceShardId().getIndex());
         final Map<String, Integer> load = ShardTaskPlanner.load(tasks.stream().map(Versioned::doc).toList());
         final List<ShardTaskDoc> planned = new ArrayList<>(tasks.size());
@@ -428,7 +559,8 @@ public class DownsampleOrchestrator implements ClusterStateListener {
                 ShardTaskDoc current = task.doc();
                 List<String> candidates = ShardTaskPlanner.candidateNodes(
                     sourceRouting == null ? null : sourceRouting.shard(current.shard()),
-                    load
+                    load,
+                    shuttingDown
                 );
                 ShardTaskDoc next = ShardTaskPlanner.plan(current, nodes, candidates, MAX_SHARD_TASK_ATTEMPTS);
                 if (next == null) {

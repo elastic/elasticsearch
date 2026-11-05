@@ -89,10 +89,18 @@ final class ShardTaskPlanner {
      * The nodes that can run the task of one source shard: those with a started, searchable copy of it, since the shard is read
      * locally. The least loaded comes first, because shard tasks are long running.
      *
+     * Nodes marked for shutdown are not candidates, like for persistent tasks; a task already running on such a node stays there
+     * until the node leaves (the downsample persistent task does not move on shutdown either).
+     *
      * @param shardRoutingTable the routing of the source shard, {@code null} if the source index is gone
      * @param load              the number of shard tasks currently owned by each node
+     * @param shuttingDown      the ids of the nodes marked for shutdown
      */
-    static List<String> candidateNodes(@Nullable IndexShardRoutingTable shardRoutingTable, Map<String, Integer> load) {
+    static List<String> candidateNodes(
+        @Nullable IndexShardRoutingTable shardRoutingTable,
+        Map<String, Integer> load,
+        Set<String> shuttingDown
+    ) {
         if (shardRoutingTable == null) {
             return List.of();
         }
@@ -100,6 +108,7 @@ final class ShardTaskPlanner {
             .stream()
             .filter(shard -> shard.started() && shard.isSearchable())
             .map(ShardRouting::currentNodeId)
+            .filter(node -> shuttingDown.contains(node) == false)
             .distinct()
             .sorted(Comparator.<String>comparingInt(node -> load.getOrDefault(node, 0)).thenComparing(Comparator.naturalOrder()))
             .toList();

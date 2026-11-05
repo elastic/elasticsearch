@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -48,6 +50,8 @@ import java.util.function.Supplier;
 public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPlugin, SystemIndexPlugin {
 
     public static final String DOWNSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
+
+    private final SetOnce<DownsampleOrchestrator> orchestrator = new SetOnce<>();
     private static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
 
     @Override
@@ -138,6 +142,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
             services.projectResolver(),
             services.clusterService().getSettings()
         );
+        this.orchestrator.set(orchestrator);
         if (DownsampleStateIndex.FEATURE_FLAG.isEnabled()) {
             services.clusterService().addListener(orchestrator);
         }
@@ -150,6 +155,14 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
             DownsampleStateIndex.FEATURE_FLAG.isEnabled() && DiscoveryNode.canContainData(services.clusterService().getSettings())
         );
         return List.of(DownsampleMetrics.class, store, orchestrator, poller);
+    }
+
+    /**
+     * The orchestrator, {@code null} until the components are created. For the {@link DownsamplingOperationsMonitor} extension.
+     */
+    @Nullable
+    DownsampleOrchestrator orchestrator() {
+        return orchestrator.get();
     }
 
     @Override

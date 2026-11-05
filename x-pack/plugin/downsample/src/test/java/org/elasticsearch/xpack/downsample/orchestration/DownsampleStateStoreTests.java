@@ -123,6 +123,19 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
         assertThat(getIndexTask("target").orElseThrow(), equalTo(v2));
     }
 
+    /**
+     * Two requests for the same operation at the same time: one creates it, the other one joins it (its create conflicts).
+     */
+    public void testConcurrentCreatesJoinTheSameOperation() {
+        PlainActionFuture<Versioned<IndexTaskDoc>> first = new PlainActionFuture<>();
+        PlainActionFuture<Versioned<IndexTaskDoc>> second = new PlainActionFuture<>();
+        store.forMaster().createIndexTask(newIndexTask(project, "target"), first);
+        store.forMaster().createIndexTask(newIndexTask(project, "target"), second);
+        Versioned<IndexTaskDoc> created = first.actionGet(TimeValue.timeValueSeconds(10));
+        assertThat(second.actionGet(TimeValue.timeValueSeconds(10)), equalTo(created));
+        assertThat(getIndexTask("target").orElseThrow(), equalTo(created));
+    }
+
     public void testInvalidIndexTaskTransitionIsNotWritten() {
         Versioned<IndexTaskDoc> v1 = createIndexTask(newIndexTask(project, "target"));
         PlainActionFuture<Versioned<IndexTaskDoc>> invalid = new PlainActionFuture<>();

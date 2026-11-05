@@ -49,7 +49,7 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
         final var startIndex = getFirstValueIndex(position);
         final var BINARYSEARCH_THRESHOLD = 16;
         if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
-            return binarySearch(this, position, count, value) >= 0;
+            return binarySearch(this, startIndex, count, value) >= 0;
         }
 
         for (int index = startIndex; index < startIndex + count; index++) {
@@ -70,8 +70,12 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
      * @return position or negative number if not found
      */
     static int binarySearch(FloatBlock block, int startIndex, int count, float value) {
+        if (Float.isNaN(value)) {
+            // NaN is not equal to any value, but the comparisons below would report it as found
+            return -(startIndex + 1);
+        }
         int low = startIndex;
-        int high = count - 1;
+        int high = startIndex + count - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;

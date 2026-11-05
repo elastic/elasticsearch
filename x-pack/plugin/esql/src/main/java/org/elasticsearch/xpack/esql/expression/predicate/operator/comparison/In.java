@@ -484,8 +484,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             if ((nulls != null && nulls.get(i)) || (mvs != null && mvs.get(i))) {
                 continue;
             }
-            Boolean compResult = Comparisons.eq(lhs, rhs[i]);
-            if (compResult == Boolean.TRUE) {
+            if (lhs == rhs[i]) {
                 return true;
             }
         }
@@ -603,9 +602,10 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
         for (Expression rhs : list()) {
             if (Expressions.isGuaranteedNull(rhs) == false) {
-                if (needsTypeSpecificValueHandling(attribute.dataType())) {
+                if (needsTypeSpecificValueHandling(attribute.dataType()) || isNonFiniteDouble(rhs)) {
                     // Delegate to Equals to ensure consistent handling of date, ip, version and unsigned_long
-                    // values. Call asQuery() directly (bypassing the handler) so the per-value comparison
+                    // values, and of non-finite doubles, which a terms query rejects but Equals turns into a match
+                    // on nothing. Call asQuery() directly (bypassing the handler) so the per-value comparison
                     // isn't itself wrapped in a SingleValueQuery: In is single-value aware, so the handler
                     // already wraps the whole IN translation once; wrapping here too would turn what should
                     // be one combined terms query into N redundant, individually-wrapped term clauses.
@@ -616,6 +616,10 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                     } else {
                         queries.add(query);
                     }
+                } else if (EsqlBinaryComparison.isZeroOnRationalField(attribute.dataType(), literalValueOf(rhs))) {
+                    // a terms query matches only the zero of the literal's sign, while evaluation matches both
+                    terms.add(-0.0);
+                    terms.add(0.0);
                 } else {
                     terms.add(literalValueOf(rhs));
                 }
@@ -669,6 +673,10 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
     private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
         return fieldType == DATETIME || fieldType == DATE_NANOS || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+    }
+
+    private static boolean isNonFiniteDouble(Expression rhs) {
+        return literalValueOf(rhs) instanceof Double d && Double.isFinite(d) == false;
     }
 
     @Override

@@ -592,8 +592,8 @@ public final class DeclaredTypeCoercions {
                     // (ToDatetime maps DOUBLE via ToLong.fromDouble == safeDoubleToLong): with no format the value IS
                     // epoch millis and its fractional part rounds; with a format the value is parsed through it
                     // (epoch_second reads fractional seconds to sub-second precision). Non-finite values follow
-                    // safeDoubleToLong exactly as the cast engine does — NaN rounds to epoch 0, an infinity throws
-                    // out-of-range — so a declared read and an explicit ::datetime never disagree. String.valueOf(double)
+                    // safeDoubleToLong exactly as the cast engine does — NaN and an infinity both throw out-of-range —
+                    // so a declared read and an explicit ::datetime never disagree. String.valueOf(double)
                     // renders scientific notation at magnitudes >= 1e7, which the epoch formatters reject, so the
                     // format branch renders plain-decimal.
                     // epoch_millis means the number IS already epoch-millis — the identity — so on a double it must

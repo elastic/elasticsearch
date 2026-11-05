@@ -20,8 +20,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
@@ -176,7 +174,10 @@ public final class AcrossSeriesReduction extends PromqlFunctionCall {
         ReductionGrouping grouping = reductionGrouping(context, table, partitions);
         var order = (Order) buildEsqlFunction(table.value(), promqlContext);
         // Prometheus converts k with an integer cast: `topk(1.5, v)` keeps one series, and a k below one keeps none.
-        Expression k = new ToInteger(source(), new Floor(source(), parameters().getFirst()));
+        // The narrowing cast caps k beyond the int range at Integer.MAX_VALUE. NaN and k overflowing int64 are rejected
+        // during analysis, as Prometheus does.
+        double kValue = ((Number) parameters().getFirst().fold(FoldContext.small())).doubleValue();
+        Expression k = new Literal(source(), kValue < 1 ? 0 : (int) kValue, DataType.INTEGER);
         return new TopNBy(source(), grouping.plan(), order != null ? List.of(order) : List.of(), k, grouping.groupings());
     }
 

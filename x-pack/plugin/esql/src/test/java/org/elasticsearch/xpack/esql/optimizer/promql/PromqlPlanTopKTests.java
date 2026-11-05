@@ -65,9 +65,21 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
         assertThat(((Number) topNBy.limitPerGroup().fold(FoldContext.small())).intValue(), equalTo(2));
     }
 
-    /** Prometheus converts k with an integer cast: {@code topk(1.5, v)} keeps one series and {@code topk(0.5, v)} none. */
+    /**
+     * Prometheus converts k with an integer cast: {@code topk(1.5, v)} keeps one series and any k below one none.
+     * A k beyond the int range is capped at {@link Integer#MAX_VALUE}.
+     */
     public void testFractionalKIsTruncated() {
-        for (var kAndLimit : List.of(Map.entry("1.5", 1), Map.entry("2.9", 2), Map.entry("0.5", 0), Map.entry("2", 2))) {
+        for (var kAndLimit : List.of(
+            Map.entry("1.5", 1),
+            Map.entry("2.9", 2),
+            Map.entry("0.5", 0),
+            Map.entry("2", 2),
+            Map.entry("-1", 0),
+            Map.entry("-Inf", 0),
+            Map.entry("-1e30", 0),
+            Map.entry("3e9", Integer.MAX_VALUE)
+        )) {
             for (String function : List.of("topk", "bottomk", "limitk")) {
                 String promql = function + "(" + kAndLimit.getKey() + ", network.bytes_in)";
                 var plan = logicalOptimizerWithLatestVersion.optimize(
@@ -75,6 +87,25 @@ public class PromqlPlanTopKTests extends AbstractPromqlPlanOptimizerTests {
                 );
                 var topNBy = as(plan.collect(TopNBy.class).get(0), TopNBy.class);
                 assertThat(promql, ((Number) topNBy.limitPerGroup().fold(FoldContext.small())).intValue(), equalTo(kAndLimit.getValue()));
+            }
+        }
+    }
+
+    /** Like Prometheus, a NaN k, or a k overflowing int64, is rejected rather than selecting nothing or everything. */
+    public void testNaNOrInt64OverflowingKIsRejected() {
+        for (var kAndError : List.of(
+            Map.entry("NaN", "must not be NaN"),
+            Map.entry("Inf", "overflows int64"),
+            Map.entry("1e19", "overflows int64")
+        )) {
+            for (String function : List.of("topk", "bottomk", "limitk")) {
+                String promql = function + "(" + kAndError.getKey() + ", network.bytes_in)";
+                var e = expectThrows(
+                    VerificationException.class,
+                    () -> planPromql("PROMQL index=k8s step=1h result=(" + promql + ")", true)
+                );
+                assertThat(promql, e.getMessage(), containsString("k in call to function [" + function + "]"));
+                assertThat(promql, e.getMessage(), containsString(kAndError.getValue()));
             }
         }
     }

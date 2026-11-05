@@ -1,0 +1,135 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ signed_zero_pushdown ]
+      reason: "pushed down comparisons against zero match both -0.0 and 0.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              id:
+                type: keyword
+              d:
+                type: double
+              f:
+                type: float
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": "negative_zero", "d": "-0.0", "f": "-0.0" }
+          - { "index": { } }
+          - { "id": "positive_zero", "d": "0.0", "f": "0.0" }
+          - { "index": { } }
+          - { "id": "one", "d": "1.0", "f": "1.0" }
+          - { "index": { } }
+          - { "id": "minus_one", "d": "-1.0", "f": "-1.0" }
+
+---
+equals zero:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d == 0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "negative_zero" ], [ "positive_zero" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d == -0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "negative_zero" ], [ "positive_zero" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d == 0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "negative_zero" ], [ "positive_zero" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE f == 0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "negative_zero" ], [ "positive_zero" ] ] }
+
+---
+not equals zero:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d != 0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "minus_one" ], [ "one" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d != -0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "minus_one" ], [ "one" ] ] }
+
+---
+range comparisons with zero:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d > -0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "one" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d >= 0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "negative_zero" ], [ "one" ], [ "positive_zero" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d < 0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "minus_one" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d <= -0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "minus_one" ], [ "negative_zero" ], [ "positive_zero" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE f > -0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "one" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d > -1.0 AND d < 0.0 | SORT id | KEEP id | LIMIT 10'
+  - length: { values: 0 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d >= -0.0 AND d <= 0.0 | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "negative_zero" ], [ "positive_zero" ] ] }
+
+---
+in with zero:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d IN (0.0, 5.0) | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "negative_zero" ], [ "positive_zero" ] ] }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | WHERE d IN (-0.0, 1.0) | SORT id | KEEP id | LIMIT 10'
+  - match: { values: [ [ "negative_zero" ], [ "one" ], [ "positive_zero" ] ] }

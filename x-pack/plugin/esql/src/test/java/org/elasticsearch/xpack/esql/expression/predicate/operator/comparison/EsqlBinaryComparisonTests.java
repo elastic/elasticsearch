@@ -13,11 +13,24 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class EsqlBinaryComparisonTests extends ESTestCase {
 
@@ -140,4 +153,85 @@ public class EsqlBinaryComparisonTests extends ESTestCase {
         assertFalse(EsqlBinaryComparison.areTypesCompatible(DataType.BOOLEAN, DataType.INTEGER));
     }
 
+    /**
+     * {@code NaN} is unequal to every value and compares as {@code false} with all of them, so a comparison against it must
+     * push down to what evaluation returns: every value for {@code !=} and none for the other comparisons.
+     */
+    public void testNaNComparisonPushdown() {
+        FieldAttribute field = new FieldAttribute(
+            EMPTY,
+            "field",
+            new EsField("field", randomFrom(DataType.DOUBLE, DataType.INTEGER), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal nan = new Literal(EMPTY, Double.NaN, DataType.DOUBLE);
+        Query matchNone = new MatchAll(EMPTY).negate(EMPTY);
+
+        assertEquals(new MatchAll(EMPTY), asQuery(new NotEquals(EMPTY, field, nan, null)));
+        assertEquals(matchNone, asQuery(new Equals(EMPTY, field, nan, null)));
+        assertEquals(matchNone, asQuery(new GreaterThan(EMPTY, field, nan, null)));
+        assertEquals(matchNone, asQuery(new GreaterThanOrEqual(EMPTY, field, nan, null)));
+        assertEquals(matchNone, asQuery(new LessThan(EMPTY, field, nan, null)));
+        assertEquals(matchNone, asQuery(new LessThanOrEqual(EMPTY, field, nan, null)));
+    }
+
+    /**
+     * Lucene orders {@code -0.0} below {@code 0.0} on floating-point fields, while evaluation compares them as equal, so a
+     * comparison against zero must push down to bounds that take in or leave out both zeros, whatever the literal's sign
+     * or type.
+     */
+    public void testZeroComparisonPushdownOnRationalField() {
+        FieldAttribute field = new FieldAttribute(
+            EMPTY,
+            "field",
+            new EsField("field", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal zero = randomFrom(
+            new Literal(EMPTY, 0.0, DataType.DOUBLE),
+            new Literal(EMPTY, -0.0, DataType.DOUBLE),
+            new Literal(EMPTY, 0, DataType.INTEGER)
+        );
+
+        assertEquals(
+            new RangeQuery(EMPTY, "field", 0.0, false, null, false, null, null),
+            asQuery(new GreaterThan(EMPTY, field, zero, null))
+        );
+        assertEquals(
+            new RangeQuery(EMPTY, "field", -0.0, true, null, false, null, null),
+            asQuery(new GreaterThanOrEqual(EMPTY, field, zero, null))
+        );
+        assertEquals(new RangeQuery(EMPTY, "field", null, false, -0.0, false, null, null), asQuery(new LessThan(EMPTY, field, zero, null)));
+        assertEquals(
+            new RangeQuery(EMPTY, "field", null, false, 0.0, true, null, null),
+            asQuery(new LessThanOrEqual(EMPTY, field, zero, null))
+        );
+        assertEquals(new RangeQuery(EMPTY, "field", -0.0, true, 0.0, true, null, null), asQuery(new Equals(EMPTY, field, zero, null)));
+        assertEquals(
+            new BoolQuery(
+                EMPTY,
+                false,
+                new RangeQuery(EMPTY, "field", null, false, -0.0, false, null, null),
+                new RangeQuery(EMPTY, "field", 0.0, false, null, false, null, null)
+            ),
+            asQuery(new NotEquals(EMPTY, field, zero, null))
+        );
+    }
+
+    /**
+     * Whole-number fields have a single zero, so a comparison against zero pushes down unchanged.
+     */
+    public void testZeroComparisonPushdownOnWholeNumberField() {
+        FieldAttribute field = new FieldAttribute(
+            EMPTY,
+            "field",
+            new EsField("field", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal zero = new Literal(EMPTY, 0, DataType.INTEGER);
+
+        assertEquals(new TermQuery(EMPTY, "field", 0), asQuery(new Equals(EMPTY, field, zero, null)));
+        assertEquals(new RangeQuery(EMPTY, "field", 0, false, null, false, null, null), asQuery(new GreaterThan(EMPTY, field, zero, null)));
+    }
+
+    private static Query asQuery(EsqlBinaryComparison comparison) {
+        return comparison.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+    }
 }

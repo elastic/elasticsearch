@@ -10,7 +10,9 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.LongFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
@@ -60,6 +62,33 @@ public class ValuesFloatGroupingAggregatorFunctionTests extends GroupingAggregat
                     assertThat(set, containsInAnyOrder(values));
                 }
             }
+        }
+    }
+
+    /**
+     * Like the non-grouped aggregation, the grouped one deduplicates values on their bits: a repeated {@code NaN} is kept
+     * once and {@code -0.0} is kept apart from {@code 0.0}, including when the first value of the group is one of them.
+     */
+    public void testDeduplicatesOnBits() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        Block[] blocks = new Block[1];
+        try (ValuesFloatAggregator.GroupingState state = ValuesFloatAggregator.initGrouping(driverContext)) {
+            ValuesFloatAggregator.combine(state, 0, Float.NaN);
+            ValuesFloatAggregator.combine(state, 0, Float.NaN);
+            ValuesFloatAggregator.combine(state, 1, 0.0f);
+            ValuesFloatAggregator.combine(state, 1, -0.0f);
+            try (
+                IntVector selected = blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2);
+                GroupingAggregatorEvaluationContext ctx = new GroupingAggregatorEvaluationContext(driverContext);
+                GroupingAggregatorFunction.PreparedForEvaluation prepared = ValuesFloatAggregator.prepareEvaluateFinal(state, selected, ctx)
+            ) {
+                prepared.evaluate(blocks, 0, selected);
+            }
+        }
+        try (Block result = blocks[0]) {
+            assertEquals(Float.NaN, BlockUtils.toJavaObject(result, 0));
+            assertEquals(List.of(0.0f, -0.0f), BlockUtils.toJavaObject(result, 1));
         }
     }
 }

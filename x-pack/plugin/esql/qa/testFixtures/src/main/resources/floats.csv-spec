@@ -886,3 +886,52 @@ MV_MAX(VALUES(height.float)):double | first_letter:keyword
 2.0999999046325684                  | S
 1.7000000476837158                  | T
 ;
+
+// -0.0 and 0.0 compare as equal, so a conjunction over both zeros matches every zero.
+signedZerosEqualsBoth
+required_capability: fix_signed_zero_comparison_optimization
+FROM employees
+| EVAL zero = height * 0.0, negative_zero = height * -0.0
+| WHERE zero == 0.0 AND zero == -0.0 AND negative_zero == 0.0 AND negative_zero == -0.0
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;
+
+signedZerosEqualsAndExclusiveBound
+required_capability: fix_signed_zero_comparison_optimization
+FROM employees
+| EVAL zero = height * 0.0
+| WHERE (zero == 0.0 AND zero > -0.0) OR (zero == -0.0 AND zero < 0.0)
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+signedZerosCombinedBounds
+required_capability: fix_signed_zero_comparison_optimization
+FROM employees
+| EVAL zero = height * 0.0
+| WHERE (zero >= 0.0 AND zero > -0.0) OR (zero != 0.0 AND zero <= -0.0)
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+signedZerosEqualsOrExclusiveBound
+required_capability: fix_signed_zero_comparison_optimization
+FROM employees
+| EVAL zero = height * 0.0
+| WHERE zero == -0.0 OR zero < 0.0
+| STATS c = COUNT(*)
+;
+
+c:long
+100
+;

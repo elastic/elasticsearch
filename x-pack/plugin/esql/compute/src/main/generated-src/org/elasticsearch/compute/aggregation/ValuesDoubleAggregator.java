@@ -172,7 +172,7 @@ class ValuesDoubleAggregator {
             } else if (hasValue(groupId) == false) {
                 firstValues.set(groupId, v);
                 trackGroupId(groupId);
-            } else if (firstValues.get(groupId) != v) {
+            } else if (Double.doubleToLongBits(firstValues.get(groupId)) != Double.doubleToLongBits(v)) {
                 nextValues.add(groupId, v);
             }
         }

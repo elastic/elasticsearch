@@ -50,7 +50,7 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         final var startIndex = getFirstValueIndex(position);
         final var BINARYSEARCH_THRESHOLD = 16;
         if (count > BINARYSEARCH_THRESHOLD && mvSortedAscending()) {
-            return binarySearch(this, position, count, value) >= 0;
+            return binarySearch(this, startIndex, count, value) >= 0;
         }
 
         for (int index = startIndex; index < startIndex + count; index++) {
@@ -72,7 +72,7 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
      */
     static int binarySearch(LongBlock block, int startIndex, int count, long value) {
         int low = startIndex;
-        int high = count - 1;
+        int high = startIndex + count - 1;
 
         while (low <= high) {
             int mid = (low + high) >>> 1;

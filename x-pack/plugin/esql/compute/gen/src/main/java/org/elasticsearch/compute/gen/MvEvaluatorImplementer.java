@@ -154,7 +154,9 @@ public class MvEvaluatorImplementer {
         }
         if (ascendingFunction != null) {
             builder.addMethod(evalAscending("evalAscendingNullable", true));
-            builder.addMethod(evalAscending("evalAscendingNotNullable", false));
+            if (warnExceptions.isEmpty()) {
+                builder.addMethod(evalAscending("evalAscendingNotNullable", false));
+            }
         }
 
         builder.addType(factory());

@@ -4695,6 +4695,29 @@ public class EsqlCapabilities {
          */
         UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
 
+        /**
+         * Comparisons, ranges and {@code IN} against zero that are pushed down to Lucene on floating-point fields treat
+         * {@code -0.0} and {@code 0.0} as equal, as evaluation does. Older nodes missed the zero of the other sign for
+         * {@code ==}, {@code IN} and inclusive bounds such as {@code >= 0.0} or {@code <= -0.0}, and matched it for
+         * {@code !=} and exclusive bounds such as {@code > -0.0} or {@code < 0.0}.
+         */
+        SIGNED_ZERO_PUSHDOWN,
+
+        /**
+         * PromQL {@code topk}, {@code bottomk} and {@code limitk} accept a {@code k} outside the int range: like
+         * Prometheus, a {@code k} below one (including {@code -Inf}) selects nothing, and {@code NaN} or a {@code k}
+         * overflowing int64 (including {@code +Inf}) is rejected. A larger {@code k} is capped at the int range.
+         * Older nodes failed with a {@code NullPointerException} for any of these.
+         */
+        FIX_PROMQL_TOPK_OUT_OF_RANGE_K,
+
+        /**
+         * The optimizer treats {@code -0.0} and {@code 0.0} as equal when combining comparisons on the same field, as
+         * evaluation does. Older nodes could simplify, for example, {@code d == 0.0 AND d == -0.0} to {@code false}, or
+         * {@code d == 0.0 AND d > -0.0} to {@code d == 0.0}.
+         */
+        FIX_SIGNED_ZERO_COMPARISON_OPTIMIZATION,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -90,6 +90,8 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("[" + DOUBLE_TO_LONG_UPPER_BOUND + "] out of [long] range", boundary.getMessage());
             Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
+            Exception nan = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.NaN));
+            assertEquals("[NaN] out of [long] range", nan.getMessage());
         }
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);
@@ -141,6 +143,8 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(asDateTime(11L), conversion.convert(10.6));
             Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
+            Exception nan = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.NaN));
+            assertEquals("[NaN] out of [long] range", nan.getMessage());
         }
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);
@@ -429,6 +433,8 @@ public class DataTypeConversionTests extends ESTestCase {
             long outOfRange = (long) Integer.MAX_VALUE + 1;
             Exception e = expectThrows(InvalidArgumentException.class, () -> conversion.convert((double) outOfRange));
             assertEquals("[" + outOfRange + "] out of [integer] range", e.getMessage());
+            Exception nan = expectThrows(InvalidArgumentException.class, () -> conversion.convert(Double.NaN));
+            assertEquals("[NaN] out of [long] range", nan.getMessage());
         }
         {
             Converter conversion = converterFor(UNSIGNED_LONG, to);

@@ -644,20 +644,15 @@ public class DeclaredTypeCoercionsTests extends ESTestCase {
 
     /**
      * A non-finite double in a {@code datetime} column follows {@code safeDoubleToLong} exactly as {@code ::datetime}
-     * does today ({@code ToDatetime} maps DOUBLE via {@code ToLong.fromDouble} == {@code safeDoubleToLong}), so a
-     * declared read and an explicit cast can never disagree: NaN rounds to epoch 0 and an infinity throws out-of-range.
-     * NaN&rarr;1970 is a recorded consequence of mirroring the cast engine, not an accident. With a declared format
-     * there is no parse for a non-finite token, so it fails per value through the error policy instead.
+     * does ({@code ToDatetime} maps DOUBLE via {@code ToLong.fromDouble} == {@code safeDoubleToLong}), so a
+     * declared read and an explicit cast can never disagree: NaN and an infinity both throw out-of-range. With a
+     * declared format there is no parse for a non-finite token, so it fails per value through the error policy instead.
      */
     public void testCastNonFiniteDoubleToDatetimeMirrorsCastEngine() {
-        try (
-            Block src = blockFactory.newDoubleArrayVector(new double[] { Double.NaN }, 1).asBlock();
-            Block cast = castStrict(src, DataType.DOUBLE, DataType.DATETIME)
-        ) {
-            assertEquals("NaN rounds to epoch 0, exactly as ::datetime does", 0L, ((LongBlock) cast).getLong(0));
-        }
-        try (Block src = blockFactory.newDoubleArrayVector(new double[] { Double.POSITIVE_INFINITY }, 1).asBlock()) {
-            expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME).close());
+        for (double nonFinite : new double[] { Double.NaN, Double.POSITIVE_INFINITY }) {
+            try (Block src = blockFactory.newDoubleArrayVector(new double[] { nonFinite }, 1).asBlock()) {
+                expectThrows(InvalidArgumentException.class, () -> castStrict(src, DataType.DOUBLE, DataType.DATETIME).close());
+            }
         }
         DateFormatter epochSecond = DateFormatter.forPattern("epoch_second");
         try (Block src = blockFactory.newDoubleArrayVector(new double[] { Double.NaN }, 1).asBlock()) {

@@ -197,12 +197,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         ActionListener<R> listener
     ) {
         if (ccsCheckCompatibility) {
-            try {
-                checkCCSVersionCompatibility(request);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
+            checkCCSVersionCompatibility(request);
         }
         final Executor singleThreadedExecutor = buildSingleThreadedExecutor();
         assert task instanceof CancellableTask;

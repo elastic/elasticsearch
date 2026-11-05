@@ -12,6 +12,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,7 +70,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 threadPool
             );
 
-            FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
+            FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().fields("field");
             fieldCapsRequest.indexFilter(new DummyQueryBuilder() {
                 @Override
                 protected void doWriteTo(StreamOutput out) throws IOException {
@@ -100,7 +101,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             IllegalArgumentException ex = safeAwaitFailure(
                 IllegalArgumentException.class,
                 FieldCapabilitiesResponse.class,
-                l -> action.doExecute(null, fieldCapsRequest, l)
+                l -> ActionTestUtils.execute(action, null, fieldCapsRequest, l)
             );
 
             assertThat(

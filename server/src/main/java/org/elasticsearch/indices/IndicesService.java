@@ -74,6 +74,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskLoadAttribution;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -129,6 +130,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -636,6 +638,25 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public boolean hasIndex(Index index) {
         return indices.containsKey(index.getUUID());
+    }
+
+    /**
+     * Charges the time of tasks equally to those of {@code shardIds} still on this node when a task completes.
+     */
+    public TaskLoadAttribution.Target searchLoad(List<ShardId> shardIds) {
+        return (nanos, finishNanos) -> {
+            List<ShardSearchStats> shards = new ArrayList<>(shardIds.size());
+            for (ShardId shardId : shardIds) {
+                IndexService indexService = indexService(shardId.getIndex());
+                IndexShard shard = indexService == null ? null : indexService.getShardOrNull(shardId.id());
+                if (shard != null) {
+                    shards.add(shard.shardSearchStats());
+                }
+            }
+            if (shards.isEmpty() == false) {
+                ShardSearchStats.charge(shards, nanos, finishNanos);
+            }
+        };
     }
 
     /**

@@ -30,7 +30,7 @@ public class EmptySecretSettingsTests extends AbstractWireSerializingTestCase<Em
 
     @Override
     protected EmptySecretSettings mutateInstance(EmptySecretSettings instance) {
-        // All instances are the same and have no fields, nothing to mutate
+        // Since EmptySecretSettings is a record, we don't need to check for equality
         return null;
     }
 

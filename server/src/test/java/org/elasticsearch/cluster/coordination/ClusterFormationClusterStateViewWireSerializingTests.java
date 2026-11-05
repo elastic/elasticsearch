@@ -73,6 +73,7 @@ public class ClusterFormationClusterStateViewWireSerializingTests extends Abstra
 
     @Override
     protected Wrapper mutateInstance(Wrapper instance) throws IOException {
+        // Since Wrapper is a record, we don't need to check for equality
         return null;
     }
 

@@ -151,7 +151,7 @@ public class AllocationService {
             shardRoutingRoleStrategy,
             meterRegistry,
             clusterSettings,
-            ShardMovementEventSink.NOOP
+            ShardMovementListener.NOOP
         );
     }
 
@@ -163,14 +163,14 @@ public class AllocationService {
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
         MeterRegistry meterRegistry,
         ClusterSettings clusterSettings,
-        ShardMovementEventSink shardMovementEventSink
+        ShardMovementListener shardMovementListener
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
         this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
-        this.shardChangesObserver = new ShardChangesObserver(meterRegistry, shardMovementEventSink);
+        this.shardChangesObserver = new ShardChangesObserver(meterRegistry, shardMovementListener);
         clusterSettings.initializeAndWatch(PRESERVE_DECISION_LABELS_SETTING, value -> this.preserveDecisionLabels = value);
     }
 

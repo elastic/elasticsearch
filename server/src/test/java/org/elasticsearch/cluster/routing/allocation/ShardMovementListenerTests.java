@@ -27,14 +27,14 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBui
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ShardMovementEventSinkTests extends ESTestCase {
+public class ShardMovementListenerTests extends ESTestCase {
 
     private static final ShardId SHARD_ID = new ShardId("test-index", "_na_", 0);
 
     /**
      * Records each event as a list of the method name and its arguments
      */
-    static class RecordingSink implements ShardMovementEventSink {
+    static class RecordingListener implements ShardMovementListener {
         final List<List<Object>> events = new ArrayList<>();
 
         @Override
@@ -63,16 +63,16 @@ public class ShardMovementEventSinkTests extends ESTestCase {
         }
     }
 
-    public void testCompositeDeliversToAllSinksAndIsolatesFailures() {
-        final var received1 = new RecordingSink();
-        final var received2 = new RecordingSink();
-        final var failing = new ShardMovementEventSink() {
+    public void testCompositeDeliversToAllListenersAndIsolatesFailures() {
+        final var received1 = new RecordingListener();
+        final var received2 = new RecordingListener();
+        final var failing = new ShardMovementListener() {
             @Override
             public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
                 throw new RuntimeException("boom");
             }
         };
-        final var composite = ShardMovementEventSink.composite(List.of(received1, failing, received2));
+        final var composite = ShardMovementListener.composite(List.of(received1, failing, received2));
 
         final var shard = shardRoutingBuilder(SHARD_ID, "node-1", true, ShardRoutingState.STARTED).build();
         final var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null);
@@ -84,34 +84,34 @@ public class ShardMovementEventSinkTests extends ESTestCase {
     }
 
     public void testCompositeOfNoneIsNoop() {
-        assertThat(ShardMovementEventSink.composite(List.of()), sameInstance(ShardMovementEventSink.NOOP));
+        assertThat(ShardMovementListener.composite(List.of()), sameInstance(ShardMovementListener.NOOP));
     }
 
     @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.LoggingShardMovementEventSink:DEBUG",
+        value = "org.elasticsearch.cluster.routing.allocation.LoggingShardMovementListener:DEBUG",
         reason = "verifies debug level logging"
     )
-    public void testLoggingSink() {
-        final var sink = new LoggingShardMovementEventSink();
+    public void testLoggingListener() {
+        final var listener = new LoggingShardMovementListener();
         final var startedShard = shardRoutingBuilder(SHARD_ID, "node-1", true, ShardRoutingState.STARTED).build();
         final var targetShard = shardRoutingBuilder(SHARD_ID, "node-2", true, ShardRoutingState.INITIALIZING).build();
 
         MockLog.assertThatLogger(
-            () -> sink.relocationStarted(startedShard, targetShard, new MoveReason(MoveType.CANNOT_REMAIN, "filter")),
-            LoggingShardMovementEventSink.class,
+            () -> listener.relocationStarted(startedShard, targetShard, new MoveReason(MoveType.CANNOT_REMAIN, "filter")),
+            LoggingShardMovementListener.class,
             new MockLog.SeenEventExpectation(
                 "relocation started",
-                LoggingShardMovementEventSink.class.getCanonicalName(),
+                LoggingShardMovementListener.class.getCanonicalName(),
                 Level.DEBUG,
                 "[test-index][0][P] relocating from [node-1] to [node-2]: move(cannot-remain)"
             )
         );
         MockLog.assertThatLogger(
-            () -> sink.shardFailed(startedShard, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)),
-            LoggingShardMovementEventSink.class,
+            () -> listener.shardFailed(startedShard, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)),
+            LoggingShardMovementListener.class,
             new MockLog.SeenEventExpectation(
                 "shard failed",
-                LoggingShardMovementEventSink.class.getCanonicalName(),
+                LoggingShardMovementListener.class.getCanonicalName(),
                 Level.DEBUG,
                 "[test-index][0][P] failed on [node-1]: NODE_LEFT"
             )

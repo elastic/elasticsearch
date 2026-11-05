@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 140669
 pr: 164787
-summary: Size exponential histogram merge buffers based on bucket estimates
+summary: Adaptively size exponential histograms during merging based on input size
 type: enhancement

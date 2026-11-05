@@ -12,13 +12,18 @@ import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.function.Supplier;
 
+/**
+ * @param queryId the task of the query's coordinator in this cluster
+ */
 record ComputeContext(
     String sessionId,
+    TaskId queryId,
     String description,
     String clusterAlias,
     EsqlFlags flags,
@@ -32,6 +37,7 @@ record ComputeContext(
 ) {
     ComputeContext(
         String sessionId,
+        TaskId queryId,
         String description,
         String clusterAlias,
         EsqlFlags flags,
@@ -44,6 +50,7 @@ record ComputeContext(
     ) {
         this(
             sessionId,
+            queryId,
             description,
             clusterAlias,
             flags,

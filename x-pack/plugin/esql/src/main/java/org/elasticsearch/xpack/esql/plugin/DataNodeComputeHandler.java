@@ -252,6 +252,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 .isEnabled();
                             var dataNodeRequest = new DataNodeRequest(
                                 childSessionId,
+                                computeService.queryId(parentTask),
                                 configuration,
                                 clusterAlias,
                                 shards,
@@ -401,7 +402,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
-                            externalRequest(childSessionId, configuration, dataNodePlan, nodeSplits, requiredClusterStateVersion),
+                            externalRequest(
+                                childSessionId,
+                                computeService.queryId(parentTask),
+                                configuration,
+                                dataNodePlan,
+                                nodeSplits,
+                                requiredClusterStateVersion
+                            ),
                             groupTask,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
@@ -594,6 +602,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
     private static DataNodeRequest externalRequest(
         String sessionId,
+        TaskId queryId,
         Configuration configuration,
         ExchangeSinkExec dataNodePlan,
         List<ExternalSplit> splits,
@@ -601,6 +610,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     ) {
         return new DataNodeRequest(
             sessionId,
+            queryId,
             configuration,
             "",
             List.of(),
@@ -783,6 +793,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     }
                     var computeContext = new ComputeContext(
                         sessionId,
+                        request.queryId(),
                         ComputeService.DATA_DESCRIPTION,
                         clusterAlias,
                         flags,
@@ -976,6 +987,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     task,
                     new ComputeContext(
                         request.sessionId(),
+                        request.queryId(),
                         ComputeService.REDUCE_DESCRIPTION,
                         request.clusterAlias(),
                         flags,
@@ -1013,6 +1025,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 parentListener.onFailure(e);
             }
         }
+    }
+
+    /**
+     * The query of a data-node request: its {@link DataNodeRequest#queryId()}, or its parent task if the sender does not
+     * send one.
+     */
+    static TaskId queryId(DataNodeRequest request, Task task) {
+        return request.queryId().isSet() ? request.queryId() : task.getParentTaskId();
     }
 
     /**
@@ -1167,6 +1187,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         final String sessionId = request.sessionId();
         request = new DataNodeRequest(
             sessionId + "[n]", // internal session
+            queryId(request, task),
             request.configuration(),
             request.clusterAlias(),
             request.shards(),
@@ -1548,6 +1569,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 String internalSessionId = sessionId + "[n]";
                 var computeContext = new ComputeContext(
                     internalSessionId,
+                    queryId(request, task),
                     ComputeService.DATA_DESCRIPTION,
                     request.clusterAlias(),
                     flags,

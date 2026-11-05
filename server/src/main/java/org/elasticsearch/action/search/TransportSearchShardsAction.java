@@ -164,8 +164,7 @@ public class TransportSearchShardsAction extends TransportAction<SearchShardsReq
                 TransportSearchAction.validateAndResolveSearchSliceRouting(
                     searchRequest,
                     resolvedIndices.getConcreteLocalIndicesMetadata(),
-                    searchRequest.indices(),
-                    false
+                    searchRequest.indices()
                 );
                 final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
                     project.metadata(),

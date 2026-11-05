@@ -290,6 +290,7 @@ public class SemanticTextFieldMapperTests extends AbstractSemanticMapperTestCase
             null,
             false,
             false,
+            false,
             Map.of()
         );
     }

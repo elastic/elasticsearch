@@ -42,38 +42,44 @@ import java.util.Collection;
  */
 final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
 
-    static final ColumnarBinaryDocValuesQueries INSTANCE = new ColumnarBinaryDocValuesQueries();
+    static final ColumnarBinaryDocValuesQueries PAYLOAD = new ColumnarBinaryDocValuesQueries(false);
+    static final ColumnarBinaryDocValuesQueries SINGLE_VALUED = new ColumnarBinaryDocValuesQueries(true);
 
     /** The column library keeps no notion of a heap budget, so it is handed the search layer's. */
     private static final ScanBudget BUDGET = ContextIndexSearcher::checkBinaryDvDecodeBreaker;
 
-    private ColumnarBinaryDocValuesQueries() {}
+    private final boolean singleValued;
+
+    private ColumnarBinaryDocValuesQueries(boolean singleValued) {
+        this.singleValued = singleValued;
+    }
 
     @Override
     public Query term(String field, BytesRef term) {
-        return ColumnarStringTermQuery.term(field, term, BUDGET);
+        return ColumnarStringTermQuery.term(field, term, singleValued, BUDGET);
     }
 
     @Override
     public Query terms(String field, Collection<BytesRef> terms) {
-        return new ColumnarStringAnyOfQuery(field, terms, BUDGET);
+        return new ColumnarStringAnyOfQuery(field, terms, singleValued, BUDGET);
     }
 
     @Override
     public Query range(String field, @Nullable BytesRef lower, @Nullable BytesRef upper, boolean includeLower, boolean includeUpper) {
-        return new ColumnarStringRangeQuery(field, lower, includeLower, upper, includeUpper, BUDGET);
+        return new ColumnarStringRangeQuery(field, lower, includeLower, upper, includeUpper, singleValued, BUDGET);
     }
 
     @Override
     public Query prefix(String field, String value, boolean caseInsensitive) {
         if (caseInsensitive == false) {
             // The column bisects a prefix, so this never becomes an automaton.
-            return ColumnarStringTermQuery.prefix(field, new BytesRef(value), BUDGET);
+            return ColumnarStringTermQuery.prefix(field, new BytesRef(value), singleValued, BUDGET);
         }
         return new ColumnarStringAutomatonQuery(
             field,
             AutomatonQueries.caseInsensitivePrefix(value),
             "caseInsensitivePrefix=" + value,
+            singleValued,
             BUDGET
         );
     }
@@ -95,13 +101,20 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
             field,
             delegate.getAutomata().runAutomaton,
             "fuzzy,term=" + term + ",maxEdits=" + maxEdits + ",prefixLength=" + prefixLength + ",transpositions=" + transpositions,
+            singleValued,
             BUDGET
         );
     }
 
     @Override
     public Query caseInsensitiveTerm(String field, String value) {
-        return new ColumnarStringAutomatonQuery(field, Automata.makeCaseInsensitiveString(value), "caseInsensitiveTerm=" + value, BUDGET);
+        return new ColumnarStringAutomatonQuery(
+            field,
+            Automata.makeCaseInsensitiveString(value),
+            "caseInsensitiveTerm=" + value,
+            singleValued,
+            BUDGET
+        );
     }
 
     @Override
@@ -118,18 +131,18 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
             // An escape is likewise left to the automaton rather than unescaped, so that what the two agree on is what
             // Lucene's own parser says a pattern means.
             if (pattern.isEmpty() == false && isPlainPattern(pattern)) {
-                return ColumnarStringTermQuery.term(field, new BytesRef(pattern), BUDGET);
+                return ColumnarStringTermQuery.term(field, new BytesRef(pattern), singleValued, BUDGET);
             }
             if (pattern.endsWith("*")) {
                 final String start = pattern.substring(0, pattern.length() - 1);
                 if (isPlainPattern(start)) {
-                    return ColumnarStringTermQuery.prefix(field, new BytesRef(start), BUDGET);
+                    return ColumnarStringTermQuery.prefix(field, new BytesRef(start), singleValued, BUDGET);
                 }
             }
             if (pattern.length() >= 3 && pattern.charAt(0) == '*' && pattern.endsWith("*")) {
                 final String inside = pattern.substring(1, pattern.length() - 1);
                 if (isPlainPattern(inside)) {
-                    return ColumnarStringTermQuery.contains(field, new BytesRef(inside), BUDGET);
+                    return ColumnarStringTermQuery.contains(field, new BytesRef(inside), singleValued, BUDGET);
                 }
             }
         }
@@ -137,6 +150,7 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
             field,
             AutomatonQueries.toWildcardByteRunAutomaton(new Term(field, pattern), caseInsensitive, breaker),
             "pattern=" + pattern + ",caseInsensitive=" + caseInsensitive,
+            singleValued,
             BUDGET
         );
     }
@@ -148,7 +162,7 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
 
     @Override
     public Query automaton(String field, Automaton automaton, String description) {
-        return new ColumnarStringAutomatonQuery(field, automaton, description, BUDGET);
+        return new ColumnarStringAutomatonQuery(field, automaton, description, singleValued, BUDGET);
     }
 
     @Override
@@ -165,6 +179,7 @@ final class ColumnarBinaryDocValuesQueries implements BinaryDocValuesQueries {
             // The byte-run form, as the scanning path uses: it is the one that tolerates a caller with no breaker.
             AutomatonQueries.toRegexpByteRunAutomaton(field, pattern, syntaxFlags, matchFlags, maxDeterminizedStates, breaker),
             "regexp=" + pattern + ",flags=" + syntaxFlags + "," + matchFlags,
+            singleValued,
             BUDGET
         );
     }

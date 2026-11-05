@@ -35,7 +35,8 @@ public interface BinaryDocValuesQueries {
     /** The implementation for {@code format}, shared rather than built per call. */
     static BinaryDocValuesQueries forFormat(BinaryDocValuesFormat format) {
         return switch (format) {
-            case COLUMNAR_PAYLOAD, PLAIN -> ColumnarBinaryDocValuesQueries.INSTANCE;
+            case COLUMNAR_PAYLOAD -> ColumnarBinaryDocValuesQueries.PAYLOAD;
+            case PLAIN -> ColumnarBinaryDocValuesQueries.SINGLE_VALUED;
             case SEPARATE_COUNT, ARRAY_ORDER_INLINE_NULL -> ScanningBinaryDocValuesQueries.forFormat(format);
         };
     }

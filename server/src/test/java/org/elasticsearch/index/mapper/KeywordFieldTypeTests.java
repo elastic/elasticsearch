@@ -44,7 +44,6 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
@@ -61,7 +60,6 @@ import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
@@ -78,7 +76,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.BinaryDocValuesFormat.SEPARATE_COUNT;
 import static org.hamcrest.Matchers.instanceOf;
@@ -140,11 +137,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             false
         );
 
-        Function<BytesRef, BytesRef> docValuesEncoding = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            ? b -> new StringBinaryPayload.Builder().encode(List.of(b))
-            : Function.identity();
-
-        assertTermQueryWithBinaryDocValues(ft, docValuesEncoding);
+        assertTermQueryWithBinaryDocValues(ft);
     }
 
     public void testTermQueryHighCardinality() {
@@ -465,19 +458,16 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQueryDocValuesOnlyCaseInsensitive() {
-        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and ASCII_CASE_INSENSITIVE matchFlag
+        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE and CASE_INSENSITIVE matchFlag
         MappedFieldType ft = new KeywordFieldType("field", false, true, Map.of());
-        Query q = ft.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        Query q = ft.regexpQuery("foo.*", 0, RegExp.CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
         assertThat(q, instanceOf(RegexpQuery.class));
         assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
 
         // Binary DV → ScanningBinaryDocValuesRegexpQuery, which handles matchFlags via RegExp(pattern, syntaxFlags, matchFlags)
         MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
-        q = binaryFt.regexpQuery("foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
-        assertEquals(
-            new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.ASCII_CASE_INSENSITIVE, 10, SEPARATE_COUNT, null),
-            q
-        );
+        q = binaryFt.regexpQuery("foo.*", 0, RegExp.CASE_INSENSITIVE, 10, null, MOCK_CONTEXT);
+        assertEquals(new ScanningBinaryDocValuesRegexpQuery("field", "foo.*", 0, RegExp.CASE_INSENSITIVE, 10, SEPARATE_COUNT, null), q);
     }
 
     public void testAutomatonQuery() {

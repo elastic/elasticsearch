@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.highlight;
 
-import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -15,13 +14,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,21 +42,11 @@ public class SemanticFieldHighlighterTests extends AbstractSemanticHighlighterTe
      * original data URL rather than a substring of it.
      */
     public void testImage() throws Exception {
-        var fieldType = (SemanticFieldMapper.SemanticFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_IMAGE);
-
         float[] vector = new float[384];
         Arrays.fill(vector, 1.0f);
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
-            fieldType.getEmbeddingsField().fullPath(),
-            vector,
-            10,
-            10,
-            10f,
-            null,
-            null
+        var shardRequest = createShardSearchRequest(
+            createKnnQuery(mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_IMAGE), vector, null)
         );
-        NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
-        var shardRequest = createShardSearchRequest(nestedQueryBuilder);
 
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder().startObject();
         sourceBuilder.startObject(SEMANTIC_FIELD_IMAGE).field("type", "image").field("value", IMAGE_DATA_URL).endObject();

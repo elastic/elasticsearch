@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.vector;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -56,7 +55,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,33 +80,31 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityMetric.DOT_PRODUCT;
 
-public class Knn extends SingleFieldFullTextFunction
-    implements
-        OptionalArgument,
-        VectorFunction,
-        PostOptimizationVerificationAware,
-        ConfigurationFunction {
+public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
+
+    /**
+     * Marks nodes that support KNN over a non-index-mapped field or expression.
+     * The {@code LogicalVerifier} uses this to fail fast with a 4xx when any
+     * participating node (including a CCS remote) predates the release.
+     */
+    public static final TransportVersion ESQL_KNN_RUNTIME_FIELD = TransportVersion.fromName("esql_knn_runtime_field");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Knn.class)
-        .ternaryConfig(Knn::new)
-        // Snapshot-only, matching the pragma that enables KNN's runtime search in the first place.
-        .snapshotCapabilities("runtime_anywhere", "runtime_similarity_function")
+        .ternary(Knn::new)
+        .capabilities("runtime_anywhere", "runtime_similarity_function", "single_dimension_query_vector")
         .name("knn");
 
     private final Integer implicitK;
     // Expressions to be used as prefilters in knn query
     private final List<Expression> filterExpressions;
-    private final Configuration configuration;
     private float[] cachedQuery;
 
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
     /**
      * Names the {@link VectorSimilarityMetric} to compare the vectors with, e.g. {@code "l2_norm"}. Only accepted
-     * when knn runs over a runtime expression - an indexed field takes its metric from the mapping instead. Not
-     * documented as a function named parameter yet because runtime knn, the only path that accepts it, is snapshot
-     * only; add the {@code @MapParam.MapParamEntry} for it when that path is released.
+     * when knn runs over a runtime expression - an indexed field takes its metric from the mapping instead.
      */
     public static final String SIMILARITY_FUNCTION_OPTION = "similarity_function";
 
@@ -124,9 +120,43 @@ public class Knn extends SingleFieldFullTextFunction
 
     @FunctionInfo(
         returnType = "boolean",
-        briefSummary = "Finds the k nearest vectors to a query vector using a similarity metric.",
+        briefSummary = "Finds the k nearest vectors to a query vector as measured by a similarity metric.",
         description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
             + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.",
+        detailedDescription = """
+            The `KNN` function performs [approximate kNN search](docs-content://solutions/search/vector/knn/approximate-knn.md)
+            on indexed `dense_vector` and `semantic_text` fields. It delegates search to the underlying vector search index,
+            such as [`disk_bbq`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk).
+
+            ### `KNN` on `dense_vector` expressions
+            ```{applies_to}
+            stack: preview 9.6+
+            serverless: preview
+            ```
+            `KNN` also works on `dense_vector` expressions that aren't backed by an index, such as vectors generated by the
+            `DENSE_VECTOR` command. On an expression, `KNN` behaves differently:
+            - It performs an exact search that compares the query vector with the vector in every row.
+              It doesn't build a vector index.
+            - It supports only the `similarity`, `similarity_function`, and `boost` options. It ignores other options,
+              such as `k`, `min_candidates`, and `visit_percentage`.
+            - The `similarity_function` option sets the similarity metric. The accepted values are `cosine`, `dot_product`,
+              `l2_norm`, and `max_inner_product`.
+            - If you don't set `similarity_function`, `KNN` uses the similarity of the inference endpoint that produced the
+              `dense_vector` expression or the query vector. If it can't infer one, it uses `cosine`.
+            - If the expression and the query vector come from inference endpoints with different similarities, the query
+              fails, even if you set `similarity_function`.
+            - If you set `similarity`, it keeps only rows that are at least as similar to the query vector as the threshold.
+            - If you request `METADATA _score`, it adds a score to the relevance score of each row. Scores range from 0 to 1,
+              except with `max_inner_product` or a `boost` other than 1.
+            - Rows whose vectors have a different number of dimensions from the query vector are filtered out with a warning.
+            - With `dot_product`, every vector must be unit length. Rows whose vectors aren't unit length are filtered out
+              with a warning.
+            - To get the k nearest vectors, sort and limit the results explicitly, for example `SORT _score DESC | LIMIT 10`.
+
+            :::{tip}
+            Learn more about using [ES|QL for search use cases](docs-content://solutions/search/esql-for-search.md).
+            :::
+            """,
         examples = { @Example(file = "knn-function", tag = "knn-function") },
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
@@ -199,14 +229,24 @@ public class Knn extends SingleFieldFullTextFunction
                         + "See [oversampling and rescoring quantized vectors]"
                         + "(docs-content://solutions/search/vector/knn/optimize-performance-accuracy.md"
                         + "#dense-vector-knn-search-rescoring) for details."
+                ),
+                @MapParam.MapParamEntry(
+                    name = "similarity_function",
+                    type = "keyword",
+                    valueHint = { "cosine" },
+                    description = "The similarity metric to use when `KNN` runs on a `dense_vector` expression "
+                        + "(rather than an indexed field). See the function description for more details about the default value. "
+                        + "This option is rejected when used with an indexed `dense_vector` field, where the field's mapping "
+                        + "determines the metric. Accepted values: `cosine`, `dot_product`, `l2_norm`, `max_inner_product`.",
+                    applies_to = """
+                        {"stack": "preview 9.6+", "serverless": "preview"}"""
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
                 + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",
             optional = true
-        ) Expression options,
-        Configuration configuration
+        ) Expression options
     ) {
-        this(source, field, query, options, null, null, List.of(), configuration);
+        this(source, field, query, options, null, null, List.of());
     }
 
     public Knn(
@@ -216,13 +256,11 @@ public class Knn extends SingleFieldFullTextFunction
         Expression options,
         Integer implicitK,
         QueryBuilder queryBuilder,
-        List<Expression> filterExpressions,
-        Configuration configuration
+        List<Expression> filterExpressions
     ) {
         super(source, field, query, options, expressionList(field, query, options), queryBuilder);
         this.implicitK = implicitK;
         this.filterExpressions = filterExpressions;
-        this.configuration = configuration;
     }
 
     private static List<Expression> expressionList(Expression field, Expression query, Expression options) {
@@ -243,19 +281,19 @@ public class Knn extends SingleFieldFullTextFunction
         return filterExpressions;
     }
 
-    public Configuration configuration() {
-        return configuration;
-    }
-
     public Knn withImplicitK(Integer k) {
         Check.notNull(k, "k must not be null");
-        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions(), configuration());
+        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions());
     }
 
     public List<Number> queryAsObject() {
         // we need to check that we got a list and every element in the list is a number
         Expression query = query();
         if (query instanceof Literal literal) {
+            // a one-element multivalue (i.e. a 1-dimension vector) is folded into a scalar
+            if (literal.value() instanceof Number number) {
+                return List.of(number);
+            }
             @SuppressWarnings("unchecked")
             List<Number> result = ((List<Number>) literal.value());
             return result;
@@ -265,20 +303,11 @@ public class Knn extends SingleFieldFullTextFunction
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions(), configuration);
-    }
-
-    /** Unlike the lexical search functions, KNN's runtime search is still gated behind a pragma. */
-    @Override
-    public boolean supportsRuntimeSearch() {
-        return Build.current().isSnapshot() && configuration.pragmas().knnRuntimeField();
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions());
     }
 
     @Override
     public boolean isRuntimeSearch() {
-        if (supportsRuntimeSearch() == false) {
-            return false;
-        }
         FieldAttribute fieldAttribute = fieldAsFieldAttribute();
         if (fieldAttribute == null) {
             // This isn't a field in the index OR a pushed block loader
@@ -560,7 +589,7 @@ public class Knn extends SingleFieldFullTextFunction
     }
 
     public Expression withFilters(List<Expression> filterExpressions) {
-        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions, configuration());
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions);
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
@@ -601,32 +630,21 @@ public class Knn extends SingleFieldFullTextFunction
             newChildren.size() > 2 ? newChildren.get(2) : null,
             implicitK(),
             queryBuilder(),
-            filterExpressions(),
-            configuration()
+            filterExpressions()
         );
     }
 
     public Knn replaceOptions(Expression newOptions) {
-        return new Knn(source(), field(), query(), newOptions, implicitK(), queryBuilder(), filterExpressions(), configuration());
+        return new Knn(source(), field(), query(), newOptions, implicitK(), queryBuilder(), filterExpressions());
     }
 
     public Knn replaceQuery(Expression newQuery) {
-        return new Knn(source(), field(), newQuery, options(), implicitK(), queryBuilder(), filterExpressions(), configuration());
+        return new Knn(source(), field(), newQuery, options(), implicitK(), queryBuilder(), filterExpressions());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(
-            this,
-            Knn::new,
-            field(),
-            query(),
-            options(),
-            implicitK(),
-            queryBuilder(),
-            filterExpressions(),
-            configuration()
-        );
+        return NodeInfo.create(this, Knn::new, field(), query(), options(), implicitK(), queryBuilder(), filterExpressions());
     }
 
     @Override
@@ -644,8 +662,7 @@ public class Knn extends SingleFieldFullTextFunction
             ? in.readOptionalNamedWriteable(Expression.class)
             : null;
         Integer implicitK = in.getTransportVersion().supports(ESQL_OPTIONS_FOR_SEARCH_FUNCTIONS) ? in.readOptionalInt() : null;
-        Configuration configuration = ((PlanStreamInput) in).configuration();
-        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions, configuration);
+        return new Knn(source, field, query, options, implicitK, queryBuilder, filterExpressions);
     }
 
     @Override

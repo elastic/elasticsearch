@@ -17,7 +17,7 @@ There are three ways to trigger flakiness detection. All of them share the same 
 
 Runs on every pull request. No action needed — the PR build includes the `flakiness-detection` sub-pipeline.
 
-It reports rather than blocks, unless your team opted in - see [Blocking on labeled PRs](#blocking-on-labeled-prs).
+It reports rather than blocks, unless your team opted in or blocking is enabled for all PRs - see [Blocking](#blocking).
 
 The pipeline compares the PR branch against its merge base and selects:
 - **Changed tests** — every test file (`*Tests.java`, `*IT.java`, `*.yml` under `src/yamlRestTest/resources/`) added or modified in the PR.
@@ -34,9 +34,11 @@ Build environment variables:
 | Variable            | Required | Description                                                                                                                                                                                                                                                 |
 |---------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `FLAKINESS_CLASSES` | yes      | Newline- or comma-separated list of FQCNs. Each spec is one of: `org.foo.BarTests` (whole class), `org.foo.BarTests.testFoo` (resolves to class — method-level filtering deferred), or `org.foo.YamlIT.test {yaml=/10_apm/Test name}` (specific yaml case). |
-| `FLAKINESS_ITERS`   | no       | Positive integer applied uniformly to `-Dtests.iters` (unit + internalClusterTest) and `repeat-rest-test.sh` loop count. Defaults: 100 / 20 / 10 respectively.                                                                                              |
+| `FLAKINESS_ITERS`   | no       | Positive integer applied uniformly to `-Dtests.iters` (unit + internalClusterTest) and `repeat-gradle-run.sh` loop count. Defaults: 100 / 20 / 10 respectively. Java counts above the per-run cap (25 unit / 20 internalClusterTest) are split across several Gradle runs, see [Module 3](#module-3-runners). |
 
 Driver: `entrypoints/manual.ts` invoked from `.buildkite/pipelines/flakiness-detection-manual.yml`. Pipeline registered in `catalog-info.yaml`.
+
+Proven flakiness always fails a manual build - see [Blocking](#blocking).
 
 ### 3. Local CLI
 
@@ -144,7 +146,15 @@ Two implementations, one contract — both consume `RunnableCommand[]`:
 - `runners/buildkite.ts` — `toBuildkitePipeline` (pure) produces a Buildkite pipeline structure; `uploadBuildkitePipeline` (impure) serializes to YAML and shells out to `buildkite-agent pipeline upload`. The function appends a final `flakiness-detection:analyze` step that depends on every batch step with `allow_failure: true`, so the report runs even when batches fail.
 - `runners/local.ts` — `runLocally` executes each command sequentially via `execSync` with inherited stdio. Returns the worst exit code seen (does **not** stop on first failure — the developer sees all batch results).
 
-REST kinds (`javaRestTest` / `yamlRestTestRunner` / `yamlRestTestSuite` / `yamlRestTestCase`) re-run by looping a Gradle invocation `restIters` times inside `runners/repeat-rest-test.sh`, rather than via `-Dtests.iters` (unit / integ). Each Gradle run overwrites the same `build/test-results/**/TEST-*.xml` in place, so the loop relocates every iteration's XML into `flakiness-iters/iter-<i>/<original path>` after it runs. This keeps the `build/test-results/` path segment intact — so the artifact glob and the analyzer walker still match — while ensuring the analyzer sees *all* re-runs, not just the last. Consequently `Iterations attempted` counts case-executions across every re-run (cases × iterations) for these kinds. (Batch jobs run on fresh agents; local runs rely on the analyzer's mtime filter to ignore snapshots from earlier runs.)
+REST kinds (`javaRestTest` / `yamlRestTestRunner` / `yamlRestTestSuite` / `yamlRestTestCase`) re-run by looping a Gradle invocation `restIters` times inside `runners/repeat-gradle-run.sh`, rather than via `-Dtests.iters` (unit / integ; those use the same loop only to split a count above their per-run cap, see below). Each Gradle run overwrites the same `build/test-results/**/TEST-*.xml` in place, so the loop relocates every iteration's XML into `flakiness-iters/iter-<i>/<original path>` after it runs. This keeps the `build/test-results/` path segment intact — so the artifact glob and the analyzer walker still match — while ensuring the analyzer sees *all* re-runs, not just the last. Consequently `Iterations attempted` counts case-executions across every re-run (cases × iterations) for these kinds. (Batch jobs run on fresh agents; local runs rely on the analyzer's mtime filter to ignore snapshots from earlier runs.)
+
+The java kinds (`test` / `internalClusterTest`) iterate via `-Dtests.iters`, but never more than a per-kind cap per Gradle run: 25 for unit tests, 20 for internalClusterTest (`MAX_*_ITERS_PER_RUN` in `CommandBuilder`).
+A higher count is split evenly, rounding up, across several runs of the same `runners/repeat-gradle-run.sh` loop, each with `--rerun`; the default 100 unit iterations become 4 runs of 25, while the default 20 integ iterations stay a single plain run.
+The cap exists because all iterations of a suite in one Gradle run share one per-class temp directory, which Lucene's `TestRuleTemporaryFilesCleanup` only empties at the end of the suite and in which it gives up once 9999 temp dirs with the same name prefix exist.
+A test class that creates many temp dirs per iteration would otherwise exhaust that budget part way through and fail every remaining iteration with `Failed to get a temporary name too many times`, which is a harness artifact rather than flakiness.
+Each run starts a fresh suite, so the budget applies per run instead of per job.
+The cost is one extra Gradle invocation per additional run (configuration and up-to-date checks, fresh test JVMs, and its own build scan), so a default unit batch pays three more of them than a single run would.
+Keep an eye on unit batch durations relative to the inner timeout when changing the cap.
 
 ### Module 4: analyzer
 
@@ -158,6 +168,9 @@ Runs **after** the batches complete. Reads JUnit XML written by Gradle (`*/build
 Failure classification (`classifyFailure`):
 
 - `"suite-timeout"` — message matches `Test abandoned because suite timeout was reached.` or `Suite timeout exceeded (>= ...`. Informational; not counted as a real failure.
+- `"temp-dir-exhausted"` - message matches `Failed to get a temporary name too many times`.
+  Lucene's per-suite temp directory ran out of names (see the per-run iteration cap above), which is a test-harness limit rather than flakiness.
+  Not counted as a real failure; the report lists these as iterations not completed, naming the affected classes, and a job whose only failures are these ends up `infra_fail`.
 - `"assertion"` — `AssertionError` and subclasses.
 - `"error"` — any other Exception / Error.
 - `"other"` — everything else.
@@ -189,9 +202,9 @@ PR, which means the job `state`/`exit_status` carry no signal at all — almost
 every job looks like `state=passed, exit_status=0`. But even without the
 wrapper, the richer taxonomy below would still be worth deriving.
 
-The one exception is a PR whose team opted into blocking (see "Blocking on
-labeled PRs" below). There the analyze step may exit non-zero, but nothing else
-about the run changes, and the batch jobs still look identical.
+The one exception is a build that blocks on proven flakiness (see "Blocking"
+below). There the analyze step may exit non-zero, but nothing else about the run
+changes, and the batch jobs still look identical.
 
 ### How it works
 
@@ -227,28 +240,25 @@ Derived in priority order by `analyzer/outcome.ts` (`deriveOutcome`):
 
 | outcome         | how it is decided                                                              |
 | --------------- | ------------------------------------------------------------------------------ |
-| `flaky_detected`| `realFailures > 0` (failing test cases, excluding suite-timeout markers)        |
-| `timeout`       | `rc == 124`, or `rc == 137` with duration at/after the inner timeout            |
-| `infra_fail`    | `rc == 137` short run (`oom_killed`), a non-zero `rc` with a heap dump (`oom`), or any other non-zero `rc` with no real failures |
+| `flaky_detected`| `realFailures > 0` (failing test cases, excluding suite-timeout and temp-dir-exhausted markers) |
+| `timeout`       | `rc == 124`, or `rc == 137` with duration at/after the inner timeout, and no heap dump (with one it is `infra_fail`/`oom`) |
+| `infra_fail`    | `rc == 137` short run (`oom_killed`), a non-zero `rc` or a timeout with a heap dump (`oom`), or any other non-zero `rc` with no real failures |
 | `hang`          | `rc == 0`, zero recorded test cases, and at least one requested task actually ran |
 | `clean_pass`    | `rc == 0` with recorded cases and no real failures                              |
 | `not_applicable`| two sources, both meaning "nothing to re-run" and both excluded from the false-failure metric. **Upstream** (not by `deriveOutcome`): the resolver found no enabled `Test` task (`no-runnable-task`) or only destructive packaging tasks (`requires-packaging-host`). A re-homed subclass carries whichever of those its *owning* source set reported, not the base target's. Two more come from the resolver: `not-a-test-class` for something a `Test` task cannot address (a helper sharing a test source set, or an inner/anonymous subclass surfaced by bytecode expansion), and `subclass-outside-target-output`, a fallback for a class directory no project claimed a source set for - reachable in principle since `main` outputs are scanned but carry no disposition, though not in practice because `main` cannot depend on a test source set. **By `deriveOutcome`** (`task-skipped`): `rc == 0`, zero test cases, and gradle-runner's `task-status.json` reports *every* task the batch asked for as `SKIPPED` - Gradle's verdict for a task rejected by `onlyIf` or with no source. This is the only way to catch `onlyIf`, which is an execution-time `Spec` the resolver cannot introspect |
 | `build_failed`  | assigned upstream when the `compile` orchestration step fails: the PR did not compile, so `scan` was skipped and `generate` uploaded no batches. `analyze` emits one `build_failed` (keyed under `flakiness-orchestration:compile`, not a test batch), excluded from the false-failure metric (the PR is already red from its main build). |
 
-`timedOut` is reported alongside `outcome` so the two timeout shapes stay
-distinguishable: a job that times out **with** a real failure is
-`flaky_detected` + `timedOut=true` (flakiness proven, so it is not a false
-positive), while a job that times out with **no** failing run is `timeout`
-(`timedOut=true`) — the false positive we want to drive down.
+`timedOut` is reported alongside `outcome` so the three timeout shapes stay distinguishable.
+A job that times out **with** a real failure is `flaky_detected` + `timedOut=true` (flakiness proven, so it is not a false positive).
+A job that times out with **no** failing run is `timeout` (`timedOut=true`) - the false positive we want to drive down.
+A job that times out with no failing run but left a test-JVM heap dump is `infra_fail`/`oom` + `timedOut=true` (see below).
 
-`infraSubtype` is `oom_killed` (rc 137 + short run, the kernel OOM-killer) or
-`oom` (a JVM-heap `OutOfMemoryError`: rc != 0 with a `*/build/heapdump/*.hprof`
-file present, detected by the never-fail wrapper; the analyze step does not read
-the job log). Finer infra subtypes (disk-full, etc.) would require the job log,
-which we currently choose not to read, so they are left unset. `report_error`
-marks the one `infra_fail` record (keyed `flakiness-orchestration:report`) that
-the analyze step adds when an input from generate did not reach it, such as a
-missing or short skip list; its annotation then says the report is incomplete.
+`infraSubtype` is `oom_killed` (rc 137 + short run, the kernel OOM-killer) or `oom` (a JVM-heap `OutOfMemoryError`: a `*/build/heapdump/*.hprof` file present, detected by the never-fail wrapper; the analyze step does not read the job log).
+`oom` is set in two cases: the OOM makes the tests fail and Gradle exits with rc != 0, or the test JVM gets stuck after the OOM and the job runs until the wrapper's timeout (then `timedOut=true`).
+The heap dump shows the OOM caused the timeout, so the stuck case is `infra_fail`/`oom` rather than a `timeout`.
+Only test JVMs dump under `build/heapdump`: a testclusters node (REST tests) dumps to its logs dir, so a cluster-node OOM is not detected and a resulting hang stays a `timeout`.
+Finer infra subtypes (disk-full, etc.) would require the job log, which we currently choose not to read, so they are left unset.
+`report_error` marks the one `infra_fail` record (keyed `flakiness-orchestration:report`) that the analyze step adds when an input from generate did not reach it, such as a missing or short skip list; its annotation then says the report is incomplete.
 Jobs that fail
 *before* the wrapper runs (e.g. a pre-command hook failure) write no status file
 and so produce no payload; the external pipeline records those as `infra_fail`
@@ -264,34 +274,39 @@ also outside the batch predicate. The old in-pipeline compile gate keyed under
 `flakiness-detection:precompile` (which did produce that skipped-batch noise) has
 been removed.
 
-## Blocking on labeled PRs
+## Blocking
 
-By default the pipeline reports and never blocks: `never-fail.sh` exits 0 whatever the tests did, because Buildkite's GitHub commit-status integration mirrors step state and ignores `soft_failed`, so annotating is the only way to report a failure without reddening the PR.
-A team that trusts the signal can opt out of that for its own PRs by adding its GitHub label to `BLOCKING_LABELS` in `domain.ts`.
-On a PR carrying one of those labels, proven flakiness fails the build.
+By default the pipeline reports and never blocks a PR: `never-fail.sh` exits 0 whatever the tests did, because Buildkite's GitHub commit-status integration mirrors step state and ignores `soft_failed`, so annotating is the only way to report a failure without reddening the PR.
+Proven flakiness fails the build in three cases, checked in this order:
 
-Nothing else about the run changes: detection, resolution, batching and reporting never look at labels, so a blocking PR and a non-blocking one execute identically and produce the same artifacts.
+1. A non-PR build, i.e. the manually-triggered pipeline, whatever the labels or the switch below say. Someone asked for these exact classes to be checked, so the build reports proven flakiness as a failure.
+2. Any PR build, when `BLOCK_ALL_PRS` in `domain.ts` is `true`. Labels then have no effect.
+3. A PR carrying a label from `BLOCKING_LABELS` in `domain.ts`. A team that trusts the signal opts its own PRs in by adding its GitHub label there.
+
+A build is a PR build when `BUILDKITE_PULL_REQUEST` holds a PR number; Buildkite sets it to `false` on every other build.
+An unset value counts as a non-PR build, so proven flakiness fails it.
+The labels stay in place while `BLOCK_ALL_PRS` is on, so turning it back off restores the per-team opt-in.
+
+Nothing else about the run changes: detection, resolution, batching and reporting never look at any of this, so a blocking build and a non-blocking one execute identically and produce the same artifacts.
 
 **Only `flaky_detected` blocks** - a test case that actually failed on a re-run.
 `timeout`, `infra_fail`, `hang` and `not_applicable` do not, because they are the false failures the outcome taxonomy exists to separate; neither does `build_failed`, since the PR's own main build is already red for the same compile error.
 
-**The verdict lives in the analyze step**, which is why the batch steps keep their unconditional `exit 0` even on a labeled PR.
+**The verdict lives in the analyze step**, which is why the batch steps keep their unconditional `exit 0` even on a blocking build.
 A batch's `rc` cannot distinguish a proven flaky test from a timeout, a kernel OOM-kill, or a task Gradle skipped under `onlyIf`; only `deriveOutcome` can, and it runs in `analyze`.
 
 **The decision is made in one place.**
-`entrypoints/analyze.ts` owns it: `shouldBlock` is true when a job proved flakiness *and* `GITHUB_PR_LABELS` matches `BLOCKING_LABELS`, and only then does the step exit `FLAKINESS_PROVEN_EXIT_CODE`.
+`entrypoints/analyze.ts` owns it: `shouldBlock` applies the rules above to the build's `BUILDKITE_PULL_REQUEST`, its `GITHUB_PR_LABELS` and `BLOCK_ALL_PRS`, and only when it blocks does the step exit `FLAKINESS_PROVEN_EXIT_CODE`.
 Nothing upstream carries a "blocking" flag, so no step has to agree with any other about the policy, and adding another entrypoint cannot silently forget to pass it on.
 
-The analyze step is wrapped with `--hard-fail-rc <FLAKINESS_PROVEN_EXIT_CODE>` unconditionally, on every PR, which is what allows that exit code to reach Buildkite at all.
+The analyze step is wrapped with `--hard-fail-rc <FLAKINESS_PROVEN_EXIT_CODE>` unconditionally, on every build, which is what allows that exit code to reach Buildkite at all.
 That is not a second decision: the wrapper propagates one specific value and keeps returning 0 for every other, so the step can only go red by deliberately reaching the verdict above.
 Batch steps are never given the flag, because a gradle invocation that happened to exit with that value would fail a PR with no verdict behind it.
 
-Only the exit code is gated on the labels: the annotation and `flakiness-outcomes.json` are identical on every PR, so the observability data never depends on who opted in.
+Only the exit code depends on these rules: the annotation and `flakiness-outcomes.json` are identical on every build, so the observability data never depends on who opted in.
 The exit comes last, after the artifact and the annotation are written, and Buildkite uploads `artifact_paths` regardless of exit status, so a red run still publishes everything that explains it.
 
-Two caveats.
 Buildkite captures `GITHUB_PR_LABELS` when the build is created, so labelling an open PR takes effect on its next build.
-And the manually-triggered pipeline has no PR, hence no labels, so it is never blocking.
 
 ## File layout
 
@@ -299,7 +314,7 @@ And the manually-triggered pipeline has no PR, hence no labels, so it is never b
 flakiness-detection/
   README.md
   domain.ts              types (FlakinessRef, FlakinessPlan, PlanCommand, ClassifiedTest, ...), KIND_* tables, AGENTS/DEFAULT_AGENT_CONFIG,
-                         BLOCKING_LABELS + FLAKINESS_PROVEN_EXIT_CODE + matchedBlockingLabels (the blocking opt-in)
+                         BLOCK_ALL_PRS + BLOCKING_LABELS + FLAKINESS_PROVEN_EXIT_CODE + matchedBlockingLabels (the blocking policy)
   collectors/
     unmutes.ts           muted-tests.yml diff → unmute refs (parse/diff kept; locate removed)
     explicit-list.ts     spec strings → explicit refs
@@ -307,7 +322,7 @@ flakiness-detection/
   runners/
     buildkite.ts         RunnableCommand[] → BK YAML + upload; toResolvePipeline (orchestration [resolve, compile, scan] + separate generate step)
     local.ts             RunnableCommand[] → sequential execSync
-    repeat-rest-test.sh  REST-loop wrapper: repeats a Gradle run restIters times, preserves each iteration's XML
+    repeat-gradle-run.sh repeat wrapper: repeats a Gradle run N times, preserves each run's XML
   analyzer/
     junit-reports-analyzer.ts   JUnit XML → FlakinessReport
     render.ts                   FlakinessReport → markdown + severity
@@ -319,7 +334,8 @@ flakiness-detection/
     local.ts             argv driven: refs → flakinessResolveProject → compile tasks → flakinessScan → planCommandsToRunnable → runLocally
     generate.ts          reads flakiness-plan.json → planCommandsToRunnable + upload batches/analyze; folds skip/buildFailed
     analyze.ts           final BK step — classifies each job, uploads outcomes artifact + report annotation,
-                         and owns the blocking verdict (shouldBlock: proven flakiness + an opted-in PR label)
+                         and owns the blocking verdict (shouldBlock: proven flakiness + a non-PR build, BLOCK_ALL_PRS
+                         or an opted-in PR label)
 
 build-tools-internal/.../gradle/internal/flakiness/   (the Java resolver)
   FlakinessResolvePlugin             root plugin registering the scan task

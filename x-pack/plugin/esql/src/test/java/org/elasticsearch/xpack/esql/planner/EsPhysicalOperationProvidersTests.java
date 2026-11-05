@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -25,7 +28,9 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockLoaderStoredFieldsFromLeafLoader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -35,6 +40,8 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
@@ -52,6 +59,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -59,11 +67,17 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsAttribute;
+import org.elasticsearch.xpack.esql.plan.logical.UnmappedFieldsPattern;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +86,7 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
@@ -160,6 +175,77 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
     }
 
     /**
+     * An {@link EsQueryExec} with several query slices (as produced by {@code ROUND_TO} pushdown) emits the documents of all of
+     * them, so a field is only dense when it is dense in every slice.
+     */
+    public void testNullsFilteredFieldsAfterSourceQueriesIntersectsSlices() {
+        QueryBuilder existsF1 = new ExistsQueryBuilder("f1");
+        QueryBuilder existsF1AndF2 = new BoolQueryBuilder().filter(new ExistsQueryBuilder("f1")).filter(new ExistsQueryBuilder("f2"));
+        QueryBuilder noF1 = new BoolQueryBuilder().mustNot(new ExistsQueryBuilder("f1"));
+
+        // A single slice keeps its dense fields.
+        assertThat(slices(existsF1), equalTo(Set.of("f1")));
+        assertThat(slices(existsF1AndF2), equalTo(Set.of("f1", "f2")));
+        // Slices that agree keep the field.
+        assertThat(slices(existsF1, existsF1AndF2), equalTo(Set.of("f1")));
+        // The shape of the single-point ROUND_TO pushdown: documents with a value, plus the documents without one.
+        assertThat(slices(existsF1, noF1), equalTo(Set.of()));
+        assertThat(slices(noF1, existsF1), equalTo(Set.of()));
+        // Only the field that is dense in every slice survives.
+        assertThat(slices(existsF1AndF2, new BoolQueryBuilder().filter(new ExistsQueryBuilder("f2"))), equalTo(Set.of("f2")));
+        // A slice without a query matches every document.
+        assertThat(slices(existsF1, null), equalTo(Set.of()));
+        assertThat(slices((QueryBuilder) null), equalTo(Set.of()));
+        assertThat(EsPhysicalOperationProviders.nullsFilteredFieldsAfterSourceQueries(List.of()), equalTo(Set.of()));
+    }
+
+    private static Set<String> slices(QueryBuilder... queries) {
+        List<EsQueryExec.QueryBuilderAndTags> slices = new ArrayList<>();
+        for (QueryBuilder query : queries) {
+            slices.add(new EsQueryExec.QueryBuilderAndTags(query, List.of()));
+        }
+        return EsPhysicalOperationProviders.nullsFilteredFieldsAfterSourceQueries(slices);
+    }
+
+    /**
+     * Regression test for the node crash {@code nullsFiltered is true, but doc [N] has no value}: {@code ROUND_TO} pushdown
+     * splits the source query into {@code exists(f)} (tagged with the rounding point) and {@code must_not(exists(f))} (tagged
+     * {@code null}). Loading {@code f} must not be told that nulls are filtered, because the second slice matches only documents
+     * without a value for {@code f}.
+     */
+    public void testRoundToQuerySlicesDoNotFilterNulls() {
+        EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(
+                new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
+            ),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        List<EsQueryExec.QueryBuilderAndTags> roundToSlices = List.of(
+            new EsQueryExec.QueryBuilderAndTags(new ExistsQueryBuilder("f1"), List.of(0.5)),
+            new EsQueryExec.QueryBuilderAndTags(
+                new BoolQueryBuilder().mustNot(new ExistsQueryBuilder("f1")),
+                Collections.singletonList(null)
+            )
+        );
+        EsQueryExec queryExec = new EsQueryExec(Source.EMPTY, "test", IndexMode.STANDARD, List.of(), null, null, 10, roundToSlices);
+        FieldExtractExec fieldExtractExec = new FieldExtractExec(
+            Source.EMPTY,
+            queryExec,
+            List.of(
+                new FieldAttribute(Source.EMPTY, "f1", new EsField("f1", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+            ),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+        var fieldInfos = provider.extractFields(fieldExtractExec);
+        assertThat(fieldInfos.size(), equalTo(1));
+        assertThat("f1 has documents without a value in the null slice", fieldInfos.get(0).nullsFiltered(), equalTo(false));
+    }
+
+    /**
      * When unmapped_fields="load" and the unmapped field is a keyed subfield of a flattened field,
      * the shard context should resolve it from the mapping and use the keyed flattened block loader
      * instead of falling back to source.
@@ -179,13 +265,13 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ),
             null
         );
-        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+        // The plan reads resource.attributes.host.name as a field some shards may not map, and this shard resolves it
+        var unmappedCtx = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
-            searchExecutionContext,
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("resource.attributes.host.name")),
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "resource.attributes.host.name");
 
         MappedFieldType fieldType = unmappedCtx.fieldType("resource.attributes.host.name");
         assertThat(
@@ -375,13 +461,13 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ),
             null
         );
-        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+        // The plan reads item.value as a field some shards may not map, and this shard resolves it
+        var unmappedCtx = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
-            searchExecutionContext,
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("item.value")),
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "item.value");
         BlockLoader blockLoader = unmappedCtx.blockLoader(
             "item.value",
             false,
@@ -396,20 +482,20 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
 
     /**
      * A leaf that is not declared anywhere in the mapping behaves like any other unmapped field even when its parent is
-     * a nested object: the wrap loads it from {@code _source}.
+     * a nested object: the shard loads it from {@code _source}.
      */
     public void testUnmappedLeafUnderNestedParentLoadsFromSource() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(mapping(b -> b.startObject("item").field("type", "nested").endObject())),
             null
         );
-        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+        // The plan reads item.extra as a field some shards may not map, and this shard resolves it
+        var unmappedCtx = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
-            searchExecutionContext,
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("item.extra")),
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "item.extra");
         BlockLoader blockLoader = unmappedCtx.blockLoader(
             "item.extra",
             false,
@@ -419,25 +505,25 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ByteSizeValue.ofKb(100),
             ByteSizeValue.ofKb(300)
         );
-        assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
+        assertThat(blockLoader, hasToString("UnmappedFields.Named[item.extra]"));
     }
 
     /**
-     * A field genuinely unmapped on the shard under {@code unmapped_fields="load"} loads from {@code _source} via
-     * {@link UnmappedKeywordBlockLoader}, whose stored-field spec must request only that field's own source paths.
+     * A field genuinely unmapped on the shard under {@code unmapped_fields="load"} loads from {@code _source} via the loader
+     * the mapping hands out for unmapped fields, whose stored-field spec must request only that field's own source paths.
      */
     public void testUnmappedKeywordBlockLoaderRequestsOnlyItsOwnSourcePath() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             createMapperService(mapping(b -> b.startObject("mapped_kw").field("type", "keyword").endObject())),
             null
         );
-        var defaultCtx = new EsPhysicalOperationProviders.DefaultShardContext(
+        // The plan reads unmapped_kw as a field some shards may not map, and this shard resolves it
+        var unmappedCtx = new EsPhysicalOperationProviders.DefaultShardContext(
             0,
             new NoOpReleasable(),
-            searchExecutionContext,
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("unmapped_kw")),
             AliasFilter.EMPTY
         );
-        var unmappedCtx = EsPhysicalOperationProviders.wrapWithUnmappedFieldContext(defaultCtx, "unmapped_kw");
 
         BlockLoader blockLoader = unmappedCtx.blockLoader(
             "unmapped_kw",
@@ -448,12 +534,114 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             ByteSizeValue.ofKb(100),
             ByteSizeValue.ofKb(300)
         );
-        assertThat(blockLoader, instanceOf(UnmappedKeywordBlockLoader.class));
+        assertThat(blockLoader, hasToString("UnmappedFields.Named[unmapped_kw]"));
         assertThat(
             "unmapped keyword loader must filter _source to its own path rather than request the whole document",
             blockLoader.rowStrideStoredFieldSpec(),
             equalTo(StoredFieldsSpec.withSourcePaths(IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of("unmapped_kw")))
         );
+    }
+
+    /**
+     * The fields that may be unmapped and the {@code _unmapped_fields} column of one extraction read a document once
+     * between them, and each gets its own values.
+     */
+    public void testUnmappedFieldsOfOneExtractionShareOneWalk() throws IOException {
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(mapping(b -> b.startObject("mapped_kw").field("type", "keyword").endObject())),
+            null
+        );
+        // The plan reads first and second.leaf as fields some shards may not map, and this shard reads them from _source
+        var shardContext = new EsPhysicalOperationProviders.DefaultShardContext(
+            0,
+            new NoOpReleasable(),
+            new EsqlSearchExecutionContext(searchExecutionContext, QueryWarnings.EMIT, Set.of("first", "second.leaf")),
+            AliasFilter.EMPTY
+        );
+        var provider = new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            new IndexedByShardIdFromSingleton<>(shardContext),
+            null,
+            PlannerSettings.DEFAULTS,
+            () -> 0L,
+            QueryWarnings.EMIT
+        );
+        EsQueryExec queryExec = new EsQueryExec(
+            Source.EMPTY,
+            "test",
+            IndexMode.STANDARD,
+            List.of(),
+            null,
+            null,
+            10,
+            List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
+        );
+        FieldExtractExec fieldExtractExec = new FieldExtractExec(
+            Source.EMPTY,
+            queryExec,
+            List.of(
+                maybeUnmapped("first"),
+                new UnmappedFieldsAttribute(Source.EMPTY, UnmappedFieldsPattern.excludes(List.of("first", "second.leaf"))),
+                maybeUnmapped("second.leaf")
+            ),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+        DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance(), null);
+        int[] walks = new int[1];
+        org.elasticsearch.search.lookup.Source source = org.elasticsearch.search.lookup.Source.fromBytes(new BytesArray("""
+            { "mapped_kw": "m", "first": "a", "second": { "leaf": [ "b", "c" ] }, "third": 1 }"""), XContentType.JSON);
+        SourceLoader.Leaf sourceLeaf = new SourceLoader.Leaf() {
+            @Override
+            public org.elasticsearch.search.lookup.Source source(LeafStoredFieldLoader storedFields, int docId) {
+                return new org.elasticsearch.search.lookup.Source() {
+                    @Override
+                    public XContentType sourceContentType() {
+                        return source.sourceContentType();
+                    }
+
+                    @Override
+                    public Map<String, Object> source() {
+                        throw new AssertionError("the walk reads the serialized source");
+                    }
+
+                    @Override
+                    public BytesReference internalSourceRef() {
+                        walks[0]++;
+                        return source.internalSourceRef();
+                    }
+
+                    @Override
+                    public org.elasticsearch.search.lookup.Source filter(SourceFilter sourceFilter) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+
+            @Override
+            public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) {
+                throw new UnsupportedOperationException();
+            }
+        };
+        BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(null, sourceLeaf);
+        storedFields.advanceTo(0);
+        List<Object> loaded = new ArrayList<>();
+        for (ValuesSourceReaderOperator.FieldInfo field : provider.extractFields(fieldExtractExec)) {
+            BlockLoader loader = field.buildLoader().build(driverContext, 0).loader();
+            try (BlockLoader.RowStrideReader reader = loader.rowStrideReader(driverContext.breaker(), null)) {
+                BlockLoader.Builder builder = loader.builder(TestBlock.factory(), 1);
+                reader.read(0, storedFields, builder);
+                loaded.add(((TestBlock) builder.build()).get(0));
+            }
+        }
+        assertThat(walks[0], equalTo(1));
+        assertThat(
+            loaded,
+            equalTo(List.of(new BytesRef("a"), new BytesRef("{\"third\":1}"), List.of(new BytesRef("b"), new BytesRef("c"))))
+        );
+    }
+
+    private static FieldAttribute maybeUnmapped(String name) {
+        return new FieldAttribute(Source.EMPTY, null, null, name, new PotentiallyUnmappedKeywordEsField(name));
     }
 
     public void testTemporalityForMissingSetting() throws IOException {

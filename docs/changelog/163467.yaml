@@ -1,0 +1,5 @@
+area: Authorization
+issues: []
+pr: 163467
+summary: Grant Manage investigations on every `AlertZero` worker reserved role
+type: enhancement

@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
@@ -290,7 +292,7 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
      * In this context pushable means that we can push the filter down to the right side of a LEFT join
      * We do not check if the filter is pushable to Lucene or not here
      */
-    private static boolean isRightPushableFilter(Expression filter, FoldContext foldCtx) {
+    static boolean isRightPushableFilter(Expression filter, FoldContext foldCtx) {
         // traverse the filter tree
         // replace any reference to an attribute with a null literal
         Expression nullifiedFilter = filter.transformUp(Attribute.class, r -> new Literal(r.source(), null, r.dataType()));
@@ -314,11 +316,20 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
         Function<Expression, Expression> resolveRenames
     ) {
         LogicalPlan plan;
+        List<Expression> conjuncts = Predicates.splitAnd(filter.condition());
+        List<Expression> resolved = conjuncts.stream().map(resolveRenames).toList();
+        // A search that stays above the unary only adds to _score once its filter has filtered, so a predicate on _score
+        // stays with it to see that score (see LocalExecutionPlanner#planFilter).
+        boolean scoringSearchStays = false;
+        for (int i = 0; i < conjuncts.size(); i++) {
+            scoringSearchStays |= resolved.get(i).anyMatch(cannotPush) && FullTextFunction.containsScoringSearch(conjuncts.get(i));
+        }
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
-        for (Expression exp : Predicates.splitAnd(filter.condition())) {
-            Expression resolvedExp = resolveRenames.apply(exp);
-            if (resolvedExp.anyMatch(cannotPush)) {
+        for (int i = 0; i < conjuncts.size(); i++) {
+            Expression exp = conjuncts.get(i);
+            Expression resolvedExp = resolved.get(i);
+            if (resolvedExp.anyMatch(cannotPush) || (scoringSearchStays && resolvedExp.anyMatch(MetadataAttribute::isScoreAttribute))) {
                 // Add the original expression to the non-pushables.
                 nonPushable.add(exp);
             } else {

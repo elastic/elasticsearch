@@ -573,6 +573,93 @@ public class PartitionSpecProjectorTests extends ESTestCase {
         assertTrue(nanos.overlaps(hourFolder(11), datetime));
     }
 
+    public void testFolderRangeIdentityStableWithinUtcDayDiffersAcrossDays() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Instant morning = Instant.parse("2026-10-14T01:00:00Z");
+        Instant afternoon = Instant.parse("2026-10-14T23:00:00Z");
+        Instant nextDay = Instant.parse("2026-10-15T01:00:00Z");
+        var a = spec.folderRangePredicate(List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, morning)));
+        var b = spec.folderRangePredicate(List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, afternoon)));
+        var c = spec.folderRangePredicate(List.of(hint("ts", Operator.GREATER_THAN_OR_EQUAL, nextDay)));
+        assertNotNull(a);
+        assertEquals(a.identity(), b.identity());
+        assertNotEquals(a.identity(), c.identity());
+        assertEquals(List.of("year", "month", "day"), a.bindKeys());
+        assertTrue(a.mayContain(Map.of("year", "2026", "month", "10", "day", "14")));
+        assertFalse(a.mayContain(Map.of("year", "2026", "month", "10", "day", "13")));
+    }
+
+    public void testFolderRangeIdentityDistinguishesInListsThatShareAHull() {
+        PartitionSpec spec = PartitionSpec.parse("year(ts), month(ts), day(ts)");
+        Instant jan1 = Instant.parse("2024-01-01T00:00:00Z");
+        Instant jun15 = Instant.parse("2024-06-15T00:00:00Z");
+        Instant dec31 = Instant.parse("2024-12-31T00:00:00Z");
+        var ends = spec.folderRangePredicate(List.of(hint("ts", Operator.IN, jan1, dec31)));
+        var mid = spec.folderRangePredicate(List.of(hint("ts", Operator.IN, jan1, jun15, dec31)));
+        assertNotNull(ends);
+        assertNotNull(mid);
+        assertNotEquals("IN lists with the same min-max must not share a listing cache entry", ends.identity(), mid.identity());
+        assertTrue(ends.mayContain(Map.of("year", "2024", "month", "1", "day", "1")));
+        assertFalse(ends.mayContain(Map.of("year", "2024", "month", "6", "day", "15")));
+        assertTrue(mid.mayContain(Map.of("year", "2024", "month", "6", "day", "15")));
+    }
+
+    public void testQuantizeRangeAgreesWithRawOnGrainFoldersIncludingLagLead() {
+        Instant min = Instant.parse("2000-01-01T00:00:00Z");
+        Instant max = Instant.parse("2030-12-31T23:00:00Z");
+        for (int i = 0; i < 200; i++) {
+            PartitionSpec.Transform grain = randomFrom(
+                PartitionSpec.Transform.YEAR,
+                PartitionSpec.Transform.MONTH,
+                PartitionSpec.Transform.DAY,
+                PartitionSpec.Transform.HOUR
+            );
+            long folderStart = randomAlignedFolderStart(grain, min, max);
+            long folderEnd = alignedFolderEnd(folderStart, grain);
+            Long start = randomBoolean() ? randomLongBetween(min.toEpochMilli(), max.toEpochMilli()) : null;
+            Long end = randomBoolean() ? randomLongBetween(min.toEpochMilli(), max.toEpochMilli()) : null;
+            if (start != null && end != null && start > end) {
+                long swap = start;
+                start = end;
+                end = swap;
+            }
+            long lead = randomBoolean() ? 0L : randomLongBetween(0, 48L * 3_600_000L);
+            long lag = randomBoolean() ? 0L : randomLongBetween(0, 48L * 3_600_000L);
+            Long widenedStart = start;
+            Long widenedEnd = end;
+            if (widenedStart != null && lead != 0) {
+                try {
+                    widenedStart = Math.subtractExact(widenedStart, lead);
+                } catch (ArithmeticException overflow) {
+                    widenedStart = null;
+                }
+            }
+            if (widenedEnd != null && lag != 0) {
+                try {
+                    widenedEnd = Math.addExact(widenedEnd, lag);
+                } catch (ArithmeticException overflow) {
+                    widenedEnd = null;
+                }
+            }
+            PartitionSpec.InstantRange raw = new PartitionSpec.InstantRange(widenedStart, widenedEnd);
+            PartitionSpec.InstantRange quantized = PartitionSpec.quantizeRange(raw, grain);
+            assertEquals(
+                "grain=" + grain + " folder=[" + folderStart + "," + folderEnd + ") raw=" + raw,
+                raw.overlapsFolder(folderStart, folderEnd),
+                quantized.overlapsFolder(folderStart, folderEnd)
+            );
+        }
+    }
+
+    private static long randomAlignedFolderStart(PartitionSpec.Transform grain, Instant min, Instant max) {
+        long millis = randomLongBetween(min.toEpochMilli(), max.toEpochMilli());
+        return PartitionSpec.quantizeRange(new PartitionSpec.InstantRange(millis, millis + 1), grain).startInclusiveMillis();
+    }
+
+    private static long alignedFolderEnd(long folderStart, PartitionSpec.Transform grain) {
+        return PartitionSpec.quantizeRange(new PartitionSpec.InstantRange(folderStart + 1, folderStart + 1), grain).endExclusiveMillis();
+    }
+
     private static PartitionFilterHint hint(String column, Operator op, Object... values) {
         return new PartitionFilterHint(column, op, List.of(values));
     }

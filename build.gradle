@@ -563,6 +563,9 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'x-pack/qa/smoke-test-plugins/build.gradle',
       'x-pack/qa/smoke-test-plugins-ssl/build.gradle',
     ],
+    'distribution-closure-assignment': [
+      'distribution/build.gradle::6',
+    ],
   ])
 }
 
@@ -579,6 +582,7 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql:compute:ann',
     ':x-pack:plugin:esql:compute:gen',
     ':x-pack:plugin:esql:compute:test',
+    ':x-pack:plugin:esql:profile-schema',
     ':x-pack:plugin:esql:qa:testFixtures',
     ':x-pack:plugin:esql:tools',
     ':x-pack:plugin:esql-core',

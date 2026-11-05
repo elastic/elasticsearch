@@ -42,7 +42,7 @@ public class MvContainsStaticTests extends ESTestCase {
     public void testNotTranslatableWithLiteralArguments() {
         for (DataType dataType : DataType.types()) {
             // these types are not supported in MV_CONTAINS
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentableInExpression(dataType) == false) {
                 continue;
             }
             MvContains mvContains = new MvContains(Source.EMPTY, randomLiteral(dataType), randomLiteral(dataType));
@@ -53,7 +53,7 @@ public class MvContainsStaticTests extends ESTestCase {
     public void testNotTranslatableWithNonFoldableArgument() {
         for (DataType dataType : DataType.types()) {
             // these types are not supported in MV_CONTAINS
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentableInExpression(dataType) == false) {
                 continue;
             }
 
@@ -83,7 +83,7 @@ public class MvContainsStaticTests extends ESTestCase {
     public void testTranslatable() {
         for (DataType dataType : DataType.types()) {
             // these types are not supported in MV_CONTAINS
-            if (DataType.isRepresentable(dataType) == false) {
+            if (DataType.isRepresentableInExpression(dataType) == false) {
                 continue;
             }
             FieldAttribute fieldAttr = new FieldAttribute(

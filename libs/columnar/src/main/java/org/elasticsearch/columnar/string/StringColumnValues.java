@@ -11,6 +11,7 @@ package org.elasticsearch.columnar.string;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.columnar.substrate.BytesSink;
 
 import java.io.IOException;
 
@@ -29,8 +30,12 @@ import java.io.IOException;
  */
 public abstract class StringColumnValues extends DocIdSetIterator {
 
-    /** The number of slots the current document holds, null slots included. */
-    public abstract int valueCount();
+    /**
+     * The number of slots the current document holds, null slots included. May read: a cursor over foreign
+     * payloads splits the document's payload no earlier than this, so a pass that only moves through the
+     * documents never asks for their bytes.
+     */
+    public abstract int valueCount() throws IOException;
 
     /**
      * How many of the current document's slots are null. Separate from the cursor so the column writer's
@@ -94,6 +99,33 @@ public abstract class StringColumnValues extends DocIdSetIterator {
      * than merely describing it differently.
      */
     public abstract BytesRef value() throws IOException;
+
+    /** Hands the value the cursor is on, which must not be null, to {@code sink}, a piece at a time where the cursor can. */
+    public void transferValue(BytesSink sink) throws IOException {
+        final BytesRef value = value();
+        sink.append(value.bytes, value.offset, value.length);
+    }
+
+    /**
+     * Whether a plain column can be written from this cursor without holding a value, through {@link #transferValue} and
+     * {@link #repeatsPrevious}.
+     */
+    public boolean streamsValues() {
+        return false;
+    }
+
+    /**
+     * Whether the value the cursor is on is known to equal the value it was on before. False when unknown, which stores
+     * the repeat again.
+     */
+    public boolean repeatsPrevious() throws IOException {
+        return false;
+    }
+
+    /** Whether the values may arrive in term order. False spares the writer comparing them. */
+    public boolean mayBeSorted() {
+        return true;
+    }
 
     /**
      * The ordinal the value the cursor is on takes in the column being written, when the cursor already

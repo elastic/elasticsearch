@@ -2332,7 +2332,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "id:long,description:keyword\n1,\"line1\nline2\"\n2,\"simple\"\n";
 
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2958,7 +2958,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testRecordBoundaryCountAgreesWithReadCsvRecord() throws IOException {
         for (boolean tsv : new boolean[] { true, false }) {
             CsvFormatOptions options = tsv ? CsvFormatOptions.TSV : CsvFormatOptions.DEFAULT;
-            CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+            CsvFormatReader reader = multilineReader(blockFactory).withOptions(options);
             char delim = options.delimiter();
             boolean bracketAware = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && delim == ',';
 
@@ -3645,7 +3645,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // The \r inside "b\rc" is a real 0x0D byte — it must be preserved verbatim, not converted to \n.
         String csv = "id:keyword,val:keyword,end:keyword\n\"a\",\"b\rc\",\"d\"\n\"e\",\"f\",\"g\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3667,7 +3667,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Same as testQuotedFieldWithLoneCrPreserved but via the Jackson (non-fused) path.
         String csv = "id:keyword,val:keyword,end:keyword\n\"a\",\"b\rc\",\"d\"\n\"e\",\"f\",\"g\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "NONE"));
+        CsvFormatReader reader = noMvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3689,7 +3689,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // Embedded \r\n inside a quoted field must be preserved as field content, not treated as line terminator.
         String csv = "a:keyword,b:keyword\n\"hello\r\nworld\",\"x\"\n\"y\",\"z\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -4776,20 +4776,20 @@ public class CsvFormatReaderTests extends ESTestCase {
     // --- findNextRecordBoundary tests ---
 
     public void testFindNextRecordBoundarySimpleNewline() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "field1,field2\n".getBytes(StandardCharsets.UTF_8);
         assertEquals(data.length, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryCRLF() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "field1,field2\r\n".getBytes(StandardCharsets.UTF_8);
         long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("field1,field2\r\n".indexOf('\n') + 1, boundary);
     }
 
     public void testFindNextRecordBoundaryNewlineInsideQuotes() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "\"field\nwith\nnewlines\",other\nreal_boundary\n".getBytes(StandardCharsets.UTF_8);
         long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         int expected = "\"field\nwith\nnewlines\",other\n".length();
@@ -4797,7 +4797,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFindNextRecordBoundaryEscapedQuotes() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "\"value with \"\"escaped\"\" quotes\"\nrest\n".getBytes(StandardCharsets.UTF_8);
         long boundary = reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data));
         int expected = "\"value with \"\"escaped\"\" quotes\"\n".length();
@@ -4805,18 +4805,18 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFindNextRecordBoundaryEofNoNewline() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "field1,field2".getBytes(StandardCharsets.UTF_8);
         assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(data)));
     }
 
     public void testFindNextRecordBoundaryEmptyStream() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         assertEquals(-1, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
     }
 
     public void testFindNextRecordBoundaryQuotedNewlineAcrossSplitBoundary() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         // Simulate a split boundary landing inside a quoted field with embedded newlines.
         // The boundary finder must skip past the quoted field to find the real record boundary.
         byte[] data = "partial,\"quoted\nfield\nwith\nnewlines\",end\nnext_record,b,c\n".getBytes(StandardCharsets.UTF_8);
@@ -4894,7 +4894,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFindNextRecordBoundaryStrayQuoteIsNotAQuoteOpener() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         // Stray `"` inside an unquoted cell must not switch the scanner into quote mode; otherwise the
         // first `\n` is skipped and the segment boundary lands far past the next record.
         byte[] data = "1,Inch \" mark,42\n2,plain,7\n".getBytes(StandardCharsets.UTF_8);
@@ -4926,33 +4926,33 @@ public class CsvFormatReaderTests extends ESTestCase {
     // --- findLastRecordBoundary tests ---
 
     public void testFindLastRecordBoundarySimpleTwoLines() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "a,b\nc,d\n".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
     }
 
     public void testFindLastRecordBoundarySingleTrailingLineNoTerminator() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "a,b\nc,d".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(3, boundary);
     }
 
     public void testFindLastRecordBoundaryEmpty() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(new byte[0], 0));
     }
 
     public void testFindLastRecordBoundaryAllInsideQuotedField() throws IOException {
         // Unterminated quoted cell: no boundary; caller must grow.
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "\"line one\nline two\nline three\n".getBytes(StandardCharsets.UTF_8);
         assertEquals(-1, reader.recordSplitter().findLastRecordBoundary(data, data.length));
     }
 
     public void testFindLastRecordBoundarySkipsEmbeddedNewlineInQuotedField() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "\"row1\nwith\nembedded\",a\nrow2,b\n".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
@@ -4960,7 +4960,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testFindLastRecordBoundaryEmbeddedNewlineFollowedByUnterminatedTail() throws IOException {
         // Complete row, then an unterminated quoted field whose closing quote is in the next chunk.
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "row1,a\n\"row2 starts here\nstill inside quote".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals("row1,a\n".length() - 1, boundary);
@@ -4968,7 +4968,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testFindLastRecordBoundaryRespectsBracketMvc() throws IOException {
         // Embedded \n inside [..] must not be a boundary.
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "a,[v1\nv2\nv3],b\nrow2,plain,c\n".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
@@ -4985,7 +4985,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFindLastRecordBoundaryCRLF() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "a,b\r\nc,d\r\n".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
@@ -4994,7 +4994,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     public void testFindLastRecordBoundaryDoubledQuoteEscape() throws IOException {
         // RFC 4180: "" is a literal quote inside a quoted field, not close-then-reopen.
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = multilineReader(blockFactory);
         byte[] data = "\"value with \"\"escaped\"\" quotes\"\nrest\n".getBytes(StandardCharsets.UTF_8);
         int boundary = reader.recordSplitter().findLastRecordBoundary(data, data.length);
         assertEquals(data.length - 1, boundary);
@@ -5004,11 +5004,16 @@ public class CsvFormatReaderTests extends ESTestCase {
     // --- findLastRecordBoundary tests for the QuotedFieldsOnly override path (TSV / non-bracket-MVC CSV) ---
 
     private static CsvFormatReader tsvReader(BlockFactory bf) {
-        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("delimiter", "\t"));
+        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("delimiter", "\t", "multiline_fields", true));
     }
 
     private static CsvFormatReader noMvcReader(BlockFactory bf) {
-        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("multi_value_syntax", "none"));
+        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("multi_value_syntax", "none", "multiline_fields", true));
+    }
+
+    /** A default-dialect reader on the quote-aware walk: {@code multiline_fields} left unset cuts on plain newlines. */
+    private static CsvFormatReader multilineReader(BlockFactory bf) {
+        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("multiline_fields", true));
     }
 
     /** Comma-delimited reader with bracket multi-value parsing enabled (no longer the default). */
@@ -6863,8 +6868,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         StorageObject object = createStorageObject(csv);
         // Jackson path requires bracketMultiValues=false: use NONE multi-value syntax.
-        Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        CsvFormatReader reader = noMvcReader(blockFactory);
         ErrorPolicy lenient = new ErrorPolicy(10, true);
 
         List<Long> ids = new ArrayList<>();
@@ -6896,8 +6900,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             """;
 
         StorageObject object = createStorageObject(csv);
-        Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        CsvFormatReader reader = noMvcReader(blockFactory);
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
@@ -6958,8 +6961,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
 
         StorageObject object = createStorageObject(csv.toString());
-        Map<String, Object> config = Map.of("multi_value_syntax", "NONE");
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
+        CsvFormatReader reader = noMvcReader(blockFactory);
         ErrorPolicy budgetOf2 = new ErrorPolicy(2, false);
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
@@ -7351,7 +7353,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "1,Alice\n2,\"Bob\n3,Charlie\n4,Dave\n";
         StorageObject object = createStorageObject(csv);
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100)
+            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 100, "multiline_fields", true)
         );
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
@@ -7375,7 +7377,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             csv.append(i).append(",\"unterminated\n");
         }
         StorageObject object = createStorageObject(csv.toString());
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false, "multi_value_syntax", "NONE"));
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "multi_value_syntax", "NONE", "multiline_fields", true)
+        );
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
@@ -7407,7 +7411,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         StorageObject object = createStorageObject(csv.toString());
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 5)
+            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", 5, "multiline_fields", true)
         );
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
@@ -7436,7 +7440,18 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
         StorageObject object = createStorageObject(csv.toString());
         FormatReader reader = new CsvFormatReader(blockFactory).withConfig(
-            Map.of("header_row", false, "multi_value_syntax", "NONE", "error_mode", "skip_row", "max_errors", Long.MAX_VALUE)
+            Map.of(
+                "header_row",
+                false,
+                "multi_value_syntax",
+                "NONE",
+                "error_mode",
+                "skip_row",
+                "max_errors",
+                Long.MAX_VALUE,
+                "multiline_fields",
+                true
+            )
         );
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
@@ -7492,7 +7507,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             """;
         StorageObject object = createStorageObject(csv);
         // Bracket parsing disabled so the Jackson tokeniser fires the structural error.
-        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "NONE"));
+        FormatReader reader = new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", "NONE", "multiline_fields", true));
 
         ExternalClientException e = expectThrows(ExternalClientException.class, () -> {
             try (
@@ -7551,7 +7566,9 @@ public class CsvFormatReaderTests extends ESTestCase {
             new ReferenceAttribute(Source.EMPTY, null, "col0", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "col1", DataType.KEYWORD)
         );
-        FormatReader headerless = new CsvFormatReader(blockFactory).withConfig(Map.of("header_row", false, "multi_value_syntax", "NONE"));
+        FormatReader headerless = new CsvFormatReader(blockFactory).withConfig(
+            Map.of("header_row", false, "multi_value_syntax", "NONE", "multiline_fields", true)
+        );
         FormatReader bound2 = headerless.withSchema(bound);
 
         // SKIP_ROW so the malformed row is dropped and the rest of the file flows through.
@@ -8611,7 +8628,9 @@ public class CsvFormatReaderTests extends ESTestCase {
      */
     public void testHeaderBindingByProvenanceFirstSplitStepsOverTheHeaderAsMainDoes() throws Exception {
         String content = "id,name,\"x\\\"\n1,alice,a\n2,bob,b\n";
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", false));
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("trim_spaces", false, "multiline_fields", true)
+        );
         List<Attribute> readSchema = List.of(
             new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG),
             new ReferenceAttribute(Source.EMPTY, null, "name", DataType.KEYWORD)
@@ -8674,9 +8693,15 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testFileHeaderColumnsOfAnUnterminatedHeaderAreNone() throws Exception {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
         assertEquals(List.of(), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_na")));
-        assertEquals(List.of(), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,\"first\nna")));
+        assertEquals(List.of(), multilineReader(blockFactory).fileHeaderColumns(new TrackingStorageObject("emp_no,\"first\nna")));
         assertEquals(List.of("emp_no", "first_name"), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_name\n")));
         assertEquals(List.of("emp_no", "first_name"), reader.fileHeaderColumns(new TrackingStorageObject("emp_no,first_name\r\n")));
+        // A header that runs past a line break breaks the contract a default reader reads on, like any record does.
+        Exception e = expectThrows(
+            ExternalClientException.class,
+            () -> reader.fileHeaderColumns(new TrackingStorageObject("emp_no,\"first\nna"))
+        );
+        assertThat(e.getMessage(), containsString("multiline_fields"));
     }
 
     /** The header is read from the leading bytes and the stream is aborted, never drained by a close. */
@@ -11057,7 +11082,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         long[] expectedOffsets = computeRecordStartOffsets(csv, true);
         assertEquals(3, expectedOffsets.length);
 
-        List<Long> singleSplit = collectRowPositions(csv, 0L, false, true, true);
+        List<Long> singleSplit = collectRowPositions(csv, 0L, false, true, true, Map.of("multiline_fields", true));
         assertEquals(3, singleSplit.size());
         assertEquals(expectedOffsets[0], (long) singleSplit.get(0));
         assertEquals(expectedOffsets[1], (long) singleSplit.get(1));
@@ -11077,7 +11102,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         String csv = "id:long,name:keyword\n1,a\\\nb\n2,Bob\n";
         StorageObject object = createStorageObject(csv);
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("quote", "\"", "escape", "\\", "trim_spaces", true)
+            Map.of("quote", "\"", "escape", "\\", "trim_spaces", true, "multiline_fields", true)
         );
         FormatReadContext ctx = FormatReadContext.builder()
             .batchSize(64)
@@ -11157,11 +11182,22 @@ public class CsvFormatReaderTests extends ESTestCase {
         boolean firstSplit,
         boolean lastSplit
     ) throws IOException {
+        return collectRowPositions(csvContent, splitStartByte, recordAligned, firstSplit, lastSplit, Map.of());
+    }
+
+    private List<Long> collectRowPositions(
+        String csvContent,
+        long splitStartByte,
+        boolean recordAligned,
+        boolean firstSplit,
+        boolean lastSplit,
+        Map<String, Object> config
+    ) throws IOException {
         StorageObject object = createStorageObject(csvContent);
         // Use the header-on path so the reader skips the header line; resolved schema is left for
         // first-split discovery on the first split and pre-bound on subsequent record-aligned
         // splits via withSchema.
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(config);
         // Non-first splits do not have a header to discover from; pre-bind the schema so the iterator
         // can skip schema inference. Production callers do this via the planner's withSchema(...)
         // call for both record-aligned and macro-split non-first reads.
@@ -11315,8 +11351,9 @@ public class CsvFormatReaderTests extends ESTestCase {
         // instead of aborting. trim_spaces keeps Jackson's grammar applicable so the read stays on the bulk
         // path (with its stream-fatal CsvRecordCappingInputStream); withDirectBlockEnabled(false) forces the
         // bulk arm over the direct one. See read() for the rationale.
-        CsvFormatReader reader = ((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("trim_spaces", true)))
-            .withDirectBlockEnabled(false);
+        CsvFormatReader reader = ((CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("trim_spaces", true, "multiline_fields", true)
+        )).withDirectBlockEnabled(false);
 
         FormatReadContext context = FormatReadContext.builder()
             .batchSize(10)

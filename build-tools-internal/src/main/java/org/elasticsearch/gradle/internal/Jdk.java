@@ -28,8 +28,13 @@ public class Jdk implements Buildable, Iterable<File> {
     private static final List<String> ALLOWED_ARCHITECTURES = List.of("aarch64", "x64");
     private static final List<String> ALLOWED_VENDORS = List.of("adoptium", "openjdk", "zulu");
     private static final List<String> ALLOWED_PLATFORMS = List.of("darwin", "linux", "windows", "mac");
-    private static final Pattern VERSION_PATTERN = Pattern.compile(
-        "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
+    /**
+     * Matches JDK versions of the form {@code feature[.interim.update[.patch[.extra...]]]+build[@hash]} as defined by JEP 322,
+     * e.g. {@code 27+35@hash} or {@code 27.0.1.0.2+1@hash}.
+     * Groups: 1 = feature, 2 = remaining version elements (with leading dot), 3 = build, 5 = hash.
+     */
+    public static final Pattern VERSION_PATTERN = Pattern.compile(
+        "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)*)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
     private static final Pattern LEGACY_VERSION_PATTERN = Pattern.compile("(\\d)(u\\d+)\\+(b\\d+?)(@([a-f0-9]{32}))?");
     private static final Pattern EA_VERSION_PATTERN = Pattern.compile("(\\d+)-(?:ea|rc)\\+(\\d+)(@([a-f0-9]{32}))?");
@@ -215,8 +220,7 @@ public class Jdk implements Buildable, Iterable<File> {
     }
 
     private void parseVersion(String version) {
-        // decompose the bundled jdk version, broken into elements as: [feature, interim, update, build]
-        // Note the "patch" version is not yet handled here, as it has not yet been used by java.
+        // decompose the bundled jdk version, broken into elements as: [feature, interim, update, patch..., build]
         Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(version);
         if (jdkVersionMatcher.matches() == false) {
             // Try again with the pre-Java9 version format

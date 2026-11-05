@@ -14,7 +14,9 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -30,12 +32,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PageStreamPublisher;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -74,6 +78,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
 import org.elasticsearch.xpack.esql.datasources.ExternalIoExecutors;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
@@ -90,7 +95,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -110,17 +114,15 @@ import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.RemoteFetchBoundaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.StreamingOutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.DefaultShardContext;
 import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.SubPlan;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchHandle;
-import org.elasticsearch.xpack.esql.remotefetch.RemoteFetchService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -141,15 +143,17 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.GROK_WATCHDOG_MAX_EXECUTION_TIME;
 
 /**
- * Once a query is parsed and validated, this service coordinates its distributed execution. Late plan preparation is delegated to
- * dedicated planner classes before each plan is executed.
+ * Once query is parsed and validated it is scheduled for execution by {@code org.elasticsearch.xpack.esql.plugin.ComputeService#execute}
+ * This method is responsible for splitting physical plan into coordinator and data node plans.
  * <p>
  * Coordinator plan is immediately executed locally (using {@code org.elasticsearch.xpack.esql.plugin.ComputeService#runCompute})
  * and is prepared to collect and merge pages from data nodes into the final query result.
@@ -204,7 +208,6 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final RemoteFetchService remoteFetchService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
@@ -218,10 +221,13 @@ public class ComputeService {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Executor searchExecutor;
+    private final ComputeExecutor computeExecutor;
     private final ThreadPool threadPool;
     // Single shared instance, refreshed in place whenever the dynamic setting changes, rather than
     // re-resolving it from ClusterSettings for every query.
     private final AtomicReference<MatcherWatchdog> grokMatcherWatchdog = new AtomicReference<>();
+    /** Which nodes of the cluster state may be given external splits right now; see {@link #externalWorkers()}. */
+    private final ExternalWorkerReadiness externalWorkerReadiness;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -229,22 +235,26 @@ public class ComputeService {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         ThreadPool threadPool,
+        ComputeExecutor computeExecutor,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        FormatReaderRegistry formatReaderRegistry
+        FormatReaderRegistry formatReaderRegistry,
+        Client client,
+        ExternalWorkerReadiness externalWorkerReadiness
     ) {
+        this.externalWorkerReadiness = externalWorkerReadiness;
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.computeExecutor = computeExecutor;
         this.threadPool = threadPool;
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.remoteFetchService = new RemoteFetchService(transportActionServices, this.bigArrays, blockFactory);
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -262,7 +272,8 @@ public class ComputeService {
             searchService,
             transportService,
             exchangeService,
-            searchExecutor
+            searchExecutor,
+            client
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
@@ -283,10 +294,6 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
-    }
-
-    RemoteFetchService remoteFetchService() {
-        return remoteFetchService;
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -476,6 +483,13 @@ public class ComputeService {
     }
 
     /**
+     * Nodes that can receive external splits now, excluding nodes that are still joining.
+     */
+    private DiscoveryNodes externalWorkers() {
+        return externalWorkerReadiness.readyNodes(clusterService.state().nodes());
+    }
+
+    /**
      * The minimum number of coalesced groups to keep for an external scan, so read parallelism is not collapsed
      * to a single unit. It is the per-node driver cap ({@code task_concurrency}) times the number of eligible
      * remote workers: after distribution each worker receives about {@code task_concurrency} groups and runs that
@@ -487,12 +501,13 @@ public class ComputeService {
      * split count. The value is held at or above one (a degenerate {@code task_concurrency} of zero or below still
      * leaves the scan coalescible) and at or below {@link Integer#MAX_VALUE} on an implausibly wide cluster.
      *
-     * <p>Deliberately counts the whole eligible cluster even for a scan that ends up staying local: coalescing
-     * runs before the distribution decision, and the group count is itself an input to that decision
-     * ({@code AdaptiveStrategy} weighs splits against nodes). When eligible remote workers exist, a local scan
-     * therefore gets more groups than its one node can occupy. That overshoot is harmless — the groups become slices
-     * in a shared queue and the driver count is still capped at {@code min(groupCount, task_concurrency)} — whereas
-     * undershooting would leave a distributable scan unable to fill the cluster.
+     * <p>Deliberately counts the whole eligible cluster, joining nodes included ({@link ExternalWorkerReadiness}), even
+     * for a scan that ends up staying local: coalescing runs before the distribution decision, and the group count is
+     * itself an input to that decision ({@code AdaptiveStrategy} weighs splits against nodes). When eligible remote
+     * workers exist, a local scan therefore gets more groups than its one node can occupy. That overshoot is harmless —
+     * the groups become slices in a shared queue and the driver count is still capped at
+     * {@code min(groupCount, task_concurrency)} — whereas undershooting would leave a distributable scan unable to fill
+     * the cluster, including one that waited for a joining worker to be released.
      */
     static int externalCoalesceFloor(int taskConcurrency, DiscoveryNodes availableNodes) {
         int eligibleNodeCount = NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(availableNodes).size();
@@ -504,11 +519,14 @@ public class ComputeService {
         return (int) Math.max(1, Math.min(floor, Integer.MAX_VALUE));
     }
 
+    /** The {@link QueryPragmas#EXTERNAL_DISTRIBUTION} value that keeps every external split on the coordinator. */
+    static final String COORDINATOR_ONLY_DISTRIBUTION = "coordinator_only";
+
     static ExternalDistributionStrategy resolveExternalDistributionStrategy(QueryPragmas pragmas) {
         String value = pragmas.externalDistribution();
         return switch (value) {
             case "", "adaptive" -> new AdaptiveStrategy();
-            case "coordinator_only" -> CoordinatorOnlyStrategy.INSTANCE;
+            case COORDINATOR_ONLY_DISTRIBUTION -> CoordinatorOnlyStrategy.INSTANCE;
             case "round_robin" -> new RoundRobinStrategy();
             case "weighted_round_robin" -> new WeightedRoundRobinStrategy();
             default -> {
@@ -516,6 +534,24 @@ public class ComputeService {
                 yield new AdaptiveStrategy();
             }
         };
+    }
+
+    /**
+     * Whether every eligible external worker has just joined and is still held back ({@link ExternalWorkerReadiness}), so
+     * there is nobody to distribute external splits over for now. False with a ready worker, and with no eligible worker
+     * at all, in which case the scan stays on the coordinator as it always has. Never true on a coordinator that is itself
+     * an eligible worker, which is never held back.
+     *
+     * @param ready the nodes less those held back, computed from {@code nodes}
+     */
+    static boolean allExternalWorkersJoining(DiscoveryNodes nodes, UnaryOperator<DiscoveryNodes> ready) {
+        return NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(ready.apply(nodes)).isEmpty()
+            && NodeEligibilityStrategy.EXTERNAL_WORKER_NODES.eligibleNodes(nodes).isEmpty() == false;
+    }
+
+    /** Whether the query asked for its external splits to be read on the coordinator, so no worker is waited for. */
+    static boolean pinnedToCoordinator(QueryPragmas pragmas) {
+        return COORDINATOR_ONLY_DISTRIBUTION.equals(pragmas.externalDistribution());
     }
 
     /**
@@ -539,7 +575,7 @@ public class ComputeService {
         ExternalDistributionContext context = new ExternalDistributionContext(
             resolvedPlan,
             externalSplits,
-            clusterService.state().nodes(),
+            externalWorkers(),
             configuration.pragmas(),
             placement
         );
@@ -1237,32 +1273,44 @@ public class ComputeService {
         // Capture the inbound ThreadContext before Phase-2 hops to esql_external_io / SDK
         // threads. Those completions have no security user; SEARCH's executor would then
         // preserve the empty context into runCompute. Same pattern as ExternalSourceResolver.
-        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(
-            ActionListener.wrap(
-                collected -> runOnSearch(
-                    () -> executePlanAfterDiscovery(
-                        sessionId,
-                        rootTask,
-                        flags,
-                        collected,
-                        configuration,
-                        foldContext,
-                        execInfo,
-                        profileQualifier,
-                        releasing,
-                        exchangeSinkSupplier,
-                        initialClusterStatuses,
-                        planTimeProfile,
-                        warnIndexCoordinatorOnce,
-                        splitDiscoveryStart,
-                        placement
-                    ),
-                    releasing
+        ActionListener<CollectedSplits> afterDiscovery = restoreContextOnCompletion(ActionListener.wrap(collected -> {
+            // The discovery clock stops here: a wait for a worker below is not object-store time.
+            final long discoveryEnd = System.nanoTime();
+            final LongConsumer runAfterDiscovery = waitedNanos -> runOnSearch(
+                () -> executePlanAfterDiscovery(
+                    sessionId,
+                    rootTask,
+                    flags,
+                    collected,
+                    configuration,
+                    foldContext,
+                    execInfo,
+                    profileQualifier,
+                    releasing,
+                    exchangeSinkSupplier,
+                    initialClusterStatuses,
+                    planTimeProfile,
+                    warnIndexCoordinatorOnce,
+                    splitDiscoveryStart + waitedNanos,
+                    placement
                 ),
-                releasing::onFailure
-            ),
-            threadPool.getThreadContext()
-        );
+                releasing
+            );
+            final UnaryOperator<DiscoveryNodes> ready = externalWorkerReadiness::readyNodes;
+            if (collected.splits().isEmpty()
+                || pinnedToCoordinator(configuration.pragmas())
+                || allExternalWorkersJoining(clusterService.state().nodes(), ready) == false) {
+                runAfterDiscovery.accept(0L);
+                return;
+            }
+            // Every worker has just joined: wait for one rather than scan on a coordinator that may be thin.
+            externalWorkerReadiness.awaitEligibleWorker(
+                () -> allExternalWorkersJoining(clusterService.state().nodes(), ready) == false,
+                rootTask,
+                "distributing [" + collected.splits().size() + "] external splits, session [" + sessionId + "]",
+                ActionListener.wrap(ignored -> runAfterDiscovery.accept(System.nanoTime() - discoveryEnd), releasing::onFailure)
+            );
+        }, releasing::onFailure), threadPool.getThreadContext());
         // Skip-path: no footer/probe scheduling. SEARCH inbound stays inline (sync-fast).
         if (operatorFactoryRegistry == null) {
             afterDiscovery.onResponse(new CollectedSplits(physicalPlan, List.of()));
@@ -1389,12 +1437,6 @@ public class ComputeService {
         boolean hasConcreteIndices = clusterToConcreteIndices.values().stream().anyMatch(indices -> indices.indices().length > 0);
         var coordinatorAndDataNode = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(resolvedPlan, configuration);
         PhysicalPlan coordinatorPlan = coordinatorAndDataNode.v1();
-        try {
-            ensureNoRemoteFetchBoundary("coordinator", coordinatorPlan);
-        } catch (Exception e) {
-            listener.onFailure(e);
-            return;
-        }
 
         final PageStreamPublisher streamPublisher = coordinatorPlan instanceof StreamingOutputExec streaming
             ? streaming.pageStream()
@@ -1427,7 +1469,6 @@ public class ComputeService {
                 foldContext,
                 null,
                 exchangeSinkSupplier,
-                false,
                 false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
@@ -1479,9 +1520,6 @@ public class ComputeService {
         Map<String, OriginalIndices> clusterToOriginalIndices = getIndices(resolvedPlan, EsRelation::originalIndices);
         var localOriginalIndices = clusterToOriginalIndices.remove(LOCAL_CLUSTER);
         var localConcreteIndices = clusterToConcreteIndices.remove(LOCAL_CLUSTER);
-        final boolean retainSearchContexts = dataNodePlan.anyMatch(
-            plan -> plan instanceof RemoteFetchBoundaryExec boundary && boundary.requiresRetainedSearchContexts()
-        );
         /*
          * Grab the output attributes here, so we can pass them to
          * the listener without holding on to a reference to the
@@ -1489,18 +1527,7 @@ public class ComputeService {
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
         var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
-        // Releases retained sessions on every data node at query end. Fetch operators also release the sessions
-        // they actually fetch from (the winning nodes), earlier. The overlap is intentional and safe: release is
-        // idempotent, and this releaser is the only one that reaches nodes whose rows lost the global TopN.
-        final RemoteFetchService.RetainedSessionReleaser remoteFetchRetainedSessionReleaser = retainSearchContexts
-            ? remoteFetchService.newRetainedSessionReleaser()
-            : null;
-        listener = ActionListener.runBefore(listener, () -> {
-            if (remoteFetchRetainedSessionReleaser != null) {
-                remoteFetchRetainedSessionReleaser.close();
-            }
-            exchangeService.removeExchangeSourceHandler(sessionId);
-        });
+        listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(cancelQueryOnFailure, listener.delegateFailureAndWrap((l, completionInfo) -> {
             // A non-null sink means this executePlan is one FORK / UNION ALL / FROM-subquery branch. Skip the query-wide all-targets check
@@ -1551,7 +1578,6 @@ public class ComputeService {
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier,
-                            false,
                             false
                         ),
                         coordinatorPlan,
@@ -1573,8 +1599,6 @@ public class ComputeService {
                             Set.of(localConcreteIndices.indices()),
                             localOriginalIndices,
                             exchangeSource,
-                            retainSearchContexts,
-                            remoteFetchRetainedSessionReleaser,
                             cancelQueryOnFailure,
                             ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
@@ -1700,7 +1724,6 @@ public class ComputeService {
                     foldContext,
                     exchangeSource::createExchangeSource,
                     exchangeSinkSupplier,
-                    false,
                     false
                 ),
                 coordinatorPlan,
@@ -1970,8 +1993,8 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         QueryWarnings singleValueQueryWarnings = QueryWarnings.EMIT;
-        var shardContexts = context.searchContexts()
-            .map(csc -> context.retainSearchContexts() ? csc.newDetachedShardContext() : csc.shardContext(singleValueQueryWarnings));
+        Set<String> unmappedFieldNames = PlannerUtils.unmappedFieldNames(plan);
+        var shardContexts = context.searchContexts().map(csc -> csc.shardContext(singleValueQueryWarnings, unmappedFieldNames));
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
@@ -1988,9 +2011,13 @@ public class ComputeService {
 
         try {
             var workerThreadPool = transportService.getThreadPool();
-            var parallelWorkerExecutor = workerThreadPool.executor(EsqlPlugin.computePool());
             int esqlWorkerPoolSize = workerThreadPool.info(EsqlPlugin.computePool()).getMax();
 
+            // One snapshot of the project for the dataset rebind below and for the planner. The external request handler
+            // rebinds under its own snapshot before calling here; the planner does not consult datasets, so the two
+            // snapshots cannot disagree on anything that is read.
+            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+            DatasetConfigResolver datasetConfigResolver = DatasetConfigResolver.forProduction(projectMetadata);
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
                 context.clusterAlias(),
@@ -2007,11 +2034,11 @@ public class ComputeService {
                 userAgentParserRegistry,
                 ipLocationService,
                 projectResolver,
-                projectResolver.getProjectMetadata(clusterService.state()),
+                projectMetadata,
                 physicalOperationProviders,
                 operatorFactoryRegistry,
-                remoteFetchService,
-                parallelWorkerExecutor,
+                datasetConfigResolver.snapshotBuild(),
+                computeExecutor,
                 esqlWorkerPoolSize,
                 grokMatcherWatchdog.get(),
                 clusterService.state().getMinTransportVersion()
@@ -2026,8 +2053,10 @@ public class ComputeService {
             final String logicalPlanString;
             final boolean approximationApplied;
             if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
+                // The contexts of the shards, so that planning sees the fields the plan reads as each shard resolves them
                 List<SearchExecutionContext> localContexts = new ArrayList<>();
-                context.searchExecutionContexts().iterable().forEach(localContexts::add);
+                shardContexts.iterable()
+                    .forEach(shardContext -> localContexts.add(((DefaultShardContext) shardContext).executionContext()));
                 if (hasExternalSource) {
                     localPlan = PlannerUtils.localPlan(
                         plannerSettings,
@@ -2038,7 +2067,8 @@ public class ComputeService {
                         SearchContextStats.from(localContexts),
                         formatReaderRegistry,
                         coordinatorExternalSplits,
-                        planTimeProfile
+                        planTimeProfile,
+                        datasetConfigResolver
                     );
                     logicalPlanString = null;
                     approximationApplied = false;
@@ -2057,7 +2087,10 @@ public class ComputeService {
                     approximationApplied = localPlanResult.approximationApplied();
                 }
             } else {
-                localPlan = plan;
+                // No reduce plan carries an external source today (reductionPlan replaces the breaker's children with
+                // an exchange source), and the external request handler rebinds before it gets here; the rebind is
+                // idempotent and free on a plan without external sources, so apply it rather than rely on that.
+                localPlan = plan.transformUp(ExternalSourceExec.class, datasetConfigResolver::rebind);
                 logicalPlanString = null;
                 approximationApplied = false;
             }
@@ -2084,7 +2117,8 @@ public class ComputeService {
                 plannerSettings,
                 planToExecute,
                 shardContexts,
-                context.singleNodeOptimizations()
+                context.singleNodeOptimizations(),
+                context.sortBound()
             );
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
@@ -2146,19 +2180,14 @@ public class ComputeService {
                 planningBytesRead,
                 approximationApplied
             );
-            driverRunner.executeDrivers(
-                task,
-                drivers,
-                transportService.getThreadPool().executor(EsqlPlugin.computePool()),
-                ActionListener.releaseAfter(driverListener, () -> {
-                    if (hookExecInfo != null) {
-                        for (BooleanSupplier hook : registeredStopHooks) {
-                            hookExecInfo.removeStopHook(hook);
-                        }
+            driverRunner.executeDrivers(task, drivers, computeExecutor, ActionListener.releaseAfter(driverListener, () -> {
+                if (hookExecInfo != null) {
+                    for (BooleanSupplier hook : registeredStopHooks) {
+                        hookExecInfo.removeStopHook(hook);
                     }
-                    Releasables.close(drivers);
-                })
-            );
+                }
+                Releasables.close(drivers);
+            }));
         } catch (Exception e) {
             if (context.description().equals(DATA_DESCRIPTION)) {
                 Releasables.close(context.searchContexts().iterable());
@@ -2237,43 +2266,10 @@ public class ComputeService {
         boolean reduceNodeLateMaterialization,
         PlanTimeProfile planTimeProfile
     ) {
-        return reductionPlan(
-            plannerSettings,
-            flags,
-            configuration,
-            foldCtx,
-            originalPlan,
-            runNodeLevelReduction,
-            reduceNodeLateMaterialization,
-            null,
-            null,
-            planTimeProfile
-        );
-    }
-
-    static ReductionPlan reductionPlan(
-        PlannerSettings plannerSettings,
-        EsqlFlags flags,
-        Configuration configuration,
-        FoldContext foldCtx,
-        ExchangeSinkExec originalPlan,
-        boolean runNodeLevelReduction,
-        boolean reduceNodeLateMaterialization,
-        @Nullable String localNodeId,
-        @Nullable String retainedSessionId,
-        PlanTimeProfile planTimeProfile
-    ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
-        RemoteFetchBoundaryExec remoteFetchBoundary = originalPlan.child() instanceof RemoteFetchBoundaryExec boundary ? boundary : null;
-        if (remoteFetchBoundary == null && originalPlan.output().stream().anyMatch(RemoteFetchHandle::isRemoteFetchHandleCarrier)) {
-            throw new IllegalStateException("remote-fetch handle without a boundary cannot be planned for node reduction");
-        }
-        if (remoteFetchBoundary == null && (localNodeId != null || retainedSessionId != null)) {
-            throw new IllegalArgumentException("remote-fetch runtime identity supplied without a remote-fetch boundary");
-        }
-        if (remoteFetchBoundary == null && reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
+        if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return passThroughReduction;
         }
 
@@ -2289,44 +2285,34 @@ public class ComputeService {
             stats
         );
 
-        final ReductionPlan reductionPlan;
-        if (remoteFetchBoundary != null) {
-            if (localNodeId == null || retainedSessionId == null) {
-                throw new IllegalStateException("remote-fetch boundary requires local-node and retained-session IDs");
-            }
-            reductionPlan = LateMaterializationPlanner.planRemoteFetchTopN(contextFactory, originalPlan, localNodeId, retainedSessionId)
-                .orElseThrow(() -> new IllegalStateException("remote-fetch boundary was not consumed"));
-        } else {
-            // The default plan is just the exchange source piped directly into the exchange sink.
-            reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
-                case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization -> LateMaterializationPlanner.planReduceDriverTopN(
-                    contextFactory,
-                    originalPlan
-                )
-                    // Fallback to a regular top n reduction without loading new fields.
+        // The default plan is just the exchange source piped directly into the exchange sink.
+        ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
+            case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
+                // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
+                // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
+                // aggregations, we also need the original plan, since we add the project in the reduction node.
+                LateMaterializationPlanner.planReduceDriverTopN(contextFactory, originalPlan)
+                    // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
                     .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
-                case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
-                case PlannerUtils.TopNByReduction topNBy when reduceNodeLateMaterialization -> LateMaterializationPlanner
-                    .planReduceDriverTopNBy(contextFactory, originalPlan)
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topNBy.plan()) : passThroughReduction);
-                case PlannerUtils.TopNByReduction topNBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topNBy.plan());
-                case PlannerUtils.LimitByReduction limitBy when reduceNodeLateMaterialization -> LateMaterializationPlanner
-                    .planReduceDriverLimitBy(contextFactory, originalPlan)
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(limitBy.plan()) : passThroughReduction);
-                case PlannerUtils.LimitByReduction limitBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(limitBy.plan());
-                // Not a TopN/TopNBy/LimitBy - must be an agg or a limit
-                case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
-                default -> passThroughReduction;
-            };
-        }
+            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
+            case PlannerUtils.TopNByReduction topNBy when reduceNodeLateMaterialization -> LateMaterializationPlanner
+                .planReduceDriverTopNBy(contextFactory, originalPlan)
+                .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topNBy.plan()) : passThroughReduction);
+            case PlannerUtils.TopNByReduction topNBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topNBy.plan());
+            case PlannerUtils.LimitByReduction limitBy when reduceNodeLateMaterialization -> LateMaterializationPlanner
+                .planReduceDriverLimitBy(contextFactory, originalPlan)
+                .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(limitBy.plan()) : passThroughReduction);
+            case PlannerUtils.LimitByReduction limitBy when runNodeLevelReduction -> placePlanBetweenExchanges.apply(limitBy.plan());
+            // Not a TopN/TopNBy/LimitBy - must be an agg or a limit
+            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
+            default -> passThroughReduction;
+        };
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
 
-        ensureNoRemoteFetchBoundary("data-node", reductionPlan.dataNodePlan());
-        ensureNoRemoteFetchBoundary("node-reduce", reductionPlan.nodeReducePlan());
-
-        // Intermediate attributes prevent clean dependency verification for these plan shapes, so skip the check for them.
+        // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here. We should always be
+        // able to perform this check.
         if (Assertions.ENABLED == false
             || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment
                 && skipConsistencyCheckAfterReductionPlanning(fragment.fragment()))) {
@@ -2339,12 +2325,6 @@ public class ComputeService {
         PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
 
         return reductionPlan;
-    }
-
-    private static void ensureNoRemoteFetchBoundary(String planName, PhysicalPlan plan) {
-        if (plan.anyMatch(RemoteFetchBoundaryExec.class::isInstance)) {
-            throw new IllegalStateException("remote-fetch boundary survived into executable " + planName + " plan");
-        }
     }
 
     private static boolean skipConsistencyCheckAfterReductionPlanning(LogicalPlan fragment) {

@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
@@ -40,17 +41,18 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
@@ -83,11 +85,13 @@ public class PerFieldFormatSupplier {
     }
 
     // vectordb queries fetch a few top-k documents rather than scanning, so string columns are written in
-    // small chunks to make each read decompress fewer values.
+    // small chunks to make each read decompress fewer values. The byte bound caps what a single read of a
+    // plain or escaped value decompresses at 32KB, however long the values are.
     private static final int VECTORDB_MAX_VALUES_PER_CHUNK = 128;
-    private static final ChunkBounds VECTORDB_PLAIN_CHUNKS = new ChunkBounds(128 * 1024, VECTORDB_MAX_VALUES_PER_CHUNK);
+    private static final int VECTORDB_MAX_CHUNK_BYTES = 32 * 1024;
+    private static final ChunkBounds VECTORDB_PLAIN_CHUNKS = new ChunkBounds(VECTORDB_MAX_CHUNK_BYTES, VECTORDB_MAX_VALUES_PER_CHUNK);
     /** Escaped values are reached one at a time, so they are chunked no larger than the values. */
-    private static final ChunkBounds VECTORDB_ESCAPE_CHUNKS = new ChunkBounds(32 * 1024, VECTORDB_MAX_VALUES_PER_CHUNK);
+    private static final ChunkBounds VECTORDB_ESCAPE_CHUNKS = new ChunkBounds(VECTORDB_MAX_CHUNK_BYTES, VECTORDB_MAX_VALUES_PER_CHUNK);
     private static final int VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE = 512;
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
@@ -205,10 +209,13 @@ public class PerFieldFormatSupplier {
             if (mapper instanceof CompletionFieldMapper) {
                 return completionPostingsFormat;
             }
+            IndexSettings indexSettings = mapperService.getIndexSettings();
+            IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
             if (mapper instanceof IdFieldMapper
-                && mapperService.getIndexSettings()
-                    .getIndexVersionCreated()
-                    .between(IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT, IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT)) {
+                && (indexVersion.between(
+                    IndexVersions.ID_FIELD_USE_ES812_POSTINGS_FORMAT,
+                    IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT
+                ) || IndexSettings.createdInStateful95(indexVersion, indexSettings.isStateless()))) {
                 // The default posting format doesn't handle randomly generated IDs well during merging. Several cases have been reported
                 // where a single merge thread uses disproportionate jvm heap memory just for Lucene103BlockTreeTermsWriter.TermsWriter.
                 return es812PostingsFormat;
@@ -228,7 +235,8 @@ public class PerFieldFormatSupplier {
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.
-            return indexSettings.getMode().isTsdb()
+            return (indexSettings.getMode().isTsdb()
+                || IndexSettings.isBloomFilterIdFieldWithDataStreamTimestampEnabled(indexSettings.getNodeSettings()))
                 && IdFieldMapper.NAME.equals(field)
                 && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(indexSettings.getSettings());
         } else {
@@ -278,15 +286,32 @@ public class PerFieldFormatSupplier {
      */
     @Nullable
     StringColumnOptions columnarStringOptionsOf(final String field) {
-        return mapperService.mappingLookup().getMapper(field) instanceof FieldMapper mapper ? mapper.columnarStringOptions() : null;
+        final MappingLookup lookup = mapperService.mappingLookup();
+        final Mapper mapper = lookup.getMapper(field);
+        if (mapper != null) {
+            return mapper instanceof FieldMapper fieldMapper ? fieldMapper.columnarStringOptions() : null;
+        }
+        // A field a mapper writes under its own path has no mapper of its own; the nearest mapped ancestor answers for it.
+        for (int dot = field.lastIndexOf('.'); dot > 0; dot = field.lastIndexOf('.', dot - 1)) {
+            final Mapper owner = lookup.getMapper(field.substring(0, dot));
+            if (owner != null) {
+                return owner instanceof FieldMapper fieldMapper ? fieldMapper.internalColumnarStringOptions(field) : null;
+            }
+        }
+        return null;
     }
 
     /**
      * How a string column is written, asked once per field by the codec. A field that is not stored as one is
-     * never asked, so the defaults here are only ever a fallback for a mapping that changed underneath.
+     * never asked, and asking about one fails rather than guessing the options.
      */
     StringColumnOptions resolveStringColumnOptions(final String field, final ColumnarFieldType type) {
-        final StringColumnOptions options = Objects.requireNonNullElse(columnarStringOptionsOf(field), StringColumnOptions.DEFAULT);
+        final StringColumnOptions options = columnarStringOptionsOf(field);
+        if (options == null) {
+            throw new IllegalStateException(
+                "field [" + field + "] is written as a ColumNAR string column but its mapper has no string options"
+            );
+        }
         if (mapperService.getIndexSettings().getMode() != IndexMode.VECTORDB_COLUMNAR) {
             return options;
         }
@@ -294,15 +319,20 @@ public class PerFieldFormatSupplier {
         return options.withSizes(
             new StringColumnOptions.Sizes(
                 sizes.valuesPerBlock(),
-                VECTORDB_PLAIN_CHUNKS,
-                VECTORDB_ESCAPE_CHUNKS,
+                smaller(sizes.plainChunks(), VECTORDB_PLAIN_CHUNKS),
+                smaller(sizes.escapeChunks(), VECTORDB_ESCAPE_CHUNKS),
                 sizes.packedOrdinalBlockSize(),
-                VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE,
+                Math.min(sizes.compressedOrdinalBlockSize(), VECTORDB_COMPRESSED_ORDINAL_BLOCK_SIZE),
                 sizes.escapeRankBlockSize(),
                 sizes.slotCountsBlockSize(),
                 sizes.lengthBlockSize()
             )
         );
+    }
+
+    /** A mode only ever shrinks a field's chunks: a field written in smaller ones, such as a payload, keeps them. */
+    private static ChunkBounds smaller(final ChunkBounds field, final ChunkBounds mode) {
+        return new ChunkBounds(Math.min(field.targetBytes(), mode.targetBytes()), Math.min(field.maxValues(), mode.maxValues()));
     }
 
     FieldContext resolveFieldContext(final String fieldName, final int blockSize) {
@@ -355,7 +385,11 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean excludeFields(String fieldName) {
-        return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
+        // The _unmapped sink holds ordinary user data despite its leading underscore, so it and all of its subfields - _keyed, the ignored
+        // values, the .counts companion - are matched by prefix rather than enumerated, which would go stale as encodings add subfields.
+        return fieldName.startsWith("_")
+            && INCLUDE_META_FIELDS.contains(fieldName) == false
+            && fieldName.startsWith(FlattenedFieldMapper.UNMAPPED_SINK_NAME) == false;
     }
 
     private boolean excludeMapperTypes(String fieldName) {

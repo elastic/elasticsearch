@@ -257,24 +257,40 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         assertEquals(clauses, visitor.getNumClauses());
     }
 
-    public void testScanningBinaryDocValuesTermInSetQueryIsAccountedForOncePerClauseNotPerTerm() {
-        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+    public void testScanningBinaryDocValuesTermInSetQueryAccountsForTermsAndAutomaton() {
         int termCount = randomIntBetween(2, 500);
+        ScanningBinaryDocValuesTermInSetQuery small = termInSetQuery(1);
+        ScanningBinaryDocValuesTermInSetQuery large = termInSetQuery(termCount);
+
+        MaxClauseCountQueryVisitor smallVisitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        small.visit(smallVisitor);
+        MaxClauseCountQueryVisitor largeVisitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        large.visit(largeVisitor);
+
+        assertThat(
+            "ramBytesUsed must cover the packed terms and the automaton, not just the shallow query object",
+            large.ramBytesUsed(),
+            greaterThan(RamUsageEstimator.shallowSizeOf(large))
+        );
+        assertEquals(
+            "a TermInSet query must be charged its terms and automaton plus a single decoder",
+            large.ramBytesUsed() + TrackingBinaryDocValues.ESTIMATED_SIZE,
+            largeVisitor.getEstimatedBytes()
+        );
+        assertEquals(1, largeVisitor.getNumClauses());
+        assertThat(
+            "the charge must grow with the number of terms in the set",
+            largeVisitor.getEstimatedBytes(),
+            greaterThan(smallVisitor.getEstimatedBytes())
+        );
+    }
+
+    private static ScanningBinaryDocValuesTermInSetQuery termInSetQuery(int termCount) {
         List<BytesRef> terms = new ArrayList<>(termCount);
         for (int i = 0; i < termCount; i++) {
             terms.add(new BytesRef("value" + i));
         }
-        Query query = new ScanningBinaryDocValuesTermInSetQuery("field", terms, BinaryDocValuesFormat.SEPARATE_COUNT);
-
-        query.visit(visitor);
-
-        long expected = RamUsageEstimator.shallowSizeOf(query) + TrackingBinaryDocValues.ESTIMATED_SIZE;
-        assertEquals(
-            "a TermInSet query opens a single decoder regardless of how many terms it holds, so it must be accounted for once",
-            expected,
-            visitor.getEstimatedBytes()
-        );
-        assertEquals(1, visitor.getNumClauses());
+        return new ScanningBinaryDocValuesTermInSetQuery("field", terms, BinaryDocValuesFormat.SEPARATE_COUNT);
     }
 
     public void testLargeDisjunctionOfBinaryDocValuesScanClausesTripsBreakerBeforeSearch() {

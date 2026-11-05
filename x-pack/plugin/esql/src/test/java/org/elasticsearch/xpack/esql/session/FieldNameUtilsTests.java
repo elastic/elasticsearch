@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
+import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -31,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
-import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -110,6 +111,30 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testForkEval() {
         assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3 | keep z)", Set.of("_index"));
+    }
+
+    public void testFillNullExplicitFieldThenStats() {
+        assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        assertFieldNames("from employees | fillnull 0 ON salary | stats c = count(*)", Set.of("_index", "salary", "salary.*"));
+    }
+
+    public void testFillNullWildcardPatternThenStats() {
+        assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // A wildcard FILLNULL target must be collected as a field-caps pattern (like KEEP/DROP) rather than throwing.
+        assertFieldNames("from employees | fillnull 0 ON salary* | stats c = count(*)", Set.of("_index", "salary*"));
+    }
+
+    public void testFillNullStarMixedThenStats() {
+        assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // `ON *, salary` is the all-columns form, but the co-listed `salary` is still resolved so a typo is reported like
+        // in any other command - which means it has to be requested from field-caps too, or it could never resolve.
+        assertFieldNames("from employees | fillnull 0 ON *, salary | stats c = count(*)", Set.of("_index", "salary", "salary.*"));
+    }
+
+    public void testFillNullStarAloneThenStats() {
+        assumeTrue("FILLNULL required", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        // A bare `ON *` names nothing, so with a downstream STATS COUNT(*) only _index metadata is requested.
+        assertFieldNames("from employees | fillnull 0 ON * | stats c = count(*)", INDEX_METADATA_FIELD);
     }
 
     public void testSort1() {
@@ -3640,63 +3665,6 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
-    /** Field collection traverses directly nested FORKs and analyzer rejects this shape later. */
-    public void testNestedForksInMainQuery() {
-        assertFieldNames(
-            """
-                FROM employees
-                | FORK (WHERE salary > 50000
-                        | FORK (WHERE languages > 1 | KEEP emp_no)
-                               (WHERE first_name IS NOT NULL | KEEP first_name))
-                       (WHERE last_name IS NOT NULL | KEEP last_name)
-                | KEEP emp_no, first_name, last_name
-                """,
-            Set.of(
-                "_index",
-                "emp_no",
-                "emp_no.*",
-                "first_name",
-                "first_name.*",
-                "languages",
-                "languages.*",
-                "last_name",
-                "last_name.*",
-                "salary",
-                "salary.*"
-            )
-        );
-    }
-
-    /** Directly nested FORKs in an IN subquery use the subquery's independent field-collection state. */
-    public void testNestedForksInInSubquery() {
-        assertFieldNames(
-            """
-                FROM employees
-                | WHERE emp_no IN (
-                    FROM employees
-                    | FORK (WHERE salary > 50000
-                            | FORK (WHERE languages > 1 | KEEP emp_no)
-                                   (WHERE first_name IS NOT NULL | KEEP emp_no))
-                           (WHERE last_name IS NOT NULL | KEEP emp_no)
-                    | KEEP emp_no)
-                | KEEP emp_no
-                """,
-            Set.of(
-                "_index",
-                "emp_no",
-                "emp_no.*",
-                "first_name",
-                "first_name.*",
-                "languages",
-                "languages.*",
-                "last_name",
-                "last_name.*",
-                "salary",
-                "salary.*"
-            )
-        );
-    }
-
     public void testForkInsideUnionAllSubqueryInMainQuery() {
         assertFieldNames("""
             FROM (FROM employees
@@ -4861,7 +4829,7 @@ public class FieldNameUtilsTests extends ESTestCase {
      * resolution, so the sibling {@code KEEP} must not narrow the field-caps request - otherwise the namesake index under-collects and
      * comes back missing fields.
      */
-    public void testViewUnionAllWithUnconstrainedShadowBranchRequestsAllFields() {
+    public void testBranchPlanWithUnconstrainedShadowBranchRequestsAllFields() {
         LogicalPlan viewBody = new Keep(
             Source.EMPTY,
             new UnresolvedRelation(Source.EMPTY, new IndexPattern(Source.EMPTY, "local"), false, List.of(), IndexMode.STANDARD, null),
@@ -4870,7 +4838,7 @@ public class FieldNameUtilsTests extends ESTestCase {
         LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
         branches.put("v", new NamedSubquery(Source.EMPTY, viewBody, "v"));
         branches.put("v#shadow", new ViewShadowRelation(Source.EMPTY, "v", LinkedIndexPattern.Kind.OPTIONAL, "v"));
-        ViewUnionAll plan = new ViewUnionAll(Source.EMPTY, branches, Set.of("v"), List.of());
+        BranchPlan plan = new BranchPlan(Source.EMPTY, branches, Map.of("v", BranchIdentity.view("v")), List.of());
         assertThat(FieldNameUtils.resolveFieldNames(plan, false, includePrefixFields).fieldNames(), equalTo(ALL_FIELDS));
     }
 

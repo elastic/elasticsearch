@@ -35,7 +35,8 @@ import java.util.function.Supplier;
  * execution RAM Lucene's shared multi-term constant-score rewrite (a {@code MultiTermQuery}, or the
  * package-private {@code MultiTermQueryConstantScoreWrapper}/{@code MultiTermQueryConstantScoreBlendedWrapper}
  * it rewrites into) allocates, sized via {@link TermsQueryCostEstimator#executionBytesForLeaf} and
- * released by {@link ContextIndexSearcher#searchLeaf}. Leaves that Lucene runs as a plain disjunction
+ * released by the {@link LeafExecutionScope} that built the scorer, or by {@link ContextIndexSearcher#searchLeaf}
+ * when there is none. Leaves that Lucene runs as a plain disjunction
  * instead of materialising a result set are not charged; see {@link #skipsDocIdSet}. For an
  * {@link org.apache.lucene.search.IndexOrDocValuesQuery} the charge applies only on the path Lucene routes
  * to the multi-term index branch (otherwise doc values run and allocate no result set). Charges go through

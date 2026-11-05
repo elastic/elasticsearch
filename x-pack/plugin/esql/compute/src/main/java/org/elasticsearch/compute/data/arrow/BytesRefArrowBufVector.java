@@ -128,6 +128,11 @@ public final class BytesRefArrowBufVector extends AbstractArrowBufVector<BytesRe
     }
 
     @Override
+    public long estimateTotalValueBytes() {
+        return valueOffsetsBuffer.getInt((long) getPositionCount() * Integer.BYTES) - valueOffsetsBuffer.getInt(0);
+    }
+
+    @Override
     public BytesRefBlock asBlock() {
         return new BytesRefArrowBufBlock(valueBuffer, valueOffsetsBuffer, null, null, positionCount, 0, blockFactory);
     }

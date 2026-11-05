@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -105,7 +106,8 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
      *     declared, so it is plain unmapped loading.</li>
      * <li>noField: the same leaf simply not mapped on the special index.</li>
      * <li>flattened: the Verifier rejects loading the sub-key, so cells that would load it error instead.
-     *     Exception: {@code LOAD_ALL} + {@code KEEP *} with nothing referencing it - {@code _source} discovery surfaces it.</li>
+     *     Under {@code LOAD_ALL} + {@code KEEP *} nothing references it, and discovery does not surface it either: the sub-key
+     *     is part of the value of the mapped {@code flattened} field, so the index that maps it returns null.</li>
      * </ul>
      */
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -126,11 +128,11 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
             cell("load", "mapped_only_special", "*", ABSENT, ABSENT, NULL, ABSENT, ABSENT),
             cell("load", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
 
-            cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED, LOADED),
+            cell("load_all", "unmapped_both", "*", LOADED, LOADED, LOADED, LOADED, NULL),
             cell("load_all", "unmapped_both", "x", LOADED, LOADED, LOADED, LOADED, VERIFIER_ERROR),
             cell("load_all", "mapped_both", "*", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
             cell("load_all", "mapped_both", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR),
-            cell("load_all", "mapped_only_special", "*", NULL, LOADED, NULL, LOADED, LOADED),
+            cell("load_all", "mapped_only_special", "*", NULL, LOADED, NULL, LOADED, NULL),
             cell("load_all", "mapped_only_special", "x", NULL, LOADED, NULL, LOADED, VERIFIER_ERROR)
         );
     }
@@ -157,7 +159,10 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
     public void testCell() {
         assumeTrue("Requires SET unmapped_fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         if (cell.mode.equals("load_all")) {
-            assumeTrue("Requires unmapped_fields=\"load_all\"", EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_V2.isEnabled());
+            assumeTrue(
+                "Requires unmapped_fields=\"load_all\" with a single _unmapped_fields column",
+                EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_ALL_SINGLE_SOURCE_COLUMN.isEnabled()
+            );
         }
         boolean extraMappedOnSpecial = switch (cell.mapping) {
             case "unmapped_both" -> false;
@@ -400,11 +405,11 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
     private static Presence presence(EsqlQueryResponse resp, String field) {
         assertFalse("query should not be partial: " + resp.getExecutionInfo(), resp.isPartial());
         List<String> names = resp.columns().stream().map(ColumnInfo::name).toList();
+        int idIdx = names.indexOf("id");
         int fieldIdx = names.indexOf(field);
         if (fieldIdx < 0) {
-            return Presence.ABSENT;
+            return discoveredPresence(resp, names.indexOf("_unmapped_fields"), idIdx, field);
         }
-        int idIdx = names.indexOf("id");
         for (List<Object> row : getValuesList(resp)) {
             Object id = row.get(idIdx);
             if (id instanceof String s && s.startsWith("n") && row.get(fieldIdx) != null) {
@@ -412,6 +417,26 @@ public class UnmappedFieldsNestedComparisonIT extends AbstractEsqlIntegTestCase 
             }
         }
         return Presence.NULL;
+    }
+
+    /**
+     * {@code LOAD_ALL} returns a field it discovered in {@code _source} as a key of the {@code _unmapped_fields} object rather than as a
+     * column, so a key absent from every row maps to {@link Presence#ABSENT}, as a missing column would.
+     */
+    private static Presence discoveredPresence(EsqlQueryResponse resp, int unmappedIdx, int idIdx, String field) {
+        if (unmappedIdx < 0) {
+            return Presence.ABSENT;
+        }
+        boolean discovered = false;
+        for (List<Object> row : getValuesList(resp)) {
+            if (row.get(unmappedIdx) instanceof Map<?, ?> unmapped && unmapped.containsKey(field)) {
+                discovered = true;
+                if (row.get(idIdx) instanceof String s && s.startsWith("n")) {
+                    return Presence.LOADED;
+                }
+            }
+        }
+        return discovered ? Presence.NULL : Presence.ABSENT;
     }
 
     private void createIndex(String index, String mapping) {

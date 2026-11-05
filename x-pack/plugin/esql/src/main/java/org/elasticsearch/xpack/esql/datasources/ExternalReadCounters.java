@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.compute.operator.ThreadCpuTimer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.CheckedSupplier;
-import org.elasticsearch.xpack.esql.datasources.spi.ThreadCpuTimer;
 
 import java.util.concurrent.atomic.AtomicLong;
 

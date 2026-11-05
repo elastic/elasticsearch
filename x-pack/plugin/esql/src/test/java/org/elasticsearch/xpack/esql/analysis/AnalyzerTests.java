@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -138,7 +139,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.junit.After;
@@ -4178,8 +4178,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnInfersSimilarityFromDenseVectorAndTextEmbedding() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
-            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
@@ -4199,8 +4198,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnInfersSimilarityFromDenseVectorForRuntimeExpression() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
-            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
@@ -4218,7 +4216,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testKnnInfersSimilarityFromTextEmbeddingForRuntimeExpression() {
         assumeKnnRuntimeEnabled();
-        TestAnalyzer analyzer = denseVector().configuration(knnRuntimeConfiguration())
+        TestAnalyzer analyzer = denseVector().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT);
 
         LogicalPlan plan = analyzer.query("""
@@ -4234,7 +4232,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testKnnInfersSimilarityFromEmbeddingForRuntimeExpression() {
         assumeKnnRuntimeEnabled();
-        TestAnalyzer analyzer = denseVector().configuration(knnRuntimeConfiguration())
+        TestAnalyzer analyzer = denseVector().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addInferenceResolution("query-endpoint", TaskType.EMBEDDING, SimilarityMeasure.L2_NORM);
 
         LogicalPlan plan = analyzer.query("""
@@ -4251,8 +4249,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnHonorsSimilarityOverride() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
-            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT);
@@ -4271,8 +4268,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnRejectsConflictingInferredSimilarities() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
-            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
@@ -4293,7 +4289,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     public void testInferKnnSimilarityDoesNotRunOnIndexField() {
         assumeKnnRuntimeEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("index", "mapping-dense_vector.json")
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
@@ -4315,8 +4311,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnInfersSimilarityWithDerivedField() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
-            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.DOT_PRODUCT)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
@@ -4336,8 +4331,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnInfersSimilarityThroughAliases() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
-            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
@@ -4364,7 +4358,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnInfersQuerySimilarityThroughAliases() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
         for (String aliases : List.of(
@@ -4388,8 +4382,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnAliasSimilarityHonorsOverride() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
-            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
@@ -4421,8 +4414,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnDoesNotInferSimilarityThroughModifiedVector() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
-            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM);
 
@@ -4438,8 +4430,7 @@ public class AnalyzerTests extends AnalyzerTestCase {
     public void testKnnAliasSimilarityRejectsConflicts() {
         assumeKnnRuntimeEnabled();
         assumeDenseVectorCommandEnabled();
-        TestAnalyzer analyzer = analyzer().configuration(knnRuntimeConfiguration())
-            .minimumTransportVersion(minimumVersionAtLeast(DenseVector.ESQL_DENSE_VECTOR_COMMAND_MIN_VERSION))
+        TestAnalyzer analyzer = analyzer().minimumTransportVersion(minimumVersionAtLeast(Knn.ESQL_KNN_RUNTIME_FIELD))
             .addIndex("books", "mapping-books.json")
             .addInferenceResolution("field-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.L2_NORM)
             .addInferenceResolution("query-endpoint", TaskType.TEXT_EMBEDDING, SimilarityMeasure.COSINE);
@@ -4514,10 +4505,6 @@ public class AnalyzerTests extends AnalyzerTestCase {
 
     private static void assumeKnnRuntimeEnabled() {
         assumeTrue("Knn on runtime expression requires corresponding capability", EsqlCapabilities.Cap.KNN_RUNTIME_FIELD.isEnabled());
-    }
-
-    private static Configuration knnRuntimeConfiguration() {
-        return EsqlTestUtils.configuration(new QueryPragmas(Settings.builder().put(QueryPragmas.KNN_RUNTIME_FIELD.getKey(), true).build()));
     }
 
     private static Knn findKnn(LogicalPlan plan) {
@@ -4846,6 +4833,17 @@ public class AnalyzerTests extends AnalyzerTestCase {
             as(completion.prompt(), Concat.class).children(),
             equalTo(List.of(string("Translate this text in French\n"), getAttributeByName(esRelation.output(), "description")))
         );
+    }
+
+    public void testResolveCompletionTimeout() {
+        LogicalPlan plan = books().query("""
+            FROM books METADATA _score
+            | COMPLETION CONCAT("Translate this text in French\\n", description)
+              WITH { "inference_id" : "completion-inference-id", "timeout" : "1ms" }
+            """);
+
+        Completion completion = as(as(plan, Limit.class).child(), Completion.class);
+        assertThat(completion.timeout(), equalTo(TimeValue.timeValueMillis(1)));
     }
 
     public void testResolveCompletionPromptInvalidType() {
@@ -6065,6 +6063,19 @@ public class AnalyzerTests extends AnalyzerTestCase {
         assertThat(syntheticFieldAttr.id(), equalTo(syntheticField.id()));
     }
 
+    public void testFillNullAllFieldsSkipsUnionTypeSyntheticColumn() {
+        assumeTrue("requires FILLNULL capability", EsqlCapabilities.Cap.FILLNULL.isEnabled());
+        IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
+        for (String value : List.of("DEFAULT", "0", "\"z\"")) {
+            String query = "FROM index* | FILLNULL " + value + " ON * | EVAL x = date_and_date_nanos::keyword";
+            LogicalPlan plan = analyzer().addIndex(indexWithUnionTypedFields).query(query);
+            assertThat(query, plan.resolved(), is(true));
+            for (Attribute attribute : plan.output()) {
+                assertThat("the synthetic union-type column must not reach the output: " + query, attribute.name(), not(startsWith("$$")));
+            }
+        }
+    }
+
     public void testImplicitCastingForDateAndDateNanosFields() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
 
@@ -6924,6 +6935,35 @@ public class AnalyzerTests extends AnalyzerTestCase {
             from test
             | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
             | mv_expand t
+            | where match(t, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "t");
+    }
+
+    public void testMatchAfterLookupJoinOnAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = basic().addLanguagesLookup().query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | eval language_code = languages
+            | lookup join languages_lookup on language_code
+            | where match(t, "cat")
+            """);
+        assertAnalyzedReferenceField(plan, Match.class, "t");
+    }
+
+    public void testMatchAfterEnrichOnAnalyzedToTextReferenceCarriesValuesAnalyzer() {
+        LogicalPlan plan = basic().addEnrichPolicy(
+            Enrich.Mode.COORDINATOR,
+            EnrichPolicy.MATCH_TYPE,
+            "languages",
+            "language_code",
+            "languages_idx",
+            "mapping-languages.json"
+        ).query("""
+            from test
+            | eval t = to_text(concat(first_name, last_name), {"analyzer": "whitespace"})
+            | eval x = to_string(languages)
+            | enrich _coordinator:languages on x
             | where match(t, "cat")
             """);
         assertAnalyzedReferenceField(plan, Match.class, "t");

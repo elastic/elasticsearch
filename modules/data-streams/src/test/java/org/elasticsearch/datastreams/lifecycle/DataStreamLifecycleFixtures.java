@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -36,8 +37,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -239,6 +242,9 @@ public class DataStreamLifecycleFixtures {
         TimeValue globalDefaultRetention,
         TimeValue globalMaxRetention
     ) {
+        // Mimics the ILM plugin, which is the one registering the minimum lifecycle setting.
+        Set<Setting<?>> settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING);
         Settings.Builder clusterSettingsBuilder = Settings.builder();
         if (globalDefaultRetention != null) {
             clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_DEFAULT_RETENTION_SETTING.getKey(), globalDefaultRetention);
@@ -246,14 +252,9 @@ public class DataStreamLifecycleFixtures {
         if (globalMaxRetention != null) {
             clusterSettingsBuilder.put(DataStreamLifecycleSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalMaxRetention);
         }
-        DataStreamLifecycleSettings settings = DataStreamLifecycleSettings.create(
-            ClusterSettings.createBuiltInClusterSettings(clusterSettingsBuilder.build())
-        );
-        // The minimum lifecycle for time series cannot be enabled via the cluster settings yet, so we spy on real settings and stub
-        // only this method. This should be replaced with the cluster setting once it is available.
         if (minimumLifecycleEnabled != null) {
-            settings.setMinimumLifecycleEnabled(minimumLifecycleEnabled);
+            clusterSettingsBuilder.put(DataStreamLifecycleSettings.MINIMUM_LIFECYCLE_ENABLED_SETTING_NAME, minimumLifecycleEnabled);
         }
-        return settings;
+        return DataStreamLifecycleSettings.create(new ClusterSettings(clusterSettingsBuilder.build(), settingsSet));
     }
 }

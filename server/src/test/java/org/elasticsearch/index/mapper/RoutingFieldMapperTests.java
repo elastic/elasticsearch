@@ -16,10 +16,15 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -31,6 +36,8 @@ import org.elasticsearch.index.SliceSelection;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.IndexOperationBatch;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.document.XSortedSkipperScorerSupplier;
+import org.elasticsearch.lucene.queries.XSortedSetDocValuesRangeQuery;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.sourcebatch.MappedColumns;
@@ -316,6 +323,68 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             assertNull(context.sliceFilter());
             context.setSliceSelection(SliceSelection.of(List.of("s1")));
             assertEquals(0, searcher.count(context.sliceFilter()));
+        });
+    }
+
+    /**
+     * The slice filter targets {@code _slice_key} so each segment answers it through the index sort instead of
+     * scanning {@code _routing} doc values laid out in hash order.
+     */
+    public void testSliceFilterUsesIndexSortScorer() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        Settings settings = Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+
+        withLuceneIndex(mapperService, iw -> {
+            for (String slice : List.of("s1", "s2", "s3")) {
+                for (int d = 0; d < 5; d++) {
+                    iw.addDocument(mapperService.documentMapper().parse(source(slice + d, b -> {}, slice)).rootDoc());
+                }
+            }
+        }, reader -> {
+            // the query cache would wrap the scorer supplier and hide its type
+            IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setQueryCache(null);
+            SearchExecutionContext context = createSearchExecutionContext(mapperService, searcher);
+
+            context.setSliceSelection(SliceSelection.of(List.of("s1")));
+            Query filter = context.sliceFilter();
+            assertEquals(
+                XSortedSetDocValuesRangeQuery.newSlowExactQuery(SliceIndexing.SLICE_KEY_FIELD_NAME, SliceIndexing.encodeSliceKey("s1")),
+                filter
+            );
+            assertEquals(5, searcher.count(filter));
+
+            Weight weight = searcher.createWeight(searcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            assertFalse(reader.leaves().isEmpty());
+            for (LeafReaderContext leaf : reader.leaves()) {
+                assertThat(weight.scorerSupplier(leaf), instanceOf(XSortedSkipperScorerSupplier.class));
+            }
+
+            // several slices become one exact query per slice
+            context.setSliceSelection(SliceSelection.of(List.of("s1", "s3")));
+            assertEquals(
+                new ConstantScoreQuery(
+                    new BooleanQuery.Builder().add(
+                        XSortedSetDocValuesRangeQuery.newSlowExactQuery(
+                            SliceIndexing.SLICE_KEY_FIELD_NAME,
+                            SliceIndexing.encodeSliceKey("s1")
+                        ),
+                        BooleanClause.Occur.SHOULD
+                    )
+                        .add(
+                            XSortedSetDocValuesRangeQuery.newSlowExactQuery(
+                                SliceIndexing.SLICE_KEY_FIELD_NAME,
+                                SliceIndexing.encodeSliceKey("s3")
+                            ),
+                            BooleanClause.Occur.SHOULD
+                        )
+                        .build()
+                ),
+                context.sliceFilter()
+            );
+            assertEquals(10, searcher.count(context.sliceFilter()));
         });
     }
 

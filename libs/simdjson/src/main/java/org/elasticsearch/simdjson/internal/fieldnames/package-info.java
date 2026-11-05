@@ -34,6 +34,11 @@
  *       discoveries to the parent and reuses the shared frozen table on the next batch.
  *       {@link org.elasticsearch.simdjson.SimdJsonDirectWalker#releaseNames()} triggers
  *       this at partition boundaries.</li>
+ *   <li><b>Prediction.</b> In front of the lookup, {@link FieldNamePredictor} remembers which
+ *       name followed which and resolves a name that follows the same predecessor as in an earlier
+ *       document with a byte comparison, skipping the scan, hash and lookup. It stores the
+ *       canonical instances the lookup returned, so it is cleared at every batch boundary, and it
+ *       stops predicting for the rest of a batch when most of its predictions fail.</li>
  * </ol>
  *
  * <p>Instances are not thread-safe; one child per parsing thread.

@@ -969,12 +969,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 0,
                 0L,
                 new RunOnce(
-                    () -> HotThreads.logLocalCurrentThreads(
-                        logger,
-                        Level.WARN,
-                        shardId + ": acquire shard lock for create",
-                        ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING
-                    )
+                    // forked so that hot threads sampling (which blocks for a while) never runs while holding this service's monitor
+                    () -> threadPool.generic()
+                        .execute(
+                            () -> HotThreads.logLocalCurrentThreads(
+                                logger,
+                                Level.WARN,
+                                shardId + ": acquire shard lock for create",
+                                ReferenceDocs.SHARD_LOCK_TROUBLESHOOTING
+                            )
+                        )
                 ),
                 ActionListener.runBefore(new ActionListener<>() {
                     @Override
@@ -1041,6 +1045,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         RunOnce dumpHotThreads,
         ActionListener<Boolean> listener
     ) {
+        assert Thread.holdsLock(this);
         try {
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
@@ -1086,70 +1091,76 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 () -> clusterService.getClusterApplierService()
                     .runOnApplierThread("create shard " + shardRouting, Priority.NORMAL, currentState -> {
+                        // Hold this service's lock so that handleRecoveryFailure / FailedShardHandler (which holds the same lock and run on
+                        // the generic pool) cannot fail and remove the shard between this task creating it and the creation listener
+                        // completing. It then avoids an older attempt clobbering the state of a newer recovery retry. This is cheap: this
+                        // task never waits on the shard lock while holding the monitor, and it's already on the applier thread, it does not
+                        // delay cluster state application any more than applyClusterState (also synchronized, on the same thread) already
+                        // does.
+                        synchronized (this) {
+                            assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
+                            final var pendingShardCreation = pendingShardCreations.get(shardRouting.shardId());
+                            if (pendingShardCreation == null) {
+                                listener.onResponse(false);
+                                return;
+                            }
 
-                        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-                        final var pendingShardCreation = pendingShardCreations.get(shardRouting.shardId());
-                        if (pendingShardCreation == null) {
-                            listener.onResponse(false);
-                            return;
-                        }
+                            if (originalState.stateUUID().equals(currentState.stateUUID()) == false) {
+                                logger.debug(
+                                    "cluster state updated from version [{}/{}] to version [{}/{}] before creation of shard {}",
+                                    originalState.version(),
+                                    originalState.stateUUID(),
+                                    currentState.version(),
+                                    currentState.stateUUID(),
+                                    shardRouting.shardId()
+                                );
+                                listener.onResponse(false);
+                                return;
+                            }
+                            assert pendingShardCreation.clusterStateUUID().equals(currentState.stateUUID());
 
-                        if (originalState.stateUUID().equals(currentState.stateUUID()) == false) {
-                            logger.debug(
-                                "cluster state updated from version [{}/{}] to version [{}/{}] before creation of shard {}",
-                                originalState.version(),
-                                originalState.stateUUID(),
-                                currentState.version(),
-                                currentState.stateUUID(),
-                                shardRouting.shardId()
+                            final var newDelayMillis = threadPool.relativeTimeInMillis() - pendingShardCreation.startTimeMillis();
+                            if (newDelayMillis > shardLockRetryTimeout.millis()) {
+                                logger.warn(
+                                    "timed out after [{}={}/{}ms] while waiting to acquire shard lock for {}",
+                                    SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(),
+                                    shardLockRetryTimeout,
+                                    shardLockRetryTimeout.millis(),
+                                    shardRouting
+                                );
+                                dumpHotThreads.run();
+                                listener.onFailure(
+                                    new ElasticsearchTimeoutException("timed out while waiting to acquire shard lock for " + shardRouting)
+                                );
+                                return;
+                            }
+
+                            final var indexService = indicesService.indexService(shardRouting.index());
+                            if (indexService == null) {
+                                final var message = "index service unexpectedly not found for " + shardRouting;
+                                assert false : message;
+                                listener.onFailure(new ElasticsearchException(message));
+                                return;
+                            }
+
+                            if (indexService.getShardOrNull(shardRouting.shardId().id()) != null) {
+                                final var message = "index shard unexpectedly found for " + shardRouting;
+                                assert false : message;
+                                listener.onFailure(new ElasticsearchException(message));
+                                return;
+                            }
+
+                            createShardWhenLockAvailable(
+                                shardRouting,
+                                originalState,
+                                sourceNode,
+                                primaryTerm,
+                                iteration + 1,
+                                newDelayMillis,
+                                dumpHotThreads,
+                                listener
                             );
-                            listener.onResponse(false);
-                            return;
                         }
-                        assert pendingShardCreation.clusterStateUUID().equals(currentState.stateUUID());
-
-                        final var newDelayMillis = threadPool.relativeTimeInMillis() - pendingShardCreation.startTimeMillis();
-                        if (newDelayMillis > shardLockRetryTimeout.millis()) {
-                            logger.warn(
-                                "timed out after [{}={}/{}ms] while waiting to acquire shard lock for {}",
-                                SHARD_LOCK_RETRY_TIMEOUT_SETTING.getKey(),
-                                shardLockRetryTimeout,
-                                shardLockRetryTimeout.millis(),
-                                shardRouting
-                            );
-                            dumpHotThreads.run();
-                            listener.onFailure(
-                                new ElasticsearchTimeoutException("timed out while waiting to acquire shard lock for " + shardRouting)
-                            );
-                            return;
-                        }
-
-                        final var indexService = indicesService.indexService(shardRouting.index());
-                        if (indexService == null) {
-                            final var message = "index service unexpectedly not found for " + shardRouting;
-                            assert false : message;
-                            listener.onFailure(new ElasticsearchException(message));
-                            return;
-                        }
-
-                        if (indexService.getShardOrNull(shardRouting.shardId().id()) != null) {
-                            final var message = "index shard unexpectedly found for " + shardRouting;
-                            assert false : message;
-                            listener.onFailure(new ElasticsearchException(message));
-                            return;
-                        }
-
-                        createShardWhenLockAvailable(
-                            shardRouting,
-                            originalState,
-                            sourceNode,
-                            primaryTerm,
-                            iteration + 1,
-                            newDelayMillis,
-                            dumpHotThreads,
-                            listener
-                        );
-
                     }, ActionListener.noop())
             );
         } catch (Exception e) {
@@ -1369,13 +1380,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         Exception failure
     ) {
+        final String message = isRecoveryCancellation(failure) ? "recovery cancelled by master" : "failed recovery";
         try {
             CloseUtils.executeDirectly(
                 l -> failAndRemoveShard(
                     shardRouting,
                     primaryTerm,
                     failureStrategy.notifyMaster(),
-                    "failed recovery",
+                    message,
                     failure,
                     clusterService.state(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -1436,16 +1448,25 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         final ShardId shardId = shardRouting.shardId();
         try {
-            logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
-            final ShardFailureType failureType = ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class) != null
+            final ShardFailureType failureType = isRecoveryCancellation(failure)
                 ? ShardFailureType.RECOVERY_CANCELLED
                 : ShardFailureType.FAILED;
+            if (failureType == ShardFailureType.RECOVERY_CANCELLED) {
+                // A recovery cancelled by the master is an expected failure, do not warn about it
+                logger.info(() -> format("%s marking cancelled by master [%s]", shardId, message), failure);
+            } else {
+                logger.warn(() -> format("%s marking and sending shard failed due to [%s]", shardId, message), failure);
+            }
             failedShardsCache.put(shardRouting.shardId(), new FailedShardCacheEntry(shardRouting, primaryTerm, failureType));
             shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(() -> format("%s failed to mark shard as failed (because of [%s])", shardId, message), inner);
         }
+    }
+
+    private static boolean isRecoveryCancellation(@Nullable Exception failure) {
+        return ExceptionsHelper.unwrap(failure, RecoveryCancelledException.class) != null;
     }
 
     private class FailedShardHandler implements Consumer<IndexShard.ShardFailure> {

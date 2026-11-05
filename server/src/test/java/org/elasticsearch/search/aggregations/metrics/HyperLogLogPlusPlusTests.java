@@ -11,9 +11,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LimitedBreaker;
@@ -22,6 +24,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -32,8 +35,10 @@ import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityA
 import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -256,5 +261,157 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * Merges states from serialized bytes ({@code combine}), from another structure ({@code merge}) or after deserializing
+     * ({@code readFrom}), and checks the result against one structure that collected every hash. Registers only grow, so the result
+     * must not depend on how the hashes were split up or merged.
+     */
+    public void testBulkMergePaths() throws IOException {
+        // Above precision 12, the registers need several steps of the scratch array.
+        final int precision = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final int threshold = (int) ((1 << precision) / 4 * 0.75);
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        try (
+            HyperLogLogPlusPlus reference = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, bigArrays, 1)
+        ) {
+            final int destBucket = randomIntBetween(0, 3);
+            // The destination may start in linear counting or HyperLogLog, or empty.
+            final int initial = randomBoolean() ? 0 : between(1, 4 * threshold);
+            for (int i = 0; i < initial; i++) {
+                final long hash = BitMixer.mix64(randomLong());
+                dest.collect(destBucket, hash);
+                reference.collect(0, hash);
+            }
+            final int sources = between(1, 5);
+            for (int s = 0; s < sources; s++) {
+                try (HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(precision, bigArrays, 1)) {
+                    final int values = between(1, 4 * threshold);
+                    for (int i = 0; i < values; i++) {
+                        final long hash = BitMixer.mix64(randomLong());
+                        source.collect(0, hash);
+                        reference.collect(0, hash);
+                    }
+                    switch (between(0, 2)) {
+                        case 0 -> {
+                            final BytesStreamOutput out = new BytesStreamOutput();
+                            source.writeTo(0, out);
+                            // Surround the serialized bytes with padding to check the offset is respected.
+                            final BytesRef serialized = out.bytes().toBytesRef();
+                            final byte[] padded = new byte[serialized.length + 7 + 5];
+                            System.arraycopy(serialized.bytes, serialized.offset, padded, 7, serialized.length);
+                            dest.combine(destBucket, new BytesRef(padded, 7, serialized.length));
+                        }
+                        case 1 -> dest.merge(destBucket, source, 0);
+                        case 2 -> {
+                            final BytesStreamOutput out = new BytesStreamOutput();
+                            source.writeTo(0, out);
+                            try (
+                                AbstractHyperLogLogPlusPlus read = AbstractHyperLogLogPlusPlus.readFrom(
+                                    out.bytes().streamInput(),
+                                    bigArrays
+                                )
+                            ) {
+                                dest.merge(destBucket, read, 0);
+                            }
+                        }
+                        default -> throw new AssertionError();
+                    }
+                }
+            }
+            assertThat(dest.getAlgorithm(destBucket), equalTo(reference.getAlgorithm(0)));
+            if (reference.getAlgorithm(0) == AbstractHyperLogLogPlusPlus.HYPERLOGLOG) {
+                // Serialized HyperLogLog is the raw registers, so this compares every register.
+                final BytesStreamOutput expected = new BytesStreamOutput();
+                final BytesStreamOutput actual = new BytesStreamOutput();
+                reference.writeTo(0, expected);
+                dest.writeTo(destBucket, actual);
+                assertThat(actual.bytes(), equalTo(expected.bytes()));
+            } else {
+                assertTrue(reference.equals(0, dest, destBucket));
+            }
+            assertThat(dest.cardinality(destBucket), equalTo(reference.cardinality(0)));
+        }
+    }
+
+    /**
+     * Partitioned aggregations {@code combine} serialized states into a fresh structure and then keep collecting into it. Check that
+     * this matches a structure that collected everything directly, across many buckets.
+     * <p>
+     * It is the regression test for writing registers in place through a slice: that wrote to the zero page that BigArrays shares
+     * between unwritten pages, and fails {@code assertZeroPageClean} when the next array is allocated.
+     */
+    public void testCollectAfterCombineAcrossManyBuckets() throws IOException {
+        final int precision = randomIntBetween(MIN_PRECISION, 12);
+        final int threshold = (int) ((1 << precision) / 4 * 0.75);
+        final int buckets = between(1, 300);
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        try (
+            HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, bigArrays, 1);
+            HyperLogLogPlusPlus reference = new HyperLogLogPlusPlus(precision, bigArrays, 1)
+        ) {
+            for (int b = 0; b < buckets; b++) {
+                final int values = randomBoolean() ? between(0, 3) : between(0, 4 * threshold);
+                for (int i = 0; i < values; i++) {
+                    final long hash = BitMixer.mix64(randomLong());
+                    source.collect(b, hash);
+                    reference.collect(b, hash);
+                }
+            }
+            for (int b = 0; b < buckets; b++) {
+                final BytesStreamOutput out = new BytesStreamOutput();
+                source.writeTo(b, out);
+                dest.combine(b, out.bytes().toBytesRef());
+            }
+            for (int i = 0; i < buckets * 20; i++) {
+                final int b = between(0, buckets - 1);
+                final long hash = BitMixer.mix64(randomLong());
+                dest.collect(b, hash);
+                reference.collect(b, hash);
+            }
+            for (int b = 0; b < buckets; b++) {
+                assertThat("bucket " + b, dest.cardinality(b), equalTo(reference.cardinality(b)));
+            }
+        }
+    }
+
+    /** The scratch array for merging registers is charged to the breaker when it is allocated, once, and released on close. */
+    public void testMergeScratchIsCharged() {
+        final int precision = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        final CircuitBreaker breaker = LimitedBreaker.service("test", ByteSizeValue.ofMb(100)).getBreaker(CircuitBreaker.REQUEST);
+        try (
+            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(precision, bigArrays, breaker, 1);
+            HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(precision, bigArrays, new NoopCircuitBreaker("test"), 1)
+        ) {
+            source.upgradeToHll(0);
+            dest.upgradeToHll(0);
+            final long before = breaker.getUsed();
+            dest.merge(0, source, 0);
+            final long charged = breaker.getUsed() - before;
+            // At most 4096 bytes and the array header, whatever the precision.
+            assertThat(charged, greaterThan(0L));
+            assertThat(charged, lessThanOrEqualTo(4096L + 64));
+            dest.merge(0, source, 0);
+            assertThat("the scratch is reused", breaker.getUsed() - before, equalTo(charged));
+        }
+        assertThat("released on close", breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testMergeScratchTripsTheBreaker() {
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        final CircuitBreaker breaker = LimitedBreaker.service("test", ByteSizeValue.ofBytes(1)).getBreaker(CircuitBreaker.REQUEST);
+        try (
+            HyperLogLogPlusPlus dest = new HyperLogLogPlusPlus(MIN_PRECISION, bigArrays, breaker, 1);
+            HyperLogLogPlusPlus source = new HyperLogLogPlusPlus(MIN_PRECISION, bigArrays, new NoopCircuitBreaker("test"), 1)
+        ) {
+            source.upgradeToHll(0);
+            dest.upgradeToHll(0);
+            expectThrows(CircuitBreakingException.class, () -> dest.merge(0, source, 0));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
     }
 }

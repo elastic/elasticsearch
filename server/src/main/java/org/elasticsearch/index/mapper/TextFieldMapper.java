@@ -65,6 +65,7 @@ import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.string.SummaryPolicy;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -343,7 +344,7 @@ public final class TextFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
                 m -> ((TextFieldMapper) m).docValuesParameters,
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
             this.index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
             this.analyzers = new TextParams.Analyzers(
@@ -381,22 +382,39 @@ public final class TextFieldMapper extends FieldMapper {
                 return true;
             });
 
-            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                // ideally and for simplicity, store should be set to false by default
-                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
-                    return false;
-                }
+            this.store = Parameter.storeParam(
+                m -> ((TextFieldMapper) m).store,
+                () -> defaultStore(indexSettings, isWithinMultiField, multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField())
+            )
+                // mappings written before a normalizer that skips storing the original value counted as a synthetic source
+                // compatible keyword have an explicit "store": false, and serialization must keep writing it
+                .setSerializerCheck(
+                    (includeDefaults, isConfigured, value) -> includeDefaults
+                        || value != defaultStore(
+                            indexSettings,
+                            isWithinMultiField,
+                            multiFieldsBuilder.hasLegacySyntheticSourceCompatibleKeywordField()
+                        )
+                );
+        }
 
-                boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
-                // however, because historically we set store to true to support synthetic source, we must also keep that logic:
-                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
-                    return isSyntheticSourceEnabled
-                        && isWithinMultiField == false
-                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                } else {
-                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                }
-            });
+        private static boolean defaultStore(
+            IndexSettings indexSettings,
+            boolean isWithinMultiField,
+            boolean hasSyntheticSourceCompatibleKeywordField
+        ) {
+            // ideally and for simplicity, store should be set to false by default
+            if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
+                return false;
+            }
+
+            boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
+            // however, because historically we set store to true to support synthetic source, we must also keep that logic:
+            if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
+                return isSyntheticSourceEnabled && isWithinMultiField == false && hasSyntheticSourceCompatibleKeywordField == false;
+            } else {
+                return isSyntheticSourceEnabled && hasSyntheticSourceCompatibleKeywordField == false;
+            }
         }
 
         private Builder(String name, MappingParserContext context) {
@@ -451,6 +469,9 @@ public final class TextFieldMapper extends FieldMapper {
                 index,
                 store,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 indexOptions,
                 norms,
                 termVectors,
@@ -583,6 +604,48 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            if (indexCreatedVersion().isLegacyIndexVersion()) {
+                // Legacy indexes do not have eager global ordinals
+                eagerGlobalOrdinals.setValue(false);
+            }
+        }
+
+        /**
+         * Writes the same sequence {@link TextFieldMapper#doXContentBody} does, statement for statement: the named
+         * parameters are interleaved with multi-fields, {@code copy_to} and {@code synthetic_source_keep} in an order
+         * that has to be kept for BWC, so it is not derived from {@link #getParameters()}.
+         */
+        @Override
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+            builder.field("type", contentType());
+            index.toXContent(builder, includeDefaults);
+            store.toXContent(builder, includeDefaults);
+            docValuesParameters.toXContent(builder, includeDefaults);
+            multiFieldsBuilder.toXContent(builder, params);
+            copyTo.toXContent(builder);
+            if (sourceKeepMode.isPresent()) {
+                sourceKeepMode.get().toXContent(builder);
+            }
+            meta.toXContent(builder, includeDefaults);
+            indexOptions.toXContent(builder, includeDefaults);
+            termVectors.toXContent(builder, includeDefaults);
+            norms.toXContent(builder, includeDefaults);
+            analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
+            analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
+            analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
+            similarity.toXContent(builder, includeDefaults);
+            eagerGlobalOrdinals.toXContent(builder, includeDefaults);
+            analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
+            fieldData.toXContent(builder, includeDefaults);
+            freqFilter.toXContent(builder, includeDefaults);
+            indexPrefixes.toXContent(builder, includeDefaults);
+            indexPhrases.toXContent(builder, includeDefaults);
+        }
+
+        @Override
         public TextFieldMapper build(MapperBuilderContext context) {
             this.offsetsFieldName = FieldArrayContext.getOffsetsFieldName(
                 context,
@@ -625,6 +688,15 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
+
+    /**
+     * Writes a recorded offsets value back into synthetic source when the offsets of an array are too large to store.
+     * The recorded value is the raw UTF-8 value as a {@link BytesRef}; shared by the text-family mappers that record offsets this way.
+     */
+    public static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var bytesRef = (BytesRef) v;
+        b.utf8Value(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+    };
 
     private static class PhraseWrappedAnalyzer extends ElasticsearchAnalyzerWrapper {
 
@@ -1049,6 +1121,10 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.termQuery(value, context);
             }
+            final Query fromValues = termQueryFromValues(value, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
 
             failIfNotIndexedNorDocValuesFallback(context);
 
@@ -1063,6 +1139,10 @@ public final class TextFieldMapper extends FieldMapper {
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             if (indexType().hasTerms()) {
                 return super.termsQuery(values, context);
+            }
+            final Query fromValues = termsQueryFromValues(values, context);
+            if (fromValues != null) {
+                return fromValues;
             }
 
             failIfNotIndexedNorDocValuesFallback(context);
@@ -1095,6 +1175,10 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.prefixQuery(value, method, caseInsensitive, context);
             }
+            final Query fromValues = prefixQueryFromValues(value, caseInsensitive, context);
+            if (fromValues != null) {
+                return fromValues;
+            }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
                 return binaryQueries().prefix(name(), value, caseInsensitive);
@@ -1120,6 +1204,10 @@ public final class TextFieldMapper extends FieldMapper {
         ) {
             if (indexType().hasTerms()) {
                 return super.wildcardQuery(value, method, caseInsensitive, context);
+            }
+            final Query fromValues = wildcardQueryFromValues(value, caseInsensitive, context);
+            if (fromValues != null) {
+                return fromValues;
             }
             failIfNotIndexedNorDocValuesFallback(context);
             if (usesBinaryDocValues) {
@@ -1153,6 +1241,10 @@ public final class TextFieldMapper extends FieldMapper {
         ) {
             if (indexType().hasTerms()) {
                 return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+            }
+            final Query fromValues = regexpQueryFromValues(value, syntaxFlags, matchFlags, maxDeterminizedStates, context);
+            if (fromValues != null) {
+                return fromValues;
             }
             failIfNotIndexedNorDocValuesFallback(context);
             value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
@@ -1265,16 +1357,37 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         /**
-         * Whether a query over positions this field did not index can be answered by analyzing its values again. Only a
-         * strictly columnar index is taken to hold them, in the field's own doc values or, for a multi-field keeping
-         * none of its own, in its parent's.
+         * Whether a query reads this field's values rather than its index, which it does where the index lacks what
+         * the query asks for: the positions of a phrase, or the terms of anything. Only a strictly columnar index is
+         * taken to keep those values, in the field's own column or, for a multi-field keeping none, in its parent's.
          */
-        private boolean verifiesPositionsFromDocValues(SearchExecutionContext context) {
-            // The values are read for the documents the field's own terms match, so it needs those terms.
-            if (strictColumnar == false || indexType().hasTerms() == false || getTextSearchInfo().hasPositions()) {
+        private boolean answersFromValues(SearchExecutionContext context) {
+            if (strictColumnar == false || (indexType().hasTerms() && getTextSearchInfo().hasPositions())) {
                 return false;
             }
             return hasDocValues() || readsParentValues(context);
+        }
+
+        /** Whether the field indexes no terms, so nothing narrows the documents a query reads. */
+        private boolean scansEveryDocument() {
+            return indexType().hasTerms() == false;
+        }
+
+        @Override
+        public boolean answersPositionsFromValues(SearchExecutionContext context) {
+            // Reading the values answers a query about positions whether the field indexed terms without them or
+            // indexed nothing at all.
+            return answersFromValues(context);
+        }
+
+        @Override
+        public boolean answersTextQueryFromValues(SearchExecutionContext context) {
+            return scansEveryDocument() && answersFromValues(context);
+        }
+
+        @Override
+        protected Query readingValues(Query query, SearchExecutionContext context) {
+            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null), true);
         }
 
         /** Whether this field can read its parent's values, which a multi-field keeping none of its own does. */
@@ -1288,7 +1401,8 @@ public final class TextFieldMapper extends FieldMapper {
             if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.hasNormalizer()) {
                 return false;
             }
-            return parent.hasDocValues() || parent.isStored();
+            // A column is the only place this reads: a strictly columnar index allows a field no stored field.
+            return parent.hasDocValues();
         }
 
         /** Reads this field's values back, for the queries that analyze them again. */
@@ -1302,12 +1416,17 @@ public final class TextFieldMapper extends FieldMapper {
             return FieldValueFetchers.fromParent(context, name());
         }
 
-        /** {@code query} as it stands where the field indexed positions, over its values again where it did not. */
+        /** {@code query} as it stands where the field indexed positions, confirmed against its values where it did not. */
         private Query reanalyzePositions(Query query, SearchExecutionContext context) {
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 return query;
             }
-            return new ReanalyzingTextQuery(query, valueFetcherProvider(context), context.getIndexAnalyzer(f -> null));
+            return new ReanalyzingTextQuery(
+                query,
+                valueFetcherProvider(context),
+                context.getIndexAnalyzer(f -> null),
+                scansEveryDocument()
+            );
         }
 
         /** The same for an interval, which also needs the query that finds the documents worth reading. */
@@ -1315,12 +1434,16 @@ public final class TextFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasPositions()) {
                 return source;
             }
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
+            }
+            if (scansEveryDocument()) {
+                // Nothing narrows the documents read, as it does where the field's own terms name them.
+                failIfExpensiveQueriesDisallowed(context);
             }
             return new ReanalyzingIntervalsSource(
                 source,
-                approximation,
+                scansEveryDocument() ? Queries.ALL_DOCS_INSTANCE : approximation,
                 valueFetcherProvider(context),
                 context.getIndexAnalyzer(f -> null)
             );
@@ -1330,7 +1453,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 checkForPositions(false);
             }
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
@@ -1368,7 +1491,7 @@ public final class TextFieldMapper extends FieldMapper {
         public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context)
             throws IOException {
             String field = name();
-            if (verifiesPositionsFromDocValues(context) == false) {
+            if (answersFromValues(context) == false) {
                 checkForPositions(true);
             }
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
@@ -1392,10 +1515,11 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
-            // One term asks nothing of positions - it is a query over the terms the index holds, which answers it
-            // whole - so the values are neither checked for positions nor read for them.
+            // One term asks nothing of positions, so the query over the terms answers it whole and the values are
+            // neither checked for positions nor read for them. Where the field holds no terms at all, the clause
+            // this was built for is read from the values whole.
             final boolean asksForPositions = countTokens(stream) > 1;
-            final boolean reanalyzes = asksForPositions && verifiesPositionsFromDocValues(context);
+            final boolean reanalyzes = asksForPositions && answersFromValues(context);
             if (asksForPositions && reanalyzes == false) {
                 checkForPositions(false);
             }
@@ -2142,7 +2266,7 @@ public final class TextFieldMapper extends FieldMapper {
                 }
             }
 
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }
@@ -2244,7 +2368,7 @@ public final class TextFieldMapper extends FieldMapper {
                     MultiValuedBinaryDocValuesField.ArrayOrderInlineNull.recordNull(context.doc(), fieldType().name());
                 }
             } else if (recordOffsets) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
             return;
         }
@@ -2294,7 +2418,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         if (recordOffsets) {
-            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(value));
+            context.getOffSetContext().recordOffset(offsetsFieldName, new BytesRef(value), OFFSETS_FALLBACK);
         }
 
         if (isIndexed() || fieldType.stored()) {

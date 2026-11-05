@@ -27,6 +27,8 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -43,6 +45,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -57,7 +60,11 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -96,6 +103,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -105,11 +113,13 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -535,21 +545,21 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             AtomicInteger responseSent = new AtomicInteger();
 
             @Override
-            public void onRequestReceived(long requestId, String action) {
+            public void onRequestReceived(long requestId, String action, int networkMessageSize) {
                 if (action.equals(ACTION)) {
                     requestsReceived.incrementAndGet();
                 }
             }
 
             @Override
-            public void onResponseSent(long requestId, String action) {
+            public void onResponseSent(long requestId, String action, int networkMessageSize) {
                 if (action.equals(ACTION)) {
                     responseSent.incrementAndGet();
                 }
             }
 
             @Override
-            public void onResponseSent(long requestId, String action, Exception error) {
+            public void onResponseSent(long requestId, String action, Exception error, int networkMessageSize) {
                 if (action.equals(ACTION)) {
                     responseSent.incrementAndGet();
                 }
@@ -569,7 +579,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 long requestId,
                 String action,
                 TransportRequest request,
-                TransportRequestOptions options
+                TransportRequestOptions options,
+                int networkMessageSize
             ) {
                 if (action.equals(ACTION)) {
                     requestsSent.incrementAndGet();
@@ -841,6 +852,88 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(serviceA.transport().getStats().getRxSize().getBytes(), lessThan(bytesLength));
             assertThat(serviceC.transport().getStats().getRxSize().getBytes(), greaterThan(bytesLength));
         }
+    }
+
+    public void testResponseReservedWhileArriving() {
+        final String action = "internal:large_response";
+        // Several times what one network read can carry, so the response arrives in more than one piece
+        final String largeMessage = randomAlphaOfLength(between(256 * 1024, 1024 * 1024));
+        serviceA.registerRequestHandler(
+            action,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            StringMessageRequest::new,
+            (request, channel, task) -> channel.sendResponse(new StringMessageResponse(largeMessage))
+        );
+        final boolean compress = randomBoolean();
+        // A single channel, so the response after the rejected one arrives on the same channel
+        final ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(
+            TransportRequestOptions.Type.REG,
+            null,
+            null,
+            null,
+            compress ? Compression.Enabled.TRUE : Compression.Enabled.FALSE,
+            compress ? randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4) : null
+        );
+        try (Transport.Connection connection = openConnection(serviceB, nodeA, profile)) {
+            for (int i = 0; i < 2; i++) {
+                final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+                final AtomicInteger pieces = new AtomicInteger();
+                final AtomicLong reservedWhenRead = new AtomicLong(-1);
+                final StringMessageResponse response = safeAwait(
+                    listener -> serviceB.sendRequest(
+                        connection,
+                        action,
+                        new StringMessageRequest(""),
+                        TransportRequestOptions.EMPTY,
+                        reservingResponseHandler(listener, breaker, pieces, reservedWhenRead)
+                    )
+                );
+                assertThat(response.message, equalTo(largeMessage));
+                assertThat("reserved piece by piece as the response arrived", pieces.get(), greaterThan(1));
+                assertThat("reserved while read", reservedWhenRead.get(), greaterThanOrEqualTo((long) largeMessage.length()));
+                assertThat("released once read", breaker.getUsed(), equalTo(0L));
+
+                if (i == 0) {
+                    // A trip drops the rest of the response unread and reaches the handler as a 429
+                    final CircuitBreaker smallBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(between(0, largeMessage.length() / 2)));
+                    final AtomicLong reservedWhenReadSmall = new AtomicLong(-1);
+                    final Exception e = safeAwaitFailure(
+                        StringMessageResponse.class,
+                        listener -> serviceB.sendRequest(
+                            connection,
+                            action,
+                            new StringMessageRequest(""),
+                            TransportRequestOptions.EMPTY,
+                            reservingResponseHandler(listener, smallBreaker, new AtomicInteger(), reservedWhenReadSmall)
+                        )
+                    );
+                    assertThat(ExceptionsHelper.unwrapCause(e), instanceOf(CircuitBreakingException.class));
+                    assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+                    assertThat("a rejected response is not read", reservedWhenReadSmall.get(), equalTo(-1L));
+                    assertThat(smallBreaker.getTrippedCount(), equalTo(1L));
+                    assertThat(smallBreaker.getUsed(), equalTo(0L));
+                }
+            }
+        }
+    }
+
+    private TransportResponseHandler<StringMessageResponse> reservingResponseHandler(
+        ActionListener<StringMessageResponse> listener,
+        CircuitBreaker breaker,
+        AtomicInteger pieces,
+        AtomicLong reservedWhenRead
+    ) {
+        return new ActionListenerResponseHandler<>(listener, in -> {
+            reservedWhenRead.set(breaker.getUsed());
+            return new StringMessageResponse(in);
+        }, randomFrom(threadPool.generic(), TransportResponseHandler.TRANSPORT_WORKER)) {
+            @Override
+            public Releasable reserveResponseBytes(int bytes) {
+                pieces.incrementAndGet();
+                breaker.addEstimateBytesAndMaybeBreak(bytes, "response");
+                return () -> breaker.addWithoutBreaking(-bytes);
+            }
+        };
     }
 
     public void testErrorMessage() throws InterruptedException {
@@ -3411,6 +3504,62 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         );
         safeAwait(barrier);
         safeAwait(responseLatch);
+    }
+
+    public void testActionMetrics() throws Exception {
+        final String action = "internal:testActionMetrics";
+        serviceA.registerRequestHandler(
+            action,
+            threadPool.executor(ThreadPool.Names.GENERIC),
+            StringMessageRequest::new,
+            (request, channel, task) -> channel.sendResponse(new StringMessageResponse("hello " + request.message))
+        );
+
+        final var future = new PlainActionFuture<StringMessageResponse>();
+        serviceB.sendRequest(
+            nodeA,
+            action,
+            new StringMessageRequest(randomAlphaOfLengthBetween(1, 1000)),
+            new ActionListenerResponseHandler<>(future, StringMessageResponse::new, threadPool.generic())
+        );
+        safeGet(future);
+
+        assertBusy(() -> {
+            // each message is recorded once by the node sending it and once by the node receiving it, with the same size as the action
+            // stats
+            final var stats = serviceA.getRequestHandler(action).getStats();
+            assertThat(stats.requestCount(), equalTo(1L));
+            assertThat(stats.responseCount(), equalTo(1L));
+            assertThat(messageSizes(serviceB, TransportActionMetrics.SENT_REQUEST_SIZE_METRIC, action), contains(stats.totalRequestSize()));
+            assertThat(
+                messageSizes(serviceA, TransportActionMetrics.RECEIVED_REQUEST_SIZE_METRIC, action),
+                contains(stats.totalRequestSize())
+            );
+            assertThat(
+                messageSizes(serviceA, TransportActionMetrics.SENT_RESPONSE_SIZE_METRIC, action),
+                contains(stats.totalResponseSize())
+            );
+            assertThat(
+                messageSizes(serviceB, TransportActionMetrics.RECEIVED_RESPONSE_SIZE_METRIC, action),
+                contains(stats.totalResponseSize())
+            );
+            // each node only records what it sends and receives
+            assertThat(messageSizes(serviceA, TransportActionMetrics.SENT_REQUEST_SIZE_METRIC, action), empty());
+            assertThat(messageSizes(serviceB, TransportActionMetrics.RECEIVED_REQUEST_SIZE_METRIC, action), empty());
+            assertThat(messageSizes(serviceB, TransportActionMetrics.SENT_RESPONSE_SIZE_METRIC, action), empty());
+            assertThat(messageSizes(serviceA, TransportActionMetrics.RECEIVED_RESPONSE_SIZE_METRIC, action), empty());
+        });
+    }
+
+    private static List<Long> messageSizes(MockTransportService service, String metric, String action) {
+        final var meterRegistry = (RecordingMeterRegistry) service.getTelemetryProvider().getMeterRegistry();
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, metric)
+            .stream()
+            .filter(m -> action.equals(m.attributes().get(TransportActionMetrics.ACTION_NAME_ATTRIBUTE)))
+            .peek(m -> assertThat(m.attributes(), not(hasKey(TransportActionMetrics.IS_REMOTE_CONNECTION_ATTRIBUTE))))
+            .map(Measurement::getLong)
+            .toList();
     }
 
     private static long[] getConstantMessageSizeHistogram(int count, long size) {

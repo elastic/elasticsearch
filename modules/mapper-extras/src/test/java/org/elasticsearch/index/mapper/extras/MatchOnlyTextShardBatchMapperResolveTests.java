@@ -46,7 +46,7 @@ public class MatchOnlyTextShardBatchMapperResolveTests extends AbstractShardBatc
     public void testMatchOnlyTextMultiValueFalseIsSupported() throws IOException {
         MapperService ms = columnarMapperService(mapping(b -> {
             b.startObject("f").field("type", "match_only_text");
-            b.startObject("doc_values").field("multi_value", false).endObject();
+            b.field("multi_value", false);
             b.endObject();
         }));
         BatchMapperResolution resolution = ShardBatchMapper.resolveMappers(schemaOf("f"), ms.mappingLookup(), indexSettings);

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -88,7 +89,7 @@ public class SearchCommitPrefetcher {
     );
     // TODO: add a setting to enable pre-fetching only for write indices?
 
-    private final Logger logger = LogManager.getLogger(SearchCommitPrefetcher.class);
+    private static final Logger logger = LogManager.getLogger(SearchCommitPrefetcher.class);
 
     private final ShardId shardId;
     private final StatelessSharedBlobCacheService cacheService;
@@ -105,6 +106,32 @@ public class SearchCommitPrefetcher {
 
     private final AtomicReference<BCCPreFetchedOffset> maxPrefetchedOffset = new AtomicReference<>(BCCPreFetchedOffset.ZERO);
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    private final SearchCommitPrefetcherMetrics metrics;
+
+    /// Outcome of handling a new commit notification, reflecting whether (and how) the commit's segments were prefetched.
+    public enum PrefetchResult {
+        /// Prefetching is disabled, so the commit's segments are not warmed proactively.
+        DISABLED("disabled"),
+        /// The shard is search-idle (no searcher acquired recently), so prefetching was skipped.
+        IDLING("idling"),
+        /// The notification does not report any uploaded BCC and prefetching of non-uploaded commits is disabled, so there is nothing to
+        /// prefetch.
+        SKIPPED("skipped"),
+        /// Prefetching ran in the foreground: the refresh is held back until the segments are warmed.
+        FOREGROUND("foreground"),
+        /// Prefetching was dispatched in the background: the refresh proceeds concurrently with the warming.
+        BACKGROUND("background");
+
+        private final String value;
+
+        PrefetchResult(String value) {
+            this.value = value;
+        }
+
+        public String value() {
+            return value;
+        }
+    }
 
     public SearchCommitPrefetcher(
         ShardId shardId,
@@ -115,9 +142,11 @@ public class SearchCommitPrefetcher {
         ThreadPool threadPool,
         Executor executor,
         ClusterSettings clusterSettings,
-        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
+        SearchCommitPrefetcherMetrics metrics
     ) {
         this.shardId = shardId;
+        this.metrics = metrics;
         this.cacheService = cacheService;
         this.cacheBlobReaderSupplier = cacheBlobReaderSupplier;
         this.fileTimestampResolver = fileTimestampResolver;
@@ -137,8 +166,12 @@ public class SearchCommitPrefetcher {
     public void maybePrefetchLatestCommit(
         NewCommitNotification notification,
         long timeSinceLastSearcherWasAcquiredInMillis,
-        ActionListener<Void> listener
+        ActionListener<PrefetchResult> listener
     ) {
+        final ActionListener<PrefetchResult> resultListener = listener.delegateFailureAndWrap((l, result) -> {
+            recordPrefetchResult(result, notification.isBatchedCompoundCommitUploaded());
+            l.onResponse(result);
+        });
         boolean enabled = prefetcherDynamicSettings.prefetchingEnabled();
         if (enabled == false
             // We only want to prefetch commits for shards actively serving searches so skip
@@ -168,7 +201,7 @@ public class SearchCommitPrefetcher {
                 ),
                 (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
             );
-            listener.onResponse(null);
+            resultListener.onResponse(enabled ? PrefetchResult.IDLING : PrefetchResult.DISABLED);
             return;
         }
 
@@ -187,48 +220,48 @@ public class SearchCommitPrefetcher {
             );
         }
 
+        // New commits might be served from the indexing nodes, in such cases it might be undesirable to fetch the
+        // entire commit from the indexing node as it adds extra load to the indexing nodes.
+        if (prefetchNonUploadedCommits == false && notification.latestUploadedBatchedCompoundCommitTermAndGen() == null) {
+            logPrefetchCompleted(shardId, notification, 0L, 0L, totalPrefetchedBytes.get());
+            resultListener.onResponse(PrefetchResult.SKIPPED);
+            return;
+        }
+
         // This gets executed in a transport thread and if the cache needs to evict regions it acquires a lock,
         // just to be on the safe side, we dispatch it into a different thread pool.
-        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
+        threadPool.generic().execute(ActionRunnable.wrap(resultListener, l -> {
             // If we prefetch in the background the new commit notification would go through and the refresh
             // will be executed concurrently with the prefetching. Otherwise, the refresh won't be executed
             // until the prefetching finishes.
-            ActionListener<Void> prefetchListener = prefetchInBackground ? ActionListener.noop() : l;
-            prefetchLatestCommit(notification, prefetchListener);
-
             if (prefetchInBackground) {
-                l.onResponse(null);
+                prefetchLatestCommit(notification, PrefetchResult.BACKGROUND, ActionListener.noop());
+                l.onResponse(PrefetchResult.BACKGROUND);
+            } else {
+                prefetchLatestCommit(notification, PrefetchResult.FOREGROUND, l.map(unused -> PrefetchResult.FOREGROUND));
             }
         }));
     }
 
-    private void prefetchLatestCommit(NewCommitNotification notification, ActionListener<Void> listener) {
+    private void prefetchLatestCommit(NewCommitNotification notification, PrefetchResult prefetchType, ActionListener<Void> listener) {
         var prefetchedBytes = new AtomicLong(0);
         final var currentMaxPrefetchedOffset = maxPrefetchedOffset.get();
-        var prefetchingStarted = threadPool.relativeTimeInMillis();
+        final long prefetchingStarted = threadPool.relativeTimeInMillis();
 
         ActionListener<Void> prefetchListener = ActionListener.runBefore(listener, () -> {
-            // TODO: add APM metrics?
             totalPrefetchedBytes.addAndGet(prefetchedBytes.get());
-            logger.debug(
-                "{} Prefetching for new commit missing blobs [{}] took [{}] and fetched [{} bytes] {}",
+            recordPrefetchDuration(prefetchType, notification.isBatchedCompoundCommitUploaded(), prefetchingStarted);
+            logPrefetchCompleted(
                 shardId,
                 notification,
                 threadPool.relativeTimeInMillis() - prefetchingStarted,
-                ByteSizeValue.ofBytes(prefetchedBytes.get()).getStringRep(),
+                prefetchedBytes.get(),
                 totalPrefetchedBytes.get()
             );
         });
 
         try (RefCountingListener refCountingListener = new RefCountingListener(prefetchListener)) {
             var compoundCommit = notification.compoundCommit();
-
-            // New commits might be served from the indexing nodes, in such cases it might
-            // be undesirable to fetch the entire commit from the indexing node as it adds
-            // extra load to the indexing nodes.
-            if (prefetchNonUploadedCommits == false && notification.latestUploadedBatchedCompoundCommitTermAndGen() == null) {
-                return;
-            }
 
             // New commit notifications can arrive out of order.
             // When prefetchNonUploadedCommits is false, we still want to trigger
@@ -367,6 +400,37 @@ public class SearchCommitPrefetcher {
                 }
             }
         }
+    }
+
+    private void recordPrefetchResult(PrefetchResult result, boolean uploaded) {
+        if (prefetcherDynamicSettings.prefetchMetricsEnabled()) {
+            metrics.recordPrefetchResult(result, uploaded);
+        }
+    }
+
+    private void recordPrefetchDuration(PrefetchResult prefetchType, boolean uploaded, long prefetchingStartedInMillis) {
+        if (prefetcherDynamicSettings.prefetchMetricsEnabled()) {
+            metrics.recordPrefetchDuration(prefetchType, uploaded, threadPool.relativeTimeInMillis() - prefetchingStartedInMillis);
+        }
+    }
+
+    private static void logPrefetchCompleted(
+        ShardId shardId,
+        NewCommitNotification notification,
+        long tookMillis,
+        long prefetchedBytes,
+        long totalPrefetchedBytes
+    ) {
+        logger.debug(
+            () -> Strings.format(
+                "%s Prefetching for new commit missing blobs [%s] took [%d] and fetched [%s bytes] %d",
+                shardId,
+                notification,
+                tookMillis,
+                ByteSizeValue.ofBytes(prefetchedBytes).getStringRep(),
+                totalPrefetchedBytes
+            )
+        );
     }
 
     private boolean assertMaxPrefetchedOffsetMovesForward(

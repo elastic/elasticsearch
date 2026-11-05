@@ -136,6 +136,20 @@ public final class ExternalUnavailableException extends ExternalException {
         this.retryAfterMs = retryAfterMs > 0 ? retryAfterMs : 0L;
     }
 
+    /**
+     * Structured constructor for a condition that names no object and is neither throttling nor carries a retry hint:
+     * {@link Condition#WORKER_NOT_READY}, where the node, not the store, is what cannot serve the read yet.
+     *
+     * @param condition  the object-less condition
+     * @param detailCode short qualifier; empty string if absent
+     * @param remedy     actionable advice; empty string if absent
+     */
+    public ExternalUnavailableException(Condition condition, String detailCode, String remedy) {
+        super(condition, detailCode, remedy);
+        this.throttling = false;
+        this.retryAfterMs = 0L;
+    }
+
     private ExternalUnavailableException(ExternalUnavailableException source) {
         super(source);
         this.throttling = source.throttling;

@@ -65,10 +65,19 @@ import static org.mockito.Mockito.mock;
 @ThreadLeakFilters(filters = { HttpStorageObjectCancelTests.JdkHttpClientThreadFilter.class })
 public class HttpStorageObjectCancelTests extends ESTestCase {
 
+    /**
+     * JDK {@code HttpClient.sendAsync} attaches {@code whenCompleteAsync} on
+     * {@code CompletableFuture.defaultExecutor()} (the common {@code ForkJoinPool}) when the
+     * response future is not already done, so dependents run off the client executor. That pool
+     * cannot be shut down: a worker born during the suite is JVM-lifetime, not a leftover
+     * cancel-path thread. Production uses the same shared pool. Selector threads are named
+     * {@code HttpClient-*}.
+     */
     public static final class JdkHttpClientThreadFilter implements ThreadFilter {
         @Override
         public boolean reject(Thread t) {
-            return t.getName().startsWith("HttpClient");
+            String name = t.getName();
+            return name.startsWith("HttpClient") || name.startsWith("ForkJoinPool.commonPool-worker-");
         }
     }
 
@@ -115,6 +124,8 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
         for (CountDownLatch release : releases) {
             release.countDown();
         }
+        boolean clientTerminated = true;
+        boolean poolTerminated = true;
         try {
             if (server != null) {
                 server.stop(0);
@@ -122,22 +133,21 @@ public class HttpStorageObjectCancelTests extends ESTestCase {
         } finally {
             try {
                 if (client != null) {
-                    client.shutdown();
-                    if (client.awaitTermination(Duration.ofSeconds(5)) == false) {
-                        client.shutdownNow();
-                    }
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                if (client != null) {
                     client.shutdownNow();
+                    try {
+                        clientTerminated = client.awaitTermination(Duration.ofSeconds(5));
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        clientTerminated = false;
+                    }
                 }
             } finally {
                 if (executor != null) {
-                    terminate(executor);
+                    poolTerminated = terminate(executor);
                 }
             }
         }
+        assertTrue("HttpClient terminated=" + clientTerminated + " pool terminated=" + poolTerminated, clientTerminated && poolTerminated);
     }
 
     private CountDownLatch releaseLatch() {

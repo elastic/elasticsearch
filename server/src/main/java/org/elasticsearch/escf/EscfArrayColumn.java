@@ -81,6 +81,56 @@ final class EscfArrayColumn extends EscfColumn {
         return new ColumnarArrayReader(child, elemFrom, elemTo);
     }
 
+    @Override
+    public int sizeInBytes(int row) {
+        return isAbsent(row) ? 0 : elementsSizeInBytes(child.kind(), intAt(rowOffsets, row), intAt(rowOffsets, row + 1));
+    }
+
+    @Override
+    public void addSizesInBytes(int[] sizes) {
+        final byte childKind = child.kind();
+        final int[] offs = rowOffsets.ints;
+        final int base = rowOffsets.offset;
+        if (validity == null) {
+            for (int d = 0; d < docCount; d++) {
+                sizes[d] += elementsSizeInBytes(childKind, offs[base + d], offs[base + d + 1]);
+            }
+            return;
+        }
+        PresentDocIterator present = presentDocs();
+        for (int d = present.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = present.nextDoc()) {
+            sizes[d] += elementsSizeInBytes(childKind, offs[base + d], offs[base + d + 1]);
+        }
+    }
+
+    /**
+     * The size of the child elements in {@code [elemFrom, elemTo)}: a string element counts its UTF-8
+     * bytes and any other element {@link SourceValueType#elemDataSize} of its type (floored at 0, so a
+     * binary element counts 0 bytes, as it is not a fixed-width element type). The child is a dense
+     * column of one kind, so {@code childKind} settles the per-element size for the whole range: a string
+     * child is sized from its cumulative offsets and a fixed-64 child from the element count, without a
+     * per-element type lookup. Other child kinds, which the encoder does not produce, fall back to
+     * walking the elements.
+     */
+    private int elementsSizeInBytes(byte childKind, int elemFrom, int elemTo) {
+        return switch (childKind) {
+            case EscfColumnKind.STRING -> ((AbstractVarColumn) child).valueLength(elemFrom, elemTo);
+            case EscfColumnKind.LONG, EscfColumnKind.DOUBLE -> (elemTo - elemFrom) * Long.BYTES;
+            case EscfColumnKind.BINARY -> 0;
+            default -> {
+                int size = 0;
+                ArrayReader array = new ColumnarArrayReader(child, elemFrom, elemTo);
+                while (array.next()) {
+                    byte type = array.type();
+                    size += type == SourceValueType.STRING
+                        ? array.textValue().bytes().length()
+                        : Math.max(SourceValueType.elemDataSize(type), 0);
+                }
+                yield size;
+            }
+        };
+    }
+
     /**
      * Returns an element-granular {@link LongTupleCursor} over this array column's fixed-64 element
      * values. The child column must be an {@link AbstractFixed64Column} (LONG or DOUBLE); throws

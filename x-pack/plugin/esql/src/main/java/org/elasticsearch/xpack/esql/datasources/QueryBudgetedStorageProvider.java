@@ -53,6 +53,11 @@ class QueryBudgetedStorageProvider extends DelegatingStorageProvider {
         return new QueryBudgetedStorageObject(delegate.newObject(path, length, lastModified), budget);
     }
 
+    @Override
+    public StorageObject newObject(StoragePath path, long length, Instant lastModified, String version) {
+        return new QueryBudgetedStorageObject(delegate.newObject(path, length, lastModified, version), budget);
+    }
+
     /**
      * Closes the per-query budget only; the delegate provider is pooled (or registry-owned)
      * and is returned via a sibling {@code onClose} on the operator factory, not here.

@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.hasSize;
  * Subqueries in the {@code FROM} command combined with logical views.
  *
  * <p>A {@code FROM} pattern that matches <b>both a view and a real index</b> — e.g. the wildcard {@code airports*} matching the view
- * {@code airports_view} and the index {@code airports} — resolves to a {@code ViewUnionAll} with a view branch and a concrete-index
+ * {@code airports_view} and the index {@code airports} — resolves to a {@code BranchPlan} with a view branch and a concrete-index
  * branch. Combined with a sibling subquery that used to nest one merge inside another, which is unexecutable, so the planner rejected
  * it. View compaction now flattens the nesting instead, and these tests pin the resulting unions.
  *
@@ -55,10 +55,10 @@ public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
 
     /**
      * A wildcard that matches both a view and a real index, combined with a sibling subquery, used to be rejected: the pattern expanded
-     * to a {@code ViewUnionAll} nested under the subquery's {@code UnionAll}, and nested merges are unexecutable.
+     * to a {@code BranchPlan} nested under the subquery's {@code UnionAll}, and nested merges are unexecutable.
      *
      * <p>View compaction now flattens that nesting — {@code ViewCompaction.rewriteUnionAllsWithNamedSubqueries} inlines a
-     * {@code ViewUnionAll} child's entries into the enclosing union, producing one flat merge over
+     * {@code BranchPlan} child's entries into the enclosing union, producing one flat merge over
      * {@code {airports_view, airports, employees}} — so the three arrangements below all execute and return the union.
      *
      * <p>{@code airports} appears twice by design: {@code airports*} matches both the view (whose body reads {@code airports}) and the
@@ -158,7 +158,7 @@ public class SubqueryViewsIT extends AbstractEsqlIntegTestCase {
     /**
      * Creates the {@code airports_view} view. The view body carries a processing command ({@code LIMIT}) so it is kept as a named view
      * branch rather than compacted into the concrete index — this is what makes {@code airports*} expand to a branching
-     * {@code ViewUnionAll} of the view and the real index. The two indices share the same mapping so the top-level {@code UnionAll} has
+     * {@code BranchPlan} of the view and the real index. The two indices share the same mapping so the top-level {@code UnionAll} has
      * no column-type conflicts that would fail verification.
      */
     private void setupWildcardMatchingView() {

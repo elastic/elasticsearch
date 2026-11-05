@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
@@ -531,7 +532,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamLifecycleSettings,
             emptyDataStreamFailureStoreSettings,
-            IndexSettingProviders.of((additionalSettings) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)),
+            IndexSettingProviders.of(Set.of("index.mode"), (additionalSettings) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)),
             null,
             metadataDataStreamsService
         );
@@ -547,6 +548,137 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 .orElse("bad"),
             equalTo("standard")
         );
+    }
+
+    /**
+     * Providers that cannot influence any of the settings exposed by the get data streams API are not invoked, since what they would
+     * contribute is not used.
+     */
+    public void testProvidersNotInfluencingExposedSettingsAreSkipped() {
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+
+        AtomicBoolean invoked = new AtomicBoolean(false);
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamLifecycleSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(Set.of(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()), additionalSettings -> {
+                invoked.set(true);
+                additionalSettings.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1s");
+            }),
+            null,
+            metadataDataStreamsService
+        );
+        assertThat(invoked.get(), is(false));
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().getFirst().getIndexModeName(), equalTo("standard"));
+    }
+
+    public void testProvidersAffectIlmPolicy() {
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple("data-stream-1", 2)),
+            List.of(),
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            false,
+            false
+        );
+
+        var req = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {});
+        var response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            req,
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamLifecycleSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(
+                Set.of(IndexMetadata.LIFECYCLE_NAME),
+                additionalSettings -> additionalSettings.put(IndexMetadata.LIFECYCLE_NAME, "provided-policy")
+            ),
+            null,
+            metadataDataStreamsService
+        );
+        assertThat(response.getDataStreams(), hasSize(1));
+        assertThat(response.getDataStreams().getFirst().getIlmPolicy(), equalTo("provided-policy"));
+    }
+
+    /**
+     * The data stream already knows its index mode, which used to short-circuit running the additional setting providers. The data
+     * stream level prefer_ilm should still reflect what a provider would set on the next backing index.
+     */
+    public void testProvidersAffectPreferIlm() {
+        ProjectMetadata project = getProjectWithDataStreamWithSettings(
+            Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES).build(),
+            Settings.EMPTY,
+            Settings.EMPTY,
+            IndexMode.STANDARD
+        );
+        DataStream dataStream = project.dataStreams().get("data-stream-1");
+
+        var response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {}),
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamLifecycleSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(
+                Set.of(IndexSettings.PREFER_ILM),
+                additionalSettings -> additionalSettings.put(IndexSettings.PREFER_ILM, false)
+            ),
+            null,
+            metadataDataStreamsService
+        );
+        assertThat(response.getDataStreams().getFirst().getIndexModeName(), equalTo(IndexMode.TIME_SERIES.getName()));
+        assertThat(response.getDataStreams().getFirst().templatePreferIlmValue(), is(false));
+    }
+
+    /**
+     * A prefer_ilm configured by the user, in a template or on the data stream, takes precedence over the one from a provider that
+     * does not overrule the template and request settings.
+     */
+    public void testConfiguredPreferIlmWinsOverProviders() {
+        Settings preferIlm = Settings.builder().put(IndexSettings.PREFER_ILM, true).build();
+        ProjectMetadata project = switch (randomIntBetween(0, 2)) {
+            case 0 -> getProjectWithDataStreamWithSettings(preferIlm, Settings.EMPTY, Settings.EMPTY, IndexMode.TIME_SERIES);
+            case 1 -> getProjectWithDataStreamWithSettings(Settings.EMPTY, preferIlm, Settings.EMPTY, IndexMode.TIME_SERIES);
+            case 2 -> getProjectWithDataStreamWithSettings(Settings.EMPTY, Settings.EMPTY, preferIlm, IndexMode.TIME_SERIES);
+            default -> throw new AssertionError("unexpected branch");
+        };
+
+        var response = TransportGetDataStreamsAction.innerOperation(
+            projectStateFromProject(project),
+            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] {}),
+            resolver,
+            systemIndices,
+            ClusterSettings.createBuiltInClusterSettings(),
+            dataStreamLifecycleSettings,
+            emptyDataStreamFailureStoreSettings,
+            IndexSettingProviders.of(
+                Set.of(IndexSettings.PREFER_ILM),
+                additionalSettings -> additionalSettings.put(IndexSettings.PREFER_ILM, false)
+            ),
+            null,
+            metadataDataStreamsService
+        );
+        assertThat(response.getDataStreams().getFirst().templatePreferIlmValue(), is(true));
     }
 
     public void testGetEffectiveSettingsTemplateOnlySettings() {
@@ -699,17 +831,14 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                 )
             );
         }
-        List<IndexMetadata> allIndices = new ArrayList<>(backingIndices);
-
+        for (IndexMetadata index : backingIndices) {
+            builder.put(index, false);
+        }
         DataStream ds = DataStream.builder(
             dataStreamName,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         ).setGeneration(numberOfBackingIndices).setSettings(dataStreamSettings).setIndexMode(dsIndexMode).setReplicated(replicated).build();
         builder.put(ds);
-
-        for (IndexMetadata index : allIndices) {
-            builder.put(index, false);
-        }
         return builder.build();
     }
 }

@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.GetViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilter;
@@ -151,7 +152,15 @@ public class CsvIT extends ESTestCase {
     private static final EsqlCapabilities ALL_CAPS = EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, true);
     private static final int BULK_INDEX_BATCH_SIZE = 10_000;
 
-    private static final Set<String> GROUPS_WITH_VIEWS = Set.of("views", "approximation", "unmapped-load", "metadata-views-and-subqueries");
+    private static final String ML_ANOMALIES_DATASET = ".ml-anomalies-shared";
+    private static final Set<String> GROUPS_WITH_VIEWS = Set.of(
+        "views",
+        "approximation",
+        "unmapped-load",
+        "unmapped-load-all",
+        "metadata-views-and-subqueries",
+        "named_subquery"
+    );
 
     private static InternalTestCluster cluster;
     private static String currentGroupName = null;
@@ -568,6 +577,14 @@ public class CsvIT extends ESTestCase {
     }
 
     private static void loadViews() {
+        if ("ml-anomalies".equals(currentGroupName)) {
+            // The reserved .ml-anomalies view is created asynchronously by the master once a .ml-anomalies-* index exists.
+            // Indices are otherwise loaded lazily when resolving fields, which is too late for a view: the query would
+            // already have been resolved as an unknown index.
+            var dataset = CSV_DATASET.get(ML_ANOMALIES_DATASET);
+            indices.maybeLoad(dataset.indexName(), dataset);
+            awaitView(".ml-anomalies");
+        }
         // TODO We should instead load views once and never unload them
         if (GROUPS_WITH_VIEWS.contains(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
@@ -577,6 +594,18 @@ public class CsvIT extends ESTestCase {
             });
         } else {
             views.unloadAll();
+        }
+    }
+
+    private static void awaitView(String name) {
+        try {
+            assertBusy(() -> {
+                var request = new GetViewAction.Request(TEST_REQUEST_TIMEOUT);
+                request.indices(name);
+                assertThat(cluster.client().execute(GetViewAction.INSTANCE, request).actionGet().getViews(), hasSize(1));
+            });
+        } catch (Exception e) {
+            throw new AssertionError("view [" + name + "] was not created", e);
         }
     }
 

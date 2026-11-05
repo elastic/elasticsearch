@@ -76,6 +76,35 @@ public class RenameIndexResizeIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertHitCount(prepareSearch("renamed").setSize(0), docs);
     }
 
+    public void testRenameSourceBeforeCloneCanAllocate() throws Exception {
+        createIndex("source", indexSettings(1, 0).build(), false);
+        prepareIndex("source").setId("original").setSource("f", "original").get();
+        refresh("source");
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), "source");
+        final var request = org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest(
+            ResizeType.CLONE,
+            "source",
+            "target",
+            Settings.builder()
+                .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.enable", "none")
+        );
+        request.setWaitForActiveShards(org.elasticsearch.action.support.ActiveShardCount.NONE);
+        assertAcked(client().execute(org.elasticsearch.action.admin.indices.shrink.TransportResizeAction.TYPE, request).actionGet());
+        rename("source", "renamed");
+        client().admin()
+            .indices()
+            .updateSettings(
+                new org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest("target").settings(
+                    Settings.builder().put("index.routing.allocation.enable", "all")
+                )
+            )
+            .actionGet(org.elasticsearch.core.TimeValue.timeValueSeconds(10));
+        ensureGreen("target");
+        ElasticsearchAssertions.assertHitCount(prepareSearch("target").setSize(0), 1);
+    }
+
     private void rename(String source, String target) {
         final var response = client().execute(TransportIndicesAliasesAction.TYPE, renameIndexRequest(source, target)).actionGet();
         assertTrue(response.isAcknowledged());

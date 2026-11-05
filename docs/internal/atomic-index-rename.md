@@ -512,6 +512,23 @@ UUID and is unaffected.
 
 ## Known gaps before production
 
+- **A forged shard-level write can reach an index the sender may not access.**
+  The replication reroute phase resolves the index of a shard-level request such
+  as `indices:data/write/bulk[s]` through `ProjectMetadata#index(Index)`, which
+  falls back to the UUID. A sender authorized for the name `old-public` who pairs
+  it with the UUID of `new-private` writes to `new-private`
+  (`RenameIndexSecurityTests` in the fourth review reproduces it through the
+  transport action; there is no REST entry point). On main the strict lookup made
+  such a request fail. It was accepted as a limitation, for two reasons. Only a
+  principal that can send shard-level actions directly can use it, which in
+  practice means a node that the cluster already trusts. And the replication
+  layer cannot tell the forged pair from a bulk that legitimately follows a
+  rename, whose old name after a swap also denotes another index, so closing it
+  there would break what `RenameIndexSwapIT` asserts. The place to close it is
+  authorization: apply the strict name and UUID check that
+  `RBACEngine#shardIdAuthorized` makes for cross-cluster requests to every
+  authentication type, for a shard-level request that arrives without a parent
+  action that was already authorized.
 - **The rename trick must become randomized or opt-in (T8).**
 - **A strict by-name lookup method for authorization code (T2)**, so that
   reviewers do not have to spot the lenient `index(Index)` in security code.
@@ -627,6 +644,11 @@ listed here as the places where names hide:
   when the recovery began; a shard finishing recovery across a rename failed
   to start once and was retried on the next cluster state. It now uses the
   index from the matched routing.
+- `ExpectedShardSizeEstimator` finding a clone, shrink or split source's
+  metadata by `Index` but its routing table by the name recorded in the target,
+  so renaming the source before the target allocated made the reroute throw and
+  left the target unallocated (`RenameIndexResizeIT#testRenameSourceBeforeCloneCanAllocate`
+  holds allocation off to hit that window).
 - Bulk item responses reporting the name the index had when the bulk was
   routed, because the shard response was built from the request's shard id.
 - Name-string lookups fed from a shard id (T2): the replication reroute

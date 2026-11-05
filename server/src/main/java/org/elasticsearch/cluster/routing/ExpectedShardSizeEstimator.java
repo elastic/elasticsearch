@@ -140,7 +140,7 @@ public class ExpectedShardSizeEstimator {
                 sourceIndexMetadata,
                 indexMetadata.getNumberOfShards()
             );
-            final IndexRoutingTable indexRoutingTable = routingTable.index(mergeSourceIndex.getName());
+            final IndexRoutingTable indexRoutingTable = routingTable.index(mergeSourceIndex);
             if (indexRoutingTable == null) {
                 final String error = "No routing table for index [" + mergeSourceIndex + "] in project [" + projectMetadata.id() + "]";
                 assert false : error;

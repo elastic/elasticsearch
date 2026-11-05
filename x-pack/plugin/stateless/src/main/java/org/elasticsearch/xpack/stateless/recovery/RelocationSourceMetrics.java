@@ -29,6 +29,15 @@ public record RelocationSourceMetrics(
         this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
     }
 
+    /**
+     * The time during which indexing on the shard is blocked, from the moment all primary operation permits start being acquired
+     * until the primary context handoff completes. Percentiles of the individual phases cannot be added up, so this is exposed to
+     * be recorded as a single sample per relocation.
+     */
+    public long indexingBlockedDurationInMillis() {
+        return acquirePermitsDurationInMillis + secondFlushDurationInMillis + handoffDurationInMillis;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(initialFlushDurationInMillis);

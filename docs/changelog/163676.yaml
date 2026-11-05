@@ -1,0 +1,20 @@
+area: Analysis
+breaking:
+  area: Analysis
+  title: Haase phonetic encoding is corrected for newly created indices
+  details: >-
+    Newly created indices using the `haasephonetik` encoder now retain the
+    character following an initial `CH`. Previously, words such as `CHLOE`
+    were encoded as if they were `CHOE`. Existing indices retain the previous
+    encoding behavior for indexing and search.
+  impact: >-
+    Existing indices remain compatible. To adopt the corrected encoding for
+    existing data, reindex it into a new index. Applications that depend on
+    exact phonetic codes should test their analysis output before creating or
+    rolling over to a new index.
+  notable: false
+issues:
+  - 163431
+pr: 163676
+summary: Correct Haase phonetic encoding of words beginning with CH
+type: bug

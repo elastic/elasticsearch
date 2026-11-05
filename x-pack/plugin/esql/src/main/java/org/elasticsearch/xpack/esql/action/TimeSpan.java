@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.ProfileSchema;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,6 +24,16 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  * THis class is used to capture a duration of some process, including start and stop point int time.
  */
 public record TimeSpan(long startMillis, long startNanos, long stopMillis, long stopNanos) implements Writeable, ToXContentObject {
+
+    public static final ProfileSchema<TimeSpan> PROFILE_SCHEMA = ProfileSchema.of(TimeSpan.class, TimeSpan::toXContent)
+        .required("start_millis", ProfileSchema.integer())
+        .optional("start", ProfileSchema.string())
+        .required("stop_millis", ProfileSchema.integer())
+        .optional("stop", ProfileSchema.string())
+        .optional("took_time", ProfileSchema.string())
+        .required("took_millis", ProfileSchema.integer())
+        .required("took_nanos", ProfileSchema.integer())
+        .build();
 
     public static TimeSpan readFrom(StreamInput in) throws IOException {
         return new TimeSpan(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
@@ -55,14 +67,18 @@ public record TimeSpan(long startMillis, long startNanos, long stopMillis, long 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return PROFILE_SCHEMA.write(builder, this, params);
+    }
+
+    private static XContentBuilder toXContent(XContentBuilder builder, TimeSpan value, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
-        builder.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
+        builder.timestampFieldsFromUnixEpochMillis("start_millis", "start", value.startMillis);
+        builder.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", value.stopMillis);
         if (builder.humanReadable()) {
-            builder.field("took_time", toTimeValue());
+            builder.field("took_time", value.toTimeValue());
         }
-        builder.field("took_millis", durationInMillis());
-        builder.field("took_nanos", durationInNanos());
+        builder.field("took_millis", value.durationInMillis());
+        builder.field("took_nanos", value.durationInNanos());
         builder.endObject();
         return builder;
     }

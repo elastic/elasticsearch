@@ -566,9 +566,6 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
     'distribution-closure-assignment': [
       'distribution/build.gradle::6',
     ],
-    'distribution-ext-closure-api': [
-      'distribution/build.gradle::1',
-    ],
   ])
 }
 
@@ -585,6 +582,7 @@ tasks.register("checkBuildLogic").configure {
     ':x-pack:plugin:esql:compute:ann',
     ':x-pack:plugin:esql:compute:gen',
     ':x-pack:plugin:esql:compute:test',
+    ':x-pack:plugin:esql:profile-schema',
     ':x-pack:plugin:esql:qa:testFixtures',
     ':x-pack:plugin:esql:tools',
     ':x-pack:plugin:esql-core',

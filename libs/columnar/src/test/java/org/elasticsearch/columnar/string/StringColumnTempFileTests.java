@@ -73,6 +73,7 @@ public class StringColumnTempFileTests extends ColumnarStringTestCase {
                     StringColumnOptions.DEFAULT_ENABLE_SKIP_INDEX
                 ),
                 null,
+                null,
                 dir,
                 IOContext.DEFAULT,
                 out.outputs(),

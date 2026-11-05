@@ -32,13 +32,17 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
@@ -82,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.plugin.EsqlSearchExecutionContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -828,4 +833,39 @@ public class PlannerUtils {
         }
     }
 
+    /**
+     * The fields {@code plan} reads that some shards may not map. Each shard resolves them to what it holds (see
+     * {@link EsqlSearchExecutionContext}).
+     */
+    public static Set<String> unmappedFieldNames(PhysicalPlan plan) {
+        Set<String> names = new HashSet<>();
+        Consumer<QueryPlan<?>> collect = p -> {
+            p.forEachExpressionDown(FieldAttribute.class, fa -> collectUnmappedFieldName(fa, names));
+            for (Attribute attribute : p.output()) {
+                if (attribute instanceof FieldAttribute fa) {
+                    collectUnmappedFieldName(fa, names);
+                }
+            }
+        };
+        plan.forEachDown(p -> {
+            collect.accept(p);
+            if (p instanceof FragmentExec fragment) {
+                fragment.fragment().forEachDown(collect::accept);
+            }
+        });
+        return names;
+    }
+
+    /**
+     * Adds to {@code names} the fields {@code fa} reads that some shards may not map: the field itself, or those its union type reads
+     * where an index does not map it.
+     */
+    public static void collectUnmappedFieldName(FieldAttribute fa, Set<String> names) {
+        if (fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+            names.add(fa.fieldName().string());
+        } else if (fa.field() instanceof UnionTypeEsField unionTypes && unionTypes.getUnmappedConversionExpression() != null) {
+            // The conversion reads the field where an index does not map it
+            unionTypes.getUnmappedConversionExpression().forEachDown(FieldAttribute.class, inner -> names.add(inner.fieldName().string()));
+        }
+    }
 }

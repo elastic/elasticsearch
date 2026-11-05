@@ -31,7 +31,6 @@ import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.diskbbq.CentroidIterator;
 import org.elasticsearch.index.codec.vectors.diskbbq.DocIdsWriter;
 import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsReader.QueryTarget;
 import org.elasticsearch.index.codec.vectors.diskbbq.PostingMetadata;
 import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
 import org.elasticsearch.index.codec.vectors.diskbbq.PrefetchingCentroidIterator;
@@ -41,6 +40,7 @@ import org.elasticsearch.simdvec.BulkMask;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.ScoringQuery;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -656,7 +656,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
         return new MemorySegmentPostingsVisitor(queryQuantizer, quantEncoding, indexInput, fieldInfo, acceptDocs);
     }
 
-    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, byte[] quantizedTarget) {}
+    private record QueryQuantizerResult(OptimizedScalarQuantizer.QuantizationResult queryCorrections, ScoringQuery quantizedTarget) {}
 
     private static final int QUERY_CACHE_SIZE = 16;
 
@@ -696,7 +696,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<Integer, QueryQuantizerResult> eldest) {
                     if (size() > QUERY_CACHE_SIZE) {
-                        evictedQuantizedQuery = eldest.getValue().quantizedTarget();
+                        evictedQuantizedQuery = eldest.getValue().quantizedTarget().bytes();
                         return true;
                     }
                     return false;
@@ -737,7 +737,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 );
                 quantEncoding.packQuery(quantizationScratch, quantizedQuery);
                 currentCentroidOrdinal = nextCentroidOrdinal;
-                result = new QueryQuantizerResult(queryCorrections, quantizedQuery);
+                result = new QueryQuantizerResult(queryCorrections, new ScoringQuery(quantizedQuery));
                 cache.put(nextCentroidOrdinal, result);
             }
         }
@@ -746,7 +746,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             return result.queryCorrections();
         }
 
-        byte[] getQuantizedTarget() {
+        ScoringQuery getQuantizedTarget() {
             return result.quantizedTarget();
         }
     }

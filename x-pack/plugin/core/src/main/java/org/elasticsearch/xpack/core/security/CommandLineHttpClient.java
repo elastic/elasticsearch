@@ -33,6 +33,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
+import java.net.Socket;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.CharBuffer;
@@ -51,6 +52,7 @@ import java.util.Objects;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
@@ -151,10 +153,10 @@ public class CommandLineHttpClient {
             if (pinnedCaCertFingerprint != null) {
                 final SSLContext sslContext = SSLContext.getInstance("TLS");
                 sslContext.init(null, new TrustManager[] { fingerprintTrustingTrustManager(pinnedCaCertFingerprint) }, null);
-                httpsConn.setSSLSocketFactory(sslContext.getSocketFactory());
+                httpsConn.setSSLSocketFactory(new ConnectedSocketFactory(sslContext.getSocketFactory()));
             } else {
                 final SslProfile sslProfile = sslService.profile(XPackSettings.HTTP_SSL_PREFIX);
-                httpsConn.setSSLSocketFactory(sslProfile.socketFactory());
+                httpsConn.setSSLSocketFactory(new ConnectedSocketFactory(sslProfile.socketFactory()));
                 final boolean isHostnameVerificationEnabled = sslProfile.configuration().verificationMode().isHostnameVerificationEnabled();
                 if (isHostnameVerificationEnabled == false) {
                     httpsConn.setHostnameVerifier((hostname, session) -> true);
@@ -370,5 +372,60 @@ public class CommandLineHttpClient {
         };
 
         return trustManager;
+    }
+
+    /**
+     * An {@link SSLSocketFactory} that only creates connected sockets, so that {@link HttpsURLConnection} connects a plain socket itself
+     * and layers TLS over it with the host name from the URL. Given an unconnected socket instead, the JSSE provider has to recover the
+     * peer name from the address the socket is connected to later, for endpoint identification. The JDK's provider does; the Bouncy
+     * Castle FIPS provider does not, and fails hostname verification against the IP literal that {@link #getDefaultURL()} produces,
+     * however the node's certificate names it. Declining unconnected sockets is the behaviour of
+     * {@link javax.net.SocketFactory#createSocket()} itself, which the JDK's HTTPS client handles by falling back to a plain socket.
+     */
+    static final class ConnectedSocketFactory extends SSLSocketFactory {
+
+        private final SSLSocketFactory delegate;
+
+        ConnectedSocketFactory(SSLSocketFactory delegate) {
+            this.delegate = delegate;
+        }
+
+        // createSocket() is deliberately not overridden: SocketFactory's implementation throws a SocketException caused by an
+        // UnsupportedOperationException, the signal HttpsURLConnection looks for before connecting a plain socket of its own
+
+        @Override
+        public Socket createSocket(Socket socket, String host, int port, boolean autoClose) throws IOException {
+            return delegate.createSocket(socket, host, port, autoClose);
+        }
+
+        @Override
+        public Socket createSocket(String host, int port) throws IOException {
+            return delegate.createSocket(host, port);
+        }
+
+        @Override
+        public Socket createSocket(String host, int port, InetAddress localHost, int localPort) throws IOException {
+            return delegate.createSocket(host, port, localHost, localPort);
+        }
+
+        @Override
+        public Socket createSocket(InetAddress host, int port) throws IOException {
+            return delegate.createSocket(host, port);
+        }
+
+        @Override
+        public Socket createSocket(InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException {
+            return delegate.createSocket(address, port, localAddress, localPort);
+        }
+
+        @Override
+        public String[] getDefaultCipherSuites() {
+            return delegate.getDefaultCipherSuites();
+        }
+
+        @Override
+        public String[] getSupportedCipherSuites() {
+            return delegate.getSupportedCipherSuites();
+        }
     }
 }

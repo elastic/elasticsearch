@@ -23,6 +23,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.ESVectorizationProvider;
+import org.elasticsearch.simdvec.ScoringQuery;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -42,6 +43,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -92,6 +94,7 @@ public class VectorScorerBQBenchmark {
     static final int NUM_QUERIES = 10;
 
     VectorScorerTestUtils.VectorData[] queries;
+    ScoringQuery[] scoringQueries;
     float centroidDp;
 
     ES93BinaryQuantizedVectorScorer scorer;
@@ -158,6 +161,7 @@ public class VectorScorerBQBenchmark {
         }
 
         this.queries = data.queries;
+        this.scoringQueries = Arrays.stream(data.queries).map(q -> new ScoringQuery(q.vector())).toArray(ScoringQuery[]::new);
         this.centroidDp = data.centroidDp;
         this.randomNodes = data.randomNodes;
 
@@ -192,7 +196,7 @@ public class VectorScorerBQBenchmark {
             input.seek(0);
             for (int i = 0; i < NUM_VECTORS; i++) {
                 float score = scorer.score(
-                    queries[j].vector(),
+                    scoringQueries[j],
                     queries[j].lowerInterval(),
                     queries[j].upperInterval(),
                     queries[j].quantizedComponentSum(),
@@ -214,7 +218,7 @@ public class VectorScorerBQBenchmark {
             input.seek(0);
             for (int i = 0; i < NUM_VECTORS; i++) {
                 float score = scorer.score(
-                    queries[j].vector(),
+                    scoringQueries[j],
                     queries[j].lowerInterval(),
                     queries[j].upperInterval(),
                     queries[j].quantizedComponentSum(),
@@ -235,7 +239,7 @@ public class VectorScorerBQBenchmark {
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             scorer.scoreBulk(
-                queries[j].vector(),
+                scoringQueries[j],
                 queries[j].lowerInterval(),
                 queries[j].upperInterval(),
                 queries[j].quantizedComponentSum(),
@@ -257,7 +261,7 @@ public class VectorScorerBQBenchmark {
         for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             scorer.scoreBulk(
-                queries[j].vector(),
+                scoringQueries[j],
                 queries[j].lowerInterval(),
                 queries[j].upperInterval(),
                 queries[j].quantizedComponentSum(),

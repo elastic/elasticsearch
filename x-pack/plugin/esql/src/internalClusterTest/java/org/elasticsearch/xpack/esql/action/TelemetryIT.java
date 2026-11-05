@@ -11,17 +11,24 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
+import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsAction;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsRequest;
+import org.elasticsearch.xpack.esql.plugin.EsqlStatsResponse;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 
 import java.time.ZoneId;
@@ -412,54 +419,100 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             expectedResolvedSettings.putAll(expectedNonDefaultResolvedSettings);
         }
 
+        String origin = randomFrom("", "kibana", "logstash-output-elasticsearch", "my-app");
+        String expectedClient = switch (origin) {
+            case "" -> "rest";
+            case "kibana" -> "kibana";
+            case "logstash-output-elasticsearch" -> "logstash";
+            case "my-app" -> "other";
+            default -> throw new AssertionError("unexpected origin [" + origin + "]");
+        };
+        Map<String, Object> expectedQueryAttributes = Map.of(
+            PlanTelemetryManager.CLIENT,
+            expectedClient,
+            PlanTelemetryManager.QUERY_SUCCESS,
+            success
+        );
+        Counters statsBefore = esqlStats();
+
+        int successIterations = randomInt(10);
         try {
-            int successIterations = randomInt(10);
             for (int i = 0; i < successIterations; i++) {
                 EsqlQueryRequest request = executeQuery(query, requestSettings);
                 CountDownLatch latch = new CountDownLatch(1);
 
                 final long iteration = i + 1;
-                client(dataNode.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
-                    try {
-                        // test total commands used
-                        final List<Measurement> commandMeasurementsAll = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS_ALL);
-                        assertAllUsages(expectedCommands, commandMeasurementsAll, iteration, success);
-
-                        // test num of queries using a command
-                        final List<Measurement> commandMeasurements = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS);
-                        assertUsageInQuery(expectedCommands, commandMeasurements, iteration, success);
-
-                        // test total functions used
-                        final List<Measurement> functionMeasurementsAll = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS_ALL);
-                        assertAllUsages(expectedFunctions, functionMeasurementsAll, iteration, success);
-
-                        // test number of queries using a function
-                        final List<Measurement> functionMeasurements = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS);
-                        assertUsageInQuery(expectedFunctions, functionMeasurements, iteration, success);
-
-                        // test total settings used
-                        final List<Measurement> settingMeasurementsAll = measurements(plugin, PlanTelemetryManager.SETTING_METRICS_ALL);
-                        assertAllUsages(expectedSettings, settingMeasurementsAll, iteration, success);
-
-                        // test number of queries using a setting
-                        final List<Measurement> settingMeasurements = measurements(plugin, PlanTelemetryManager.SETTING_METRICS);
-                        assertUsageInQuery(expectedSettings, settingMeasurements, iteration, success);
-
-                        // test number of queries in which a setting resolved to a value
-                        // this covers every setting and not only the ones explicitly in the query
-                        final var resolvedSettingsMeasurements = measurements(plugin, PlanTelemetryManager.RESOLVED_SETTINGS_METRICS);
-                        assertUsageInQuery(expectedResolvedSettings, resolvedSettingsMeasurements, iteration, success);
-                        assertResolvedSettings(expectedResolvedSettings, resolvedSettingsMeasurements);
-                    } finally {
-                        latch.countDown();
+                Client client = client(dataNode.getName());
+                ThreadContext threadContext = client.threadPool().getThreadContext();
+                try (var ignored = threadContext.stashContext()) {
+                    if (origin.isEmpty() == false) {
+                        threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, origin);
                     }
-                }));
+                    client.execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
+                        try {
+                            final List<Measurement> queryMeasurements = measurements(plugin, PlanTelemetryManager.QUERY_METRICS);
+                            assertThat(queryMeasurements, hasSize(1));
+                            assertThat(queryMeasurements.getFirst().attributes(), is(expectedQueryAttributes));
+                            assertThat(queryMeasurements.getFirst().getLong(), is(iteration));
+
+                            // test total commands used
+                            final List<Measurement> commandMeasurementsAll = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS_ALL);
+                            assertAllUsages(expectedCommands, commandMeasurementsAll, iteration, success);
+
+                            // test num of queries using a command
+                            final List<Measurement> commandMeasurements = measurements(plugin, PlanTelemetryManager.FEATURE_METRICS);
+                            assertUsageInQuery(expectedCommands, commandMeasurements, iteration, success);
+
+                            // test total functions used
+                            final List<Measurement> functionMeasurementsAll = measurements(
+                                plugin,
+                                PlanTelemetryManager.FUNCTION_METRICS_ALL
+                            );
+                            assertAllUsages(expectedFunctions, functionMeasurementsAll, iteration, success);
+
+                            // test number of queries using a function
+                            final List<Measurement> functionMeasurements = measurements(plugin, PlanTelemetryManager.FUNCTION_METRICS);
+                            assertUsageInQuery(expectedFunctions, functionMeasurements, iteration, success);
+
+                            // test total settings used
+                            final List<Measurement> settingMeasurementsAll = measurements(plugin, PlanTelemetryManager.SETTING_METRICS_ALL);
+                            assertAllUsages(expectedSettings, settingMeasurementsAll, iteration, success);
+
+                            // test number of queries using a setting
+                            final List<Measurement> settingMeasurements = measurements(plugin, PlanTelemetryManager.SETTING_METRICS);
+                            assertUsageInQuery(expectedSettings, settingMeasurements, iteration, success);
+
+                            // test number of queries in which a setting resolved to a value
+                            // this covers every setting and not only the ones explicitly in the query
+                            final var resolvedSettingsMeasurements = measurements(plugin, PlanTelemetryManager.RESOLVED_SETTINGS_METRICS);
+                            assertUsageInQuery(expectedResolvedSettings, resolvedSettingsMeasurements, iteration, success);
+                            assertResolvedSettings(expectedResolvedSettings, resolvedSettingsMeasurements);
+                        } finally {
+                            latch.countDown();
+                        }
+                    }));
+                }
                 assertTrue(latch.await(30, TimeUnit.SECONDS));
             }
         } finally {
             plugin.resetMeter();
         }
 
+        Counters statsAfter = esqlStats();
+        long expectedFailed = success ? 0 : successIterations;
+        assertCounterDelta(statsBefore, statsAfter, "queries." + expectedClient + ".total", successIterations);
+        assertCounterDelta(statsBefore, statsAfter, "queries." + expectedClient + ".failed", expectedFailed);
+    }
+
+    private static Counters esqlStats() {
+        EsqlStatsRequest request = new EsqlStatsRequest();
+        request.includeStats(true);
+        EsqlStatsResponse response = client().execute(EsqlStatsAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+        return Counters.merge(response.getNodes().stream().map(EsqlStatsResponse.NodeStatsResponse::getStats).toList());
+    }
+
+    private static void assertCounterDelta(Counters before, Counters after, String counter, long expectedDelta) {
+        assertThat(counter, after.get(counter) - before.get(counter), is(expectedDelta));
     }
 
     private static void assertAllUsages(Map<String, Integer> expected, List<Measurement> metrics, long iteration, Boolean success) {

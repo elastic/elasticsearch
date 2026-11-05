@@ -53,7 +53,7 @@ public class Metrics {
     protected static final String FUNC_PREFIX = "functions.";
     protected static final String TOOK_PREFIX = "took.";
 
-    // map that holds total/failed counters for each client type (rest, kibana)
+    // map that holds total/failed counters for each client type (each known Elastic product, other, rest)
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;

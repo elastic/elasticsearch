@@ -25,7 +25,7 @@ For a hands-on example, refer to [get started with {{esql}} Data Federation](esq
 
 ## How external data is read
 
-When you query a dataset, {{es}} reads data from object storage (such as Amazon S3) rather than from a local index. This means every column and every row that a query touches results in network I/O. The query engine applies several optimizations automatically, and there are things you can do to help it read less data.
+When you query a dataset, {{es}} reads data from object storage (such as Amazon S3) rather than from a local index. This means every column and every row that a query touches results in network I/O. The query engine applies several optimizations automatically, and there are things you can do to help it read less data. Your storage provider also bills for these reads. For details, refer to [](esql-data-federation-costs.md).
 
 ### Column selection
 
@@ -223,8 +223,8 @@ Slow queries
 503 error when creating a data source with credentials
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
-503 error while nodes join the cluster
-:   A node that has just joined the cluster, or that has not yet applied a recent dataset change, cannot run a query's external reads until it catches up. {{es}} sends the reads to another node when one is available; otherwise the node waits to catch up. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query, or increase [`esql.external.worker_ready_timeout`](esql-data-federation-cluster-settings.md#esql-external-worker-ready-timeout).
+503 error after changing a dataset or adding a node {applies_to}`stack: preview 9.7+`
+:   A node that has not yet applied a recent dataset change, or that has just joined the cluster, cannot read external data until it catches up. {{es}} waits briefly for it. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query.
 
 $$$unknown-index-dataset$$$
 

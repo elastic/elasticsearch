@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
@@ -51,6 +53,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
     private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final ScriptService scriptService;
+    private final Supplier<String> currentIndexName;
 
     public SecurityIndexReaderWrapper(
         Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
@@ -59,6 +62,23 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
         XPackLicenseState licenseState,
         ScriptService scriptService
     ) {
+        this(searchExecutionContextProvider, bitsetCache, securityContext, licenseState, scriptService, null);
+    }
+
+    /**
+     * @param currentIndexName the name the index has now, or {@code null} to use the name in the shard id of the reader. The reader keeps
+     *                         the shard id, and so the name, that the shard had when it was created, while the access control of a
+     *                         request is built from the names the request was authorized for, which after a rename is the new name.
+     */
+    public SecurityIndexReaderWrapper(
+        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
+        DocumentSubsetBitsetCache bitsetCache,
+        SecurityContext securityContext,
+        XPackLicenseState licenseState,
+        ScriptService scriptService,
+        @Nullable Supplier<String> currentIndexName
+    ) {
+        this.currentIndexName = currentIndexName;
         this.scriptService = scriptService;
         this.searchExecutionContextProvider = searchExecutionContextProvider;
         this.bitsetCache = bitsetCache;
@@ -77,7 +97,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
                 throw new IllegalStateException(LoggerMessageFormat.format("couldn't extract shardId from reader [{}]", reader));
             }
 
-            final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
+            final IndicesAccessControl.IndexAccessControl permissions = indexPermissions(indicesAccessControl, shardId);
             // No permissions have been defined for an index, so don't intercept the index reader for access control
             if (permissions == null) {
                 return reader;
@@ -104,6 +124,23 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             logger.error("Unable to apply field level security");
             throw ExceptionsHelper.convertToElastic(e);
         }
+    }
+
+    /**
+     * The permissions for the index of the shard: those for the name the index has now if the request was authorized for it, which
+     * is the name every request has after a rename, and otherwise those for the name in the shard id of the reader, which is the one
+     * a request that was routed before the rename carries. Looking only at the second would find nothing for a renamed index, and
+     * "no permissions" means the reader is not wrapped at all.
+     */
+    private IndicesAccessControl.IndexAccessControl indexPermissions(IndicesAccessControl indicesAccessControl, ShardId shardId) {
+        if (currentIndexName != null) {
+            final String current = currentIndexName.get();
+            final IndicesAccessControl.IndexAccessControl permissions = indicesAccessControl.getIndexPermissions(current);
+            if (permissions != null) {
+                return permissions;
+            }
+        }
+        return indicesAccessControl.getIndexPermissions(shardId.getIndexName());
     }
 
     protected IndicesAccessControl getIndicesAccessControl() {

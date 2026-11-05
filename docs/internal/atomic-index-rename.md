@@ -416,6 +416,14 @@ pattern directly. After the rename the index is still the data stream's
 backing index, so access through the data stream name continues.
 `RenameIndexSecurityTests` covers the model.
 
+Document and field level security is applied to a shard by the name of its
+index. The reader of a shard keeps the name the shard had when it was created,
+while a request is authorized for the name the index has now, so a lookup by the
+reader's name found no restrictions after a rename and returned the reader
+unwrapped. `SecurityIndexReaderWrapper` now looks the permissions up by the
+index's current name first and by the reader's name second
+(`RenameIndexDlsFlsTests`).
+
 ### T7. Cross-cluster replication follows by UUID across a rename
 
 CCR already identifies indices by UUID where it matters (the follower stores

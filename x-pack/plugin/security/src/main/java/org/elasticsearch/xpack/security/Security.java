@@ -1866,7 +1866,14 @@ public class Security extends Plugin
                     // complete mapping, independently of the user's field-level permissions.
                     context.setFieldVisibilityPredicate(FieldPredicate.ACCEPT_ALL);
                     return context;
-                }, dlsBitsetCache.get(), securityContext.get(), getLicenseState(), indexService.getScriptService()));
+                },
+                    dlsBitsetCache.get(),
+                    securityContext.get(),
+                    getLicenseState(),
+                    indexService.getScriptService(),
+                    // the index may be renamed while the shard's reader keeps the name it was created with
+                    () -> indexService.index().getName()
+                ));
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully

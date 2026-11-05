@@ -391,9 +391,28 @@ public abstract class DockerBuildTask extends DefaultTask {
                 rewriteTimestamps,
                 isCrossPlatform,
                 System.getenv("BUILDX_BUILDER"),
-                () -> dockerOutput("buildx", "inspect"),
+                this::buildxInspect,
                 () -> dockerOutput("info", "--format", "{{ .DriverStatus }}")
             );
+        }
+
+        private String buildxInspect() {
+            final var stdout = new ByteArrayOutputStream();
+            final var stderr = new ByteArrayOutputStream();
+            final var result = execOperations.exec(spec -> {
+                maybeConfigureDockerConfig(spec);
+                spec.setExecutable(getParameters().getDockerExecutable().get());
+                spec.args("buildx", "inspect");
+                spec.setStandardOutput(stdout);
+                spec.setErrorOutput(stderr);
+                spec.setIgnoreExitValue(true);
+            });
+            if (result.getExitValue() != 0) {
+                throw new GradleException(
+                    "Failed to inspect the selected docker buildx builder to choose the image exporter: " + stderr.toString().trim()
+                );
+            }
+            return stdout.toString();
         }
 
         /** The stdout of the docker command, or {@code null} if it failed. */

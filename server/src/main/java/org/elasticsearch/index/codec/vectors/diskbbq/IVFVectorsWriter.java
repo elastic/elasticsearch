@@ -923,10 +923,12 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         // Encoding-specific scratch buffers
         ValueLayout floatOrder = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
         final MemorySegment floatBuffer = encoding == VectorEncoding.FLOAT32
-            ? Arena.ofAuto().allocate((long)dim * Float.BYTES, Float.BYTES)
+            ? Arena.ofAuto().allocate((long) dim * Float.BYTES, Float.BYTES)
             : null;
         final float[] floatScratch = preconditioner != null ? new float[dim] : null;
-        final byte[] byteScratch = (encoding == VectorEncoding.BYTE && preconditioner != null) ? new byte[dim] : new byte[dim * Float.BYTES];
+        final byte[] byteScratch = (encoding == VectorEncoding.BYTE && preconditioner != null)
+            ? new byte[dim]
+            : new byte[dim * Float.BYTES];
 
         final KnnVectorValues.DocIndexIterator iterator = mergedVectorValues.iterator();
         for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {

@@ -55,7 +55,9 @@ import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.function.IntPredicate;
@@ -617,11 +619,14 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
         centroidOutput.writeVInt(centroidGroups.centroids().length);
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
         // let's also write the raw parent centroids
-        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        ValueLayout layout = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
+        MemorySegment buffer = Arena.ofAuto().allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
+        byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
         for (int i = 0; i < centroidGroups.centroids().length; i++) {
             float[] centroid = centroidGroups.centroids()[i];
-            buffer.asFloatBuffer().put(centroid);
-            centroidOutput.writeBytes(buffer.array(), buffer.array().length);
+            MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
+            MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
+            centroidOutput.writeBytes(byteBuffer, byteBuffer.length);
         }
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
             CentroidSupplier.fromArray(centroidGroups.centroids, CentroidIndex.NO_INDEX, fieldInfo.getVectorDimension()),

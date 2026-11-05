@@ -36,7 +36,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.function.IntPredicate;
@@ -172,7 +174,9 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             fieldInfo.getVectorDimension(),
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
         );
-        final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        ValueLayout layout = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
+        MemorySegment buffer = Arena.ofAuto().allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
+        byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
         final int[] docIds = new int[maxPostingListSize];
         final int[] docDeltas = new int[maxPostingListSize];
         final int[] clusterOrds = new int[maxPostingListSize];
@@ -182,9 +186,10 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             int[] cluster = assignmentsByCluster[c];
             long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
             offsets.add(offset);
-            buffer.asFloatBuffer().put(centroid);
             // write raw centroid for quantizing the query vectors
-            postingsOutput.writeBytes(buffer.array(), buffer.array().length);
+            MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
+            MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
+            postingsOutput.writeBytes(byteBuffer, byteBuffer.length);
             // write centroid dot product for quantizing the query vectors
             postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
             int size = cluster.length;
@@ -330,7 +335,9 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
                 fieldInfo.getVectorDimension()
             );
             DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(1, BULK_SIZE, postingsOutput);
-            final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            ValueLayout layout = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
+            MemorySegment buffer = Arena.ofAuto().allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
+            byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
             // write the max posting list size
             postingsOutput.writeVInt(maxPostingListSize);
             // write the posting lists
@@ -345,8 +352,9 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
                 long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
                 offsets.add(offset);
                 // write raw centroid for quantizing the query vectors
-                buffer.asFloatBuffer().put(centroid);
-                postingsOutput.writeBytes(buffer.array(), buffer.array().length);
+                MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
+                MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
+                postingsOutput.writeBytes(byteBuffer, byteBuffer.length);
                 // write centroid dot product for quantizing the query vectors
                 postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
                 // write docIds

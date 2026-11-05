@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -56,7 +57,9 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
 
     public void testRerouteRecoveryOfIndexShard() throws Exception {
         startMasterOnlyNode();
-        final String nodeA = startIndexNode();
+        // the relocation of a hollow shard does not read from the object store
+        final var hollowDisabled = Settings.builder().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false).build();
+        final String nodeA = startIndexNode(hollowDisabled);
         logger.info("--> started index node A [{}]", nodeA);
 
         logger.info("--> create index on node: {}", nodeA);
@@ -66,7 +69,7 @@ public class RerouteIT extends AbstractStatelessPluginIntegTestCase {
         indexDocs(indexName, between(1000, 1500));
         refresh(indexName);
 
-        final String nodeB = startIndexNode();
+        final String nodeB = startIndexNode(hollowDisabled);
         ensureGreen();
         logger.info("--> started index node B [{}]", nodeB);
 

@@ -120,7 +120,10 @@ public class ESNextDiskASHVectorsFormatTests extends ESBaseKnnVectorsFormatTestC
     @Override
     protected Codec getCodec() {
         if (format == null) {
-            if (rarely()) {
+            if (random().nextInt(4) == 0) {
+                // the configuration the mapping uses by default, which mostly means 1 bit and no reduction at these sizes
+                format = ashDimsDerivedFormat();
+            } else if (rarely()) {
                 int vectorPerCluster = random().nextInt(2 * MIN_VECTORS_PER_CLUSTER, MAX_VECTORS_PER_CLUSTER);
                 format = new ESNextDiskASHVectorsFormat(
                     vectorPerCluster,

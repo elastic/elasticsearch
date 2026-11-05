@@ -171,9 +171,9 @@ public record IvfSegmentConfig(
          * from the dimension. Each of the three size tiers spends about one bit per original dimension:
          * <ul>
          *     <li>below {@link #LOW_DIMS_THRESHOLD}: {@link #LOW_DIMS_BITS_PER_DIM} bit, no reduction</li>
-         *     <li>up to {@link #HIGH_DIMS_THRESHOLD}: {@link #DEFAULT_BITS_PER_DIM} bits over
-         *     {@link #DEFAULT_PROJECTED_DIMS_FRACTION} of the dimensions</li>
-         *     <li>from {@link #HIGH_DIMS_THRESHOLD}: {@link #HIGH_DIMS_BITS_PER_DIM} bits over
+         *     <li>from {@link #LOW_DIMS_THRESHOLD} up to but excluding {@link #HIGH_DIMS_THRESHOLD}:
+         *     {@link #DEFAULT_BITS_PER_DIM} bits over {@link #DEFAULT_PROJECTED_DIMS_FRACTION} of the dimensions</li>
+         *     <li>from {@link #HIGH_DIMS_THRESHOLD} up: {@link #HIGH_DIMS_BITS_PER_DIM} bits over
          *     {@link #HIGH_DIMS_PROJECTED_DIMS_FRACTION} of the dimensions</li>
          * </ul>
          * The number of projected dimensions always follows from {@code dims} alone, so that changing {@code bitsPerDim}

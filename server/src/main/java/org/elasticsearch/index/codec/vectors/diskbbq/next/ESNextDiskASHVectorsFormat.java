@@ -100,9 +100,26 @@ public class ESNextDiskASHVectorsFormat extends KnnVectorsFormat {
     private final IvfFlushConfigSource ivfFlushConfigSource;
     private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
-    /** No-arg constructor for SPI. */
+    /**
+     * No-arg constructor for SPI. Segments describe their own configuration, so this only matters for writing, where it
+     * derives the configuration from the vector dimension as the mapping does by default.
+     */
     public ESNextDiskASHVectorsFormat() {
-        this(DEFAULT_VECTORS_PER_CLUSTER, DEFAULT_CENTROIDS_PER_PARENT_CLUSTER, null);
+        this(
+            AshConfigResolver.dimsDerived(null, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
+            DEFAULT_VECTORS_PER_CLUSTER,
+            DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            false,
+            null,
+            1,
+            null,
+            defaultFlatThreshold(DEFAULT_VECTORS_PER_CLUSTER),
+            null,
+            IvfFlushConfigSource.empty(),
+            IvfMergeConfigResolver.useCodecDefault(),
+            false
+        );
     }
 
     public ESNextDiskASHVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {

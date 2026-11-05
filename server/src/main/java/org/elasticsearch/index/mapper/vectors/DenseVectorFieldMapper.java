@@ -3143,7 +3143,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (quantizationType == QuantizationType.ASH && !Build.current().isSnapshot()) {
                     throw new IllegalArgumentException("quantization_type 'ash' is only available in snapshot builds");
                 }
-                if (quantizationType == QuantizationType.ASH && Build.current().isSnapshot()) {
+                if (usesAshFormat()) {
                     return new ESNextDiskASHVectorsFormat(
                         ashConfigResolver(),
                         clusterSize,
@@ -3322,23 +3322,40 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         /**
+         * Returns whether the field is written with the ASH format. An ASH mapping falls back to an OSQ format when
+         * ASH is not available to the index: outside snapshot builds, without experimental features, or on indices
+         * created before ASH. Both the server and the {@code DiskBBQPlugin} format selection go through this, so that
+         * the bits used at write time and at query time agree.
+         */
+        public boolean usesAshFormat() {
+            return quantizationType == QuantizationType.ASH
+                && Build.current().isSnapshot()
+                && experimentalFeaturesEnabled
+                && indexVersionCreated.onOrAfter(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE);
+        }
+
+        /**
          * Returns the bits for the OSQ formats. An ASH field written with an OSQ format, as happens when ASH is not
          * available to the index, keeps the ASH default when its bits are not configured.
          */
         public byte osqBits() {
-            return (byte) effectiveBits(null);
+            return (byte) (bits != null ? bits : IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM);
         }
 
         /**
          * Returns the bits a field with {@code dims} dimensions is quantized with: the configured bits, or for ASH
          * without configured bits, those derived from the dimension. When the dimension is not known yet, no vectors
-         * have been indexed, and the ASH default is returned.
+         * have been indexed, and the ASH default is returned. An ASH field that falls back to an OSQ format, see
+         * {@link #usesAshFormat}, is quantized with {@link #osqBits}.
          */
         public int effectiveBits(@Nullable Integer dims) {
             if (bits != null) {
                 return bits;
             }
-            return dims == null ? IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM : IvfSegmentConfig.AshConfig.defaultBitsPerDim(dims);
+            if (usesAshFormat() == false || dims == null) {
+                return osqBits();
+            }
+            return IvfSegmentConfig.AshConfig.defaultBitsPerDim(dims);
         }
 
         /**
@@ -3373,7 +3390,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
          * vector dimension.
          */
         public AshConfigResolver ashConfigResolver() {
-            assert quantizationType == QuantizationType.ASH;
+            assert usesAshFormat();
             return AshConfigResolver.dimsDerived(bits, IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
         }
 

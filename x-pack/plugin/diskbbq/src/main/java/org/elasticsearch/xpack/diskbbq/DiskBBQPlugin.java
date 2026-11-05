@@ -91,7 +91,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         indexSettings.getSettings()
                     );
                     if (Build.current().isSnapshot() && experimentalFeaturesEnabled) {
-                        if (diskbbq.getQuantizationType() == DenseVectorFieldMapper.BBQIVFIndexOptions.QuantizationType.ASH) {
+                        if (diskbbq.usesAshFormat()) {
                             return new ESNextDiskASHVectorsFormat(
                                 diskbbq.ashConfigResolver(),
                                 clusterSize,

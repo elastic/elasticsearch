@@ -1244,6 +1244,33 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
     }
 
+    public void testAshFallingBackToOsqKeepsDefaultBits() throws IOException {
+        assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
+
+        // ASH is not available without experimental features or on indices created before it, so an ASH mapping is
+        // written with an OSQ format at the ASH default bits. Query time must use the same bits rather than the dims tier.
+        IndexVersion preAshVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DISK_BBQ_ES950_AUTO_CALIBRATE);
+        List<Tuple<IndexVersion, Settings>> fallbacks = List.of(
+            Tuple.tuple(IndexVersion.current(), EXPERIMENTAL_FEATURES_DISABLED),
+            Tuple.tuple(preAshVersion, EXPERIMENTAL_FEATURES_ENABLED)
+        );
+        for (Tuple<IndexVersion, Settings> fallback : fallbacks) {
+            for (int dims : new int[] { 384, 1024, 3072 }) {
+                String message = "version [" + fallback.v1() + "] dims [" + dims + "]";
+                MapperService mapperService = createMapperService(fallback.v1(), fallback.v2(), ashMapping(dims, null, null));
+                var indexOptions = getIndexOptions(mapperService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class);
+                assertFalse(message, indexOptions.usesAshFormat());
+                assertNull(message, indexOptions.getBits());
+                assertEquals(message, 2, indexOptions.osqBits());
+                assertEquals(message, 2, indexOptions.effectiveBits(dims));
+                assertEquals(message, 1.5f, indexOptions.effectiveRescoreVector(dims).oversample(), 0f);
+            }
+        }
+
+        MapperService ashService = createMapperService(EXPERIMENTAL_FEATURES_ENABLED, ashMapping(3072, null, null));
+        assertTrue(getIndexOptions(ashService, "field", DenseVectorFieldMapper.BBQIVFIndexOptions.class).usesAshFormat());
+    }
+
     public void testAshConfiguredBitsAreRespected() throws IOException {
         assumeTrue("ash requires a snapshot build", Build.current().isSnapshot());
 

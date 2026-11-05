@@ -1345,7 +1345,8 @@ public class IndexSettingsTests extends ESTestCase {
 
         // From the gate, columnar modes keep sequence numbers by default; only data-stream backing indices disable them (set at creation).
         IndexVersion fromGate = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY,
+            // 9_111_0_xx are stateful 9.5 backports that keep the legacy behavior, so start from the first version after them
+            IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG,
             IndexVersion.current()
         );
         for (IndexMode columnarMode : Arrays.stream(IndexMode.availableModes()).filter(IndexMode::isStrictColumnar).toList()) {
@@ -1361,6 +1362,53 @@ public class IndexSettingsTests extends ESTestCase {
         Settings standardSettings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.getName()).build();
         IndexSettings standardIndexSettings = new IndexSettings(newIndexMeta("standard-index", standardSettings, fromGate), Settings.EMPTY);
         assertThat(standardIndexSettings.sequenceNumbersDisabled(), is(false));
+    }
+
+    /**
+     * Index versions 9_111_0_xx were backported to 9.5 without the columnar sequence number change, so on stateful a columnar index
+     * with such a version must keep the legacy behavior (sequence numbers disabled). Stateless has the change from the original gate.
+     */
+    public void testDisableSequenceNumbersDefaultForBackportedVersionsDependsOnStateless() {
+        Settings statelessNode = Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build();
+        IndexVersion stateless = IndexVersionUtils.randomVersionBetween(
+            IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG)
+        );
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            for (IndexVersion version : List.of(
+                IndexVersions.UPGRADE_TO_LUCENE_10_5_1,
+                IndexVersions.UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5
+            )) {
+                IndexMetadata metadata = newIndexMeta(columnarMode.getName() + "-index", settings, version);
+                assertThat(
+                    columnarMode + " " + version + " stateful keeps the legacy default",
+                    new IndexSettings(metadata, Settings.EMPTY).sequenceNumbersDisabled(),
+                    is(true)
+                );
+                assertThat(IndexSettings.sequenceNumbersDisabled(metadata.getSettings(), Settings.EMPTY), is(true));
+                // the same version on a stateless node is not a stateful 9.5 index, so the node settings must reach the default
+                assertThat(IndexSettings.sequenceNumbersDisabled(metadata.getSettings(), statelessNode), is(false));
+            }
+            IndexMetadata statelessMetadata = newIndexMeta(columnarMode.getName() + "-index", settings, stateless);
+            assertThat(
+                columnarMode + " " + stateless + " stateless keeps sequence numbers from the original gate",
+                new IndexSettings(statelessMetadata, statelessNode).sequenceNumbersDisabled(),
+                is(false)
+            );
+            // Index metadata settings do not carry the stateless flag, so the node settings must be merged when resolving the default.
+            assertThat(IndexSettings.sequenceNumbersDisabled(statelessMetadata.getSettings(), statelessNode), is(false));
+        }
+    }
+
+    public void testSequenceNumbersDisabledHelperPrefersExplicitSetting() {
+        boolean explicit = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), explicit)
+            .build();
+        IndexMetadata metadata = newIndexMeta("index", settings, IndexVersion.current());
+        assertThat(IndexSettings.sequenceNumbersDisabled(metadata.getSettings(), Settings.EMPTY), is(explicit));
     }
 
     public void testDynamicStringsAutoTextDefaultByIndexMode() {

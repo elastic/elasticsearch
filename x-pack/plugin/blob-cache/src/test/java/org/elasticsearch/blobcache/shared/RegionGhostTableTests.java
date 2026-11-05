@@ -69,6 +69,17 @@ public class RegionGhostTableTests extends ESTestCase {
         assertNotEquals(RegionGhostTable.fingerprint(fileKeyHash, 0), RegionGhostTable.fingerprint(fileKeyHash + 1, 0));
     }
 
+    public void testMaxCapacityForHeapBoundsWorstCaseFootprint() {
+        assertThat(RegionGhostTable.maxCapacityForHeap(0L), equalTo(0L));
+        // 1% of 3.5kb is 35 bytes, i.e. exactly one entry in the worst case
+        assertThat(RegionGhostTable.maxCapacityForHeap(3_500L), equalTo(1L));
+        final long heapBytes = randomLongBetween(1L << 20, 1L << 40);
+        final long capacity = RegionGhostTable.maxCapacityForHeap(heapBytes);
+        assertThat(capacity <= RegionGhostTable.MAX_CAPACITY, is(true));
+        assertThat(capacity * RegionGhostTable.MAX_BYTES_PER_ENTRY <= heapBytes * RegionGhostTable.MAX_HEAP_FRACTION, is(true));
+        assertThat(RegionGhostTable.maxCapacityForHeap(Long.MAX_VALUE), equalTo((long) RegionGhostTable.MAX_CAPACITY));
+    }
+
     public void testRejectsInvalidCapacity() {
         expectThrows(IllegalArgumentException.class, () -> new RegionGhostTable(0));
         expectThrows(IllegalArgumentException.class, () -> new RegionGhostTable(RegionGhostTable.MAX_CAPACITY + 1));

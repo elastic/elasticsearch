@@ -337,8 +337,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     /**
      * Capacity of the ghost table remembering the regions recently evicted under cache pressure, as a multiple of the number of
      * regions. The ghost table identifies re-fetches, i.e. regions fetched again from the blob store after the cache had to give
-     * them up, which are reported by {@link BlobCacheMetrics#BLOB_CACHE_REGION_FETCH_TOTAL}. The table costs about 27 bytes of
-     * heap per entry. {@code 0} disables it.
+     * them up, which are reported by {@link BlobCacheMetrics#BLOB_CACHE_REGION_FETCH_TOTAL}. The table costs between 27 and 35 bytes
+     * of heap per entry and is preallocated; its capacity is capped so that it uses at most 1% of the maximum heap. {@code 0}
+     * disables it.
      */
     public static final Setting<Float> SHARED_CACHE_GHOST_SIZE_RATIO_SETTING = Setting.floatSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "ghost.size_ratio",
@@ -2460,7 +2461,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             // instantiating the EvictionPolicy, eg. this.evictionPolicy = evictionPolicyFactory.create(FreqLevel[], maxFreq);
             this.evictionPolicy = Objects.requireNonNull(evictionPolicy);
             final double ghostSizeRatio = SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.get(settings);
-            final long ghostCapacity = Math.min(RegionGhostTable.MAX_CAPACITY, (long) Math.ceil(numRegions * ghostSizeRatio));
+            final long requestedGhostCapacity = (long) Math.ceil(numRegions * ghostSizeRatio);
+            final long ghostCapacity = Math.min(
+                requestedGhostCapacity,
+                RegionGhostTable.maxCapacityForHeap(Runtime.getRuntime().maxMemory())
+            );
+            if (ghostCapacity < requestedGhostCapacity) {
+                logger.warn(
+                    "capping the shared blob cache ghost table at [{}] entries instead of the requested [{}] to bound its heap usage, "
+                        + "consider lowering [{}]",
+                    ghostCapacity,
+                    requestedGhostCapacity,
+                    SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.getKey()
+                );
+            }
             this.ghostTable = ghostCapacity > 0 ? new RegionGhostTable(Math.toIntExact(ghostCapacity)) : null;
             this.reaccessWindowMillis = SHARED_CACHE_REACCESS_WINDOW_SETTING.get(settings).millis();
         }

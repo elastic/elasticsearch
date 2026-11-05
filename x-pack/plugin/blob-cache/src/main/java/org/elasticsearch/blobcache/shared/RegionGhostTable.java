@@ -17,7 +17,7 @@ import org.elasticsearch.blobcache.BlobCacheMetrics.RegionFillOrigin;
  * relative to the number of regions, approximates how much more capacity would have kept the region resident.
  * <p>
  * Keys are 64-bit fingerprints (see {@link #fingerprint}), so two distinct regions may share an entry; a collision only
- * causes a spurious re-fetch to be reported. All memory is preallocated, about 27 bytes per entry, and every operation
+ * causes a spurious re-fetch to be reported. All memory is preallocated, between 27 and 35 bytes per entry (see {@link #MAX_BYTES_PER_ENTRY}), and every operation
  * is O(1) so that it can run under the cache monitor.
  * <p>
  * Not thread-safe: callers must hold the {@link SharedBlobCacheService} monitor.
@@ -35,6 +35,25 @@ final class RegionGhostTable {
     record Ghost(long evictedAtMillis, long evictionsSince, RegionFillOrigin evictedBy, RegionFillOrigin victimOrigin) {}
 
     static final int MAX_CAPACITY = 1 << 29;
+
+    /**
+     * Worst-case heap per entry: 19 bytes in the ring (two longs and three one-byte fields) plus 4 bytes for each of the at most
+     * four index slots per entry (the index is a power of two between two and four times the capacity).
+     */
+    static final int MAX_BYTES_PER_ENTRY = 35;
+
+    /**
+     * The share of the maximum heap the table may use.
+     */
+    static final double MAX_HEAP_FRACTION = 0.01;
+
+    /**
+     * @return the largest capacity whose worst-case footprint stays within {@link #MAX_HEAP_FRACTION} of the given heap size, bounded
+     * by {@link #MAX_CAPACITY}
+     */
+    static long maxCapacityForHeap(long maxHeapBytes) {
+        return Math.min(MAX_CAPACITY, (long) (maxHeapBytes * MAX_HEAP_FRACTION) / MAX_BYTES_PER_ENTRY);
+    }
 
     private static final RegionFillOrigin[] ORIGINS = RegionFillOrigin.values();
 

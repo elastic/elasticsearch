@@ -10,10 +10,13 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.containsString;
@@ -37,6 +40,19 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
             ),
             instanceOf(IndexNotFoundException.class)
         );
+    }
+
+    public void testReadBlockFailsValidateQuery() {
+        createIndex("blocked", Settings.builder().put(IndexMetadata.SETTING_BLOCKS_READ, true).build());
+
+        ValidateQueryRequest request = new ValidateQueryRequest("blocked").query(QueryBuilders.matchAllQuery());
+        ClusterBlockException failure = safeAwaitFailure(
+            ClusterBlockException.class,
+            ValidateQueryResponse.class,
+            listener -> client().admin().indices().validateQuery(request, listener)
+        );
+        assertThat(failure.getMessage(), containsString("index [blocked] blocked by"));
+        assertThat(failure.getMessage(), containsString("index read (api)"));
     }
 
     public void testNoSliceDefaultsToAllWhenSliceEnabledIndex() {

@@ -31,7 +31,11 @@ public record PlanProfile(
      */
     @Nullable String planJson,
     /** Compact JSON object text for {@link #logicalPlanTree}, or null when there is no logical tree. */
-    @Nullable String logicalPlanJson
+    @Nullable String logicalPlanJson,
+    /** The phase of the query this plan ran in, when the query had several. See {@link ProfileLabels}. */
+    @Nullable String phase,
+    /** Why that phase ran. See {@link ProfileLabels}. */
+    @Nullable String phaseKind
 ) implements Writeable, ToXContentObject {
 
     public static final ProfileSchema<PlanProfile> PROFILE_SCHEMA = ProfileSchema.of(PlanProfile.class, (builder, value, params) -> {
@@ -39,6 +43,7 @@ public record PlanProfile(
         builder.field("description", value.description);
         builder.field("cluster_name", value.clusterName);
         builder.field("node_name", value.nodeName);
+        ProfileLabels.write(builder, value.description, value.phase, value.phaseKind);
         builder.field("plan", value.planTree);
         if (value.planJson != null) {
             // Object, not a string of JSON. EXPLAIN's table cell stays a string because columns are scalar.
@@ -58,6 +63,10 @@ public record PlanProfile(
         .required("description", ProfileSchema.string())
         .required("cluster_name", ProfileSchema.string())
         .required("node_name", ProfileSchema.string())
+        .optional("kind", ProfileSchema.string())
+        .optional("branch", ProfileSchema.string())
+        .optional("phase", ProfileSchema.string())
+        .optional("phase_kind", ProfileSchema.string())
         .required("plan", ProfileSchema.string())
         .optional("plan_json", ProfileSchema.dynamicObject(Map.of()))
         .optional("logical_plan", ProfileSchema.string())
@@ -84,7 +93,37 @@ public record PlanProfile(
         String logicalPlanTree,
         PlanTimeProfile planTimeProfile
     ) {
-        this(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile, null, null);
+        this(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile, null, null, null, null);
+    }
+
+    /** A plan of a query that ran in one phase. */
+    public PlanProfile(
+        String description,
+        String clusterName,
+        String nodeName,
+        String planTree,
+        String logicalPlanTree,
+        PlanTimeProfile planTimeProfile,
+        @Nullable String planJson,
+        @Nullable String logicalPlanJson
+    ) {
+        this(description, clusterName, nodeName, planTree, logicalPlanTree, planTimeProfile, planJson, logicalPlanJson, null, null);
+    }
+
+    /** The same plan, labelled with the phase of the query it ran in. */
+    public PlanProfile withPhase(@Nullable String phase, @Nullable String phaseKind) {
+        return new PlanProfile(
+            description,
+            clusterName,
+            nodeName,
+            planTree,
+            logicalPlanTree,
+            planTimeProfile,
+            planJson,
+            logicalPlanJson,
+            phase,
+            phaseKind
+        );
     }
 
     public static PlanProfile readFrom(StreamInput in) throws IOException {
@@ -102,12 +141,27 @@ public record PlanProfile(
         }
         String planJson = null;
         String logicalPlanJson = null;
+        String phase = null;
+        String phaseKind = null;
         if (in.getTransportVersion().supports(JSON_PLANS_VERSION)) {
             planJson = in.readOptionalString();
             logicalPlanJson = in.readOptionalString();
+            phase = in.readOptionalString();
+            phaseKind = in.readOptionalString();
         }
 
-        return new PlanProfile(description, clusterName, nodeName, planTree, logicalPlanTree, profile, planJson, logicalPlanJson);
+        return new PlanProfile(
+            description,
+            clusterName,
+            nodeName,
+            planTree,
+            logicalPlanTree,
+            profile,
+            planJson,
+            logicalPlanJson,
+            phase,
+            phaseKind
+        );
     }
 
     @Override
@@ -125,6 +179,8 @@ public record PlanProfile(
         if (out.getTransportVersion().supports(JSON_PLANS_VERSION)) {
             out.writeOptionalString(planJson);
             out.writeOptionalString(logicalPlanJson);
+            out.writeOptionalString(phase);
+            out.writeOptionalString(phaseKind);
         }
     }
 

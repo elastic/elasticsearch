@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.xpack.esql.plan.ExchangeRef;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+
+import java.util.List;
 
 /**
  * This class is {@code public} for testing.
@@ -22,5 +25,20 @@ public record ReductionPlan(ExchangeSinkExec nodeReducePlan, ExchangeSinkExec da
 
     public boolean isPassThrough() {
         return nodeReducePlan.child() instanceof ExchangeSourceExec;
+    }
+
+    /**
+     * Names the hop between the data driver and the node reduce driver, which both run on this node. Without it the data sink would
+     * carry the name of the hop to the coordinator, as if the node reduce driver were not there. The sink of the node reduce plan
+     * keeps the original name, because it is what feeds the coordinator.
+     * <p>
+     * The data plan is copied first. It can be the request's own plan, which other requests on this node may still be running.
+     */
+    public ReductionPlan withLocalExchange() {
+        ExchangeRef local = ExchangeRef.newExchange();
+        ExchangeSinkExec data = (ExchangeSinkExec) dataNodePlan.replaceChildren(List.of(dataNodePlan.child()));
+        data.withExchange(local);
+        nodeReducePlan.forEachDown(ExchangeSourceExec.class, source -> source.withExchange(local));
+        return new ReductionPlan(nodeReducePlan, data);
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.ExchangeRef;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,6 +44,7 @@ public class ExchangeSinkExec extends UnaryExec {
             in.readBoolean(),
             in.readNamedWriteable(PhysicalPlan.class)
         );
+        initExchange(ExchangeRef.readOptionalFrom(in));
     }
 
     @Override
@@ -51,6 +53,7 @@ public class ExchangeSinkExec extends UnaryExec {
         out.writeNamedWriteableCollection(output());
         out.writeBoolean(isIntermediateAgg());
         out.writeNamedWriteable(child());
+        ExchangeRef.writeOptionalTo(out, exchange());
     }
 
     @Override
@@ -74,12 +77,17 @@ public class ExchangeSinkExec extends UnaryExec {
 
     @Override
     public ExchangeSinkExec replaceChild(PhysicalPlan newChild) {
-        return new ExchangeSinkExec(source(), output, intermediateAgg, newChild);
+        ExchangeSinkExec replaced = new ExchangeSinkExec(source(), output, intermediateAgg, newChild);
+        // The sink still feeds the same exchange, whatever it is now built on
+        replaced.initExchange(exchange());
+        return replaced;
     }
 
     /** Like {@link #replaceChild(PhysicalPlan)} but sets the output to the new child's output. */
     public ExchangeSinkExec replaceChildAndUpdateOutput(PhysicalPlan newChild) {
-        return new ExchangeSinkExec(source(), newChild.output(), intermediateAgg, newChild);
+        ExchangeSinkExec replaced = new ExchangeSinkExec(source(), newChild.output(), intermediateAgg, newChild);
+        replaced.initExchange(exchange());
+        return replaced;
     }
 
     @Override

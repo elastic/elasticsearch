@@ -140,6 +140,32 @@ public record DriverCompletionInfo(
     }
 
     /**
+     * Returns a copy whose drivers and plans are labelled as belonging to {@code phase} of the query, for a query that runs in several.
+     * See {@link ProfileLabels}.
+     */
+    public DriverCompletionInfo withPhase(String phase, String phaseKind) {
+        if (driverProfiles.isEmpty() && planProfiles.isEmpty()) {
+            return this;
+        }
+        return new DriverCompletionInfo(
+            documentsFound,
+            valuesLoaded,
+            rowsEmitted,
+            bytesRead,
+            readNanos,
+            readCpuNanos,
+            cpuNanos,
+            driverNanos,
+            driverProfiles.stream().map(p -> p.withPhase(phase, phaseKind)).toList(),
+            planProfiles.stream().map(p -> p.withPhase(phase, phaseKind)).toList(),
+            capturedSourceMetadata,
+            partial,
+            approximationApplied,
+            warnings
+        );
+    }
+
+    /**
      * Returns a copy with {@code additional} raw warning bodies merged in, preserving insertion
      * order (existing warnings first). Empty or null input returns {@code this}.
      */

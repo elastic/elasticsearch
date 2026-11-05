@@ -44,6 +44,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     private PlanId planId;
     /** Nodes this one was derived from. Empty until a translation such as logical-to-physical records them. */
     private List<PlanId> origin;
+    /** The exchange this node is one side of. Only exchange nodes have one. See {@link ExchangeRef}. */
+    private ExchangeRef exchange;
 
     public QueryPlan(Source source, List<PlanType> children) {
         super(source, children);
@@ -64,8 +66,31 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return origin;
     }
 
+    /** The exchange this node is one side of, or {@code null} for every node that is not part of one. */
+    public final ExchangeRef exchange() {
+        return exchange;
+    }
+
     /**
-     * Copies {@link #planId} and {@link #origin} from {@code original} onto this node.
+     * Marks this node as one side of {@code exchange}. Same-node rewrites keep it, like the plan id.
+     * Mutable on purpose, like {@link #withOrigin}, so a node can be tagged where it is built.
+     */
+    @SuppressWarnings("unchecked")
+    public final PlanType withExchange(ExchangeRef exchange) {
+        this.exchange = exchange;
+        return (PlanType) this;
+    }
+
+    /**
+     * {@link #withExchange} for the constructors of exchange nodes. It returns nothing, so the compiler does not flag the
+     * call as {@code this} escaping a constructor.
+     */
+    protected final void initExchange(ExchangeRef exchange) {
+        this.exchange = exchange;
+    }
+
+    /**
+     * Copies {@link #planId}, {@link #origin} and {@link #exchange} from {@code original} onto this node.
      * {@code replaceChildren} does this so a rewrite of the same node keeps its identity.
      * The fields are mutable on purpose, the same way {@code LogicalPlan} stage is set after construction.
      */
@@ -74,6 +99,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         if (original != null && original != this) {
             this.planId = original.planId;
             this.origin = original.origin;
+            this.exchange = original.exchange;
         }
         return (PlanType) this;
     }

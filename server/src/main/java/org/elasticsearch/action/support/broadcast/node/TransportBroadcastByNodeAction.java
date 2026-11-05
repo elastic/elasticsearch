@@ -112,7 +112,8 @@ public abstract class TransportBroadcastByNodeAction<
         Executor executor,
         boolean canTripCircuitBreaker
     ) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, executor);
+        // DIRECT: see doExecute — cannot use TransportAction's forking helper yet (#97916).
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -244,20 +245,30 @@ public abstract class TransportBroadcastByNodeAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        // Workaround for https://github.com/elastic/elasticsearch/issues/97916 — TODO remove when we can.
+        // NodeRequest shares the parent's refcount (#98381), so the request must stay live across this fork
+        // until NodeRequests have taken their own refs. TransportAction.doExecuteForking does not retain:
+        // the filter chain releases as soon as the runnable is submitted, and callers may decRef after
+        // execute() returns. Putting retain in the framework helper would newly hold every forking
+        // action's request across the hop; only this pattern needs it. So we stay on DIRECT and fork here
+        // with wrapReleasing instead.
+        request.mustIncRef();
+        executor.execute(ActionRunnable.wrapReleasing(listener, request::decRef, l -> doExecuteForked(task, request, listener)));
+    }
+
+    private void doExecuteForked(Task task, Request request, ActionListener<Response> listener) {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         final var clusterState = clusterService.state();
 
         final var globalBlockException = checkGlobalBlock(clusterState, request);
         if (globalBlockException != null) {
-            listener.onFailure(globalBlockException);
-            return;
+            throw globalBlockException;
         }
 
         final var concreteIndices = resolveConcreteIndexNames(clusterState, request);
         final var requestBlockException = checkRequestBlock(clusterState, request, concreteIndices);
         if (requestBlockException != null) {
-            listener.onFailure(requestBlockException);
-            return;
+            throw requestBlockException;
         }
 
         logger.trace(() -> format("resolving shards for [%s] based on cluster state version [%s]", actionName, clusterState.version()));

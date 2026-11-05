@@ -403,6 +403,47 @@ public class InsertEmptyBucketsOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * The precision guard is measured at the keys that can actually be emitted, not at the exclusive {@code to}: here
+     * {@code to} is {@code 2^53}, where doubles are 2 apart, but both keys below it are exact with a width of 1.
+     */
+    public void testNumericWidthAtSpacingBelowExclusiveToStillFills() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        double to = 0x1p53;
+        double from = to - 2;
+
+        Page input;
+        try (
+            DoubleBlock.Builder bucketBuilder = blockFactory.newDoubleBlockBuilder(1);
+            LongBlock.Builder countBuilder = blockFactory.newLongBlockBuilder(1)
+        ) {
+            bucketBuilder.appendDouble(from);
+            countBuilder.appendLong(4L);
+            input = new Page(bucketBuilder.build(), countBuilder.build());
+        }
+
+        InsertEmptyBucketsOperator.Factory factory = new InsertEmptyBucketsOperator.Factory(new LinkedHashMap<>() {
+            {
+                put(0, new InsertEmptyBucketsOperator.NumericCursorFactory(1.0, from, to));
+            }
+        }, List.of(), Map.of(1, new DefaultValue(ElementType.LONG, 0L)), MAX_PAGE_SIZE);
+
+        Page result = runToSinglePage(ctx, factory, input);
+        try {
+            DoubleBlock buckets = result.getBlock(0);
+            LongBlock counts = result.getBlock(1);
+            assertThat(result.getPositionCount(), equalTo(2));
+            assertThat(buckets.getDouble(0), equalTo(from));
+            assertThat(counts.getLong(0), equalTo(4L));
+            assertThat(buckets.getDouble(1), equalTo(from + 1));
+            assertThat(counts.getLong(1), equalTo(0L));
+        } finally {
+            result.releaseBlocks();
+        }
+    }
+
+    /**
      * Runs a single real row at {@code from} through a numeric cursor expected to be exhausted up front, and asserts
      * that only that row comes out.
      */

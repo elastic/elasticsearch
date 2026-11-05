@@ -168,11 +168,21 @@ public class InsertEmptyBucketsOperator extends CompleteInputCollectorOperator {
             this.from = from;
             this.to = to;
             this.alwaysExhausted = from >= to || Double.isFinite(roundTo) == false || roundTo <= 0.0
-            // A width below the spacing between adjacent doubles at the bounds can't produce distinct bucket keys:
+            // A width below the spacing between adjacent doubles at the emitted keys can't produce distinct bucket keys:
             // consecutive `roundTo * n` collapse into the same double, so there are no empty buckets to emit, only
             // duplicates. This also keeps the bucket index within 2^53, so it always fits the long `n` and the
             // iteration terminates (a saturated index would otherwise wrap around and never reach `to`).
-                || roundTo < Math.ulp(Math.max(Math.abs(from), Math.abs(to)));
+                || roundTo < Math.ulp(maxKeyMagnitude(roundTo, from, to));
+        }
+
+        /**
+         * The largest magnitude of any key this cursor can emit. Keys start at {@code roundTo * floor(from / roundTo)},
+         * which can be below {@code from}, and stay strictly below {@code to}. Using {@code to} itself would be too
+         * strict when it sits just above a power of two, where the spacing between doubles doubles even though every
+         * emitted key is still below it.
+         */
+        private static double maxKeyMagnitude(double roundTo, double from, double to) {
+            return Math.max(Math.abs(roundTo * Math.floor(from / roundTo)), Math.abs(Math.nextDown(to)));
         }
 
         @Override

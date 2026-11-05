@@ -54,7 +54,7 @@ of an approximate one.
 issued when it occurs.
 
 * A column of a [federated dataset](/reference/query-languages/esql/esql-data-federation-querying.md#use-search-functions).
-* An expression rather than a field, either a column created by a command such as `EVAL` or `STATS`, or a function
+* An expression rather than a field, either a computed column, such as one created by `EVAL` or `STATS`, or a function
   call written directly as the target, like `MATCH(TO_TEXT(CONCAT(title, " ", description)), "Tolkien")`. This includes
   [`FIELD_EXTRACT`](/reference/query-languages/esql/esql-flattened-fields.md#esql-flattened-fields-fulltext) on a
   `flattened` field. A `STATS` grouping key is not an expression: it keeps the identity of the field it groups by, so

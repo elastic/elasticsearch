@@ -1010,7 +1010,7 @@ public class LocalExecutionPlanner {
         context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
         LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = context.plannerSettings().minCompetitiveTimestampOptimizationEnabled()
-            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx())
+            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx(), context.sortBound())
             : null;
         if (luceneMinCompetitivePilot != null) {
             context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
@@ -1274,24 +1274,29 @@ public class LocalExecutionPlanner {
     /**
      * Path B pilot: wire {@link SharedMinCompetitive} between engine {@code TopNOperator} and
      * {@code LuceneSourceOperator} for {@code TopN → (Project|Filter|FieldExtract)* → EsQuery}
-     * with a single {@code @timestamp}-like sort key.
+     * with a {@code @timestamp}-like first sort key. The other keys only order the rows that tie on it.
      */
     @Nullable
     private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(
         TopNExec topNExec,
         BlockFactory blockFactory,
-        FoldContext foldCtx
+        FoldContext foldCtx,
+        @Nullable SharedSortBound sortBound
     ) {
         List<Order> orders = topNExec.order();
-        if (orders.size() != 1) {
+        if (orders.isEmpty()) {
             return null;
         }
-        Order order = orders.get(0);
+        Order order = orders.getFirst();
         if (order.child() instanceof FieldAttribute fa == false) {
             return null;
         }
         FieldAttribute sortField = (FieldAttribute) order.child();
         if (PlannerUtils.toElementType(sortField.dataType()) != ElementType.LONG) {
+            return null;
+        }
+        // The range query of these fields doesn't read the ES|QL encoding of the bound
+        if (sortField.dataType() == DataType.DATE_NANOS || sortField.dataType() == DataType.UNSIGNED_LONG) {
             return null;
         }
         if (topNExec.limit() == null || topNExec.limit().foldable() == false) {
@@ -1307,10 +1312,13 @@ public class LocalExecutionPlanner {
         if (esQuery.queryBuilderAndTags().size() != 1) {
             return null;
         }
-        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
-            blockFactory.breaker(),
-            topNExec.minCompetitiveKeyConfig()
-        );
+        // The bound of the request carries over to the batches of shards that run later
+        SharedMinCompetitive.Supplier supplier = sortBound == null || sortBound.sharedWith(orders.size()) == false
+            ? null
+            : sortBound.minCompetitive(sortField.name(), blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
+        if (supplier == null) {
+            supplier = new SharedMinCompetitive.Supplier(blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
+        }
         int topCount = ((Number) topNExec.limit().fold(foldCtx)).intValue();
         SharedGlobalTopK.Supplier globalTopKSupplier = topCount > 0
             ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), topCount, supplier)

@@ -11,7 +11,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
@@ -19,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -46,7 +46,10 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), ConstantKeywordMapperPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(ConstantKeywordMapperPlugin.class);
+        plugins.add(UnsignedLongMapperPlugin.class);
+        return plugins;
     }
 
     @Before
@@ -79,6 +82,22 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
     public void testAscending() {
         List<Long> expected = timestamps.stream().sorted().limit(LIMIT).toList();
         assertTopN("FROM events-* | SORT @timestamp ASC | LIMIT " + LIMIT + " | KEEP @timestamp", expected);
+    }
+
+    /**
+     * A filter that can't run in Lucene keeps the sort out of Lucene too. The top N then filters the sources by its bound.
+     */
+    public void testSortAfterTheSource() {
+        List<Long> expected = timestamps.stream().sorted(Comparator.reverseOrder()).limit(LIMIT).toList();
+        assertTopN("FROM events-* | WHERE LENGTH(message) > 0 | SORT @timestamp DESC | LIMIT " + LIMIT + " | KEEP @timestamp", expected);
+    }
+
+    public void testSecondarySortAfterTheSource() {
+        List<Long> expected = timestamps.stream().sorted(Comparator.reverseOrder()).limit(LIMIT).toList();
+        assertTopN(
+            "FROM events-* | WHERE LENGTH(message) > 0 | SORT @timestamp DESC, message ASC | LIMIT " + LIMIT + " | KEEP @timestamp",
+            expected
+        );
     }
 
     /**
@@ -136,6 +155,10 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
         assertTiesOnTheFirstKey("FROM ties-* | SORT t1 DESC, message ASC | LIMIT 1 | KEEP message");
     }
 
+    public void testTiesOnTheFirstKeyAfterTheSource() throws Exception {
+        assertTiesOnTheFirstKey("FROM ties-* | WHERE LENGTH(message) > 0 | SORT t1 DESC, message ASC | LIMIT 1 | KEEP message");
+    }
+
     private void assertTiesOnTheFirstKey(String query) throws Exception {
         String node = internalCluster().getRandomDataNodeName();
         // The index holding the winning row is the oldest, so it runs last
@@ -168,11 +191,19 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
         assertConstantKey("SORT t1 DESC, tenant ASC", 0);
     }
 
+    public void testConstantSecondaryKeyAfterTheSource() throws Exception {
+        assertConstantKey("WHERE LENGTH(message) > 0 | SORT t1 DESC, tenant ASC", 0);
+    }
+
     /**
      * The other index holds more recent rows, but {@code tenant} sorts first.
      */
     public void testConstantFirstKey() throws Exception {
         assertConstantKey("SORT tenant ASC, t1 DESC", 1_000);
+    }
+
+    public void testConstantFirstKeyAfterTheSource() throws Exception {
+        assertConstantKey("WHERE LENGTH(message) > 0 | SORT tenant ASC, t1 DESC", 1_000);
     }
 
     /**
@@ -216,6 +247,85 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
             List<Object> rows = new ArrayList<>();
             response.values().forEachRemaining(row -> rows.add(row.next()));
             assertThat(rows, equalTo(List.of("a")));
+        }
+    }
+
+    /**
+     * A {@code date_nanos} key in nanoseconds, the resolution of the field.
+     */
+    public void testDateNanosSecondarySortAfterTheSource() throws Exception {
+        assertDateNanos("WHERE LENGTH(message) > 0 | SORT ts DESC, message ASC");
+    }
+
+    private void assertDateNanos(String sort) throws Exception {
+        String node = internalCluster().getRandomDataNodeName();
+        createSingleShardIndex("nanos", node, "ts", "type=date_nanos", "message", "type=keyword");
+        List<Long> nanos = new ArrayList<>();
+        for (int batch = 0; batch < 4; batch++) {
+            // several segments, so the bound of the first ones filters the others
+            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int d = 0; d < DOCS_PER_INDEX; d++) {
+                long value = 1_700_000_000_000_000_000L + randomLongBetween(0, 3_600_000_000_000L);
+                nanos.add(value);
+                Instant instant = Instant.ofEpochSecond(0, value);
+                bulk.add(client().prepareIndex("nanos").setSource("ts", instant.toString(), "message", "m" + d));
+            }
+            assertFalse(bulk.get().hasFailures());
+        }
+        List<String> expected = nanos.stream()
+            .sorted(Comparator.reverseOrder())
+            .limit(LIMIT)
+            .map(n -> Instant.ofEpochSecond(0, n).toString())
+            .toList();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM nanos | " + sort + " | LIMIT " + LIMIT + " | KEEP ts");
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse response = run(request)) {
+            List<String> actual = new ArrayList<>();
+            response.values().forEachRemaining(row -> actual.add(Instant.parse((String) row.next()).toString()));
+            assertThat(actual, equalTo(expected));
+        }
+    }
+
+    public void testUnsignedLongAfterTheSource() throws Exception {
+        assertUnsignedLong("WHERE LENGTH(message) > 0 | SORT u ASC");
+    }
+
+    public void testUnsignedLongSecondarySortAfterTheSource() throws Exception {
+        assertUnsignedLong("WHERE LENGTH(message) > 0 | SORT u ASC, message ASC");
+    }
+
+    /**
+     * The older index holds the smallest values, so the bound of the newer one, and of the first segments, must not filter them.
+     */
+    private void assertUnsignedLong(String sort) throws Exception {
+        String node = internalCluster().getRandomDataNodeName();
+        List<Long> values = new ArrayList<>();
+        for (String index : List.of("unsigned-old", "unsigned-new")) {
+            createSingleShardIndex(index, node, "u", "type=unsigned_long", "message", "type=keyword");
+            for (int batch = 0; batch < 4; batch++) {
+                BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                for (int d = 0; d < DOCS_PER_INDEX; d++) {
+                    long value = (index.equals("unsigned-new") ? 4_000_000L : 0L) + (3 - batch) * 1_000_000L + randomLongBetween(
+                        0,
+                        999_999L
+                    );
+                    values.add(value);
+                    bulk.add(client().prepareIndex(index).setSource("u", value, "message", "m" + d));
+                }
+                assertFalse(bulk.get().hasFailures());
+            }
+        }
+        List<Long> expected = values.stream().sorted().limit(LIMIT).toList();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM unsigned-* | " + sort + " | LIMIT " + LIMIT + " | KEEP u");
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse response = run(request)) {
+            List<Long> actual = new ArrayList<>();
+            response.values().forEachRemaining(row -> actual.add(((Number) row.next()).longValue()));
+            assertThat(actual, equalTo(expected));
         }
     }
 

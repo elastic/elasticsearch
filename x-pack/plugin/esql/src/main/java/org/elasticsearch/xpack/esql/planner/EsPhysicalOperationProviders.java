@@ -31,6 +31,7 @@ import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ReadDimsOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -606,12 +607,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>(attributes.size());
         Set<String> nullsFilteredFields = new HashSet<>();
-        planForNullsFilter.forEachDown(EsQueryExec.class, queryExec -> {
-            QueryBuilder q = queryExec.queryBuilderAndTags().get(0).query();
-            if (q != null) {
-                nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQuery(q));
-            }
-        });
+        planForNullsFilter.forEachDown(
+            EsQueryExec.class,
+            queryExec -> nullsFilteredFields.addAll(nullsFilteredFieldsAfterSourceQueries(queryExec.queryBuilderAndTags()))
+        );
         UnmappedFields.Walk unmappedFieldsWalk = unmappedFieldsWalk(attributes);
         for (Attribute attr : attributes) {
             DataType dataType = attr.dataType();
@@ -671,6 +670,31 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     /**
+     * Returns the set of fields that are guaranteed to be dense after every query of an {@link EsQueryExec}.
+     *
+     * <p>An {@link EsQueryExec} can run several queries over the same shard, each one tagging the documents it matches
+     * (for example {@code ROUND_TO} pushdown). The source operator emits the documents of all of them, so a field is only
+     * dense if it is dense after <em>each</em> query. A single slice such as {@code exists(f)} says nothing about a sibling
+     * slice like {@code must_not(exists(f))}, which matches exactly the documents that have no value for {@code f}.
+     */
+    static Set<String> nullsFilteredFieldsAfterSourceQueries(List<EsQueryExec.QueryBuilderAndTags> queries) {
+        Set<String> denseInAll = null;
+        for (EsQueryExec.QueryBuilderAndTags queryAndTags : queries) {
+            // A missing query matches every document, so no field is known to be dense.
+            Set<String> dense = queryAndTags.query() == null ? Set.of() : nullsFilteredFieldsAfterSourceQuery(queryAndTags.query());
+            if (denseInAll == null) {
+                denseInAll = new HashSet<>(dense);
+            } else {
+                denseInAll.retainAll(dense);
+            }
+            if (denseInAll.isEmpty()) {
+                break;
+            }
+        }
+        return denseInAll == null ? Set.of() : denseInAll;
+    }
+
+    /**
      * Returns the set of fields that are guaranteed to be dense after the source query.
      */
     static Set<String> nullsFilteredFieldsAfterSourceQuery(QueryBuilder sourceQuery) {
@@ -725,7 +749,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
         LocalExecutionPlannerContext context,
-        int maxPageSize
+        int maxPageSize,
+        HashAggregationOperator.ParallelConfig parallelConfig
     ) {
         var pragmas = context.queryPragmas();
         int targetChunkRows = pragmas.timeSeriesTargetChunkRows(plannerSettings.timeSeriesTargetChunkRows());
@@ -737,7 +762,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
             targetChunkRows,
-            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold())
+            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold()),
+            parallelConfig
         );
     }
 

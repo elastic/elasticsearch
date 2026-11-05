@@ -1,5 +1,5 @@
 area: Inference
 issues: []
 pr: 160882
-summary: "[Inference API] URL format for non-text inputs to embedding/rerank models"
+summary: Add a `url` format for non-text input to embedding and rerank models
 type: enhancement

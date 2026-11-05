@@ -1067,6 +1067,20 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     }
 
     protected static IndexShard findShard(Index index, int shardId, DiscoveryNodeRole nodeRole, ShardRouting.Role shardRole) {
+        IndexShard shardOrNull = findShardOrNull(index, shardId, nodeRole, shardRole);
+        if (shardOrNull == null) {
+            throw new AssertionError(
+                "IndexShard instance not found for shard "
+                    + new ShardId(index, shardId)
+                    + " on nodes with ["
+                    + nodeRole.roleName()
+                    + "] role"
+            );
+        }
+        return shardOrNull;
+    }
+
+    protected static IndexShard findShardOrNull(Index index, int shardId, DiscoveryNodeRole nodeRole, ShardRouting.Role shardRole) {
         for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
             if (DiscoveryNode.hasRole(indicesService.clusterService().getSettings(), nodeRole)) {
                 IndexService indexService = indicesService.indexService(index);
@@ -1079,9 +1093,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
                 }
             }
         }
-        throw new AssertionError(
-            "IndexShard instance not found for shard " + new ShardId(index, shardId) + " on nodes with [" + nodeRole.roleName() + "] role"
-        );
+        return null;
     }
 
     protected static IndexShard findIndexShard(Index index, int shardId, String nodeName) {

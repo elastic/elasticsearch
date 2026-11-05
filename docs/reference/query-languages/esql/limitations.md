@@ -218,12 +218,10 @@ This is called
   reaches it. Refer to [Performance](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-performance).
 * Relevance scores are not BM25, because there are no index statistics for an expression. Refer to
   [Scoring](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring).
-* A filter, a sort, or a value computed from `_score` before a runtime search runs sees the score from
-  before that search, while a plain copy such as `EVAL s = _score` sees the search's score. A search on
-  an indexed field is scored where the data is read, so the same query can see a different `_score`
-  depending on whether the search runs at runtime
-  ([#160809](https://github.com/elastic/elasticsearch/issues/160809)). Refer to
-  [Scoring](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The same query can see a different `_score` depending on
+  whether a search runs at runtime, because a runtime search only adds its score once it runs. For details, refer to
+  [Scoring](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring) and
+  [this `_score` issue](https://github.com/elastic/elasticsearch/issues/160809).
 * A runtime search after a [`FORK`](/reference/query-languages/esql/commands/fork.md) or a `FROM` with
   [subqueries](/reference/query-languages/esql/esql-subquery.md) filters rows, but doesn't contribute to
   `_score` unless it can be pushed into the branches
@@ -236,7 +234,7 @@ This is called
 * The [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries)
   setting doesn't apply, so options such as `fuzziness` run even when it is `false`
   ([#162256](https://github.com/elastic/elasticsearch/issues/162256)).
-* A mapped `text` field in the output of a `FORK` whose branches contain a pipeline breaker, such as
+* A mapped `text` field in the output of a `FORK` whose branches contain a command such as
   `LIMIT` or `STATS`, can't be searched directly. Declare an analyzer for it with `TO_TEXT`, or search
   it inside the branches. Refer to
   [Indexed `text` fields searched at runtime](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-indexed).

@@ -275,10 +275,12 @@ FROM logs-*
 
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md) works on `text` and `keyword` fields. Use [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) when the words must appear together in order. For Lucene query syntax with `field:value` and boolean operators, use [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md). For {{kib}} Query Language syntax, use [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md).
 
-`MATCH` {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
-and `MATCH_PHRASE` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
-can also target expressions that are not backed by an index, such as
-columns produced by [`EVAL`](/reference/query-languages/esql/commands/eval.md) or [`STATS`](/reference/query-languages/esql/commands/stats-by.md).
+`MATCH` and `MATCH_PHRASE` can also target expressions that are not backed by an index, such as
+columns produced by [`EVAL`](/reference/query-languages/esql/commands/eval.md) or [`STATS`](/reference/query-languages/esql/commands/stats-by.md):
+
+* {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga` `MATCH`
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `MATCH_PHRASE`
+
 This [runtime search](/reference/query-languages/esql/esql-runtime-search.md) scans values
 row by row instead of using the inverted index, which is slower on large
 datasets. For best performance, prefer searching indexed fields when possible.

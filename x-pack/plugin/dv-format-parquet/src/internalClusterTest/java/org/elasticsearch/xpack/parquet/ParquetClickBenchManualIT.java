@@ -108,6 +108,11 @@ public class ParquetClickBenchManualIT extends ESIntegTestCase {
         if (cache.isEmpty() == false) {
             // the node-local cache of byte ranges, which needs a size, because the shared cache is off on a node without the right role
             settings.put(ParquetBlobCache.CACHE_SIZE.getKey(), cache);
+            // the cache asks for the next chunk of a column when a reader starts a chunk, unless -Dtests.parquet.prefetch=false
+            settings.put(
+                ParquetBlobCache.PREFETCH_NEXT_CHUNK.getKey(),
+                Booleans.parseBoolean(System.getProperty("tests.parquet.prefetch", "true"))
+            );
             String regionSize = System.getProperty("tests.parquet.regionSize", "");
             if (regionSize.isEmpty() == false) {
                 // the region and the range size of the cache: a column chunk of 1 to 3 MB fits better in a small region

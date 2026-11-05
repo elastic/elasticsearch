@@ -38,4 +38,10 @@ public interface ParquetObject {
     default void readRange(long position, byte[] destination, int destinationOffset, int length) throws IOException {
         System.arraycopy(readRange(position, length), 0, destination, destinationOffset, length);
     }
+
+    /**
+     * Asks for a range to be fetched in the background, because the caller is going to read it soon. It never blocks, never fails and may
+     * do nothing, which is what the default does: an object that has nowhere to keep the bytes until they are read gains nothing.
+     */
+    default void prefetchRange(long position, int length) {}
 }

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.parquet.docvalues;
 
 import java.io.EOFException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /** A Parquet file in memory that counts the requests, so that tests can check how many a read costs. */
@@ -17,6 +19,8 @@ public final class BytesParquetObject implements ParquetObject {
     private final String location;
     private final byte[] bytes;
     public final AtomicInteger requests = new AtomicInteger();
+    /** The ranges that readers asked to have fetched in the background, as {position, length}. */
+    public final List<long[]> prefetched = new CopyOnWriteArrayList<>();
 
     public BytesParquetObject(String location, byte[] bytes) {
         this.location = location;
@@ -40,5 +44,10 @@ public final class BytesParquetObject implements ParquetObject {
         }
         requests.incrementAndGet();
         return Arrays.copyOfRange(bytes, (int) position, (int) position + length);
+    }
+
+    @Override
+    public void prefetchRange(long position, int length) {
+        prefetched.add(new long[] { position, length });
     }
 }

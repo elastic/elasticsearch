@@ -75,6 +75,8 @@ final class ColumnChunkReader {
     // the chunk that is being read: the bytes are in the first chunkLength bytes of an array that the reader reuses for the next chunk
     // when it fits, and that can therefore be longer
     private int blockIndex = -1;
+    // the chunk that this reader last asked to be prefetched, so that a seek back in a chunk does not ask again
+    private int prefetchedBlock = -1;
     private byte[] chunk;
     private int chunkLength;
     private int chunkPosition;
@@ -137,6 +139,7 @@ final class ColumnChunkReader {
     private void startChunk(int index, Block block) throws IOException {
         // not current until it is read, so that a failed read is tried again and not taken for the chunk
         blockIndex = -1;
+        prefetchNext(index);
         int size = Math.toIntExact(block.compressedSize());
         if (chunk == null || chunk.length < size || chunk.length > 4L * size) {
             // a new array when the previous one is too short, or so long that keeping it would hold much more than this chunk needs.
@@ -153,6 +156,22 @@ final class ColumnChunkReader {
         pageDecoded = false;
         present = null;
         decoder.startChunk();
+    }
+
+    /**
+     * Asks for the chunk that follows the one that starts to be fetched in the background, before the current one is read, so that the
+     * two fetches overlap and a scan finds the next chunk in the cache when it gets there. The object decides whether that is worth
+     * anything (only one with a cache is), and a chunk that is cached or being fetched is not fetched again, so a query that touches a
+     * chunk after another does not fetch more than once. A query that stops early or skips the next row group fetches one chunk that it
+     * does not use.
+     */
+    private void prefetchNext(int index) {
+        int next = index + 1;
+        if (next < blocks.size() && next != prefetchedBlock) {
+            prefetchedBlock = next;
+            Block following = blocks.get(next);
+            following.object().prefetchRange(following.offset(), Math.toIntExact(following.compressedSize()));
+        }
     }
 
     /** Moves to the next data page of the chunk: decodes it if it holds {@code row}, and passes it if it ends before. */

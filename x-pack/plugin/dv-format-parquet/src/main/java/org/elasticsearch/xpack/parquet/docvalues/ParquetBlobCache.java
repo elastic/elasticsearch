@@ -21,12 +21,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 /**
  * A local disk cache for the byte ranges of Parquet files, so that a query that reads a column chunk again does not fetch it again
@@ -68,8 +71,20 @@ public final class ParquetBlobCache implements Releasable {
         Setting.Property.NodeScope
     );
 
+    /**
+     * PROTOTYPE: whether a reader that starts a column chunk asks the cache to fetch the next chunk of the column in the background,
+     * see {@link #prefetch}. On by default so that it can be tried where a request has a high latency (a node in the cloud next to its
+     * bucket). Over a home network, which is limited by its bandwidth, it made no measurable difference to cold scans of ClickBench
+     * (it fetched about 1.4% more bytes), so turn it off if it does not help.
+     */
+    public static final Setting<Boolean> PREFETCH_NEXT_CHUNK = Setting.boolSetting(
+        "xpack.parquet.cache.prefetch_next_chunk",
+        true,
+        Setting.Property.NodeScope
+    );
+
     public static List<Setting<?>> settings() {
-        return List.of(CACHE_SIZE, CACHE_REGION_SIZE);
+        return List.of(CACHE_SIZE, CACHE_REGION_SIZE, PREFETCH_NEXT_CHUNK);
     }
 
     /**
@@ -82,7 +97,12 @@ public final class ParquetBlobCache implements Releasable {
     /** The size of the buffer that moves the bytes of a range into the cache, a multiple of the page size of the cache file. */
     private static final int COPY_BUFFER_SIZE = 1 << 20;
 
+    private static final Logger logger = LogManager.getLogger(ParquetBlobCache.class);
+
     private final SharedBlobCacheService<CacheKey> cache;
+    private final Executor fetchExecutor;
+    private final long regionSize;
+    private final boolean prefetchNextChunk;
 
     /**
      * @param settings the settings of the node: only {@link #CACHE_SIZE} and {@link #CACHE_REGION_SIZE} are read, and they are given to
@@ -97,11 +117,14 @@ public final class ParquetBlobCache implements Releasable {
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), regionSize.getStringRep())
             .build();
         // the fetches run on the generic pool, because the pool of searchable snapshots may not exist on this node
+        this.fetchExecutor = threadPool.generic();
+        this.regionSize = regionSize.getBytes();
+        this.prefetchNextChunk = PREFETCH_NEXT_CHUNK.get(settings);
         this.cache = new SharedBlobCacheService<>(
             environment,
             shared,
             threadPool,
-            threadPool.generic(),
+            fetchExecutor,
             metrics,
             System::nanoTime,
             new DefaultEvictionPolicy<>(),
@@ -168,6 +191,65 @@ public final class ParquetBlobCache implements Releasable {
         } catch (Exception e) {
             stopWriting(target);
             throw new IOException("failed to read [" + length + "] bytes at [" + position + "] of [" + object.location() + "]", e);
+        }
+    }
+
+    /** Whether readers should call {@link #prefetch} for the chunk that follows the one they start. */
+    boolean prefetchesNextChunk() {
+        return prefetchNextChunk;
+    }
+
+    /**
+     * Asks the cache to fetch a range of the file in the background, so that a later {@link #read} of it finds the bytes there. It
+     * returns at once: the fetch runs on the generic pool, and a failure is only logged, because a read that needs the range fetches it
+     * again and reports its own failure. The cache decides whether it is worth it: it does nothing for a range that is cached or that
+     * another thread is fetching already, and, as it never evicts for a prefetch ({@code maybeFetchRange}), for a range that finds no free
+     * page. A range that crosses the border of a region is one call for each region.
+     */
+    public void prefetch(ParquetObject object, long position, int length) {
+        try {
+            long fileLength = object.length();
+            // page aligned, for the same reason as in #read
+            long start = BlobCacheUtils.roundDownToAlignedSize(position, SharedBytes.PAGE_SIZE);
+            long end = Math.min(BlobCacheUtils.roundUpToAlignedSize(position + length, SharedBytes.PAGE_SIZE), fileLength);
+            if (end <= start) {
+                return;
+            }
+            CacheKey key = new CacheKey(object.location(), fileLength);
+            for (int region = Math.toIntExact(start / regionSize); region <= Math.toIntExact((end - 1) / regionSize); region++) {
+                // the part of the range in this region, still page aligned because a region is a multiple of the page size
+                ByteRange range = ByteRange.of(Math.max(start, region * regionSize), Math.min(end, (region + 1) * regionSize));
+                cache.maybeFetchRange(
+                    key,
+                    region,
+                    range,
+                    fileLength,
+                    (channel, channelPos, streamFactory, relativePos, len, progressUpdater, listener) -> ActionListener.completeWith(
+                        listener,
+                        () -> {
+                            byte[] bytes = object.readRange(range.start() + relativePos, len);
+                            SharedBytes.copyToCacheFileAligned(
+                                channel,
+                                new ByteArrayInputStream(bytes),
+                                channelPos,
+                                relativePos,
+                                len,
+                                progressUpdater,
+                                ByteBuffer.allocateDirect(COPY_BUFFER_SIZE)
+                            );
+                            return null;
+                        }
+                    ),
+                    fetchExecutor,
+                    SharedBlobCacheService.UNKNOWN_TIMESTAMP,
+                    ActionListener.wrap(
+                        fetched -> logger.trace("prefetch of [{}] at [{}], fetched [{}]", object.location(), range.start(), fetched),
+                        e -> logger.debug(() -> "prefetch of [" + object.location() + "] at [" + range.start() + "] failed", e)
+                    )
+                );
+            }
+        } catch (IOException | RuntimeException e) {
+            logger.debug(() -> "cannot prefetch [" + length + "] bytes at [" + position + "] of [" + object.location() + "]", e);
         }
     }
 

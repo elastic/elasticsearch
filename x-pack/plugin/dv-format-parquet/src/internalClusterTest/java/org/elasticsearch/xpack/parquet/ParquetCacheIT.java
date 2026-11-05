@@ -16,15 +16,19 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.parquet.docvalues.ParquetBlobCache;
+import org.elasticsearch.xpack.parquet.docvalues.ParquetObject;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Does a mount that has a node-local cache read each byte range of its file once? The first search fills the cache from the file, and
@@ -85,6 +89,63 @@ public class ParquetCacheIT extends ESIntegTestCase {
         SharedBlobCacheService.Stats afterSecond = cache.stats();
         assertEquals("the second search must not write to the cache", afterFirst.writeBytes(), afterSecond.writeBytes());
         assertEquals("the second search must not miss", afterFirst.missCount(), afterSecond.missCount());
+    }
+
+    /** A fake file that counts the ranged reads that reach it, so that the test can tell a prefetch from a read that misses. */
+    private static final class CountingObject implements ParquetObject {
+        private final byte[] bytes;
+        private final AtomicInteger requests = new AtomicInteger();
+
+        CountingObject(byte[] bytes) {
+            this.bytes = bytes;
+        }
+
+        @Override
+        public String location() {
+            return "memory://prefetch/file.parquet";
+        }
+
+        @Override
+        public long length() {
+            return bytes.length;
+        }
+
+        @Override
+        public byte[] readRange(long position, int length) {
+            requests.incrementAndGet();
+            return Arrays.copyOfRange(bytes, Math.toIntExact(position), Math.toIntExact(position) + length);
+        }
+    }
+
+    public void testAPrefetchedRangeIsReadFromTheCache() throws Exception {
+        internalCluster().startNode();
+        ParquetBlobCache cache = internalCluster().getInstance(ParquetBlobCache.class);
+        // regions of 1 MB, so that the range crosses two borders
+        byte[] bytes = randomByteArrayOfLength(3_500_000);
+        CountingObject object = new CountingObject(bytes);
+        // not aligned to a page on purpose: the cache widens the range to whole pages
+        long position = 700_001;
+        int length = 2_000_000;
+
+        cache.prefetch(object, position, length);
+        assertBusy(() -> assertThat("the prefetch fills the cache", cache.stats().writeBytes(), greaterThanOrEqualTo((long) length)));
+        int requestsAfterPrefetch = object.requests.get();
+        assertThat("a prefetch reads the file", requestsAfterPrefetch, greaterThan(0));
+        long missesAfterPrefetch = cache.stats().missCount();
+
+        byte[] read = new byte[length];
+        cache.read(object, position, read, 0, length);
+        assertArrayEquals(Arrays.copyOfRange(bytes, (int) position, (int) position + length), read);
+        assertEquals("the read finds the bytes in the cache", requestsAfterPrefetch, object.requests.get());
+        assertEquals("the read does not miss", missesAfterPrefetch, cache.stats().missCount());
+
+        // a range that is cached already is not fetched again
+        cache.prefetch(object, position, length);
+        cache.read(object, position, read, 0, length);
+        assertEquals(requestsAfterPrefetch, object.requests.get());
+
+        // a range past the end of the file asks for nothing and does not fail
+        cache.prefetch(object, bytes.length, 10);
     }
 
     private static void assertServesTheFile() {

@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -31,6 +32,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
@@ -42,6 +44,7 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -99,10 +102,27 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertThat(webServer.requests().get(0).getBody(), is("_body"));
 
-        SearchResponse response = searchWatchRecords(b -> QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"));
+        // Watcher history is written asynchronously, so the record may not be visible on every shard copy yet. Search and read the hit
+        // in the same assertBusy so that we use a response that has been validated to contain it.
+        AtomicReference<SearchHit> searchHitReference = new AtomicReference<>();
+        assertBusy(() -> {
+            SearchResponse response = searchWatchRecords(
+                b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.STATE.getPreferredName(), "executed"))
+            );
+            try {
+                assertNoFailures(response);
+                assertThat(response.getHits().getHits().length, greaterThan(0));
+                SearchHit hit = response.getHits().getAt(0);
+                hit.mustIncRef();
+                searchHitReference.set(hit);
+            } finally {
+                response.decRef();
+            }
+        });
+
+        SearchHit hit = searchHitReference.get();
         try {
-            assertNoFailures(response);
-            XContentSource source = xContentSource(response.getHits().getAt(0).getSourceRef());
+            XContentSource source = xContentSource(hit.getSourceRef());
             String body = source.getValue("result.actions.0.webhook.response.body");
             assertThat(body, notNullValue());
             assertThat(body, is("body"));
@@ -110,7 +130,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
             assertThat(status, notNullValue());
             assertThat(status.intValue(), is(200));
         } finally {
-            response.decRef();
+            hit.decRef();
         }
     }
 

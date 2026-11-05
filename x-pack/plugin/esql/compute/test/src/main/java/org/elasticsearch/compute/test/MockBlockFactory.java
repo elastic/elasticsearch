@@ -319,13 +319,6 @@ public class MockBlockFactory extends BlockFactory {
     }
 
     @Override
-    public LongBlock newConstantLongBlockWith(long value, int positions, long preAdjustedBytes) {
-        var b = super.newConstantLongBlockWith(value, positions, preAdjustedBytes);
-        track(b, trackDetail());
-        return b;
-    }
-
-    @Override
     public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
         var b = super.newDoubleBlockBuilder(estimatedSize);
         track(b, trackDetail());

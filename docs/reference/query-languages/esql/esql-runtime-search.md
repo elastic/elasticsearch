@@ -16,14 +16,26 @@ Runtime search lets {{esql}} search values that have no index behind them, such 
 [`DENSE_VECTOR`](/reference/query-languages/esql/commands/dense-vector.md). Instead of looking values up in an index,
 {{esql}} evaluates the search against each row as the query runs.
 
+Runtime search is useful to:
+
+* Search [federated datasets](/reference/query-languages/esql/esql-data-federation-querying.md#use-search-functions), which have no index.
+* Search a column that combines several fields.
+* Search after a command that changes the rows, such as [`STATS`](/reference/query-languages/esql/commands/stats-by.md) or [`LIMIT`](/reference/query-languages/esql/commands/limit.md).
+* Search a field that is not mapped, or not mapped the same way, in every index the query reads.
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` Search vectors generated as the query runs by the [`DENSE_VECTOR`](/reference/query-languages/esql/commands/dense-vector.md) command.
+
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md), the
 [match operator](/reference/query-languages/esql/functions-operators/operators.md#esql-match-operator) `:`, and
 [`MATCH_PHRASE`](/reference/query-languages/esql/functions-operators/search-functions/match_phrase.md) use runtime
-search automatically when their target has no inverted index.
+search automatically when their target has no inverted index. Other search functions, such as
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) and
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md), need an indexed field.
 
 {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
 [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) uses runtime search on
 `dense_vector` expressions.
+
+This query searches a column that combines the title and description of each book:
 
 ```esql
 FROM books
@@ -35,17 +47,6 @@ Runtime search can behave differently from a search on an indexed field. It is u
 reaches it is evaluated instead of looked up in an index. Matching and scoring can also differ: `text` values use the
 `standard` analyzer unless you declare another, relevance scores aren't BM25, and `KNN` runs an exact search instead
 of an approximate one.
-
-Runtime search is useful to:
-
-* search [federated datasets](/reference/query-languages/esql/esql-data-federation-querying.md#use-search-functions), which have no index
-* search a column that combines several fields, like `content` above
-* search after a command that changes the rows, such as [`STATS`](/reference/query-languages/esql/commands/stats-by.md) or [`LIMIT`](/reference/query-languages/esql/commands/limit.md)
-* search a field that is not mapped, or not mapped the same way, in every index the query reads
-* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` search vectors generated as the query runs by the [`DENSE_VECTOR`](/reference/query-languages/esql/commands/dense-vector.md) command
-
-Other search functions, such as [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md)
-and [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md), need an indexed field.
 
 ## When a search runs at runtime [esql-runtime-search-when]
 

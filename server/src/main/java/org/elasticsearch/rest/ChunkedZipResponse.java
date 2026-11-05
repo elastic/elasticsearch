@@ -463,6 +463,10 @@ public final class ChunkedZipResponse implements Releasable {
             if (bodyPart.isLastPart()) {
                 zipOutputStream.closeEntry();
                 transferCurrentEntryReleasable(releasables);
+                // The read of nextAvailableChunksListener must happen-before queueLength.decrementAndGet() to ensure that
+                // getNextPartListener becomes the real transmission-unpaused listener and not a new one created by enqueueEntry() for the
+                // pause _after_ the current one.
+                final var localNextAvailableChunksListener = nextAvailableChunksListener;
                 final var newQueueLength = queueLength.decrementAndGet();
                 if (newQueueLength == 0) {
                     // The current entry is complete, but the next entry isn't available yet, so we pause transmission. This means we are no
@@ -470,9 +474,9 @@ public final class ChunkedZipResponse implements Releasable {
                     // spawn a new AvailableChunksZipResponseBodyPart to take our place.
                     isResponsePaused = true;
                     assert getNextPartListener == null;
-                    assert nextAvailableChunksListener != null;
+                    assert localNextAvailableChunksListener != null;
                     // Calling our getNextPart() will eventually yield the next body part supplied to enqueueEntry():
-                    getNextPartListener = nextAvailableChunksListener;
+                    getNextPartListener = localNextAvailableChunksListener;
                 } else {
                     // The current entry is complete, and the first part of the next entry is already available, so we start sending its
                     // chunks too. This means we're still the unique active AvailableChunksZipResponseBodyPart. We re-use this

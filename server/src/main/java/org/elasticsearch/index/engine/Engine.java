@@ -24,7 +24,9 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -1128,8 +1130,17 @@ public abstract class Engine implements Closeable {
         return acquireSearcher(source, SearcherScope.EXTERNAL);
     }
 
+    public final Searcher acquireSearcher(String source, SplitShardCountSummary splitShardCountSummary) throws EngineException {
+        return acquireSearcher(source, SearcherScope.EXTERNAL, splitShardCountSummary);
+    }
+
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
         return acquireSearcher(source, scope, Function.identity());
+    }
+
+    public Searcher acquireSearcher(String source, SearcherScope scope, SplitShardCountSummary splitShardCountSummary)
+        throws EngineException {
+        return acquireSearcher(source, scope, splitShardCountSummary, Function.identity());
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
@@ -1268,8 +1279,11 @@ public abstract class Engine implements Closeable {
         ensureOpen(null);
     }
 
-    /** get commits stats for the last commit */
-    public final CommitStats commitStats() {
+    /**
+     * Get commit stats for the last commit. Engines may override this to avoid reading the last committed segment infos, as long as
+     * the stats are the same as those built from {@link #getLastCommittedSegmentInfos()}.
+     */
+    public CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
@@ -1861,6 +1875,17 @@ public abstract class Engine implements Closeable {
          */
         public String source() {
             return source;
+        }
+
+        /**
+         * Not supported.
+         *
+         * @deprecated Use {@link #search(Query, CollectorManager)} instead.
+         */
+        @Deprecated
+        @Override
+        public void search(Query query, Collector collector) {
+            throw new UnsupportedOperationException("use search(Query, CollectorManager) instead");
         }
 
         public DirectoryReader getDirectoryReader() {

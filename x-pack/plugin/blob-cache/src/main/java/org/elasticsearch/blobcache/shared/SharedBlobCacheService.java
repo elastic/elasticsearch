@@ -1715,7 +1715,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     continue;
                 }
                 final var chunk = fileRegion.chunk;
-                if (chunk.tracker.checkAvailable(subRangeToRead.length()) == false) {
+                if (chunk.tracker.checkAvailable(subRangeToRead.end()) == false) {
                     continue;
                 }
                 if (chunk.tryPrefetch(subRangeToRead.start(), subRangeToRead.length())) {
@@ -3081,7 +3081,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             public void onRejection(Exception e) {
                 assert false : e;
                 logger.error("unexpected rejection", e);
-                epoch.incrementAndGet();
             }
 
             @Override

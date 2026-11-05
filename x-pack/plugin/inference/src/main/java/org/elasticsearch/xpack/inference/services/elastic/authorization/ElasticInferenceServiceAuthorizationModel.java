@@ -23,6 +23,9 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elastic.compatibility.CompletionCompatibilityService;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionModel;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.decision.ElasticInferenceServiceDecisionTaskSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.documentextraction.ElasticInferenceServiceDocumentExtractionModel;
@@ -126,6 +129,7 @@ public class ElasticInferenceServiceAuthorizationModel {
                 case SPARSE_EMBEDDING -> createSparseTextEmbeddingsModel(authorizedEndpoint, components, endpointMetadata);
                 case TEXT_EMBEDDING, EMBEDDING -> createDenseEmbeddingsModel(authorizedEndpoint, components, taskType, endpointMetadata);
                 case RERANK -> createRerankModel(authorizedEndpoint, components, endpointMetadata);
+                case DECISION -> createDecisionModel(authorizedEndpoint, components, endpointMetadata);
                 case DOCUMENT_EXTRACTION -> createDocumentExtractionModel(authorizedEndpoint, components, endpointMetadata);
                 default -> {
                     logger.info(UNSUPPORTED_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), taskType);
@@ -357,6 +361,24 @@ public class ElasticInferenceServiceAuthorizationModel {
             authorizedEndpoint.id(),
             TaskType.DOCUMENT_EXTRACTION,
             new ElasticInferenceServiceDocumentExtractionServiceSettings(authorizedEndpoint.modelName()),
+            components,
+            endpointMetadata
+        );
+    }
+
+    /**
+     * Preconfigured decision endpoints come without stored questions, so the questions must be passed in each request.
+     */
+    private static ElasticInferenceServiceDecisionModel createDecisionModel(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
+        ElasticInferenceServiceComponents components,
+        EndpointMetadata endpointMetadata
+    ) {
+        return new ElasticInferenceServiceDecisionModel(
+            authorizedEndpoint.id(),
+            TaskType.DECISION,
+            new ElasticInferenceServiceDecisionServiceSettings(authorizedEndpoint.modelName()),
+            ElasticInferenceServiceDecisionTaskSettings.EMPTY,
             components,
             endpointMetadata
         );

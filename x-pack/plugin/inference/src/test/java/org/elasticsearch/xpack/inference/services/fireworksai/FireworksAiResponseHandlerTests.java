@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.fireworksai;
 
-import org.apache.http.Header;
-import org.apache.http.HeaderElement;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpResponse;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
@@ -97,14 +95,9 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
     }
 
     private static RetryException callHandleFailureStatusCode(int statusCode, @Nullable String errorMessage, String modelId) {
-        var statusLine = mock(StatusLine.class);
-        when(statusLine.getStatusCode()).thenReturn(statusCode);
-        when(statusLine.toString()).thenReturn("HTTP/1.1 " + statusCode + " Error");
-
         var httpResponse = mock(HttpResponse.class);
-        when(httpResponse.getStatusLine()).thenReturn(statusLine);
+        when(httpResponse.getCode()).thenReturn(statusCode);
         var header = mock(Header.class);
-        when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
         var mockRequest = mock(OutboundRequest.class);

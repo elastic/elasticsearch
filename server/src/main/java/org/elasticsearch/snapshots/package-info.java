@@ -45,8 +45,9 @@
  *
  * <li>If as a result of the received status update requests, all shards in the cluster state are in a completed state, i.e are marked as
  * either {@code SUCCESS}, {@code FAILED} or {@code MISSING}, the {@code SnapshotsService} will update the state of the {@code Entry}
- * itself and mark it as {@code SUCCESS}. At the same time {@link org.elasticsearch.snapshots.SnapshotsService#endSnapshot} is executed,
- * writing to the repository the metadata necessary to finalize the snapshot in the repository.</li>
+ * itself and mark it as {@code SUCCESS}. At the same time
+ * {@link org.elasticsearch.snapshots.SnapshotsService#submitFinalizeSnapshotRepositoryDataWriteTask} is executed, writing to the repository
+ * the metadata necessary to finalize the snapshot in the repository.</li>
  *
  * <li>After writing the final metadata to the repository, a cluster state update to remove the snapshot from the cluster state is
  * submitted and the removal of the snapshot's {@code SnapshotsInProgress.Entry} from the cluster state completes the snapshot process.
@@ -119,8 +120,9 @@
  *     shard snapshot triggers a call to the {@link org.elasticsearch.snapshots.SnapshotsService#masterServiceTaskQueue} which updates the
  *     clone's {@code SnapshotsInProgress.Entry} to mark the shard clone operation completed.</li>
  *     <li>Once all the entries in {@code SnapshotsInProgress.Entry#clones} have completed, the clone is finalized just like any other
- *     snapshot through {@link org.elasticsearch.snapshots.SnapshotsService#endSnapshot}. The only difference being that the metadata that
- *     is written out for indices and the global metadata are read from the source snapshot in the repository instead of the cluster state.
+ *     snapshot through {@link org.elasticsearch.snapshots.SnapshotsService#submitFinalizeSnapshotRepositoryDataWriteTask}. The only
+ *     difference being that the metadata that is written out for indices and the global metadata are read from the source snapshot in the
+ *     repository instead of the cluster state.
  *     </li>
  * </ol>
  *

@@ -15,6 +15,7 @@ import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.plan.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
+import org.elasticsearch.xpack.esql.view.ViewQuerySettings;
 
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +23,11 @@ import java.util.Optional;
 public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
 
     public static final String SETTINGS_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "settings.";
+    /**
+     * The settings each resolved view's body runs with, as {@code {view: {setting: value}}}: what its definition
+     * {@code SET}s, and the default for the rest.
+     */
+    public static final String VIEW_SETTINGS_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "view_settings";
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
 
     @Override
@@ -47,6 +53,10 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 }
             }
         });
+        var viewSettings = ViewQuerySettings.logValues(context.getViewSettings());
+        if (viewSettings.isEmpty() == false) {
+            msg.field(VIEW_SETTINGS_FIELD, viewSettings);
+        }
         context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
 
         var namedParams = context.namedParams();
@@ -71,6 +81,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
             msg.field(PROFILE_PREFIX + "read_nanos", rollup.readNanos());
             msg.field(PROFILE_PREFIX + "read_cpu_nanos", rollup.readCpuNanos());
             msg.field(PROFILE_PREFIX + "cpu_nanos", rollup.cpuNanos());
+            msg.field(PROFILE_PREFIX + "driver_nanos", rollup.driverNanos());
         });
         var clusters = context.getClusters();
         var remotes = context.getRemoteClusterAliases(clusters);

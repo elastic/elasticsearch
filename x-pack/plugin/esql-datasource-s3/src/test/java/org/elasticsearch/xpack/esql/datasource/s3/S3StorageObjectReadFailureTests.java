@@ -80,9 +80,12 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
 
     /**
      * AWS Standard retry semantics (same classification and attempt budget as production) but with
-     * immediate backoff so failure-mapping tests do not sleep while the strategy spends its budget.
+     * immediate backoff so failure-mapping tests do not sleep while the strategy spends its budget. An instance
+     * field, not a static one: the strategy owns a retry-quota token bucket that failed retries drain and only
+     * successes refill, so sharing it across tests that enter the retry loop eventually exhausts the quota and
+     * cuts retries short.
      */
-    private static final RetryStrategy RETRY_STRATEGY = AwsRetryStrategy.standardRetryStrategy()
+    private final RetryStrategy retryStrategy = AwsRetryStrategy.standardRetryStrategy()
         .toBuilder()
         .backoffStrategy(BackoffStrategy.retryImmediately())
         .throttlingBackoffStrategy(BackoffStrategy.retryImmediately())
@@ -635,8 +638,8 @@ public class S3StorageObjectReadFailureTests extends ESTestCase {
     }
 
     /** Reads {@code length} bytes through the native async path and returns the failure handed to the listener. */
-    private static Throwable readAsyncFailure(S3AsyncClient mockAsyncS3, int length) throws InterruptedException {
-        S3StorageObject obj = new S3StorageObject(mock(S3Client.class), mockAsyncS3, RETRY_STRATEGY, BUCKET, KEY, PATH);
+    private Throwable readAsyncFailure(S3AsyncClient mockAsyncS3, int length) throws InterruptedException {
+        S3StorageObject obj = new S3StorageObject(mock(S3Client.class), mockAsyncS3, retryStrategy, BUCKET, KEY, PATH);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Throwable> outcome = new AtomicReference<>();
 

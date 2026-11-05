@@ -8,6 +8,7 @@
  */
 
 import org.elasticsearch.gradle.internal.distribution.BundledJdkPlatforms
+import org.elasticsearch.gradle.internal.distribution.TokenExpansions
 
 apply plugin: 'elasticsearch.internal-distribution-archive-setup'
 
@@ -66,7 +67,7 @@ CopySpec archiveFiles(String distributionType, String os, String architecture, b
         include 'README.asciidoc'
       }
       from(layout.settingsDirectory.file('licenses').asFile) {
-        include isTestDistro ? 'AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt' : 'ELASTIC-LICENSE-2.0.txt'
+        include TokenExpansions.licenseFileName(isTestDistro)
         filePermissions {
           unix(0644)
         }

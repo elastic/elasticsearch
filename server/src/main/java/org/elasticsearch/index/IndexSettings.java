@@ -10,9 +10,11 @@ package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.elasticsearch.Build;
+import org.elasticsearch.action.bulk.BatchIndexingEnabled;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -29,13 +31,11 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
-import org.elasticsearch.index.codec.columnar.ColumnarDocValuesFormatSelector;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesRequestCache;
@@ -598,7 +598,9 @@ public final class IndexSettings {
 
     /**
      * This index setting is intentionally undocumented and should be used as an escape hatch to disable BloomFilter of the
-     * _id field of non-data-stream indices, which is enabled by default. This setting doesn't affect data-stream indices.
+     * _id field of non-data-stream indices, which is enabled by default. Unless
+     * {@link #BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME} is enabled, this setting doesn't affect
+     * data-stream indices.
      */
     public static final Setting<Boolean> BLOOM_FILTER_ID_FIELD_ENABLED_SETTING = Setting.boolSetting(
         "index.bloom_filter_for_id_field.enabled",
@@ -607,6 +609,21 @@ public final class IndexSettings {
         Setting.Property.IndexScope,
         Property.DeprecatedWarning
     );
+
+    /**
+     * Name of the internal node setting that extends the BloomFilter of the _id field to non time series indices whose mapping
+     * enables the data stream timestamp field, i.e. data stream backing indices and any index mapped like one. Such indices are
+     * assumed to be append-only, which is not the case when clients provide explicit ids, as every write then needs a version
+     * lookup in all the segments of the shard. The setting is only registered, and enabled, by the stateless plugin, so any other
+     * node rejects it as unknown; {@link #BLOOM_FILTER_ID_FIELD_ENABLED_SETTING} can still disable it per index.
+     */
+    public static final String BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME =
+        "node._internal.bloom_filter_for_id_field.data_stream_timestamp.enabled";
+
+    public static boolean isBloomFilterIdFieldWithDataStreamTimestampEnabled(Settings nodeSettings) {
+        return nodeSettings.getAsBoolean(BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME, false);
+    }
+
     public static final String LIFECYCLE_ORIGINATION_DATE = "index.lifecycle.origination_date";
     public static final Setting<Long> LIFECYCLE_ORIGINATION_DATE_SETTING = Setting.longSetting(
         LIFECYCLE_ORIGINATION_DATE,
@@ -697,12 +714,39 @@ public final class IndexSettings {
      * the OTLP metrics ingest path may write documents as an {@link org.elasticsearch.escf.EscfBatch}
      * rather than individual XContent blobs, provided the cluster-level {@code indices.batch_indexing}
      * setting and its feature flag are also active.
+     *
+     * @deprecated use {@link #BATCH_INDEXING}. This setting is only kept registered as a fallback for {@link #BATCH_INDEXING}'s default.
      */
+    @Deprecated
     public static final Setting<Boolean> TIME_SERIES_BATCH_INDEXING = Setting.boolSetting(
         "index.time_series.batch_indexing",
         false,
         Property.Final,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.DeprecatedWarning
+    );
+
+    /**
+     * Patterns of the dimensions that are hashed into the second and third bytes of the tsid of time series indices created on or
+     * after {@link IndexVersions#TSID_PREFIXED_DIMENSIONS_HASH}: full dimension paths, or wildcard patterns like those of
+     * {@link IndexMetadata#INDEX_ROUTING_PATH}, e.g. {@code resource.attributes.*} for OTel metrics and
+     * {@code labels.job,labels.instance} for Prometheus metrics. Since the tsid is the primary index sort key and its first byte is
+     * derived from the metric name, this clusters the time series of one metric by the resource or target they come from. Empty by
+     * default, which keeps those bytes from the hash over all dimensions; the OTel and Prometheus index templates set it. Final
+     * because changing it would change the tsids of existing time series. See {@link org.elasticsearch.cluster.routing.TsidBuilder}.
+     */
+    public static final Setting<List<String>> TIME_SERIES_TSID_PREFIXED_DIMENSIONS = Setting.stringListSetting(
+        "index.time_series.tsid_prefixed_dimensions",
+        patterns -> {
+            for (String pattern : patterns) {
+                if (pattern.isBlank()) {
+                    throw new IllegalArgumentException("[index.time_series.tsid_prefixed_dimensions] must not contain empty patterns");
+                }
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     /**
@@ -710,6 +754,14 @@ public final class IndexSettings {
      */
     public boolean isES87TSDBCodecEnabled() {
         return es87TSDBCodecEnabled;
+    }
+
+    /**
+     * Returns {@code true} if this index opted in to batch indexing. Always {@code false} when the
+     * {@code batch_indexing} feature flag is off, because the setting cannot be enabled then.
+     */
+    public boolean isBatchIndexingEnabled() {
+        return batchIndexingEnabled;
     }
 
     public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
@@ -901,56 +953,6 @@ public final class IndexSettings {
     }, Property.IndexScope, Property.Final);
 
     /**
-     * Internal, feature-flagged setting that turns on the implicit flattened {@code _unmapped} sink absorbing unmapped fields.
-     * Only permitted in strict columnar index modes; rejected (as an unknown setting) when the feature flag is off.
-     * Temporary scaffolding: to be removed once all sink read paths land, when enablement becomes feature flag + strict columnar mode
-     * with no per-index opt-out. Do not document or expose this setting.
-     */
-    public static final Setting<Boolean> FLATTENED_UNMAPPED_FIELDS_ENABLED = Setting.boolSetting(
-        "index.mapping.flattened_unmapped_fields.enabled",
-        false,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean enabled) {
-                if (enabled && FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG.isEnabled() == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "unknown setting [%s] please check that any required plugins are installed, "
-                                + "or check the breaking changes documentation for removed settings",
-                            FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey()
-                        )
-                    );
-                }
-            }
-
-            @Override
-            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
-                if (enabled) {
-                    var indexMode = (IndexMode) settings.get(MODE);
-                    if (indexMode.isStrictColumnar() == false) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] is only permitted in strict columnar index modes. Current mode: [%s].",
-                                FLATTENED_UNMAPPED_FIELDS_ENABLED.getKey(),
-                                indexMode.getName()
-                            )
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(MODE).iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Final
-    );
-
-    /**
      * Whether a mapping this index has, or had, can keep a field it does not declare: see
      * {@link RootObjectMapper#canRetainUnmappedFields()}. It is set with the mapping that makes it true and never cleared, as
      * the documents indexed under that mapping stay. Only set on an index created on or after
@@ -1113,6 +1115,39 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Per-index switch for batch indexing. Defaults to the value of the deprecated
+     * {@link #TIME_SERIES_BATCH_INDEXING} when that is explicitly set, otherwise to whether the index mode is strictly columnar.
+     * The setting is inert unless the cluster-level {@code indices.batch_indexing} kill switch and the feature flag are active.
+     * It is always registered so that it is a known setting on every build, but it defaults to {@code false} and rejects an
+     * explicit {@code true} when the feature flag is off.
+     */
+    public static final Setting<Boolean> BATCH_INDEXING = Setting.boolSetting("index.batch_indexing", settings -> {
+        if (BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+            return Boolean.FALSE.toString();
+        }
+        if (TIME_SERIES_BATCH_INDEXING.exists(settings)) {
+            return Boolean.toString(TIME_SERIES_BATCH_INDEXING.get(settings));
+        }
+        return Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar());
+    }, value -> {
+        if (value && BatchIndexingEnabled.FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalArgumentException(
+                "[index.batch_indexing] can only be enabled when the batch_indexing feature flag is enabled"
+            );
+        }
+    }, Property.Final, Property.IndexScope);
+
+    /**
+     * Whether an index with the given settings is eligible for batch indexing: the feature flag is on and
+     * {@link #BATCH_INDEXING} resolves to {@code true}. Coordinators use this to decide whether to build a batch, so that their
+     * decision matches {@link #isBatchIndexingEnabled()} on the shard. The cluster-level kill switch is not included because it
+     * is node-local and dynamic; callers check it via {@link BatchIndexingEnabled}.
+     */
+    public static boolean isBatchIndexingEnabled(Settings indexSettings) {
+        return BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && BATCH_INDEXING.get(indexSettings);
+    }
+
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
         settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),
@@ -1159,22 +1194,6 @@ public final class IndexSettings {
         }
         return SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.TIME_SERIES_ES95_CODEC_DEFAULT);
     }
-
-    /**
-     * Controls whether the ColumNAR doc values codec is used for a given index.
-     * Defaults to {@code true} for indices created at or after
-     * {@link IndexVersions#COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF}; {@code false} for older indices,
-     * preserving backward compatibility with segments written before the codec was the default.
-     * This setting is only registered while the {@code columnar_codec} feature flag is enabled,
-     * so a release build without the flag does not expose it; the full gating is enforced in
-     * {@code ColumnarDocValuesFormatSelector}.
-     */
-    public static final Setting<Boolean> COLUMNAR_CODEC_ENABLED_SETTING = Setting.boolSetting("index.columnar_codec.enabled", settings -> {
-        if (settings == null) {
-            return Boolean.FALSE.toString();
-        }
-        return Boolean.toString(SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.COLUMNAR_CODEC_ENABLED_BY_DEFAULT_FF));
-    }, Property.IndexScope, Property.Final);
 
     /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
@@ -1230,6 +1249,51 @@ public final class IndexSettings {
         false,
         Property.IndexScope,
         Property.Final
+    );
+
+    /**
+     * Largest value, in bytes, of a non-indexed keyword or flattened field in a columnar index mode. Lucene imposes no limit on
+     * such values, so this bounds storage and scan cost. Fields that feed the inverted index or sorted-set doc values, and all
+     * fields outside columnar index modes, keep Lucene's {@link IndexWriter#MAX_TERM_LENGTH} instead.
+     */
+    public static final Setting<ByteSizeValue> NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING = new Setting<>(
+        "index.mapping.non_indexed_field.max_value_length",
+        ByteSizeValue.of(1, ByteSizeUnit.MB).getStringRep(),
+        s -> Setting.parseByteSize(
+            s,
+            ByteSizeValue.ofBytes(IndexWriter.MAX_TERM_LENGTH),
+            ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+            "index.mapping.non_indexed_field.max_value_length"
+        ),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(ByteSizeValue value) {}
+
+            @Override
+            public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (isPresent && indexMode.isStrictColumnar() == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted when [%s] is a columnar index mode. Current mode: [%s].",
+                            NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING.getKey(),
+                            MODE.getKey(),
+                            indexMode.getName()
+                        )
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(MODE);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
@@ -1303,6 +1367,33 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    /**
+     * Whether an index was created by a stateful 9.5.2 or later node. Index version 9_111 (UPGRADE_TO_LUCENE_10_5_1) was backported to
+     * 9.5.2, but the changes gated on 9_108 (COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY), 9_109
+     * (ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT) and 9_110 (DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS) were not, so such an index has a version above
+     * those gates without having had the new behavior. Stateless has all of them, and the 9_111_0_xx versions are the only ones a stateful
+     * 9.5 index can have in that range.
+     *
+     * <p>Indices created by 9.5.0 and 9.5.1 are not matched on purpose: their versions are below 9_108, so the plain "before the gate"
+     * checks already give them the same legacy behavior.
+     */
+    public static boolean createdInStateful95(IndexVersion version, boolean stateless) {
+        return stateless == false
+            && version.between(IndexVersions.UPGRADE_TO_LUCENE_10_5_1, IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG);
+    }
+
+    /**
+     * Resolves {@link #DISABLE_SEQUENCE_NUMBERS} for an index from its metadata settings alone. The default depends on whether the
+     * node is stateless (see {@link #createdInStateful95}), which index metadata settings do not carry, so the node settings must be
+     * merged in when the setting is not explicitly set.
+     */
+    public static boolean sequenceNumbersDisabled(Settings indexMetadataSettings, Settings nodeSettings) {
+        if (DISABLE_SEQUENCE_NUMBERS.exists(indexMetadataSettings)) {
+            return DISABLE_SEQUENCE_NUMBERS.get(indexMetadataSettings);
+        }
+        return DISABLE_SEQUENCE_NUMBERS.get(Settings.builder().put(nodeSettings).put(indexMetadataSettings).build());
+    }
+
     public static final Setting<Boolean> DISABLE_SEQUENCE_NUMBERS = Setting.boolSetting("index.disable_sequence_numbers", settings -> {
         if (settings == null) {
             return Boolean.FALSE.toString();
@@ -1312,8 +1403,9 @@ public final class IndexSettings {
             var indexVersion = SETTING_INDEX_VERSION_CREATED.get(settings);
             // BWC only: columnar indices created before the gate disabled sequence numbers for all columnar indices. From the gate this
             // is done per index at creation, for data-stream backing indices only (see IndexMode.IndexModeSettingsProvider).
-            if (indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)
-                && indexVersion.before(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY)) {
+            if ((indexVersion.onOrAfter(IndexVersions.DISABLE_SEQUENCE_NUMBERS)
+                && indexVersion.before(IndexVersions.COLUMNAR_DISABLE_SEQUENCE_NUMBERS_DATA_STREAMS_ONLY))
+                || createdInStateful95(indexVersion, DiscoveryNode.isStateless(settings))) {
                 return Boolean.TRUE.toString();
             }
         }
@@ -1403,6 +1495,7 @@ public final class IndexSettings {
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
+    private final boolean stateless;
 
     /**
      * The {@link IndexMode "mode"} of the index.
@@ -1438,11 +1531,11 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
+    private final boolean batchIndexingEnabled;
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
     private final boolean sliceEnabled;
-    private final boolean flattenedUnmappedFieldsEnabled;
     private volatile long retentionLeaseMillis;
 
     /**
@@ -1498,6 +1591,7 @@ public final class IndexSettings {
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
     private final int ignoreAbove;
+    private final int nonIndexedFieldMaxValueLength;
     private final boolean useDocValuesSkipper;
     private final boolean useDocValuesSkipperForHostname;
     private final boolean useTimeSeriesSyntheticId;
@@ -1506,7 +1600,6 @@ public final class IndexSettings {
     private final boolean useTimeSeriesDocValuesFormatLargeNumericBlockSize;
     private final boolean useTimeSeriesDocValuesFormatLargeBinaryBlockSize;
     private final boolean timeSeriesEs95CodecEnabled;
-    private final boolean columnarCodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
@@ -1601,10 +1694,6 @@ public final class IndexSettings {
         return retainsUnmappedFields(version, settings);
     }
 
-    public boolean isFlattenedUnmappedFieldsEnabled() {
-        return flattenedUnmappedFieldsEnabled;
-    }
-
     /**
      * Returns <code>true</code> if the index is in logsdb mode and needs a [host.name] keyword field. The default is <code>false</code>
      */
@@ -1633,6 +1722,7 @@ public final class IndexSettings {
     public IndexSettings(final IndexMetadata indexMetadata, final Settings nodeSettings, IndexScopedSettings indexScopedSettings) {
         scopedSettings = indexScopedSettings.copy(nodeSettings, indexMetadata);
         this.nodeSettings = nodeSettings;
+        this.stateless = DiscoveryNode.isStateless(nodeSettings);
         this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
         this.index = indexMetadata.getIndex();
         version = SETTING_INDEX_VERSION_CREATED.get(settings);
@@ -1700,7 +1790,6 @@ public final class IndexSettings {
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         sliceEnabled = scopedSettings.get(SLICE_ENABLED);
-        flattenedUnmappedFieldsEnabled = scopedSettings.get(FLATTENED_UNMAPPED_FIELDS_ENABLED);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -1718,6 +1807,7 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        batchIndexingEnabled = BatchIndexingEnabled.FEATURE_FLAG.isEnabled() && scopedSettings.get(BATCH_INDEXING);
         requestCacheEnabled = scopedSettings.get(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
@@ -1732,6 +1822,7 @@ public final class IndexSettings {
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         ignoreAbove = scopedSettings.get(IGNORE_ABOVE_SETTING);
+        nonIndexedFieldMaxValueLength = Math.toIntExact(scopedSettings.get(NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING).getBytes());
         useDocValuesSkipper = scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         useDocValuesSkipperForHostname = USE_DOC_VALUES_SKIPPER.exists(settings)
             ? scopedSettings.get(USE_DOC_VALUES_SKIPPER)
@@ -1743,8 +1834,6 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeNumericBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useTimeSeriesDocValuesFormatLargeBinaryBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BINARY_BLOCK_SIZE);
         timeSeriesEs95CodecEnabled = scopedSettings.get(TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
-        columnarCodecEnabled = ColumnarDocValuesFormatSelector.COLUMNAR_CODEC_FEATURE_FLAG.isEnabled()
-            && scopedSettings.get(COLUMNAR_CODEC_ENABLED_SETTING);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
@@ -1884,6 +1973,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
+        scopedSettings.addSettingsUpdateConsumer(
+            DenseVectorFieldMapper.POST_FILTER_SELECTIVITY_THRESHOLD,
+            this::setPostFilterSelectivityThreshold
+        );
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
         scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
         scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_KEYWORD_SUBFIELD, this::setDynamicStringsAutoKeywordSubfield);
@@ -2002,6 +2095,14 @@ public final class IndexSettings {
      */
     public Settings getNodeSettings() {
         return nodeSettings;
+    }
+
+    /**
+     * Whether the node this index is allocated on is stateless. Used to pick between the stateless and stateful index version gates, see
+     * {@link #createdInStateful95}.
+     */
+    public boolean isStateless() {
+        return stateless;
     }
 
     /**
@@ -2559,6 +2660,19 @@ public final class IndexSettings {
         return ignoreAbove;
     }
 
+    public int getNonIndexedFieldMaxValueLength() {
+        return nonIndexedFieldMaxValueLength;
+    }
+
+    /**
+     * Byte limit for one keyword or flattened value. Lucene enforces {@link IndexWriter#MAX_TERM_LENGTH} only in the inverted
+     * index and in sorted-set doc values. Other values get {@link #NON_INDEXED_FIELD_MAX_VALUE_LENGTH_SETTING} in columnar index
+     * modes, and {@link IndexWriter#MAX_TERM_LENGTH} in all other index modes.
+     */
+    public int maxValueLength(boolean useLuceneMaxTermLength) {
+        return useLuceneMaxTermLength || mode.isStrictColumnar() == false ? IndexWriter.MAX_TERM_LENGTH : nonIndexedFieldMaxValueLength;
+    }
+
     public boolean useDocValuesSkipper() {
         return useDocValuesSkipper;
     }
@@ -2612,16 +2726,6 @@ public final class IndexSettings {
      */
     public boolean isTimeSeriesEs95CodecEnabled() {
         return timeSeriesEs95CodecEnabled;
-    }
-
-    /**
-     * Checks if this index opts into the ColumNAR doc values codec, as resolved from
-     * {@link #COLUMNAR_CODEC_ENABLED_SETTING}.
-     *
-     * @return {@code true} if the index opts into ColumNAR; {@code false} otherwise.
-     */
-    public boolean isColumnarCodecEnabled() {
-        return columnarCodecEnabled;
     }
 
     /**

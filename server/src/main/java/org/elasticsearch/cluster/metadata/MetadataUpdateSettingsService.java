@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -249,7 +250,7 @@ public class MetadataUpdateSettingsService {
                                                 UnassignedInfo.Reason.INDEX_REOPENED,
                                                 "Unassigning shards to update static settings"
                                             ),
-                                            ShardRouting.RecoveryPriority.UNASSIGNED_EXPECTED
+                                            RecoveryPriority.UNASSIGNED_EXPECTED
                                         )
                                     );
                                 } else {

@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 164447
+summary: "[Inference API] Add missing transport version to `RecursiveChunkingSettings`"
+type: bug

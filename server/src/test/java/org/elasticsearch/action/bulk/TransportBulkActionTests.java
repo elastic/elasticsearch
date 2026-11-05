@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -27,6 +28,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
@@ -54,6 +57,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.dlm.TimeSeriesEligibleWriteWindowLocator;
 import org.elasticsearch.features.FeatureService;
@@ -69,6 +73,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -77,6 +82,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -88,6 +94,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -113,8 +120,26 @@ public class TransportBulkActionTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     private TestTransportBulkAction bulkAction;
+    // the bytes most recently reserved for a coordinating operation, see RecordingIndexingPressure
+    private final AtomicLong lastCoordinatingOperationBytes = new AtomicLong(-1);
     private FeatureService mockFeatureService;
     private AtomicReference<ProjectId> activeProjectId = new AtomicReference<>();
+
+    /**
+     * A real {@link IndexingPressure} that additionally records the bytes most recently reserved for a coordinating operation, so
+     * tests can assert what the bulk action accounts for without altering the accounting itself.
+     */
+    private class RecordingIndexingPressure extends IndexingPressure {
+        RecordingIndexingPressure() {
+            super(Settings.EMPTY);
+        }
+
+        @Override
+        public Coordinating markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
+            lastCoordinatingOperationBytes.set(bytes);
+            return super.markCoordinatingOperationStarted(operations, bytes, forceExecution);
+        }
+    }
 
     class TestTransportBulkAction extends TransportBulkAction {
 
@@ -124,7 +149,7 @@ public class TransportBulkActionTests extends ESTestCase {
         boolean indexCreated = false; // set when the "real" index is created
         Runnable beforeIndexCreation = null;
 
-        TestTransportBulkAction() {
+        TestTransportBulkAction(IndexingPressure indexingPressure) {
             super(
                 TransportBulkActionTests.this.threadPool,
                 transportService,
@@ -133,7 +158,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool, TestProjectResolvers.alwaysThrow()),
                 ActionFilters.EMPTY,
                 new Resolver(),
-                new IndexingPressure(Settings.EMPTY),
+                indexingPressure,
                 new SystemIndices(
                     List.of(
                         new SystemIndices.Feature(
@@ -223,7 +248,7 @@ public class TransportBulkActionTests extends ESTestCase {
         mockFeatureService = mock(FeatureService.class);
         when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
         activeProjectId.set(Metadata.DEFAULT_PROJECT_ID);
-        bulkAction = new TestTransportBulkAction();
+        bulkAction = new TestTransportBulkAction(new RecordingIndexingPressure());
     }
 
     @After
@@ -280,7 +305,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest1 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, backingIndex, metadataProvider)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest1, backingIndex, metadataProvider, Settings.EMPTY)
         );
         assertThat(
             e.getMessage(),
@@ -294,7 +319,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest invalidRequest2 = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, backingIndex, metadataProvider)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(invalidRequest2, backingIndex, metadataProvider, Settings.EMPTY)
         );
         assertThat(
             e.getMessage(),
@@ -308,28 +333,59 @@ public class TransportBulkActionTests extends ESTestCase {
         DocWriteRequest<?> validRequest = new IndexRequest(backingIndexName).opType(DocWriteRequest.OpType.INDEX)
             .setIfSeqNo(1)
             .setIfPrimaryTerm(1);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider, Settings.EMPTY);
         validRequest = new DeleteRequest(backingIndexName);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider, Settings.EMPTY);
         validRequest = new UpdateRequest(backingIndexName, "_id");
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, backingIndex, metadataProvider, Settings.EMPTY);
 
         // Testing append only write via ds name
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null, Settings.EMPTY);
 
         validRequest = new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.INDEX);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, dataStream, idx -> null, Settings.EMPTY);
 
         // Append only for a backing index that doesn't exist is allowed:
         validRequest = new IndexRequest(DataStream.getDefaultBackingIndexName("logs-barbaz", 1)).opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null, Settings.EMPTY);
 
         // Some other index names:
         validRequest = new IndexRequest("my-index").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null, Settings.EMPTY);
         validRequest = new IndexRequest("foobar").opType(DocWriteRequest.OpType.CREATE);
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(validRequest, null, idx -> null, Settings.EMPTY);
+    }
+
+    /**
+     * Index requests with an explicit id may target a backing index with sequence numbers disabled. A columnar backing index created by
+     * 9.5.2 or later has the setting disabled only through its default, which depends on whether the node is stateless, so the node
+     * settings have to take part in the decision.
+     */
+    public void testExplicitIdOnColumnarBackingIndexCreatedOn95() {
+        String dataStreamName = "logs-columnar";
+        final var dataStream = DataStreamTestHelper.newInstance(dataStreamName, DataStreamTestHelper.randomNonEmptyIndexInstances());
+        final String backingIndexName = dataStream.getWriteIndex().getName();
+        final var backingIndexMetadata = IndexMetadata.builder(backingIndexName)
+            .settings(
+                settings(IndexVersions.UPGRADE_TO_LUCENE_10_5_1).put(IndexSettings.MODE.getKey(), randomFrom("columnar", "logsdb_columnar"))
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        final var backingIndex = new ConcreteIndex(backingIndexMetadata, dataStream);
+        final Function<Index, IndexMetadata> metadataProvider = idx -> backingIndexMetadata;
+        final DocWriteRequest<?> request = new IndexRequest(backingIndexName).id("id").opType(DocWriteRequest.OpType.INDEX);
+
+        // a stateful 9.5 index has sequence numbers disabled through the default of the setting, although it is not stored
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(request, backingIndex, metadataProvider, Settings.EMPTY);
+
+        // stateless has the gate, so the same version keeps sequence numbers, and OCC is required again
+        Settings stateless = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(request, backingIndex, metadataProvider, stateless)
+        );
     }
 
     public void testRequireSliceRoutingWhenSliceEnabled() {
@@ -481,12 +537,17 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest request = new IndexRequest(targetBackingIndexName).id("doc-1").opType(DocWriteRequest.OpType.INDEX);
         if (targetHasSeqNoDisabled) {
             // INDEX with an id is allowed for indices with seq_no_disabled=true:
-            TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider);
+            TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider, Settings.EMPTY);
         } else {
             // INDEX with an id is not allowed for indices with seq_no_disabled=false:
             Exception e = expectThrows(
                 IllegalArgumentException.class,
-                () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(request, targetBackingIndex, metadataProvider)
+                () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(
+                    request,
+                    targetBackingIndex,
+                    metadataProvider,
+                    Settings.EMPTY
+                )
             );
             assertThat(
                 e.getMessage(),
@@ -500,7 +561,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest noIdCreate = new IndexRequest(targetBackingIndexName).opType(DocWriteRequest.OpType.CREATE);
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdCreate, targetBackingIndex, metadataProvider)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdCreate, targetBackingIndex, metadataProvider, Settings.EMPTY)
         );
         assertThat(e.getMessage(), containsString("op_type=create targeting backing indices is disallowed"));
 
@@ -508,7 +569,7 @@ public class TransportBulkActionTests extends ESTestCase {
         IndexRequest noIdIndex = new IndexRequest(targetBackingIndexName).opType(DocWriteRequest.OpType.INDEX);
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdIndex, targetBackingIndex, metadataProvider)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(noIdIndex, targetBackingIndex, metadataProvider, Settings.EMPTY)
         );
         assertThat(e.getMessage(), containsString("op_type=index and no if_primary_term and if_seq_no set targeting backing indices"));
     }
@@ -659,6 +720,96 @@ public class TransportBulkActionTests extends ESTestCase {
         } finally {
             blockingLatch.countDown();
         }
+    }
+
+    /**
+     * The request context (headers and accountable transient values such as the security authentication) is retained for as long
+     * as the bulk request is in flight, so the coordinating operation must reserve it in addition to the request payload.
+     */
+    public void testRequestContextBytesAreAccountedInCoordinatingOperation() throws Exception {
+        final BulkRequest bulkRequest = new BulkRequest().add(new DeleteRequest("index").id("id"));
+        // captured up front because the bulk action releases the items of a processed request
+        final long payloadBytes = bulkRequest.ramBytesUsed();
+        final String headerValue = randomAlphaOfLengthBetween(1024, 8192);
+        final long accountableBytes = randomLongBetween(1024, 1 << 20);
+
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader("large-header", headerValue);
+            threadContext.putTransient("accountable", (Accountable) () -> accountableBytes);
+            final long contextBytes = threadContext.estimatedRequestContextBytes();
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+            future.actionGet();
+            assertThat(lastCoordinatingOperationBytes.get(), equalTo(payloadBytes + contextBytes));
+        }
+    }
+
+    public void testPreBuiltBatchReleasedOnCoordinationRejection() {
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
+
+        final var blockingLatch = new CountDownLatch(1);
+        try {
+            blockWriteCoordinationThreadPool(blockingLatch);
+            safeAwaitFailure(
+                EsRejectedExecutionException.class,
+                BulkResponse.class,
+                l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l)
+            );
+        } finally {
+            blockingLatch.countDown();
+        }
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    public void testPreBuiltBatchReleasedOnClusterBlock() {
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(clusterService.state()).blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK))
+        );
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
+
+        safeAwaitFailure(ClusterBlockException.class, BulkResponse.class, l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l));
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    public void testPreBuiltBatchReleasedWhenRouterRejects() {
+        // the kill switch defaults to the feature flag state, so turn it off to make batch indexing unsupported
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false).build());
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, null);
+
+        var e = safeAwaitFailure(
+            IllegalStateException.class,
+            BulkResponse.class,
+            l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l)
+        );
+        assertThat(e.getMessage(), containsString("batch indexing is not supported"));
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    public void testPreBuiltBatchRejectedWithPipelines() {
+        BulkRequestTests.CloseCountingBatch batch = new BulkRequestTests.CloseCountingBatch();
+        BulkRequest bulkRequest = preBuiltBatchBulkRequest(batch, "pipeline");
+
+        var e = safeAwaitFailure(
+            IllegalArgumentException.class,
+            BulkResponse.class,
+            l -> ActionTestUtils.execute(bulkAction, null, bulkRequest, l)
+        );
+        assertThat(e.getMessage(), containsString("cannot run ingest pipelines"));
+        assertThat(batch.closeCount.get(), equalTo(1));
+    }
+
+    private static BulkRequest preBuiltBatchBulkRequest(BulkRequestTests.CloseCountingBatch batch, String pipeline) {
+        IndexRequest indexRequest = new IndexRequest("index").id("id").setPipeline(pipeline);
+        indexRequest.indexSource().setSourceRow(batch, 0, XContentType.JSON);
+        BulkRequest bulkRequest = new BulkRequest().add(indexRequest);
+        bulkRequest.setPreBuiltBatches(Map.of("index", batch));
+        return bulkRequest;
     }
 
     public void testRejectionAfterCreateIndexIsPropagated() {

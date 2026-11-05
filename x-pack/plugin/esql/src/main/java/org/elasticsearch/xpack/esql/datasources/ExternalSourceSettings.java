@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -314,6 +315,20 @@ public final class ExternalSourceSettings {
         0,
         300,
         Setting.Property.NodeScope
+    );
+
+    /**
+     * How long a node waits for the cluster state before failing the query with a retryable 503: a worker behind the
+     * state the coordinator planned from, or a coordinator waiting for a joining worker ({@code ExternalWorkerReadiness});
+     * each wait bounded on its own. Not documented: a healthy node applies a state in well under a second, so this is an
+     * escape hatch, not a knob to tune. {@code 0} fails at once.
+     */
+    public static final Setting<TimeValue> WORKER_READY_TIMEOUT = Setting.timeSetting(
+        "esql.external.worker_ready_timeout",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -677,6 +692,7 @@ public final class ExternalSourceSettings {
             MAX_CONCURRENT_REQUESTS,
             MAX_CONCURRENT_SEGMENTATORS,
             THROTTLE_MAX_RETRY_DURATION,
+            WORKER_READY_TIMEOUT,
             FIRST_ATTEMPT_LISTING_FILES,
             MAX_DISCOVERED_FILES,
             MAX_LISTED_OBJECTS,

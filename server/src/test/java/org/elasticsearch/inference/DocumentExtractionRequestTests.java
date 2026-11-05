@@ -29,6 +29,7 @@ import java.util.Map;
 
 import static org.elasticsearch.inference.DocumentExtractionRequest.SUPPORTED_DOCUMENT_EXTRACTION_DATA_TYPES;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
+import static org.elasticsearch.inference.InferenceString.HTML_INPUT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceString.URL_INPUT_FORMAT_SUPPORT_ADDED;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.hamcrest.Matchers.containsString;
@@ -50,6 +51,23 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
         try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
             var request = DocumentExtractionRequest.PARSER.apply(parser, null);
             assertThat(request.inputs(), is(List.of(new InferenceString(DataType.PDF, DataFormat.BASE64, TEST_DATA_URI))));
+        }
+    }
+
+    public void testParser_WithHtmlAndUnspecifiedFormat_UsesUrlFormat() throws IOException {
+        var url = "https://example.com/page.html";
+        var requestJson = Strings.format("""
+            {
+                "input": [
+                    {
+                        "content": {"type": "html", "value": "%s"}
+                    }
+                ]
+            }
+            """, url);
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var request = DocumentExtractionRequest.PARSER.apply(parser, null);
+            assertThat(request.inputs(), is(List.of(new InferenceString(DataType.HTML, DataFormat.URL, url))));
         }
     }
 
@@ -91,7 +109,7 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
 
     private static String unsupportedDataTypeMessage(DataType dataType, int index) {
         return Strings.format(
-            "Field [input] contains unsupported [type] value [%s] at index [%d]. Supported values are [image, pdf]",
+            "Field [input] contains unsupported [type] value [%s] at index [%d]. Supported values are [image, pdf, html]",
             dataType,
             index
         );
@@ -125,15 +143,17 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
     /**
      * Versions before {@link InferenceString#EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED} throw an exception when serializing pdf
      * inputs, which every document extraction request may carry, and versions before
-     * {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} throw an exception when serializing URL-format inputs, so we filter those
-     * out of the bwc versions to avoid test failures. The URL-format guard is tested directly by
-     * {@link #testUrlFormatIsNotBackwardsCompatible}.
+     * {@link InferenceString#URL_INPUT_FORMAT_SUPPORT_ADDED} throw an exception when serializing URL-format inputs, and versions before
+     * {@link InferenceString#HTML_INPUT_SUPPORT_ADDED} throw an exception when serializing html inputs, so we filter those out of the bwc
+     * versions to avoid test failures. The URL-format and html guards are tested directly by {@link #testUrlFormatIsNotBackwardsCompatible}
+     * and {@link #testHtmlIsNotBackwardsCompatible}.
      */
     @Override
     protected Collection<TransportVersion> bwcVersions() {
         return super.bwcVersions().stream()
             .filter(version -> version.supports(EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED))
             .filter(version -> version.supports(URL_INPUT_FORMAT_SUPPORT_ADDED))
+            .filter(version -> version.supports(HTML_INPUT_SUPPORT_ADDED))
             .toList();
     }
 
@@ -148,7 +168,30 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
         );
         var preUrlVersions = super.bwcVersions().stream().filter(v -> v.supports(URL_INPUT_FORMAT_SUPPORT_ADDED) == false).toList();
 
-        assertRequestNotBackwardsCompatible(preUrlVersions, urlRequest);
+        assertRequestNotBackwardsCompatible(
+            preUrlVersions,
+            urlRequest,
+            "Cannot send an inference request with URL format inputs to an older node. "
+                + "Please wait until all nodes are upgraded before using URL format inputs"
+        );
+    }
+
+    /**
+     * Verifies that html inputs cannot be sent to nodes that do not support {@link InferenceString#HTML_INPUT_SUPPORT_ADDED}. The html
+     * guard is checked before the URL-format guard, so the html-specific error is raised on any pre-html node.
+     */
+    public void testHtmlIsNotBackwardsCompatible() throws IOException {
+        var htmlRequest = DocumentExtractionRequest.of(
+            List.of(new InferenceString(DataType.HTML, DataFormat.URL, "https://example.com/page.html"))
+        );
+        var preHtmlVersions = super.bwcVersions().stream().filter(v -> v.supports(HTML_INPUT_SUPPORT_ADDED) == false).toList();
+
+        assertRequestNotBackwardsCompatible(
+            preHtmlVersions,
+            htmlRequest,
+            "Cannot send an inference request with html inputs to an older node. "
+                + "Please wait until all nodes are upgraded before using html inputs"
+        );
     }
 
     @Override
@@ -179,20 +222,18 @@ public class DocumentExtractionRequestTests extends AbstractBWCSerializationTest
         return randomMap(0, 3, () -> new Tuple<String, Object>(randomAlphanumericOfLength(8), randomAlphanumericOfLength(8)));
     }
 
-    private void assertRequestNotBackwardsCompatible(List<TransportVersion> preUrlVersions, DocumentExtractionRequest urlRequest) {
-        for (var version : preUrlVersions) {
+    private void assertRequestNotBackwardsCompatible(
+        List<TransportVersion> unsupportedVersions,
+        DocumentExtractionRequest request,
+        String expectedMessage
+    ) {
+        for (var version : unsupportedVersions) {
             var ex = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> copyWriteable(urlRequest, getNamedWriteableRegistry(), instanceReader(), version)
+                () -> copyWriteable(request, getNamedWriteableRegistry(), instanceReader(), version)
             );
             assertThat(ex.status(), is(RestStatus.BAD_REQUEST));
-            assertThat(
-                ex.getMessage(),
-                is(
-                    "Cannot send an inference request with URL format inputs to an older node. "
-                        + "Please wait until all nodes are upgraded before using URL format inputs"
-                )
-            );
+            assertThat(ex.getMessage(), is(expectedMessage));
         }
     }
 

@@ -19,6 +19,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.search.MatchQueryParser;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<MatchBoolPrefixQueryBuilder> {
 
@@ -274,5 +276,17 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
 
             assertThat(clauseQuery, equalTo(expectedClauseQueries.get(i)));
         }
+    }
+
+    public void testLongIllegalBooleanIsTruncatedInShardFailure() {
+        String value = "x".repeat(randomIntBetween(100_000, 200_000));
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> context.toQuery(new MatchBoolPrefixQueryBuilder(BOOLEAN_FIELD_NAME, value))
+        );
+        assertThat(e.getMessage(), containsString("Can't parse boolean value [xxx"));
+        // Without the truncation the reason holds the value twice
+        assertThat(new ShardSearchFailure(e).reason().length(), lessThan(value.length()));
     }
 }

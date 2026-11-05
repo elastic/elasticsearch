@@ -48,7 +48,7 @@ public class CombineDynamicMappingUpdatesRollingUpgradeIT extends AbstractRollin
      * The setting is enabled as soon as every node supports it: on the old cluster if it already does, otherwise once all the
      * nodes are upgraded. Every bulk request maps a new field per document, and fields that the other requests map too.
      */
-    public void testBulkRequestsMapNewFields() throws IOException {
+    public void testBulkRequestsMapNewFields() throws Exception {
         final String index = "combine-dynamic-updates";
         if (isOldCluster()) {
             final Request createIndex = new Request("PUT", "/" + index);
@@ -78,14 +78,19 @@ public class CombineDynamicMappingUpdatesRollingUpgradeIT extends AbstractRollin
         bulkRequest.setJsonEntity(bulk.toString());
         assertNoBulkErrors(client().performRequest(bulkRequest));
 
-        final Map<String, Object> properties = mappingProperties(index);
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(properties, hasKey(prefix + "_" + i));
-            assertThat(ObjectPath.evaluate(properties, prefix + "_" + i + ".type"), equalTo("long"));
-        }
-        for (int i = 0; i < Math.min(numDocs, 10); i++) {
-            assertThat(ObjectPath.evaluate(properties, "shared_" + i + ".type"), equalTo("text"));
-        }
+        // The bulk response is acked once the master has processed the mapping updates, but the node handling
+        // the get mapping request may not have processed the latest cluster state yet. Retry until all fields are visible.
+        assertBusy(() -> {
+            final Map<String, Object> properties = mappingProperties(index);
+            assertNotNull("missing mappings for index [" + index + "]", properties);
+            for (int i = 0; i < numDocs; i++) {
+                assertThat(properties, hasKey(prefix + "_" + i));
+                assertThat(ObjectPath.evaluate(properties, prefix + "_" + i + ".type"), equalTo("long"));
+            }
+            for (int i = 0; i < Math.min(numDocs, 10); i++) {
+                assertThat(ObjectPath.evaluate(properties, "shared_" + i + ".type"), equalTo("text"));
+            }
+        });
         final Request count = new Request("GET", "/" + index + "/_count");
         count.addParameter("q", prefix + "_0:0");
         assertThat(ObjectPath.createFromResponse(client().performRequest(count)).evaluate("count"), equalTo(1));
@@ -97,7 +102,7 @@ public class CombineDynamicMappingUpdatesRollingUpgradeIT extends AbstractRollin
     /**
      * The backing indices of time series data streams get the setting once every node supports it.
      */
-    public void testTimeSeriesDataStreamDefault() throws IOException {
+    public void testTimeSeriesDataStreamDefault() throws Exception {
         if (isOldCluster()) {
             return;
         }
@@ -133,10 +138,15 @@ public class CombineDynamicMappingUpdatesRollingUpgradeIT extends AbstractRollin
 
         final Response getDataStream = client().performRequest(new Request("GET", "/_data_stream/" + dataStream));
         final String backingIndex = ObjectPath.createFromResponse(getDataStream).evaluate("data_streams.0.indices.0.index_name");
-        final Map<String, Object> properties = mappingProperties(backingIndex);
-        for (int i = 0; i < numDocs; i++) {
-            assertThat(properties, hasKey("metric_" + i));
-        }
+        // The bulk response is acked once the master has processed the mapping updates, but the node handling
+        // the get mapping request may not have processed the latest cluster state yet. Retry until all fields are visible.
+        assertBusy(() -> {
+            final Map<String, Object> properties = mappingProperties(backingIndex);
+            assertNotNull("missing mappings for index [" + backingIndex + "]", properties);
+            for (int i = 0; i < numDocs; i++) {
+                assertThat(properties, hasKey("metric_" + i));
+            }
+        });
         // a mixed cluster creates indices with the index version of the old nodes
         final boolean expected = isUpgradedCluster()
             || getOldClusterIndexVersion().onOrAfter(IndexVersions.TIME_SERIES_COMBINE_DYNAMIC_UPDATES_DEFAULT);
@@ -154,7 +164,11 @@ public class CombineDynamicMappingUpdatesRollingUpgradeIT extends AbstractRollin
     // the names of backing indices have dots, which paths can't address
     private static Map<String, Object> mappingProperties(String index) throws IOException {
         final Map<String, Object> response = entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_mapping")));
-        return ObjectPath.evaluate(response.get(index), "mappings.properties");
+        final Object indexMapping = response.get(index);
+        if (indexMapping == null) {
+            return null;
+        }
+        return ObjectPath.evaluate(indexMapping, "mappings.properties");
     }
 
     private static Object indexSetting(String index, String setting) throws IOException {

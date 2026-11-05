@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -162,7 +163,7 @@ public class IpFieldMapper extends FieldMapper {
                     DocValuesParameter.Values.Cardinality.HIGH
                 ),
                 m -> toType(m).docValuesParameters(),
-                indexSettings.getMode().isStrictColumnar()
+                indexSettings
             );
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
@@ -222,6 +223,9 @@ public class IpFieldMapper extends FieldMapper {
             return new Parameter<?>[] {
                 indexed,
                 docValuesParameters,
+                docValuesParameters.multiValue(),
+                docValuesParameters.nullability(),
+                docValuesParameters.onFailure(),
                 stored,
                 ignoreMalformed,
                 nullValue,
@@ -335,6 +339,12 @@ public class IpFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(
         (n, c) -> new Builder(n, c.scriptCompiler(), c.getIndexSettings())
     );
+
+    // The recorded value is the encoded (sortable) address; format it like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        BytesRef formatted = convert((BytesRef) v);
+        b.utf8Value(formatted.bytes, formatted.offset, formatted.length);
+    };
 
     public static final class IpFieldType extends SimpleMappedFieldType {
 
@@ -1113,7 +1123,7 @@ public class IpFieldMapper extends FieldMapper {
                 context.addIgnoredField(fieldType().name());
                 if (storeIgnored) {
                     // Save a copy of the field so synthetic source can load it
-                    FallbackPostMapper.capture(context, fullPath(), FallbackPostMapper.Reason.MALFORMED);
+                    FallbackPostMapper.captureMalformed(context, fullPath(), offsetsFieldName, docValuesParameters.multiValue());
                 }
                 return;
             } else {
@@ -1132,9 +1142,9 @@ public class IpFieldMapper extends FieldMapper {
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (address != null) {
                 BytesRef sortableValue = address.binaryValue();
-                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue, OFFSETS_FALLBACK);
             } else {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
             }
         }
     }

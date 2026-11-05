@@ -62,6 +62,10 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferen
  * {@link UnmappedFieldsAttribute} next to it would not work, since {@code EVAL} shadows by name and union and fork branches line
  * their columns up by name.
  *
+ * <p>A view is a boundary this setting does not reach into: nothing inside a view branch is stamped or otherwise looked at, as a view
+ * is a virtual index with no {@code _source} of its own. A view has no {@code _unmapped_fields} column, so a union that has one
+ * from another branch null-fills it for the view, like for any branch that cannot surface it.
+ *
  * <p>{@link MergePlan} is n-ary: each branch is stamped with its own pattern. Named unmapped mentions are aligned
  * like {@code LOAD}: a mention in one branch is materialized in every sibling that can surface it, so that
  * name is excluded from {@code _unmapped_fields}. Extra fields that a branch does not keep (literal
@@ -92,7 +96,7 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         if (plan.resolved() == false) {
             return plan;
         }
-        if (plan.anyMatch(p -> p.output().stream().anyMatch(a -> a.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME)))) {
+        if (hasColumnNamedLikeUnmappedFields(plan)) {
             // Warn even if no unmapped field could have been returned anyway, e.g. after an exact KEEP: the column of that name is
             // then the query's own, which is not what a user reading its name expects.
             context.deferredHeaderWarnings().add(UNMAPPED_FIELDS_NAME_TAKEN_WARNING);
@@ -109,11 +113,23 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
         } else {
             // Project pass before merge finish keeps _unmapped_fields on branch Projects. The pass after
             // picks it up on Projects above the merge, whose child output only includes the column after refresh.
-            result = annotate(plan, pattern).transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields)
-                .transformUp(MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields)
-                .transformUp(Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            LogicalPlan annotated = annotate(plan, pattern);
+            result = ViewUtils.transformUpOutsideViews(annotated, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
+            result = ViewUtils.transformUpOutsideViews(result, MergePlan.class, DetermineUnmappedFieldsToKeep::finishMergeUnmappedFields);
+            result = ViewUtils.transformUpOutsideViews(result, Project.class, DetermineUnmappedFieldsToKeep::passThroughUnmappedFields);
         }
         return result;
+    }
+
+    /**
+     * Whether the query has a column named like {@code _unmapped_fields} of its own, at any node. A view contributes the column it
+     * outputs, not whatever its body had along the way.
+     */
+    private static boolean hasColumnNamedLikeUnmappedFields(LogicalPlan plan) {
+        return ViewUtils.anyMatchOutsideViews(
+            plan,
+            p -> p.output().stream().anyMatch(a -> a.name().equals(UnmappedFieldsAttribute.ATTRIBUTE_NAME))
+        );
     }
 
     /**
@@ -173,10 +189,19 @@ public class DetermineUnmappedFieldsToKeep extends ParameterizedRule<LogicalPlan
      */
     private static LogicalPlan annotate(LogicalPlan plan, UnmappedFieldsPattern pattern) {
         if (plan instanceof MergePlan merge) {
-            var newChildren = merge.children().stream().map(child -> {
-                LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
-                return annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated;
-            }).toList();
+            List<LogicalPlan> children = merge.children();
+            List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+            for (int i = 0; i < children.size(); i++) {
+                LogicalPlan child = children.get(i);
+                if (ViewUtils.isViewBody(merge, i)) {
+                    // A view is a virtual index with no _source of its own, and the setting ends at its boundary: it has no
+                    // _unmapped_fields column, and where a sibling has one, finishMergeUnmappedFields null-fills the view's.
+                    newChildren.add(child);
+                } else {
+                    LogicalPlan annotated = annotate(child, computeUnmappedFieldsToKeep(child).intersect(pattern));
+                    newChildren.add(annotated instanceof Project project ? passThroughUnmappedFields(project) : annotated);
+                }
+            }
             return merge.replaceChildren(newChildren);
         }
         if (plan instanceof AbstractSubqueryJoin join) {

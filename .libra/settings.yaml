@@ -8,3 +8,7 @@ skip_labels:
 paths:
   exclude:
     - "**/generated/**"
+publication:
+  publish_min_severity: P3
+  block_min_severity: P1
+  allow_partial_coverage: false

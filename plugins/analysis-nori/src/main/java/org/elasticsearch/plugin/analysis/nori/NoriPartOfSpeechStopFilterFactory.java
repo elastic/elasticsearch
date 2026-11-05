@@ -24,11 +24,13 @@ import java.util.Set;
 
 public class NoriPartOfSpeechStopFilterFactory extends AbstractTokenFilterFactory {
     private final Set<POS.Tag> stopTags;
+    private final Object sharingKey;
 
     public NoriPartOfSpeechStopFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(name);
         List<String> tagList = Analysis.getWordList(env, settings, "stoptags");
         this.stopTags = tagList != null ? resolvePOSList(tagList) : KoreanPartOfSpeechStopFilter.DEFAULT_STOP_TAGS;
+        this.sharingKey = new Key(Set.copyOf(stopTags));
     }
 
     @Override
@@ -43,4 +45,11 @@ public class NoriPartOfSpeechStopFilterFactory extends AbstractTokenFilterFactor
         }
         return stopTags;
     }
+
+    @Override
+    public Object sharingKey() {
+        return sharingKey;
+    }
+
+    private record Key(Set<POS.Tag> stopTags) {}
 }

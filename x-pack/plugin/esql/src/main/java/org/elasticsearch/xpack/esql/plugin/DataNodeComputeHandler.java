@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -15,6 +18,9 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -25,6 +31,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
+import org.elasticsearch.compute.lucene.query.SharedSortBound;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -33,7 +40,10 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.LocalExchange;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.SliceSelection;
@@ -41,6 +51,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -48,6 +60,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -56,8 +70,14 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.datasources.DatasetConfigResolver;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceAuthorizer;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceDatasets;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.Federation;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalException;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.PlanConcurrencyCalculator;
@@ -76,7 +96,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Handles computes within a single cluster by dispatching {@link DataNodeRequest} to data nodes
@@ -101,6 +124,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
      * every external request on this node gets the same answer.
      */
     private final boolean federationAvailable;
+    /**
+     * Decides whether a received plan may read the datasets it names, before anything is planned or rebound; see
+     * {@link #messageReceived}.
+     */
+    private final ExternalSourceAuthorizer externalSourceAuthorizer;
+    /** {@link ExternalSourceSettings#WORKER_READY_TIMEOUT}, tracked live; see {@link #waitUntilReady}. */
+    private final AtomicReference<TimeValue> workerReadyTimeout = new AtomicReference<>();
 
     DataNodeComputeHandler(
         ComputeService computeService,
@@ -109,7 +139,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
-        Executor searchExecutor
+        Executor searchExecutor,
+        Client client
     ) {
         this.computeService = computeService;
         this.clusterService = clusterService;
@@ -120,6 +151,16 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         this.searchExecutor = searchExecutor;
         this.threadPool = transportService.getThreadPool();
         this.federationAvailable = Federation.isAvailable(clusterService.getSettings());
+        this.externalSourceAuthorizer = new ExternalSourceAuthorizer(
+            client,
+            threadPool.getThreadContext(),
+            searchExecutor,
+            Build.current().isSnapshot()
+        );
+        // Seeded from the node settings when federation is unregistered (the key is unknown to ClusterSettings then) and
+        // watched otherwise, like the other dynamic external-source settings in EsqlPlugin.
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(ExternalSourceSettings.WORKER_READY_TIMEOUT, workerReadyTimeout::set);
         transportService.registerRequestHandler(ComputeService.DATA_ACTION_NAME, searchExecutor, DataNodeRequest::new, this);
     }
 
@@ -302,6 +343,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 );
             }
 
+            // The version the splits were planned under: a worker that has applied a lower version and cannot bind a dataset
+            // of the plan is behind rather than missing it, and waits for the state (see DataNodeRequest).
+            final long requiredClusterStateVersion = clusterService.state().version();
             for (ExternalDispatchResolution.ResolvedExternalNode target : resolution.resolved()) {
                 DiscoveryNode node = target.node();
                 Transport.Connection connection = target.connection();
@@ -353,25 +397,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             outerL.onFailure(e);
                         }
                     }))) {
-                        var dataNodeRequest = new DataNodeRequest(
-                            childSessionId,
-                            configuration,
-                            "",
-                            List.of(),
-                            Map.of(),
-                            dataNodePlan,
-                            new String[0],
-                            IndicesOptions.STRICT_EXPAND_OPEN,
-                            queryPragmas.nodeLevelReduction(),
-                            false,
-                            false,
-                            nodeSplits
-                        );
                         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
                         transportService.sendChildRequest(
                             connection,
                             ComputeService.DATA_ACTION_NAME,
-                            dataNodeRequest,
+                            externalRequest(childSessionId, configuration, dataNodePlan, nodeSplits, requiredClusterStateVersion),
                             groupTask,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
@@ -562,7 +592,35 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         return summary.toString();
     }
 
+    private static DataNodeRequest externalRequest(
+        String sessionId,
+        Configuration configuration,
+        ExchangeSinkExec dataNodePlan,
+        List<ExternalSplit> splits,
+        long requiredClusterStateVersion
+    ) {
+        return new DataNodeRequest(
+            sessionId,
+            configuration,
+            "",
+            List.of(),
+            Map.of(),
+            dataNodePlan,
+            new String[0],
+            IndicesOptions.STRICT_EXPAND_OPEN,
+            configuration.pragmas().nodeLevelReduction(),
+            false,
+            false,
+            splits,
+            requiredClusterStateVersion
+        );
+    }
+
     private static final Logger LOGGER = LogManager.getLogger(DataNodeComputeHandler.class);
+    /** {@link ClusterStateObserver} takes a log4j logger; same name as {@link #LOGGER}, so it is configured together with it. */
+    private static final org.apache.logging.log4j.Logger OBSERVER_LOGGER = org.apache.logging.log4j.LogManager.getLogger(
+        DataNodeComputeHandler.class
+    );
 
     /**
      * Keeps an {@link ExchangeSourceHandler} from completing while external distribution is being wired up.
@@ -612,6 +670,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         private final Map<ShardId, Exception> shardLevelFailures;
         private final AcquiredSearchContexts searchContexts;
         private final PlanTimeProfile planTimeProfile;
+        private final List<DataNodeRequest.Shard> shards;
+        @Nullable
+        private final SharedSortBound sortBound;
 
         DataNodeRequestExecutor(
             EsqlFlags flags,
@@ -625,7 +686,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             boolean singleNodeOptimizations,
             Map<ShardId, Exception> shardLevelFailures,
             ComputeListener computeListener,
-            AcquiredSearchContexts searchContexts
+            AcquiredSearchContexts searchContexts,
+            @Nullable SharedSortBound sortBound
         ) {
             assert (internalExchange == null) != (externalSink == null) : "exactly one exchange must be provided";
             this.flags = flags;
@@ -642,6 +704,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             this.blockingSink = exchangeSink(() -> {});
             this.searchContexts = searchContexts;
             this.planTimeProfile = new PlanTimeProfile();
+            this.sortBound = sortBound;
+            boolean ascending = ShardTimestampOrder.ascending(request.plan());
+            this.shards = ShardTimestampOrder.order(
+                request.shards(),
+                shardId -> ShardTimestampOrder.key(searchService.getIndicesService(), shardId, ascending),
+                ascending
+            );
         }
 
         void start() {
@@ -660,9 +729,9 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final Configuration configuration = request.configuration();
             final String clusterAlias = request.clusterAlias();
             final var sessionId = request.sessionId();
-            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shards().size());
+            final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, shards.size());
             final AtomicInteger pagesProduced = new AtomicInteger();
-            List<DataNodeRequest.Shard> shards = request.shards().subList(startBatchIndex, endBatchIndex);
+            List<DataNodeRequest.Shard> batch = shards.subList(startBatchIndex, endBatchIndex);
             ActionListener<DriverCompletionInfo> batchListener = new ActionListener<>() {
                 final ActionListener<DriverCompletionInfo> ref = computeListener.acquireCompute();
 
@@ -678,8 +747,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 @Override
                 public void onFailure(Exception e) {
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
-                        for (DataNodeRequest.Shard shard : shards) {
+                        for (DataNodeRequest.Shard shard : batch) {
                             addShardLevelFailure(shard.shardId(), e);
+                        }
+                        // The rows behind a bound offered by this batch are never delivered
+                        if (sortBound != null) {
+                            sortBound.invalidate();
                         }
                         onResponse(DriverCompletionInfo.EMPTY);
                     } else {
@@ -698,7 +771,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             };
             acquireSearchContexts(
                 clusterAlias,
-                shards,
+                batch,
                 configuration,
                 request.aliasFilters(),
                 PlannerUtils.sliceSelection(request.plan()),
@@ -718,7 +791,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         configuration.newFoldContext(),
                         null,
                         () -> exchangeSink(pagesProduced::incrementAndGet),
-                        singleNodeOptimizations
+                        singleNodeOptimizations,
+                        sortBound
                     );
                     computeService.runCompute(
                         parentTask,
@@ -772,8 +846,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         // TODO: `searchService.createSearchContext` allows opening search contexts without limits,
                         // we need to limit the number of active search contexts here or in SearchService
                         context = searchService.createSearchContext(shardRequest, SearchService.NO_TIMEOUT);
-                        // The slices the plan reads, for the field mappers that build its queries. A plan that selects none
-                        // says so: unlike a search request, it does not read every slice by default.
+                        // The slices the plan reads, for the field mappers that build its queries.
                         context.getSearchExecutionContext().setSliceSelection(slices);
                         context.preProcess();
                         newContexts.add(context);
@@ -809,7 +882,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         private void onBatchCompleted(int lastBatchIndex) {
-            if (lastBatchIndex < request.shards().size() && exchangeFinished() == false) {
+            if (lastBatchIndex < shards.size() && exchangeFinished() == false) {
                 runBatch(lastBatchIndex);
             } else {
                 // don't return until all pages have been consumed
@@ -846,6 +919,15 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<DataNodeComputeResponse> listener
     ) {
         final Map<ShardId, Exception> shardLevelFailures = new HashMap<>();
+        // Resolve before the compute listener. A sources-finished exchange completes this request with an empty
+        // result; opening the listener first would also complete it when that early return skips every acquire.
+        final ExchangeSinkHandler externalSink = sinkToRun(externalId, listener);
+        if (externalSink == null) {
+            return;
+        }
+        // Shared by the batches of shards
+        final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
+        final SharedSortBound sortBound = sortKeys > 0 ? new SharedSortBound(sortKeys) : null;
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
@@ -860,7 +942,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     || task.getParentTaskId().getNodeId().equals(transportService.getLocalNode().getId())
                     : "single node optimizations enabled but wrong parent task: " + task + " vs " + transportService.getLocalNode().getId();
                 // run compute with target shards
-                var externalSink = exchangeService.getSinkHandler(externalId);
                 task.addListener(() -> {
                     exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()));
                     if (internalExchange != null) {
@@ -881,7 +962,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     request.singleNodeOptimizations(),
                     shardLevelFailures,
                     computeListener,
-                    searchContexts
+                    searchContexts,
+                    sortBound
                 );
                 dataNodeRequestExecutor.start();
                 if (runNodeReduce == false) {
@@ -933,8 +1015,33 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
     }
 
+    /**
+     * A plan that names an external dataset is authorized for the request's credential before any branch below runs,
+     * so neither the planning nor the rebind ({@link DatasetConfigResolver}) ever sees a dataset the caller may not
+     * read. The security filter authorized this action on the wire-supplied {@code indices()} only, which says nothing
+     * about the datasets inside the plan; see {@link ExternalSourceAuthorizer}. Both request shapes a coordinator
+     * sends, external splits without shards and shards with a plan that also reads a dataset, are authorized by the
+     * same rule; a plan with an external node but neither shards nor splits has no legitimate sender and is refused,
+     * as is any external node under a cross-cluster-access authentication. A plan without an external node, the
+     * common case, pays nothing: no round-trip, no thread hop.
+     * <p>
+     * An external-only request (splits, no shards) is also checked for this node's readiness to serve it: unlike a shard,
+     * routed only once its node reported it started, external splits are routed by role, and this node may not have
+     * applied the state the coordinator planned from yet. Three sites decide "not ready", with one outcome
+     * ({@link #notReady}): the entry check on {@link ClusterState#clusterRecovered} below, the authorizer refusing a
+     * dataset while this node's state is older than the coordinator's, and the rebind refusing one for the same reason
+     * ({@link #planAndRunExternal}).
+     */
     @Override
     public void messageReceived(DataNodeRequest request, TransportChannel channel, Task task) {
+        receive(request, channel, task, null);
+    }
+
+    /**
+     * {@link #messageReceived} with the request's wait budget: {@code null} until the request first waits for cluster
+     * state, then the one {@link ReadyDeadline} every later wait of the same request draws on.
+     */
+    private void receive(DataNodeRequest request, TransportChannel channel, Task task, @Nullable ReadyDeadline deadline) {
         ActionListener<DataNodeComputeResponse> channelListener = new ChannelActionListener<>(channel);
         // Old coordinators receive warnings as transport response headers rather than the ESQL_DRIVER_WARNINGS
         // wire field. Emit them here — before the channel serialises its ThreadContext — so they are included.
@@ -944,6 +1051,92 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 resp.completionInfo().warnings().forEach(HeaderWarning::addWarning);
                 return resp;
             });
+        final CancellableTask cancellableTask = (CancellableTask) task;
+        final TransportVersion channelVersion = channel.getVersion();
+        if (request.isExternalOnly()) {
+            // Before the dataset fast path (an unnamed snapshot-only EXTERNAL source has no dataset and would skip the
+            // authorizer) and before the authorizer, whose local action would otherwise park on the not-recovered block
+            // for up to its master timeout. The block is this node's own, cleared by the first state it applies; it says
+            // nothing about shards, so it is the right signal for a node that holds none.
+            final ClusterState state = clusterService.state();
+            if (state.clusterRecovered() == false) {
+                notReady(
+                    request,
+                    cancellableTask,
+                    listener,
+                    state,
+                    ClusterState::clusterRecovered,
+                    "no cluster state applied yet",
+                    deadline,
+                    d -> receive(request, channel, task, d)
+                );
+                return;
+            }
+        }
+        ExternalSourceDatasets datasets = ExternalSourceDatasets.of(request.plan());
+        if (datasets.isEmpty()) {
+            startCompute(request, channelVersion, cancellableTask, listener, deadline);
+            return;
+        }
+        final Exception refusal;
+        if (request.externalSplits().isEmpty() && request.shards().isEmpty()) {
+            refusal = ExternalSourceAuthorizer.unexpectedShape("a data node request with neither shards nor external splits");
+        } else if (externalSourceAuthorizer.isCrossClusterAccess()) {
+            refusal = ExternalSourceAuthorizer.notLocal();
+        } else {
+            refusal = null;
+        }
+        if (refusal != null) {
+            failWithoutStarting(request, listener, refusal);
+            return;
+        }
+        // A throw out of startCompute lands in failWithoutStarting; the channel must not be answered a second time if
+        // the compute had already been started and answered it.
+        authorizeAndStart(request, channelVersion, cancellableTask, datasets, ActionListener.notifyOnce(listener), deadline);
+    }
+
+    private void authorizeAndStart(
+        DataNodeRequest request,
+        TransportVersion channelVersion,
+        CancellableTask task,
+        ExternalSourceDatasets datasets,
+        ActionListener<DataNodeComputeResponse> listener,
+        @Nullable ReadyDeadline deadline
+    ) {
+        // Sampled before the round-trip. The authorizer answers from this node's applied state, which is this one or a
+        // newer one; comparing a state sampled afterwards could call a refusal computed on the older state "not lag".
+        final ClusterState state = clusterService.state();
+        externalSourceAuthorizer.authorize(
+            datasets,
+            new TaskId(clusterService.localNode().getId(), task.getId()),
+            ActionListener.wrap(ignored -> startCompute(request, channelVersion, task, listener, deadline), e -> {
+                if (request.isExternalOnly() && isDatasetRefusalWhileBehind(e, request, state)) {
+                    // The authorizer resolves names against this node's own project metadata, so a dataset registered
+                    // in a state this node has not applied yet is refused here, before the rebind ever runs.
+                    notReady(
+                        request,
+                        task,
+                        listener,
+                        state,
+                        s -> s.version() >= request.requiredClusterStateVersion(),
+                        "behind the cluster state the query was planned from",
+                        deadline,
+                        d -> authorizeAndStart(request, channelVersion, task, datasets, listener, d)
+                    );
+                    return;
+                }
+                failWithoutStarting(request, listener, e);
+            })
+        );
+    }
+
+    private void startCompute(
+        DataNodeRequest request,
+        TransportVersion channelVersion,
+        CancellableTask task,
+        ActionListener<DataNodeComputeResponse> listener,
+        @Nullable ReadyDeadline deadline
+    ) {
         Configuration configuration = request.configuration();
         PlanTimeProfile planTimeProfile = null;
         if (configuration.profile()) {
@@ -951,7 +1144,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         }
 
         if (request.externalSplits().isEmpty() == false && request.shards().isEmpty()) {
-            handleExternalSourceRequest(request, (CancellableTask) task, listener, planTimeProfile);
+            handleExternalSourceRequest(request, task, listener, planTimeProfile, deadline);
             return;
         }
 
@@ -984,13 +1177,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.runNodeLevelReduction(),
             request.reductionLateMaterialization(),
             request.singleNodeOptimizations(),
-            request.externalSplits()
+            request.externalSplits(),
+            request.requiredClusterStateVersion()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
-        final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
+        final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channelVersion) == false;
         var computeSearchContexts = new AcquiredSearchContexts(request.shards().size());
         runComputeOnDataNode(
-            (CancellableTask) task,
+            task,
             sessionId,
             reductionPlan,
             request.withPlan(reductionPlan.dataNodePlan()),
@@ -1003,14 +1197,202 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     /**
-     * Rejects an external request that never got as far as building a driver. The coordinator opened the exchange before
+     * Resolves the sink the coordinator opened before this request. When the coordinator has since finished
+     * that exchange, completes {@code listener} with an empty result so a {@link ResourceNotFoundException}
+     * cannot replace the query's own error. Returns {@code null} when {@code listener} has already been completed.
+     */
+    private ExchangeSinkHandler sinkToRun(String sessionId, ActionListener<DataNodeComputeResponse> listener) {
+        final ExchangeSinkHandler sink;
+        try {
+            sink = exchangeService.getSinkHandlerIfOpen(sessionId);
+        } catch (ResourceNotFoundException e) {
+            listener.onFailure(e);
+            return null;
+        }
+        if (sink == null) {
+            listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
+            return null;
+        }
+        return sink;
+    }
+
+    /**
+     * Rejects a request that never got as far as building a driver. The coordinator opened the exchange before
      * sending the request, so a sink handler is already registered here; it has to be failed explicitly or the
      * coordinator's exchange source only learns of the refusal through task cancellation and this node holds an
-     * unfinished sink until the inactive-sinks reaper runs.
+     * unfinished sink until the inactive-sinks reaper runs. A no-op on the sink side when none is registered.
      */
-    private void failWithoutStarting(DataNodeRequest request, ActionListener<DataNodeComputeResponse> listener, Exception failure) {
+    private void failWithoutStarting(DataNodeRequest request, ActionListener<?> listener, Exception failure) {
         exchangeService.finishSinkHandler(request.sessionId(), failure);
         listener.onFailure(failure);
+    }
+
+    /**
+     * This node cannot serve the request's external splits yet: it has not applied the cluster state they were planned
+     * from, so the datasets, credentials or settings the plan relies on are not here. It waits for the state, bounded
+     * ({@link #waitUntilReady}), the way a primary parks a write on the cluster state.
+     *
+     * @param observed the state the decision was made on; the wait observes from it, so a state applied in between is
+     *                 not missed
+     * @param ready    satisfied by a state this node can serve the request from
+     * @param deadline the request's wait budget so far, {@code null} if it has not waited yet; one budget covers every
+     *                 wait of a request, since a node that has just applied its first state can find itself behind a
+     *                 dataset change right after, and the bound promised to the operator is one, not one per step
+     * @param retry    re-runs the step that found this node not ready, on the search pool, once {@code ready} holds,
+     *                 handing it the budget to carry on
+     */
+    private void notReady(
+        DataNodeRequest request,
+        CancellableTask task,
+        ActionListener<DataNodeComputeResponse> listener,
+        ClusterState observed,
+        Predicate<ClusterState> ready,
+        String why,
+        @Nullable ReadyDeadline deadline,
+        Consumer<ReadyDeadline> retry
+    ) {
+        if (task.isCancelled()) {
+            failWithoutStarting(request, listener, new TaskCancelledException(task.getReasonCancelled()));
+            return;
+        }
+        waitUntilReady(request, task, listener, observed, ready, why, deadline != null ? deadline : new ReadyDeadline(), retry);
+    }
+
+    /**
+     * The one bound on all the waits of a request, taken from {@link ExternalSourceSettings#WORKER_READY_TIMEOUT} when the
+     * request first waits; a later wait of the same request gets what is left.
+     */
+    private final class ReadyDeadline {
+        private final TimeValue total = workerReadyTimeout.get();
+        private final long deadlineMillis = threadPool.relativeTimeInMillis() + total.millis();
+
+        TimeValue remaining() {
+            return TimeValue.timeValueMillis(Math.max(0L, deadlineMillis - threadPool.relativeTimeInMillis()));
+        }
+    }
+
+    /**
+     * Parks the request until this node has applied a state that satisfies {@code ready}, then re-runs {@code retry} on the
+     * search pool: the observer delivers a new state on the cluster applier thread (or on the caller's, when the sampled
+     * state already qualifies), and neither may run the request. Bounded by {@link ExternalSourceSettings#WORKER_READY_TIMEOUT},
+     * after which the request fails with the retryable {@link ExternalException.Condition#WORKER_NOT_READY}; the caller's
+     * own retry is then the right thing. A cancellation or the node closing during the wait fails it the same way the
+     * request would have failed before starting. Exactly one of the four outcomes runs ({@link Predicates#once}); not
+     * {@code notifyOnce}, because the ready outcome continues the request rather than completing the listener.
+     */
+    private void waitUntilReady(
+        DataNodeRequest request,
+        CancellableTask task,
+        ActionListener<DataNodeComputeResponse> listener,
+        ClusterState observed,
+        Predicate<ClusterState> ready,
+        String why,
+        ReadyDeadline deadline,
+        Consumer<ReadyDeadline> retry
+    ) {
+        final TimeValue timeout = deadline.remaining();
+        final ActionListener<DataNodeComputeResponse> retryListener = listener.delegateResponse(
+            (l, e) -> failWithoutStarting(request, l, e)
+        );
+        if (timeout.millis() <= 0) {
+            // A spent budget (or a setting of 0) is not consulted by the observer, which times out before sampling the
+            // state. The state may have arrived since the decision was made: a refusal computed on an older sample must
+            // not fail a request the current state can serve.
+            if (ready.test(clusterService.state())) {
+                searchExecutor.execute(ActionRunnable.wrap(retryListener, l -> retry.accept(deadline)));
+            } else {
+                failWithoutStarting(request, listener, workerNotReady("waited [" + deadline.total + "]"));
+            }
+            return;
+        }
+        LOGGER.debug(
+            "waiting up to [{}] for the cluster state before running [{}] external splits on [{}], session [{}]: {}",
+            timeout,
+            request.externalSplits().size(),
+            transportService.getLocalNode().getName(),
+            request.sessionId(),
+            why
+        );
+        final ClusterStateObserver observer = new ClusterStateObserver(
+            observed,
+            clusterService,
+            timeout,
+            OBSERVER_LOGGER,
+            threadPool.getThreadContext()
+        );
+        final BooleanSupplier first = Predicates.once();
+        final Runnable onTimeout = () -> {
+            if (first.getAsBoolean()) {
+                failWithoutStarting(request, listener, workerNotReady("waited [" + deadline.total + "]"));
+            }
+        };
+        try {
+            // The observer registers its listener, and schedules its own timeout, from a task on the cluster applier
+            // thread: the very thread that is busy on a node that lags. A bound that cannot fire while that thread is busy
+            // is no bound, so the timeout is also scheduled here, off the applier. Whichever of the two fires first wins;
+            // the observer's own timeout is kept so it unregisters its listener.
+            final Scheduler.Cancellable timeoutGuard = threadPool.schedule(onTimeout, timeout, threadPool.generic());
+            task.addListener(() -> {
+                if (first.getAsBoolean()) {
+                    timeoutGuard.cancel();
+                    failWithoutStarting(request, listener, new TaskCancelledException(task.getReasonCancelled()));
+                }
+            });
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    if (first.getAsBoolean()) {
+                        timeoutGuard.cancel();
+                        // wrap, not run: the continuation answers the listener itself, run would answer it again with null.
+                        searchExecutor.execute(ActionRunnable.wrap(retryListener, l -> retry.accept(deadline)));
+                    }
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    if (first.getAsBoolean()) {
+                        timeoutGuard.cancel();
+                        failWithoutStarting(request, listener, new NodeClosedException(clusterService.localNode()));
+                    }
+                }
+
+                @Override
+                public void onTimeout(TimeValue elapsed) {
+                    onTimeout.run();
+                }
+            }, state -> task.isCancelled() || ready.test(state));
+        } catch (Exception e) {
+            // A node shutting down rejects the scheduling; at the authorizer site a throw would otherwise escape its
+            // listener without answering the channel.
+            if (first.getAsBoolean()) {
+                failWithoutStarting(request, listener, e);
+            }
+        }
+    }
+
+    /** The retryable refusal of a worker that has not applied the cluster state the query was planned from. */
+    static ExternalUnavailableException workerNotReady(String detail) {
+        return new ExternalUnavailableException(ExternalException.Condition.WORKER_NOT_READY, detail, "");
+    }
+
+    /**
+     * Whether a dataset refusal was decided on a state older than the one the coordinator planned from, in which case the
+     * dataset may be registered in a state this node has not applied yet and the refusal must not be surfaced as is.
+     * Consulted only on such a refusal, so an unrelated one-state lag costs nothing. Compares the <em>applied</em> state:
+     * applied versions never go backwards on a node, unlike accepted ones across terms. A version of {@code 0} is an old
+     * coordinator that sent none; a fresh node's initial state is version 0 too, so it is never "at or above".
+     * <p>
+     * A refusal is any {@link ElasticsearchStatusException} with status 400 out of the authorizer or the rebind: that is
+     * the type and status both raise their binding refusals with ({@link DatasetConfigResolver#notRegistered}, a changed
+     * definition, a split outside the resource) and neither raises anything else of that type (a block, a timeout, a
+     * cancellation or a rejection come as their own types). A 400 that is not a binding refusal, on a node that is behind,
+     * costs one wait, after which the same 400 is reported.
+     */
+    static boolean isDatasetRefusalWhileBehind(Exception failure, DataNodeRequest request, ClusterState applied) {
+        return request.requiredClusterStateVersion() > 0
+            && applied.version() < request.requiredClusterStateVersion()
+            && failure instanceof ElasticsearchStatusException statusException
+            && statusException.status() == RestStatus.BAD_REQUEST;
     }
 
     /**
@@ -1039,7 +1421,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         DataNodeRequest request,
         CancellableTask task,
         ActionListener<DataNodeComputeResponse> listener,
-        PlanTimeProfile planTimeProfile
+        PlanTimeProfile planTimeProfile,
+        @Nullable ReadyDeadline deadline
     ) {
         warnIfRemoteIndexWorker(clusterService.localNode(), task.getParentTaskId().getNodeId());
         // Federation gate for the whole external request, not just the operators it ends up building. The backstop in
@@ -1059,27 +1442,97 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             );
             return;
         }
+        final String sessionId = request.sessionId();
+        final ExchangeSinkHandler externalSink = sinkToRun(sessionId, listener);
+        if (externalSink == null) {
+            return;
+        }
+        // Cancellation during local planning has to drop the sink the coordinator already opened. Registered
+        // before localPlan so a cancel in that window does not wait for the inactive-sink reaper.
+        task.addListener(() -> exchangeService.finishSinkHandler(sessionId, new TaskCancelledException(task.getReasonCancelled())));
+        planAndRunExternal(request, task, listener, planTimeProfile, externalSink, deadline);
+    }
+
+    /**
+     * The part of {@link #handleExternalSourceRequest} after the sink is resolved and the cancellation listener registered:
+     * local planning, which rebinds the plan's datasets to this node's definitions, and the compute. Re-entered by itself
+     * when the rebind refused a dataset while this node was behind the coordinator's cluster state; by then a newer state
+     * has been applied.
+     */
+    private void planAndRunExternal(
+        DataNodeRequest request,
+        CancellableTask task,
+        ActionListener<DataNodeComputeResponse> listener,
+        PlanTimeProfile planTimeProfile,
+        ExchangeSinkHandler externalSink,
+        @Nullable ReadyDeadline deadline
+    ) {
         ExchangeSinkExec sinkExec = (ExchangeSinkExec) request.plan();
         Configuration configuration = request.configuration();
         final String sessionId = request.sessionId();
         EsqlFlags flags = computeService.createFlags();
         PlannerSettings plannerSettings = computeService.plannerSettings().get();
+        if (task.isCancelled()) {
+            listener.onFailure(new TaskCancelledException(task.getReasonCancelled()));
+            return;
+        }
 
         // Run localPlan() to expand FragmentExec(ExternalRelation) -> ExternalSourceExec
         // This runs LocalLogicalPlanOptimizer, LocalMapper, and LocalPhysicalPlanOptimizer
         // (including filter pushdown via FormatReader.filterPushdownSupport())
-        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them.
-        PhysicalPlan planWithSplits = PlannerUtils.localPlan(
-            plannerSettings,
-            flags,
-            configuration,
-            configuration.newFoldContext(),
-            sinkExec,
-            SearchStats.EMPTY,
-            computeService.formatReaderRegistry(),
-            request.externalSplits(),
-            planTimeProfile
-        );
+        // Splits are injected before physical optimization so rules like PushStatsToExternalSource see them, and
+        // every external source is rebound to this node's own dataset definition (DatasetConfigResolver): the plan
+        // came over the wire and does not get to choose what is read or with which credentials.
+        // Kept outside the ComputeListener below: a throw before any acquire, followed by close(), would
+        // complete the request successfully and leave the sink registered when sourcesFinished was never sent.
+        // One state object serves the rebind and, on a refusal, the version comparison: a second sample could be newer
+        // and call a refusal computed on the older state "not lag".
+        final ClusterState state = clusterService.state();
+        final PhysicalPlan planWithSplits;
+        try {
+            planWithSplits = PlannerUtils.localPlan(
+                plannerSettings,
+                flags,
+                configuration,
+                configuration.newFoldContext(),
+                sinkExec,
+                SearchStats.EMPTY,
+                computeService.formatReaderRegistry(),
+                request.externalSplits(),
+                planTimeProfile,
+                DatasetConfigResolver.forProduction(projectResolver.getProjectMetadata(state))
+            );
+        } catch (Exception e) {
+            if (isDatasetRefusalWhileBehind(e, request, state)) {
+                // A definition changed between the coordinator's planning and this node's state, or a dataset the
+                // authorizer let through is gone from this node's older state. Not the WARN below: under query load every
+                // request of the second a node lags would log a stack trace for a condition that resolves itself.
+                LOGGER.debug("external source plan refused on a cluster state older than the coordinator's, session [{}]", sessionId, e);
+                notReady(
+                    request,
+                    task,
+                    listener,
+                    state,
+                    s -> s.version() >= request.requiredClusterStateVersion(),
+                    "behind the cluster state the query was planned from",
+                    deadline,
+                    d -> planAndRunExternal(request, task, listener, planTimeProfile, externalSink, d)
+                );
+                return;
+            }
+            LOGGER.warn(
+                "failed to plan external source compute on data node [{}], session [{}]",
+                transportService.getLocalNode().getName(),
+                sessionId,
+                e
+            );
+            failWithoutStarting(request, listener, e);
+            return;
+        }
+        if (task.isCancelled()) {
+            listener.onFailure(new TaskCancelledException(task.getReasonCancelled()));
+            return;
+        }
 
         try (
             ComputeListener computeListener = new ComputeListener(
@@ -1092,12 +1545,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 computeListener.acquireCompute()
             );
             try {
-                var externalSink = exchangeService.getSinkHandler(sessionId);
                 String internalSessionId = sessionId + "[n]";
-                task.addListener(
-                    () -> { exchangeService.finishSinkHandler(sessionId, new TaskCancelledException(task.getReasonCancelled())); }
-                );
-
                 var computeContext = new ComputeContext(
                     internalSessionId,
                     ComputeService.DATA_DESCRIPTION,

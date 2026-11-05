@@ -3713,6 +3713,15 @@ public class EsqlCapabilities {
          */
         FIX_FOLD_NULL,
 
+        /**
+         * The implicit {@code @timestamp} of an aggregation, e.g. in {@code rate()} or {@code latest()}, resolves to the
+         * {@code @timestamp} of the {@code STATS} input, even when a grouping of the same {@code STATS} is named
+         * {@code @timestamp}. Before, {@code STATS rate(x) BY @timestamp = TBUCKET(1 minute)} read the time bucket as the
+         * sample timestamp and returned wrong values that changed between runs.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/164599">#164599</a>
+         */
+        FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

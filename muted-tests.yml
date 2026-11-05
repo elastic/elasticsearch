@@ -323,9 +323,6 @@ tests:
 - class: org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressorTests
   method: testInflateParsingTooLargeStream
   issue: https://github.com/elastic/elasticsearch/issues/159563
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testRefreshSearchIdleShards
-  issue: https://github.com/elastic/elasticsearch/issues/159678
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
   method: testMixedOperationsDuringSplitWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/159143
@@ -454,11 +451,6 @@ tests:
   - :x-pack:plugin:dlm-frozen-transition:internalClusterTest
   method: testMasterFailoverDuringMarkReadOnly
   issue: https://github.com/elastic/elasticsearch/issues/164244
-- class: org.elasticsearch.xpack.stateless.engine.IndexEngineTests
-  tasks:
-  - :x-pack:plugin:stateless:test
-  method: testHollowEngineWithConcurrentNonHollowFlush
-  issue: https://github.com/elastic/elasticsearch/issues/164263
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   tasks:
   - :x-pack:plugin:searchable-snapshots:internalClusterTest

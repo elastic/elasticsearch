@@ -478,7 +478,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                         bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
                     }
 
-                    boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                    boolean redactSeqNo = IndexSettings.sequenceNumbersDisabled(indexMetadata.getSettings(), clusterService.getSettings());
                     // Releases the batch when its shard request completes, ahead of the ref that may start the next phase.
                     undispatchedBatches.remove(shardId);
                     Releasable ref = bulkItemRequestCompleteRefCount.acquire();

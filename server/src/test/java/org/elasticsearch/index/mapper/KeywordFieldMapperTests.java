@@ -539,6 +539,26 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTimeSeriesIndexing();
     }
 
+    /**
+     * Between these two versions a dimension uses a doc values skipper instead of postings. A dimension inherited from a
+     * passthrough parent has only ever been resolved after the {@code index} default was, so it keeps its postings.
+     */
+    public void testInheritedDimensionKeepsPostingsWhereDimensionsUseSkippers() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "labels.*")
+            .build();
+        MapperService mapperService = createMapperService(IndexVersions.TIME_SERIES_DIMENSIONS_USE_SKIPPERS, settings, mapping(b -> {
+            b.startObject("labels").field("type", "passthrough").field("time_series_dimension", true).field("priority", 0);
+            b.startObject("properties").startObject("dim").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        }));
+        MappedFieldType ft = mapperService.fieldType("labels.dim");
+        assertTrue(((KeywordFieldMapper.KeywordFieldType) ft).isDimension());
+        assertThat(ft.indexType(), equalTo(IndexType.terms(true, true)));
+    }
+
     public void testDimensionAndIgnoreAbove() throws IOException {
         DocumentMapper documentMapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);

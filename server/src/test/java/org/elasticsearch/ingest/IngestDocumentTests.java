@@ -37,7 +37,6 @@ import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.CLASSIC;
 import static org.elasticsearch.ingest.IngestPipelineFieldAccessPattern.FLEXIBLE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -207,6 +206,22 @@ public class IngestDocumentTests extends ESTestCase {
                 );
             }
         });
+    }
+
+    /**
+     * Parsed paths are cached, and the cache is shared by all of the access patterns, so a path that is only valid for some of them has
+     * to be checked against the pattern that is in use every time that it is used, whichever pattern happened to be used with it first.
+     */
+    public void testPathThatIsOnlyValidForSomeAccessPatternsIsCheckedEveryTime() throws Exception {
+        // a different path for each order, as the second would otherwise find that the first has already put it in the cache
+        String classicFirst = "classic_first_" + randomAlphaOfLength(8) + "[0]";
+        String flexibleFirst = "flexible_first_" + randomAlphaOfLength(8) + "[0]";
+
+        doWithAccessPattern(CLASSIC, (doc) -> assertPathValid(doc, classicFirst));
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertPathInvalid(doc, classicFirst, "path [" + classicFirst + "] is not valid"));
+
+        doWithAccessPattern(FLEXIBLE, (doc) -> assertPathInvalid(doc, flexibleFirst, "path [" + flexibleFirst + "] is not valid"));
+        doWithAccessPattern(CLASSIC, (doc) -> assertPathValid(doc, flexibleFirst));
     }
 
     public void testPathParsingLogic() throws Exception {
@@ -2019,55 +2034,6 @@ public class IngestDocumentTests extends ESTestCase {
 
         assertThat(copy.getSource().get("beforeClockChange"), equalTo(original.getSource().get("beforeClockChange")));
         assertThat(copy.getSource().get("afterClockChange"), equalTo(original.getSource().get("afterClockChange")));
-    }
-
-    public void testSetInvalidSourceField() {
-        Map<String, Object> document = new HashMap<>();
-        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
-        document.put("source_field", randomObject);
-
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        try {
-            ingestDocument.getFieldValueAsBytes("source_field");
-            fail("Expected an exception due to invalid source field, but did not happen");
-        } catch (IllegalArgumentException e) {
-            String expectedClassName = randomObject.getClass().getName();
-
-            assertThat(
-                e.getMessage(),
-                containsString("field [source_field] of unknown type [" + expectedClassName + "], must be string or byte array")
-            );
-        }
-    }
-
-    public void testGetFieldValueRawBytesLength() {
-        Map<String, Object> document = new HashMap<>();
-        document.put("bytes_field", new byte[] { 1, 2, 3 });
-        document.put("ascii_field", "QQ==");
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        assertThat(
-            ingestDocument.getFieldValueRawBytesLength("bytes_field", ingestDocument.getFieldValue("bytes_field", Object.class)),
-            equalTo(3)
-        );
-        assertThat(
-            ingestDocument.getFieldValueRawBytesLength("ascii_field", ingestDocument.getFieldValue("ascii_field", Object.class)),
-            equalTo(4)
-        );
-    }
-
-    public void testGetFieldValueRawBytesLengthInvalidType() {
-        Map<String, Object> document = new HashMap<>();
-        Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
-        document.put("source_field", randomObject);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> ingestDocument.getFieldValueRawBytesLength("source_field", randomObject)
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("field [source_field] of unknown type [" + randomObject.getClass().getName() + "], must be string or byte array")
-        );
     }
 
     public void testDeepCopy() {

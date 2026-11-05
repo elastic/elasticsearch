@@ -30,6 +30,7 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
@@ -387,28 +388,48 @@ public abstract class DockerBuildTask extends DefaultTask {
 
         /**
          * The {@code --output} value that loads the image into the local daemon, keeping normalized timestamps because
-         * the image is published later ({@code docker push} / {@code docker save}). With the containerd image store,
-         * {@code type=docker} implies {@code unpack=true}, which conflicts with {@code rewrite-timestamp}, so we
-         * export with {@code unpack=false} instead.
+         * the image is published later ({@code docker push} / {@code docker save}). When the builder is the daemon
+         * itself and the daemon uses the containerd image store, {@code type=docker} implies {@code unpack=true},
+         * which conflicts with {@code rewrite-timestamp}, so we export with {@code unpack=false} instead. Other
+         * builders (e.g. {@code docker-container}) stream the image to the client, which loads it into the daemon,
+         * so {@code type=docker} must be kept there: {@code type=image} would only export into the builder.
          */
         private String daemonExporterSpec(boolean rewriteTimestamps) {
             if (rewriteTimestamps == false) {
                 return "type=docker";
             }
-            if (usesContainerdImageStore()) {
+            if (builderIsDaemon() && daemonUsesContainerdImageStore()) {
                 return "type=image,unpack=false,rewrite-timestamp=true";
             }
             return "type=docker,rewrite-timestamp=true";
         }
 
-        private boolean usesContainerdImageStore() {
+        private boolean builderIsDaemon() {
+            // the selected builder (docker buildx use / BUILDX_BUILDER) applies to plain `docker build` as well
+            final String inspect = dockerOutput("buildx", "inspect");
+            if (inspect == null) {
+                // without the buildx plugin, `docker build` uses the daemon's built-in builder
+                return true;
+            }
+            return inspect.lines().anyMatch(line -> line.trim().matches("Driver:\\s+docker"));
+        }
+
+        private boolean daemonUsesContainerdImageStore() {
+            final String info = dockerOutput("info", "--format", "{{ .DriverStatus }}");
+            return info != null && info.contains("io.containerd.snapshotter.v1");
+        }
+
+        /** The stdout of the docker command, or {@code null} if it failed. */
+        private String dockerOutput(String... args) {
             final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-            execOperations.exec(spec -> {
-                spec.setCommandLine(getParameters().getDockerExecutable().get(), "info", "--format", "{{ .DriverStatus }}");
+            final ExecResult result = execOperations.exec(spec -> {
+                maybeConfigureDockerConfig(spec);
+                spec.setExecutable(getParameters().getDockerExecutable().get());
+                spec.args((Object[]) args);
                 spec.setStandardOutput(stdout);
                 spec.setIgnoreExitValue(true);
             });
-            return stdout.toString().contains("io.containerd.snapshotter.v1");
+            return result.getExitValue() == 0 ? stdout.toString() : null;
         }
 
         private String getImageChecksum(String imageTag) {

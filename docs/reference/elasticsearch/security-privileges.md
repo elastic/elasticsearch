@@ -286,7 +286,7 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 ## Indices privileges [privileges-list-indices]
 
 `all`
-:   Any action on an index or data stream.
+:   Any action on an index, data stream, or [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md).
 
 `auto_configure`
 :   Permits auto-creation of indices and data streams. An auto-create action is the result of an [index]({{es-apis}}operation/operation-create) or [bulk]({{es-apis}}operation/operation-bulk) request that targets a non-existent index or data stream rather than an explicit [create index]({{es-apis}}operation/operation-indices-create) or [create data stream]({{es-apis}}operation/operation-indices-create-data-stream) request. Also permits auto-update of mappings on indices and data streams if they do not contradict existing mappings. An auto-update mapping action is the result of an index or bulk request on an index or data stream that contains new fields that may be mapped rather than an explicit [update mapping]({{es-apis}}operation/operation-indices-put-mapping) request.
@@ -303,6 +303,9 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
     That extra authority doesn't apply to data streams, has been deprecated since 8.0, and will be removed in a future major release.
     Grant the `manage` privilege for explicit mapping updates or the `auto_configure` privilege for automatic mapping updates.
     :::
+
+`create_dataset` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: unavailable`
+:   Privilege to create or update an [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md), granted on the dataset name. Refer to [dataset privileges](/reference/query-languages/esql/esql-data-federation-security.md#dataset-privileges).
 
 `create_doc`
 :   Privilege to index documents. It does not grant the permission to update or overwrite existing documents.
@@ -342,6 +345,9 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 `delete`
 :   Privilege to delete documents.
 
+`delete_dataset` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: unavailable`
+:   Privilege to delete an [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md), granted on the dataset name. Refer to [dataset privileges](/reference/query-languages/esql/esql-data-federation-security.md#dataset-privileges).
+
 `delete_index`
 :   Privilege to delete an index or data stream.
 
@@ -361,10 +367,13 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 :   Permits refresh, flush, synced flush and force merge index administration operations. No privilege to read or write index data or otherwise manage the index.
 
 `manage`
-:   All `monitor` privileges plus index and data stream administration (aliases, analyze, cache clear, close, delete, exists, flush, mapping, open, field capabilities, force merge, refresh, settings, search shards, validate query).
+:   All `monitor` privileges plus index, data stream, and [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md) administration (aliases, analyze, cache clear, close, delete, exists, flush, mapping, open, field capabilities, force merge, refresh, settings, search shards, validate query).
 
 `manage_data_stream_lifecycle`
 :   All [Data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) operations relating to reading and managing the built-in lifecycle of a data stream. This includes operations such as adding and removing a lifecycle from a data stream.
+
+`manage_dataset` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: unavailable`
+:   Privilege to create, update, retrieve, and delete [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md) definitions, granted on the dataset name. It does not grant the privilege to query a dataset with `FROM`. Refer to [dataset privileges](/reference/query-languages/esql/esql-data-federation-security.md#dataset-privileges).
 
 `manage_failure_store` {applies_to}`stack: ga 9.1`
 :   All `monitor` privileges plus index and data stream administration limited to failure stores only. Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).
@@ -389,6 +398,9 @@ Privileges do not grant a fixed set of operations. Each privilege is defined by 
 
 `read_cross_cluster` {applies_to}`serverless: unavailable`
 :   Read-only access to the search action from a [remote cluster](docs-content://deploy-manage/remote-clusters/remote-clusters-self-managed.md).
+
+`read_dataset_metadata` {applies_to}`stack: preview 9.6+, experimental =9.5` {applies_to}`serverless: unavailable`
+:   Privilege to retrieve an [external dataset](/reference/query-languages/esql/esql-data-federation-datasets.md) definition, granted on the dataset name. It does not grant the privilege to query the dataset. Refer to [dataset privileges](/reference/query-languages/esql/esql-data-federation-security.md#dataset-privileges).
 
 `read_failure_store` {applies_to}`stack: ga 9.1`
 :   Read-only access to actions performed on a data stream's failure store. Required for access to failure store data (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv). Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).

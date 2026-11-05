@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.routing.RecoveryPriority;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -237,7 +238,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         final ShardRouting initializingShard;
         // Use the unknown recovery priority here: it does not make any difference to the calculation, and this routing will not be
         // added to the cluster state:
-        ShardRouting.RecoveryPriority recoveryPriority = ShardRouting.RecoveryPriority.UNKNOWN;
+        RecoveryPriority recoveryPriority = RecoveryPriority.UNKNOWN;
         if (shardRouting.unassigned()) {
             initializingShard = shardRouting.initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         } else if (shardRouting.initializing()) {

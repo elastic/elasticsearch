@@ -256,7 +256,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final Object[] results;
         private final Exception reductionFailure;
         private final SearchPhaseController.TopDocsStats topDocsStats;
-        private final QueryPhaseResultConsumer.MergeResult mergeResult;
+        private QueryPhaseResultConsumer.MergeResult mergeResult;
 
         public NodeQueryResponse(StreamInput in) throws IOException {
             this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
@@ -278,6 +278,15 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
         Exception getReductionFailure() {
             return reductionFailure;
+        }
+
+        /**
+         * Hands the merge result, and responsibility for releasing its aggregations, over to the caller.
+         */
+        QueryPhaseResultConsumer.MergeResult takeMergeResult() {
+            final var taken = mergeResult;
+            mergeResult = null;
+            return taken;
         }
 
         @Override
@@ -326,6 +335,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         r.decRef();
                     }
                     results[i] = null;
+                }
+                if (mergeResult != null) {
+                    QueryPhaseResultConsumer.releaseBatchedAggs(mergeResult.reducedAggs());
+                    mergeResult = null;
                 }
                 return true;
             }
@@ -608,7 +621,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             if (reductionFailure != null) {
                                 queryPhaseResultConsumer.setFailure(reductionFailure);
                             } else {
-                                queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.mergeResult);
+                                queryPhaseResultConsumer.addBatchedPartialResult(response.topDocsStats, response.takeMergeResult());
                             }
                         }
                         SearchPhaseResult lastResult = null;
@@ -836,27 +849,28 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 var pitBuilder = searchRequest.pointInTimeBuilder();
                 var shardToQuery = nodeQueryRequest.shards.get(dataNodeLocalIdx);
                 final var shardId = shardToQuery.shardId;
+                final ShardSearchRequest shardRequest = buildShardSearchRequest(
+                    shardId,
+                    nodeQueryRequest.localClusterAlias,
+                    shardToQuery.shardIndex,
+                    shardToQuery.contextId,
+                    new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
+                    nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+                    pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+                    shardToQuery.boost,
+                    searchRequest,
+                    nodeQueryRequest.totalShards,
+                    nodeQueryRequest.absoluteStartMillis,
+                    state.hasResponse.getAcquire(),
+                    shardToQuery.splitShardCountSummary,
+                    nodeQueryRequest.enableShardResultsSkipRequest
+                );
+                // The coordinating node cancels the node-level request if it drops the response, so the contexts the shards open
+                // belong to that request.
+                shardRequest.setParentTask(nodeQueryRequest.getParentTask());
+                shardRequest.setRequestId(nodeQueryRequest.getRequestId());
                 state.dependencies.searchService.executeQueryPhase(
-                    tryRewriteWithUpdatedSortValue(
-                        state.bottomSortCollector,
-                        state.trackTotalHitsUpTo,
-                        buildShardSearchRequest(
-                            shardId,
-                            nodeQueryRequest.localClusterAlias,
-                            shardToQuery.shardIndex,
-                            shardToQuery.contextId,
-                            new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
-                            nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
-                            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
-                            shardToQuery.boost,
-                            searchRequest,
-                            nodeQueryRequest.totalShards,
-                            nodeQueryRequest.absoluteStartMillis,
-                            state.hasResponse.getAcquire(),
-                            shardToQuery.splitShardCountSummary,
-                            nodeQueryRequest.enableShardResultsSkipRequest
-                        )
-                    ),
+                    tryRewriteWithUpdatedSortValue(state.bottomSortCollector, state.trackTotalHitsUpTo, shardRequest),
                     state.task,
                     new SearchActionListener<>(
                         new SearchShardTarget(null, shardToQuery.shardId, nodeQueryRequest.localClusterAlias),

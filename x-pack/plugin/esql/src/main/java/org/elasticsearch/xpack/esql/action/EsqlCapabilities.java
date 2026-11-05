@@ -521,9 +521,10 @@ public class EsqlCapabilities {
         /**
          * Fields absorbed into the implicit {@code _unmapped} sink of a strict columnar index load under {@code SET unmapped_fields="load"}
          * from the sink's doc values. As for a key of a mapped flattened field, they are keywords and their values are sorted and
-         * deduplicated. A field below a nested object is still read from {@code _source}.
+         * deduplicated. A field below a nested object is still read from {@code _source}. V2: the sink is opted into with a root
+         * {@code dynamic: flattened}, which the test datasets set and a node of the first version rejects.
          */
-        FLATTENED_UNMAPPED_SINK_LOAD(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
+        FLATTENED_UNMAPPED_SINK_LOAD_V2(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
 
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
@@ -600,6 +601,12 @@ public class EsqlCapabilities {
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
+
+        /**
+         * Where one index maps a name as an object and another as a field, the column has the type of the field and is {@code null}
+         * in the index of the object.
+         */
+        OBJECTS_ARE_NOT_FIELDS,
 
         /**
          * Support for requesting the "_ignored" metadata field.
@@ -2799,6 +2806,11 @@ public class EsqlCapabilities {
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,
 
         /**
+         * Support for pushing down MV_EXPAND past PROJECT with complex queries.
+         */
+        PUSH_DOWN_MV_EXPAND_PAST_PROJECT,
+
+        /**
          * Enables automatically grouping by all dimension fields in TS mode queries and outputs the _timeseries column
          * with all the dimensions.
          */
@@ -3608,6 +3620,11 @@ public class EsqlCapabilities {
         PROMQL_CHANGES(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for PromQL {@code predict_linear()} with a literal horizon in seconds.
+         */
+        PROMQL_PREDICT_LINEAR(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the {@code timeout} option in the {@code COMPLETION} and {@code RERANK} commands
          * and the {@code TEXT_EMBEDDING} function.
          */
@@ -4169,6 +4186,14 @@ public class EsqlCapabilities {
         PROMQL_LABEL_FUNCTIONS(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
+         * Support for PromQL {@code label_replace} and {@code label_join} placed above a {@code by(...)} aggregation without
+         * an enclosing aggregation of their own - as a top-level expression or under an across-series reduction such as
+         * {@code topk} - when the derived label is not one of the aggregate's groupings. The derived identity then only
+         * refines the aggregate's, so no two series can collapse onto one label set.
+         */
+        PROMQL_LABEL_FUNCTIONS_V2(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
          * Support for the PromQL {@code sort} and {@code sort_desc} functions, which order an instant vector by sample value.
          */
         PROMQL_SORT(PROMQL_COMMAND_V0.isEnabled()),
@@ -4663,6 +4688,30 @@ public class EsqlCapabilities {
          * rather than every key of the object.
          */
         METRICS_INFO_FIELD_PRESENCE,
+
+        /**
+         * Each shard resolves a field the plan reads that some shards may not map to what it holds, and runs a filter pushed to it
+         * where it can query that field, or matches every document for the filter to check.
+         */
+        UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
+
+        /**
+         * Loading a field that a pushed down {@code ROUND_TO} (or the {@code DATE_TRUNC} / {@code BUCKET} date histograms rewritten
+         * to it) also buckets no longer assumes the source query filtered out the documents without a value. The pushdown runs one
+         * query per rounding point plus one for the documents without a value, and older nodes only looked at the first of them.
+         * On an index whose doc values read nulls column-at-a-time (such as {@code columnar}) that failed the query, or the whole
+         * node when assertions are enabled.
+         */
+        FIX_NULLS_FILTERED_WITH_QUERY_AND_TAGS_PUSHDOWN,
+
+        /**
+         * The implicit {@code @timestamp} of an aggregation, e.g. in {@code rate()} or {@code latest()}, resolves to the
+         * {@code @timestamp} of the {@code STATS} input, even when a grouping of the same {@code STATS} is named
+         * {@code @timestamp}. Before, {@code STATS rate(x) BY @timestamp = TBUCKET(1 minute)} read the time bucket as the
+         * sample timestamp and returned wrong values that changed between runs.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/164599">#164599</a>
+         */
+        FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -129,6 +129,38 @@ public class SimdVecLibraryBFloat16Tests extends SimdVecLibraryTests {
         assertScoresEquals(expectedScores, bulkScoresSeg, delta);
     }
 
+    // Exercises the heap-only typed-array bulk API: non-zero dataset and scores offsets, and counts
+    // that are not a multiple of the maxSim chunk size, must produce the same scores as the segment
+    // binding on an equivalent dataset.
+    public void testBFloat16BulkHeap() {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("heap bulk API is dot product only", function == SimdVecLibrary.SimilarityFunction.DOT_PRODUCT);
+        assumeTrue("heap bulk API is float32-query only", queryType == SimdVecLibrary.BFloat16QueryType.FLOAT32);
+        final int dims = size;
+        for (int numVecs : new int[] { 1, 31, 33, 70, randomIntBetween(2, 101) }) {
+            var f32Values = new float[numVecs][];
+            var bf16Values = new float[numVecs][];
+            for (int i = 0; i < numVecs; i++) {
+                f32Values[i] = randomFloatArray(dims);
+                bf16Values[i] = truncateFloatArray(f32Values[i]);
+            }
+            final int headBytes = randomIntBetween(1, dims) * BFloat16.BYTES;
+            byte[] dataset = new byte[headBytes + numVecs * dims * BFloat16.BYTES];
+            var datasetSeg = MemorySegment.ofArray(dataset);
+            for (int i = 0; i < numVecs; i++) {
+                copyToBFloat16Segment(bf16Values[i], datasetSeg, headBytes + (long) i * dims * BFloat16.BYTES);
+            }
+            int queryOrd = randomInt(numVecs - 1);
+            float[] expectedScores = new float[numVecs];
+            ScalarOperations.bulk(function, f32Values[queryOrd], bf16Values, expectedScores);
+
+            final int headScores = randomIntBetween(1, numVecs);
+            float[] scores = new float[headScores + numVecs];
+            getVectorDistance().dotProductDBF16QF32Bulk(dataset, headBytes, f32Values[queryOrd], dims, numVecs, scores, headScores);
+            assertArrayEquals(expectedScores, Arrays.copyOfRange(scores, headScores, scores.length), delta);
+        }
+    }
+
     // Tests bulk sparse similarity where vector addresses are slices of a single contiguous segment,
     // verifying correct lookup and scoring via an address array with random ordinals.
     public void testBFloat16BulkSparse() {

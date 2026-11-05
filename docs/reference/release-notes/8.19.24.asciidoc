@@ -9,6 +9,12 @@ This release contains security fixes.
 Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
 ====
 
+[[known-issues-8.19.24]]
+[float]
+=== Known issues
+
+* When resuming an incomplete downsampling operation, Elasticsearch uses a checkpoint to avoid rescanning the entire shard. In certain edge cases, Elasticsearch may incorrectly identify this checkpoint and skip source data, resulting in an incomplete downsampled index. Fixed by {es-pull}164646[#164646].
+
 [[bug-8.19.24]]
 [float]
 === Bug fixes

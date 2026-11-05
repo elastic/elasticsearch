@@ -17,6 +17,9 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -99,6 +102,29 @@ public class ApproximationTests extends ApproximationTestCase {
         // The main plan should have sampling with probability 10^5 / 10^9.
         assertThat(mainPlan, not(hasPlan(Aggregate.class)));
         assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-4), withAggs(Sum.class)));
+    }
+
+    /**
+     * COUNT of a counter field is approximated like COUNT of any other field.
+     */
+    public void testPlans_countOfCounter() {
+        LogicalPlan originalPlan = getLogicalPlan("FROM k8s | STATS COUNT(network.total_bytes_in)");
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
+        ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
+        approximation.firstSubPlan();
+        mainPlan = approximation.newMainPlan(mainPlan, newCountResult(1_000_000_000));
+
+        assertThat(mainPlan, hasPlan(SampledAggregate.class, withProbability(1e-4), withAggs(CountApproximate.class)));
+        List<CountApproximate> counts = new ArrayList<>();
+        mainPlan.forEachExpressionDown(CountApproximate.class, counts::add);
+        assertFalse(counts.isEmpty());
+        for (CountApproximate count : counts) {
+            assertTrue(count.toString(), count.typeResolved().resolved());
+        }
     }
 
     public void testPlans_largeDataAfterFiltering() {

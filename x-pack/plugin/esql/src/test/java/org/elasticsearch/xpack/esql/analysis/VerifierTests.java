@@ -1739,14 +1739,16 @@ public class VerifierTests extends AnalyzerTestCase {
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
+    }
 
-        tsdb().error(
-            "FROM test | STATS count(network.bytes_out)",
-            equalTo(
-                "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types or histogram],"
-                    + " found value [network.bytes_out] type [counter_long]"
-            )
+    /**
+     * Counting and presence functions only look at whether a value exists, so they accept counters like any other field.
+     */
+    public void testCountPresentAbsentOnCounter() {
+        tsdb().query("FROM test | STATS count(network.bytes_out), present(network.bytes_out), absent(network.bytes_out)");
+        tsdb().query(
+            "TS test | STATS sum(count_over_time(network.bytes_out)), max(present_over_time(network.bytes_out)),"
+                + " max(absent_over_time(network.bytes_out))"
         );
     }
 

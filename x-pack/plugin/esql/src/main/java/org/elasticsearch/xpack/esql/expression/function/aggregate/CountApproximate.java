@@ -95,12 +95,6 @@ public class CountApproximate extends UnaryAggregateFunction implements ToAggreg
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt.isCounter() == false && dt != DataType.HISTOGRAM,
-            sourceText(),
-            DEFAULT,
-            "any type except counter types or histogram"
-        );
+        return isType(field(), dt -> dt != DataType.HISTOGRAM, sourceText(), DEFAULT, "any type except histogram");
     }
 }

@@ -779,6 +779,16 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         assertThat(plan.toString(), timestampPresence(plan), hasSize(0));
     }
 
+    /**
+     * A counter is a metric too: the series a counter selector selects have a sample of it, so its {@code absent_over_time}
+     * plans no row-presence check of the series.
+     */
+    public void testAbsentOverTimeOfCounterChecksNoRowPresence() {
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(absent_over_time(network.total_bytes_in[5m]))");
+        assertThat(plan.toString(), timestampPresence(plan), hasSize(0));
+    }
+
     /** The {@code present(@timestamp)} checks of whether an operand reads a row of the series in the window. */
     private static List<Present> timestampPresence(LogicalPlan plan) {
         List<Present> presence = new ArrayList<>();

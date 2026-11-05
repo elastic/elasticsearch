@@ -18,12 +18,18 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Changes;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
@@ -335,6 +341,38 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         FieldAttribute field = as(rate.field(), FieldAttribute.class);
         assertThat(field.name(), equalTo("network.total_bytes_in"));
         assertTrue(isCounter(field.dataType()));
+    }
+
+    /**
+     * Prometheus doesn't distinguish sample types, so the functions that only check whether samples exist take a counter as is.
+     */
+    public void testCountAndPresenceFunctionsTakeCountersAsIs() {
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        for (String function : List.of("present_over_time", "absent_over_time", "count_over_time")) {
+            LogicalPlan plan = planPromql("PROMQL index=k8s step=1m result=(" + function + "(network.total_bytes_in[5m]))", false);
+
+            List<ToGauge> toGauges = new ArrayList<>();
+            plan.forEachExpressionDown(ToGauge.class, toGauges::add);
+            assertThat(function, toGauges, empty());
+
+            List<AggregateFunction> aggregates = new ArrayList<>();
+            plan.forEachExpressionDown(AggregateFunction.class, agg -> {
+                if (agg instanceof Count
+                    || agg instanceof Present
+                    || agg instanceof Absent
+                    || agg instanceof CountOverTime
+                    || agg instanceof PresentOverTime
+                    || agg instanceof AbsentOverTime) {
+                    aggregates.add(agg);
+                }
+            });
+            assertThat(function + ": " + plan, aggregates, not(empty()));
+            for (AggregateFunction aggregate : aggregates) {
+                FieldAttribute field = as(aggregate.fields().getFirst(), FieldAttribute.class);
+                assertThat(function, field.name(), equalTo("network.total_bytes_in"));
+                assertTrue(function, isCounter(field.dataType()));
+            }
+        }
     }
 
     private Rate rateFromPromql(String query) {

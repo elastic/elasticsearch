@@ -82,6 +82,11 @@ mapping:
   [](/reference/query-languages/esql/esql-histogram-fields.md)
   for full details, or [Work with histogram metrics](/reference/query-languages/esql/commands/ts.md#work-with-histogram-metrics)
   for `TS`-specific examples.
+- **Any metric type** {applies_to}`stack: ga 9.7`:
+  [`COUNT_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/count_over_time.md),
+  [`PRESENT_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/present_over_time.md),
+  and [`ABSENT_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/absent_over_time.md)
+  only look at whether samples exist, not at their values, so they accept counters as well as gauges.
 
 For the conceptual context behind the counter/gauge split, refer to
 [When to use TS vs FROM](/reference/query-languages/esql/commands/ts.md#when-to-use-ts-vs-from).

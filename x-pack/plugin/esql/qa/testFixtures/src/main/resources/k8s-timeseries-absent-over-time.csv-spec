@@ -64,6 +64,38 @@ PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.
 is_absent:double | step:datetime            | cluster:keyword
 ;
 
+// A counter field is absent like a gauge: Prometheus does not distinguish sample types here.
+absent_over_time_of_counter
+required_capability: ts_command_v0
+required_capability: count_present_absent_counter_support
+TS k8s | STATS is_absent = max(absent_over_time(network.total_bytes_in)) BY cluster, time_bucket = tbucket(10minute) | SORT cluster, time_bucket | LIMIT 10;
+
+is_absent:boolean | cluster:keyword | time_bucket:datetime
+false             | prod            | 2024-05-10T00:00:00.000Z
+false             | prod            | 2024-05-10T00:10:00.000Z
+false             | prod            | 2024-05-10T00:20:00.000Z
+false             | qa              | 2024-05-10T00:00:00.000Z
+false             | qa              | 2024-05-10T00:10:00.000Z
+false             | qa              | 2024-05-10T00:20:00.000Z
+false             | staging         | 2024-05-10T00:00:00.000Z
+false             | staging         | 2024-05-10T00:10:00.000Z
+false             | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// A counter field is absent like a gauge: Prometheus does not distinguish sample types here.
+// Every series has a sample in every window, so, as in Prometheus, there is no element.
+absent_over_time_of_counter_promql
+required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_empty_range_is_no_element
+required_capability: count_present_absent_counter_support
+
+PROMQL index=k8s step=10m is_absent=(max by (cluster) (absent_over_time(network.total_bytes_in[10m])))
+| SORT cluster, step | LIMIT 10;
+
+is_absent:double | step:datetime            | cluster:keyword
+;
+
 absent_over_time_of_long_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse

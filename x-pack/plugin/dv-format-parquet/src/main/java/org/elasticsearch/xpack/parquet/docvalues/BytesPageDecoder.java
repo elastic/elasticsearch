@@ -120,7 +120,7 @@ final class BytesPageDecoder implements ColumnChunkReader.PageDecoder {
     }
 
     /** Reads {@code count} values that are each a 4-byte little-endian length and that many bytes. */
-    private static void readPlain(byte[] bytes, int offset, int end, int count, int[] starts, int[] lengths) throws IOException {
+    static void readPlain(byte[] bytes, int offset, int end, int count, int[] starts, int[] lengths) throws IOException {
         int position = offset;
         for (int i = 0; i < count; i++) {
             if (position + 4 > end) {

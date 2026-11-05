@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.parquet.docvalues;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -16,6 +17,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Binary doc values over a {@code BYTE_ARRAY} column of external Parquet files, with the bytes of a value as they are in the file. For
@@ -23,10 +25,13 @@ import java.util.List;
  * its binary doc values. A row without a value ({@code OPTIONAL} column) is not a document of the iterator.
  *
  * <p>It also serves ES|QL a block of values at a time ({@link #tryRead}), which finds the page of a document once for all the
- * documents of that page, and copies their bytes into one array.
+ * documents of that page, and copies their bytes into one array. A filter on an exact value or on a value that contains some bytes
+ * ({@link #tryTermEqualIterator}, {@link #tryContainsIterator}) compares a page at a time and, for a column with a dictionary, a
+ * dictionary entry at a time, see {@link BytesPageMatcher}.
  */
 final class ParquetBinaryDocValues extends BinaryDocValues implements BlockLoader.OptionalColumnAtATimeReader {
 
+    private final List<ColumnChunkReader.Block> blocks;
     private final ColumnChunkReader reader;
     private final BytesPageDecoder decoder;
     private final boolean required;
@@ -35,6 +40,7 @@ final class ParquetBinaryDocValues extends BinaryDocValues implements BlockLoade
     private int doc = -1;
 
     ParquetBinaryDocValues(List<ColumnChunkReader.Block> blocks, boolean required) {
+        this.blocks = blocks;
         this.decoder = new BytesPageDecoder();
         this.required = required;
         this.reader = new ColumnChunkReader(blocks, required, decoder);
@@ -194,6 +200,107 @@ final class ParquetBinaryDocValues extends BinaryDocValues implements BlockLoade
             }
             this.doc = previous;
             return builder.build();
+        }
+    }
+
+    @Override
+    public DocIdSetIterator tryTermEqualIterator(BytesRef term) {
+        return TwoPhaseIterator.asDocIdSetIterator(new PageMatches(new BytesPageMatcher(term, BytesPageMatcher.Mode.EQUALS)));
+    }
+
+    @Override
+    public DocIdSetIterator tryContainsIterator(BytesRef containsTerm) {
+        return TwoPhaseIterator.asDocIdSetIterator(new PageMatches(new BytesPageMatcher(containsTerm, BytesPageMatcher.Mode.CONTAINS)));
+    }
+
+    /**
+     * PROTOTYPE, only for the proof of concept: the documents whose value satisfies a predicate, which is what a prefix, a range, an
+     * in-set, an automaton or a regexp query asks. For a column with a dictionary the predicate runs once for each entry of the
+     * dictionary of a chunk and not once for each document.
+     */
+    @Override
+    public DocIdSetIterator tryMatchIterator(Predicate<BytesRef> matcher) {
+        return TwoPhaseIterator.asDocIdSetIterator(new PageMatches(new BytesPageMatcher(matcher)));
+    }
+
+    /**
+     * The documents that a {@link BytesPageMatcher} finds, as a two phase iterator: the approximation is every document, and
+     * {@link #matches} looks at the page of the document, once for all of its documents. That keeps the cost of a slice of the segment
+     * (a window of documents, as {@code DataPartitioning.DOC} makes) in proportion to the slice, because nothing reads ahead of the
+     * document that the caller asks about. A page with no match, and the rows of a page before its next match, are jumped over by the
+     * approximation, so documents that cannot match cost no call.
+     *
+     * <p>It has a reader of its own, so it does not move the position of the doc values that made it.
+     */
+    private final class PageMatches extends TwoPhaseIterator {
+
+        private final BytesPageMatcher matcher;
+        private final ColumnChunkReader pages;
+        private final Candidates candidates;
+        // the documents of the page that the matcher holds, which is none until the first call of matches
+        private int pageStart = 0;
+        private int pageEnd = 0;
+
+        PageMatches(BytesPageMatcher matcher) {
+            this(matcher, new Candidates());
+        }
+
+        private PageMatches(BytesPageMatcher matcher, Candidates candidates) {
+            super(candidates);
+            this.matcher = matcher;
+            this.candidates = candidates;
+            this.pages = new ColumnChunkReader(blocks, required, matcher);
+        }
+
+        @Override
+        public boolean matches() throws IOException {
+            int doc = candidates.doc;
+            if (doc < pageStart || doc >= pageEnd) {
+                pages.load(doc);
+                pageStart = pages.pageStartDoc();
+                pageEnd = pageStart + pages.pageRows();
+            }
+            int next = matcher.pageHasMatch() ? matcher.nextMatch(doc - pageStart) : -1;
+            if (next == doc - pageStart) {
+                return true;
+            }
+            // the next document that can match: in this page, or in the next one
+            candidates.next = next < 0 ? pageEnd : pageStart + next;
+            return false;
+        }
+
+        @Override
+        public float matchCost() {
+            return 10f;
+        }
+    }
+
+    /** All the documents, except the ones that the matcher has said cannot match: those are the ones below {@code next}. */
+    private final class Candidates extends DocIdSetIterator {
+
+        int doc = -1;
+        int next = 0;
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() {
+            return doc == NO_MORE_DOCS ? doc : advance(doc + 1);
+        }
+
+        @Override
+        public int advance(int target) {
+            int candidate = Math.max(target, next);
+            doc = candidate < maxDoc ? candidate : NO_MORE_DOCS;
+            return doc;
+        }
+
+        @Override
+        public long cost() {
+            return maxDoc;
         }
     }
 }

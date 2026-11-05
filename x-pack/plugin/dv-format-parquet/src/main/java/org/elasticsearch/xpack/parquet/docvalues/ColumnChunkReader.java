@@ -51,6 +51,16 @@ final class ColumnChunkReader {
          * @param present for each row whether it has a value, or {@code null} when every row has one
          */
         void page(byte[] bytes, int offset, int end, int numValues, int nonNull, boolean[] present, Encoding encoding) throws IOException;
+
+        /**
+         * Whether the decoder has no use for a data page of this encoding, so that the reader neither decompresses nor decodes it. The
+         * page is current all the same, and the decoder is the one that knows what it holds, which is nothing. It is asked once for
+         * each page that the reader would decode, right before {@link #page}, which is not called when the answer is {@code true}.
+         * Only a decoder that filters rows, such as {@link BytesPageMatcher}, has a reason to say {@code true}.
+         */
+        default boolean skipPage(Encoding encoding) {
+            return false;
+        }
     }
 
     private final List<Block> blocks;
@@ -197,6 +207,10 @@ final class ColumnChunkReader {
 
     private void decodePage(Block block, PageHeader header, int bodyStart, int compressedSize, int numValues, Encoding encoding)
         throws IOException {
+        if (decoder.skipPage(encoding)) {
+            present = null;
+            return;
+        }
         final byte[] values;
         final int valuesOffset;
         int nonNull = numValues;

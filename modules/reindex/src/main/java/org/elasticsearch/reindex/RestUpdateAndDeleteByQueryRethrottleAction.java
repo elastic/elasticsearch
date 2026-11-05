@@ -11,12 +11,14 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -25,6 +27,10 @@ import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.li
 
 @ServerlessScope(INTERNAL)
 public class RestUpdateAndDeleteByQueryRethrottleAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of("requests_per_second", "group_by");
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Sets.addToCopy(SUPPORTED_QUERY_PARAMETERS, "task_id");
+
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
     public RestUpdateAndDeleteByQueryRethrottleAction(Supplier<DiscoveryNodes> nodesInCluster) {
@@ -61,4 +67,15 @@ public class RestUpdateAndDeleteByQueryRethrottleAction extends BaseRestHandler 
             listTasksResponseListener(nodesInCluster, groupBy, channel)
         );
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

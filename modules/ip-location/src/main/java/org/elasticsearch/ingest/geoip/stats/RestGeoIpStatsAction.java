@@ -17,6 +17,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -37,4 +38,10 @@ public class RestGeoIpStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         return channel -> client.execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request(), new RestToXContentListener<>(channel));
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
+    }
+
 }

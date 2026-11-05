@@ -1908,11 +1908,11 @@ public class BlockHashTests extends BlockHashTestCase {
     }
 
     /**
-     * Regression for #164417: the full-dictionary path shares the hash's {@code BytesRefArray} via
-     * {@code incRef}. {@code HashAggregationOperator.clearCurrentBatch} must close+recreate (not
-     * {@link TimeSeriesBlockHash#clear()}) when partitioning is inactive, so emitted keys stay valid.
+     * Regression for #164417: emitted full-dictionary keys must not share the hash's mutable
+     * {@code BytesRefArray}, since clearing the hash after a regular partial flush truncates it
+     * before downstream operators have necessarily consumed those keys.
      */
-    public void testTimeSeriesBlockHashKeysSurviveHashClose() {
+    public void testTimeSeriesBlockHashKeysSurviveHashClear() {
         BytesRef tsidA = new BytesRef("id-a");
         BytesRef tsidB = new BytesRef("id-b");
         TimeSeriesBlockHash hash = new TimeSeriesBlockHash(0, 1, false, false, blockFactory);
@@ -1930,13 +1930,22 @@ public class BlockHashTests extends BlockHashTestCase {
             assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
             assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
 
-            // Simulate clearCurrentBatch when supportPartitioning is false.
-            hash.close();
-            hash = null;
+            hash.clear();
 
             assertThat(tsids.getBytesRef(0, scratch), equalTo(tsidA));
             assertThat(tsids.getBytesRef(1, scratch), equalTo(tsidB));
             assertThat(tsids.getBytesRef(2, scratch), equalTo(tsidA));
+
+            BytesRef tsidC = new BytesRef("id-c");
+            addSingleTsidRow(hash, tsidC, 4L);
+            try (IntVector selected = blockFactory.newIntRangeVector(0, 1)) {
+                Block[] nextKeys = hash.getKeys(selected);
+                try {
+                    assertThat(((BytesRefBlock) nextKeys[0]).getBytesRef(0, scratch), equalTo(tsidC));
+                } finally {
+                    Releasables.close(nextKeys);
+                }
+            }
         } finally {
             Releasables.close(hash);
             Releasables.close(keys);

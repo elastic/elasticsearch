@@ -218,27 +218,32 @@ Runtime search has these limitations:
 
 * It is usually slower than a search on an indexed field, because it analyzes every row that
   reaches it. Refer to [Performance](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-performance).
-* Relevance scores are not BM25, because there are no index statistics for an expression. Refer to
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` Relevance scores are not BM25, because there are no
+  index statistics for an expression. Refer to
   [Scoring](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring).
 * {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The same query can see a different `_score` depending on
   whether a search runs at runtime, because a runtime search only adds its score once it runs. For details, refer to
-  [Scoring](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring) and
-  [this `_score` issue](https://github.com/elastic/elasticsearch/issues/160809).
-* A runtime search after a [`FORK`](/reference/query-languages/esql/commands/fork.md) or a `FROM` with
+  [When a runtime search score is visible](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-scoring-visibility)
+  and [this `_score` issue](https://github.com/elastic/elasticsearch/issues/160809).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A runtime search after a
+  [`FORK`](/reference/query-languages/esql/commands/fork.md) or a `FROM` with
   [subqueries](/reference/query-languages/esql/esql-subquery.md) filters rows, but doesn't contribute to
   `_score` unless it can be pushed into the branches
   ([#161746](https://github.com/elastic/elasticsearch/issues/161746)).
-* The `analyzer` options of `TO_TEXT`, `MATCH` and `MATCH_PHRASE` only accept built-in analyzers and
-  analyzers provided by plugins, not custom analyzers defined in an index's settings. Refer to
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The `analyzer` options of `TO_TEXT`, `MATCH` and
+  `MATCH_PHRASE` only accept built-in analyzers and analyzers provided by plugins, not custom analyzers defined in
+  an index's settings. Refer to
   [Analyzers](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers).
-* On expressions that are not `text`, `MATCH` only supports the `lenient` option, and `MATCH_PHRASE`
-  supports no options. Refer to [Options](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-options).
-* The [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries)
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` On expressions that are not `text`, `MATCH` only
+  supports the `lenient` option, and `MATCH_PHRASE` supports no options. Refer to
+  [Options](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-options).
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` The
+  [`search.allow_expensive_queries`](/reference/query-languages/querydsl.md#query-dsl-allow-expensive-queries)
   setting doesn't apply, so options such as `fuzziness` run even when it is `false`
   ([#162256](https://github.com/elastic/elasticsearch/issues/162256)).
-* A mapped `text` field in the output of a `FORK` whose branches contain a command such as
-  `LIMIT` or `STATS`, can't be searched directly. Declare an analyzer for it with `TO_TEXT`, or search
-  it inside the branches. Refer to
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` A mapped `text` field in the output of a `FORK` whose
+  branches contain a command such as `LIMIT` or `STATS`, can't be searched directly. Declare an analyzer for it
+  with `TO_TEXT`, or search it inside the branches. Refer to
   [Indexed `text` fields searched at runtime](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-indexed).
 * [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) and
   [`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md) don't support

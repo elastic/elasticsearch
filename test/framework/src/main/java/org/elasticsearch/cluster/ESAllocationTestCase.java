@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.ShardMovementEventSink;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -147,6 +149,20 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     public static MockAllocationService createAllocationService(Settings settings, SnapshotsInfoService snapshotsInfoService) {
         return createAllocationService(settings, new TestGatewayAllocator(), EmptyClusterInfoService.INSTANCE, snapshotsInfoService);
+    }
+
+    public static MockAllocationService createAllocationService(Settings settings, ShardMovementEventSink shardMovementEventSink) {
+        final var clusterSettings = createBuiltInClusterSettings(settings);
+        return new MockAllocationService(
+            randomAllocationDeciders(settings, clusterSettings),
+            new TestGatewayAllocator(),
+            createShardsAllocator(settings),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            clusterSettings,
+            shardMovementEventSink
+        );
     }
 
     public static MockAllocationService createAllocationService(
@@ -484,6 +500,32 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 snapshotsInfoService,
                 shardRoutingRoleStrategy
             );
+            this.gatewayAllocator = gatewayAllocator;
+            this.shardsAllocator = shardsAllocator;
+        }
+
+        @SuppressWarnings("this-escape")
+        public MockAllocationService(
+            AllocationDeciders allocationDeciders,
+            GatewayAllocator gatewayAllocator,
+            ShardsAllocator shardsAllocator,
+            ClusterInfoService clusterInfoService,
+            SnapshotsInfoService snapshotsInfoService,
+            ShardRoutingRoleStrategy shardRoutingRoleStrategy,
+            ClusterSettings clusterSettings,
+            ShardMovementEventSink shardMovementEventSink
+        ) {
+            super(
+                allocationDeciders,
+                shardsAllocator,
+                clusterInfoService,
+                snapshotsInfoService,
+                shardRoutingRoleStrategy,
+                MeterRegistry.NOOP,
+                clusterSettings,
+                shardMovementEventSink
+            );
+            setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
             this.gatewayAllocator = gatewayAllocator;
             this.shardsAllocator = shardsAllocator;
         }

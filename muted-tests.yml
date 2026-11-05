@@ -568,3 +568,8 @@ tests:
   tasks:
   - :qa:smoke-test-multinode:yamlRestTest
   issue: https://github.com/elastic/elasticsearch/issues/164771
+- class: org.elasticsearch.compute.lucene.read.FieldPresenceOperatorTests
+  tasks:
+  - :x-pack:plugin:esql:compute:test
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/164801

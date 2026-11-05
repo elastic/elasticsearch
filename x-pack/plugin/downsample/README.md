@@ -194,7 +194,7 @@ lifetime of one HTTP request. That is what persistent tasks provide: the task de
 |---|---|---|
 | Task name | `DownsampleShardTask.TASK_NAME` (`rollup-shard`) | Identifies the executor. |
 | Params | `DownsampleShardTaskParams` | Immutable description of the work: the config, target index, source index time bounds, the shard id, and the metric / label / dimension field names and multi-field sources. Stored in the cluster state. |
-| State | `DownsampleShardPersistentTaskState` | Stored in the cluster state, it holds the `DownsampleShardIndexerStatus` and an optional `_tsid`. The `_tsid` is currently never populated: every state the indexer publishes carries `null`. |
+| State | `DownsampleShardPersistentTaskState` | Stored in the cluster state, it holds the `DownsampleShardIndexerStatus` and an optional `_tsid`: the resume watermark, below which every bucket is known to be in the target index. See [The resume watermark](#the-resume-watermark). |
 | Executor | `DownsampleShardPersistentTaskExecutor` | Decides where the task runs and how it starts. |
 | Task | `DownsampleShardTask` (`AllocatedPersistentTask`) | The running task, exposes progress counters in the task status API (docs received / sent / indexed / skipped / failed, last bulk info and timestamps). |
 
@@ -225,8 +225,8 @@ source/target/interval therefore share the same tasks.
    executor.doGetAssignment(...)  ── pick node
    cluster state: task assigned ────────────────► executor.createTask(...)
                                                   executor.nodeOperation(task, params, state)
-                                                    1. DelegatingAction (local transport action), always
-                                                       with no resume _tsid: every run scans the whole shard
+                                                    1. DelegatingAction (local transport action), with the
+                                                       resume _tsid of the previous run's state, if any
                                                     2. realNodeOperation → "downsample_indexing" thread pool
                                                     3. DownsampleShardIndexer.execute()
    task state updated (STARTED, …) ◄──────────── updatePersistentTaskState
@@ -243,12 +243,11 @@ starts, fails, and is then removed, rather than sitting unassigned forever.
 `validate` is a cheap pre-check at start time that the shard exists. `automaticReassignmentOnShutdown()` returns `false`,
 so a task is not moved while its node shuts down gracefully.
 
-**Resuming from `_tsid`** is disabled until we find a safe way to detect a safe resume point. `nodeOperation` ignores the
-persisted task state and always passes a `null` `_tsid`, so a (re)started task rescans the whole source shard. The plumbing
-is still there (`DownsampleShardPersistentTaskState#tsid`, the `lastDownsampleTsid` argument of `DelegatingAction.Request`
-and `realNodeOperation`, and the range query in `DownsampleShardIndexer#createQuery`), so enabling it again only requires
-the executor to supply a safe `_tsid`. Duplicate work is avoided differently, see
-[Failure handling and retries](#failure-handling-and-retries).
+**Resuming from `_tsid`.** `nodeOperation` resumes a reassigned task from the `_tsid` in its persisted state, the resume
+watermark published by the previous run, and starts a task without a state from the beginning of the shard. The target
+index is never consulted for a resume point: its highest `_tsid` is not safe, because bulks complete in any order and a
+higher `_tsid` can be present while a lower one is missing ([#164498](https://github.com/elastic/elasticsearch/issues/164498)).
+See [The resume watermark](#the-resume-watermark).
 
 **The delegating action.** `nodeOperation` does not run the indexer directly; it executes the local-only
 `indices:data/read/downsample_delegate` transport action (`DelegatingAction`), whose request implements
@@ -304,8 +303,7 @@ calls `task.markAsFailed(e)`), so that the waiting transport action can observe 
    `AggregateMetricDoubleFieldDownsampler`.
 3. **Build the query.** If the state has a `_tsid`, only time series from that `_tsid` onwards are read, including that
    one (`XSortedSetDocValuesRangeQuery` on `_tsid` with an inclusive lower bound and no upper bound); otherwise all
-   documents. Since resuming is disabled, the state never has a `_tsid` today and all documents are read. If the query
-   matches nothing, the shard is already finished.
+   documents. If the query matches nothing, the shard is already finished.
 4. **Scan in time series order** using `TimeSeriesIndexSearcher`, which delivers documents sorted by `_tsid` ascending
    and `@timestamp` descending. This ordering is what allows the indexer to hold only a single open bucket at a time
    (`DownsampleBucketBuilder`).
@@ -321,9 +319,11 @@ calls `task.markAsFailed(e)`), so that the waiting transport action can observe 
 8. **Cancellation / abort.** `checkCancelled` is called by the searcher and before/after collection: it stops on task
    cancellation (publishing `CANCELLED`, non retriable) and when an earlier bulk had failures (publishing `FAILED`,
    retriable).
-9. **Verify.** After the scan (which includes closing the bulk processor) the indexer compares sent and indexed counts, and
-   the failure count. A mismatch or any failure makes it throw a non-retriable `DownsampleShardIndexerException`. On success
-   it publishes `COMPLETED`. Note that `afterBulk` adds the size of every completed bulk to the indexed count before it
+9. **Verify.** After the scan (which includes closing the bulk processor, so every bulk has settled unless closing timed
+   out) the indexer checks the `abort` flag and compares sent and indexed counts. A bulk failure, whether it stopped the
+   scan or was only noticed while closing, and a close that timed out with bulks still in flight, both publish `FAILED`
+   with the watermark and throw the retriable exception. The failure count is checked as a safety net and makes it throw a
+   non-retriable `DownsampleShardIndexerException`. On success it publishes `COMPLETED`. Note that `afterBulk` adds the size of every completed bulk to the indexed count before it
    inspects the items, so failed items are counted as indexed too; failures are caught through the failure count and the
    `abort` flag, not through the sent/indexed comparison.
 
@@ -343,28 +343,72 @@ can simply be repeated.
 | Has `index.blocks.write` but is not `success` | The shard work finished in an earlier call but a later step failed; resume at the refresh step (step 6). The write block is the marker for this. |
 | Otherwise (`started`) | Go to step 4 again: start or join the shard tasks. |
 
-**Task reassigned or restarted.** The indexer rescans the whole source shard and recomputes every bucket (resuming from a
-`_tsid` is disabled). Buckets that were already indexed in the target are rejected as version conflicts and counted as
-skipped, so nothing is indexed twice and no missing bucket is lost. The cost is that the source shard is read again in full.
+**Task reassigned or restarted.** A reassigned task resumes from the watermark in its persisted state, see
+[The resume watermark](#the-resume-watermark); a recreated task, whose predecessor was removed, rescans the whole source
+shard. Either way every bucket from the resume point onwards is recomputed, and the ones that are already in the target
+are rejected as version conflicts and counted as skipped, so nothing is indexed twice and no missing bucket is lost.
+
+### The resume watermark
+
+The indexer sends bulks concurrently, so they complete in any order. The highest `_tsid` in the target therefore says
+nothing about whether everything below it was written: when a middle bulk fails, the target holds the time series of the
+bulks before and after it with a hole in between, and a hole can even sit inside one time series whose buckets span several
+bulks. The target alone cannot distinguish such a hole from a time series that never existed, so the writer records the
+safe point itself.
+
+`ResumeWatermark` tracks it: the first `_tsid` of the **oldest bulk that is not confirmed yet**, where confirmed means every
+item was indexed or rejected as a version conflict. Bulks are cut in `_tsid` order, so every bucket before that bulk
+belongs to a bulk that succeeded. The scan thread reports every bucket it adds (`added`) and every bulk it cuts (`sent`,
+from `beforeBulk`, which runs synchronously inside the add call), so the tracker knows the first `_tsid` of each bulk;
+confirmations arrive from any thread in any order and simply drop the bulk from the unconfirmed set. A failed bulk is never
+confirmed, so the resume point never moves past it. When every sent bulk is confirmed, the resume point is the first bucket
+of the bulk under construction, or the last `_tsid` sent. The resume query is inclusive, because a time series may span
+bulks; its already indexed buckets are rejected as conflicts.
+
+A bulk failure sets the `abort` flag, and the scan stops at the next `checkCancelled` or, usually earlier, when the bulk
+processor rejects the next bucket. `execute` swallows that exception, closes the processor, which waits for every bulk in
+flight to settle, and only then publishes `FAILED` with the watermark, so the watermark is exact. The publication is
+waited for before the task lets itself be reassigned, because the reassignment invalidates the task's allocation and a
+state update that lands after it is rejected. The reassigned task resumes from the published `_tsid`. The watermark lives
+in the persistent task, so it is lost when the task is removed, for example after a non retriable failure; a recreated
+task starts from the beginning of the shard.
+
+A node loss gives the indexer no chance to publish, so a running task also publishes the watermark periodically from
+`checkCancelled`, at most once per `downsample.resume_watermark.publish_interval` (ten minutes by default; tests set it to
+zero to observe the publication), only when it moved, with at most one publication in flight, and without waiting for it.
+Every publication is a cluster state update, hence the throttling: a task reassigned after a node loss loses at most an
+interval's worth of work. A periodic publication that lands after the `FAILED` one is harmless, it carries a watermark
+that is at most as high as the exact one.
+
+In the persisted cluster state the `_tsid` is held under `encoded_tsid`, in the encoding of the `_tsid` field of search
+hits. The `tsid` field of earlier versions held it as UTF-8 text, which mangles a hash; it is accepted, so that a node
+can read the cluster state it persisted before an upgrade, but ignored.
+
+The state also records the UUID of the target index the watermark was reached on. `nodeOperation` only resumes from a
+watermark whose UUID matches the current target index: if the target was deleted and re-created under the same name
+while the task was waiting to be reassigned, the new index holds none of the buckets below the watermark. The UUID is
+also the mixed cluster guard: nodes before `downsample_resume_watermark_target_uuid` drop the UUID when they serialize
+the state, so a watermark published while the cluster has such nodes could not be resumed from. `nodeOperation`
+therefore leaves the UUID out while the cluster has such nodes, and the indexer publishes no watermark without a UUID.
 
 **Retriable vs non-retriable.** `DownsampleShardIndexerException.isRetriable()` separates the two. A retriable failure
 (a bulk failure) calls `markAsLocallyAborted`, which lets the framework reassign the task; everything else, including
 a missing source index, marks the task `FAILED` and removes it.
 
 A bulk failure (a failed item other than a version conflict, or a failed bulk request) sets the indexer's `abort` flag.
-If the next `checkCancelled` call happens during the scan, it publishes the `FAILED` task state (with no `_tsid`)
+If the next `checkCancelled` call happens during the scan, it publishes the `FAILED` task state (with the resume watermark)
 **before** it throws the retriable exception. The transport action's wait predicate treats a `done()` state as finished and
 `performShardDownsampling` fails the whole API call when that state is `FAILED`. So a bulk failure fails the request,
 even though the exception is retriable. It does not cancel anything: the failed shard's persistent task is locally
-aborted and reassigned, and rescans the shard from the start (skipping buckets already indexed); the tasks of the other
+aborted and reassigned, and resumes from the watermark (skipping buckets already indexed); the tasks of the other
 shards keep running. A retried API call joins them (see
 [Task identity and idempotent start](#task-identity-and-idempotent-start)). A call retried before the reassigned task has
 published its `STARTED` state observes the stale `FAILED` state and fails immediately; a later retry joins the restarted
 task. Nothing limits how often a task whose bulks keep failing is reassigned.
 
-A bulk failure that only surfaces while the bulk processor is closing, after the last `checkCancelled`, is different: the
-post-scan verification sees a non-zero failure count and throws a **non retriable** exception, so the task is marked
-`FAILED` and removed instead of being reassigned.
+A bulk failure that only surfaces while the bulk processor is closing, after the last `checkCancelled`, is handled the same
+way once the processor is closed: the task publishes `FAILED` with the watermark and throws the retriable exception, so it
+is reassigned and resumes from the watermark.
 
 **Node loss.** The persistent task is reassigned to another node holding a copy of the shard and restarts as described
 above. The target index is built without replicas in stateful mode, so losing the node that holds a target shard
@@ -383,6 +427,7 @@ fails the downsample.
 | `DownsampleShardPersistentTaskExecutor` | Assignment, task creation, and the delegating action. |
 | `DownsampleShardTaskParams` | Persistent task params. |
 | `DownsampleShardIndexer` | Shard scan, bucketing and bulk indexing. |
+| `ResumeWatermark` | Tracks the `_tsid` a shard task can safely be resumed from. |
 | `DownsampleShardIndexerException` | Failure carrying a retriable flag. |
 | `TimeSeriesFields` | Splits the source mapping into dimensions, metrics, labels and multi-field sources. |
 | `AbstractFieldDownsampler` and subclasses | Per field type aggregation within a bucket. |

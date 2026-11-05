@@ -18,21 +18,17 @@
   the layers that do not change between builds can be reused. List them from the least to the most
   frequently changing.
 
-  `paths` is a command that prints the paths of the layer, which may be none: the distribution only
-  contains the machine learning libraries of the architecture being built.
-
-  The third-party jars go in a layer of their own because, unlike the jars built from this repository
-  (which carry the version in their file name), they rarely change from one build to the next.
-
-  Many modules and plugins bundle identical copies of the same jar. The build replaces them with hard
-  links, i.e. several paths to a single file, so that the file is stored only once. A hard link cannot
-  span two layers: if the copies of a jar were split between layers, each layer would store its own
-  copy. So a layer must never take only some of the paths of a jar, which the build verifies.
+  Each entry is a command that prints the paths of the layer. A layer cannot be empty. The distribution only
+  contains the machine learning libraries of the architecture being built, hence the wildcard.
 */
 def separateLayers = [
-    [name: 'jdk', paths: 'echo jdk'],
-    [name: 'modules/x-pack-ml/platform/*/lib', paths: 'ls -d modules/x-pack-ml/platform/*/lib 2>/dev/null'],
-    [name: 'third-party jars', paths: "find lib modules plugins -type f -name '*.jar' ! -name '*-${version}*'"]
+    // The JDK
+    'ls -d jdk',
+    // The machine learning libraries
+    'ls -d modules/x-pack-ml/platform/*/lib',
+    // The third-party jars. Unlike the jars built from this repository, which carry the version in their file name,
+    // they rarely change from one build to the next.
+    "find lib modules plugins -type f -name '*.jar' ! -name '*-${version}*'"
 ] %>
 
 
@@ -64,6 +60,7 @@ RUN set -eux; \\
     chmod 0555 /bin/tini
 
 WORKDIR /usr/share/elasticsearch
+COPY --chmod=0555 bin/arrange-layers.sh /tmp/arrange-layers.sh
 RUN arch="\$(rpm --query --queryformat='%{ARCH}' rpm)" && curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # Configure the distribution for Docker
@@ -88,25 +85,9 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
 # config directory.
     chown 1000:1000 bin config config/jvm.options.d data logs plugins && \\
-# Many modules and plugins bundle identical copies of the same jars. Replace the duplicates with hard links so
-# that each one is stored only once in the image layer. This has to happen before the layers are split off, and
-# the jdk is not touched since it is copied in a layer of its own.
-    prev= && \\
-    find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | sort | while read -r sum path; do \\
-        if [ "\$sum" = "\$prev" ]; then ln -f "\$first" "\$path" || exit 1; else prev="\$sum"; first="\$path"; fi; \\
-    done && \\
-# Move the paths that are copied in layers of their own out of the way, keeping their paths, into a directory per layer.
-# The template tags below end the previous line so that the rendered `RUN` has no blank continuation lines.
-    mkdir /layers && \\<% separateLayers.eachWithIndex { layer, i -> %>
-    mkdir "/layers/${i}" && \\
-    ${layer.paths} | while IFS= read -r path; do \\
-        mkdir -p "/layers/${i}/\$(dirname "\$path")" && mv "\$path" "/layers/${i}/\$path" || exit 1; \\
-    done && \\<% } %>
-# No jar may have a copy with identical content in another layer, since hard links do not span layers
-    dups=\$( { for dir in /layers/*; do \\
-        find "\$dir" -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u; done; \\
-        find lib modules plugins -type f -name '*.jar' -exec sha256sum {} + | cut -d' ' -f1 | sort -u; } | sort | uniq -d ) && \\
-    [ -z "\$dups" ] || { echo >&2 "Jars with identical content would end up in different layers"; exit 1; }
+# Replace the duplicated jars with hard links, and move the paths that are copied in layers of their own out of the
+# way, keeping their paths, into a directory per layer
+    /tmp/arrange-layers.sh <%= separateLayers.collect { '"' + it + '"' }.join(' \\\n        ') %>
 
 # The distribution includes a `config` directory, no need to create it
 COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
@@ -138,8 +119,7 @@ COPY --from=builder /bin/tini /bin/tini
 
 WORKDIR /usr/share/elasticsearch
 
-<% separateLayers.eachWithIndex { layer, i -> %>
-# Layer of its own: ${layer.name}
+<% separateLayers.indices.each { i -> %>
 COPY --from=builder --chown=0:0 /layers/${i} .
 <% } %>
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch .

@@ -11,6 +11,7 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -39,6 +40,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 
 public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final String NAME = "reindex";
@@ -100,15 +103,30 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        return List.of(
-            new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
-            new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
-            new BulkByPaginatedSearchSearchContextMetrics(services.telemetryProvider().getMeterRegistry()),
-            new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-            new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
-            new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment())),
-            new ReindexSettings(services.clusterService().getClusterSettings())
+        final List<Object> components = new ArrayList<>(
+            List.of(
+                new ReindexSslConfig(services.environment().settings(), services.environment(), services.resourceWatcherService()),
+                new ReindexMetrics(services.telemetryProvider().getMeterRegistry()),
+                new BulkByPaginatedSearchSearchContextMetrics(services.telemetryProvider().getMeterRegistry()),
+                new UpdateByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
+                new DeleteByQueryMetrics(services.telemetryProvider().getMeterRegistry()),
+                new PluginComponentBinding<>(ReindexRelocationNodePicker.class, getReindexRelocationNodePicker(services.environment())),
+                new ReindexSettings(services.clusterService().getClusterSettings())
+            )
         );
+        if (DiscoveryNode.canContainData(services.environment().settings())) {
+            // Only data nodes can hold the .tasks primary, so only they are eligible to run the cleanup.
+            components.add(
+                new TaskResultsCleanupService(
+                    services.clusterService(),
+                    services.projectResolver(),
+                    services.nodeEnvironment().nodeId(),
+                    services.threadPool(),
+                    new OriginSettingClient(services.client(), TASKS_ORIGIN)
+                )
+            );
+        }
+        return components;
     }
 
     @Override
@@ -118,6 +136,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         settings.add(TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST);
         settings.add(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING);
         settings.add(ReindexSettings.REINDEX_MEMORY_ACCOUNTING_THRESHOLD_SETTING);
+        settings.add(TaskResultsCleanupService.TASK_RESULTS_RETENTION_PERIOD_SETTING);
+        settings.add(TaskResultsCleanupService.TASK_RESULTS_CLEANUP_INTERVAL_SETTING);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }

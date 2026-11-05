@@ -35,7 +35,6 @@ import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
@@ -257,7 +256,6 @@ import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.tasks.TaskResultsCleanupService;
 import org.elasticsearch.telemetry.TelemetryLogResourceProvider;
 import org.elasticsearch.telemetry.TelemetryLoggingFilterProvider;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -304,7 +302,6 @@ import java.util.stream.Stream;
 import static java.lang.invoke.MethodHandles.lookup;
 import static java.util.Collections.newSetFromMap;
 import static java.util.function.Predicate.not;
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
@@ -1485,14 +1482,6 @@ class NodeConstruction {
         resourcesToClose.add(recoveryCancellationService);
         clusterModule.registerRecoveryDirectCancellationCallback(recoveryCancellationService::cancelUndesiredRecoveries);
 
-        final TaskResultsCleanupService taskResultsCleanupService = new TaskResultsCleanupService(
-            clusterService,
-            projectResolver,
-            nodeEnvironment.nodeId(),
-            threadPool,
-            new OriginSettingClient(client, TASKS_ORIGIN)
-        );
-
         modules.add(loadPluginComponents(pluginComponents));
 
         DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
@@ -1526,7 +1515,6 @@ class NodeConstruction {
             b.bind(MetadataIndexTemplateService.class).toInstance(metadataIndexTemplateService);
             b.bind(SearchService.class).toInstance(searchService);
             b.bind(SearchTaskWatchdog.class).toInstance(searchTaskWatchdog);
-            b.bind(TaskResultsCleanupService.class).toInstance(taskResultsCleanupService);
             b.bind(SearchResponseMetrics.class).toInstance(searchResponseMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));

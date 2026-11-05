@@ -7,29 +7,37 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.tasks;
+package org.elasticsearch.reindex;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskResult;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-
 /**
- * Checks that {@link TaskResultsCleanupService} removes task results whose completion time (start time plus running time) is older than
- * the retention period, and only those, including when there are more of them than fit in a single page.
+ * Checks that {@link TaskResultsCleanupService} removes task results whose task started longer ago than the retention period, and only
+ * those.
  */
 public class TaskResultsCleanupIT extends ESSingleNodeTestCase {
 
     private static final TimeValue RETENTION = TimeValue.timeValueHours(1);
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(ReindexPlugin.class);
+    }
 
     @Override
     protected Settings nodeSettings() {
@@ -41,50 +49,26 @@ public class TaskResultsCleanupIT extends ESSingleNodeTestCase {
             .build();
     }
 
-    public void testOnlyExpiredTaskResultsAreDeleted() throws Exception {
+    public void testResultsOfTasksStartedBeforeRetentionAreDeleted() throws Exception {
         final long now = System.currentTimeMillis();
 
-        // finished just now
+        // started and finished just now
         final TaskId recent = storeResult(1, now, TimeUnit.SECONDS.toNanos(1));
-        // started well before the retention cutoff, but only finished 30 minutes ago: a start time only check would wrongly delete it
-        final TaskId longRunning = storeResult(2, now - TimeUnit.MINUTES.toMillis(90), TimeUnit.MINUTES.toNanos(60));
-        // finished two hours ago
-        final TaskId expired = storeResult(3, now - TimeUnit.HOURS.toMillis(3), TimeUnit.HOURS.toNanos(1));
-        // started and finished long before the cutoff
-        final TaskId expiredShort = storeResult(4, now - TimeUnit.HOURS.toMillis(2), TimeUnit.SECONDS.toNanos(1));
+        // started 30 minutes ago and still within the retention period when it finished
+        final TaskId recentLongRunning = storeResult(2, now - TimeUnit.MINUTES.toMillis(30), TimeUnit.MINUTES.toNanos(5));
+        // started two hours ago
+        final TaskId expired = storeResult(3, now - TimeUnit.HOURS.toMillis(2), TimeUnit.SECONDS.toNanos(1));
+        // The retention period is measured from the start of the task, not from its end: this task finished only 30 minutes ago, but it
+        // started 90 minutes ago, so its result is deleted.
+        final TaskId startedBeforeRetention = storeResult(4, now - TimeUnit.MINUTES.toMillis(90), TimeUnit.MINUTES.toNanos(60));
 
         assertBusy(() -> {
             assertTaskResultMissing(expired);
-            assertTaskResultMissing(expiredShort);
+            assertTaskResultMissing(startedBeforeRetention);
         });
         // the cleanup has now covered every document, so the ones that must be retained are still there
         assertNotNull(clusterAdmin().prepareGetTask(recent).get().getTask());
-        assertNotNull(clusterAdmin().prepareGetTask(longRunning).get().getTask());
-    }
-
-    /**
-     * More expired results than one page, all with the same start time so that paging has to rely on the node and id tiebreakers, mixed
-     * with results that must survive.
-     */
-    public void testExpiredTaskResultsSpanningSeveralPagesAreDeleted() throws Exception {
-        final long now = System.currentTimeMillis();
-        final long expiredStart = now - TimeUnit.HOURS.toMillis(2);
-        final int expiredCount = TaskResultsCleanupService.PAGE_SIZE * 2 + 100;
-        final int retainedCount = 5;
-
-        for (int i = 0; i < expiredCount; i++) {
-            storeResult(i, expiredStart, TimeUnit.SECONDS.toNanos(1));
-        }
-        // started before the cutoff but finishing after it, so these are candidates that must be examined and kept
-        for (int i = 0; i < retainedCount; i++) {
-            storeResult(expiredCount + i, expiredStart, TimeUnit.MINUTES.toNanos(150));
-        }
-
-        final var tasksClient = new OriginSettingClient(client(), TASKS_ORIGIN);
-        assertBusy(() -> {
-            tasksClient.admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get();
-            assertHitCount(tasksClient.prepareSearch(TaskResultsService.TASK_INDEX).setSize(0).setTrackTotalHits(true), retainedCount);
-        });
+        assertNotNull(clusterAdmin().prepareGetTask(recentLongRunning).get().getTask());
     }
 
     private TaskId storeResult(long id, long startTimeMillis, long runningTimeNanos) {

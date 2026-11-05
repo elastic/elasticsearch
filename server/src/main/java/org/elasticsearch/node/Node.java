@@ -83,7 +83,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancellationService;
-import org.elasticsearch.tasks.TaskResultsCleanupService;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
@@ -253,7 +252,6 @@ public class Node implements Closeable {
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(SearchTaskWatchdog.class).start();
-        injector.getInstance(TaskResultsCleanupService.class).start();
         injector.getInstance(FsHealthService.class).start();
         injector.getInstance(NodeMetrics.class).start();
         injector.getInstance(IndicesMetrics.class).start();
@@ -459,7 +457,6 @@ public class Node implements Closeable {
         stopIfStarted(GatewayService.class);
         stopIfStarted(SearchService.class);
         stopIfStarted(SearchTaskWatchdog.class);
-        stopIfStarted(TaskResultsCleanupService.class);
         stopIfStarted(TransportService.class);
         stopIfStarted(NodeMetrics.class);
         stopIfStarted(IndicesMetrics.class);
@@ -535,7 +532,6 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("search"));
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(injector.getInstance(SearchTaskWatchdog.class));
-        toClose.add(injector.getInstance(TaskResultsCleanupService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(injector.getInstance(NodeMetrics.class));

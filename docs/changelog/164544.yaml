@@ -1,5 +1,6 @@
 area: ES|QL
-issues: []
+issues:
+ - 164812
 pr: 164544
 summary: Support ROW under LOAD_ALL
 type: enhancement

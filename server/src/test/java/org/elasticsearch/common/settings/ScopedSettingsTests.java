@@ -1510,4 +1510,20 @@ public class ScopedSettingsTests extends ESTestCase {
         indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ false);
     }
 
+    public void testUpdateRejectsSecureSettings() {
+        Setting<SecureString> secure = SecureSetting.secureString("foo.secure", null, Property.Dynamic);
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, Set.of(secure));
+        for (Settings toApply : List.of(
+            Settings.builder().put("foo.secure", "plaintext").build(),
+            Settings.builder().putNull("foo.secure").build()
+        )) {
+            Settings.Builder target = Settings.builder();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> settings.updateDynamicSettings(toApply, target, Settings.builder(), "persistent")
+            );
+            assertThat(e.getMessage(), equalTo("persistent setting [foo.secure] is a secure setting and cannot be stored as plain text"));
+            assertTrue(target.keys().isEmpty());
+        }
+    }
 }

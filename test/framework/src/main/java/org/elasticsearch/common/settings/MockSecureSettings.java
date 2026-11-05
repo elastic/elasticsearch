@@ -66,7 +66,12 @@ public class MockSecureSettings implements SecureSettings {
     @Override
     public InputStream getFile(String setting) {
         ensureOpen();
-        return new ByteArrayInputStream(files.get(setting));
+        final byte[] file = files.get(setting);
+        if (file != null) {
+            return new ByteArrayInputStream(file);
+        }
+        final String s = secureStrings.get(setting);
+        return s == null ? null : new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8));
     }
 
     @Override

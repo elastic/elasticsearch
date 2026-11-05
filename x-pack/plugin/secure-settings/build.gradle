@@ -3,14 +3,17 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
     name = 'secure-settings'
-    description = 'Secure Settings module for stateless Elasticsearch'
+    description = 'Secure settings stored in cluster state'
     classname = 'org.elasticsearch.xpack.stateless.settings.secure.SecureSettingsPlugin'
-    extendedPlugins = ['x-pack-core']
+    extendedPlugins = ['x-pack-core', 'x-pack-encryption']
 }
 
 dependencies {
     compileOnly project(':x-pack:plugin:core')
+    compileOnly project(':x-pack:plugin:encryption:spi')
     testImplementation testArtifact(project(':server'))
     testImplementation project(':test:framework')
     testImplementation project(':x-pack:plugin:core')
+    testImplementation project(':x-pack:plugin:encryption:spi')
+    internalClusterTestImplementation project(xpackModule('encryption'))
 }

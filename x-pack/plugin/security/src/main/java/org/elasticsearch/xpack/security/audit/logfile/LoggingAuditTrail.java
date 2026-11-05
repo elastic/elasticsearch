@@ -15,6 +15,8 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.filter.MarkerFilter;
 import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.admin.cluster.settings.UpdateSecureSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.UpdateSecureSettingsRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -374,7 +376,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME,
         EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME,
         EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME,
-        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME
+        EsqlDataSourceActionNames.ESQL_DELETE_DATA_SOURCE_ACTION_NAME,
+        UpdateSecureSettingsAction.NAME
     );
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
@@ -903,6 +906,14 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof final UpdateCrossClusterApiKeyRequest updateCrossClusterApiKeyRequest) {
                     assert UpdateCrossClusterApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId, authentication, ctx).withRequestBody(updateCrossClusterApiKeyRequest).build();
+                } else if (msg instanceof final UpdateSecureSettingsRequest updateSecureSettingsRequest) {
+                    assert UpdateSecureSettingsAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId, authentication, ctx).withSecurityConfigChange(
+                        "update_secure_settings",
+                        PUT_CONFIG_FIELD_NAME,
+                        "secure_settings",
+                        secureSettingsAuditFields(updateSecureSettingsRequest)
+                    ).build();
                 } else if (msg instanceof SecurityConfigChangeRequest change) {
                     switch (action) {
                         case EsqlDataSourceActionNames.ESQL_PUT_DATA_SOURCE_ACTION_NAME -> securityChangeLogEntryBuilder(
@@ -1281,6 +1292,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     public int maxRequestBodyBytes() {
         return maxRequestBodyBytes;
+    }
+
+    /**
+     * Names only: the request holds plain text values, which must never reach the audit log.
+     */
+    private static Map<String, Object> secureSettingsAuditFields(UpdateSecureSettingsRequest request) {
+        List<String> set = new ArrayList<>();
+        List<String> removed = new ArrayList<>();
+        request.settings().forEach((name, value) -> (value == null ? removed : set).add(name));
+        return Map.of("set", set, "remove", removed);
     }
 
     private LogEntryBuilder securityChangeLogEntryBuilder(

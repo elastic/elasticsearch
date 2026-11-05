@@ -28,6 +28,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
+import org.elasticsearch.plugins.internal.SecureSettingsReloadPlugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -52,6 +53,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
 
     private final Environment environment;
     private final PluginsService pluginsService;
+    private final SecureSettingsReloadPlugin reloadHandler;
 
     @Inject
     public TransportNodesReloadSecureSettingsAction(
@@ -72,6 +74,11 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         );
         this.environment = environment;
         this.pluginsService = pluginService;
+        List<SecureSettingsReloadPlugin> reloadHandlers = pluginService.filterPlugins(SecureSettingsReloadPlugin.class).toList();
+        if (reloadHandlers.size() > 1) {
+            throw new IllegalStateException("only one plugin may implement SecureSettingsReloadPlugin, found " + reloadHandlers);
+        }
+        this.reloadHandler = reloadHandlers.isEmpty() ? null : reloadHandlers.getFirst();
     }
 
     @Override
@@ -130,18 +137,11 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
             final Settings settingsWithKeystore = Settings.builder().put(environment.settings(), false).setSecureSettings(keystore).build();
             clusterService.getClusterSettings().validate(settingsWithKeystore, true);
 
-            final List<Exception> exceptions = new ArrayList<>();
-            // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
-            pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {
-                logger.debug("Reloading plugin [" + p.getClass().getSimpleName() + "]");
-                try {
-                    p.reload(settingsWithKeystore);
-                } catch (final Exception e) {
-                    logger.warn(() -> "Reload failed for plugin [" + p.getClass().getSimpleName() + "]", e);
-                    exceptions.add(e);
-                }
-            });
-            ExceptionsHelper.rethrowAndSuppress(exceptions);
+            if (reloadHandler == null) {
+                reloadPlugins(settingsWithKeystore);
+            } else {
+                reloadHandler.reloadWithKeystore(keystore, this::reloadPlugins);
+            }
             Path keystorePath = KeyStoreWrapper.keystorePath(environment.configDir());
             return new NodesReloadSecureSettingsResponse.NodeResponse(
                 clusterService.localNode(),
@@ -154,6 +154,21 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         } catch (final Exception e) {
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e, null, null, null, null);
         }
+    }
+
+    private void reloadPlugins(Settings settings) throws Exception {
+        final List<Exception> exceptions = new ArrayList<>();
+        // broadcast the new settings object (with the open embedded keystore) to all reloadable plugins
+        pluginsService.filterPlugins(ReloadablePlugin.class).forEach(p -> {
+            logger.debug("Reloading plugin [" + p.getClass().getSimpleName() + "]");
+            try {
+                p.reload(settings);
+            } catch (final Exception e) {
+                logger.warn(() -> "Reload failed for plugin [" + p.getClass().getSimpleName() + "]", e);
+                exceptions.add(e);
+            }
+        });
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
     private static Long failsafeLastModifiedTime(Path path) {

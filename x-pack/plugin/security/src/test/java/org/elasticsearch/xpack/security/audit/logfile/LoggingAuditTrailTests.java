@@ -14,6 +14,8 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.cluster.settings.UpdateSecureSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.UpdateSecureSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -1102,6 +1104,29 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "invalidate_apikeys");
         checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedInvalidateKeyAuditEventString, checkedFields);
+    }
+
+    public void testSecurityConfigChangeEventForSecureSettingsOmitsValues() {
+        final String requestId = randomRequestId();
+        final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { "role" });
+        final String secret = randomAlphaOfLength(20);
+        final Map<String, SecureString> settings = new HashMap<>();
+        settings.put("s3.client.default.secret_key", new SecureString(secret.toCharArray()));
+        settings.put("s3.client.default.access_key", null);
+        final UpdateSecureSettingsRequest request = new UpdateSecureSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, settings);
+
+        auditTrail.accessGranted(requestId, createAuthentication(), UpdateSecureSettingsAction.NAME, request, authorizationInfo);
+
+        List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String event = output.get(1);
+        assertThat(event, containsString("\"" + LoggingAuditTrail.EVENT_TYPE_FIELD_NAME + "\":\"security_config_change\""));
+        assertThat(event, containsString("\"" + LoggingAuditTrail.EVENT_ACTION_FIELD_NAME + "\":\"update_secure_settings\""));
+        assertThat(event, containsString("\"set\":[\"s3.client.default.secret_key\"]"));
+        assertThat(event, containsString("\"remove\":[\"s3.client.default.access_key\"]"));
+        for (String line : output) {
+            assertThat(line, not(containsString(secret)));
+        }
     }
 
     public void testSecurityConfigChangeEventFormattingForApplicationPrivileges() throws IOException {

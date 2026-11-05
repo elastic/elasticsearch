@@ -33,7 +33,9 @@ public abstract class SecureSetting<T> extends Setting<T> {
     private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(
         Property.Deprecated,
         Property.DeprecatedWarning,
-        Property.Consistent
+        Property.Consistent,
+        Property.Dynamic,
+        Property.OperatorDynamic
     );
 
     private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };

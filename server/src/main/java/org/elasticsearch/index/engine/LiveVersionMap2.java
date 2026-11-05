@@ -45,11 +45,13 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
 
     private static class Generation {
         private final ConcurrentMap<BytesRef, VersionValue> versions;
+        private final AtomicLong minDeleteTimestamp;
 
         private volatile boolean unsafe;
 
         Generation(int initialCapacity, boolean unsafe) {
             this.versions = initialCapacity < 0 ? new ConcurrentHashMap<>() : new ConcurrentHashMap<>(initialCapacity);
+            this.minDeleteTimestamp = new AtomicLong(Long.MAX_VALUE);
             this.unsafe = unsafe;
         }
     }
@@ -86,18 +88,6 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
         // or we'll read `null` because of the refresh which is also correct.
         var state = this.state;
         return readVersion(state, uid);
-
-        // long stamp;
-        // VersionValue result;
-        // do {
-        // // Optimistically read from the current version of state.
-        // // It is possible that a refresh invalidates this state which we'll see in validate(stamp) below, but we can just retry.
-        // stamp = stateLock.tryOptimisticRead();
-        // var state = this.state;
-        // result = readVersion(state, uid);
-        // } while (stateLock.validate(stamp) == false);
-        //
-        // return result;
     }
 
     private VersionValue readVersion(LiveVersionMap2.State state, BytesRef uid) {
@@ -231,8 +221,8 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
         // TODO does this order matter? Document if so, probably not
         putTombstone(uid, version);
 
-        // We need to remove this document from both the current and previous maps.
-        // Otherwise, we can read a stale version from a previous map.
+        // We need to remove this document from both the current and previous generations.
+        // Otherwise, we can read a stale version from a previous generation since we check state before checking tombstones.
         long stamp;
         do {
             stamp = stateLock.tryOptimisticRead();
@@ -241,6 +231,7 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
             /// This can run concurrently with the move of `current` to `previous` in [beforeRefresh()];
             /// It's okay since we were going to remove the version from `previous` anyway below.
             state.current.versions.remove(uid);
+            state.current.minDeleteTimestamp.accumulateAndGet(version.time, Math::min);
 
             /// Again, `state.previous` can point to a previous `state` instance.
             /// We need to remove the version from all previous generations anyway, and we'll retry
@@ -258,12 +249,69 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
     }
 
     void removeTombstoneUnderLock(BytesRef uid) {
+        assert assertKeyedLockHeldByCurrentThread(uid);
         // TODO memory accounting, asserts
         tombstones.remove(uid);
     }
 
-    void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
+    private boolean canRemoveTombstone(
+        long maxTimestampToPrune,
+        long maxSeqNoToPrune,
+        long mapMinDeleteTimestamp,
+        DeleteVersionValue versionValue
+    ) {
+        // check if the value is old enough and safe to be removed
+        final boolean isTooOld = versionValue.time < maxTimestampToPrune;
+        final boolean isSafeToPrune = versionValue.seqNo <= maxSeqNoToPrune;
+        // version value can't be removed it's
+        // not yet flushed to lucene i.e. it's part of this current maps object
+        final boolean isNotTrackedByCurrentMaps = versionValue.time < mapMinDeleteTimestamp;
+        // TODO stateful only implementation
+        final boolean isNotTrackedByArchive = true;
+        return isTooOld && isSafeToPrune && isNotTrackedByCurrentMaps && isNotTrackedByArchive;
+    }
 
+    /**
+     * Try to prune tombstones whose timestamp is less than maxTimestampToPrune and seqno at most the maxSeqNoToPrune.
+     */
+    void pruneTombstones(long maxTimestampToPrune, long maxSeqNoToPrune) {
+        long mapMinDeleteTimestamp = getMinDeleteTimestamp();
+
+        for (Map.Entry<BytesRef, DeleteVersionValue> entry : tombstones.entrySet()) {
+            // we do check before we actually lock the key - this way we don't need to acquire the lock for tombstones that are not
+            // prune-able. If the tombstone changes concurrently we will re-read and step out below since if we can't collect it now w
+            // we won't collect the tombstone below since it must be newer than this one.
+            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, mapMinDeleteTimestamp, entry.getValue())) {
+                final BytesRef uid = entry.getKey();
+                try (Releasable lock = keyedLock.tryAcquire(uid)) {
+                    // we use tryAcquire here since this is a best effort and we try to be least disruptive
+                    // this method is also called under lock in the engine under certain situations such that this can lead to deadlocks
+                    // if we do use a blocking acquire. see #28714
+                    if (lock != null) { // did we get the lock?
+                        // Must re-get it here, vs using entry.getValue(), in case the uid was indexed/deleted since we pulled the iterator:
+                        final DeleteVersionValue versionValue = tombstones.get(uid);
+                        if (versionValue != null) {
+                            if (canRemoveTombstone(maxTimestampToPrune, maxSeqNoToPrune, mapMinDeleteTimestamp, versionValue)) {
+                                removeTombstoneUnderLock(uid);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// It's fine if this returns slightly stale information, since the returned value can only be smaller or equal than the real one.
+    /// `isNotTrackedByCurrentMaps` check than compares a delete timestamp (grows with time) against the returned value, which is
+    /// smaller than "reality".
+    /// This leads to some tombstones staying live but the next pruning round will catch them.
+    private long getMinDeleteTimestamp() {
+        var state = this.state;
+        long minDeleteTimestamp = state.current.minDeleteTimestamp.get();
+        for (var generation : state.previous) {
+            minDeleteTimestamp = Math.min(minDeleteTimestamp, generation.minDeleteTimestamp.get());
+        }
+        return minDeleteTimestamp;
     }
 
     void clear() {
@@ -312,14 +360,19 @@ public class LiveVersionMap2 implements ReferenceManager.RefreshListener, Accoun
         // We know now that the last generation was refreshed.
         // It can be dropped if the retention implementation agrees.
 
-        // TODO can we be clever here with this lock somehow?
-        long stamp = stateLock.writeLock();
-        var state = this.state;
-
         // TODO stateful only logic
-        this.state = new State(state.current, new LinkedList<>());
 
-        stateLock.unlockWrite(stamp);
+        /// This is safe because we keep the same reference to `current` that reads/writes use.
+        /// `current` can't change here since it is only modified by `beforeRefresh()` which will only happen again in the next refresh.
+        ///
+        /// The only modifications to `previous` are removals during deletes and those do not matter
+        /// since we are dropping the generation anyway.
+        /// Version reads from stale `previous` are fine due to a per-document lock.
+        /// Unsafe flag reads from stale `previous` are fine because refreshes done in response to it being `true` are synchronized
+        /// and the callers will see the results of both `beforeRefresh()` and `afterRefresh()` at the same time.
+        /// Stale reads of `getMinDeleteTimestamp` are fine as described in [getMinDeleteTimestamp()].
+        var newState = new State(this.state.current, new LinkedList<>());
+        this.state = newState;
     }
 
     @Override

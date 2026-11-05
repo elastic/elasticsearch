@@ -249,13 +249,15 @@ public abstract class TransportBroadcastByNodeAction<
 
         final var globalBlockException = checkGlobalBlock(clusterState, request);
         if (globalBlockException != null) {
-            throw globalBlockException;
+            listener.onFailure(globalBlockException);
+            return;
         }
 
         final var concreteIndices = resolveConcreteIndexNames(clusterState, request);
         final var requestBlockException = checkRequestBlock(clusterState, request, concreteIndices);
         if (requestBlockException != null) {
-            throw requestBlockException;
+            listener.onFailure(requestBlockException);
+            return;
         }
 
         logger.trace(() -> format("resolving shards for [%s] based on cluster state version [%s]", actionName, clusterState.version()));

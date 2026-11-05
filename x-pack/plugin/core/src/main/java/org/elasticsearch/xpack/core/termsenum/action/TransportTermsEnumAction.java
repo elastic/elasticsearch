@@ -168,7 +168,12 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
     @Override
     protected void doExecute(Task task, TermsEnumRequest request, ActionListener<TermsEnumResponse> listener) {
         if (ccsCheckCompatibility) {
-            checkCCSVersionCompatibility(request);
+            try {
+                checkCCSVersionCompatibility(request);
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
+            }
         }
         // log any errors that occur in a successful partial results scenario
         ActionListener<TermsEnumResponse> loggingListener = listener.delegateFailureAndWrap((l, termsEnumResponse) -> {
@@ -186,7 +191,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             }
             l.onResponse(termsEnumResponse);
         });
-        new AsyncBroadcastAction(task, request, loggingListener).start();
+        // Construction throws on cluster blocks; convert to listener failure for direct doExecute callers.
+        ActionListener.run(loggingListener, l -> new AsyncBroadcastAction(task, request, l).start());
     }
 
     protected static NodeTermsEnumRequest newNodeRequest(

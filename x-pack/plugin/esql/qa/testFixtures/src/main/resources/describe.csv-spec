@@ -1,4 +1,4 @@
-// DESCRIBE: one row per input column with what the mappings say about it and how to use it.
+// DESCRIBE: one row per input column with what the mappings say about it.
 
 describeRoles
 required_capability: describe_command
@@ -21,35 +21,22 @@ network.eth0.rx        | integer       | metric       | mapped         | gauge  
 network.total_bytes_in | counter_long  | metric       | mapped         | counter             | bytes        | true               | true
 ;
 
-describeMetricsUsageUnderTs
+describeMetricsUnderTs
 required_capability: describe_command
 
 TS k8s
 | DESCRIBE
 | WHERE role == "metric"
-| KEEP name, metric_type, unit, usage
+| KEEP name, metric_type, unit
 | SORT name
 ;
 
-name:keyword            | metric_type:keyword | unit:keyword | usage:keyword
-network.eth0.rx         | gauge               | packets      | STATS AVG(LAST_OVER_TIME(<field>)) or MAX(MAX_OVER_TIME(<field>)); never SUM over time
-network.eth0.tx         | gauge               | packets      | STATS AVG(LAST_OVER_TIME(<field>)) or MAX(MAX_OVER_TIME(<field>)); never SUM over time
-network.total_bytes_in  | counter             | bytes        | STATS SUM(RATE(<field>)) or SUM(INCREASE(<field>)); never SUM over time
-network.total_bytes_out | counter             | bytes        | STATS SUM(RATE(<field>)) or SUM(INCREASE(<field>)); never SUM over time
-network.total_cost      | counter             | usd          | STATS SUM(RATE(<field>)) or SUM(INCREASE(<field>)); never SUM over time
-;
-
-describeCounterUsageWithoutTs
-required_capability: describe_command
-
-FROM k8s
-| DESCRIBE
-| WHERE name == "network.total_cost"
-| KEEP name, usage
-;
-
-name:keyword       | usage:keyword
-network.total_cost | use TS, then RATE(<field>) or INCREASE(<field>); raw values are cumulative
+name:keyword            | metric_type:keyword | unit:keyword
+network.eth0.rx         | gauge               | packets
+network.eth0.tx         | gauge               | packets
+network.total_bytes_in  | counter             | bytes
+network.total_bytes_out | counter             | bytes
+network.total_cost      | counter             | usd
 ;
 
 describeRolesSummary
@@ -79,14 +66,14 @@ FROM employees
 | RENAME salary AS pay
 | EVAL bonus = pay * 2
 | DESCRIBE
-| KEEP name, type, field, origin, role, usage
+| KEEP name, type, field, origin, role
 ;
 
-name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword | usage:keyword
-emp_no       | integer      | emp_no        | mapped         | numeric      | null
-pay          | integer      | salary        | renamed        | numeric      | null
-first_name   | keyword      | first_name    | mapped         | attribute    | null
-bonus        | integer      | null          | computed       | null         | null
+name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword
+emp_no       | integer      | emp_no        | mapped         | numeric
+pay          | integer      | salary        | renamed        | numeric
+first_name   | keyword      | first_name    | mapped         | attribute
+bonus        | integer      | null          | computed       | null
 ;
 
 describeAfterStats
@@ -97,14 +84,14 @@ TS k8s
 | STATS rate = SUM(RATE(network.total_bytes_in)) BY cluster, bucket = TBUCKET(1 hour)
 | EVAL kib_rate = rate / 1024
 | DESCRIBE
-| KEEP name, type, origin, role, metric_type, usage
+| KEEP name, type, origin, role, metric_type
 ;
 
-name:keyword | type:keyword | origin:keyword | role:keyword | metric_type:keyword | usage:keyword
-rate         | double       | computed       | null         | null                | null
-cluster      | keyword      | mapped         | dimension    | null                | BY <field>; WHERE <field> == <value>; identifies a time series
-bucket       | date         | computed       | null         | null                | null
-kib_rate     | double       | computed       | null         | null                | null
+name:keyword | type:keyword | origin:keyword | role:keyword | metric_type:keyword
+rate         | double       | computed       | null         | null
+cluster      | keyword      | mapped         | dimension    | null
+bucket       | date         | computed       | null         | null
+kib_rate     | double       | computed       | null         | null
 ;
 
 describeRolesAfterStats
@@ -114,13 +101,13 @@ skip_flattened_rewrite: describe_sees_rewritten_field_as_computed
 FROM employees
 | STATS avg_salary = AVG(salary), hires = COUNT(*) BY gender
 | DESCRIBE
-| KEEP name, origin, role, usage
+| KEEP name, origin, role
 ;
 
-name:keyword | origin:keyword | role:keyword | usage:keyword
-avg_salary   | computed       | null         | null
-hires        | computed       | null         | null
-gender       | mapped         | attribute    | null
+name:keyword | origin:keyword | role:keyword
+avg_salary   | computed       | null
+hires        | computed       | null
+gender       | mapped         | attribute
 ;
 
 describeUnitsThroughRename
@@ -156,21 +143,4 @@ fields:long | role:keyword | metric_type:keyword
 2           | other        | null
 1           | text         | null
 1           | time         | null
-;
-
-describeUsageOverview
-required_capability: describe_command
-
-TS k8s
-| DESCRIBE
-| WHERE role IN ("metric", "dimension", "time")
-| STATS fields = COUNT(*) BY role, metric_type, usage
-| SORT role, metric_type
-;
-
-fields:long | role:keyword | metric_type:keyword | usage:keyword
-3           | dimension    | null                | BY <field>; WHERE <field> == <value>; identifies a time series
-3           | metric       | counter             | STATS SUM(RATE(<field>)) or SUM(INCREASE(<field>)); never SUM over time
-2           | metric       | gauge               | STATS AVG(LAST_OVER_TIME(<field>)) or MAX(MAX_OVER_TIME(<field>)); never SUM over time
-1           | time         | null                | BY TBUCKET(<field>, <interval>)
 ;

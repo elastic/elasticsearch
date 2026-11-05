@@ -36,7 +36,7 @@ import java.util.Map;
 
 /**
  * {@code DESCRIBE} returns one row per column of its input: what the column is, where it comes from,
- * what the mappings say about it, and how to use it in ES|QL.
+ * and what the mappings say about it.
  * <p>
  * It is resolved during analysis into a {@link LocalRelation} and reads no data, so it costs a field
  * caps call and works after any command. Unlike {@code LIMIT 0}, the result is a table that the rest of
@@ -55,14 +55,10 @@ public class Describe extends UnaryPlan implements TelemetryAware {
         new Column("unit", DataType.KEYWORD),
         new Column("description", DataType.KEYWORD),
         new Column("searchable", DataType.BOOLEAN),
-        new Column("aggregatable", DataType.BOOLEAN),
-        new Column("usage", DataType.KEYWORD)
+        new Column("aggregatable", DataType.BOOLEAN)
     );
 
     private record Column(String name, DataType type) {}
-
-    /** Stands for the column in a {@code usage} hint. */
-    static final String FIELD_PLACEHOLDER = "<field>";
 
     private final List<Attribute> output;
 
@@ -107,9 +103,6 @@ public class Describe extends UnaryPlan implements TelemetryAware {
      * @param datasetColumns the dataset columns the child's columns read, keyed by attribute id
      */
     public LocalRelation describe(Map<NameId, FieldSemantics> semantics, Map<NameId, Attribute> datasetColumns) {
-        // The output of a STATS is a table of answers, not a time series to aggregate per series again.
-        boolean timeSeries = child().anyMatch(p -> p instanceof EsRelation r && r.indexMode().isTsdb())
-            && child().anyMatch(p -> p instanceof Aggregate) == false;
         List<Attribute> columns = child().output().stream().filter(a -> a.synthetic() == false).toList();
         ElementType[] elementTypes = new ElementType[COLUMNS.size()];
         Block.Builder[] builders = new Block.Builder[COLUMNS.size()];
@@ -133,8 +126,7 @@ public class Describe extends UnaryPlan implements TelemetryAware {
                     field == null ? null : field.unit(),
                     field == null ? null : field.description(),
                     field == null ? null : field.searchable(),
-                    field == null ? null : field.aggregatable(),
-                    usage(role, metricType, timeSeries) };
+                    field == null ? null : field.aggregatable() };
                 for (int i = 0; i < row.length; i++) {
                     Object value = row[i] instanceof String s ? new BytesRef(s) : row[i];
                     BlockUtils.appendValue(builders[i], value, elementTypes[i]);
@@ -168,52 +160,6 @@ public class Describe extends UnaryPlan implements TelemetryAware {
 
     private static boolean isMetadata(Attribute column) {
         return column instanceof MetadataAttribute || column instanceof ExternalMetadataAttribute;
-    }
-
-    /**
-     * How to use the column in ES|QL. This is the part of the output an agent acts on: it names the functions that are
-     * correct for the column, not just what it is. There is a hint only when the mapping declares the role (a dimension,
-     * a counter or a gauge, and the time of a time series) or the type settles it (text, vectors, metadata); a role
-     * inferred from the type alone, such as a number that may be a measure or an identifier, gets none.
-     * <p>
-     * The hint names the column {@value #FIELD_PLACEHOLDER} rather than by its name, so it is the same for every
-     * column of a kind and {@code DESCRIBE | STATS COUNT(*) BY role, metric_type, usage} summarizes how to query
-     * a whole index in a few rows.
-     */
-    @Nullable
-    static String usage(@Nullable FieldSemantics.Role role, @Nullable String metricType, boolean timeSeries) {
-        String name = FIELD_PLACEHOLDER;
-        if (role != null) {
-            switch (role) {
-                case TIME:
-                    return timeSeries ? "BY TBUCKET(" + name + ", <interval>)" : null;
-                case DIMENSION:
-                    return "BY " + name + "; WHERE " + name + " == <value>; identifies a time series";
-                case METRIC:
-                    if ("counter".equals(metricType)) {
-                        return timeSeries
-                            ? "STATS SUM(RATE(" + name + ")) or SUM(INCREASE(" + name + ")); never SUM over time"
-                            : "use TS, then RATE(" + name + ") or INCREASE(" + name + "); raw values are cumulative";
-                    }
-                    if ("gauge".equals(metricType)) {
-                        return timeSeries
-                            ? "STATS AVG(LAST_OVER_TIME(" + name + ")) or MAX(MAX_OVER_TIME(" + name + ")); never SUM over time"
-                            : "STATS AVG(" + name + "), MIN, MAX; do not SUM across time";
-                    }
-                    return null;
-                case TEXT:
-                    return "WHERE MATCH(" + name + ", \"<text>\"); not groupable";
-                case SEMANTIC:
-                    return "WHERE MATCH(" + name + ", \"<natural language>\")";
-                case VECTOR:
-                    return "WHERE KNN(" + name + ", <vector>)";
-                case METADATA:
-                    return "FROM <index> METADATA " + name;
-                case ATTRIBUTE, NUMERIC, OTHER, MIXED:
-                    return null;
-            }
-        }
-        return null;
     }
 
     @Override

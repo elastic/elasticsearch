@@ -11,13 +11,13 @@ FROM employees_no_mv
 | RENAME salary AS pay
 | EVAL double_pay = pay * 2
 | DESCRIBE
-| KEEP name, type, field, origin, role, searchable, aggregatable, usage;
+| KEEP name, type, field, origin, role, searchable, aggregatable;
 
-name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword | searchable:boolean | aggregatable:boolean | usage:keyword
-emp_no       | integer      | emp_no        | dataset        | null         | null               | null                 | null
-first_name   | keyword      | first_name    | dataset        | null         | null               | null                 | null
-pay          | integer      | salary        | renamed        | null         | null               | null                 | null
-double_pay   | integer      | null          | computed       | null         | null               | null                 | null
+name:keyword | type:keyword | field:keyword | origin:keyword | role:keyword | searchable:boolean | aggregatable:boolean
+emp_no       | integer      | emp_no        | dataset        | null         | null               | null
+first_name   | keyword      | first_name    | dataset        | null         | null               | null
+pay          | integer      | salary        | renamed        | null         | null               | null
+double_pay   | integer      | null          | computed       | null         | null               | null
 ;
 
 describeDatasetFileMetadata

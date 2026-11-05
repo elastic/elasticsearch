@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 158772
-summary: "ES|QL|DS: Widen LONG + DOUBLE to double across files"
+summary: Widen LONG + DOUBLE to double across files
 type: bug

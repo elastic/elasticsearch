@@ -667,7 +667,16 @@ public class PlannerUtils {
                 planTimeProfile.addPhysicalOptimizationPlanTime(System.nanoTime() - physicalStartNanos);
             }
 
-            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
+            PhysicalPlan estimated = EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
+            Integer topCountLimit = f.topCountLimit();
+            if (topCountLimit != null) {
+                // The coordinator found a SORT count DESC | LIMIT N above this aggregation. Hand N to the partial aggregation.
+                estimated = estimated.transformUp(
+                    AggregateExec.class,
+                    aggregate -> aggregate.getMode() == AggregatorMode.INITIAL ? aggregate.withTopCountLimit(topCountLimit) : aggregate
+                );
+            }
+            return estimated;
         });
 
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;

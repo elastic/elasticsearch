@@ -344,6 +344,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.script.field;
     exports org.elasticsearch.script.field.vectors;
     exports org.elasticsearch.search;
+    exports org.elasticsearch.search.scheduling;
     exports org.elasticsearch.search.aggregations;
     exports org.elasticsearch.search.aggregations.bucket;
     exports org.elasticsearch.search.aggregations.bucket.composite;

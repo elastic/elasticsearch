@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.index;
 
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 
 import java.util.List;
 import java.util.Locale;
@@ -115,7 +116,7 @@ public record FieldSemantics(
             return Role.SEMANTIC;
         }
         return switch (fc.type()) {
-            case "date", "date_nanos" -> "@timestamp".equals(field) ? Role.TIME : Role.ATTRIBUTE;
+            case "date", "date_nanos" -> MetadataAttribute.TIMESTAMP_FIELD.equals(field) ? Role.TIME : Role.ATTRIBUTE;
             case "keyword", "constant_keyword", "wildcard", "ip", "boolean", "version", "geo_point", "geo_shape" -> Role.ATTRIBUTE;
             case "long", "integer", "short", "byte", "double", "float", "half_float", "scaled_float", "unsigned_long",
                 "aggregate_metric_double", "histogram", "exponential_histogram" -> Role.NUMERIC;

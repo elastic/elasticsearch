@@ -136,6 +136,18 @@ public class LookupJoinParserTests extends AbstractStatementParserTests {
         assertThat(join.config().type(), equalTo(JoinTypes.INNER));
     }
 
+    public void testBareIndexTargetIsShorthandForFromSubquery() {
+        assumeTrue("requires JOIN subquery capability", EsqlCapabilities.Cap.JOIN_ON_SUBQUERY.isEnabled());
+
+        for (String join : List.of("LEFT OUTER JOIN", "INNER JOIN")) {
+            var bare = as(query("FROM main | " + join + " sub ON key"), SubqueryLookupJoin.class);
+            var subquery = as(query("FROM main | " + join + " (FROM sub) ON key"), SubqueryLookupJoin.class);
+            assertThat(bare.config().type(), equalTo(subquery.config().type()));
+            assertThat(bare.right(), equalTo(subquery.right()));
+            assertThat(as(bare.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo("sub"));
+        }
+    }
+
     public void testSubqueryTargetRejectsExpressionOn() {
         expectError(
             "FROM main | LEFT OUTER JOIN (FROM sub) ON left_key == right_key",

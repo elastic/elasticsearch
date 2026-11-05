@@ -1281,10 +1281,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var condition = ctx.joinCondition();
         rejectExpressionBasedOn(condition, "JOIN on a subquery only supports a list of fields in ON");
-        LogicalPlan subquery = visitSubquery(ctx.subquery());
+        LogicalPlan subquery = visitJoinSubqueryTarget(ctx.joinSubqueryTarget());
         var joinInfo = typedParsing(this, condition, JoinInfo.class);
         var joinType = ctx.type.getType() == EsqlBaseParser.DEV_JOIN_LEFT ? JoinTypes.LEFT : JoinTypes.INNER;
         return p -> new SubqueryLookupJoin(source, p, subquery, joinType, joinInfo.joinFields());
+    }
+
+    @Override
+    public LogicalPlan visitJoinSubqueryTarget(EsqlBaseParser.JoinSubqueryTargetContext ctx) {
+        if (ctx.subquery() != null) {
+            return visitSubquery(ctx.subquery());
+        }
+        Source source = source(ctx);
+        IndexPattern table = new IndexPattern(source, visitIndexPattern(List.of(ctx.indexPattern())));
+        return new UnresolvedRelation(source, table, false, emptyList(), null, SourceCommand.FROM);
     }
 
     private void rejectExpressionBasedOn(EsqlBaseParser.JoinConditionContext condition, String errorMessage) {

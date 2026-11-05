@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 164687
+pr: 164700
+summary: Free reader contexts of cancelled query and DFS requests
+type: bug

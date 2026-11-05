@@ -838,27 +838,28 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 var pitBuilder = searchRequest.pointInTimeBuilder();
                 var shardToQuery = nodeQueryRequest.shards.get(dataNodeLocalIdx);
                 final var shardId = shardToQuery.shardId;
+                final ShardSearchRequest shardRequest = buildShardSearchRequest(
+                    shardId,
+                    nodeQueryRequest.localClusterAlias,
+                    shardToQuery.shardIndex,
+                    shardToQuery.contextId,
+                    new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
+                    nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+                    pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+                    shardToQuery.boost,
+                    searchRequest,
+                    nodeQueryRequest.totalShards,
+                    nodeQueryRequest.absoluteStartMillis,
+                    state.hasResponse.getAcquire(),
+                    shardToQuery.splitShardCountSummary,
+                    nodeQueryRequest.enableShardResultsSkipRequest
+                );
+                // The coordinating node cancels the node-level request if it drops the response, so the contexts the shards open
+                // belong to that request.
+                shardRequest.setParentTask(nodeQueryRequest.getParentTask());
+                shardRequest.setRequestId(nodeQueryRequest.getRequestId());
                 state.dependencies.searchService.executeQueryPhase(
-                    tryRewriteWithUpdatedSortValue(
-                        state.bottomSortCollector,
-                        state.trackTotalHitsUpTo,
-                        buildShardSearchRequest(
-                            shardId,
-                            nodeQueryRequest.localClusterAlias,
-                            shardToQuery.shardIndex,
-                            shardToQuery.contextId,
-                            new OriginalIndices(shardToQuery.originalIndices, nodeQueryRequest.indicesOptions()),
-                            nodeQueryRequest.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
-                            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
-                            shardToQuery.boost,
-                            searchRequest,
-                            nodeQueryRequest.totalShards,
-                            nodeQueryRequest.absoluteStartMillis,
-                            state.hasResponse.getAcquire(),
-                            shardToQuery.splitShardCountSummary,
-                            nodeQueryRequest.enableShardResultsSkipRequest
-                        )
-                    ),
+                    tryRewriteWithUpdatedSortValue(state.bottomSortCollector, state.trackTotalHitsUpTo, shardRequest),
                     state.task,
                     new SearchActionListener<>(
                         new SearchShardTarget(null, shardToQuery.shardId, nodeQueryRequest.localClusterAlias),

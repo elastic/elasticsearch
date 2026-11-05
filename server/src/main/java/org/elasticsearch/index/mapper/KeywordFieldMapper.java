@@ -143,6 +143,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
+    /** PROTOTYPE, not for main: the setting of the dv-format-parquet plugin that marks an index as backed by Parquet files. */
+    private static final String PARQUET_BACKED_INDEX_SETTING = "index.parquet.repository";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -423,6 +425,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return KeywordFieldType.DocValuesDiskFormat.SORTED_SET;
             }
             if (ColumnarDocValuesFormatSelector.useColumnarCodec(indexSettings)) {
+                if (docValuesParameters().multiValue() == false && indexSettings.getSettings().hasValue(PARQUET_BACKED_INDEX_SETTING)) {
+                    // PROTOTYPE, not for main: the doc values of an index backed by Parquet files are not a ColumNAR column, so the
+                    // column queries read them a document at a time. The scanning queries have fast paths for them (see
+                    // BlockLoader.OptionalColumnAtATimeReader#tryTermEqualIterator), and they read a single value as the raw bytes
+                    // that it is when the segment has no counts field.
+                    return KeywordFieldType.DocValuesDiskFormat.BINARY_SEPARATE_COUNT;
+                }
                 if (docValuesParameters().multiValue() == false) {
                     // Single-valued: guaranteed at most one non-null value per document, so no count is needed
                     // and the payload overhead can be skipped entirely — write the raw bytes directly.

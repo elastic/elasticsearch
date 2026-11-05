@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 164806
+summary: "[Inference API] Force HTTP/1 in the outbound client"
+type: bug

@@ -38,12 +38,12 @@ public final class Queries {
 
     @SuppressForbidden(reason = "Providing instance")
     private static MatchNoDocsQuery noDocs() {
-        return new MatchNoDocsQuery();
+        return MatchNoDocsQuery.INSTANCE;
     }
 
     @SuppressForbidden(reason = "Providing instance")
     private static MatchAllDocsQuery allDocs() {
-        return new MatchAllDocsQuery();
+        return MatchAllDocsQuery.INSTANCE;
     }
 
     public static final MatchNoDocsQuery NO_DOCS_INSTANCE = noDocs();

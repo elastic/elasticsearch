@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +31,7 @@ import org.junit.Before;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -203,6 +206,36 @@ public class CommandLineHttpClientTests extends ESTestCase {
         }
     }
 
+    /**
+     * The tools connect to the IP literal that {@link CommandLineHttpClient#getDefaultURL()} produces. On a FIPS JVM the Bouncy Castle
+     * JSSE provider can only verify the certificate's IP addresses against it when it is handed the host from the URL, rather than having
+     * to recover one from the connected socket.
+     */
+    public void testVerifiesHostnameOfIpLiteralUrl() throws Exception {
+        Settings settings = getHttpSslSettings().put("xpack.security.http.ssl.certificate_authorities", caCertPath.toString())
+            .put("xpack.security.http.ssl.verification_mode", SslVerificationMode.FULL)
+            .build();
+        CommandLineHttpClient client = new CommandLineHttpClient(TestEnvironment.newEnvironment(settings));
+        for (InetAddress address : loopbackAddresses()) {
+            assertRequestToIpLiteralSucceeds(client, address);
+        }
+    }
+
+    /**
+     * Node enrollment connects with a pinned CA fingerprint. The JSSE provider still verifies the host on top of the pinning trust
+     * manager, so this path needs the URL's host too.
+     */
+    public void testPinnedFingerprintVerifiesHostnameOfIpLiteralUrl() throws Exception {
+        X509Certificate caCert = CertParsingUtils.readX509Certificate(caCertPath);
+        CommandLineHttpClient client = new CommandLineHttpClient(
+            TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build()),
+            SslUtil.calculateFingerprint(caCert, "SHA-256")
+        );
+        for (InetAddress address : loopbackAddresses()) {
+            assertRequestToIpLiteralSucceeds(client, address);
+        }
+    }
+
     public void testGetDefaultURLFailsWithHelpfulMessage() {
         Settings settings = Settings.builder().put("path.home", createTempDir()).put("network.host", "_ec2:privateIpv4_").build();
         CommandLineHttpClient client = new CommandLineHttpClient(TestEnvironment.newEnvironment(settings));
@@ -210,6 +243,32 @@ public class CommandLineHttpClientTests extends ESTestCase {
             expectThrows(IllegalStateException.class, () -> client.getDefaultURL()).getMessage(),
             containsString("unable to determine default URL from settings, please use the -u option to explicitly provide the url")
         );
+    }
+
+    private static List<InetAddress> loopbackAddresses() {
+        // The test certificate has IP SANs for both
+        return NetworkUtils.SUPPORTS_V6
+            ? List.of(InetAddresses.forString("127.0.0.1"), InetAddresses.forString("::1"))
+            : List.of(InetAddresses.forString("127.0.0.1"));
+    }
+
+    private void assertRequestToIpLiteralSucceeds(CommandLineHttpClient client, InetAddress address) throws Exception {
+        try (MockWebServer server = createMockWebServer()) {
+            server.enqueue(new MockResponse().setResponseCode(200).setBody("{\"test\": \"complete\"}"));
+            server.start(address);
+            final URL url = new URL("https://" + InetAddresses.toUriString(address) + ":" + server.getPort() + "/test");
+            HttpResponse httpResponse = client.execute(
+                "GET",
+                url,
+                "u1",
+                new SecureString(new char[] { 'p' }),
+                () -> null,
+                this::responseBuilder
+            );
+
+            assertEquals("Http status code does not match for [" + url + "]", 200, httpResponse.getHttpStatus());
+            assertEquals("Http response body does not match", "complete", httpResponse.getResponseBody().get("test"));
+        }
     }
 
     private MockWebServer createMockWebServer() {

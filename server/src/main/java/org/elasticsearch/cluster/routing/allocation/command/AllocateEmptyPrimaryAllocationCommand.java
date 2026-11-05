@@ -169,7 +169,8 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
                             + index
                             + "]["
                             + shardId
-                            + "] is not allowed while resharding of the index is completing, retry once resharding has finished"
+                            + "] is not allowed, this is a split target that has already completed its split, retry once "
+                            + "resharding of the index has finished"
                     );
                 }
                 var sourceShard = new ShardId(shardRouting.index(), split.sourceShard(shardId));

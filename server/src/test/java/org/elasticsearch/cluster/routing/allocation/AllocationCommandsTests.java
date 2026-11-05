@@ -868,7 +868,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             IllegalArgumentException.class,
             () -> allocation.reroute(failedState, commands, false, false, false, ActionListener.noop())
         );
-        assertThat(e.getMessage(), containsString("is not allowed while resharding of the index is completing"));
+        assertThat(e.getMessage(), containsString("is not allowed, this is a split target that has already completed its split"));
 
         // Once resharding completes and its metadata is removed, the shard is allocated as a regular empty primary.
         final ClusterState reshardingCompleted = ClusterState.builder(clusterState)

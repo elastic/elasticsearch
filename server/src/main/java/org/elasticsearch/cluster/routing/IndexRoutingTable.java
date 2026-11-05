@@ -184,16 +184,18 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                                 + reshardingMetadata
                         );
                     }
-                    final int expectedSourceShard = reshardingMetadata.getSplit().sourceShard(shardRouting.id());
-                    if (reshardSplitRecoverySource.getSourceShardId().id() != expectedSourceShard) {
+                    final ShardId expectedSourceShardId = new ShardId(
+                        shardRouting.index(),
+                        reshardingMetadata.getSplit().sourceShard(shardRouting.id())
+                    );
+                    if (reshardSplitRecoverySource.getSourceShardId().equals(expectedSourceShardId) == false) {
                         throw new IllegalStateException(
                             "shard routing "
                                 + shardRouting
-                                + " has a reshard split recovery source with source shard ["
-                                + reshardSplitRecoverySource.getSourceShardId().id()
-                                + "] but the resharding metadata expects source shard ["
-                                + expectedSourceShard
-                                + "]"
+                                + " has a reshard split recovery source with source shard "
+                                + reshardSplitRecoverySource.getSourceShardId()
+                                + " but the resharding metadata expects source shard "
+                                + expectedSourceShardId
                         );
                     }
                 }

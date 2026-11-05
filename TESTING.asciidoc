@@ -234,7 +234,8 @@ Run with a given seed (seed is a hex-encoded long).
 ------------------------------
 
 Gradle caches successful tests. Reusing a seed can report success because the
-test did not run. Bypass the cache:
+test did not run. Force that test task to run again with `--rerun`. Use
+`--rerun-tasks` when its dependencies must run again too.
 
 ------------------------------
 ./gradlew test -Dtests.seed=DEADBEEF -Dtests.timestamp=$(date +%s)
@@ -456,8 +457,10 @@ as skipped. Check that file first when a method is absent from the results:
 grep 'ClassName\|methodName' muted-tests.yml
 ------------------------------------------------
 
-If every method in the class is muted, a local run fails with
-`No tests found for given includes`.
+If every method selected to run is muted, whether that be every method in a class or every
+method in a named subset (for example `--tests org.elasticsearch.package.ClassName.methodName`),
+a local run will fail with `No tests found for given includes`.
+This is true even if other methods in the class are not muted.
 
 == Testing the REST layer
 
@@ -598,15 +601,22 @@ When running `./gradlew check`, minimal bwc checks are also run against compatib
 
 ==== Which older versions are compatible
 
+Wire compatibility and index compatibility are defined in
+link:./docs/internal/Versioning.md[Versioning] and
+link:./docs/internal/DistributedArchitectureGuide.md#index-version[Distributed architecture].
+What matters for these tests:
+
 * *Wire compatibility* is the oldest version that can join a cluster with the
 current one, and defined as the last minor of the previous major.
 For the 9.X.X series, wire compatibility starts at 8.19.0.
-* *Index compatibility* is the oldest index the current version can open. That
-covers the whole previous major. For the 9.X.X series, index compatibility is every 8.x index.
-* Lucene can still read indices two majors back.
-
-A rolling upgrade stays inside the wire-compatible range. A full restart can
-have any starting version.
+A rolling upgrade stays inside that range.
+* *Index compatibility* is the oldest index the current version can open,
+judged by its `index.version.created` setting. That covers the whole previous
+major. For the 9.x series, index compatibility starts at 8.0.0.
+* Lucene reads indices created by the current major and the previous major.
+* A full cluster restart can start from an index-compatible version. If this version
+is older than the wire compatible version, then the upgrade occurs in two steps, first
+to the minimum wire-compatible version, then to current
 
 ==== Rolling upgrade
 
@@ -794,7 +804,7 @@ REST tests to test integration.
 |YAML REST
 |`ESClientYamlSuiteTestCase`
 |`yamlRestTest`
-|Write a YAML REST test for public API behavior that produces a stable response. These files are shared with the official clients, so prefer this form whenever the YAML language can describe the scenario. Add this test alongside the unit test when the public API is part of the behavior.
+|Write a YAML REST test for public API behavior that produces a stable response. An example would be exercising the happy path of a new endpoint, where the point is to show the request and response are wired correctly. These files also exercise the REST API spec
 |===
 
 ==== Refactor code to make it easier to test

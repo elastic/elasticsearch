@@ -345,26 +345,31 @@ public class TransportBulkActionTests extends ESTestCase {
         String dataStreamName = "logs-columnar";
         final var dataStream = DataStreamTestHelper.newInstance(dataStreamName, DataStreamTestHelper.randomNonEmptyIndexInstances());
         final String backingIndexName = dataStream.getWriteIndex().getName();
-        final var backingIndexMetadata = IndexMetadata.builder(backingIndexName)
-            .settings(
-                settings(IndexVersions.UPGRADE_TO_LUCENE_10_5_1).put(IndexSettings.MODE.getKey(), randomFrom("columnar", "logsdb_columnar"))
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-        final var backingIndex = new ConcreteIndex(backingIndexMetadata, dataStream);
-        final Function<Index, IndexMetadata> metadataProvider = idx -> backingIndexMetadata;
+        final String columnarMode = randomFrom("columnar", "logsdb_columnar");
         final DocWriteRequest<?> request = new IndexRequest(backingIndexName).id("id").opType(DocWriteRequest.OpType.INDEX);
 
+        // IndexMetadata caches the result, so each node type needs its own instance.
+        final var statefulMetadata = columnarBackingIndexMetadata(backingIndexName, columnarMode);
+        final var statefulIndex = new ConcreteIndex(statefulMetadata, dataStream);
         // a stateful 9.5 index has sequence numbers disabled through the default of the setting, although it is not stored
-        TransportBulkAction.prohibitAppendWritesInBackingIndices(request, backingIndex, metadataProvider, Settings.EMPTY);
+        TransportBulkAction.prohibitAppendWritesInBackingIndices(request, statefulIndex, idx -> statefulMetadata, Settings.EMPTY);
 
         // stateless has the gate, so the same version keeps sequence numbers, and OCC is required again
         Settings stateless = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        final var statelessMetadata = columnarBackingIndexMetadata(backingIndexName, columnarMode);
+        final var statelessIndex = new ConcreteIndex(statelessMetadata, dataStream);
         expectThrows(
             IllegalArgumentException.class,
-            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(request, backingIndex, metadataProvider, stateless)
+            () -> TransportBulkAction.prohibitAppendWritesInBackingIndices(request, statelessIndex, idx -> statelessMetadata, stateless)
         );
+    }
+
+    private static IndexMetadata columnarBackingIndexMetadata(String indexName, String columnarMode) {
+        return IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersions.UPGRADE_TO_LUCENE_10_5_1).put(IndexSettings.MODE.getKey(), columnarMode))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
     }
 
     public void testRequireSliceRoutingWhenSliceEnabled() {

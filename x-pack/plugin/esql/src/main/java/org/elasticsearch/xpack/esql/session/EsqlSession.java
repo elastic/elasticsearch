@@ -459,11 +459,12 @@ public class EsqlSession {
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
+        String maxCommandCountSource = request.pragmas().maxCommandCountLimitSource(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey());
         EsqlStatement statement = request.parse(
             parser,
             SettingsValidationContext.from(crossProjectModeDecider),
             inferenceService.inferenceSettings(),
-            maxCommandCount
+            flags
         );
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
@@ -503,7 +504,7 @@ public class EsqlSession {
         // requires no cluster state — it simply substitutes named subquery bodies for their names.
         // Performing it before replaceViews ensures that LET names never reach field-caps and that
         // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
-        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings(), maxCommandCount);
+        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings(), maxCommandCount, maxCommandCountSource);
 
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
@@ -538,15 +539,23 @@ public class EsqlSession {
             // Resolve the view's own LET bindings before the resolver reads the plan. The statement is what the
             // resolver reads the definition's SET settings from, so the resolved plan has to stay on that statement.
             (query, viewName) -> planningCpu.meteredCpu(() -> {
-                var viewStmt = parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount);
+                var viewStmt = parser.parseView(
+                    query,
+                    request.params(),
+                    inferenceService.inferenceSettings(),
+                    viewName,
+                    request.pragmas(),
+                    flags
+                );
                 return new EsqlStatement(
-                    LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount),
+                    LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount, maxCommandCountSource),
                     viewStmt.settings(),
                     List.of()
                 );
             }),
             boundaryPreservation,
             maxCommandCount,
+            maxCommandCountSource,
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
@@ -694,7 +703,19 @@ public class EsqlSession {
                         // view's output schema and inserted as an ordinary Filter above the view's subplan, so it
                         // applies after the view's own processing (STATS, EVAL, RENAME, …) rather than being
                         // pushed into the view's source indices as a Lucene query.
-                        plan = ViewRequestFilterRewriter.rewrite(afterDatasetFilter, request.filter(), finalConfiguration, minimumVersion);
+                        LogicalPlan afterViewFilter = ViewRequestFilterRewriter.rewrite(
+                            afterDatasetFilter,
+                            request.filter(),
+                            finalConfiguration,
+                            minimumVersion
+                        );
+                        // Cap how far back METRICS_INFO and TS_INFO read
+                        plan = MetricsInfoTimeRangeRewriter.capTimeRange(
+                            afterViewFilter,
+                            flags.metricsInfoMaxTimeRange(),
+                            request.filter(),
+                            finalConfiguration.now()
+                        );
                     } catch (Exception e) {
                         listener.onFailure(e);
                         return;
@@ -1522,7 +1543,7 @@ public class EsqlSession {
 
     private LocalRelation resultToPlan(Source planSource, Result result) {
         List<Page> pages = result.pages();
-        checkPagesBelowSize(
+        long size = checkPagesBelowSize(
             pages,
             plannerSettings.intermediateLocalRelationMaxSize(),
             actual -> "sub-plan execution results too large ["
@@ -1530,6 +1551,16 @@ public class EsqlSession {
                 + "] > "
                 + plannerSettings.intermediateLocalRelationMaxSize()
         );
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(
+                "Sub-plan results for [{}]: [{}] rows, [{}] of the [{}] allowed by [{}]",
+                planSource,
+                pages.stream().mapToLong(Page::getPositionCount).sum(),
+                ByteSizeValue.ofBytes(size),
+                plannerSettings.intermediateLocalRelationMaxSize(),
+                PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getKey()
+            );
+        }
         List<Attribute> schema = result.schema();
 
         Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);

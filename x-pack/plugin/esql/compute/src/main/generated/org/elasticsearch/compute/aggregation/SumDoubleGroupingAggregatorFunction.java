@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -432,6 +433,28 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
   private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage,
       GroupingAggregatorEvaluationContext ctx) {
     blocks[offset] = SumDoubleAggregator.evaluateFinal(state, selectedInPage, ctx);
+  }
+
+  @Override
+  public void maybeEnsureCapacity(int size) {
+    state.ensureCapacity(size);
+  }
+
+  @Override
+  public boolean supportPartitioning() {
+    return true;
+  }
+
+  @Override
+  public GroupingAggregatorFunction.PartitionSplitter createPartitioningSplitter(
+      CircuitBreaker breaker) {
+    return state.createPartitioningSplitter(breaker);
+  }
+
+  @Override
+  public void combinePartition(GroupingAggregatorFunction.PartitionedState source, int partition,
+      boolean appendOnly, int[] dstIds, int length) {
+    SumDoubleAggregator.combinePartition(state, source, partition, appendOnly, dstIds, length);
   }
 
   @Override

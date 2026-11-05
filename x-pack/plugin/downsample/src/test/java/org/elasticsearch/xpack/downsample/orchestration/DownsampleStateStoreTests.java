@@ -11,18 +11,24 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.downsample.Downsample;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore.Versioned;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +51,11 @@ import static org.hamcrest.Matchers.instanceOf;
 public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
 
     private DownsampleStateStore store;
+    /**
+     * The project of the operations: a single node cluster only has the default project. Several projects are covered by the
+     * multi-project REST tests.
+     */
+    private ProjectId project;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -54,7 +65,8 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
     @Before
     public void setUpStore() {
         assumeTrue("the system index is only registered with the feature flag", DownsampleStateIndex.FEATURE_FLAG.isEnabled());
-        store = new DownsampleStateStore(client(), getInstanceFromNode(ClusterService.class));
+        store = new DownsampleStateStore(client(), getInstanceFromNode(ClusterService.class), getInstanceFromNode(ProjectResolver.class));
+        project = ProjectId.DEFAULT;
     }
 
     public void testReadsBeforeTheIndexExists() {
@@ -64,7 +76,7 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
     }
 
     public void testCreatesASystemIndex() {
-        createIndexTask(newIndexTask("target"));
+        createIndexTask(newIndexTask(project, "target"));
         IndexMetadata indexMetadata = getInstanceFromNode(ClusterService.class).state()
             .metadata()
             .getProject()
@@ -75,14 +87,14 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexTaskCreateIsIdempotent() {
-        Versioned<IndexTaskDoc> created = createIndexTask(newIndexTask("target"));
-        Versioned<IndexTaskDoc> again = createIndexTask(newIndexTask("target"));
+        Versioned<IndexTaskDoc> created = createIndexTask(newIndexTask(project, "target"));
+        Versioned<IndexTaskDoc> again = createIndexTask(newIndexTask(project, "target"));
         assertThat(again, equalTo(created));
         assertThat(getIndexTask("target"), equalTo(Optional.of(created)));
     }
 
     public void testIndexTaskUpdateIsCompareAndSet() {
-        Versioned<IndexTaskDoc> v1 = createIndexTask(newIndexTask("target"));
+        Versioned<IndexTaskDoc> v1 = createIndexTask(newIndexTask(project, "target"));
         Versioned<IndexTaskDoc> v2 = updateIndexTask(v1, v1.doc().targetCreated(randomUUID()));
         assertThat(v2.seqNo(), greaterThan(v1.seqNo()));
         // a stale writer (e.g. a previous master) still holds v1
@@ -93,7 +105,7 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
     }
 
     public void testInvalidIndexTaskTransitionIsNotWritten() {
-        Versioned<IndexTaskDoc> v1 = createIndexTask(newIndexTask("target"));
+        Versioned<IndexTaskDoc> v1 = createIndexTask(newIndexTask(project, "target"));
         PlainActionFuture<Versioned<IndexTaskDoc>> invalid = new PlainActionFuture<>();
         store.forMaster().updateIndexTask(v1, v1.doc().withPhase(IndexTaskPhase.RUN_SHARDS), invalid);
         assertRejected(invalid, "requires the target index uuid");
@@ -101,17 +113,17 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
     }
 
     public void testTerminalIndexTaskIsReplaced() {
-        Versioned<IndexTaskDoc> v1 = createIndexTask(newIndexTask("target"));
+        Versioned<IndexTaskDoc> v1 = createIndexTask(newIndexTask(project, "target"));
         Versioned<IndexTaskDoc> failed = updateIndexTask(v1, v1.doc().failed("boom"));
-        IndexTaskDoc fresh = newIndexTask("target");
+        IndexTaskDoc fresh = newIndexTask(project, "target");
         Versioned<IndexTaskDoc> replaced = createIndexTask(fresh);
         assertThat(replaced.doc(), equalTo(fresh));
         assertThat(replaced.seqNo(), greaterThan(failed.seqNo()));
     }
 
     public void testFindActiveIndexTasks() {
-        Versioned<IndexTaskDoc> active = createIndexTask(newIndexTask("active"));
-        Versioned<IndexTaskDoc> done = createIndexTask(newIndexTask("done"));
+        Versioned<IndexTaskDoc> active = createIndexTask(newIndexTask(project, "active"));
+        Versioned<IndexTaskDoc> done = createIndexTask(newIndexTask(project, "done"));
         updateIndexTask(done, done.doc().failed("boom"));
         refresh();
         List<Versioned<IndexTaskDoc>> found = findActiveIndexTasks();
@@ -119,13 +131,28 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
         assertThat(found.get(0), equalTo(active));
     }
 
+    /**
+     * Each project has its own state index, so a document of another project can only be there by mistake: reads reject it.
+     */
+    public void testRejectsDocumentOfAnotherProject() throws IOException {
+        IndexTaskDoc foreign = newIndexTask(randomValueOtherThan(project, ESTestCase::randomUniqueProjectId), "target");
+        createIndexTask(newIndexTask(project, "other"));
+        client().prepareIndex(DownsampleStateIndex.INDEX_NAME)
+            .setId(foreign.id())
+            .setSource(foreign.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
+            .get();
+        PlainActionFuture<Optional<Versioned<IndexTaskDoc>>> read = new PlainActionFuture<>();
+        store.forMaster().getIndexTask(project, "target", read);
+        assertRejected(read, "found in the state index of project");
+    }
+
     public void testShardTaskCreateIsIdempotentAndKeepsSourceUuid() {
-        ShardTaskDoc doc = newShardTask("target", randomUUID());
+        ShardTaskDoc doc = newShardTask(project, "target", randomUUID());
         Versioned<ShardTaskDoc> created = createShardTask(doc);
         Versioned<ShardTaskDoc> again = createShardTask(doc);
         assertThat(again, equalTo(created));
         refresh();
-        List<Versioned<ShardTaskDoc>> found = call(l -> store.forMaster().findShardTasks("target", doc.targetIndexUuid(), l));
+        List<Versioned<ShardTaskDoc>> found = call(l -> store.forMaster().findShardTasks(project, "target", doc.targetIndexUuid(), l));
         assertThat(found, hasSize(1));
         assertThat(found.get(0).doc().sourceShardId().getIndex().getUUID(), equalTo(doc.sourceShardId().getIndex().getUUID()));
     }
@@ -133,7 +160,7 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
     public void testNodeRunsItsTaskAndIsFencedOnReassignment() {
         String targetUuid = createTargetIndex("target");
         String localNode = store.forLocalNode().nodeId();
-        Versioned<ShardTaskDoc> created = createShardTask(newShardTask("target", targetUuid));
+        Versioned<ShardTaskDoc> created = createShardTask(newShardTask(project, "target", targetUuid));
         Versioned<ShardTaskDoc> assigned = masterUpdateShardTask(created, created.doc().assignTo(localNode, false));
         long heldEpoch = assigned.doc().epoch();
 
@@ -155,7 +182,7 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
         assertVersionConflict(staleWrite);
 
         // after re-reading, the node sees it lost the task and the store refuses the write
-        Optional<Versioned<ShardTaskDoc>> reread = call(l -> store.forLocalNode().getShardTask(reassigned.doc().id(), l));
+        Optional<Versioned<ShardTaskDoc>> reread = call(l -> store.forLocalNode().getShardTask(project, reassigned.doc().id(), l));
         assertThat(reread, equalTo(Optional.of(reassigned)));
         PlainActionFuture<Versioned<ShardTaskDoc>> lostTask = new PlainActionFuture<>();
         store.forLocalNode().updateShardTask(reassigned, reassigned.doc().completed(Map.of()), heldEpoch, lostTask);
@@ -171,7 +198,7 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
             // an index with the same name but another uuid, as after a delete and re-create
             createTargetIndex("target");
         }
-        Versioned<ShardTaskDoc> created = createShardTask(newShardTask("target", randomUUID()));
+        Versioned<ShardTaskDoc> created = createShardTask(newShardTask(project, "target", randomUUID()));
         Versioned<ShardTaskDoc> assigned = masterUpdateShardTask(created, created.doc().assignTo(localNode, false));
         PlainActionFuture<Versioned<ShardTaskDoc>> write = new PlainActionFuture<>();
         store.forLocalNode().updateShardTask(assigned, assigned.doc().running(randomUUID(), Map.of()), assigned.doc().epoch(), write);
@@ -189,11 +216,11 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
     }
 
     private Optional<Versioned<IndexTaskDoc>> getIndexTask(String targetIndex) {
-        return call(l -> store.forMaster().getIndexTask(targetIndex, l));
+        return call(l -> store.forMaster().getIndexTask(project, targetIndex, l));
     }
 
     private List<Versioned<IndexTaskDoc>> findActiveIndexTasks() {
-        return call(l -> store.forMaster().findActiveIndexTasks(l));
+        return call(l -> store.forMaster().findActiveIndexTasks(project, l));
     }
 
     private Versioned<ShardTaskDoc> createShardTask(ShardTaskDoc doc) {
@@ -209,7 +236,7 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
     }
 
     private List<Versioned<ShardTaskDoc>> findMyShardTasks() {
-        return call(l -> store.forLocalNode().findMyShardTasks(l));
+        return call(l -> store.forLocalNode().findMyShardTasks(project, l));
     }
 
     private String createTargetIndex(String name) {

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -33,7 +34,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateIndex;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore;
 
 import java.util.Collection;
 import java.util.List;
@@ -125,7 +128,23 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        return List.of(DownsampleMetrics.class);
+        DownsampleStateStore store = new DownsampleStateStore(services.client(), services.clusterService(), services.projectResolver());
+        DownsampleOrchestrator orchestrator = new DownsampleOrchestrator(
+            store,
+            services.clusterService(),
+            services.threadPool(),
+            services.projectResolver(),
+            services.clusterService().getSettings()
+        );
+        if (DownsampleStateIndex.FEATURE_FLAG.isEnabled()) {
+            services.clusterService().addListener(orchestrator);
+        }
+        return List.of(DownsampleMetrics.class, store, orchestrator);
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING);
     }
 
     @Override

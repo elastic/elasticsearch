@@ -12,15 +12,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -37,11 +32,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -59,7 +52,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -83,6 +75,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.downsample.orchestration.DownsampleOrchestrator;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -124,6 +117,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     private final DownsampleMetrics downsampleMetrics;
     private final ProjectResolver projectResolver;
     private final Supplier<Long> nowSupplier;
+    private final DownsampleSteps steps;
 
     private static final Set<String> FORBIDDEN_SETTINGS = Set.of(
         IndexSettings.DEFAULT_PIPELINE.getKey(),
@@ -163,7 +157,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ProjectResolver projectResolver,
         IndexScopedSettings indexScopedSettings,
         PersistentTasksService persistentTasksService,
-        DownsampleMetrics downsampleMetrics
+        DownsampleMetrics downsampleMetrics,
+        DownsampleOrchestrator orchestrator
     ) {
         this(
             new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN),
@@ -181,6 +176,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             clusterService.createTaskQueue("downsample", Priority.URGENT, STATE_UPDATE_TASK_EXECUTOR),
             () -> client.threadPool().relativeTimeInMillis()
         );
+        // The orchestrator is a plugin component, it cannot get the services the steps need (e.g. MetadataCreateIndexService)
+        // from the plugin, so this action, which gets them injected, hands it the steps.
+        orchestrator.setSteps(steps);
     }
 
     // For testing
@@ -219,6 +217,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         this.persistentTasksService = persistentTasksService;
         this.downsampleMetrics = downsampleMetrics;
         this.nowSupplier = nowSupplier;
+        this.steps = new DownsampleSteps(
+            client,
+            clusterService,
+            threadPool,
+            indicesService,
+            featureService,
+            metadataCreateIndexService,
+            indexScopedSettings,
+            taskQueue
+        );
     }
 
     private void recordSuccessMetrics(long startTime) {
@@ -490,21 +498,18 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // but the previous invocation failed later performing settings update, refresh or force merge.
         // The write block is used a signal to resume from the refresh part of the downsample api invocation.
         if (targetIndexMetadata.getSettings().get(IndexMetadata.SETTING_BLOCKS_WRITE) != null) {
-            var refreshRequest = new RefreshRequest(targetIndexMetadata.getIndex().getName());
-            refreshRequest.setParentTask(parentTask);
-            client.admin()
-                .indices()
-                .refresh(
-                    refreshRequest,
-                    new RefreshDownsampleIndexActionListener(
-                        projectMetadata.id(),
-                        listener,
-                        parentTask,
-                        targetIndexMetadata.getIndex().getName(),
-                        waitTimeout,
-                        startTime
-                    )
-                );
+            steps.refresh(
+                targetIndexMetadata.getIndex().getName(),
+                parentTask,
+                new RefreshDownsampleIndexActionListener(
+                    projectMetadata.id(),
+                    listener,
+                    parentTask,
+                    targetIndexMetadata.getIndex().getName(),
+                    waitTimeout,
+                    startTime
+                )
+            );
             return true;
         }
         return false;
@@ -642,38 +647,23 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final long startTime
     ) {
         // 4. Make downsample index read-only and set the correct number of replicas
-        final Settings.Builder settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true);
-        // Number of replicas had been previously set to 0 to speed up index population
-        if (sourceIndexMetadata.getNumberOfReplicas() > 0 && minNumReplicas == 0) {
-            settings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas());
-        }
-        // Setting index.hidden has been initially set to true. We revert this to the value of the
-        // source index
-        if (sourceIndexMetadata.isHidden() == false) {
-            if (sourceIndexMetadata.getSettings().keySet().contains(IndexMetadata.SETTING_INDEX_HIDDEN)) {
-                settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, false);
-            } else {
-                settings.putNull(IndexMetadata.SETTING_INDEX_HIDDEN);
-            }
-        }
-        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(settings.build(), downsampleIndexName);
-        updateSettingsReq.setParentTask(parentTask);
-        client.admin()
-            .indices()
-            .updateSettings(
-                updateSettingsReq,
-                new UpdateDownsampleIndexSettingsActionListener(
-                    projectId,
-                    listener,
-                    parentTask,
-                    downsampleIndexName,
-                    request.getWaitTimeout(),
-                    startTime
-                )
-            );
+        steps.updateTargetSettings(
+            downsampleIndexName,
+            minNumReplicas,
+            sourceIndexMetadata,
+            parentTask,
+            new UpdateDownsampleIndexSettingsActionListener(
+                projectId,
+                listener,
+                parentTask,
+                downsampleIndexName,
+                request.getWaitTimeout(),
+                startTime
+            )
+        );
     }
 
-    private static DownsampleShardTaskParams createPersistentTaskParams(
+    static DownsampleShardTaskParams createPersistentTaskParams(
         final DownsampleConfig downsampleConfig,
         final IndexMetadata sourceIndexMetadata,
         final String targetIndexName,
@@ -837,11 +827,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         return new AggregateMetricDoubleFieldSupportedMetrics(defaultMetric, supportedAggs);
     }
 
-    private static void validateDownsamplingConfiguration(
-        MapperService mapperService,
-        DownsampleConfig config,
-        IndexMetadata sourceIndexMetadata
-    ) {
+    static void validateDownsamplingConfiguration(MapperService mapperService, DownsampleConfig config, IndexMetadata sourceIndexMetadata) {
         MappedFieldType timestampFieldType = mapperService.fieldType(config.getTimestampField());
         assert timestampFieldType != null : "Cannot find timestamp field [" + config.getTimestampField() + "] in the mapping";
         ActionRequestValidationException e = new ActionRequestValidationException();
@@ -966,63 +952,16 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         DownsampleAction.Request request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        var downsampleInterval = request.getDownsampleConfig().getInterval().toString();
-        Settings.Builder builder = Settings.builder()
-            .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, minNumReplicas)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-            .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.STARTED)
-            .put(IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.getKey(), downsampleInterval)
-            .put(IndexMetadata.INDEX_DOWNSAMPLE_METHOD.getKey(), request.getDownsampleConfig().getSamplingMethodOrDefault().toString())
-            .put(IndexSettings.MODE.getKey(), sourceIndexMetadata.getIndexMode())
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), sourceIndexMetadata.getRoutingPaths())
-            .put(
-                IndexSettings.TIME_SERIES_START_TIME.getKey(),
-                sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
-            )
-            .put(
-                IndexSettings.TIME_SERIES_END_TIME.getKey(),
-                sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
-            );
-        if (sourceIndexMetadata.getTimeSeriesDimensions().isEmpty() == false) {
-            builder.putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), sourceIndexMetadata.getTimeSeriesDimensions());
-        }
-        if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
-            builder.put(
-                MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
-                sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
-            );
-        }
-        if (sourceIndexMetadata.getSettings().hasValue(FieldMapper.IGNORE_MALFORMED_SETTING.getKey())) {
-            builder.put(
-                FieldMapper.IGNORE_MALFORMED_SETTING.getKey(),
-                sourceIndexMetadata.getSettings().get(FieldMapper.IGNORE_MALFORMED_SETTING.getKey())
-            );
-        }
-
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
-            "downsample",
+        steps.createTargetIndex(
             projectId,
             downsampleIndexName,
-            downsampleIndexName
-        ).settings(builder.build()).settingsSystemProvided(true).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
-        var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
-        taskQueue.submitTask("create-downsample-index [" + downsampleIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                logger.debug("Creating downsample index [{}]", downsampleIndexName);
-                return metadataCreateIndexService.applyCreateIndexRequest(
-                    currentState,
-                    createIndexClusterStateUpdateRequest,
-                    true,
-                    // Copy index metadata from source index to downsample index
-                    (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata, indexScopedSettings)),
-                    RerouteBehavior.PERFORM_REROUTE,
-                    delegate.reroute()
-                );
-            }
-        }, request.masterNodeTimeout());
+            minNumReplicas,
+            sourceIndexMetadata,
+            mapping,
+            request.getDownsampleConfig(),
+            request.masterNodeTimeout(),
+            listener
+        );
     }
 
     /**
@@ -1075,14 +1014,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         @Override
         public void onResponse(final AcknowledgedResponse response) {
             logger.debug("Preparing to refresh downsample index [{}]", downsampleIndexName);
-            final RefreshRequest request = new RefreshRequest(downsampleIndexName);
-            request.setParentTask(parentTask);
-            client.admin()
-                .indices()
-                .refresh(
-                    request,
-                    new RefreshDownsampleIndexActionListener(projectId, listener, parentTask, downsampleIndexName, timeout, startTime)
-                );
+            steps.refresh(
+                downsampleIndexName,
+                parentTask,
+                new RefreshDownsampleIndexActionListener(projectId, listener, parentTask, downsampleIndexName, timeout, startTime)
+            );
         }
 
         @Override
@@ -1132,37 +1068,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 actionListener
             );
             // Mark downsample index as "completed successfully" ("index.downsample.status": "success")
-            taskQueue.submitTask(
-                "update-downsample-metadata [" + downsampleIndexName + "]",
-                new DownsampleClusterStateUpdateTask(nextStepListener) {
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        logger.debug("Updating downsample index status for [{}]", downsampleIndexName);
-                        final ProjectMetadata project = currentState.metadata().getProject(projectId);
-                        final IndexMetadata downsampleIndex = project.index(downsampleIndexName);
-                        if (downsampleIndex == null) {
-                            throw new IllegalStateException(
-                                "Failed to update downsample status because [" + downsampleIndexName + "] does not exist"
-                            );
-                        }
-                        if (IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(downsampleIndex.getSettings()) == DownsampleTaskStatus.SUCCESS) {
-                            return currentState;
-                        }
-
-                        final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
-                        projectBuilder.updateSettings(
-                            Settings.builder()
-                                .put(downsampleIndex.getSettings())
-                                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), DownsampleTaskStatus.SUCCESS)
-                                .build(),
-                            downsampleIndexName
-                        );
-                        return ClusterState.builder(currentState).putProjectMetadata(projectBuilder).build();
-                    }
-                },
-                timeout
-            );
+            steps.markSuccess(projectId, downsampleIndexName, timeout, nextStepListener);
         }
 
         @Override
@@ -1194,20 +1100,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onResponse(final AcknowledgedResponse response) {
-            logger.debug("Preparing to flush downsample index [{}]", downsampleIndexName);
-            FlushRequest request = new FlushRequest(downsampleIndexName);
-            request.setParentTask(parentTask);
-            client.admin()
-                .indices()
-                .flush(request, ActionListener.wrap(flushIndexResp -> actionListener.onResponse(AcknowledgedResponse.TRUE), t -> {
-                    /*
-                     * At this point downsample index has been created
-                     * successfully even if flush failed.
-                     * So, we should not fail the downsample operation.
-                     */
-                    logger.error("Failed to flush downsample index [" + downsampleIndexName + "]", t);
-                    actionListener.onResponse(AcknowledgedResponse.TRUE);
-                }));
+            // At this point downsample index has been created successfully even if flush fails, so the flush never fails.
+            steps.flush(downsampleIndexName, parentTask, actionListener.map(ignored -> AcknowledgedResponse.TRUE));
         }
 
         @Override

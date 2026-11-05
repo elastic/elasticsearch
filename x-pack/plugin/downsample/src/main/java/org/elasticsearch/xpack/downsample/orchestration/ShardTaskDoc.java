@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample.orchestration;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -14,7 +15,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -33,6 +33,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * The state of the downsampling of one source shard. The master creates and (re)assigns it; the assigned node reports on it.
  *
  * @param targetIndex     the name of the downsampled index
+ * @param projectId       the project of the source and target indices, and of the state index that holds this document
  * @param targetIndexUuid the uuid of the downsampled index, so a reused index name never adopts this task
  * @param params          what to downsample; its source {@link ShardId} carries the source index uuid
  * @param status          see {@link ShardTaskStatus}
@@ -46,6 +47,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * @param progress        the counters of the latest run, as in the task status API; opaque, never read back by the code
  */
 public record ShardTaskDoc(
+    ProjectId projectId,
     String targetIndex,
     String targetIndexUuid,
     DownsampleShardTaskParams params,
@@ -57,7 +59,7 @@ public record ShardTaskDoc(
     boolean retriable,
     @Nullable String runId,
     @Nullable Map<String, Object> progress
-) implements ToXContentObject {
+) implements StateDoc {
 
     static final ParseField SHARD = new ParseField("shard");
     static final ParseField PARAMS = new ParseField("params");
@@ -73,21 +75,23 @@ public record ShardTaskDoc(
         "downsample_shard_task",
         false,
         a -> new ShardTaskDoc(
-            (String) a[0],
+            ProjectId.fromId((String) a[0]),
             (String) a[1],
-            withSourceIndexUuid((DownsampleShardTaskParams) a[4], (String) a[2], (Integer) a[3]),
-            ShardTaskStatus.valueOf((String) a[5]),
-            (String) a[6],
-            (Long) a[7],
-            (Integer) a[8],
-            (String) a[9],
-            a[10] != null && (Boolean) a[10],
-            (String) a[11],
-            (Map<String, Object>) a[12]
+            (String) a[2],
+            withSourceIndexUuid((DownsampleShardTaskParams) a[5], (String) a[3], (Integer) a[4]),
+            ShardTaskStatus.valueOf((String) a[6]),
+            (String) a[7],
+            (Long) a[8],
+            (Integer) a[9],
+            (String) a[10],
+            a[11] != null && (Boolean) a[11],
+            (String) a[12],
+            (Map<String, Object>) a[13]
         )
     );
 
     static {
+        PARSER.declareString(constructorArg(), IndexTaskDoc.PROJECT_ID);
         PARSER.declareString(constructorArg(), IndexTaskDoc.TARGET_INDEX);
         PARSER.declareString(constructorArg(), IndexTaskDoc.TARGET_INDEX_UUID);
         PARSER.declareString(constructorArg(), IndexTaskDoc.SOURCE_INDEX_UUID);
@@ -108,6 +112,7 @@ public record ShardTaskDoc(
     }
 
     public ShardTaskDoc {
+        Objects.requireNonNull(projectId);
         Objects.requireNonNull(targetIndex);
         Objects.requireNonNull(targetIndexUuid);
         Objects.requireNonNull(params);
@@ -117,8 +122,21 @@ public record ShardTaskDoc(
     /**
      * A new, unassigned task for one shard of the source index.
      */
-    public static ShardTaskDoc newTask(String targetIndex, String targetIndexUuid, DownsampleShardTaskParams params) {
-        return new ShardTaskDoc(targetIndex, targetIndexUuid, params, ShardTaskStatus.UNASSIGNED, null, 0L, 0, null, false, null, null);
+    public static ShardTaskDoc newTask(ProjectId projectId, String targetIndex, String targetIndexUuid, DownsampleShardTaskParams params) {
+        return new ShardTaskDoc(
+            projectId,
+            targetIndex,
+            targetIndexUuid,
+            params,
+            ShardTaskStatus.UNASSIGNED,
+            null,
+            0L,
+            0,
+            null,
+            false,
+            null,
+            null
+        );
     }
 
     public static ShardTaskDoc fromXContent(XContentParser parser) {
@@ -144,6 +162,7 @@ public record ShardTaskDoc(
      */
     public ShardTaskDoc assignTo(String nodeId, boolean isRetry) {
         return new ShardTaskDoc(
+            projectId,
             targetIndex,
             targetIndexUuid,
             params,
@@ -163,6 +182,7 @@ public record ShardTaskDoc(
      */
     public ShardTaskDoc unassign() {
         return new ShardTaskDoc(
+            projectId,
             targetIndex,
             targetIndexUuid,
             params,
@@ -182,6 +202,7 @@ public record ShardTaskDoc(
      */
     public ShardTaskDoc failedByMaster(String error) {
         return new ShardTaskDoc(
+            projectId,
             targetIndex,
             targetIndexUuid,
             params,
@@ -222,6 +243,7 @@ public record ShardTaskDoc(
         boolean isRetriable
     ) {
         return new ShardTaskDoc(
+            projectId,
             targetIndex,
             targetIndexUuid,
             params,
@@ -277,6 +299,7 @@ public record ShardTaskDoc(
     public XContentBuilder toXContent(XContentBuilder builder, Params xContentParams) throws IOException {
         builder.startObject();
         builder.field(IndexTaskDoc.DOC_TYPE.getPreferredName(), DownsampleStateIndex.SHARD_TASK_DOC_TYPE);
+        builder.field(IndexTaskDoc.PROJECT_ID.getPreferredName(), projectId.id());
         builder.field(IndexTaskDoc.TARGET_INDEX.getPreferredName(), targetIndex);
         builder.field(IndexTaskDoc.TARGET_INDEX_UUID.getPreferredName(), targetIndexUuid);
         builder.field(IndexTaskDoc.SOURCE_INDEX_UUID.getPreferredName(), params.shardId().getIndex().getUUID());

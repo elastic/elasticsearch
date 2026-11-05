@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample.orchestration;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.Index;
@@ -28,6 +29,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.test.ESTestCase.randomProjectIdOrDefault;
 import static org.elasticsearch.test.ESTestCase.randomUUID;
 
 final class OrchestrationTestUtils {
@@ -57,16 +59,32 @@ final class OrchestrationTestUtils {
     }
 
     static ShardTaskDoc newShardTask(String targetIndex, String targetIndexUuid) {
+        return newShardTask(randomProjectIdOrDefault(), targetIndex, targetIndexUuid);
+    }
+
+    static ShardTaskDoc newShardTask(ProjectId projectId, String targetIndex, String targetIndexUuid) {
         ShardId sourceShardId = new ShardId(
             new Index("source-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT), randomUUID()),
             between(0, 4)
         );
-        return ShardTaskDoc.newTask(targetIndex, targetIndexUuid, randomParams(targetIndex, sourceShardId));
+        return ShardTaskDoc.newTask(projectId, targetIndex, targetIndexUuid, randomParams(targetIndex, sourceShardId));
     }
 
     static IndexTaskDoc newIndexTask(String targetIndex) {
+        return newIndexTask(randomProjectIdOrDefault(), targetIndex);
+    }
+
+    static IndexTaskDoc newIndexTask(ProjectId projectId, String targetIndex) {
         long now = randomLongBetween(1, 1_000_000);
-        return IndexTaskDoc.newTask(targetIndex, "source-" + randomAlphaOfLength(5), randomUUID(), randomConfig(), now, now + 100_000);
+        return IndexTaskDoc.newTask(
+            projectId,
+            targetIndex,
+            "source-" + randomAlphaOfLength(5),
+            randomUUID(),
+            randomConfig(),
+            now,
+            now + 100_000
+        );
     }
 
     static <T extends ToXContent> T roundTrip(T doc, CheckedFunction<XContentParser, T, IOException> parser) throws IOException {

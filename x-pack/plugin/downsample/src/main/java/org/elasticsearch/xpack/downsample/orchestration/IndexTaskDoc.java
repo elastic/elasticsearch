@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.downsample.orchestration;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -24,8 +24,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * The state of one downsample operation, identified by its target index name. Only the master writes it.
+ * The state of one downsample operation, identified by its project and target index name. Only the master writes it.
  *
+ * @param projectId       the project of the source and target indices, and of the state index that holds this document
  * @param targetIndex     the name of the downsampled index
  * @param targetIndexUuid the uuid of the target index, {@code null} until the target index has been created; recorded once
  *                        and never changed, it ties the operation to that exact index even if the name is reused
@@ -42,6 +43,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * @param deadline        epoch millis after which the operation is failed instead of retried
  */
 public record IndexTaskDoc(
+    ProjectId projectId,
     String targetIndex,
     @Nullable String targetIndexUuid,
     String sourceIndex,
@@ -54,11 +56,12 @@ public record IndexTaskDoc(
     List<String> errorHistory,
     long createdAt,
     long deadline
-) implements ToXContentObject {
+) implements StateDoc {
 
     static final int MAX_ERROR_HISTORY = 10;
 
     static final ParseField DOC_TYPE = new ParseField(DownsampleStateIndex.DOC_TYPE_FIELD);
+    static final ParseField PROJECT_ID = new ParseField("project_id");
     static final ParseField TARGET_INDEX = new ParseField("target_index");
     static final ParseField TARGET_INDEX_UUID = new ParseField("target_index_uuid");
     static final ParseField SOURCE_INDEX = new ParseField("source_index");
@@ -77,22 +80,24 @@ public record IndexTaskDoc(
         "downsample_index_task",
         false,
         a -> new IndexTaskDoc(
-            (String) a[0],
+            ProjectId.fromId((String) a[0]),
             (String) a[1],
             (String) a[2],
             (String) a[3],
-            (DownsampleConfig) a[4],
-            IndexTaskPhase.valueOf((String) a[5]),
-            (Integer) a[6],
-            a[7] == null ? 0L : (Long) a[7],
-            (String) a[8],
-            a[9] == null ? List.of() : (List<String>) a[9],
-            (Long) a[10],
-            (Long) a[11]
+            (String) a[4],
+            (DownsampleConfig) a[5],
+            IndexTaskPhase.valueOf((String) a[6]),
+            (Integer) a[7],
+            a[8] == null ? 0L : (Long) a[8],
+            (String) a[9],
+            a[10] == null ? List.of() : (List<String>) a[10],
+            (Long) a[11],
+            (Long) a[12]
         )
     );
 
     static {
+        PARSER.declareString(constructorArg(), PROJECT_ID);
         PARSER.declareString(constructorArg(), TARGET_INDEX);
         PARSER.declareString(optionalConstructorArg(), TARGET_INDEX_UUID);
         PARSER.declareString(constructorArg(), SOURCE_INDEX);
@@ -112,6 +117,7 @@ public record IndexTaskDoc(
     }
 
     public IndexTaskDoc {
+        Objects.requireNonNull(projectId);
         Objects.requireNonNull(targetIndex);
         Objects.requireNonNull(sourceIndex);
         Objects.requireNonNull(sourceIndexUuid);
@@ -124,6 +130,7 @@ public record IndexTaskDoc(
      * A new operation, before the target index exists.
      */
     public static IndexTaskDoc newTask(
+        ProjectId projectId,
         String targetIndex,
         String sourceIndex,
         String sourceIndexUuid,
@@ -132,6 +139,7 @@ public record IndexTaskDoc(
         long deadline
     ) {
         return new IndexTaskDoc(
+            projectId,
             targetIndex,
             null,
             sourceIndex,
@@ -159,77 +167,50 @@ public record IndexTaskDoc(
      * Moves to the next phase, clearing the retry bookkeeping of the previous one.
      */
     public IndexTaskDoc withPhase(IndexTaskPhase nextPhase) {
-        return new IndexTaskDoc(
-            targetIndex,
-            targetIndexUuid,
-            sourceIndex,
-            sourceIndexUuid,
-            config,
-            nextPhase,
-            0,
-            0L,
-            lastError,
-            errorHistory,
-            createdAt,
-            deadline
-        );
+        return copy(targetIndexUuid, nextPhase, 0, 0L, lastError, errorHistory);
     }
 
     /**
      * Records the uuid of the newly created target index and moves on to running the shard tasks, in one write.
      */
     public IndexTaskDoc targetCreated(String uuid) {
-        return new IndexTaskDoc(
-            targetIndex,
-            Objects.requireNonNull(uuid),
-            sourceIndex,
-            sourceIndexUuid,
-            config,
-            IndexTaskPhase.RUN_SHARDS,
-            0,
-            0L,
-            lastError,
-            errorHistory,
-            createdAt,
-            deadline
-        );
+        return copy(Objects.requireNonNull(uuid), IndexTaskPhase.RUN_SHARDS, 0, 0L, lastError, errorHistory);
     }
 
     /**
      * Records a retriable failure of the current phase.
      */
     public IndexTaskDoc withRetry(String error, long retryAt) {
-        return new IndexTaskDoc(
-            targetIndex,
-            targetIndexUuid,
-            sourceIndex,
-            sourceIndexUuid,
-            config,
-            phase,
-            attempt + 1,
-            retryAt,
-            error,
-            appendError(error),
-            createdAt,
-            deadline
-        );
+        return copy(targetIndexUuid, phase, attempt + 1, retryAt, error, appendError(error));
     }
 
     /**
      * Fails the whole operation, this is terminal.
      */
     public IndexTaskDoc failed(String error) {
+        return copy(targetIndexUuid, IndexTaskPhase.FAILED, attempt, 0L, error, appendError(error));
+    }
+
+    private IndexTaskDoc copy(
+        String newTargetIndexUuid,
+        IndexTaskPhase newPhase,
+        int newAttempt,
+        long newNextRetryAt,
+        String newLastError,
+        List<String> newErrorHistory
+    ) {
         return new IndexTaskDoc(
+            projectId,
             targetIndex,
-            targetIndexUuid,
+            newTargetIndexUuid,
             sourceIndex,
             sourceIndexUuid,
             config,
-            IndexTaskPhase.FAILED,
-            attempt,
-            0L,
-            error,
-            appendError(error),
+            newPhase,
+            newAttempt,
+            newNextRetryAt,
+            newLastError,
+            newErrorHistory,
             createdAt,
             deadline
         );
@@ -245,6 +226,7 @@ public record IndexTaskDoc(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(DOC_TYPE.getPreferredName(), DownsampleStateIndex.INDEX_TASK_DOC_TYPE);
+        builder.field(PROJECT_ID.getPreferredName(), projectId.id());
         builder.field(TARGET_INDEX.getPreferredName(), targetIndex);
         if (targetIndexUuid != null) {
             builder.field(TARGET_INDEX_UUID.getPreferredName(), targetIndexUuid);

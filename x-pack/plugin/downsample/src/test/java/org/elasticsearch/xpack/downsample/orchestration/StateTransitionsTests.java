@@ -65,6 +65,7 @@ public class StateTransitionsTests extends ESTestCase {
     public void testIndexTaskTargetUuidIsImmutable() {
         IndexTaskDoc running = newIndexTask("target").targetCreated(randomUUID());
         IndexTaskDoc otherUuid = new IndexTaskDoc(
+            running.projectId(),
             running.targetIndex(),
             randomUUID(),
             running.sourceIndex(),
@@ -84,6 +85,7 @@ public class StateTransitionsTests extends ESTestCase {
     public void testIndexTaskIdentityIsImmutable() {
         IndexTaskDoc doc = newIndexTask("target");
         IndexTaskDoc otherSource = new IndexTaskDoc(
+            doc.projectId(),
             doc.targetIndex(),
             doc.targetIndexUuid(),
             doc.sourceIndex(),
@@ -99,6 +101,7 @@ public class StateTransitionsTests extends ESTestCase {
         );
         rejected(() -> validateMasterIndexTaskWrite(doc, otherSource), "source index uuid cannot change");
         IndexTaskDoc otherConfig = new IndexTaskDoc(
+            doc.projectId(),
             doc.targetIndex(),
             doc.targetIndexUuid(),
             doc.sourceIndex(),
@@ -113,6 +116,30 @@ public class StateTransitionsTests extends ESTestCase {
             doc.deadline()
         );
         rejected(() -> validateMasterIndexTaskWrite(doc, otherConfig), "config cannot change");
+    }
+
+    public void testProjectIsImmutable() {
+        IndexTaskDoc doc = newIndexTask("target");
+        IndexTaskDoc otherProject = IndexTaskDoc.newTask(
+            randomValueOtherThan(doc.projectId(), ESTestCase::randomUniqueProjectId),
+            doc.targetIndex(),
+            doc.sourceIndex(),
+            doc.sourceIndexUuid(),
+            doc.config(),
+            doc.createdAt(),
+            doc.deadline()
+        );
+        rejected(() -> validateMasterIndexTaskWrite(doc, otherProject), "the project cannot change");
+
+        ShardTaskDoc assigned = newShardTask("target", randomUUID()).assignTo(NODE, false);
+        ShardTaskDoc moved = ShardTaskDoc.newTask(
+            randomValueOtherThan(assigned.projectId(), ESTestCase::randomUniqueProjectId),
+            assigned.targetIndex(),
+            assigned.targetIndexUuid(),
+            assigned.params()
+        ).assignTo(OTHER_NODE, false).assignTo(OTHER_NODE, false);
+        rejected(() -> validateMasterShardTaskWrite(assigned, moved), "the project cannot change");
+        rejected(() -> validateNodeShardTaskWrite(NODE, assigned.epoch(), assigned, moved), "the project cannot change");
     }
 
     // ---- shard task, master ----
@@ -144,6 +171,7 @@ public class StateTransitionsTests extends ESTestCase {
         ShardTaskDoc assigned = newShardTask("target", randomUUID()).assignTo(NODE, false);
         // build a doc that only differs by status and an incremented epoch, so the status is the only reason to reject
         ShardTaskDoc completed = new ShardTaskDoc(
+            assigned.projectId(),
             assigned.targetIndex(),
             assigned.targetIndexUuid(),
             assigned.params(),
@@ -172,6 +200,7 @@ public class StateTransitionsTests extends ESTestCase {
     public void testMasterCannotChangeShardTaskIdentity() {
         ShardTaskDoc assigned = newShardTask("target", randomUUID()).assignTo(NODE, false);
         ShardTaskDoc otherTarget = new ShardTaskDoc(
+            assigned.projectId(),
             assigned.targetIndex(),
             randomUUID(),
             assigned.params(),
@@ -243,6 +272,7 @@ public class StateTransitionsTests extends ESTestCase {
         );
         rejected(() -> validateNodeShardTaskWrite(NODE, epoch, assigned, assigned.unassign()), "cannot change the assigned");
         ShardTaskDoc bumped = new ShardTaskDoc(
+            assigned.projectId(),
             assigned.targetIndex(),
             assigned.targetIndexUuid(),
             assigned.params(),
@@ -257,6 +287,7 @@ public class StateTransitionsTests extends ESTestCase {
         );
         rejected(() -> validateNodeShardTaskWrite(NODE, epoch, assigned, bumped), "cannot change the epoch");
         ShardTaskDoc moreAttempts = new ShardTaskDoc(
+            assigned.projectId(),
             assigned.targetIndex(),
             assigned.targetIndexUuid(),
             assigned.params(),
@@ -271,6 +302,7 @@ public class StateTransitionsTests extends ESTestCase {
         );
         rejected(() -> validateNodeShardTaskWrite(NODE, epoch, assigned, moreAttempts), "cannot change the attempt");
         ShardTaskDoc backToAssigned = new ShardTaskDoc(
+            assigned.projectId(),
             assigned.targetIndex(),
             assigned.targetIndexUuid(),
             assigned.params(),
@@ -289,6 +321,7 @@ public class StateTransitionsTests extends ESTestCase {
     public void testRunningNeedsRunId() {
         ShardTaskDoc assigned = newShardTask("target", randomUUID()).assignTo(NODE, false);
         ShardTaskDoc noRunId = new ShardTaskDoc(
+            assigned.projectId(),
             assigned.targetIndex(),
             assigned.targetIndexUuid(),
             assigned.params(),

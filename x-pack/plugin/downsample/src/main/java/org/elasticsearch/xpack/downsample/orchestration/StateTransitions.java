@@ -43,6 +43,7 @@ public final class StateTransitions {
             check(next.attempt() == 0, "a new index task must have no attempts");
             return;
         }
+        check(current.projectId().equals(next.projectId()), "the project cannot change");
         check(current.targetIndex().equals(next.targetIndex()), "the target index cannot change");
         check(current.sourceIndex().equals(next.sourceIndex()), "the source index cannot change");
         check(current.sourceIndexUuid().equals(next.sourceIndexUuid()), "the source index uuid cannot change");
@@ -139,6 +140,7 @@ public final class StateTransitions {
     }
 
     private static void checkSameTask(ShardTaskDoc current, ShardTaskDoc next) {
+        check(current.projectId().equals(next.projectId()), "the project cannot change");
         check(current.targetIndex().equals(next.targetIndex()), "the target index cannot change");
         check(current.targetIndexUuid().equals(next.targetIndexUuid()), "the target index uuid cannot change");
         check(current.params().equals(next.params()), "the shard task params cannot change");

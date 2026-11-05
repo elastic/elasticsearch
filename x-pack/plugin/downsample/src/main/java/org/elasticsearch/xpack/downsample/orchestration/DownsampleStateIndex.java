@@ -24,6 +24,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
  * The system index that holds the state of the downsample operations when they are orchestrated by the master instead of by
  * a single request plus persistent tasks. It holds two kinds of documents, see {@link IndexTaskDoc} and {@link ShardTaskDoc}.
  * Only {@link DownsampleStateStore} reads and writes it.
+ * <p>
+ * Like the other system indices, there is one per project, holding the operations of that project only (the documents also
+ * record their project, which the store checks on reads). It is created on the first downsample operation of a project.
  */
 public final class DownsampleStateIndex {
 
@@ -77,6 +80,7 @@ public final class DownsampleStateIndex {
             builder.startObject("_meta").field(SystemIndexDescriptor.VERSION_META_KEY, MAPPINGS_VERSION).endObject();
             builder.startObject("properties");
             keyword(builder, DOC_TYPE_FIELD);
+            keyword(builder, IndexTaskDoc.PROJECT_ID.getPreferredName());
             // shared by both document types
             keyword(builder, IndexTaskDoc.TARGET_INDEX.getPreferredName());
             keyword(builder, IndexTaskDoc.TARGET_INDEX_UUID.getPreferredName());

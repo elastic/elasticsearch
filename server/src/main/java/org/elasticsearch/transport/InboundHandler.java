@@ -23,6 +23,8 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -231,12 +233,20 @@ public class InboundHandler {
         }
     }
 
-    private void verifyResponseReadFully(Header header, TransportResponseHandler<?> responseHandler, StreamInput streamInput)
-        throws IOException {
+    private void verifyResponseReadFully(
+        Header header,
+        TransportResponseHandler<?> responseHandler,
+        StreamInput streamInput,
+        @Nullable RefCounted response
+    ) throws IOException {
         // Check the entire message has been read
         final int nextByte = streamInput.read();
         // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
         if (nextByte != -1) {
+            if (response != null) {
+                // The handler never gets this response, so nothing else releases it.
+                response.decRef();
+            }
             final IllegalStateException exception = new IllegalStateException(
                 "Message not fully read (response) for requestId ["
                     + header.getRequestId()
@@ -472,13 +482,7 @@ public class InboundHandler {
         final T response;
         try (inboundMessage) {
             response = handler.read(stream);
-            try {
-                verifyResponseReadFully(inboundMessage.getHeader(), handler, stream);
-            } catch (Exception e) {
-                // The handler gets the failure instead of the response, so nothing else releases it.
-                response.decRef();
-                throw e;
-            }
+            verifyResponseReadFully(inboundMessage.getHeader(), handler, stream, response);
         } catch (Exception e) {
             // Reading a message reserves memory for the structures it builds, so a breaker can trip part-way through reading a message
             // that is itself perfectly well-formed. That is rejected work rather than a deserialization defect, so deliver the breaker
@@ -519,7 +523,7 @@ public class InboundHandler {
         Exception error;
         try (message) {
             error = stream.readException();
-            verifyResponseReadFully(message.getHeader(), handler, stream);
+            verifyResponseReadFully(message.getHeader(), handler, stream, null);
         } catch (Exception e) {
             error = new TransportSerializationException(
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",

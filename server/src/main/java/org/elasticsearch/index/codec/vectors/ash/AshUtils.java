@@ -80,9 +80,7 @@ final class AshUtils {
      */
     public static float[] randomGaussians(Random random, int dims) {
         float[] v = new float[dims];
-        for (int i = 0; i < dims; i++) {
-            v[i] = (float) random.nextGaussian();
-        }
+        randomGaussians(random, v, 0, dims);
         return v;
     }
 
@@ -109,6 +107,15 @@ final class AshUtils {
             out[outOffset + i] = (byte) Math.clamp(Math.round(v[offset + i] * inverseScale), -INT8_MAX, INT8_MAX);
         }
         return max / INT8_MAX;
+    }
+
+    /**
+     * Populates an array of floats each with a Gaussian distribution around 0.0
+     */
+    public static void randomGaussians(Random random, float[] v, int offset, int length) {
+        for (int i = 0; i < length; i++) {
+            v[offset + i] = (float) random.nextGaussian();
+        }
     }
 
     /**
@@ -248,10 +255,8 @@ final class AshUtils {
     public static float[] completeBasis(float[] bT, int n, int have, int want, Random random, TaskExecutor executor) {
         assert bT.length == have * n;
         assert have <= want && want <= n;
-        float[] full = new float[want * n];
-        System.arraycopy(bT, 0, full, 0, have * n);
-        float[] extra = randomGaussians(random, (want - have) * n);
-        System.arraycopy(extra, 0, full, have * n, extra.length);
+        float[] full = Arrays.copyOf(bT, want * n);
+        randomGaussians(random, full, have * n, (want - have) * n);
         orthonormalizeRows(full, n, want, executor);
         return full;
     }
@@ -344,64 +349,73 @@ final class AshUtils {
     }
 
     static void orthonormalizeRows(float[] vT, int n, int k, int blockSize, TaskExecutor executor) {
-        for (int start = 0; start < k; start += blockSize) {
-            int rows = Math.min(blockSize, k - start);
-            // the multiplications need exactly-sized operands
-            float[] block = Arrays.copyOfRange(vT, start * n, (start + rows) * n);
-            float[] originalNormSq = new float[rows];
+        if (k == 0) {
+            return;
+        }
+        int iterationSize = Math.min(blockSize, k);
+        // the most rows any block is projected off: the start of the last block
+        int maxPreviousRows = (k - 1) / iterationSize * iterationSize;
+        float[] originalNormSq = new float[iterationSize];
+        float[] projection = new float[iterationSize * n];
+        float[] previousT = new float[maxPreviousRows * n];
+        float[] coefficients = new float[iterationSize * maxPreviousRows];
+
+        for (int start = 0; start < k; start += iterationSize) {
+            int rows = Math.min(iterationSize, k - start);
+            int blockOffset = start * n;
+
             for (int i = 0; i < rows; i++) {
-                originalNormSq[i] = ESVectorUtil.dotProduct(block, i * n, block, i * n, n);
+                int row = blockOffset + i * n;
+                originalNormSq[i] = ESVectorUtil.dotProduct(vT, row, vT, row, n);
             }
-            float[] previous = start > 0 ? Arrays.copyOf(vT, start * n) : null;   // (start x n), orthonormal rows
-            if (previous != null) {
-                float[] previousT = ESVectorUtil.transposeMatrix(previous, start, n);     // (n x start)
-                float[] coefficients = new float[rows * start];
-                float[] projection = new float[rows * n];
+            if (start > 0) {
+                // the first start rows of vT are orthonormal
+                ESVectorUtil.transposeMatrix(vT, start, n, previousT);   // (n x start)
                 for (int pass = 0; pass < 2; pass++) {
-                    ESVectorUtil.matrixMultiply(block, previousT, rows, n, start, coefficients, executor);
-                    ESVectorUtil.matrixMultiply(coefficients, previous, rows, start, n, projection, executor);
-                    ESVectorUtil.linearCombination(-1f, projection, 1f, block);
+                    ESVectorUtil.matrixMultiply(vT, blockOffset, previousT, 0, rows, n, start, coefficients, 0, executor);
+                    ESVectorUtil.matrixMultiply(coefficients, vT, rows, start, n, projection, executor);
+                    ESVectorUtil.linearCombination(-1f, projection, 0, 1f, vT, blockOffset, rows * n);
                 }
             }
-            orthonormalizeBlock(block, rows, n, originalNormSq, previous, start);
-            System.arraycopy(block, 0, vT, start * n, rows * n);
+            orthonormalizeBlock(vT, blockOffset, rows, n, originalNormSq, start);
         }
     }
 
     /**
-     * Orthonormalizes the rows of a block, already projected off the {@code previousRows} rows of {@code previous},
-     * in place: each row is projected off the rows of the block before it, twice since the rows of a block can be close
-     * to parallel too. A row that is then exactly in the span of the rows before it, judged against its norm before any
-     * projection ({@code originalNormSq}), is replaced by a random direction orthogonal to all of them.
+     * Orthonormalizes the {@code rows} rows of {@code vT} from {@code blockOffset}, in place. The block is already
+     * projected off the first {@code previousRows} rows of {@code vT}, which are orthonormal. Each row is projected off
+     * the rows of the block before it, twice since the rows of a block can be close to parallel too. A row that is
+     * then exactly in the span of the rows before it, judged against its norm before any projection
+     * ({@code originalNormSq}), is replaced by a random direction orthogonal to all of them.
      */
-    private static void orthonormalizeBlock(float[] block, int rows, int n, float[] originalNormSq, float[] previous, int previousRows) {
+    private static void orthonormalizeBlock(float[] vT, int blockOffset, int rows, int n, float[] originalNormSq, int previousRows) {
         for (int i = 0; i < rows; i++) {
-            int row = i * n;
+            int row = blockOffset + i * n;
             for (int pass = 0; pass < 2; pass++) {
-                projectOff(block, row, n, block, i);
+                projectOff(vT, row, n, vT, blockOffset, i);
             }
-            float remainingNormSq = ESVectorUtil.dotProduct(block, row, block, row, n);
+            float remainingNormSq = ESVectorUtil.dotProduct(vT, row, vT, row, n);
             if (remainingNormSq <= EXACT_DEPENDENCE * originalNormSq[i]) {
                 // seeded by the position of the row in the whole matrix, so that two such rows never get the same direction
-                float[] direction = randomGaussians(new Random(31L * (previousRows + i) + n), n);
-                System.arraycopy(direction, 0, block, row, n);
+                randomGaussians(new Random(31L * (previousRows + i) + n), vT, row, n);
                 for (int pass = 0; pass < 2; pass++) {
-                    if (previous != null) {
-                        projectOff(block, row, n, previous, previousRows);
-                    }
-                    projectOff(block, row, n, block, i);
+                    projectOff(vT, row, n, vT, 0, previousRows);
+                    projectOff(vT, row, n, vT, blockOffset, i);
                 }
             }
-            ESVectorUtil.l2Normalize(block, row, n);
+            ESVectorUtil.l2Normalize(vT, row, n);
         }
     }
 
-    /** Subtracts from the vector at {@code vectors[row..row+n)} its projection onto the
-     * first {@code basisRows} orthonormal rows of {@code basis}. */
-    private static void projectOff(float[] vectors, int row, int n, float[] basis, int basisRows) {
+    /**
+     * Subtracts from the vector at {@code vectors[row..row+n)} its projection onto {@code basisRows} orthonormal rows
+     * of {@code basis}, the first of which starts at {@code basisOffset}.
+     */
+    private static void projectOff(float[] vectors, int row, int n, float[] basis, int basisOffset, int basisRows) {
         for (int b = 0; b < basisRows; b++) {
-            float dot = ESVectorUtil.dotProduct(vectors, row, basis, b * n, n);
-            ESVectorUtil.linearCombination(-dot, basis, b * n, vectors, row, n);
+            int basisRow = basisOffset + b * n;
+            float dot = ESVectorUtil.dotProduct(vectors, row, basis, basisRow, n);
+            ESVectorUtil.linearCombination(-dot, basis, basisRow, vectors, row, n);
         }
     }
 

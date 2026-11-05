@@ -2295,7 +2295,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     recoveryState.getTranslog().totalLocal(recoveredOps); // adjust the total local to reflect the actual count
                     return recoveredOps;
                 };
-                innerOpenEngineAndTranslog(() -> globalCheckpoint);
+                innerOpenEngineAndTranslog(() -> globalCheckpoint, null);
                 getEngine().recoverFromTranslog(translogRecoveryRunner, globalCheckpoint, recoveryCompleteListener.map(v -> {
                     logger.trace("shard locally recovered up to {}", getEngine().getSeqNoStats(globalCheckpoint));
                     return v;
@@ -2467,12 +2467,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return opsRecovered;
     }
 
-    private void loadGlobalCheckpointToReplicationTracker() throws IOException {
+    private void loadGlobalCheckpointToReplicationTracker(@Nullable LastCommitInfo lastCommit) throws IOException {
         if (shardRouting.isPromotableToPrimary()) {
             // we have to set it before we open an engine and recover from the translog because
             // acquiring a snapshot from the translog causes a sync which causes the global checkpoint to be pulled in,
             // and an engine can be forced to close in ctor which also causes the global checkpoint to be pulled in.
-            final long globalCheckpoint = readGlobalCheckpointForRecovery(store.readLastCommittedSegmentsInfo().getUserData());
+            final var userData = lastCommit != null ? lastCommit.userData() : store.readLastCommittedSegmentsInfo().getUserData();
+            final long globalCheckpoint = readGlobalCheckpointForRecovery(userData);
             replicationTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "read from translog checkpoint");
         } else {
             replicationTracker.updateGlobalCheckpointOnReplica(globalCheckPointIfUnpromotable, "from CleanFilesRequest");
@@ -2499,8 +2500,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     translogRecoveryStats::incrementRecoveredOperations
                 );
             };
-            loadGlobalCheckpointToReplicationTracker();
-            innerOpenEngineAndTranslog(replicationTracker);
+            loadGlobalCheckpointToReplicationTracker(null);
+            innerOpenEngineAndTranslog(replicationTracker, null);
             getEngine().recoverFromTranslog(translogRecoveryRunner, Long.MAX_VALUE, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -2512,14 +2513,43 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The translog is kept but its operations won't be replayed.
      */
     public void openEngineAndSkipTranslogRecovery() throws IOException {
+        openEngineAndSkipTranslogRecovery(null);
+    }
+
+    /**
+     * Opens the engine like {@link #openEngineAndSkipTranslogRecovery()}, using the given user data and Lucene version of the last
+     * commit instead of reading them from the store.
+     *
+     * @param lastCommit the generation, user data and Lucene version of the last commit of the store, or {@code null} to read them
+     *                   from the store
+     */
+    public void openEngineAndSkipTranslogRecovery(@Nullable LastCommitInfo lastCommit) throws IOException {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
+        assert lastCommit == null || assertLastCommitGeneration(lastCommit);
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
-        loadGlobalCheckpointToReplicationTracker();
-        innerOpenEngineAndTranslog(replicationTracker);
+        loadGlobalCheckpointToReplicationTracker(lastCommit);
+        innerOpenEngineAndTranslog(replicationTracker, lastCommit);
         getEngine().skipTranslogRecovery();
     }
 
-    private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier) throws IOException {
+    private boolean assertLastCommitGeneration(LastCommitInfo lastCommit) throws IOException {
+        // only lists the files of the store, which unlike reading the last commit does not open any of them
+        final long generation = SegmentInfos.getLastCommitGeneration(store.directory());
+        assert generation == lastCommit.generation()
+            : "given last commit generation [" + lastCommit.generation() + "] but last commit of the store is [" + generation + "]";
+        return true;
+    }
+
+    /**
+     * The generation, user data and Lucene version of a commit.
+     */
+    public record LastCommitInfo(long generation, Map<String, String> userData, org.apache.lucene.util.Version luceneVersion) {
+        public LastCommitInfo {
+            userData = Map.copyOf(userData);
+        }
+    }
+
+    private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier, @Nullable LastCommitInfo lastCommit) throws IOException {
         assert Thread.holdsLock(mutex) == false : "opening engine under mutex";
         assert assertNoEngineResetLock();
         verifyRecovering();
@@ -2548,7 +2578,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
-        assert assertLastestCommitUserData();
+        assert assertLastestCommitUserData(lastCommit);
         recoveryState.validateCurrentStage(RecoveryState.Stage.TRANSLOG);
     }
 
@@ -2571,9 +2601,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Asserts that the latest Lucene commit contains expected information about sequence numbers or ES version.
      */
-    private boolean assertLastestCommitUserData() throws IOException {
-        final SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
-        final Map<String, String> userData = segmentCommitInfos.getUserData();
+    private boolean assertLastestCommitUserData(@Nullable LastCommitInfo lastCommit) throws IOException {
+        if (lastCommit == null) {
+            final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+            lastCommit = new LastCommitInfo(
+                segmentInfos.getGeneration(),
+                segmentInfos.getUserData(),
+                segmentInfos.getCommitLuceneVersion()
+            );
+        }
+        final Map<String, String> userData = lastCommit.userData();
         // Ensure sequence numbers are present in commit data
         assert userData.containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) : "commit point doesn't contains a local checkpoint";
         assert userData.containsKey(SequenceNumbers.MAX_SEQ_NO) : "commit point doesn't contains a maximum sequence number";
@@ -2593,7 +2630,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // primary may have created new segments in a more recent Lucene version, that may have been later snapshotted, meaning that the
         // snapshotted files cannot be recovered on a node with a less recent Lucene version. Note that for versions <= 7.15 this assertion
         // relies in the previous minor having a different lucene version.
-        final org.apache.lucene.util.Version commitLuceneVersion = segmentCommitInfos.getCommitLuceneVersion();
+        final org.apache.lucene.util.Version commitLuceneVersion = lastCommit.luceneVersion();
         assert commitLuceneVersion.onOrAfter(RecoverySettings.SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION.luceneVersion()) == false
             || userData.containsKey(Engine.ES_VERSION)
                 && Engine.readIndexVersion(userData.get(Engine.ES_VERSION)).onOrBefore(IndexVersion.current())

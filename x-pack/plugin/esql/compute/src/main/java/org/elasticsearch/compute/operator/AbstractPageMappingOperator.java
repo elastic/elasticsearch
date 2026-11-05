@@ -118,6 +118,17 @@ public abstract class AbstractPageMappingOperator implements Operator {
             "page_mapping",
             Status::new
         );
+        public static final ProfileSchema<Status> PROFILE_SCHEMA = ProfileSchema.of(Status.class, (builder, status, params) -> {
+            builder.startObject();
+            status.innerToXContent(builder);
+            return builder.endObject();
+        })
+            .required("process_nanos", ProfileSchema.integer())
+            .optional("process_time", ProfileSchema.string())
+            .required("pages_processed", ProfileSchema.integer())
+            .required("rows_received", ProfileSchema.integer())
+            .required("rows_emitted", ProfileSchema.integer())
+            .build();
 
         private final long processNanos;
         private final int pagesProcessed;
@@ -169,9 +180,7 @@ public abstract class AbstractPageMappingOperator implements Operator {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            innerToXContent(builder);
-            return builder.endObject();
+            return PROFILE_SCHEMA.write(builder, this, params);
         }
 
         /**

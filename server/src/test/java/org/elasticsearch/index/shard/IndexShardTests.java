@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
@@ -122,6 +123,7 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.store.StoreUtils;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -162,6 +164,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -3431,6 +3434,46 @@ public class IndexShardTests extends IndexShardTestCase {
         safeAwait(shard::openEngineAndRecoverFromTranslog);
         // Shard should now be active since we did recover:
         assertTrue(shard.isActive());
+        closeShards(shard);
+    }
+
+    public void testOpenEngineAndSkipTranslogRecoveryWithKnownLastCommit() throws IOException {
+        IndexShard shard = newStartedShard(false);
+        indexDoc(shard, "_doc", "0");
+        flushShard(shard);
+        final SegmentInfos segmentInfos = shard.store().readLastCommittedSegmentsInfo();
+        // a different translog UUID shows that the given last commit is used rather than the one read from the store
+        final boolean knownLastCommitMatches = randomBoolean();
+        final Map<String, String> userData = new HashMap<>(segmentInfos.getUserData());
+        if (knownLastCommitMatches == false) {
+            userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID());
+        }
+        final var lastCommit = new IndexShard.LastCommitInfo(segmentInfos.getGeneration(), userData, segmentInfos.getCommitLuceneVersion());
+
+        shard = reinitShard(shard);
+        assertThat(shard.routingEntry().recoverySource().getType(), equalTo(RecoverySource.Type.PEER));
+        shard.markAsRecovering("for testing");
+        shard.prepareForIndexRecovery();
+        shard.recoveryState().getIndex().setFileDetailsComplete();
+        shard.recoveryState().setStage(RecoveryState.Stage.VERIFY_INDEX);
+        shard.recoveryState().setStage(RecoveryState.Stage.TRANSLOG);
+
+        // the given last commit must be the last commit of the store
+        final var otherGeneration = new IndexShard.LastCommitInfo(
+            segmentInfos.getGeneration() + randomFrom(-1, 1),
+            segmentInfos.getUserData(),
+            segmentInfos.getCommitLuceneVersion()
+        );
+        final IndexShard shardWithOtherGeneration = shard;
+        expectThrows(AssertionError.class, () -> shardWithOtherGeneration.openEngineAndSkipTranslogRecovery(otherGeneration));
+
+        if (knownLastCommitMatches) {
+            shard.openEngineAndSkipTranslogRecovery(lastCommit);
+            assertNotNull(shard.getEngineOrNull());
+        } else {
+            final IndexShard recoveringShard = shard;
+            expectThrows(TranslogCorruptedException.class, () -> recoveringShard.openEngineAndSkipTranslogRecovery(lastCommit));
+        }
         closeShards(shard);
     }
 

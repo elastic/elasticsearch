@@ -921,6 +921,7 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         VectorEncoding encoding = fieldInfo.getVectorEncoding();
 
         // Encoding-specific scratch buffers
+        ValueLayout floatOrder = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
         final MemorySegment floatBuffer = encoding == VectorEncoding.FLOAT32
             ? Arena.ofAuto().allocate((long)dim * Float.BYTES, Float.BYTES)
             : null;
@@ -944,9 +945,9 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                     float[] vector = ((FloatVectorValues) mergedVectorValues).vectorValue(iterator.index());
                     if (preconditioner != null) {
                         preconditioner.applyTransform(vector, floatScratch);
-                        MemorySegment.copy(floatScratch, 0, floatBuffer, ValueLayout.JAVA_FLOAT, 0, dim);
+                        MemorySegment.copy(floatScratch, 0, floatBuffer, floatOrder, 0, dim);
                     } else {
-                        MemorySegment.copy(vector, 0, floatBuffer, ValueLayout.JAVA_FLOAT, 0, dim);
+                        MemorySegment.copy(vector, 0, floatBuffer, floatOrder, 0, dim);
                     }
                     MemorySegment.copy(floatBuffer, ValueLayout.JAVA_BYTE, 0, byteScratch, 0, dim * Float.BYTES);
                     vectorsOut.writeBytes(byteScratch, byteScratch.length);

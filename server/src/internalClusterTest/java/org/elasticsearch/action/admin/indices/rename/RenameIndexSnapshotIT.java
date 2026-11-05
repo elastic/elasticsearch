@@ -42,6 +42,25 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
 
+    public void testAliasReusesOriginalSnapshotName() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepository("repo", "mock");
+        createIndexWithContent("source");
+        flushAndRefresh("source");
+        blockDataNode("repo", dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshot = startFullSnapshot("repo", "snap");
+        waitForBlock(dataNode, "repo");
+        try {
+            rename("source", "renamed");
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("renamed", "source"));
+        } finally {
+            unblockNode("repo", dataNode);
+        }
+        final SnapshotInfo info = snapshot.actionGet(org.elasticsearch.core.TimeValue.timeValueSeconds(30)).getSnapshotInfo();
+        assertThat(info.state(), equalTo(SnapshotState.SUCCESS));
+    }
+
     /**
      * A snapshot in flight does not block a rename, and is not changed by it: the entry keeps the name and the repository id the
      * index had when the snapshot started, the shard uploads already running finish under that id, and the snapshot finalizes as an

@@ -362,6 +362,15 @@ which now finds each index by the one the entry recorded and keeps the
 shard's original UUID (`ProjectForSnapshotTests`). An entry that has no shards
 yet has recorded no index, only a name, and is checked by name.
 
+An alias cannot share a name with an index, and the view puts an index back under
+a name it no longer has, so an alias added since the snapshot started with that
+name, typically the old name kept as an alias for a migration, would make
+finalization fail and discard a long backup. Finalization leaves such aliases
+out of the view, for every index in it including the ones outside the snapshot
+that a global-state snapshot carries, and does so before the metadata is built,
+since building already rejects an alias named like its own index
+(`testAliasReusesOriginalSnapshotName`, `testAliasWithTheOriginalNameOfAnotherIndex`).
+
 One more consequence of an index appearing under two ids: the repository finds
 an index metadata blob by an identifier built from the index UUID and the
 versions of its metadata, but the blob lives in the container of one `id`. A

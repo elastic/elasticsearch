@@ -332,6 +332,14 @@ public class SnapshotsServiceUtils {
                 snapshotNames.put(indexMetadata.getIndex(), startedAs == null ? indexMetadata.getIndex() : startedAs);
             }
         }
+        // The names that an index of the snapshot gets back although it no longer has them. An alias with one of these names, which
+        // can only have been added since the snapshot started, would clash with the index in the view, so it is left out of it.
+        final Set<String> relabelled = new HashSet<>();
+        for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
+            if (entry.getValue().getIndex().getName().equals(entry.getKey()) == false) {
+                relabelled.add(entry.getKey());
+            }
+        }
         final ProjectMetadata.Builder builder;
         if (snapshot.includeGlobalState() == false) {
             // Create a new project state that only includes the index data
@@ -342,15 +350,18 @@ public class SnapshotsServiceUtils {
             for (IndexMetadata indexMetadata : metadataBySnapshotName.values()) {
                 builder.remove(indexMetadata.getIndex().getName());
             }
+            if (relabelled.isEmpty() == false) {
+                for (IndexMetadata other : project.indices().values()) {
+                    final IndexMetadata withoutClashes = withoutAliasesNamed(other, relabelled);
+                    if (withoutClashes != other && builder.get(other.getIndex().getName()) != null) {
+                        builder.put(withoutClashes, false);
+                    }
+                }
+            }
         }
         for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
             final IndexMetadata indexMetadata = entry.getValue();
-            builder.put(
-                indexMetadata.getIndex().getName().equals(entry.getKey())
-                    ? indexMetadata
-                    : IndexMetadata.builder(indexMetadata).index(entry.getKey()).build(),
-                false
-            );
+            builder.put(named(indexMetadata, entry.getKey(), relabelled), false);
         }
         // Only keep those data streams in the metadata that were actually requested by the initial snapshot create operation and that have
         // all their indices contained in the snapshot
@@ -376,6 +387,28 @@ public class SnapshotsServiceUtils {
             }
         }
         return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, project.dataStreamAliases())).build();
+    }
+
+    /**
+     * {@code indexMetadata} under {@code name}, without the aliases named in {@code clashingAliases}. The aliases are removed before
+     * the metadata is built, because building it already rejects an alias that has the name of its own index.
+     */
+    private static IndexMetadata named(IndexMetadata indexMetadata, String name, Set<String> clashingAliases) {
+        final boolean renamed = indexMetadata.getIndex().getName().equals(name) == false;
+        IndexMetadata.Builder builder = renamed ? IndexMetadata.builder(indexMetadata).index(name) : null;
+        for (String alias : clashingAliases) {
+            if (indexMetadata.getAliases().containsKey(alias)) {
+                if (builder == null) {
+                    builder = IndexMetadata.builder(indexMetadata);
+                }
+                builder.removeAlias(alias);
+            }
+        }
+        return builder == null ? indexMetadata : builder.build();
+    }
+
+    private static IndexMetadata withoutAliasesNamed(IndexMetadata indexMetadata, Set<String> names) {
+        return named(indexMetadata, indexMetadata.getIndex().getName(), names);
     }
 
     /**

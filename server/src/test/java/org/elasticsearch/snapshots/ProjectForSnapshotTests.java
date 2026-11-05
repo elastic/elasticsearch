@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -129,7 +130,7 @@ public class ProjectForSnapshotTests extends ESTestCase {
         assertThat(view.index(firstRenamed.getName()), nullValue());
     }
 
-    public void testReviewSnapshotGuardFollowsRename() {
+    public void testSnapshotGuardFollowsRename() {
         final Index original = new Index("source", "uuid-original");
         final IndexMetadata renamed = index("renamed", original.getUUID());
         final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(renamed, false).build();
@@ -144,7 +145,7 @@ public class ProjectForSnapshotTests extends ESTestCase {
         );
     }
 
-    public void testReviewSnapshotGuardDoesNotBlockReplacement() {
+    public void testSnapshotGuardDoesNotBlockReplacement() {
         final Index original = new Index("source", "uuid-original");
         final IndexMetadata renamed = index("renamed", original.getUUID());
         final IndexMetadata replacement = index("source", "uuid-replacement");
@@ -160,7 +161,7 @@ public class ProjectForSnapshotTests extends ESTestCase {
         );
     }
 
-    public void testReviewReevaluatingQueuedSnapshotFollowsRename() {
+    public void testReevaluatingQueuedSnapshotFollowsRename() {
         final Index original = new Index("source", "uuid-original");
         final IndexMetadata renamed = index("renamed", original.getUUID());
         final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(renamed, false).build();
@@ -190,7 +191,7 @@ public class ProjectForSnapshotTests extends ESTestCase {
         assertNotNull("the queued snapshot must retain its original shard UUID", assignments.get(new ShardId(original, 0)));
     }
 
-    public void testReviewDeleteDuringSnapshotMustStillBeRejectedAfterRename() {
+    public void testDeleteDuringSnapshotIsStillRejectedAfterRename() {
         final Index original = new Index("source", "uuid-original");
         final IndexMetadata renamed = index("renamed", original.getUUID());
         final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(renamed, false).build();
@@ -215,4 +216,49 @@ public class ProjectForSnapshotTests extends ESTestCase {
         );
     }
 
+    public void testAliasReusesOriginalSnapshotName() {
+        final Index original = new Index("source", "uuid-original");
+        final IndexMetadata renamed = IndexMetadata.builder(index("renamed", original.getUUID()))
+            .putAlias(AliasMetadata.builder("source"))
+            .build();
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT).put(renamed, false).build();
+        final ProjectMetadata view = SnapshotsServiceUtils.projectForSnapshot(snapshotOf(false, List.of(), original), project);
+        assertThat(view.index("source").getIndexUUID(), equalTo(original.getUUID()));
+    }
+
+    /**
+     * An alias that was added after the snapshot started and is named like another index of the snapshot, which only has that name in
+     * the snapshot's view, would clash with it: "b" was renamed, and an alias "b" now points at the other index.
+     */
+    public void testAliasWithTheOriginalNameOfAnotherIndex() {
+        final Index startedAsA = new Index("a", "uuid-a");
+        final Index startedAsB = new Index("b", "uuid-b");
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(IndexMetadata.builder(index("a", "uuid-a")).putAlias(AliasMetadata.builder("b")).build(), false)
+            .put(index("renamed-b", "uuid-b"), false)
+            .build();
+
+        final ProjectMetadata view = SnapshotsServiceUtils.projectForSnapshot(
+            snapshotOf(randomBoolean(), List.of(), startedAsA, startedAsB),
+            project
+        );
+
+        assertThat(view.index("b").getIndexUUID(), equalTo("uuid-b"));
+        assertThat(view.index("a").getAliases().containsKey("b"), equalTo(false));
+    }
+
+    /** With global state the view also holds the indices the snapshot does not cover, whose aliases can clash as well. */
+    public void testAliasOfAnIndexOutsideTheSnapshotWithTheOriginalName() {
+        final Index startedAs = new Index("source", "uuid-source");
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(index("renamed", "uuid-source"), false)
+            .put(IndexMetadata.builder(index("unrelated", "uuid-unrelated")).putAlias(AliasMetadata.builder("source")).build(), false)
+            .build();
+
+        final ProjectMetadata view = SnapshotsServiceUtils.projectForSnapshot(snapshotOf(true, List.of(), startedAs), project);
+
+        assertThat(view.index("source").getIndexUUID(), equalTo("uuid-source"));
+        assertThat(view.index("unrelated").getAliases().containsKey("source"), equalTo(false));
+        assertThat(view.index("renamed"), nullValue());
+    }
 }

@@ -45,6 +45,8 @@ final class MutableRoutingAllocation extends RoutingAllocation {
      * @param clusterInfo {@link ClusterInfo} to use for allocation decisions
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
+     * @param changesObserver additionally notified of every change to the routing nodes, after the built-in observers: the metrics and
+     *                        logging observer for a real reroute, or whatever the caller of a simulation wants to observe
      * @param preserveDecisionLabels whether decisions retain their decider label when not in debug mode
      */
     MutableRoutingAllocation(
@@ -55,7 +57,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
         boolean isSimulating,
-        RoutingChangesObserver shardChangesObserver,
+        RoutingChangesObserver changesObserver,
         boolean preserveDecisionLabels
     ) {
         super(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, preserveDecisionLabels);
@@ -70,7 +72,7 @@ final class MutableRoutingAllocation extends RoutingAllocation {
             restoreInProgressUpdater,
             resizeSourceIndexUpdater,
             new MaxWriteLoadProportionCacheInvalidator(),
-            shardChangesObserver
+            changesObserver
         );
     }
 

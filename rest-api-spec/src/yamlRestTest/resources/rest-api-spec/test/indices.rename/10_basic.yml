@@ -132,6 +132,58 @@ setup:
   - match: { hits.hits.0._index: other }
 
 ---
+"Swap in a reindexed copy under the original name, as the design document describes":
+  - do:
+      indices.create:
+        index: my_index
+  - do:
+      index:
+        index: my_index
+        id: "1"
+        body: { version: old }
+        refresh: true
+  - do:
+      indices.create:
+        index: my_index_reindexed
+  - do:
+      index:
+        index: my_index_reindexed
+        id: "1"
+        body: { version: new }
+        refresh: true
+  - do:
+      indices.get:
+        index: my_index_reindexed
+  - set: { my_index_reindexed.settings.index.uuid: reindexed_uuid }
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove_index: { index: my_index }
+            - add: { index: my_index_reindexed, alias: my_alias }
+            - rename_index: { index: my_index_reindexed, new_index: my_index }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      indices.get:
+        index: my_index_reindexed
+  - do:
+      indices.get:
+        index: my_index
+  - match: { my_index.settings.index.uuid: $reindexed_uuid }
+  - is_true: my_index.aliases.my_alias
+
+  - do:
+      search:
+        index: my_alias
+        body:
+          query: { match: { version: new } }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._index: my_index }
+
+---
 "Rename actions are validated":
   - do:
       catch: bad_request

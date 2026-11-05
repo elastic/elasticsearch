@@ -280,7 +280,8 @@ public class InternalUsersTests extends ESTestCase {
             ".workflows*",
             ".kibana_change_history*",
             ".kibana-notifications*",
-            ".serverless-recovery-history"
+            ".serverless-recovery-history",
+            ".serverless-shard-movement-history"
         );
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {

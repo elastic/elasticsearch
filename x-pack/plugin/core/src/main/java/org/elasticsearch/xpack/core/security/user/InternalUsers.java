@@ -196,7 +196,9 @@ public class InternalUsers {
                         // System data stream for the kibana notification center
                         ".kibana-notifications*",
                         // System data stream for serverless shard recovery history
-                        ".serverless-recovery-history"
+                        ".serverless-recovery-history",
+                        // System data stream for serverless shard movement history
+                        ".serverless-shard-movement-history"
                     )
                     .privileges(
                         filterNonNull(

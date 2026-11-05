@@ -521,9 +521,10 @@ public class EsqlCapabilities {
         /**
          * Fields absorbed into the implicit {@code _unmapped} sink of a strict columnar index load under {@code SET unmapped_fields="load"}
          * from the sink's doc values. As for a key of a mapped flattened field, they are keywords and their values are sorted and
-         * deduplicated. A field below a nested object is still read from {@code _source}.
+         * deduplicated. A field below a nested object is still read from {@code _source}. V2: the sink is opted into with a root
+         * {@code dynamic: flattened}, which the test datasets set and a node of the first version rejects.
          */
-        FLATTENED_UNMAPPED_SINK_LOAD(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
+        FLATTENED_UNMAPPED_SINK_LOAD_V2(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
 
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.

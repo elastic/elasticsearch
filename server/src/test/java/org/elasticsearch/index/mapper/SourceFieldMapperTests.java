@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -229,6 +230,15 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 topMapping(b -> b.startObject("_source").field("enabled", false).field("mode", "synthetic").endObject())
             )
         );
+        assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
+    }
+
+    public void testSerializingDoesNotHideInvalidSourceParameters() throws IOException {
+        MappingBuilder mappingBuilder = createMapperService(mapping(b -> {})).parseMappings(new CompressedXContent("""
+            { "_doc": { "_source": { "enabled": false, "mode": "synthetic" } } }
+            """));
+        mappingBuilder.toCompressedXContent();
+        Exception e = expectThrows(MapperParsingException.class, () -> mappingBuilder.build(MapperService.MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
     }
 

@@ -301,13 +301,28 @@ public class CsvColumnarIT extends CsvIT {
      * dataset(s) it reads from, so {@link #shouldExclude} can detect incompatible or time-series
      * datasets that are only reachable via a view.
      */
+    /**
+     * Matches one leading {@code SET <name> = <value>;} statement, where the value is either a
+     * double-quoted string (escapes allowed) or a run of non-semicolon characters. Trailing
+     * whitespace — including the {@code \r\n} that {@link CsvSpecReader} emits after each SET
+     * line — is consumed so repeated application peels off stacked SET statements.
+     *
+     * <p>Declared before {@link #VIEW_BACKING_DATASETS}, whose static initializer calls
+     * {@link #stripLeadingSetStatements}.
+     */
+    private static final java.util.regex.Pattern LEADING_SET_STATEMENT = java.util.regex.Pattern.compile(
+        "^\\s*(?i:SET)\\s+[A-Za-z_][A-Za-z0-9_.]*\\s*=\\s*(\"(?:[^\"\\\\]|\\\\.)*\"|[^;]*);\\s*"
+    );
+
     private static final Map<String, Set<CsvTestsDataLoader.TestDataset>> VIEW_BACKING_DATASETS = VIEW_CONFIGS.entrySet()
         .stream()
         .collect(
             java.util.stream.Collectors.toUnmodifiableMap(
                 Map.Entry::getKey,
+                // View bodies may open with SET statements (set_in_view_definitions), which hide
+                // the FROM from the pattern extractor's anchors; strip them like test queries.
                 e -> EsqlQueryDatasetResolver.resolveDatasets(
-                    EsqlQueryDatasetResolver.extractIndexPatterns(e.getValue().loadQuery()),
+                    EsqlQueryDatasetResolver.extractIndexPatterns(stripLeadingSetStatements(e.getValue().loadQuery())),
                     CSV_DATASET
                 )
             )
@@ -444,33 +459,26 @@ public class CsvColumnarIT extends CsvIT {
     }
 
     /**
-     * Returns {@code query} with any leading {@code SET <name>=<value>;\r\n} lines removed.
+     * Returns {@code query} with any leading {@code SET <name>=<value>;} statements removed.
      *
      * <p>{@link EsqlQueryDatasetResolver#extractIndexPatterns} uses a regex that anchors on
      * start-of-input, {@code |}, or {@code (} (deliberately, to avoid widening
-     * {@code CsvFlattenedKeywordIT}'s keyword-path scoping). When a csv-spec query opens with one or
-     * more {@code SET} lines — which {@link CsvSpecReader} appends to the query as {@code SET
-     * name=value;\r\n} — the subsequent {@code FROM} sits after a newline and the regex returns no
-     * patterns, causing {@link #shouldExclude} to miss time-series or incompatible-dataset sources.
-     * Stripping the {@code SET} lines here restores the extraction without touching the shared
-     * resolver.
-     *
-     * <p>Only strips lines whose first non-whitespace token is {@code SET} (case-insensitive) followed
-     * by a non-whitespace identifier, an equals sign, and a value ending in {@code ;} — the exact
-     * form {@code CsvSpecReader} emits. Lines that do not match are left intact; the first non-{@code
-     * SET} line and all subsequent lines are returned unchanged.
+     * {@code CsvFlattenedKeywordIT}'s keyword-path scoping). When a query opens with one or more
+     * {@code SET} statements, the subsequent {@code FROM} sits after the {@code ;} — on the next
+     * line for csv-spec test queries ({@link CsvSpecReader} emits {@code SET name=value;\r\n}) or
+     * on the same line for view bodies ({@code SET name="v"; FROM x | ...}) — and the regex
+     * returns no patterns, causing {@link #shouldExclude} to miss time-series or
+     * incompatible-dataset sources. Stripping the {@code SET} statements here restores the
+     * extraction without touching the shared resolver.
      */
     private static String stripLeadingSetStatements(String query) {
-        // CsvSpecReader joins lines with "\r\n"; split on any line ending and reconstruct.
-        String[] lines = query.split("\r\n|\r|\n", -1);
-        int first = 0;
-        while (first < lines.length && lines[first].stripLeading().toUpperCase(Locale.ROOT).startsWith("SET ")) {
-            first++;
+        String result = query;
+        java.util.regex.Matcher m = LEADING_SET_STATEMENT.matcher(result);
+        while (m.find()) {
+            result = result.substring(m.end());
+            m = LEADING_SET_STATEMENT.matcher(result);
         }
-        if (first == 0) {
-            return query;
-        }
-        return String.join("\r\n", java.util.Arrays.copyOfRange(lines, first, lines.length));
+        return result;
     }
 
     private static boolean shouldExclude(CsvTestCase testCase) throws IOException {

@@ -501,10 +501,6 @@ tests:
   - :qa:mixed-cluster:v9.1.9#yamlRestTest
   method: testSingleValuedString
   issue: https://github.com/elastic/elasticsearch/issues/163317
-- class: org.elasticsearch.xpack.esql.CsvColumnarIT
-  tasks:
-  - :x-pack:plugin:esql:internalClusterTest
-  issue: https://github.com/elastic/elasticsearch/issues/163462
 - class: org.elasticsearch.xpack.inference.integration.CCMServiceIT
   tasks:
   - :x-pack:plugin:inference:internalClusterTest

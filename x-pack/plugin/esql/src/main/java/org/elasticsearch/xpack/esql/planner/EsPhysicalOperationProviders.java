@@ -31,6 +31,7 @@ import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ReadDimsOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -725,7 +726,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<GroupingAggregator.Factory> aggregatorFactories,
         List<BlockHash.GroupSpec> groupSpecs,
         LocalExecutionPlannerContext context,
-        int maxPageSize
+        int maxPageSize,
+        HashAggregationOperator.ParallelConfig parallelConfig
     ) {
         var pragmas = context.queryPragmas();
         int targetChunkRows = pragmas.timeSeriesTargetChunkRows(plannerSettings.timeSeriesTargetChunkRows());
@@ -737,7 +739,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             aggregatorFactories,
             context.pageSize(ts, ts.estimatedRowSize()),
             targetChunkRows,
-            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold())
+            pragmas.partialAggregationEmitKeysThreshold(plannerSettings.partialEmitKeysThreshold()),
+            parallelConfig
         );
     }
 

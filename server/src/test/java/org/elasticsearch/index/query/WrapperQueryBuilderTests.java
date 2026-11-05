@@ -177,7 +177,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
 
     public void testMaxNestedDepth() throws IOException {
         BoolQueryBuilderTests boolQueryBuilderTests = new BoolQueryBuilderTests();
-        BoolQueryBuilder boolQuery = boolQueryBuilderTests.createQueryWithInnerQuery(new MatchAllQueryBuilder());
+        BoolQueryBuilder boolQuery = boolQueryBuilderTests.createQueryWithInnerQuery(createInnerQuery());
         int maxDepth = randomIntBetween(3, 5);
         AbstractQueryBuilder.setMaxNestedDepth(maxDepth);
         for (int i = 1; i < maxDepth - 1; i++) {

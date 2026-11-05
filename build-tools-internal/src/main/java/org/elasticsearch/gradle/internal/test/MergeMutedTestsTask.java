@@ -106,10 +106,12 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
             Key key = entry.getKey();
             Block incomingBlock = incomingEntries.get(key);
             if (incomingBlock == null) {
+                // removed entry
                 if (result.removeIf(block -> key.equals(block.key()))) {
                     removed++;
                 }
             } else if (incomingBlock.node().equals(entry.getValue().node()) == false) {
+                // changed entry - we don't handle this for now
                 throw new GradleException(
                     "Muted test entry ["
                         + key
@@ -125,6 +127,7 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
             if (baseEntries.containsKey(key)) {
                 continue;
             }
+            // New entries only here
             List<Block> existing = result.stream().filter(block -> key.equals(block.key())).toList();
             if (existing.isEmpty()) {
                 result.add(entry.getValue());
@@ -132,6 +135,7 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
                 continue;
             }
             for (Block block : existing) {
+                // Same entry but changed in incoming - we don't handle this for now
                 if (block.node().equals(entry.getValue().node()) == false) {
                     throw new GradleException(
                         "Muted test entry ["
@@ -154,22 +158,22 @@ public abstract class MergeMutedTestsTask extends DefaultTask {
     }
 
     /**
-     * Splits the file into blocks: a list entry starts at a column-0 {@code - } line and continues through indented lines; any
-     * other line (the {@code tests:} key, comments, blank lines) is a verbatim block of its own so it survives entry removal.
+     * Splits the file into blocks: a list entry starts at a column-0 {@code - } line and continues through indented lines; a run
+     * of any other lines (the {@code tests:} key, comments, blank lines) is one verbatim block so it survives entry removal.
      */
     private static List<Block> split(String text) {
         List<List<String>> chunks = new ArrayList<>();
-        List<String> entry = null;
+        List<String> current = null;
+        boolean inEntry = false;
         for (String line : text.lines().toList()) {
-            if (line.startsWith("- ")) {
-                entry = new ArrayList<>(List.of(line));
-                chunks.add(entry);
-            } else if (entry != null && (line.startsWith(" ") || line.startsWith("\t"))) {
-                entry.add(line);
-            } else {
-                entry = null;
-                chunks.add(List.of(line));
+            boolean startsEntry = line.startsWith("- ");
+            boolean continuesCurrent = current != null && (inEntry ? line.startsWith(" ") || line.startsWith("\t") : startsEntry == false);
+            if (continuesCurrent == false) {
+                current = new ArrayList<>();
+                chunks.add(current);
+                inEntry = startsEntry;
             }
+            current.add(line);
         }
         List<Block> blocks = new ArrayList<>();
         for (List<String> chunk : chunks) {

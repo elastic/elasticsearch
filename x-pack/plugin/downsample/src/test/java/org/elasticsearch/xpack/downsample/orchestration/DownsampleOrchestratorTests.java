@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -24,10 +25,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.downsample.Downsample;
+import org.elasticsearch.xpack.downsample.DownsampleShardIndexerException;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore.Versioned;
 import org.junit.Before;
 
@@ -36,14 +39,20 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Drives downsample operations through {@link DownsampleOrchestrator} on a single node with a real time series source index.
@@ -70,6 +79,8 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put(DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(200))
+            // phase retries back off from 25ms, doubling: 10 attempts take about 13s, the 7th is due about 3s after the first failure
+            .put(DownsampleOrchestrator.RETRY_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(25))
             // the tests play the node, keep the real poller out of the way
             .put(ShardTaskPoller.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1))
             .build();
@@ -209,15 +220,162 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(TARGET).setSize(0), SOURCE_DOCS);
     }
 
+    // ---- retries and their limits ----
+
+    /**
+     * The shard work fails with a retriable error a few times (as when a bulk fails while the shard is scanned): every failure
+     * reported by the node gives the task another attempt, and the operation completes.
+     */
+    public void testShardTaskIsRetriedUntilItSucceeds() throws Exception {
+        int failures = between(1, DownsampleOrchestrator.MAX_SHARD_TASK_ATTEMPTS - 1);
+        AtomicInteger runs = new AtomicInteger();
+        ShardTaskPoller node = nodeWithIndexer(
+            run -> runs.getAndIncrement() < failures ? new DownsampleShardIndexerException("bulk failure", true) : null
+        );
+        requestDownsample(createSource(1));
+
+        assertBusy(() -> {
+            poll(node);
+            assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.DONE));
+        });
+        ShardTaskDoc completed = shardTasks(1).get(0).doc();
+        assertThat(completed.status(), equalTo(ShardTaskStatus.COMPLETED));
+        assertThat(completed.attempt(), equalTo(failures));
+        assertThat(runs.get(), equalTo(failures + 1));
+    }
+
+    /**
+     * The shard work keeps failing with a retriable error: after {@link DownsampleOrchestrator#MAX_SHARD_TASK_ATTEMPTS} attempts the
+     * master fails the task for good, and with it the operation, recording why.
+     */
+    public void testShardTaskFailsForGoodAfterMaxAttempts() throws Exception {
+        AtomicInteger runs = new AtomicInteger();
+        ShardTaskPoller node = nodeWithIndexer(run -> {
+            runs.incrementAndGet();
+            return new DownsampleShardIndexerException("bulk failure", true);
+        });
+        requestDownsample(createSource(1));
+
+        assertBusy(() -> {
+            poll(node);
+            assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.FAILED));
+        });
+        int maxAttempts = DownsampleOrchestrator.MAX_SHARD_TASK_ATTEMPTS;
+        assertThat(runs.get(), equalTo(maxAttempts));
+        ShardTaskDoc failed = shardTasks(1).get(0).doc();
+        assertThat(failed.status(), equalTo(ShardTaskStatus.FAILED));
+        assertFalse(failed.retriable());
+        assertThat(failed.attempt(), equalTo(maxAttempts - 1));
+        String error = indexTask().doc().lastError();
+        assertThat(error, containsString("failed [" + maxAttempts + "] times"));
+        assertThat(error, containsString("bulk failure"));
+    }
+
+    /**
+     * A phase of the master fails with a retriable error (here, the target index is read only, so its settings cannot be finalized):
+     * the failure is recorded and the phase retried after a delay, until it succeeds.
+     */
+    public void testFailedPhaseIsRetriedWithBackoff() throws Exception {
+        requestDownsample(createSource(1));
+        Versioned<ShardTaskDoc> task = awaitShardTasks(1, ShardTaskStatus.ASSIGNED).get(0);
+        setTargetReadOnly(true);
+        long epoch = task.doc().epoch();
+        Versioned<ShardTaskDoc> running = nodeWrite(task, task.doc().running(randomUUID(), Map.of()), epoch);
+        nodeWrite(running, running.doc().completed(Map.of()), epoch);
+
+        assertBusy(() -> {
+            IndexTaskDoc retrying = indexTask().doc();
+            assertThat(retrying.phase(), equalTo(IndexTaskPhase.FINALIZE_SETTINGS));
+            assertThat(retrying.attempt(), greaterThan(0));
+            assertThat(retrying.nextRetryAt(), greaterThan(0L));
+            assertThat(retrying.lastError(), containsString("read-only"));
+        });
+        setTargetReadOnly(false);
+
+        assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.DONE)));
+        IndexTaskDoc done = indexTask().doc();
+        assertThat("the next phases start without attempts", done.attempt(), equalTo(0));
+        assertThat(done.errorHistory(), not(empty()));
+        assertThat(done.errorHistory().get(0), containsString("read-only"));
+    }
+
+    /**
+     * A phase of the master keeps failing: after {@link DownsampleOrchestrator#MAX_INDEX_TASK_ATTEMPTS} attempts the operation fails,
+     * with the most recent errors kept.
+     */
+    public void testOperationFailsAfterMaxPhaseAttempts() throws Exception {
+        requestDownsample(createSource(1));
+        Versioned<ShardTaskDoc> task = awaitShardTasks(1, ShardTaskStatus.ASSIGNED).get(0);
+        setTargetReadOnly(true);
+        long epoch = task.doc().epoch();
+        Versioned<ShardTaskDoc> running = nodeWrite(task, task.doc().running(randomUUID(), Map.of()), epoch);
+        nodeWrite(running, running.doc().completed(Map.of()), epoch);
+
+        assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.FAILED)), 60, TimeUnit.SECONDS);
+        IndexTaskDoc failed = indexTask().doc();
+        assertThat(failed.attempt(), equalTo(DownsampleOrchestrator.MAX_INDEX_TASK_ATTEMPTS - 1));
+        assertThat(failed.lastError(), containsString("read-only"));
+        assertThat(failed.errorHistory(), hasSize(IndexTaskDoc.MAX_ERROR_HISTORY));
+        setTargetReadOnly(false);
+    }
+
+    /**
+     * Nobody runs the shard task: once the operation passes its deadline (the request's wait timeout) it fails, instead of waiting
+     * forever.
+     */
+    public void testOperationFailsAfterItsDeadline() throws Exception {
+        requestDownsample(createSource(1), TimeValue.timeValueSeconds(2));
+        awaitShardTasks(1, ShardTaskStatus.ASSIGNED);
+
+        assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.FAILED)));
+        assertThat(indexTask().doc().lastError(), containsString("deadline"));
+    }
+
     // ---- helpers ----
 
     /**
      * One round of the poller, after a refresh: its search is near real time.
      */
     private void poll() {
+        poll(poller);
+    }
+
+    /**
+     * A poller like the node's, but its indexer is a fake: {@code outcome} returns the failure of a run, or {@code null} for a
+     * successful one. The real node side code (runs, writes, fencing) runs around it.
+     */
+    private ShardTaskPoller nodeWithIndexer(Function<ShardTaskRun, Exception> outcome) {
+        return new ShardTaskPoller(
+            client(),
+            store,
+            getInstanceFromNode(ClusterService.class),
+            getInstanceFromNode(ThreadPool.class),
+            getInstanceFromNode(ProjectResolver.class),
+            false,
+            (run, completion) -> {
+                Exception failure = outcome.apply(run);
+                if (failure == null) {
+                    completion.onResponse(null);
+                } else {
+                    completion.onFailure(failure);
+                }
+            }
+        );
+    }
+
+    private void setTargetReadOnly(boolean readOnly) {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(TARGET)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_READ_ONLY, readOnly))
+        );
+    }
+
+    private void poll(ShardTaskPoller nodePoller) {
         client().admin().indices().prepareRefresh(DownsampleStateIndex.INDEX_NAME).get();
         PlainActionFuture<Void> polled = new PlainActionFuture<>();
-        poller.poll(polled);
+        nodePoller.poll(polled);
         polled.actionGet(TimeValue.timeValueSeconds(10));
     }
 
@@ -265,6 +423,10 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
     }
 
     private void requestDownsample(IndexMetadata source) {
+        requestDownsample(source, TimeValue.timeValueHours(1));
+    }
+
+    private void requestDownsample(IndexMetadata source, TimeValue deadlineIn) {
         long now = System.currentTimeMillis();
         IndexTaskDoc doc = IndexTaskDoc.newTask(
             ProjectId.DEFAULT,
@@ -273,7 +435,7 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
             source.getIndexUUID(),
             new DownsampleConfig(DateHistogramInterval.HOUR, null),
             now,
-            now + TimeValue.timeValueHours(1).millis()
+            now + deadlineIn.millis()
         );
         Versioned<IndexTaskDoc> created = call(l -> store.forMaster().createIndexTask(doc, l));
         assertThat(created.doc(), equalTo(doc));

@@ -167,7 +167,11 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING, ShardTaskPoller.POLL_INTERVAL_SETTING);
+        return List.of(
+            DownsampleOrchestrator.RECONCILE_INTERVAL_SETTING,
+            DownsampleOrchestrator.RETRY_DELAY_SETTING,
+            ShardTaskPoller.POLL_INTERVAL_SETTING
+        );
     }
 
     @Override

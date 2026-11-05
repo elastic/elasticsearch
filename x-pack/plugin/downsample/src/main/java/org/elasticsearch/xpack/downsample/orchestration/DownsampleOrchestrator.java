@@ -88,7 +88,15 @@ public class DownsampleOrchestrator implements ClusterStateListener {
      * How many times a shard task may fail with a retriable error before the operation fails.
      */
     static final int MAX_SHARD_TASK_ATTEMPTS = 5;
-    static final TimeValue MIN_RETRY_DELAY = TimeValue.timeValueSeconds(1);
+    /**
+     * The delay before the first retry of a failed phase; it doubles with every attempt, up to {@link #MAX_RETRY_DELAY}.
+     */
+    public static final Setting<TimeValue> RETRY_DELAY_SETTING = Setting.timeSetting(
+        "xpack.downsample.store.retry_delay",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
     static final TimeValue MAX_RETRY_DELAY = TimeValue.timeValueMinutes(5);
     private static final TimeValue MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
@@ -96,6 +104,7 @@ public class DownsampleOrchestrator implements ClusterStateListener {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final TimeValue reconcileInterval;
+    private final TimeValue initialRetryDelay;
     private final ProjectResolver projectResolver;
     private final SetOnce<DownsampleSteps> steps = new SetOnce<>();
     private final Set<Operation> inFlight = ConcurrentHashMap.newKeySet();
@@ -128,6 +137,7 @@ public class DownsampleOrchestrator implements ClusterStateListener {
         this.threadPool = threadPool;
         this.projectResolver = projectResolver;
         this.reconcileInterval = RECONCILE_INTERVAL_SETTING.get(settings);
+        this.initialRetryDelay = RETRY_DELAY_SETTING.get(settings);
     }
 
     /**
@@ -414,7 +424,7 @@ public class DownsampleOrchestrator implements ClusterStateListener {
         final IndexTaskDoc doc = task.doc();
         final String error = describe(e);
         if (isRetriable(e) && doc.attempt() + 1 < MAX_INDEX_TASK_ATTEMPTS) {
-            TimeValue delay = retryDelay(doc.attempt());
+            TimeValue delay = retryDelay(initialRetryDelay, doc.attempt());
             logger.debug(
                 () -> Strings.format("downsample [%s]: phase [%s] failed, retrying in [%s]", doc.targetIndex(), doc.phase(), delay),
                 e
@@ -711,8 +721,8 @@ public class DownsampleOrchestrator implements ClusterStateListener {
         threadPool.schedule(() -> reconcile(projectId, targetIndex), TimeValue.timeValueMillis(delayMillis), threadPool.generic());
     }
 
-    static TimeValue retryDelay(int attempt) {
-        long delay = MIN_RETRY_DELAY.millis() << Math.min(attempt, 20);
+    static TimeValue retryDelay(TimeValue initialDelay, int attempt) {
+        long delay = initialDelay.millis() << Math.min(attempt, 20);
         return TimeValue.timeValueMillis(Math.min(delay, MAX_RETRY_DELAY.millis()));
     }
 

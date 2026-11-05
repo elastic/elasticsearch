@@ -22,6 +22,7 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -150,7 +151,7 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
                 .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                 .tieBreaker(tieBreaker)
                 .toQuery(searchExecutionContext);
-            try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
+            try (Engine.Searcher searcher = indexService.getShard(0).acquireExternalSearcher("test", SplitShardCountSummary.IRRELEVANT)) {
                 Query rewrittenQuery = searcher.rewrite(parsedQuery);
                 Term last = new Term("name.last", "banon");
                 Term first = new Term("name.first", "banon");

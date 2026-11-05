@@ -94,7 +94,8 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             var ashConfig = IvfSegmentConfig.AshConfig.of(
                                 diskbbq.getBits(),
                                 IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM,
-                                IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION
+                                IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION,
+                                IvfSegmentConfig.AshConfig.DEFAULT_MAX_PROJECTED_DIMS
                             );
                             return new ESNextDiskASHVectorsFormat(
                                 ashConfig,

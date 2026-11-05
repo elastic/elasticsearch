@@ -58,7 +58,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
+<<<<<<< HEAD
 import java.util.function.Supplier;
+=======
+import java.util.stream.Stream;
+>>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
 
 import static org.apache.lucene.store.MMapDirectory.SHARED_ARENA_MAX_PERMITS_SYSPROP;
 
@@ -310,9 +314,13 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                     // we might run into trouble with files that are pendingDelete in one directory but still
                     // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
                     // and intersect for perf reasons.
+<<<<<<< HEAD
                     IndexInput in = delegate.openInput(name, context);
                     // after a failed direct open, the input is mmap's like any other
                     return directIOException == null ? contextSpecific(name, context, in) : in;
+=======
+                    return delegate.openInput(name, confineTempStoredFieldsIndex(name, context));
+>>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
                 } else {
                     return super.openInput(name, context);
                 }
@@ -425,6 +433,20 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          */
         static boolean isRawVectorFile(String name) {
             return LuceneFilesExtensions.VEC.getExtension().equals(getExtension(name));
+        }
+
+        // LUCENE WORKAROUND (apache/lucene#16970): the sorted-flush reader of the temp stored fields index opens, reads and closes the
+        // file on one thread, but its INDEX hint replaces the read-once hint, so mmap gives it a shared arena whose close is a
+        // JVM-wide handshake. Restoring the hint gets a confined arena. Remove once Lucene 10.6.1 is adopted.
+        private static IOContext confineTempStoredFieldsIndex(String name, IOContext context) {
+            if (LuceneFilesExtensions.fromExtension(getExtension(name)) != LuceneFilesExtensions.TMP
+                || name.contains("fdx") == false
+                || context.hints().contains(ReadOnceHint.INSTANCE)) {
+                return context;
+            }
+            IOContext.FileOpenHint[] hints = Stream.concat(context.hints().stream(), Stream.of(ReadOnceHint.INSTANCE))
+                .toArray(IOContext.FileOpenHint[]::new);
+            return context.withHints(hints);
         }
 
         static boolean useDelegate(String name, IOContext ioContext) {

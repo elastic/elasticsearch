@@ -14,14 +14,19 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+<<<<<<< HEAD
 import org.apache.lucene.util.automaton.ByteRunnable;
+=======
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.search.vectors.FilteredDenseVectorQuery;
+>>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.function.Supplier;
 
 /**
  * Marks the visited query as not cacheable if it touches a field not granted by FLS, has a leaf that does not report a field,
- * or wraps a value source it does not report. The result is available from {@link #isCacheable()}.
+ * or wraps an additional query or value source it does not report. The result is available from {@link #isCacheable()}.
  */
 final class FieldCheckingVisitor extends QueryVisitor {
     private final IndicesAccessControl.IndexAccessControl permissions;
@@ -48,8 +53,9 @@ final class FieldCheckingVisitor extends QueryVisitor {
             return EMPTY_VISITOR;
         }
 
-        // CoveringQuery doesn't report the field its minimum match count comes from (e.g. terms_set minimum_should_match_field)
-        if (parent instanceof CoveringQuery) {
+        // CoveringQuery doesn't report the field its minimum match count comes from (e.g. terms_set minimum_should_match_field),
+        // and FilteredDenseVectorQuery doesn't visit its filter
+        if (parent instanceof CoveringQuery || parent instanceof FilteredDenseVectorQuery) {
             cacheable = false;
             return EMPTY_VISITOR;
         }

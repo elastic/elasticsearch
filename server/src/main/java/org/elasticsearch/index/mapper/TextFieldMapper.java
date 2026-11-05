@@ -381,22 +381,39 @@ public final class TextFieldMapper extends FieldMapper {
                 return true;
             });
 
-            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                // ideally and for simplicity, store should be set to false by default
-                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
-                    return false;
-                }
+            this.store = Parameter.storeParam(
+                m -> ((TextFieldMapper) m).store,
+                () -> defaultStore(indexSettings, isWithinMultiField, multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField())
+            )
+                // mappings written before a normalizer that skips storing the original value counted as a synthetic source
+                // compatible keyword have an explicit "store": false, and serialization must keep writing it
+                .setSerializerCheck(
+                    (includeDefaults, isConfigured, value) -> includeDefaults
+                        || value != defaultStore(
+                            indexSettings,
+                            isWithinMultiField,
+                            multiFieldsBuilder.hasLegacySyntheticSourceCompatibleKeywordField()
+                        )
+                );
+        }
 
-                boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
-                // however, because historically we set store to true to support synthetic source, we must also keep that logic:
-                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
-                    return isSyntheticSourceEnabled
-                        && isWithinMultiField == false
-                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                } else {
-                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                }
-            });
+        private static boolean defaultStore(
+            IndexSettings indexSettings,
+            boolean isWithinMultiField,
+            boolean hasSyntheticSourceCompatibleKeywordField
+        ) {
+            // ideally and for simplicity, store should be set to false by default
+            if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
+                return false;
+            }
+
+            boolean isSyntheticSourceEnabled = SourceFieldMapper.isSynthetic(indexSettings);
+            // however, because historically we set store to true to support synthetic source, we must also keep that logic:
+            if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexSettings.getIndexVersionCreated())) {
+                return isSyntheticSourceEnabled && isWithinMultiField == false && hasSyntheticSourceCompatibleKeywordField == false;
+            } else {
+                return isSyntheticSourceEnabled && hasSyntheticSourceCompatibleKeywordField == false;
+            }
         }
 
         private Builder(String name, MappingParserContext context) {
@@ -583,6 +600,48 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public String contentType() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            if (indexCreatedVersion().isLegacyIndexVersion()) {
+                // Legacy indexes do not have eager global ordinals
+                eagerGlobalOrdinals.setValue(false);
+            }
+        }
+
+        /**
+         * Writes the same sequence {@link TextFieldMapper#doXContentBody} does, statement for statement: the named
+         * parameters are interleaved with multi-fields, {@code copy_to} and {@code synthetic_source_keep} in an order
+         * that has to be kept for BWC, so it is not derived from {@link #getParameters()}.
+         */
+        @Override
+        protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+            builder.field("type", contentType());
+            index.toXContent(builder, includeDefaults);
+            store.toXContent(builder, includeDefaults);
+            docValuesParameters.toXContent(builder, includeDefaults);
+            multiFieldsBuilder.toXContent(builder, params);
+            copyTo.toXContent(builder);
+            if (sourceKeepMode.isPresent()) {
+                sourceKeepMode.get().toXContent(builder);
+            }
+            meta.toXContent(builder, includeDefaults);
+            indexOptions.toXContent(builder, includeDefaults);
+            termVectors.toXContent(builder, includeDefaults);
+            norms.toXContent(builder, includeDefaults);
+            analyzers.indexAnalyzer.toXContent(builder, includeDefaults);
+            analyzers.searchAnalyzer.toXContent(builder, includeDefaults);
+            analyzers.searchQuoteAnalyzer.toXContent(builder, includeDefaults);
+            similarity.toXContent(builder, includeDefaults);
+            eagerGlobalOrdinals.toXContent(builder, includeDefaults);
+            analyzers.positionIncrementGap.toXContent(builder, includeDefaults);
+            fieldData.toXContent(builder, includeDefaults);
+            freqFilter.toXContent(builder, includeDefaults);
+            indexPrefixes.toXContent(builder, includeDefaults);
+            indexPhrases.toXContent(builder, includeDefaults);
         }
 
         @Override
@@ -2205,7 +2264,7 @@ public final class TextFieldMapper extends FieldMapper {
                 }
             }
 
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 final EscfColumnData termsData = terms.finish(docCount);
                 ctx.addColumn(LuceneBinaryColumn.of(termsData, fieldType().name(), fieldType), termsData);
             }

@@ -127,6 +127,7 @@ public class AshPostingsListWriter {
         final int effectiveTrainingFactor = useMergeTrainingFactor ? ashConfig.trainingFactor() : ashConfig.flushTrainingFactor();
         AsymmetricHashingQuantizer ashQuantizer = new AsymmetricHashingQuantizer(
             ashConfig.projectedDimsFraction(),
+            ashConfig.maxProjectedDims(),
             ashConfig.bitsPerDim(),
             AsymmetricHashingQuantizer.Method.LEARNED,
             ashConfig.trainingIterations(),
@@ -232,9 +233,6 @@ public class AshPostingsListWriter {
         final byte[] blockCodesBuf = new byte[BULK_SIZE * packedCodeBytes];
         final byte[] blockCorrectionsBuf = new byte[BULK_SIZE * AshPostingsVisitor.CORRECTION_BYTES];
         final boolean isEuclidean = similarityFunction == VectorSimilarityFunction.EUCLIDEAN;
-        // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
-        // per vector. Created here and reused for every posting list, since W does not change.
-        final AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, ENCODE_SIZE);
         final float[] blockVecCentroidSqDists = new float[ENCODE_SIZE];
         DocIdsWriter idsWriter = new DocIdsWriter();
 
@@ -252,6 +250,7 @@ public class AshPostingsListWriter {
             float centroidNormSq = isEuclidean ? ESVectorUtil.dotProduct(centroid, centroid) : 0f;
             postingsOutput.writeInt(Float.floatToIntBits(centroidNormSq));
 
+<<<<<<< HEAD
             // Sort by docId
             for (int j = 0; j < size; j++) {
                 docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
@@ -261,6 +260,24 @@ public class AshPostingsListWriter {
             for (int j = 0; j < size; j++) {
                 docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
             }
+=======
+        // Encodes a whole block in one matrix multiply, so W is read once per block rather than once
+        // per vector. Created here and reused for every posting list, since W does not change.
+        try (AsymmetricHashingQuantizer.BlockEncoder encoder = ashQuantizer.newBlockEncoder(w, originalDim, ENCODE_SIZE)) {
+            for (int c = 0; c < nClusters; c++) {
+                float[] centroid = centroidSupplier.centroid(c);
+                // Precompute centroid projection + norm once per posting list
+                AsymmetricHashingQuantizer.VectorAndNorm precomputed = AsymmetricHashingQuantizer.precomputeCentroid(centroid, wT);
+                int[] cluster = assignmentsByCluster[c];
+                long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
+                offsets.add(offset);
+                // Header: size, centroid ordinal, centroid norm squared
+                int size = cluster.length;
+                postingsOutput.writeVInt(size);
+                postingsOutput.writeVInt(c);
+                float centroidNormSq = isEuclidean ? ESVectorUtil.dotProduct(centroid, centroid) : 0f;
+                postingsOutput.writeInt(Float.floatToIntBits(centroidNormSq));
+>>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
 
             byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
             // The encoding byte is always written for header consistency, even when skipDocIds is true.

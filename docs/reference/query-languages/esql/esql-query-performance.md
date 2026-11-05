@@ -463,25 +463,17 @@ stack: preview 9.4
 serverless: unavailable
 ```
 
-Query logging captures Query DSL, EQL, KQL, and {{esql}} queries that exceed configurable duration thresholds and stores them in a managed data stream for analysis. This is the recommended way to log slow queries. To configure it, refer to [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md).
+Query logging captures Query DSL, EQL, SQL, and {{esql}} queries that exceed configurable duration thresholds and stores them in a managed data stream for analysis. This is the recommended way to log slow queries. To configure it, refer to [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md).
 
 For clusters on earlier versions, a legacy {{esql}}-specific query log {applies_to}`stack: ga 9.1+` writes slow queries to a `_esql_querylog.json` file in the {{es}} log directory. To configure it, refer to [{{esql}} query log](/reference/query-languages/esql/esql-query-log.md).
 
 ### Task management API
 
-The [task management API](/reference/query-languages/esql/esql-task-management.md) lets you monitor and cancel long-running {{esql}} queries.
-
-List running {{esql}} tasks:
-
-```console
-GET _tasks?actions=*esql*&detailed
+```{applies_to}
+serverless: unavailable
 ```
 
-Cancel a specific task:
-
-```console
-POST _tasks/<task_id>/_cancel
-```
+[**Query activity**](docs-content://deploy-manage/monitor/query-activity.md) is the simplest way to find and cancel running queries. Use the task management APIs instead if you're on a version before 9.4, don't have {{kib}} access, or want to automate these checks. For steps, refer to [Find and cancel long-running queries](/reference/query-languages/query-task-management.md).
 
 
 ## Optimize queries for {{esql}} Data Federation
@@ -501,7 +493,7 @@ Datasets also have their own performance characteristics, including partition pr
   - (recommended) [Query logging](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md) {applies_to}`stack: preview 9.4`: Log all query types through a managed data stream
   - [{{esql}} query log](/reference/query-languages/esql/esql-query-log.md) {applies_to}`stack: ga 9.1+`: Log {{esql}} queries to a file on each node
 - [Circuit breaker settings](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql): Configure {{esql}} memory limits and troubleshoot circuit breaker errors
-- [{{esql}} task management](/reference/query-languages/esql/esql-task-management.md): Monitor and cancel long-running queries
+- [Find and cancel long-running queries](/reference/query-languages/query-task-management.md): Monitor and cancel long-running queries
 - [Approximate STATS queries](/reference/query-languages/esql/esql-query-approximation.md) {applies_to}`stack: preview 9.4+`: Trade exact results for faster aggregations on large datasets
 - [Filing a support case](/reference/query-languages/esql/esql-troubleshooting.md#filing-a-support-case): Learn what to include when reporting a slow or failing query
 - [Explicit mapping](docs-content://manage-data/data-store/mapping/explicit-mapping.md): Control which fields are indexed and how

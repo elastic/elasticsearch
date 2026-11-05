@@ -256,10 +256,8 @@ Runtime search has these limitations:
 
 :::{warning}
 An indexed `text` field searched at runtime, for example after
-[`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) or when it is mapped differently
-across the indices the query reads, is analyzed with the `standard` analyzer instead of the analyzer in
-its mapping. This happens without an error or warning, and for a field mapped differently across indices
-the analyzer can't be changed. Refer to
+[`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md), is silently analyzed with the `standard`
+analyzer instead of the analyzer in its mapping. Refer to
 [Indexed `text` fields searched at runtime](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-analyzers-indexed).
 :::
 

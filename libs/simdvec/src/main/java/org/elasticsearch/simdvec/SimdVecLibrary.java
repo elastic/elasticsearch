@@ -198,10 +198,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_doti7u_bulk_masked")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductI7uBulkMasked_raw(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -244,10 +240,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_sqri7u")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract int squareDistanceI7u(
         @RawAddress @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -255,10 +247,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqri7u_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void squareDistanceI7uBulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -268,10 +256,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqri7u_bulk_sparse")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void squareDistanceI7uBulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -292,10 +276,6 @@ public abstract class SimdVecLibrary {
     // logical dimension count.
 
     @Function("vec_doti4")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract int dotProductI4(
         @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
@@ -313,10 +293,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_doti4_bulk_masked")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductI4BulkMasked_raw(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
@@ -371,10 +347,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_cosi8_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void cosineI8Bulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -384,10 +356,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_cosi8_bulk_sparse")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void cosineI8BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -410,10 +378,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_doti8_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void dotProductI8Bulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -423,7 +387,7 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_doti8_bulk")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    @Critical
     protected abstract void dotProductI8BulkHeap_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -480,10 +444,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_doti8_bulk_sparse")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductI8BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -506,10 +466,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqri8_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void squareDistanceI8Bulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -519,10 +475,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqri8_bulk_sparse")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void squareDistanceI8BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Byte.SIZE) MemorySegment query,
@@ -549,10 +501,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotf32_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void dotProductF32Bulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -562,7 +510,7 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotf32_bulk")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    @Critical
     protected abstract void dotProductF32BulkHeap_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -596,10 +544,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_dotf32_bulk_sparse")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductF32BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -622,10 +566,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqrf32_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void squareDistanceF32Bulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Float.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -635,10 +575,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqrf32_bulk_sparse")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void squareDistanceF32BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -658,10 +594,6 @@ public abstract class SimdVecLibrary {
     // (QBF16), as spelled out in the `elementBits` of each kernel's query parameter below.
 
     @Function("vec_dotDbf16Qf32")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract float dotProductDBF16QF32(
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment document,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -669,10 +601,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotDbf16Qf32_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void dotProductDBF16QF32Bulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -682,7 +610,7 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotDbf16Qf32_bulk")
-    @Critical(fallbackAdapter = Critical.UnsupportedFallback.class)
+    @Critical
     protected abstract void dotProductDBF16QF32BulkHeap_raw(
         @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -716,10 +644,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_dotDbf16Qf32_bulk_sparse")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductDBF16QF32BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -734,10 +658,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_sqrDbf16Qf32")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract float squareDistanceDBF16QF32(
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment document,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -745,10 +665,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqrDbf16Qf32_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void squareDistanceDBF16QF32Bulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -758,10 +674,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqrDbf16Qf32_bulk_sparse")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void squareDistanceDBF16QF32BulkSparse_raw(
         @VectorSegment(countParam = "count", elementBits = Long.SIZE, aligned = true) MemorySegment addresses,
         @VectorSegment(countParam = "length", elementBits = Float.SIZE) MemorySegment query,
@@ -782,10 +694,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_dotDbf16Qbf16")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract float dotProductDBF16QBF16(
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment document,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
@@ -793,10 +701,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotDbf16Qbf16_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void dotProductDBF16QBF16Bulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
@@ -821,10 +725,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_sqrDbf16Qbf16")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract float squareDistanceDBF16QBF16(
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment document,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
@@ -832,10 +732,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_sqrDbf16Qbf16_bulk")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract void squareDistanceDBF16QBF16Bulk(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "length", elementBits = Short.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "length", elementBits = Short.SIZE) MemorySegment query,
@@ -872,10 +768,6 @@ public abstract class SimdVecLibrary {
     // `elementBits` of that kernel's query parameter below.
 
     @Function("vec_dotd1q1")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract long dotProductD1Q1(
         @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
@@ -893,10 +785,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotd1q1_bulk_masked")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductD1Q1BulkMasked_raw(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
@@ -924,10 +812,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_dotd1q4")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract long dotProductD1Q4(
         @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
@@ -945,10 +829,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotd1q4_bulk_masked")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductD1Q4BulkMasked_raw(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
@@ -991,10 +871,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_dotd2q2")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract long dotProductD2Q2(
         @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
@@ -1012,10 +888,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotd2q2_bulk_masked")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductD2Q2BulkMasked_raw(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
@@ -1043,10 +915,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_dotd2q4")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract long dotProductD2Q4(
         @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
@@ -1064,10 +932,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotd2q4_bulk_masked")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductD2Q4BulkMasked_raw(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 2 * Byte.SIZE) MemorySegment query,
@@ -1095,10 +959,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_dotd2q4_packed")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract long dotProductD2Q4Packed(
         @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
@@ -1116,10 +976,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotd2q4_packed_bulk_masked")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductD2Q4PackedBulkMasked_raw(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = 4 * Byte.SIZE) MemorySegment query,
@@ -1147,10 +1003,6 @@ public abstract class SimdVecLibrary {
     }
 
     @Function("vec_dotd4q4")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     public abstract long dotProductD4Q4(
         @RawAddress @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment document,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,
@@ -1168,10 +1020,6 @@ public abstract class SimdVecLibrary {
     );
 
     @Function("vec_dotd4q4_bulk_masked")
-<<<<<<< HEAD
-    @Critical
-=======
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
     protected abstract void dotProductD4Q4BulkMasked_raw(
         @RawAddress @MatrixSegment(rowsParam = "count", colsParam = "pitch", elementBits = Byte.SIZE) MemorySegment dataset,
         @VectorSegment(countParam = "documentBytes", elementBits = Byte.SIZE) MemorySegment query,

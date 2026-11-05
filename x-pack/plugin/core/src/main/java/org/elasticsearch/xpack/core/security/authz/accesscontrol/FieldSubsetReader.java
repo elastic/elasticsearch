@@ -486,7 +486,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     }
 
     @Override
-    public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+    public DocValuesSkipper getDocValuesSkipper(String field) {
         if (hasField(field) == false || isFilteredCountsField(field)) {
             return null;
         }

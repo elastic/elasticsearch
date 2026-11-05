@@ -77,45 +77,8 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
         this(elementType, VERSION_CURRENT);
     }
 
-<<<<<<< HEAD
     /** A format writing segments of {@code writeVersion}, for tests reading segments of earlier versions. */
     ES93GenericFlatVectorsFormat(DenseVectorFieldMapper.ElementType elementType, int writeVersion) {
-=======
-    /**
-     * A format whose merges write the raw vectors through the page cache even with {@code on_disk_merge} on. Plain
-     * HNSW is the one format that declines the write side: it builds its graph by random access over the merged raw
-     * vectors as soon as the merge has written them, so a direct write would only make that read-back cold. Every
-     * other format keeps direct writes. Merge reads of the sources stay direct either way.
-     */
-    static ES93GenericFlatVectorsFormat withBufferedMergeWrites(DenseVectorFieldMapper.ElementType elementType, boolean onDiskMerge) {
-        return withBufferedMergeWrites(elementType, false, onDiskMerge);
-    }
-
-    /**
-     * Like {@link #withBufferedMergeWrites(DenseVectorFieldMapper.ElementType, boolean)}, but searches may still read
-     * the raw vectors with direct I/O.
-     *
-     * @param useDirectIO whether searches read the raw vectors with direct I/O (the field's {@code on_disk_rescore} option)
-     */
-    static ES93GenericFlatVectorsFormat withBufferedMergeWrites(
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
-        boolean onDiskMerge
-    ) {
-        return new ES93GenericFlatVectorsFormat(elementType, useDirectIO, onDiskMerge, false);
-    }
-
-    /**
-     * @param directIOMergeWrites whether a merge may write the raw vectors with direct I/O when the field asks
-     *                            for it, see {@link #withBufferedMergeWrites}
-     */
-    private ES93GenericFlatVectorsFormat(
-        DenseVectorFieldMapper.ElementType elementType,
-        boolean useDirectIO,
-        boolean onDiskMerge,
-        boolean directIOMergeWrites
-    ) {
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
         super(NAME);
         this.writeVersion = writeVersion;
         writeFormat = switch (elementType) {

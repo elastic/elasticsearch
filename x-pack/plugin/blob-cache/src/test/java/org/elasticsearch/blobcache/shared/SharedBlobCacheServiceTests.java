@@ -5063,9 +5063,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
-<<<<<<< HEAD
-    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back cache slice contents.
-=======
     /**
      * {@code tryPrefetch} must only report success when the whole requested range is present. Only the first
      * {@code size(3)} bytes of the region are populated, so a prefetch of a range further into the region
@@ -5135,7 +5132,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
+    @SuppressWarnings("restricted") // MemorySegment.reinterpret is a restricted method; used to read back cache slice contents.
     public void testGetIfPresentFindsPopulatedEntry() throws Exception {
         final long regionSize = size(10);
         final long fileLength = size(randomIntBetween(5, 19));

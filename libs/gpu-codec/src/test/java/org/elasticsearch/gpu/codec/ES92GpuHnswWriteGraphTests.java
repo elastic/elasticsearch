@@ -134,19 +134,15 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
             0L,
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
-            false,
-            hnswGraphThreshold,
-            false
+            hnswGraphThreshold
         );
         var luceneFormat = new ES93HnswBinaryQuantizedVectorsFormat(
             DEFAULT_MAX_CONN,
             DEFAULT_BEAM_WIDTH,
             DenseVectorFieldMapper.ElementType.FLOAT,
-            false,
             1,
             null,
-            hnswGraphThreshold,
-            false
+            hnswGraphThreshold
         );
 
         try (Directory gpuDir = newDirectory(); Directory luceneDir = newDirectory()) {

@@ -2957,10 +2957,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return false;
         }
 
-<<<<<<< HEAD
-        @Override
-        public boolean isOnDiskRescore() {
-=======
         public int m() {
             return m;
         }
@@ -2969,8 +2965,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return efConstruction;
         }
 
-        public boolean onDiskRescore() {
->>>>>>> 47742a2a271f14e829ee7aa054301f8a8fe31376
+        @Override
+        public boolean isOnDiskRescore() {
             return onDiskRescore;
         }
 

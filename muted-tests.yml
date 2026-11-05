@@ -318,9 +318,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordMissingMetricOnTopDocumentOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
-  method: testAutomatonStaysChargedUntilSearchContextReleased
-  issue: https://github.com/elastic/elasticsearch/issues/162754
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/45_knn_search_byte/Test nonexistent field is match none}
   issue: https://github.com/elastic/elasticsearch/issues/162766
@@ -357,11 +354,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache
   issue: https://github.com/elastic/elasticsearch/issues/163325
-- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
-  tasks:
-  - :x-pack:plugin:slm:internalClusterTest
-  method: testSLMRetentionAfterRestore
-  issue: https://github.com/elastic/elasticsearch/issues/163334
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -470,26 +462,6 @@ tests:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/164383
-- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
-  tasks:
-  - :x-pack:plugin:security:test
-  method: testVerifiesHostnameOfIpLiteralUrl
-  issue: https://github.com/elastic/elasticsearch/issues/164387
-- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
-  tasks:
-  - :x-pack:plugin:security:test
-  method: testPinnedFingerprintVerifiesHostnameOfIpLiteralUrl
-  issue: https://github.com/elastic/elasticsearch/issues/164389
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  tasks:
-  - :x-pack:plugin:logsdb:javaRestTest
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/164392
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  tasks:
-  - :x-pack:plugin:logsdb:javaRestTest
-  method: testHistogramAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/164408
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesIncreaseIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
@@ -568,3 +540,8 @@ tests:
   - :server:test
   method: testReconstructedDotProductApproximatesTrueDotProduct
   issue: https://github.com/elastic/elasticsearch/issues/164839
+- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesStringIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: testCaseInsensitiveEquality {UNMAPPED_CONTAINER}
+  issue: https://github.com/elastic/elasticsearch/issues/164863

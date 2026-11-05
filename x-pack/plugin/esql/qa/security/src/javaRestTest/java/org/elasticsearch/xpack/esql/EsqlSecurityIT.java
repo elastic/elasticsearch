@@ -1686,12 +1686,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
             "unmapped fields are read from the _unmapped field",
             hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.UNMAPPED_FIELDS_RESOLVED_BY_SHARD.capabilityName()))
         );
-        Settings settings = Settings.builder()
-            .put("index.mode", "columnar")
-            .put("index.mapping.flattened_unmapped_fields.enabled", true)
-            .put("index.number_of_shards", 1)
-            .build();
-        createIndex(INDEX_UNMAPPED_CONTAINER, settings, "\"properties\": { \"other\": { \"type\": \"keyword\" } }");
+        Settings settings = Settings.builder().put("index.mode", "columnar").put("index.number_of_shards", 1).build();
+        createIndex(
+            INDEX_UNMAPPED_CONTAINER,
+            settings,
+            "\"dynamic\": \"flattened\", \"properties\": { \"other\": { \"type\": \"keyword\" } }"
+        );
         Request indexDoc = new Request("PUT", INDEX_UNMAPPED_CONTAINER + "/_doc/1?refresh=true");
         indexDoc.setJsonEntity("""
             { "k": "a", "visible": "v", "other": "x" }""");

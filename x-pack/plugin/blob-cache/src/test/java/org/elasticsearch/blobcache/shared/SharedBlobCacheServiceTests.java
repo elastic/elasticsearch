@@ -5620,11 +5620,20 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_REFETCH_EVICTION_DISTANCE);
             assertThat(distances, hasSize(1));
             assertThat(distances.getFirst().getDouble(), is(1.0 / 5));
-            assertThat(
-                recordingMeterRegistry.getRecorder()
-                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_REFETCH_AGE),
-                hasSize(1)
-            );
+            final var ages = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_REFETCH_AGE);
+            assertThat(ages, hasSize(1));
+            // the histograms can be split by the kind of fill that caused the eviction, like the counter
+            for (var histogramMeasurement : List.of(distances.getFirst(), ages.getFirst())) {
+                assertThat(
+                    histogramMeasurement.attributes().get(BlobCacheMetrics.EVICTED_BY_ATTRIBUTE_KEY),
+                    is(RegionFillOrigin.ForcedSpeculative.name())
+                );
+                assertThat(
+                    histogramMeasurement.attributes().get(BlobCacheMetrics.FILL_ORIGIN_ATTRIBUTE_KEY),
+                    is(RegionFillOrigin.Demand.name())
+                );
+            }
 
             // the ghost is consumed by the re-fetch: evicting and re-reading region 1 is a re-fetch, but not region 0 twice
             cacheService.get(cacheKey, size(500), 1, irrelevantTimestamp());

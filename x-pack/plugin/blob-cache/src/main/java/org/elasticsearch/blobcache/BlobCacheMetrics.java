@@ -101,10 +101,14 @@ public class BlobCacheMetrics {
     /**
      * Number of pressure evictions between the eviction of a re-fetched region and its re-fetch, divided by the number of
      * regions of the cache. A re-fetch at distance {@code d} would roughly have been avoided by a cache {@code (1 + d)}
-     * times larger. Bounded by the ghost table capacity.
+     * times larger. Bounded by the ghost table capacity. Broken down by {@link #FILL_ORIGIN_ATTRIBUTE_KEY} and by
+     * {@link #EVICTED_BY_ATTRIBUTE_KEY}.
      */
     public static final String BLOB_CACHE_REFETCH_EVICTION_DISTANCE = "es.blob_cache.refetch.eviction_distance.histogram";
-    /** Time between the eviction of a re-fetched region and its re-fetch. */
+    /**
+     * Time between the eviction of a re-fetched region and its re-fetch. Broken down by {@link #FILL_ORIGIN_ATTRIBUTE_KEY} and by
+     * {@link #EVICTED_BY_ATTRIBUTE_KEY}.
+     */
     public static final String BLOB_CACHE_REFETCH_AGE = "es.blob_cache.refetch.age.histogram";
     /**
      * Regions evicted under cache pressure (forced evictions excluded), broken down by the {@link #FILL_ORIGIN_ATTRIBUTE_KEY}
@@ -112,9 +116,16 @@ public class BlobCacheMetrics {
      * one-hit wonder, or for speculative fills a wasted fill.
      */
     public static final String BLOB_CACHE_PRESSURE_EVICTED_REGIONS_TOTAL = "es.blob_cache.pressure_evicted_regions.total";
+    /** The {@link RegionFillOrigin} of a region: the kind of fill that brought it, or is bringing it, into the cache. */
     public static final String FILL_ORIGIN_ATTRIBUTE_KEY = "es_fill_origin";
+    /** Whether a region allocated a cache slot had been evicted under cache pressure recently enough to be remembered. */
     public static final String REFETCH_ATTRIBUTE_KEY = "es_refetch";
+    /**
+     * The {@link RegionFillOrigin} of the fill that took the slot of a region when it was evicted under cache pressure, used to
+     * tell re-fetches caused by warming from those caused by searches. Only set for re-fetches.
+     */
     public static final String EVICTED_BY_ATTRIBUTE_KEY = "es_evicted_by";
+    /** Whether a region evicted under cache pressure had been read again after the fill that brought it into the cache. */
     public static final String REACCESSED_ATTRIBUTE_KEY = "es_reaccessed";
 
     /** A {@link TimeProvider} with all methods returning {@code 0L}. Used by {@link #NOOP} and by tests. */
@@ -625,13 +636,18 @@ public class BlobCacheMetrics {
     /// @param evictionDistance pressure evictions between the eviction and the re-fetch, as a multiple of the number of regions
     /// @param ageMillis time between the eviction and the re-fetch
     public void recordRegionRefetch(RegionFillOrigin origin, RegionFillOrigin evictedBy, double evictionDistance, long ageMillis) {
-        final Map<String, Object> attributes = Map.of(FILL_ORIGIN_ATTRIBUTE_KEY, origin.name());
+        final Map<String, Object> histogramAttributes = Map.of(
+            FILL_ORIGIN_ATTRIBUTE_KEY,
+            origin.name(),
+            EVICTED_BY_ATTRIBUTE_KEY,
+            evictedBy.name()
+        );
         regionFetchCounter.incrementBy(
             1L,
             Map.of(FILL_ORIGIN_ATTRIBUTE_KEY, origin.name(), REFETCH_ATTRIBUTE_KEY, true, EVICTED_BY_ATTRIBUTE_KEY, evictedBy.name())
         );
-        refetchEvictionDistance.record(evictionDistance, attributes);
-        refetchAge.record(TimeUnit.MILLISECONDS.toSeconds(Math.max(0L, ageMillis)), attributes);
+        refetchEvictionDistance.record(evictionDistance, histogramAttributes);
+        refetchAge.record(TimeUnit.MILLISECONDS.toSeconds(Math.max(0L, ageMillis)), histogramAttributes);
     }
 
     /// Record a region evicted under cache pressure (see [#BLOB_CACHE_PRESSURE_EVICTED_REGIONS_TOTAL]).

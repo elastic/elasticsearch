@@ -397,7 +397,8 @@ public final class CombinedFieldsQueryBuilder extends LeafQueryBuilder<CombinedF
 
         @Override
         protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
-            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder(field);
+            assert terms.length >= 1;
+            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder(terms[0].term().utf8ToString());
             for (TermAndBoost termAndBoost : terms) {
                 assert termAndBoost.boost() == BoostAttribute.DEFAULT_BOOST;
                 query.addField(termAndBoost.term().utf8ToString());

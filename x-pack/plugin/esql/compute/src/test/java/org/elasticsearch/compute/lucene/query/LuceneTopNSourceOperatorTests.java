@@ -268,7 +268,6 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
             List.of(new FieldSortBuilder("s")),
             16,
             scoring,
-            () -> 0L,
             QueryWarnings.EMIT
         );
         DriverContext ctx = driverContext();

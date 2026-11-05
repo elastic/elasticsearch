@@ -56,10 +56,14 @@ issued when it occurs.
 * An expression rather than a field, either a column created by a command such as `EVAL` or `STATS`, or a function
   call written directly as the target, like `MATCH(TO_TEXT(CONCAT(title, " ", description)), "Tolkien")`. This includes
   [`FIELD_EXTRACT`](/reference/query-languages/esql/esql-flattened-fields.md#esql-flattened-fields-fulltext) on a
-  `flattened` field, and a `dense_vector` produced by `DENSE_VECTOR` or
+  `flattened` field. A `STATS` grouping key is not an expression: it keeps the identity of the field it groups by, so
+  searching it after `STATS` is still a search on an indexed field.
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` A `dense_vector` expression, such as the
+  embeddings that `DENSE_VECTOR` generates or a value converted with
   [`TO_DENSE_VECTOR`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md).
-  A `STATS` grouping key is not an expression: it keeps the identity of the field it groups by, so searching it after
-  `STATS` is still a search on an indexed field.
+  `KNN` on an inline `TO_DENSE_VECTOR` of a field returns no rows or fails
+  ([#163402](https://github.com/elastic/elasticsearch/issues/163402)). Convert the field with `EVAL` first, and
+  search the resulting column.
 * A field converted to `text` or `keyword` when it is not already of that type, for example `TO_TEXT` on a `keyword`
   field. A conversion that does not change the type, like `TO_TEXT` on a `text` field, still uses the index.
 * A column expanded by [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md).
@@ -340,6 +344,10 @@ expression, such as the embeddings that [`DENSE_VECTOR`](/reference/query-langua
 generates or a value converted with
 [`TO_DENSE_VECTOR`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md),
 it runs an exact search instead: it compares the query vector with the vector in every row that reaches it.
+
+`KNN` on an inline `TO_DENSE_VECTOR` of a field, like `KNN(TO_DENSE_VECTOR(hex), [64, 0, 0])`, returns no rows or
+fails ([#163402](https://github.com/elastic/elasticsearch/issues/163402)). Convert the field with `EVAL` first, and
+search the resulting column.
 
 ### Find the nearest neighbors [esql-runtime-search-knn-nearest]
 

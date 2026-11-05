@@ -30,16 +30,21 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLSocket;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
@@ -148,6 +153,59 @@ public class HttpClientManagerTests extends ESTestCase {
                 settings.put(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX + "verification_mode", "full");
             }
             assertHttpsRequestSucceeds(tlsServer, settings);
+        }
+    }
+
+    /**
+     * The client does not send a {@code Content-Length} header over HTTP/2, which the 4.x client (HTTP/1.1 only) always sent for byte
+     * array bodies. This runs a TLS server that prefers {@code h2} via ALPN and verifies the client still ends up on HTTP/1.1.
+     */
+    public void testCreateWithSslServiceDoesNotNegotiateHttp2() throws Exception {
+        var serverSettings = Settings.builder()
+            .put("ssl.certificate", sslResource("server", ".crt"))
+            .put("ssl.key", sslResource("server", ".key"))
+            .put("ssl.client_authentication", "none");
+        var sslContext = SslSettingsLoader.load(serverSettings.build(), "ssl.", newEnvironment()).createSslContext();
+
+        try (
+            var serverSocket = (SSLServerSocket) sslContext.getServerSocketFactory()
+                .createServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+        ) {
+            var sslParameters = serverSocket.getSSLParameters();
+            sslParameters.setApplicationProtocols(new String[] { "h2", "http/1.1" });
+            serverSocket.setSSLParameters(sslParameters);
+
+            var negotiatedProtocol = new CompletableFuture<String>();
+            threadPool.generic().execute(() -> {
+                try (var socket = (SSLSocket) serverSocket.accept()) {
+                    socket.startHandshake();
+                    negotiatedProtocol.complete(socket.getApplicationProtocol());
+                    // Only HTTP/1.1 is spoken here, so the response is only understood if the client did not pick h2
+                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+                    for (var line = reader.readLine(); line != null && line.isEmpty() == false; line = reader.readLine()) {
+                        // consume the request head
+                    }
+                    socket.getOutputStream().write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+                    socket.getOutputStream().flush();
+                } catch (Exception e) {
+                    negotiatedProtocol.completeExceptionally(e);
+                }
+            });
+
+            var manager = createWithSslService(eisSslSettings());
+            try (var httpClient = manager.getHttpClient()) {
+                httpClient.start();
+
+                var request = new HttpRequest(
+                    SimpleRequestBuilder.get("https://127.0.0.1:" + serverSocket.getLocalPort() + "/").build(),
+                    "inferenceEntityId"
+                );
+                PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+                httpClient.send(request, HttpClientContext.create(), listener);
+
+                assertThat(listener.actionGet(TIMEOUT).response().getCode(), equalTo(200));
+                assertThat(negotiatedProtocol.get(TIMEOUT.seconds(), TimeUnit.SECONDS), equalTo("http/1.1"));
+            }
         }
     }
 

@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.TlsConfig;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
 import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.http2.HttpVersionPolicy;
 import org.apache.hc.core5.pool.PoolStats;
 import org.apache.hc.core5.util.Timeout;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -190,7 +192,9 @@ public class HttpClientManager implements Closeable {
             connectionConfig.setTimeToLive(org.apache.hc.core5.util.TimeValue.ofMilliseconds(connectionTtl.millis()));
         }
 
-        var builder = PoolingAsyncClientConnectionManagerBuilder.create().setDefaultConnectionConfig(connectionConfig.build());
+        var builder = PoolingAsyncClientConnectionManagerBuilder.create()
+            .setDefaultConnectionConfig(connectionConfig.build())
+            .setDefaultTlsConfig(TlsConfig.custom().setVersionPolicy(HttpVersionPolicy.FORCE_HTTP_1).build());
 
         // When no TLS strategy is provided the builder installs the default one, which uses the JVM's default SSL context,
         // matching the 4.x client's default SSL session strategy.

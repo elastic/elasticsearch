@@ -130,6 +130,42 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    /**
+     * The 4.x client sent a {@code Content-Length} header for requests with a byte array body. Some third-party services (and
+     * proxies in front of them) require it and reject chunked bodies, so make sure the 5.x client keeps sending it.
+     */
+    public void testSend_SetsContentLengthHeaderAndDoesNotUseChunkedEncoding() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+
+        var body = randomAlphaOfLengthBetween(1, 8096).getBytes(StandardCharsets.UTF_8);
+        var uri = new URIBuilder().setScheme("http").setHost("localhost").setPort(webServer.getPort()).setPath("/path").build();
+        var httpRequest = new HttpRequest(
+            SimpleRequestBuilder.post(uri).setBody(body, ContentType.APPLICATION_JSON).build(),
+            "inferenceEntityId"
+        );
+
+        try (
+            var httpClient = HttpClient.create(
+                emptyHttpSettings(),
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                new TestCircuitBreaker()
+            )
+        ) {
+            httpClient.start();
+
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            httpClient.send(httpRequest, HttpClientContext.create(), listener);
+            listener.actionGet(TIMEOUT);
+
+            assertThat(webServer.requests(), hasSize(1));
+            var request = webServer.requests().get(0);
+            assertThat(request.getHeader(HttpHeaders.CONTENT_LENGTH), equalTo(String.valueOf(body.length)));
+            assertThat(request.getHeader(HttpHeaders.TRANSFER_ENCODING), is((String) null));
+        }
+    }
+
     public void testSend_ThrowsErrorIfCalledBeforeStart() throws Exception {
         try (
             var httpClient = HttpClient.create(

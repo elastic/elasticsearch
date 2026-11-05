@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -20,19 +24,28 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
+import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -40,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
@@ -47,13 +61,25 @@ import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
 
     private ProjectId projectId;
     private ClusterState initialClusterState;
     private DownsampleShardPersistentTaskExecutor executor;
+    // A real client needs a running node. The executor only hands it the local delegating action, and must never hand it a search,
+    // so a mock that records what it was given is enough.
+    private Client client;
+    private ThreadPool threadPool;
+    // The executor reads the target index from the cluster state to bind the resume watermark to it, so it needs a real cluster
+    // service holding a state with the target index.
+    private ClusterService clusterService;
+    private String targetIndexUuid;
 
     @Before
     public void setup() {
@@ -66,7 +92,180 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             "metrics-app1",
             List.of(new Tuple<>(start, end))
         );
-        executor = new DownsampleShardPersistentTaskExecutor(mock(Client.class), DownsampleShardTask.TASK_NAME, mock(Executor.class));
+        targetIndexUuid = UUIDs.randomBase64UUID();
+        var withTargetIndex = ClusterState.builder(initialClusterState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(initialClusterState.metadata().getProject(projectId))
+                    .put(
+                        IndexMetadata.builder(targetIndex()).settings(indexSettings(IndexVersion.current(), targetIndexUuid, 1, 0)).build(),
+                        false
+                    )
+            )
+            // Without any node version the cluster state reports the minimum compatible transport version, as in a mixed cluster
+            .putCompatibilityVersions("node", TransportVersion.current(), Map.of())
+            .build();
+        threadPool = new TestThreadPool(getTestName());
+        clusterService = ClusterServiceUtils.createClusterService(withTargetIndex, threadPool);
+        client = mock(Client.class);
+        executor = new DownsampleShardPersistentTaskExecutor(client, clusterService, DownsampleShardTask.TASK_NAME, mock(Executor.class));
+    }
+
+    @After
+    public void cleanup() {
+        clusterService.close();
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
+
+    /**
+     * A task that already ran published the watermark it reached in its state. When it is reassigned it must resume from there,
+     * and never from the target index, which may hold documents past the watermark whose predecessors were never written.
+     */
+    public void testNodeOperationResumesFromPublishedState() {
+        BytesRef watermark = new BytesRef(randomByteArrayOfLength(16));
+        var state = new DownsampleShardPersistentTaskState(
+            randomFrom(DownsampleShardIndexerStatus.STARTED, DownsampleShardIndexerStatus.FAILED),
+            watermark,
+            targetIndexUuid
+        );
+        var params = params();
+        executor.nodeOperation(shardTask(params), params, state);
+
+        verify(client, never()).search(any(), any());
+        var initialState = delegatedInitialState();
+        assertThat(initialState.tsid(), equalTo(watermark));
+        assertThat(initialState.targetIndexUuid(), equalTo(targetIndexUuid));
+    }
+
+    /**
+     * A task without a state never ran. It starts from the beginning of the shard, even if the target index is already partially
+     * populated, because the target alone cannot tell which of its documents have all their predecessors. The state it starts
+     * with is bound to the current target index, so that the watermarks it publishes are too.
+     */
+    public void testNodeOperationStartsFreshTaskFromTheBeginning() {
+        var params = params();
+        var state = randomBoolean()
+            ? null
+            : new DownsampleShardPersistentTaskState(
+                randomFrom(DownsampleShardIndexerStatus.STARTED, DownsampleShardIndexerStatus.FAILED),
+                null,
+                randomBoolean() ? targetIndexUuid : null
+            );
+        executor.nodeOperation(shardTask(params), params, state);
+
+        verify(client, never()).search(any(), any());
+        var initialState = delegatedInitialState();
+        assertThat(initialState.tsid(), nullValue());
+        assertThat(initialState.targetIndexUuid(), equalTo(targetIndexUuid));
+    }
+
+    /**
+     * A watermark is only valid for the target index it was reached on. If the target was re-created under the same name, or the
+     * watermark was published by a node that did not record the target, the task starts from the beginning of the shard.
+     */
+    public void testNodeOperationIgnoresWatermarkOfAnotherTargetIndex() {
+        var state = new DownsampleShardPersistentTaskState(
+            randomFrom(DownsampleShardIndexerStatus.STARTED, DownsampleShardIndexerStatus.FAILED),
+            new BytesRef(randomByteArrayOfLength(16)),
+            randomBoolean() ? null : UUIDs.randomBase64UUID()
+        );
+        var params = params();
+        executor.nodeOperation(shardTask(params), params, state);
+
+        var initialState = delegatedInitialState();
+        assertThat(initialState.tsid(), nullValue());
+        assertThat(initialState.targetIndexUuid(), equalTo(targetIndexUuid));
+    }
+
+    /**
+     * While the cluster has nodes that do not know the target index UUID, a master among them would persist a watermark in a form
+     * this version cannot read back. The task then neither resumes from a watermark nor publishes one, which the missing UUID in
+     * its initial state tells the indexer.
+     */
+    public void testNodeOperationPublishesNoWatermarkInMixedCluster() {
+        ClusterServiceUtils.setState(
+            clusterService,
+            ClusterState.builder(clusterService.state())
+                .putCompatibilityVersions(
+                    "old-node",
+                    TransportVersionUtils.getPreviousVersion(DownsampleShardPersistentTaskState.DOWNSAMPLE_RESUME_WATERMARK_TARGET_UUID),
+                    Map.of()
+                )
+                .build()
+        );
+        var state = randomBoolean()
+            ? null
+            : new DownsampleShardPersistentTaskState(
+                randomFrom(DownsampleShardIndexerStatus.STARTED, DownsampleShardIndexerStatus.FAILED),
+                new BytesRef(randomByteArrayOfLength(16)),
+                targetIndexUuid
+            );
+        var params = params();
+        executor.nodeOperation(shardTask(params), params, state);
+
+        var initialState = delegatedInitialState();
+        assertThat(initialState.tsid(), nullValue());
+        assertThat(initialState.targetIndexUuid(), nullValue());
+    }
+
+    /**
+     * Without a target index the task is about to fail. It must still not resume from a watermark it cannot bind to an index.
+     */
+    public void testNodeOperationIgnoresWatermarkWhenTargetIndexIsMissing() {
+        ClusterServiceUtils.setState(clusterService, initialClusterState);
+        var state = new DownsampleShardPersistentTaskState(
+            randomFrom(DownsampleShardIndexerStatus.STARTED, DownsampleShardIndexerStatus.FAILED),
+            new BytesRef(randomByteArrayOfLength(16)),
+            targetIndexUuid
+        );
+        var params = params();
+        executor.nodeOperation(shardTask(params), params, state);
+
+        var initialState = delegatedInitialState();
+        assertThat(initialState.tsid(), nullValue());
+        assertThat(initialState.targetIndexUuid(), nullValue());
+    }
+
+    private DownsampleShardPersistentTaskState delegatedInitialState() {
+        var request = ArgumentCaptor.forClass(DownsampleShardPersistentTaskExecutor.DelegatingAction.Request.class);
+        verify(client).execute(eq(DownsampleShardPersistentTaskExecutor.DelegatingAction.INSTANCE), request.capture(), any());
+        var initialState = request.getValue().initialState();
+        assertThat(initialState.downsampleShardIndexerStatus(), equalTo(DownsampleShardIndexerStatus.INITIALIZED));
+        return initialState;
+    }
+
+    private String targetIndex() {
+        var backingIndex = initialClusterState.metadata().getProject(projectId).dataStreams().get("metrics-app1").getWriteIndex();
+        return "downsample-" + backingIndex.getName();
+    }
+
+    private DownsampleShardTaskParams params() {
+        var backingIndex = initialClusterState.metadata().getProject(projectId).dataStreams().get("metrics-app1").getWriteIndex();
+        return new DownsampleShardTaskParams(
+            new DownsampleConfig(new DateHistogramInterval("1h"), randomSamplingMethod()),
+            targetIndex(),
+            1,
+            1,
+            new ShardId(backingIndex, 0),
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            Map.of()
+        );
+    }
+
+    private static DownsampleShardTask shardTask(DownsampleShardTaskParams params) {
+        return new DownsampleShardTask(
+            randomNonNegativeLong(),
+            "type",
+            "action",
+            TaskId.EMPTY_TASK_ID,
+            params.downsampleIndex(),
+            params.indexStartTimeMillis(),
+            params.indexEndTimeMillis(),
+            params.downsampleConfig(),
+            Map.of(),
+            params.shardId()
+        );
     }
 
     public void testGetAssignment() {
@@ -230,7 +429,6 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
     }
 
     public void testOnlySearchableShardsAreConsidered() {
-        executor = new DownsampleShardPersistentTaskExecutor(mock(Client.class), DownsampleShardTask.TASK_NAME, mock(Executor.class));
         var backingIndex = initialClusterState.metadata().getProject(projectId).dataStreams().get("metrics-app1").getWriteIndex();
         var searchNode = newNode(Set.of(DiscoveryNodeRole.SEARCH_ROLE));
         var indexNode = newNode(Set.of(DiscoveryNodeRole.INDEX_ROLE));

@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -56,6 +57,11 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
     }
 
     @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(DownsampleShardIndexer.WATERMARK_PUBLISH_INTERVAL_SETTING);
+    }
+
+    @Override
     public List<ActionHandler> getActions() {
         return List.of(
             new ActionHandler(DownsampleAction.INSTANCE, TransportDownsampleAction.class),
@@ -86,6 +92,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         return List.of(
             new DownsampleShardPersistentTaskExecutor(
                 client,
+                clusterService,
                 DownsampleShardTask.TASK_NAME,
                 threadPool.executor(DOWNSAMPLE_TASK_THREAD_POOL_NAME)
             )

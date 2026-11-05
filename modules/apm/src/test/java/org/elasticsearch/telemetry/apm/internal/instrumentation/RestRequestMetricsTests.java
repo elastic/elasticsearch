@@ -146,6 +146,30 @@ public class RestRequestMetricsTests extends ESTestCase {
                 "/_prometheus/{index}/api/v1/query",
                 PROMETHEUS_QUERY_DURATION_METRIC
             ),
+            new Case(
+                RestRequest.Method.GET,
+                "/_prometheus/api/v1/query_exemplars",
+                "/_prometheus/api/v1/query_exemplars",
+                PROMETHEUS_QUERY_DURATION_METRIC
+            ),
+            new Case(
+                RestRequest.Method.POST,
+                "/_prometheus/api/v1/query_exemplars",
+                "/_prometheus/api/v1/query_exemplars",
+                PROMETHEUS_QUERY_DURATION_METRIC
+            ),
+            new Case(
+                RestRequest.Method.GET,
+                "/_prometheus/my-index/api/v1/query_exemplars",
+                "/_prometheus/{index}/api/v1/query_exemplars",
+                PROMETHEUS_QUERY_DURATION_METRIC
+            ),
+            new Case(
+                RestRequest.Method.POST,
+                "/_prometheus/my-index/api/v1/query_exemplars",
+                "/_prometheus/{index}/api/v1/query_exemplars",
+                PROMETHEUS_QUERY_DURATION_METRIC
+            ),
             new Case(RestRequest.Method.GET, "/_prometheus/api/v1/labels", "/_prometheus/api/v1/labels", PROMETHEUS_QUERY_DURATION_METRIC),
             new Case(RestRequest.Method.POST, "/_prometheus/api/v1/labels", "/_prometheus/api/v1/labels", PROMETHEUS_QUERY_DURATION_METRIC),
             new Case(

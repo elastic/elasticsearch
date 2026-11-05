@@ -38,7 +38,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     // OpenTelemetry SDK default, we might make this configurable later
     public static final int DEFAULT_MAX_HISTOGRAM_BUCKETS = 320;
 
-    private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramMerger.class) + DownscaleStats.SIZE;
+    private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramMerger.class);
 
     public interface Factory extends Accountable, Releasable {
 
@@ -213,25 +213,48 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
 
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
 
-        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
-        try {
+        int targetScale = Math.min(factory.maxScale, Math.min(a.scale(), b.scale()));
 
-            buffer.setSum(a.sum() + b.sum());
-            buffer.setMin(nanAwareAggregate(a.min(), b.min(), Math::min));
-            buffer.setMax(nanAwareAggregate(a.max(), b.max(), Math::max));
+        FixedCapacityExponentialHistogram merged = mergeBucketsInto(
+            zeroBucket,
+            negBucketsA,
+            posBucketsA,
+            negBucketsB,
+            posBucketsB,
+            targetScale,
+            Long::sum,
+            estimateMergedBucketCount(a, b)
+        );
+        merged.setSum(a.sum() + b.sum());
+        merged.setMin(nanAwareAggregate(a.min(), b.min(), Math::min));
+        merged.setMax(nanAwareAggregate(a.max(), b.max(), Math::max));
 
-            int targetScale = Math.min(factory.maxScale, Math.min(a.scale(), b.scale()));
-
-            mergeBucketsInto(zeroBucket, negBucketsA, posBucketsA, negBucketsB, posBucketsB, targetScale, Long::sum, buffer);
-            FixedCapacityExponentialHistogram temp = result;
-            result = buffer;
-            buffer = temp;
-        } finally {
-            factory.releaseBuffer(buffer);
-        }
+        // a might be our current result, so we must only release it after we are done reading from a
+        clear();
+        result = merged;
     }
 
-    private void mergeBucketsInto(
+    /**
+     * Optimistically estimates the number of buckets resulting from merging {@code a} and {@code b}.
+     * If the estimate is too low, the merge will be retried with a bigger buffer.
+     */
+    private int estimateMergedBucketCount(ExponentialHistogram a, ExponentialHistogram b) {
+        int populatedBuckets = Math.max(populatedBucketCount(a), populatedBucketCount(b));
+        return populatedBuckets + (populatedBuckets + 1) / 2;
+    }
+
+    private static int populatedBucketCount(ExponentialHistogram histogram) {
+        return histogram.negativeBuckets().bucketCount() + histogram.positiveBuckets().bucketCount();
+    }
+
+    /**
+     * Merges the given buckets into a buffer acquired from the factory.
+     * The caller takes ownership of the returned buffer.
+     *
+     * @param estimatedBucketCount the number of buckets the result is expected to have, used to choose the size of the buffer.
+     *                             If the estimate is too low, the merge is retried with a bigger buffer.
+     */
+    private FixedCapacityExponentialHistogram mergeBucketsInto(
         ZeroBucket zeroBucket,
         CopyableBucketIterator negBucketsA,
         CopyableBucketIterator posBucketsA,
@@ -239,47 +262,67 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         CopyableBucketIterator posBucketsB,
         int targetScale,
         LongBinaryOperator countCombineFunction,
-        FixedCapacityExponentialHistogram output
+        int estimatedBucketCount
     ) {
-        DownscaleStats downscaleStats = factory.downscaleStats;
-        MergingBucketIterator positiveMerged = new MergingBucketIterator(
-            posBucketsA.copy(),
-            posBucketsB.copy(),
-            targetScale,
-            countCombineFunction
-        );
-        MergingBucketIterator negativeMerged = new MergingBucketIterator(
-            negBucketsA.copy(),
-            negBucketsB.copy(),
-            targetScale,
-            countCombineFunction
-        );
-
-        output.setZeroBucket(zeroBucket.collapseOverlappingBucketsForAll(positiveMerged, negativeMerged));
-
-        // We might exceed our limit for the total number of buckets for the targetScale.
-        // We try the merge optimistically, assuming that everything fits.
-        // If we fail, we reduce the target scale to make everything fit and redo the merge
-
-        output.resetBuckets(targetScale);
-        downscaleStats.reset();
-        int overflowCount = putBuckets(output, negativeMerged, false, downscaleStats);
-        overflowCount += putBuckets(output, positiveMerged, true, downscaleStats);
-
-        if (overflowCount > 0) {
-            // UDD-sketch approach: decrease the scale and retry.
-            int reduction = downscaleStats.getRequiredScaleReductionToReduceBucketCountBy(overflowCount);
-            targetScale -= reduction;
-            output.resetBuckets(targetScale);
-            positiveMerged = new MergingBucketIterator(posBucketsA, posBucketsB, targetScale, countCombineFunction);
-            negativeMerged = new MergingBucketIterator(negBucketsA, negBucketsB, targetScale, countCombineFunction);
+        FixedCapacityExponentialHistogram output = factory.acquireBuffer(estimatedBucketCount);
+        boolean success = false;
+        try {
+            DownscaleStats downscaleStats = factory.downscaleStats;
+            MergingBucketIterator positiveMerged = new MergingBucketIterator(
+                posBucketsA.copy(),
+                posBucketsB.copy(),
+                targetScale,
+                countCombineFunction
+            );
+            MergingBucketIterator negativeMerged = new MergingBucketIterator(
+                negBucketsA.copy(),
+                negBucketsB.copy(),
+                targetScale,
+                countCombineFunction
+            );
 
             output.setZeroBucket(zeroBucket.collapseOverlappingBucketsForAll(positiveMerged, negativeMerged));
 
-            overflowCount = putBuckets(output, negativeMerged, false, null);
-            overflowCount += putBuckets(output, positiveMerged, true, null);
+            // We might exceed the capacity of the buffer or our limit for the total number of buckets for the targetScale.
+            // We try the merge optimistically, assuming that everything fits.
+            // If we fail, we retry with a bigger buffer and, if that isn't enough due to the bucket limit,
+            // reduce the target scale to make everything fit and redo the merge.
 
-            assert overflowCount == 0 : "Should never happen, the histogram should have had enough space";
+            output.resetBuckets(targetScale);
+            downscaleStats.reset();
+            int overflowCount = putBuckets(output, negativeMerged, false, downscaleStats);
+            overflowCount += putBuckets(output, positiveMerged, true, downscaleStats);
+
+            if (overflowCount > 0) {
+                int requiredBucketCount = output.getCapacity() + overflowCount;
+                if (output.getCapacity() < factory.bucketLimit) {
+                    factory.releaseBuffer(output);
+                    output = null;
+                    output = factory.acquireBuffer(requiredBucketCount);
+                }
+                int remainingOverflow = requiredBucketCount - output.getCapacity();
+                if (remainingOverflow > 0) {
+                    // UDD-sketch approach: decrease the scale and retry.
+                    int reduction = downscaleStats.getRequiredScaleReductionToReduceBucketCountBy(remainingOverflow);
+                    targetScale -= reduction;
+                }
+                output.resetBuckets(targetScale);
+                positiveMerged = new MergingBucketIterator(posBucketsA, posBucketsB, targetScale, countCombineFunction);
+                negativeMerged = new MergingBucketIterator(negBucketsA, negBucketsB, targetScale, countCombineFunction);
+
+                output.setZeroBucket(zeroBucket.collapseOverlappingBucketsForAll(positiveMerged, negativeMerged));
+
+                overflowCount = putBuckets(output, negativeMerged, false, null);
+                overflowCount += putBuckets(output, positiveMerged, true, null);
+
+                assert overflowCount == 0 : "Should never happen, the histogram should have had enough space";
+            }
+            success = true;
+            return output;
+        } finally {
+            if (success == false && output != null) {
+                factory.releaseBuffer(output);
+            }
         }
     }
 
@@ -429,18 +472,18 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             return Math.max(0L, aCount - bCount);
         };
 
-        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
+        FixedCapacityExponentialHistogram buffer = mergeBucketsInto(
+            subtractedZeroBucket,
+            a.negativeBuckets().iterator(),
+            a.positiveBuckets().iterator(),
+            negBucketsB,
+            posBucketsB,
+            Math.min(a.scale(), b.scale()),
+            bucketDifferenceOperator,
+            // Buckets only present in b are clamped to zero and dropped, so the result never has more buckets than a
+            populatedBucketCount(a)
+        );
         try {
-            mergeBucketsInto(
-                subtractedZeroBucket,
-                a.negativeBuckets().iterator(),
-                a.positiveBuckets().iterator(),
-                negBucketsB,
-                posBucketsB,
-                Math.min(a.scale(), b.scale()),
-                bucketDifferenceOperator,
-                buffer
-            );
 
             // we might have clamped negative buckets away, so we need to scale down the remaining buckets to compensate for that
             long desiredTargetCount = aValueCount - bValueCount;
@@ -486,7 +529,9 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             result = buffer;
             buffer = null;
         } finally {
-            factory.releaseBuffer(buffer);
+            if (buffer != null) {
+                factory.releaseBuffer(buffer);
+            }
         }
         return isTrulyCumulative;
     }

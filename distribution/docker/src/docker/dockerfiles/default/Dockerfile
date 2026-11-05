@@ -13,6 +13,24 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
+<% /*
+  Paths in the Elasticsearch home that are copied to the final image in layers of their own, so that
+  the layers that do not change between builds can be reused. List them from the least to the most
+  frequently changing.
+
+  Each entry is a command that prints the paths of the layer. A layer cannot be empty. The distribution only
+  contains the machine learning libraries of the architecture being built, hence the wildcard.
+*/
+def separateLayers = [
+    // The JDK
+    'ls -d jdk',
+    // The machine learning libraries
+    'ls -d modules/x-pack-ml/platform/*/lib',
+    // The third-party jars. Unlike the jars built from this repository, which carry the version in their file name,
+    // they rarely change from one build to the next.
+    "find lib modules plugins -type f -name '*.jar' ! -name '*-${version}*'"
+] %>
+
 
 ################################################################################
 # Build stage 1 `builder`:
@@ -42,6 +60,7 @@ RUN set -eux; \\
     chmod 0555 /bin/tini
 
 WORKDIR /usr/share/elasticsearch
+COPY --chmod=0555 bin/arrange-layers.sh /tmp/arrange-layers.sh
 RUN arch="\$(rpm --query --queryformat='%{ARCH}' rpm)" && curl -f --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$arch.tar.gz
 RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # Configure the distribution for Docker
@@ -65,7 +84,10 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1 && \\
 # You can't install plugins that include configuration when running as `elasticsearch` and the `config`
 # dir is owned by `root`, because the installed tries to manipulate the permissions on the plugin's
 # config directory.
-    chown 1000:1000 bin config config/jvm.options.d data logs plugins
+    chown 1000:1000 bin config config/jvm.options.d data logs plugins && \\
+# Replace the duplicated jars with hard links, and move the paths that are copied in layers of their own out of the
+# way, keeping their paths, into a directory per layer
+    /tmp/arrange-layers.sh <%= separateLayers.collect { '"' + it + '"' }.join(' \\\n        ') %>
 
 # The distribution includes a `config` directory, no need to create it
 COPY --chmod=664 config/elasticsearch.yml config/log4j2.properties config/
@@ -97,6 +119,9 @@ COPY --from=builder /bin/tini /bin/tini
 
 WORKDIR /usr/share/elasticsearch
 
+<% separateLayers.indices.each { i -> %>
+COPY --from=builder --chown=0:0 /layers/${i} .
+<% } %>
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch .
 
 # Replace OpenJDK's built-in CA certificate keystore with the one from the OS

@@ -20,6 +20,24 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
+<% /*
+  Paths in the Elasticsearch home that are copied to the final image in layers of their own, so that
+  the layers that do not change between builds can be reused. List them from the least to the most
+  frequently changing.
+
+  Each entry is a command that prints the paths of the layer. A layer cannot be empty. The distribution only
+  contains the machine learning libraries of the architecture being built, hence the wildcard.
+*/
+def separateLayers = [
+    // The JDK
+    'ls -d jdk',
+    // The machine learning libraries
+    'ls -d modules/x-pack-ml/platform/*/lib',
+    // The third-party jars. Unlike the jars built from this repository, which carry the version in their file name,
+    // they rarely change from one build to the next.
+    "find lib modules plugins -type f -name '*.jar' ! -name '*-${version}*'"
+] %>
+
 ################################################################################
 # Build stage 1 `builder`:
 # Extract Elasticsearch artifact
@@ -52,6 +70,7 @@ RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1
 # The distribution includes a `config` directory, no need to create it
 COPY ${config_dir}/elasticsearch.yml config/
 COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
+COPY --chmod=0555 ${bin_dir}/arrange-layers.sh /tmp/arrange-layers.sh
 
 #  1. Configure the distribution for Docker
 #  2. Create required directory
@@ -63,6 +82,8 @@ COPY ${config_dir}/log4j2.properties config/log4j2.docker.properties
 #  8. Make some directories writable. `bin` must be writable because
 #     plugins can install their own CLI utilities.
 #  9. Make some files writable
+# 10. Replace the duplicated jars with hard links, and move the paths that are copied in layers of their own out
+#     of the way, keeping their paths, into a directory per layer
 RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elasticsearch-env && \\
     mkdir data && \\
     mv config/log4j2.properties config/log4j2.file.properties && \\
@@ -71,7 +92,8 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find . -type f -perm /111 -exec chmod 0555 {} + && \\
     find . -type f ! -perm /111 -exec chmod 0444 {} + && \\
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
-    find config -type f -exec chmod 0664 {} +
+    find config -type f -exec chmod 0664 {} + && \\
+    /tmp/arrange-layers.sh <%= separateLayers.collect { '"' + it + '"' }.join(' \\\n        ') %>
 
 ################################################################################
 # Build stage 2 (the actual Elasticsearch image):
@@ -107,6 +129,9 @@ ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 
+<% separateLayers.indices.each { i -> %>
+COPY --from=builder --chown=0:0 /layers/${i} /usr/share/elasticsearch
+<% } %>
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
 ENV PATH=/usr/share/elasticsearch/bin:\$PATH

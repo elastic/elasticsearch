@@ -11,9 +11,7 @@ package org.elasticsearch.gradle.internal.docker;
 
 import java.util.function.Supplier;
 
-/**
- * Chooses the {@code --output} value that loads a built image into the local Docker daemon.
- */
+/// Chooses the `--output` value that loads a built image into the local Docker daemon.
 final class DockerExporter {
 
     private DockerExporter() {}

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.AlignMergeBranches;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -895,7 +896,9 @@ public class TestAnalyzer {
         wildcardsMatchDatasets = statement.setting(QuerySettings.WILDCARDS_MATCH_DATASETS);
         var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
-        analyzed.forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
+        // The analyzer leaves merge branches unaligned with the merge's output; the optimizer aligns them first thing. Check the
+        // plan as the optimizer will see it, which also checks that the merge outputs the analyzer computed can be aligned with.
+        new AlignMergeBranches().apply(analyzed).forEachDown(p -> PlanConsistencyChecker.checkPlan(p, failures));
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

@@ -464,7 +464,7 @@ public abstract class SingleFieldFullTextFunction extends FullTextFunction
         Holder<FieldAttribute> mappedField,
         Set<String> branchAnalyzers
     ) {
-        // Branches are name-aligned by the time the merge resolves, so the name is what identifies the same
+        // Branches line up with the merge's output by name, so the name is what identifies the same
         // column across them. The merge gives its output new ids, so no branch column shares the merged column's id.
         for (LogicalPlan branch : merge.children()) {
             Predicate<Attribute> onlyNull = Fork.producesOnlyNull(branch);

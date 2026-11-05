@@ -222,8 +222,9 @@ public class ResolveHighlightIndexKey extends ParameterizedRule<LogicalPlan, Log
                 List<LogicalPlan> branches = new ArrayList<>(merge.children().size());
                 for (LogicalPlan branch : merge.children()) {
                     LogicalPlan withKey = withIndexKey(branch);
-                    // Branches line up by position, so the key must come last in each, as it does in the merge output.
-                    if (withKey == null || withKey.output().getLast().equals(indexKey(withKey)) == false) {
+                    // Branches are aligned with the merge's output by name, so the key only has to be in a branch's output, not in
+                    // any particular position.
+                    if (withKey == null || indexKey(withKey) == null) {
                         yield null;
                     }
                     branches.add(withKey);

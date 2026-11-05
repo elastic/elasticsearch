@@ -485,11 +485,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
 
             if (handler != null) {
-                var supportedParams = handler.supportedQueryParameters();
-                assert supportedParams == handler.supportedQueryParameters()
-                    : handler.getName() + ": did not return same instance from supportedQueryParameters()";
+                var supportedParams = handler.supportedQueryParameters(restApiVersion);
+                assert supportedParams == handler.supportedQueryParameters(restApiVersion)
+                    : handler.getName() + ": did not return same instance from supportedQueryParameters(restApiVersion)";
                 return (supportedParams == null || supportedParams.containsAll(parameters))
-                    && handler.supportedCapabilities().containsAll(capabilities);
+                    && handler.supportedCapabilities(restApiVersion).containsAll(capabilities);
             }
         }
         return false;

@@ -112,7 +112,8 @@ public abstract class TransportBroadcastByNodeAction<
         Executor executor,
         boolean canTripCircuitBreaker
     ) {
-        // DIRECT: see doExecute — cannot use TransportAction's forking helper yet (#97916).
+        // We use a DIRECT executor and fork manually in doExecute because we need to retain the request
+        // for longer than the ref counting in TransportAction.doExecuteForking allows.
         super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.clusterService = clusterService;
@@ -245,13 +246,6 @@ public abstract class TransportBroadcastByNodeAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        // Workaround for https://github.com/elastic/elasticsearch/issues/97916 — TODO remove when we can.
-        // NodeRequest shares the parent's refcount (#98381), so the request must stay live across this fork
-        // until NodeRequests have taken their own refs. TransportAction.doExecuteForking does not retain:
-        // the filter chain releases as soon as the runnable is submitted, and callers may decRef after
-        // execute() returns. Putting retain in the framework helper would newly hold every forking
-        // action's request across the hop; only this pattern needs it. So we stay on DIRECT and fork here
-        // with wrapReleasing instead.
         request.mustIncRef();
         executor.execute(ActionRunnable.wrapReleasing(listener, request::decRef, l -> doExecuteForked(task, request, listener)));
     }

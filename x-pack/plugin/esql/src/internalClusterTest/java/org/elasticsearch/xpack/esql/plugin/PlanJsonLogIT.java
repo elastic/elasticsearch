@@ -79,6 +79,9 @@ public class PlanJsonLogIT extends AbstractEsqlIntegTestCase {
                 mockLog.addExpectation(seen("data compute plan", "JSON plan [compute_plan:data]:*"));
                 mockLog.addExpectation(seen("final compute plan", "JSON plan [compute_plan:final]:*"));
                 mockLog.addExpectation(seen("data drivers", "JSON plan [drivers:data]:*\"plan_node_id\"*"));
+                // The sink and source operators name their exchange, as in PROFILE
+                mockLog.addExpectation(seen("data drivers exchange", "JSON plan [drivers:data]:*\"exchange_id\"*"));
+                mockLog.addExpectation(seen("final drivers exchange", "JSON plan [drivers:final]:*\"exchange_id\"*"));
                 mockLog.addExpectation(seen("final drivers", "JSON plan [drivers:final]:*\"plan_node_id\"*"));
                 mockLog.addExpectation(unseen("unlabelled physical", "JSON plan [physical]:*"));
                 mockLog.addExpectation(unseen("unlabelled optimized physical", "JSON plan [optimized_physical]:*"));

@@ -132,11 +132,25 @@ public class Driver implements Releasable, Describable {
         this.planNodeIds = planNodeIds == null ? Map.of() : planNodeIds;
     }
 
+    /**
+     * Exchange names of the exchange sink and source operators. Same shape and rules as {@link #planNodeIds}.
+     */
+    private Map<Operator, String> exchangeIds = Map.of();
+
+    /**
+     * Associates the exchange sink and source operators with the exchange they are one side of.
+     * The map must use identity equality. Operators missing from the map omit {@code exchange_id}.
+     */
+    public void setExchangeIds(Map<Operator, String> exchangeIds) {
+        this.exchangeIds = exchangeIds == null ? Map.of() : exchangeIds;
+    }
+
     private OperatorStatus operatorStatus(Operator op) {
         String planNodeId = planNodeIds.get(op);
-        return planNodeId == null
+        String exchangeId = exchangeIds.get(op);
+        return planNodeId == null && exchangeId == null
             ? new OperatorStatus(op.toString(), op.status())
-            : new OperatorStatus(op.toString(), op.status(), planNodeId);
+            : new OperatorStatus(op.toString(), op.status(), planNodeId, exchangeId);
     }
 
     /**
@@ -406,6 +420,10 @@ public class Driver implements Releasable, Describable {
                         String planNodeId = planNodeIds.get(nextOp);
                         if (planNodeId != null) {
                             planNodeIds.put(promoted, planNodeId);
+                        }
+                        String exchangeId = exchangeIds.get(nextOp);
+                        if (exchangeId != null) {
+                            exchangeIds.put(promoted, exchangeId);
                         }
                         activeOperators.set(iterator.nextIndex(), promoted);
                     }

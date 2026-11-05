@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code org.elasticsearch.xpack.esql.plan.json} logger.
  * <p>
  * Walks query-plan nodes only. Expressions are nested under {@code properties}, not given plan ids.
- * The tree skeleton ({@code id}, {@code type}, {@code role}, {@code source}, {@code origin}, {@code children})
+ * The tree skeleton ({@code id}, {@code type}, {@code role}, {@code source}, {@code origin}, {@code exchange_id}, {@code children})
  * is never truncated. {@link EsQueryExec} Lucene DSL is parked under {@code properties.detail.query}
  * so consumers can ignore it. {@link org.elasticsearch.xpack.esql.plan.physical.FragmentExec} exposes its
  * inner logical plan as the sole JSON child.
@@ -54,6 +54,7 @@ public final class PlanToXContent {
         "nodeProperties",
         "planId",
         "origin",
+        "exchange",
         "planRole",
         "toString",
         "hashCode",
@@ -86,6 +87,12 @@ public final class PlanToXContent {
             builder.value(id.toString());
         }
         builder.endArray();
+        if (plan.exchange() != null) {
+            builder.field("exchange_id", plan.exchange().id());
+            if (plan.exchange().childIndex() != null) {
+                builder.field("child_index", plan.exchange().childIndex());
+            }
+        }
         writeProperties(builder, plan);
         builder.startArray("children");
         for (QueryPlan<?> child : plan.jsonChildren()) {

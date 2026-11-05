@@ -25,15 +25,23 @@ import java.util.Map;
  * @param status Status as reported by the {@link Operator}.
  * @param planNodeId Id of the physical plan node that created this operator, or null when there is none
  *                   (output, exchange plumbing, tests). Omitted on the wire before {@link PlanProfile#JSON_PLANS_VERSION}.
+ * @param exchangeId Name of the exchange an exchange sink or source operator is one side of, the same name its plan node carries and
+ *                   the operator on the other side of the hop reports, or null for every other operator. Omitted on the wire before
+ *                   {@link PlanProfile#JSON_PLANS_VERSION}.
  */
-public record OperatorStatus(String operator, @Nullable Operator.Status status, @Nullable String planNodeId)
+public record OperatorStatus(String operator, @Nullable Operator.Status status, @Nullable String planNodeId, @Nullable String exchangeId)
     implements
         Writeable,
         ToXContentObject {
 
     /** Operators profiled before plan-node ids existed. */
     public OperatorStatus(String operator, @Nullable Operator.Status status) {
-        this(operator, status, null);
+        this(operator, status, null, null);
+    }
+
+    /** Operators that are not one side of an exchange. */
+    public OperatorStatus(String operator, @Nullable Operator.Status status, @Nullable String planNodeId) {
+        this(operator, status, planNodeId, null);
     }
 
     public static final ProfileSchema<OperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(OperatorStatus.class, (builder, value, params) -> {
@@ -42,6 +50,9 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status, 
         if (value.planNodeId != null) {
             builder.field("plan_node_id", value.planNodeId);
         }
+        if (value.exchangeId != null) {
+            builder.field("exchange_id", value.exchangeId);
+        }
         if (value.status != null) {
             builder.field("status", value.status);
         }
@@ -49,6 +60,7 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status, 
     })
         .required("operator", ProfileSchema.string())
         .optional("plan_node_id", ProfileSchema.string())
+        .optional("exchange_id", ProfileSchema.string())
         .optional("status", ProfileSchema.dynamicObject(Map.of()))
         .build();
 
@@ -56,10 +68,12 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status, 
         String operator = in.readString();
         Operator.Status status = in.readOptionalNamedWriteable(Operator.Status.class);
         String planNodeId = null;
+        String exchangeId = null;
         if (in.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION)) {
             planNodeId = in.readOptionalString();
+            exchangeId = in.readOptionalString();
         }
-        return new OperatorStatus(operator, status, planNodeId);
+        return new OperatorStatus(operator, status, planNodeId, exchangeId);
     }
 
     @Override
@@ -68,6 +82,7 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status, 
         out.writeOptionalNamedWriteable(status != null && status.supportsVersion(out.getTransportVersion()) ? status : null);
         if (out.getTransportVersion().supports(PlanProfile.JSON_PLANS_VERSION)) {
             out.writeOptionalString(planNodeId);
+            out.writeOptionalString(exchangeId);
         }
     }
 

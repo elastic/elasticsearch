@@ -1559,7 +1559,9 @@ public class EsqlSession {
                 DriverCompletionInfo subPlanCompletionInfo = subPlan.isApproximationCalibration()
                     ? result.completionInfo().withoutApproximationApplied()
                     : result.completionInfo();
-                completionInfoAccumulator.accumulate(subPlanCompletionInfo);
+                // Label the drivers and plans with the phase, because the query ran in several and PROFILE would otherwise list them
+                // together, told apart only by their order.
+                completionInfoAccumulator.accumulate(subPlanCompletionInfo.withPhase(phase, subPlan.kind()));
                 try {
                     var releasingNext = ActionListener.runAfter(next, subPlan.cleanup);
                     LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
@@ -1597,7 +1599,7 @@ public class EsqlSession {
                             foldContext,
                             planTimeProfile,
                             releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
-                                completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                                completionInfoAccumulator.accumulate(finalResult.completionInfo().withPhase(MAIN_PHASE, "main"));
                                 DriverCompletionInfo merged = completionInfoAccumulator.finish();
                                 collectPinnedReads(newMainPlan, pinnedReads);
                                 reconcileCapturedSourceStats(merged, pinnedReads);

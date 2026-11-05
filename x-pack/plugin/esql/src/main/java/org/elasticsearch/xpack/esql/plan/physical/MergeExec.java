@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.ExchangeRef;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.io.IOException;
@@ -37,6 +38,8 @@ public class MergeExec extends PhysicalPlan {
      * Full constructor. {@code kind} must be preserved across plan copies so a FORK merge
      * cannot become a UNION after a rewrite.
      */
+    // initExchange only stores a field. A subclass cannot observe the node before it has an exchange.
+    @SuppressWarnings("this-escape")
     public MergeExec(Source source, List<PhysicalPlan> children, List<Attribute> output, Kind kind) {
         super(source, children);
         if (kind == null) {
@@ -44,6 +47,8 @@ public class MergeExec extends PhysicalPlan {
         }
         this.output = output;
         this.kind = kind;
+        // The hop that carries the children's pages to the coordinator. Every child's sink and the merge's source share it.
+        initExchange(ExchangeRef.newExchange());
     }
 
     /**

@@ -2322,6 +2322,9 @@ public class ComputeService {
             case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> passThroughReduction;
         };
+        if (reductionPlan.isPassThrough() == false) {
+            reductionPlan = reductionPlan.withLocalExchange();
+        }
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }

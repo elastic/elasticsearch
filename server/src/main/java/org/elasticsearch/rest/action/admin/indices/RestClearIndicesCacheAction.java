@@ -21,11 +21,24 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(value = Scope.INTERNAL)
 public class RestClearIndicesCacheAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(
+        IndicesOptions.WildcardOptions.EXPAND_WILDCARDS,
+        IndicesOptions.ConcreteTargetOptions.IGNORE_UNAVAILABLE,
+        IndicesOptions.WildcardOptions.ALLOW_NO_INDICES,
+        IndicesOptions.GatekeeperOptions.IGNORE_THROTTLED,
+        "query",
+        "request",
+        "fielddata",
+        "fields",
+        "index"
+    );
 
     @Override
     public List<Route> routes() {
@@ -59,4 +72,10 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
         return clearIndicesCacheRequest;
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return SUPPORTED_QUERY_PARAMETERS;
+    }
+
 }

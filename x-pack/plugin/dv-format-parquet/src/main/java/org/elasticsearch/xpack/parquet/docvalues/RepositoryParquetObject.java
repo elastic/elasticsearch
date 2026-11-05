@@ -112,17 +112,21 @@ public final class RepositoryParquetObject implements ParquetObject {
 
     @Override
     public byte[] readRange(long position, int length) throws IOException {
+        byte[] bytes = new byte[length];
+        readRange(position, bytes, 0, length);
+        return bytes;
+    }
+
+    @Override
+    public void readRange(long position, byte[] destination, int destinationOffset, int length) throws IOException {
         if (position < 0 || length < 0 || position + length > this.length) {
             throw new EOFException("range [" + position + ", +" + length + ") is outside of [" + location + "] of length " + this.length);
         }
         try (InputStream in = container.readBlob(OperationPurpose.SNAPSHOT_DATA, blobName, position, length)) {
-            byte[] bytes = in.readNBytes(length);
-            if (bytes.length != length) {
-                throw new EOFException(
-                    "read [" + bytes.length + "] bytes of [" + location + "] at [" + position + "], expected [" + length + "]"
-                );
+            int read = in.readNBytes(destination, destinationOffset, length);
+            if (read != length) {
+                throw new EOFException("read [" + read + "] bytes of [" + location + "] at [" + position + "], expected [" + length + "]");
             }
-            return bytes;
         }
     }
 }

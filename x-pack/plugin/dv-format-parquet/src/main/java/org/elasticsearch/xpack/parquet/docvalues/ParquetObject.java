@@ -27,4 +27,15 @@ public interface ParquetObject {
      * @throws java.io.EOFException if the file ends before that
      */
     byte[] readRange(long position, int length) throws IOException;
+
+    /**
+     * Reads exactly {@code length} bytes starting at {@code position} into {@code destination} starting at {@code destinationOffset}, so
+     * that a reader can reuse one array for the chunks of many row groups instead of allocating a new one for each. The default
+     * reads into a new array and copies, which is right for an object that has no cheaper way.
+     *
+     * @throws java.io.EOFException if the file ends before that
+     */
+    default void readRange(long position, byte[] destination, int destinationOffset, int length) throws IOException {
+        System.arraycopy(readRange(position, length), 0, destination, destinationOffset, length);
+    }
 }

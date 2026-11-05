@@ -115,10 +115,11 @@ public final class ParquetBlobCache implements Releasable {
     }
 
     /**
-     * Reads exactly {@code length} bytes of the file starting at {@code position}, from the cache where it can, and otherwise by a
-     * ranged read of the file that also fills the cache. This blocks until the bytes are there, the same as a read of the file does.
+     * Reads exactly {@code length} bytes of the file starting at {@code position} into {@code destination} at {@code destinationOffset},
+     * from the cache where it can, and otherwise by a ranged read of the file that also fills the cache. This blocks until the bytes are
+     * there, the same as a read of the file does.
      */
-    public byte[] read(ParquetObject object, long position, int length) throws IOException {
+    public void read(ParquetObject object, long position, byte[] destination, int destinationOffset, int length) throws IOException {
         long fileLength = object.length();
         SharedBlobCacheService<CacheKey>.CacheFile file = cache.getCacheFile(
             new CacheKey(object.location(), fileLength),
@@ -135,8 +136,7 @@ public final class ParquetBlobCache implements Releasable {
             BlobCacheUtils.roundDownToAlignedSize(position, SharedBytes.PAGE_SIZE),
             Math.min(BlobCacheUtils.roundUpToAlignedSize(position + length, SharedBytes.PAGE_SIZE), fileLength)
         );
-        byte[] result = new byte[length];
-        ByteBufferReference target = new ByteBufferReference(ByteBuffer.wrap(result));
+        ByteBufferReference target = new ByteBufferReference(ByteBuffer.wrap(destination, destinationOffset, length));
         try {
             int read = file.populateAndRead(
                 rangeToWrite,
@@ -162,7 +162,6 @@ public final class ParquetBlobCache implements Releasable {
             );
             assert read == length : read + " vs " + length;
             target.finish(read);
-            return result;
         } catch (IOException | RuntimeException e) {
             stopWriting(target);
             throw e;

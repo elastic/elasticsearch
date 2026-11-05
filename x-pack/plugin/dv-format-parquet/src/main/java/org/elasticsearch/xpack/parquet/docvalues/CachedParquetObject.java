@@ -32,6 +32,13 @@ final class CachedParquetObject implements ParquetObject {
 
     @Override
     public byte[] readRange(long position, int length) throws IOException {
-        return cache.read(delegate, position, length);
+        byte[] bytes = new byte[length];
+        cache.read(delegate, position, bytes, 0, length);
+        return bytes;
+    }
+
+    @Override
+    public void readRange(long position, byte[] destination, int destinationOffset, int length) throws IOException {
+        cache.read(delegate, position, destination, destinationOffset, length);
     }
 }

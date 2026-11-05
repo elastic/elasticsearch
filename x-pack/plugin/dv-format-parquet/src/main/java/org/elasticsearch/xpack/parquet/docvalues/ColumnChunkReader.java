@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.parquet.docvalues;
 
+import org.apache.parquet.format.CompressionCodec;
 import org.apache.parquet.format.Encoding;
 import org.apache.parquet.format.PageHeader;
 import org.apache.parquet.format.PageType;
@@ -58,10 +59,18 @@ final class ColumnChunkReader {
     private final boolean required;
     private final PageDecoder decoder;
 
-    // the chunk that is being read
+    /** A page buffer above this size is not kept for the next page, so that a reader does not hold a large array for ever. */
+    private static final int MAX_RETAINED_PAGE_BUFFER = 4 << 20;
+
+    // the chunk that is being read: the bytes are in the first chunkLength bytes of an array that the reader reuses for the next chunk
+    // when it fits, and that can therefore be longer
     private int blockIndex = -1;
     private byte[] chunk;
+    private int chunkLength;
     private int chunkPosition;
+    // the buffer that the data pages are decompressed into, one page at a time. A value that a decoder hands out is a slice of it,
+    // and is only valid until the next page is decoded, which is the contract of the doc values iterators.
+    private byte[] pageBuffer;
     // the page that is current: rows of the block, and whether it was decoded or only passed
     private int pageStartRow;
     private int pageRows;
@@ -116,8 +125,18 @@ final class ColumnChunkReader {
     }
 
     private void startChunk(int index, Block block) throws IOException {
+        // not current until it is read, so that a failed read is tried again and not taken for the chunk
+        blockIndex = -1;
+        int size = Math.toIntExact(block.compressedSize());
+        if (chunk == null || chunk.length < size || chunk.length > 4L * size) {
+            // a new array when the previous one is too short, or so long that keeping it would hold much more than this chunk needs.
+            // Reusing the array is safe because nothing refers to it: the decoders keep decompressed pages, never the chunk.
+            chunk = new byte[size];
+        }
+        chunkLength = 0;
+        block.object().readRange(block.offset(), chunk, 0, size);
+        chunkLength = size;
         blockIndex = index;
-        chunk = block.object().readRange(block.offset(), Math.toIntExact(block.compressedSize()));
         chunkPosition = 0;
         pageStartRow = 0;
         pageRows = 0;
@@ -128,15 +147,15 @@ final class ColumnChunkReader {
 
     /** Moves to the next data page of the chunk: decodes it if it holds {@code row}, and passes it if it ends before. */
     private void nextPage(Block block, int row) throws IOException {
-        if (chunkPosition >= chunk.length) {
+        if (chunkPosition >= chunkLength) {
             throw new IOException("the chunk at [" + block.offset() + "] ends before row [" + row + "]");
         }
-        ByteArrayInputStream in = new ByteArrayInputStream(chunk, chunkPosition, chunk.length - chunkPosition);
+        ByteArrayInputStream in = new ByteArrayInputStream(chunk, chunkPosition, chunkLength - chunkPosition);
         PageHeader header = Util.readPageHeader(in);
-        int headerLength = (chunk.length - chunkPosition) - in.available();
+        int headerLength = (chunkLength - chunkPosition) - in.available();
         int bodyStart = chunkPosition + headerLength;
         int compressedSize = header.getCompressed_page_size();
-        if (bodyStart + compressedSize > chunk.length) {
+        if (bodyStart + compressedSize > chunkLength) {
             throw new IOException("a page of the chunk at [" + block.offset() + "] is cut off");
         }
         chunkPosition = bodyStart + compressedSize;
@@ -183,20 +202,22 @@ final class ColumnChunkReader {
         int nonNull = numValues;
         boolean[] presentRows = null;
         if (header.getType() == PageType.DATA_PAGE) {
-            values = PageDecompressor.decompress(block.codec(), chunk, bodyStart, compressedSize, header.getUncompressed_page_size());
+            // the array can be longer than the page: the page is the first valuesEnd bytes
+            final int valuesEnd = header.getUncompressed_page_size();
+            values = decompressPage(block.codec(), bodyStart, compressedSize, valuesEnd);
             if (required) {
                 valuesOffset = 0;
             } else {
                 // the levels come first, as the 4-byte little-endian length of the encoded levels and then the levels
                 int levelsLength = (values[0] & 0xFF) | ((values[1] & 0xFF) << 8) | ((values[2] & 0xFF) << 16) | ((values[3] & 0xFF) << 24);
-                if (levelsLength < 0 || 4 + levelsLength > values.length) {
+                if (levelsLength < 0 || 4 + levelsLength > valuesEnd) {
                     throw new IOException("the definition levels of a page are cut off");
                 }
                 presentRows = new boolean[numValues];
                 nonNull = decodeLevels(values, 4, 4 + levelsLength, numValues, presentRows);
                 valuesOffset = 4 + levelsLength;
             }
-            decoder.page(values, valuesOffset, values.length, numValues, nonNull, presentRows, encoding);
+            decoder.page(values, valuesOffset, valuesEnd, numValues, nonNull, presentRows, encoding);
         } else {
             var v2 = header.getData_page_header_v2();
             int definitionLength = v2.getDefinition_levels_byte_length();
@@ -215,12 +236,32 @@ final class ColumnChunkReader {
             int valuesStart = bodyStart + definitionLength;
             int valuesCompressed = compressedSize - definitionLength;
             int valuesUncompressed = header.getUncompressed_page_size() - definitionLength;
-            values = v2.isIs_compressed()
-                ? PageDecompressor.decompress(block.codec(), chunk, valuesStart, valuesCompressed, valuesUncompressed)
-                : Arrays.copyOfRange(chunk, valuesStart, valuesStart + valuesCompressed);
-            decoder.page(values, 0, values.length, numValues, nonNull, presentRows, encoding);
+            final int valuesEnd = v2.isIs_compressed() ? valuesUncompressed : valuesCompressed;
+            values = decompressPage(
+                v2.isIs_compressed() ? block.codec() : CompressionCodec.UNCOMPRESSED.getValue(),
+                valuesStart,
+                valuesCompressed,
+                valuesEnd
+            );
+            decoder.page(values, 0, valuesEnd, numValues, nonNull, presentRows, encoding);
         }
         present = presentRows;
+    }
+
+    /**
+     * Decompresses a page of the current chunk into the page buffer of this reader, which grows to the largest page that the reader has
+     * seen, and returns it. The page is its first {@code uncompressedSize} bytes. A buffer above {@link #MAX_RETAINED_PAGE_BUFFER} is
+     * not kept for the next page, so that a rare large page does not make the reader hold a large array for ever.
+     */
+    private byte[] decompressPage(int codec, int offset, int length, int uncompressedSize) throws IOException {
+        byte[] buffer = pageBuffer;
+        if (buffer == null || buffer.length < uncompressedSize) {
+            // some headroom, because the pages of one column vary a little in size
+            buffer = new byte[uncompressedSize + (uncompressedSize >> 2) + 4096];
+        }
+        PageDecompressor.decompressInto(codec, chunk, offset, length, buffer, uncompressedSize);
+        pageBuffer = buffer.length <= MAX_RETAINED_PAGE_BUFFER ? buffer : null;
+        return buffer;
     }
 
     /** Decodes the definition levels of an optional flat column (0 or 1, so one bit wide) into {@code present}, and counts the 1s. */

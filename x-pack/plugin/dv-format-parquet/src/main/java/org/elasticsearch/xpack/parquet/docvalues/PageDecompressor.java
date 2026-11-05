@@ -28,19 +28,31 @@ final class PageDecompressor {
     }
 
     /**
-     * Returns the uncompressed bytes of {@code length} bytes of {@code input} starting at {@code offset}. For {@code UNCOMPRESSED} that
-     * is a copy-free view only when the caller asks for a copy, so the caller must not write to the result.
+     * Returns the uncompressed bytes of {@code length} bytes of {@code input} starting at {@code offset}, in a new array of exactly
+     * {@code uncompressedSize} bytes. Use {@link #decompressInto} for the pages of a chunk, which reuses one buffer.
      */
     static byte[] decompress(int codec, byte[] input, int offset, int length, int uncompressedSize) throws IOException {
+        byte[] output = new byte[uncompressedSize];
+        decompressInto(codec, input, offset, length, output, uncompressedSize);
+        return output;
+    }
+
+    /**
+     * Writes the uncompressed bytes of {@code length} bytes of {@code input} starting at {@code offset} to the start of {@code output},
+     * which may be longer than {@code uncompressedSize}: the bytes after that are not touched and not meaningful. This lets a reader
+     * decompress all the pages of a chunk into one buffer instead of a new array for every page.
+     */
+    static void decompressInto(int codec, byte[] input, int offset, int length, byte[] output, int uncompressedSize) throws IOException {
+        if (output.length < uncompressedSize) {
+            throw new IllegalArgumentException("the output has [" + output.length + "] bytes, the page needs [" + uncompressedSize + "]");
+        }
         if (codec == CompressionCodec.UNCOMPRESSED.getValue()) {
             if (length != uncompressedSize) {
                 throw new IOException("an uncompressed page has [" + length + "] bytes, the header says [" + uncompressedSize + "]");
             }
-            byte[] copy = new byte[length];
-            System.arraycopy(input, offset, copy, 0, length);
-            return copy;
+            System.arraycopy(input, offset, output, 0, length);
+            return;
         }
-        byte[] output = new byte[uncompressedSize];
         if (codec == CompressionCodec.SNAPPY.getValue()) {
             int written;
             try {
@@ -53,7 +65,7 @@ final class PageDecompressor {
                     "a Snappy page has [" + written + "] bytes after decompression, the header says [" + uncompressedSize + "]"
                 );
             }
-            return output;
+            return;
         }
         if (codec == CompressionCodec.GZIP.getValue()) {
             try (GZIPInputStream in = new GZIPInputStream(new ByteArrayInputStream(input, offset, length))) {
@@ -63,7 +75,7 @@ final class PageDecompressor {
                         "a GZIP page has [" + read + "] bytes after decompression, the header says [" + uncompressedSize + "]"
                     );
                 }
-                return output;
+                return;
             }
         }
         throw new IOException("the compression codec [" + codec + "] is not supported yet");

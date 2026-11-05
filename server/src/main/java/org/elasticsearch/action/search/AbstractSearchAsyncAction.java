@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -296,6 +297,12 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     }
 
     private void doPerformPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
+        if (failedOnCoordinatorTrip()) {
+            // The search task may be gone already, and then a failed response sends no cancel_child, so the reader context the request
+            // opens would wait for the reaper. The phase never finishes after a trip, so the request isn't needed.
+            releasable.close();
+            return;
+        }
         var shardListener = new SearchActionListener<Result>(shard, shardIndex) {
             @Override
             public void innerOnResponse(Result result) {
@@ -457,6 +464,9 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     }
 
     protected final void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
+        if (failedOnCoordinatorTrip()) {
+            return;
+        }
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
@@ -573,6 +583,10 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
+        }
+        if (failedOnCoordinatorTrip()) {
+            // The search failed while this shard was in flight, after releasing the contexts of the shards it had.
+            releaseSearchContext(result, null);
         }
         // accumulate the per-shard metrics into the single merged reference before consuming the result
         accumulateDirectoryMetrics(result.getDirectoryMetrics());
@@ -846,10 +860,19 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
 
     /**
      * Whether a coordinator trip has already failed this search, in which case a phase must not advance: the
-     * results it would work on have been released.
+     * results it would work on have been released. A shard that fails after the trip, the tripped one included,
+     * is then neither counted down nor retried, so the phase never finishes.
      */
     boolean failedOnCoordinatorTrip() {
         return coordinatorTripRaised.get();
+    }
+
+    /**
+     * Creates the reservation for one shard response of {@code phase}, which fails this search if this node has no room for the
+     * response while it arrives.
+     */
+    ShardResponseReservation newShardResponseReservation(String phase, String label) {
+        return new ShardResponseReservation(circuitBreaker, label, e -> failOnCoordinatorTrip(phase, e));
     }
 
     /**
@@ -859,21 +882,28 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
      * @param exception the exception explaining or causing the phase failure
      */
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
-        results.getSuccessfulResults().forEach((entry) -> {
-            // Do not release search contexts that are part of the point in time
-            if (entry.getContextId() != null && isPartOfPointInTime(entry.getContextId()) == false) {
-                try {
-                    SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                    Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                    sendReleaseSearchContext(entry.getContextId(), connection);
-                } catch (Exception inner) {
-                    inner.addSuppressed(exception);
-                    logger.trace("failed to release context", inner);
-                }
-            }
-        });
+        results.getSuccessfulResults().forEach(entry -> releaseSearchContext(entry, exception));
         task.getProgressListener().notifyPhaseFailure(exception);
         listener.onFailure(exception);
+    }
+
+    /**
+     * Releases the search context of a shard result once the search has failed.
+     */
+    private void releaseSearchContext(SearchPhaseResult entry, @Nullable Exception failure) {
+        // Do not release search contexts that are part of the point in time
+        if (entry.getContextId() != null && isPartOfPointInTime(entry.getContextId()) == false) {
+            try {
+                SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
+                Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                sendReleaseSearchContext(entry.getContextId(), connection);
+            } catch (Exception inner) {
+                if (failure != null) {
+                    inner.addSuppressed(failure);
+                }
+                logger.trace("failed to release context", inner);
+            }
+        }
     }
 
     /**

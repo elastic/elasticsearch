@@ -8,32 +8,57 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchScrollAsyncActionTests extends ESTestCase {
 
@@ -63,7 +88,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             discoveryNodes,
             dummyListener(),
             request,
-            null
+            null,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
         ) {
             @Override
             protected void executeInitialPhase(
@@ -166,7 +192,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             discoveryNodes,
             listener,
             request,
-            null
+            null,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
         ) {
             @Override
             protected void executeInitialPhase(
@@ -245,7 +272,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             discoveryNodes,
             dummyListener(),
             request,
-            null
+            null,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
         ) {
             @Override
             protected void executeInitialPhase(
@@ -359,7 +387,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             discoveryNodes,
             listener,
             request,
-            null
+            null,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
         ) {
             @Override
             protected void executeInitialPhase(
@@ -446,7 +475,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             discoveryNodes,
             listener,
             request,
-            null
+            null,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
         ) {
             @Override
             protected void executeInitialPhase(
@@ -503,7 +533,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             discoveryNodes,
             dummyListener(),
             request,
-            null
+            null,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
         ) {
             @Override
             protected void executeInitialPhase(
@@ -612,7 +643,8 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
             discoveryNodes,
             listener,
             request,
-            null
+            null,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST)
         ) {
             @Override
             protected void executeInitialPhase(
@@ -651,6 +683,183 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
         for (int i = 0; i < results.length(); i++) {
             assertNull(results.get(i));
         }
+    }
+
+    public void testQueryResponseTripFailsRequest() {
+        // Not shuffled, since the trip has to come first
+        ParsedScrollId scrollId = new ParsedScrollId(
+            "test",
+            new SearchContextIdForNode[] {
+                new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 1)),
+                new SearchContextIdForNode(null, "node2", new ShardSearchContextId("", 2)),
+                new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 3)) }
+        );
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .build();
+        SearchScrollRequest request = new SearchScrollRequest();
+        request.scroll(TimeValue.timeValueMinutes(1));
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        SearchScrollAsyncAction<SearchAsyncActionTests.TestSearchPhaseResult> action = new SearchScrollAsyncAction<>(
+            scrollId,
+            logger,
+            discoveryNodes,
+            ActionListener.wrap(r -> fail("the request must fail"), failures::add),
+            request,
+            null,
+            newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT)
+        ) {
+            @Override
+            protected void executeInitialPhase(
+                Transport.Connection connection,
+                InternalScrollSearchRequest internalRequest,
+                ActionListener<SearchAsyncActionTests.TestSearchPhaseResult> searchActionListener
+            ) {
+                switch ((int) internalRequest.contextId().getId()) {
+                    case 1 -> {
+                        ShardResponseReservation reservation = newShardResponseReservation("query", ShardResponseReservation.BREAKER_LABEL);
+                        trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, searchActionListener));
+                    }
+                    case 2 -> searchActionListener.onFailure(new IllegalArgumentException("BOOM"));
+                    case 3 -> {
+                        var result = new SearchAsyncActionTests.TestSearchPhaseResult(internalRequest.contextId(), connection.getNode());
+                        result.setSearchShardTarget(
+                            new SearchShardTarget(connection.getNode().getId(), new ShardId("test", "_na_", 1), null)
+                        );
+                        searchActionListener.onResponse(result);
+                    }
+                    default -> throw new AssertionError("unexpected context [" + internalRequest.contextId() + "]");
+                }
+            }
+
+            @Override
+            protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                return new SearchAsyncActionTests.MockConnection(node);
+            }
+
+            @Override
+            protected SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup) {
+                throw new AssertionError("the request must not move on after a trip");
+            }
+
+            @Override
+            protected void onFirstPhaseResult(int shardId, SearchAsyncActionTests.TestSearchPhaseResult result) {}
+        };
+
+        action.run();
+        assertThat(failures, hasSize(1));
+        assertThat(failures.getFirst(), instanceOf(SearchPhaseExecutionException.class));
+        SearchPhaseExecutionException e = (SearchPhaseExecutionException) failures.getFirst();
+        assertThat(e.getPhaseName(), equalTo("query"));
+        assertThat(e.getCause(), sameInstance(trip.get()));
+        // The shard that failed after the trip is not recorded, and moveToNextPhase above was never called
+        assertThat(action.buildShardFailures(), emptyArray());
+    }
+
+    public void testFetchResponseTripReleasesFetchResults() {
+        // Fetches go out in shard order, so the other shard's result arrives after the trip, then before it
+        assertFetchResponseTripReleasesFetchResults(1L);
+        assertFetchResponseTripReleasesFetchResults(2L);
+    }
+
+    private void assertFetchResponseTripReleasesFetchResults(long trippingContext) {
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.create("node1"))
+            .add(DiscoveryNodeUtils.create("node2"))
+            .build();
+        ParsedScrollId scrollId = new ParsedScrollId(
+            "test",
+            new SearchContextIdForNode[] {
+                new SearchContextIdForNode(null, "node1", new ShardSearchContextId("", 1)),
+                new SearchContextIdForNode(null, "node2", new ShardSearchContextId("", 2)) }
+        );
+        AtomicReference<CircuitBreakingException> trip = new AtomicReference<>();
+        List<FetchSearchResult> fetchResults = Collections.synchronizedList(new ArrayList<>());
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+            @Override
+            public Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+                return new SearchAsyncActionTests.MockConnection(node);
+            }
+
+            @Override
+            public void sendExecuteScrollQuery(
+                Transport.Connection connection,
+                InternalScrollSearchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<ScrollQuerySearchResult> listener
+            ) {
+                SearchShardTarget target = shardTarget(connection, request.contextId());
+                QuerySearchResult queryResult = new QuerySearchResult(request.contextId(), target, null);
+                queryResult.topDocs(
+                    new TopDocsAndMaxScore(
+                        new TopDocs(new TotalHits(1, TotalHits.Relation.EQUAL_TO), new ScoreDoc[] { new ScoreDoc(0, 1.0F) }),
+                        1.0F
+                    ),
+                    new DocValueFormat[0]
+                );
+                queryResult.from(0);
+                queryResult.size(10);
+                ScrollQuerySearchResult result = new ScrollQuerySearchResult(queryResult, target);
+                queryResult.decRef();
+                try {
+                    listener.onResponse(result);
+                } finally {
+                    // As the transport does once the handler returns
+                    result.decRef();
+                }
+            }
+
+            @Override
+            public void sendExecuteFetchScroll(
+                Transport.Connection connection,
+                ShardFetchRequest request,
+                SearchTask task,
+                ShardResponseReservation reservation,
+                ActionListener<FetchSearchResult> listener
+            ) {
+                if (request.contextId().getId() == trippingContext) {
+                    trip.set(ShardResponseReservationTests.tripWhileArriving(reservation, listener));
+                    return;
+                }
+                FetchSearchResult result = new FetchSearchResult(request.contextId(), shardTarget(connection, request.contextId()));
+                result.shardResult(SearchHits.empty(new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F), null);
+                fetchResults.add(result);
+                try {
+                    listener.onResponse(result);
+                } finally {
+                    result.decRef();
+                }
+            }
+
+            private static SearchShardTarget shardTarget(Transport.Connection connection, ShardSearchContextId contextId) {
+                return new SearchShardTarget(connection.getNode().getId(), new ShardId("test", "_na_", (int) contextId.getId()), null);
+            }
+        };
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build());
+        SearchScrollRequest request = new SearchScrollRequest();
+        request.scroll(TimeValue.timeValueMinutes(1));
+        List<Exception> failures = Collections.synchronizedList(new ArrayList<>());
+        new SearchScrollQueryThenFetchAsyncAction(
+            logger,
+            clusterService,
+            searchTransportService,
+            request,
+            new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
+            scrollId,
+            ActionListener.wrap(r -> fail("the request must fail"), failures::add),
+            newLimitedBreaker(ShardResponseReservationTests.TRIPPING_LIMIT)
+        ).run();
+
+        assertThat(failures, hasSize(1));
+        SearchPhaseExecutionException e = (SearchPhaseExecutionException) failures.getFirst();
+        assertThat(e.getPhaseName(), equalTo("fetch"));
+        assertThat(e.getCause(), sameInstance(trip.get()));
+        assertThat(fetchResults, hasSize(1));
+        assertFalse("a fetch result is still held after the trip", fetchResults.getFirst().hasReferences());
     }
 
     private static ParsedScrollId getParsedScrollId(SearchContextIdForNode... idsForNodes) {

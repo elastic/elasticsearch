@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -225,6 +226,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<DfsSearchResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -234,7 +236,12 @@ public class SearchTransportService {
             DFS_ACTION_NAME,
             countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(listener, countingReader(DfsSearchResult::new, resultBytesConsumer), connection)
+            new ConnectionCountingHandler<>(
+                listener,
+                countingReader(DfsSearchResult::new, resultBytesConsumer),
+                connection,
+                unlessProxied(connection, reservation)
+            )
         );
     }
 
@@ -242,6 +249,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardSearchRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<SearchPhaseResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -264,8 +272,24 @@ public class SearchTransportService {
             QUERY_ACTION_NAME,
             countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(handler, countingReader(reader, resultBytesConsumer), connection)
+            new ConnectionCountingHandler<>(
+                handler,
+                countingReader(reader, resultBytesConsumer),
+                connection,
+                unlessProxied(connection, reservation)
+            )
         );
+    }
+
+    /**
+     * Returns {@code reservation}, or {@code null} to charge nothing while the response arrives if {@code connection} goes through a
+     * gateway node. It's for responses that name a reader context the coordinator doesn't know yet. A trip drops such a response unread,
+     * and the data node frees the context on the {@code cancel_child} that follows only if it names the request's parent task. Through a
+     * gateway that parent is the gateway's proxy task, so the context would wait for the reaper.
+     */
+    @Nullable
+    static ShardResponseReservation unlessProxied(Transport.Connection connection, ShardResponseReservation reservation) {
+        return TransportService.unwrapConnection(connection) == connection ? reservation : null;
     }
 
     ActionListener<? super SearchPhaseResult> newStatsCollector(Transport.Connection connection) {
@@ -279,6 +303,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final QuerySearchRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<SearchPhaseResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -291,7 +316,7 @@ public class SearchTransportService {
             QUERY_ID_ACTION_NAME,
             countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(handler, countingReader(QuerySearchResult::new, resultBytesConsumer), connection)
+            new ConnectionCountingHandler<>(handler, countingReader(QuerySearchResult::new, resultBytesConsumer), connection, reservation)
         );
     }
 
@@ -299,6 +324,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final InternalScrollSearchRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<ScrollQuerySearchResult> listener
     ) {
         transportService.sendChildRequest(
@@ -306,7 +332,7 @@ public class SearchTransportService {
             QUERY_SCROLL_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, connection)
+            new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, connection, reservation)
         );
     }
 
@@ -314,6 +340,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final RankFeatureShardRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<RankFeatureResult> listener,
         LongConsumer resultBytesConsumer,
         LongConsumer requestBytesConsumer
@@ -323,7 +350,7 @@ public class SearchTransportService {
             RANK_FEATURE_SHARD_ACTION_NAME,
             countingRequestForConnection(request, connection, requestBytesConsumer),
             task,
-            new ConnectionCountingHandler<>(listener, countingReader(RankFeatureResult::new, resultBytesConsumer), connection)
+            new ConnectionCountingHandler<>(listener, countingReader(RankFeatureResult::new, resultBytesConsumer), connection, reservation)
         );
     }
 
@@ -331,6 +358,7 @@ public class SearchTransportService {
         Transport.Connection connection,
         final InternalScrollSearchRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<ScrollQueryFetchSearchResult> listener
     ) {
         transportService.sendChildRequest(
@@ -338,7 +366,7 @@ public class SearchTransportService {
             QUERY_FETCH_SCROLL_ACTION_NAME,
             request,
             task,
-            new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, connection)
+            new ConnectionCountingHandler<>(listener, ScrollQueryFetchSearchResult::new, connection, reservation)
         );
     }
 
@@ -441,6 +469,7 @@ public class SearchTransportService {
                 FETCH_ID_ACTION_NAME,
                 countingRequestForConnection(shardFetchRequest, connection, requestBytesConsumer),
                 task,
+                context.newShardResponseReservation(FetchSearchPhase.NAME, ShardResponseReservation.FETCH_BREAKER_LABEL),
                 listener,
                 countingReader(FetchSearchResult::new, resultBytesConsumer)
             );
@@ -451,9 +480,10 @@ public class SearchTransportService {
         Transport.Connection connection,
         final ShardFetchRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<FetchSearchResult> listener
     ) {
-        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener, FetchSearchResult::new);
+        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, reservation, listener, FetchSearchResult::new);
     }
 
     private void sendExecuteFetch(
@@ -461,14 +491,22 @@ public class SearchTransportService {
         String action,
         final TransportRequest request,
         SearchTask task,
+        ShardResponseReservation reservation,
         final ActionListener<FetchSearchResult> listener,
         Writeable.Reader<FetchSearchResult> reader
     ) {
-        transportService.sendChildRequest(connection, action, request, task, new ConnectionCountingHandler<>(listener, reader, connection));
+        transportService.sendChildRequest(
+            connection,
+            action,
+            request,
+            task,
+            new ConnectionCountingHandler<>(listener, reader, connection, reservation)
+        );
     }
 
     /**
-     * Used by {@link TransportSearchAction} to send the expand queries (field collapsing).
+     * Used by {@link TransportSearchAction} to send the expand queries (field collapsing). Reserves nothing for the response, since
+     * it goes to the local node and never arrives through the transport.
      */
     void sendExecuteMultiSearch(final MultiSearchRequest request, SearchTask task, final ActionListener<MultiSearchResponse> listener) {
         final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());
@@ -1038,16 +1076,33 @@ public class SearchTransportService {
 
     private final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
         private final String nodeId;
+        @Nullable
+        private final ShardResponseReservation reservation;
 
         ConnectionCountingHandler(
             final ActionListener<? super Response> listener,
             final Writeable.Reader<Response> responseReader,
             final Transport.Connection connection
         ) {
+            this(listener, responseReader, connection, null);
+        }
+
+        ConnectionCountingHandler(
+            final ActionListener<? super Response> listener,
+            final Writeable.Reader<Response> responseReader,
+            final Transport.Connection connection,
+            @Nullable final ShardResponseReservation reservation
+        ) {
             super(listener, responseReader, TransportResponseHandler.TRANSPORT_WORKER);
             this.nodeId = connection.getNode().getId();
+            this.reservation = reservation;
             // Increment the number of connections for this node by one
             clientConnections.compute(nodeId, (id, conns) -> conns == null ? 1 : conns + 1);
+        }
+
+        @Override
+        public Releasable reserveResponseBytes(int bytes) {
+            return reservation == null ? NO_RESERVATION : reservation.reserve(bytes);
         }
 
         @Override
@@ -1058,6 +1113,10 @@ public class SearchTransportService {
 
         @Override
         public void handleException(TransportException e) {
+            if (reservation != null) {
+                // The listener then gets the trip too, and must not count it as a shard failure.
+                reservation.reportTrip();
+            }
             super.handleException(e);
             decConnectionCount();
         }

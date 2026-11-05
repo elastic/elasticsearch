@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -183,6 +184,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             connection,
             request,
             getTask(),
+            newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL),
             listener,
             this::trackPhaseResultBytesRead,
             this::trackPhaseRequestBytesWritten
@@ -578,6 +580,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 executeAsSingleRequest(routing, request.shards.getFirst());
                 return;
             }
+            if (failedOnCoordinatorTrip()) {
+                // A node that already answered tripped, see doPerformPhaseOnShard for why the rest aren't sent
+                return;
+            }
             String nodeId = routing.nodeId();
             final Transport.Connection connection;
             try {
@@ -602,6 +608,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 connection,
                 this::trackPhaseRequestBytesWritten
             );
+            final ShardResponseReservation reservation = SearchTransportService.unlessProxied(
+                connection,
+                newShardResponseReservation(getName(), ShardResponseReservation.BREAKER_LABEL)
+            );
             searchTransportService.transportService()
                 .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, wrapper, task, new TransportResponseHandler<NodeQueryResponse>() {
                     @Override
@@ -612,6 +622,11 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     @Override
                     public Executor executor() {
                         return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                    }
+
+                    @Override
+                    public Releasable reserveResponseBytes(int bytes) {
+                        return reservation == null ? NO_RESERVATION : reservation.reserve(bytes);
                     }
 
                     @Override
@@ -657,6 +672,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                     @Override
                     public void handleException(TransportException e) {
+                        if (reservation != null && reservation.reportTrip()) {
+                            // The search has failed. On an older node, bwcHandleException would fail it a second time.
+                            return;
+                        }
                         if (connection.getTransportVersion().supports(BATCHED_RESPONSE_MIGHT_INCLUDE_REDUCTION_FAILURE) == false) {
                             bwcHandleException(e);
                             return;

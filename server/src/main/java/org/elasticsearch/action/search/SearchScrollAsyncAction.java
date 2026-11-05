@@ -14,6 +14,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -34,6 +35,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -58,6 +60,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
     private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
+    private final CircuitBreaker circuitBreaker;
+    private final AtomicBoolean coordinatorTripRaised = new AtomicBoolean();
 
     protected SearchScrollAsyncAction(
         ParsedScrollId scrollId,
@@ -65,7 +69,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         DiscoveryNodes nodes,
         ActionListener<SearchResponse> listener,
         SearchScrollRequest request,
-        SearchTransportService searchTransportService
+        SearchTransportService searchTransportService,
+        CircuitBreaker circuitBreaker
     ) {
         this.startTime = System.currentTimeMillis();
         this.scrollId = scrollId;
@@ -75,6 +80,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         this.nodes = nodes;
         this.request = request;
         this.searchTransportService = searchTransportService;
+        this.circuitBreaker = circuitBreaker;
     }
 
     /**
@@ -199,6 +205,9 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
 
                 @Override
                 public void onFailure(Exception t) {
+                    if (failedOnCoordinatorTrip()) {
+                        return;
+                    }
                     onShardFailure(
                         "query",
                         counter,
@@ -328,6 +337,41 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
             }
         }
     }
+
+    /**
+     * Creates the reservation for one shard response of {@code phase}, which fails this request if this node has no room for the
+     * response while it arrives.
+     */
+    protected final ShardResponseReservation newShardResponseReservation(String phase, String label) {
+        return new ShardResponseReservation(circuitBreaker, label, e -> failOnCoordinatorTrip(phase, e));
+    }
+
+    /**
+     * Fails the whole request because this node could not hold what a shard sent back. A shard failure would instead answer with
+     * hits missing. Only the first caller fails it.
+     */
+    private void failOnCoordinatorTrip(String phase, Exception cause) {
+        if (coordinatorTripRaised.compareAndSet(false, true)) {
+            try {
+                onCoordinatorTrip();
+            } finally {
+                listener.onFailure(new SearchPhaseExecutionException(phase, "", cause, buildShardFailures()));
+            }
+        }
+    }
+
+    /**
+     * Whether a coordinator trip has already failed this request, in which case a phase must not advance. A shard that fails after
+     * the trip, the tripped one included, is then not counted down, so the phase never finishes.
+     */
+    protected final boolean failedOnCoordinatorTrip() {
+        return coordinatorTripRaised.get();
+    }
+
+    /**
+     * Releases the results held so far once a coordinator trip has failed the request, since no phase will use them.
+     */
+    protected void onCoordinatorTrip() {}
 
     protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
         return searchTransportService.getConnection(clusterAlias, node);

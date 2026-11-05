@@ -90,6 +90,24 @@ public class ParseFieldLimits {
     }
 
     /**
+     * Creates limits for use when dynamically adding mappings during document parsing.
+     */
+    static ParseFieldLimits forDocument(MappingLookup mappingLookup, IndexSettings indexSettings) {
+        long totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
+        long remaining = mappingLookup.remainingFieldsUntilLimit(totalFieldsLimit);
+        NewFieldsBudget budget = indexSettings.isIgnoreDynamicFieldsBeyondLimit()
+            ? NewFieldsBudget.dropping(remaining)
+            : NewFieldsBudget.throwing(remaining, totalFieldsLimit);
+        return new ParseFieldLimits(
+            indexSettings.getMappingDepthLimit(),
+            indexSettings.getMappingFieldNameLengthLimit(),
+            indexSettings.getMappingNestedFieldsLimit(),
+            budget,
+            0
+        );
+    }
+
+    /**
      * Returns a copy of this ParseFieldLimits with an unlimited total fields budget.
      */
     ParseFieldLimits withoutTotalFieldsBudget() {
@@ -113,6 +131,10 @@ public class ParseFieldLimits {
         if (nestedFieldsCount > nestedFieldsLimit) {
             throw new MapperParsingException("Limit of nested fields [" + nestedFieldsLimit + "] has been exceeded");
         }
+    }
+
+    boolean hasCapacityForTotalFields(long fieldSize) {
+        return totalFieldsBudget.hasCapacityFor(fieldSize);
     }
 
     boolean decrementTotalFieldsIfPossible(long fieldSize) {

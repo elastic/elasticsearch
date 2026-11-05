@@ -338,15 +338,26 @@ public class MappingParserContext {
         }
     }
 
+    /**
+     * Create a MappingParserContext to be used when creating dynamic fields from templates
+     */
     public MappingParserContext createDynamicTemplateContext(DateFormatter dateFormatter) {
-        return new DynamicTemplateParserContext(this, dateFormatter);
+        return createDynamicTemplateContext(dateFormatter, parseFieldLimits);
+    }
+
+    /**
+     * Create a MappingParserContext to be used when creating dynamic fields from templates, with
+     * specific field limits.
+     */
+    public MappingParserContext createDynamicTemplateContext(DateFormatter dateFormatter, ParseFieldLimits limits) {
+        return new DynamicTemplateParserContext(this, dateFormatter, limits);
     }
 
     private static class DynamicTemplateParserContext extends MappingParserContext {
 
         private final DateFormatter dateFormatter;
 
-        DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter) {
+        DynamicTemplateParserContext(MappingParserContext in, DateFormatter dateFormatter, ParseFieldLimits limits) {
             super(
                 in.similarityLookupService,
                 in.typeParsers,
@@ -363,7 +374,7 @@ public class MappingParserContext {
                 in.namespaceValidator,
                 null,
                 // Dynamic templates should not count towards the total field budget
-                in.parseFieldLimits.withoutTotalFieldsBudget()
+                limits.withoutTotalFieldsBudget()
             );
             this.dateFormatter = dateFormatter;
         }

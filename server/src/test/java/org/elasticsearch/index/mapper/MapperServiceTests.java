@@ -2385,4 +2385,26 @@ public class MapperServiceTests extends MapperServiceTestCase {
         CompressedXContent source = new CompressedXContent(Strings.toString(deepDynamicTemplateMapping(5)));
         assertNotNull(mapperService.merge("_doc", source, MergeReason.MAPPING_RECOVERY));
     }
+
+    public void testDynamicTemplateAtDocumentTimeUsesLatestNestedLimit() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates").startObject().startObject("nested");
+            b.field("match", "nested_*");
+            b.startObject("mapping").field("type", "nested").endObject();
+            b.endObject().endObject().endArray();
+        }));
+        mapperService.documentMapper().parse(source(b -> b.startObject("nested_a").endObject()));
+
+        IndexSettings indexSettings = mapperService.getIndexSettings();
+        Settings lowered = Settings.builder()
+            .put(indexSettings.getSettings())
+            .put(MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING.getKey(), 0)
+            .build();
+        assertTrue(indexSettings.updateIndexMetadata(IndexMetadata.builder(indexSettings.getIndexMetadata()).settings(lowered).build()));
+
+        expectThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper().parse(source(b -> b.startObject("nested_b").endObject()))
+        );
+    }
 }

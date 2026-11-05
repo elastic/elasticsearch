@@ -213,6 +213,7 @@ public abstract class DocumentParserContext {
 
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
+    private final ParseFieldLimits parseFieldLimits;
     private final SourceToParse sourceToParse;
 
     private final Set<String> ignoredFields;
@@ -224,7 +225,6 @@ public abstract class DocumentParserContext {
 
     private final Map<String, List<Mapper.Builder>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
-    private final NewFieldsBudget dynamicFieldBudget;
     private final Map<String, ObjectMapper.Builder> dynamicObjectMappers;
     private final Map<String, Mapper> builtDynamicMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
@@ -280,8 +280,9 @@ public abstract class DocumentParserContext {
         boolean recordedSource,
         Set<String> singleValuedFields,
         Map<String, BytesRef> pendingMultiValueViolations,
-        NewFieldsBudget dynamicFieldBudget
+        ParseFieldLimits parseFieldLimits
     ) {
+        this.parseFieldLimits = parseFieldLimits;
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
@@ -306,7 +307,6 @@ public abstract class DocumentParserContext {
         assert this.mappingCopyToFields == Set.copyOf(this.mappingCopyToFields); // ensure that we've been passed an ImmutableSet(12|N)
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
-        this.dynamicFieldBudget = dynamicFieldBudget;
         this.objectArrayElementCounter = objectArrayElementCounter;
         this.recordedSource = recordedSource;
         this.fieldNamesFieldMapper = mappingLookup.getMapping().fieldNamesFieldMapper();
@@ -338,16 +338,8 @@ public abstract class DocumentParserContext {
             in.recordedSource,
             in.singleValuedFields,
             in.pendingMultiValueViolations,
-            in.dynamicFieldBudget
+            in.parseFieldLimits
         );
-    }
-
-    private static NewFieldsBudget createDynamicFieldBudget(MappingLookup mappingLookup, IndexSettings indexSettings) {
-        long totalFieldsLimit = indexSettings.getMappingTotalFieldsLimit();
-        long remaining = mappingLookup.remainingFieldsUntilLimit(totalFieldsLimit);
-        return indexSettings.isIgnoreDynamicFieldsBeyondLimit()
-            ? NewFieldsBudget.dropping(remaining)
-            : NewFieldsBudget.throwing(remaining, totalFieldsLimit);
     }
 
     protected DocumentParserContext(
@@ -382,7 +374,7 @@ public abstract class DocumentParserContext {
             false,
             new HashSet<>(),
             new HashMap<>(),
-            createDynamicFieldBudget(mappingLookup, mappingParserContext.getIndexSettings())
+            ParseFieldLimits.forDocument(mappingLookup, mappingParserContext.getIndexSettings())
         );
     }
 
@@ -415,7 +407,7 @@ public abstract class DocumentParserContext {
     }
 
     public final MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
-        return mappingParserContext.createDynamicTemplateContext(dateFormatter);
+        return mappingParserContext.createDynamicTemplateContext(dateFormatter, parseFieldLimits);
     }
 
     public final SourceToParse sourceToParse() {
@@ -542,7 +534,7 @@ public abstract class DocumentParserContext {
     }
 
     public final boolean fieldBudgetExhausted() {
-        return dynamicFieldBudget.hasCapacityFor(1) == false;
+        return parseFieldLimits.hasCapacityForTotalFields(1) == false;
     }
 
     /**
@@ -839,7 +831,7 @@ public abstract class DocumentParserContext {
             && mappingLookup.objectMappers().containsKey(fullPath) == false
             && dynamicMappers.containsKey(fullPath) == false) {
             int mapperSize = builder.getTotalFieldsCount();
-            if (dynamicFieldBudget.decrementIfPossible(mapperSize) == false) {
+            if (parseFieldLimits.decrementTotalFieldsIfPossible(mapperSize) == false) {
                 try {
                     FallbackPostMapper.capture(this, fullPath, FallbackPostMapper.Reason.FIELD_LIMIT_EXCEEDED);
                 } catch (IOException e) {
@@ -1032,7 +1024,7 @@ public abstract class DocumentParserContext {
      */
     final boolean addDynamicRuntimeField(RuntimeField runtimeField) {
         if (dynamicRuntimeFields.containsKey(runtimeField.name()) == false) {
-            if (dynamicFieldBudget.decrementIfPossible(1) == false) {
+            if (parseFieldLimits.decrementTotalFieldsIfPossible(1) == false) {
                 addIgnoredField(runtimeField.name());
                 return false;
             }

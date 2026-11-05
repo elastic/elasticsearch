@@ -128,6 +128,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -1876,6 +1877,97 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
+     * The shard indexer sends its bulk requests asynchronously, so several of them are in flight at the same time. This test
+     * fails the second bulk request only after every later bulk has already landed in the target index, so the interrupted
+     * run leaves a gap in the middle of the {@code _tsid} range it wrote: the target index holds the time series of the first
+     * bulk and of every bulk after the failed one, but none of the failed one. The resumed task must fill that gap, so the
+     * resumed target must be identical to a downsample that ran uninterrupted, without indexing any document twice.
+     */
+    public void testDownsampleResumesAfterNonLastBulkFails() throws Exception {
+        DownsampleConfig config = new DownsampleConfig(randomInterval());
+        // One time series per document and one bucket per time series, so consecutive bulk requests hold disjoint _tsid ranges
+        // and the shard task has to send at least three of them.
+        int numBuckets = 30_000;
+        AtomicInteger series = new AtomicInteger();
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, "dim-" + series.getAndIncrement())
+            .field(FIELD_NUMERIC_1, randomDouble())
+            .endObject();
+        bulkIndex(sourceIndex, sourceSupplier, numBuckets);
+        prepareSourceIndex(sourceIndex, true);
+
+        BulkInterceptorPlugin.reset();
+        try {
+            BulkInterceptorPlugin.interceptedIndex = downsampleIndex;
+            // Park the second bulk only. The first one and every one after the second pass through.
+            BulkInterceptorPlugin.parkBulk = ordinal -> ordinal == 1;
+            // 1. Kick off downsampling. The request keeps waiting for the shard task until the parked bulk is failed below.
+            PlainActionFuture<AcknowledgedResponse> first = new PlainActionFuture<>();
+            client().execute(
+                DownsampleAction.INSTANCE,
+                new DownsampleAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, downsampleIndex, TIMEOUT, config),
+                first
+            );
+
+            // 2. Wait until the second bulk is parked and every other bulk has landed, which leaves the indexer blocked on
+            // closing its bulk processor. Only then has every bulk after the parked one been sent while the parked one was
+            // still in flight.
+            assertBusy(() -> {
+                assertThat(BulkInterceptorPlugin.parked, Matchers.hasSize(1));
+                int parkedActions = BulkInterceptorPlugin.parked.get(0).request().numberOfActions();
+                indicesAdmin().prepareRefresh(downsampleIndex).get();
+                assertThat(
+                    SearchResponseUtils.getTotalHitsValue(client().prepareSearch(downsampleIndex).setSize(0).setTrackTotalHits(true)),
+                    Matchers.equalTo((long) (numBuckets - parkedActions))
+                );
+            }, 30, TimeUnit.SECONDS);
+            int parkedActions = BulkInterceptorPlugin.parked.get(0).request().numberOfActions();
+            assertThat(parkedActions, Matchers.greaterThan(0));
+            // At least one bulk was sent after the parked one, so the parked bulk is not the last one.
+            assertThat(BulkInterceptorPlugin.bulksPassed.get(), Matchers.greaterThanOrEqualTo(3));
+
+            // 3. Fail the parked bulk. The shard task fails with a non-retriable error, which fails the downsample request that
+            // was waiting for it, and its persistent task is removed. This leaves the target index in the STARTED status with
+            // a gap in the middle of its _tsid range.
+            BulkInterceptorPlugin.failParked();
+            BulkInterceptorPlugin.interceptedIndex = null;
+            ElasticsearchException firstFailure = expectThrows(ElasticsearchException.class, () -> first.actionGet(TIMEOUT));
+            assertThat(firstFailure.getMessage(), containsString("] failed"));
+            assertBusy(() -> {
+                assertThat(
+                    clusterAdmin().prepareListTasks().setActions(DownsampleShardTask.TASK_NAME + "[c]").get().getTasks(),
+                    Matchers.empty()
+                );
+                PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+                    clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState()
+                );
+                assertThat(
+                    tasks.tasks().stream().filter(t -> DownsampleShardTask.TASK_NAME.equals(t.getTaskName())).toList(),
+                    Matchers.empty()
+                );
+            });
+            assertEquals(
+                IndexMetadata.DownsampleTaskStatus.STARTED,
+                IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(
+                    indicesAdmin().prepareGetSettings(downsampleIndex).get().getIndexToSettings().get(downsampleIndex)
+                )
+            );
+            long indexedByInterruptedRun = numBuckets - parkedActions;
+
+            // 4. Retrigger. The resumed task must fill the gap left by the failed bulk, so the result must be identical to an
+            // uninterrupted downsample and no document already in the target index may be indexed again.
+            Map<String, DocSnapshot> resumed = resumeAndAssertMatchesReference(config, indexedByInterruptedRun);
+            assertThat(resumed.size(), Matchers.equalTo(numBuckets));
+            assertNoDocumentRewritten(resumed);
+        } finally {
+            BulkInterceptorPlugin.failParked();
+            BulkInterceptorPlugin.reset();
+        }
+    }
+
+    /**
      * Starts downsampling {@link #sourceIndex} into {@link #downsampleIndex}, lets only the first bulk request of the shard
      * task through and then removes the shard persistent task while the indexer is parked on the next bulk. This leaves a
      * partially populated target index in the {@code STARTED} status, as if the task had been interrupted.
@@ -1943,9 +2035,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Retriggers the downsample action on the target index left behind by {@link #downsampleAndInterruptAfterFirstBulk},
-     * which recreates the shard tasks so they resume, and asserts that the result is identical to a downsample that ran
-     * uninterrupted.
+     * Retriggers the downsample action on the target index left behind by a failure, which recreates the shard tasks so they resume,
+     * and asserts that the result is identical to a downsample that ran uninterrupted.
      *
      * @return every document of the resumed target index keyed by {@code _id}
      */
@@ -2020,24 +2111,29 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Lets the first bulk request targeting {@link #interceptedIndex} through and parks every later one until the test
-     * releases them. This is needed because the downsample shard task would otherwise finish before the test gets a
-     * chance to remove its persistent task mid-flight.
+     * Parks the bulk requests targeting {@link #interceptedIndex} that {@link #parkBulk} selects, by their zero-based
+     * ordinal, until the test releases them, and lets every other one through. By default the first bulk passes and every
+     * later one is parked. This is needed because the downsample shard task would otherwise finish before the test gets a
+     * chance to interfere with it mid-flight.
      */
     public static class BulkInterceptorPlugin extends Plugin implements ActionPlugin {
+        record ParkedBulk(BulkRequest request, ActionListener<ActionResponse> listener) {}
+
         static volatile String interceptedIndex;
+        static volatile IntPredicate parkBulk = ordinal -> ordinal > 0;
         static final AtomicInteger bulksPassed = new AtomicInteger();
-        static final List<ActionListener<ActionResponse>> parked = Collections.synchronizedList(new ArrayList<>());
+        static final List<ParkedBulk> parked = Collections.synchronizedList(new ArrayList<>());
 
         static void reset() {
             interceptedIndex = null;
+            parkBulk = ordinal -> ordinal > 0;
             bulksPassed.set(0);
             parked.clear();
         }
 
         static void failParked() {
             synchronized (parked) {
-                parked.forEach(l -> l.onFailure(new ElasticsearchException("simulated bulk failure")));
+                parked.forEach(p -> p.listener().onFailure(new ElasticsearchException("simulated bulk failure")));
                 parked.clear();
             }
         }
@@ -2064,8 +2160,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                         && TransportBulkAction.NAME.equals(action)
                         && request instanceof BulkRequest bulk
                         && bulk.requests().stream().anyMatch(r -> index.equals(r.index()))) {
-                        if (bulksPassed.getAndIncrement() > 0) {
-                            parked.add((ActionListener<ActionResponse>) listener);
+                        if (parkBulk.test(bulksPassed.getAndIncrement())) {
+                            parked.add(new ParkedBulk(bulk, (ActionListener<ActionResponse>) listener));
                             return;
                         }
                     }

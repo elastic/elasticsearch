@@ -24,6 +24,8 @@ ext.docsFileTree = fileTree(projectDir) {
   exclude 'README.asciidoc'
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
+  // Indexing into semantic_text downloads and deploys ELSER, which is a frequent source of CI flakiness
+  exclude 'reference/search/search-your-data/retrievers-examples.asciidoc'
   // These files simply don't pass yet. We should figure out how to fix them.
   exclude 'reference/watcher/reference/actions.asciidoc'
   exclude 'reference/rest-api/security/ssl.asciidoc'

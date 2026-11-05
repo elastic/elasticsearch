@@ -26,7 +26,8 @@ final class DockerExporter {
     ///
     /// @param isCrossPlatform whether the build uses `docker buildx build` rather than plain `docker build`
     /// @param builderOverride the `BUILDX_BUILDER` value, or `null` if unset
-    /// @param buildxInspect supplies the output of `docker buildx inspect`, or `null` if it failed
+    /// @param buildxInspect supplies the output of `docker buildx inspect`. It must throw if the inspection fails, since the
+    ///                      driver of the selected builder cannot be guessed
     /// @param daemonDriverStatus supplies the output of `docker info --format '{{ .DriverStatus }}'`, or `null`
     ///                           if it failed
     static String daemonSpec(
@@ -51,11 +52,7 @@ final class DockerExporter {
         if (isCrossPlatform == false && (builderOverride == null || builderOverride.isBlank())) {
             return true;
         }
-        final String inspect = buildxInspect.get();
-        if (inspect == null) {
-            return true;
-        }
-        return inspect.lines().anyMatch(line -> line.trim().matches("Driver:\\s+docker"));
+        return buildxInspect.get().lines().anyMatch(line -> line.trim().matches("Driver:\\s+docker"));
     }
 
     private static boolean usesContainerdImageStore(String daemonDriverStatus) {

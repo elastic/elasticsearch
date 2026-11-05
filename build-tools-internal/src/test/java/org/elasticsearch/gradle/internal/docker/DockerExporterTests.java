@@ -15,6 +15,8 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.Assert.assertThrows;
 
 /// Covers which exporter loads the image into the daemon. A wrong choice is only noticed when the image is inspected after the
 /// build: `type=image` against a `docker-container` builder leaves the image in the builder, not in the daemon.
@@ -84,9 +86,13 @@ public class DockerExporterTests {
     }
 
     @Test
-    public void failedBuilderInspectionIsTreatedAsTheDaemonBuilder() {
-        // without the buildx plugin, `docker build` uses the daemon's built-in builder
-        assertThat(DockerExporter.daemonSpec(true, true, null, () -> null, () -> CONTAINERD_STORE), equalTo(UNPACK_FALSE));
+    public void failedBuilderInspectionIsNotGuessed() {
+        final var failure = new IllegalStateException("inspection failed");
+        final var thrown = assertThrows(
+            IllegalStateException.class,
+            () -> DockerExporter.daemonSpec(true, true, null, () -> { throw failure; }, () -> CONTAINERD_STORE)
+        );
+        assertThat(thrown, sameInstance(failure));
     }
 
     @Test

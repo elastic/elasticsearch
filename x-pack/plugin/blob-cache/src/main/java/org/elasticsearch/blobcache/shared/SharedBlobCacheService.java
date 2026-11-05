@@ -3053,8 +3053,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     return ioRef;
                                 }
                             } finally {
-                                unlinkAndRemoveForEviction(entry);
-                                onPressureEviction(entry, incoming.origin);
+                                // the region is evicted whether or not its slot is handed to the incoming fill (a reader may still
+                                // hold a reference), and even if unlinking fails, so it is always reported
+                                try {
+                                    unlinkAndRemoveForEviction(entry);
+                                } finally {
+                                    onPressureEviction(entry, incoming.origin);
+                                }
                             }
                         }
                     } finally {
@@ -3136,9 +3141,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
-                        unlinkAndRemoveForEviction(entry);
-                        // only called by fills that may not evict above the lowest frequency
-                        onPressureEviction(entry, RegionFillOrigin.Speculative);
+                        try {
+                            unlinkAndRemoveForEviction(entry);
+                        } finally {
+                            // only called by fills that may not evict above the lowest frequency
+                            onPressureEviction(entry, RegionFillOrigin.Speculative);
+                        }
                         found = true;
                         break;
                     }

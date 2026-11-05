@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.core.Nullable;
-
 /**
  * Records changes made to {@link RoutingNodes} during an allocation round.
  */
@@ -30,16 +28,8 @@ public interface RoutingChangesObserver {
 
     /**
      * Called when relocation of a started shard is initiated.
-     *
-     * @param reason why the relocation was started
-     * @param computedReason why the desired balance computation decided the shard should leave its node, if it did
      */
-    default void relocationStarted(
-        ShardRouting startedShard,
-        ShardRouting targetRelocatingShard,
-        MoveReason reason,
-        @Nullable MoveReason computedReason
-    ) {}
+    default void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, MoveReason reason) {}
 
     /**
      * Called when an unassigned shard's unassigned information was updated
@@ -101,14 +91,9 @@ public interface RoutingChangesObserver {
         }
 
         @Override
-        public void relocationStarted(
-            ShardRouting startedShard,
-            ShardRouting targetRelocatingShard,
-            MoveReason reason,
-            @Nullable MoveReason computedReason
-        ) {
+        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, MoveReason reason) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
-                routingChangesObserver.relocationStarted(startedShard, targetRelocatingShard, reason, computedReason);
+                routingChangesObserver.relocationStarted(startedShard, targetRelocatingShard, reason);
             }
         }
 

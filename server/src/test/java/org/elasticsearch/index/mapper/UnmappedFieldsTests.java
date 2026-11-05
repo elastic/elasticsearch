@@ -304,6 +304,7 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
         );
         UnmappedFields unmappedFields = createSearchExecutionContext(inner).unmappedFields();
         assertTrue(unmappedFields.mayExist("plain.below"));
+        assertFalse(unmappedFields.mayExist("attributes"));
         assertThat(unmappedFields.blockLoader("plain.below"), hasToString("UnmappedFields.Named[plain.below]"));
     }
 
@@ -634,6 +635,12 @@ public class UnmappedFieldsTests extends MapperServiceTestCase {
             for (String name : names) {
                 if (mapperService.mappingLookup().getFieldType(name) != null) {
                     assertThat(name + " in " + source, walked.get(name), nullValue());
+                    continue;
+                }
+                if (mapperService.mappingLookup().objectMappers().get(name) instanceof ObjectMapper object && object.isEnabled()) {
+                    // A document with a value at an object the mapping parses is rejected, so the mapping rules it out
+                    assertFalse(name, unmappedFields.mayExist(name));
+                    assertThat(unmappedFields.blockLoader(name), sameInstance(ConstantNull.INSTANCE));
                     continue;
                 }
                 List<String> expected = walked.getOrDefault(name, List.of());

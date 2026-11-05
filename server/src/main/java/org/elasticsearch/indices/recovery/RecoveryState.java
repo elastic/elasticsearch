@@ -109,6 +109,10 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     private Stage stage;
+    /// Set from the [ShardRouting] that created this recovery. [ThrottlingRecoveryService] may raise it while the
+    /// recovery is queued on the target node, for instance when the source node is shutting down.
+    private volatile RecoveryPriority recoveryPriority;
+
     private final int localRetries;
 
     private final Index index;
@@ -117,7 +121,6 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     private final Timer timer;
 
     private final RecoverySource recoverySource;
-    private final RecoveryPriority recoveryPriority;
     private final ShardId shardId;
     @Nullable
     private final DiscoveryNode sourceNode;
@@ -370,6 +373,13 @@ public class RecoveryState implements ToXContentFragment, Writeable {
 
     public RecoveryPriority getRecoveryPriority() {
         return recoveryPriority;
+    }
+
+    /// Used by [ThrottlingRecoveryService] for reprioritizing eligible recoveries, while the recovery is queued or
+    /// about to be queued.
+    void setRecoveryPriority(RecoveryPriority recoveryPriority) {
+        assert recoveryPriority != null && recoveryPriority != RecoveryPriority.UNKNOWN : recoveryPriority;
+        this.recoveryPriority = recoveryPriority;
     }
 
     /**

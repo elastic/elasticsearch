@@ -541,24 +541,19 @@ public class InboundHandlerTests extends ESTestCase {
     }
 
     /**
-     * A response waiting for its handler's executor stays reserved until it is read. The reservation is released before the handler gets
-     * the response, so it never overlaps what the handler charges for it.
+     * The memory a handler reserved for its response while it arrived goes with the message. It is released before the handler gets the
+     * response, so it never overlaps what the handler charges for it.
      */
-    public void testResponseBytesReservedUntilRead() throws Exception {
+    public void testResponseReservationReleasedAfterRead() throws Exception {
         final int length = between(1, 1000);
+        final boolean fork = randomBoolean();
         final List<Runnable> forked = new ArrayList<>();
-        final AtomicLong reserved = new AtomicLong();
+        final AtomicLong reserved = new AtomicLong(length);
         final AtomicReference<TestResponse> received = new AtomicReference<>();
         final long requestId = responseHandlers.add(new TransportResponseHandler<TestResponse>() {
             @Override
             public Executor executor() {
-                return forked::add;
-            }
-
-            @Override
-            public Releasable reserveResponseBytes(int bytes) {
-                reserved.addAndGet(bytes);
-                return () -> reserved.addAndGet(-bytes);
+                return fork ? forked::add : TransportResponseHandler.TRANSPORT_WORKER;
             }
 
             @Override
@@ -581,12 +576,13 @@ public class InboundHandlerTests extends ESTestCase {
         }, null, "test-action").requestId();
         final AtomicBoolean messageReleased = new AtomicBoolean();
 
-        handler.inboundMessage(channel, responseMessage(requestId, length, messageReleased));
-        assertThat("reserved while waiting for the executor", reserved.get(), equalTo((long) length));
-        assertNull(received.get());
-
-        assertThat(forked.size(), equalTo(1));
-        forked.getFirst().run();
+        handler.inboundMessage(channel, responseMessage(requestId, length, messageReleased, () -> reserved.addAndGet(-length)));
+        if (fork) {
+            assertThat("reserved while waiting for the executor", reserved.get(), equalTo((long) length));
+            assertNull(received.get());
+            assertThat(forked.size(), equalTo(1));
+            forked.getFirst().run();
+        }
         assertNotNull(received.get());
         assertThat(reserved.get(), equalTo(0L));
         assertTrue(messageReleased.get());
@@ -598,7 +594,7 @@ public class InboundHandlerTests extends ESTestCase {
     public void testResponseReservationReleasedWhenReadFails() throws Exception {
         final int length = between(1, 1000);
         final List<Runnable> forked = new ArrayList<>();
-        final AtomicLong reserved = new AtomicLong();
+        final AtomicLong reserved = new AtomicLong(length);
         final AtomicLong reservedWhenFailed = new AtomicLong(-1);
         final CapturingResponseHandler responseHandler = new CapturingResponseHandler() {
             @Override
@@ -613,12 +609,6 @@ public class InboundHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Releasable reserveResponseBytes(int bytes) {
-                reserved.addAndGet(bytes);
-                return () -> reserved.addAndGet(-bytes);
-            }
-
-            @Override
             public TestResponse read(StreamInput in) throws IOException {
                 throw new EOFException("simulated");
             }
@@ -627,7 +617,7 @@ public class InboundHandlerTests extends ESTestCase {
         final AtomicBoolean messageReleased = new AtomicBoolean();
 
         // the handler under test ignores deserialization errors, so the assertion this path carries does not fire
-        handler.inboundMessage(channel, responseMessage(requestId, length, messageReleased));
+        handler.inboundMessage(channel, responseMessage(requestId, length, messageReleased, () -> reserved.addAndGet(-length)));
         assertThat(forked.size(), equalTo(1));
         forked.getFirst().run();
         assertThat(responseHandler.exceptionCaptor.get(), instanceOf(TransportSerializationException.class));
@@ -637,51 +627,10 @@ public class InboundHandlerTests extends ESTestCase {
     }
 
     /**
-     * A handler that reads on the transport worker never waits, so it is never asked to reserve memory for its response.
+     * A response cut short because its handler couldn't reserve memory for it is never read: the handler gets the trip as a 429 on its
+     * own executor and is unregistered.
      */
-    public void testResponseOnTransportWorkerIsNotReserved() throws Exception {
-        final int length = between(1, 1000);
-        final AtomicReference<TestResponse> received = new AtomicReference<>();
-        final long requestId = responseHandlers.add(new TransportResponseHandler<TestResponse>() {
-            @Override
-            public Executor executor() {
-                return TransportResponseHandler.TRANSPORT_WORKER;
-            }
-
-            @Override
-            public Releasable reserveResponseBytes(int bytes) {
-                throw new AssertionError("a response read on the transport worker must not be reserved");
-            }
-
-            @Override
-            public TestResponse read(StreamInput in) throws IOException {
-                in.readBytes(new byte[length], 0, length);
-                return new TestResponse("");
-            }
-
-            @Override
-            public void handleResponse(TestResponse response) {
-                received.set(response);
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                throw new AssertionError(exp);
-            }
-        }, null, "test-action").requestId();
-        final AtomicBoolean messageReleased = new AtomicBoolean();
-
-        handler.inboundMessage(channel, responseMessage(requestId, length, messageReleased));
-        assertNotNull(received.get());
-        assertTrue(messageReleased.get());
-    }
-
-    /**
-     * A breaker trip reserving a response rejects it without reading it: the handler gets the trip on its own executor, still a 429, and
-     * the message is released.
-     */
-    public void testResponseReservationTripRejectsResponse() throws Exception {
-        final int length = between(1, 1000);
+    public void testRejectedResponseFailsOnHandlerExecutor() throws Exception {
         final List<Runnable> forked = new ArrayList<>();
         final CapturingResponseHandler responseHandler = new CapturingResponseHandler() {
             @Override
@@ -690,34 +639,52 @@ public class InboundHandlerTests extends ESTestCase {
             }
 
             @Override
-            public Releasable reserveResponseBytes(int bytes) {
-                throw new CircuitBreakingException("[request] Data too large", bytes, 0, CircuitBreaker.Durability.TRANSIENT);
-            }
-
-            @Override
             public TestResponse read(StreamInput in) {
                 throw new AssertionError("a rejected response must not be read");
             }
         };
         final long requestId = responseHandlers.add(responseHandler, null, "test-action").requestId();
-        final AtomicBoolean messageReleased = new AtomicBoolean();
+        final CircuitBreakingException trip = new CircuitBreakingException(
+            "[request] Data too large",
+            100,
+            0,
+            CircuitBreaker.Durability.TRANSIENT
+        );
 
-        handler.inboundMessage(channel, responseMessage(requestId, length, messageReleased));
-        assertTrue(messageReleased.get());
+        handler.inboundMessage(channel, new InboundMessage(responseHeader(requestId, between(1, 1000)), trip));
+        assertFalse(responseHandlers.contains(requestId));
         assertNull("completed on the handler's executor", responseHandler.exceptionCaptor.get());
 
         assertThat(forked.size(), equalTo(1));
         forked.getFirst().run();
         final TransportException exception = responseHandler.exceptionCaptor.get();
-        assertThat(ExceptionsHelper.unwrapCause(exception), instanceOf(CircuitBreakingException.class));
+        assertSame(trip, ExceptionsHelper.unwrapCause(exception));
         assertEquals(RestStatus.TOO_MANY_REQUESTS, ExceptionsHelper.status(exception));
     }
 
-    private static InboundMessage responseMessage(long requestId, int length, AtomicBoolean released) {
+    /**
+     * A response cut short after its handler was removed, for instance because the request timed out, is dropped.
+     */
+    public void testRejectedResponseWithoutHandlerIsDropped() throws Exception {
+        final CircuitBreakingException trip = new CircuitBreakingException(
+            "[request] Data too large",
+            100,
+            0,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+        // Nothing to assert: it passes if the message is dropped without failing
+        handler.inboundMessage(channel, new InboundMessage(responseHeader(randomNonNegativeLong(), between(1, 1000)), trip));
+    }
+
+    private static Header responseHeader(long requestId, int length) {
         final Header responseHeader = new Header(length, requestId, TransportStatus.setResponse((byte) 0), TransportVersion.current());
         responseHeader.headers = Tuple.tuple(Map.of(), Map.of());
+        return responseHeader;
+    }
+
+    private static InboundMessage responseMessage(long requestId, int length, AtomicBoolean released, Releasable reservation) {
         final var content = new ReleasableBytesReference(new BytesArray(randomByteArrayOfLength(length)), () -> released.set(true));
-        return new InboundMessage(responseHeader, content, () -> {});
+        return new InboundMessage(responseHeader(requestId, length), content, reservation);
     }
 
     private InboundMessage emptyResponseMessage(long requestId) {

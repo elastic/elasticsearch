@@ -316,7 +316,10 @@ public class EsqlCCSUtils {
             return false;
         }
         for (String expr : indexExpression.split(",")) {
-            if (expr.charAt(0) == '<' || expr.startsWith("-<")) {
+            if (expr.isEmpty()) {
+                continue;
+            }
+            if (expr.startsWith("<") || expr.startsWith("-<")) {
                 // skip date math expressions
                 continue;
             }

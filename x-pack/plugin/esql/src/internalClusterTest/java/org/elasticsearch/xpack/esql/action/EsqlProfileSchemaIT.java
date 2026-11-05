@@ -33,21 +33,46 @@ public class EsqlProfileSchemaIT extends AbstractEsqlIntegTestCase {
 
     public void testProfileResponseMatchesPublishedSchema() throws IOException {
         createTestIndex();
+        assertProfileMatchesSchema("FROM test | STATS total = SUM(v), count = COUNT(*) BY host | SORT total DESC | LIMIT 10", true);
+    }
 
-        EsqlQueryRequest request = syncEsqlQueryRequest(
-            "FROM test | STATS total = SUM(v), count = COUNT(*) BY host | SORT total DESC | LIMIT 10"
-        );
+    /** A FORK over subqueries has merges, with a driver for each branch, and their exchanges. */
+    public void testForkProfileMatchesPublishedSchema() throws IOException {
+        createTestIndex();
+        assertProfileMatchesSchema("""
+            FROM (FROM test | WHERE v <= 3), (FROM (FROM test | WHERE v == 4), (FROM test | WHERE v == 5))
+            | FORK (WHERE v <= 2) (WHERE v > 2 AND v < 5) (WHERE v >= 5)
+            | KEEP _fork, v
+            | SORT _fork, v
+            """, false);
+    }
+
+    /** A query that runs in several phases labels its drivers and plans with them. */
+    public void testMultiPhaseProfileMatchesPublishedSchema() throws IOException {
+        createTestIndex();
+        assertProfileMatchesSchema("""
+            FROM test
+            | INLINE STATS c = COUNT(*) BY host
+            | WHERE v IN (FROM test | WHERE v < 5 | KEEP v)
+            | KEEP v, c
+            """, false);
+    }
+
+    private void assertProfileMatchesSchema(String query, boolean expectOperatorStatus) throws IOException {
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
         request.profile(true);
         try (EsqlQueryResponse response = run(request)) {
             assertFalse(response.profile().drivers().isEmpty());
             assertFalse(response.profile().plans().isEmpty());
-            assertTrue(
-                response.profile()
-                    .drivers()
-                    .stream()
-                    .flatMap(driver -> driver.operators().stream())
-                    .anyMatch(operator -> operator.status() != null)
-            );
+            if (expectOperatorStatus) {
+                assertTrue(
+                    response.profile()
+                        .drivers()
+                        .stream()
+                        .flatMap(driver -> driver.operators().stream())
+                        .anyMatch(operator -> operator.status() != null)
+                );
+            }
 
             Map<String, Object> renderedResponse = XContentTestUtils.convertToMap(response);
             Map<String, Object> renderedProfile = object(renderedResponse.get("profile"));

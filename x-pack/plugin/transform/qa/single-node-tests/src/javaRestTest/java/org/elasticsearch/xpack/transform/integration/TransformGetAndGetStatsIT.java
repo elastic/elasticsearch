@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -263,6 +264,9 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         verifyGetResponse(getTransformEndpoint() + "_all", 2, expectedErrors);
         verifyGetResponse(getTransformEndpoint() + "*", 2, expectedErrors);
         verifyGetResponse(getTransformEndpoint() + "pivot_*", 2, expectedErrors);
+        // size=0 must still page through every transform id to find the dangling task, and terminate
+        verifyGetResponse(getTransformEndpoint() + "_all?size=0", 2, expectedErrors);
+        verifyGetResponse(getTransformEndpoint() + "_all?from=1&size=0", 2, expectedErrors);
         verifyGetResponse(getTransformEndpoint() + "pivot_1,pivot_2", 2, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_1", 1, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_2", 1, null);
@@ -601,6 +605,14 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
         // getting all transform will not have any errors
         assertThat(getAllTransformIds(), containsInAnyOrder(transformId1, transformId2));
+
+        // size=0 returns the count without any configs or errors
+        for (var from : List.of(0, 1)) {
+            var transforms = getTransforms(from, 0);
+            assertThat(transforms.get("count"), equalTo(2));
+            assertThat((List<?>) transforms.get("transforms"), empty());
+            assertThat(transforms.get("errors"), is(nullValue()));
+        }
 
         // getting a stopped transform 1 will not have any errors for transform 2
         stopTransform(transformId1, false);

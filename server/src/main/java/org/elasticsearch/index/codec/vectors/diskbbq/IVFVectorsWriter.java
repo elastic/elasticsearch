@@ -42,6 +42,9 @@ import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.AbstractList;
@@ -918,11 +921,11 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
         VectorEncoding encoding = fieldInfo.getVectorEncoding();
 
         // Encoding-specific scratch buffers
-        final ByteBuffer floatBuffer = encoding == VectorEncoding.FLOAT32
-            ? ByteBuffer.allocate(dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN)
+        final MemorySegment floatBuffer = encoding == VectorEncoding.FLOAT32
+            ? Arena.ofAuto().allocate((long)dim * Float.BYTES, Float.BYTES)
             : null;
         final float[] floatScratch = preconditioner != null ? new float[dim] : null;
-        final byte[] byteScratch = (encoding == VectorEncoding.BYTE && preconditioner != null) ? new byte[dim] : null;
+        final byte[] byteScratch = (encoding == VectorEncoding.BYTE && preconditioner != null) ? new byte[dim] : new byte[dim * Float.BYTES];
 
         final KnnVectorValues.DocIndexIterator iterator = mergedVectorValues.iterator();
         for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
@@ -941,11 +944,12 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
                     float[] vector = ((FloatVectorValues) mergedVectorValues).vectorValue(iterator.index());
                     if (preconditioner != null) {
                         preconditioner.applyTransform(vector, floatScratch);
-                        floatBuffer.asFloatBuffer().put(floatScratch);
+                        MemorySegment.copy(floatScratch, 0, floatBuffer, ValueLayout.JAVA_FLOAT, 0, dim);
                     } else {
-                        floatBuffer.asFloatBuffer().put(vector);
+                        MemorySegment.copy(vector, 0, floatBuffer, ValueLayout.JAVA_FLOAT, 0, dim);
                     }
-                    vectorsOut.writeBytes(floatBuffer.array(), floatBuffer.array().length);
+                    MemorySegment.copy(floatBuffer, ValueLayout.JAVA_BYTE, 0, byteScratch, 0, dim * Float.BYTES);
+                    vectorsOut.writeBytes(byteScratch, byteScratch.length);
                 }
             }
             if (docsOut != null) {

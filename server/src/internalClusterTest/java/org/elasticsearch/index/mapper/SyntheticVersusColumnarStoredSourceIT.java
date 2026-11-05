@@ -9,10 +9,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
@@ -38,6 +40,7 @@ import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Verifies that a {@code columnar_stored} source index and an equivalent {@code synthetic} source index
@@ -263,10 +266,29 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
 
     /**
      * Asserts {@code _ignored} contains {@code fieldName} on <em>every</em> copy of the shard, not only on whichever copy a search happens
-     * to be routed to. A replica that recovered via operation replay would otherwise make this check flaky (#157799, #155610).
+     * to be routed to (#157799, #155610).
+     * <p>
+     * The index is created without replicas and the replica is added only after the document was indexed (and without a flush), so the
+     * replica must recover by replaying the primary's operations. That replay re-parses the source reconstructed from synthetic source,
+     * so a value that is not restored faithfully (e.g. a multi-value violation stored in {@code ._on_failure}) would make the replica
+     * lose {@code _ignored}. Adding the replica at index creation instead would let it receive the document via ordinary replication with
+     * the original source and never exercise this path.
      */
     private void assertIgnoredContains(String index, String fieldName) {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        setReplicaCount(1, index);
         ensureGreen(index);
+        var replicaRecoveredOperations = indicesAdmin().prepareRecoveries(index)
+            .get()
+            .shardRecoveryInfos()
+            .get(index)
+            .stream()
+            .map(ShardRecoveryInfo::recoveryState)
+            .filter(state -> state.getPrimary() == false)
+            .mapToInt(state -> state.getTranslog().recoveredOperations())
+            .sum();
+        assertThat(index + ": the replica must have recovered by replaying operations", replicaRecoveredOperations, greaterThan(0));
+
         var routing = clusterService().state().routingTable().index(index).shard(0);
         for (var copy : routing.assignedShards()) {
             var resp = client().prepareSearch(index)
@@ -321,23 +343,23 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         Map<String, ?> document,
         boolean useTimeSeriesDocValuesFormat
     ) {
+        // ESIntegTestCase randomizes the replica count and the translog flush threshold. Pin both: assertIgnoredContains adds the replica
+        // only after indexing, and an intervening flush would let it recover by copying files instead of replaying operations.
         var syntheticSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1));
         var columnarStoredSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
             .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1));
 
-        // A replica is required (and therefore a second data node): replicas catch up via operation-based recovery, which re-parses
-        // the source reconstructed from synthetic source, so any value that is not restored faithfully (e.g. a multi-value violation
-        // stored in ._on_failure) makes the replica diverge from the primary. See #157799.
-        internalCluster().ensureAtLeastNumDataNodes(2);
         assertAcked(prepareCreate("test_synthetic").setMapping(mappingXContent).setSettings(syntheticSettings));
         assertAcked(prepareCreate("test_columnar_stored").setMapping(mappingXContent).setSettings(columnarStoredSettings));
 

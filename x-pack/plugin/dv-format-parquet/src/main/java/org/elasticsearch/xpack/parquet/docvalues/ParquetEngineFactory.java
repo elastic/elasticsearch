@@ -36,9 +36,16 @@ import java.util.function.Supplier;
 public final class ParquetEngineFactory implements EngineFactory {
 
     private final Supplier<RepositoriesService> repositories;
+    private final Supplier<ParquetBlobCache> cache;
 
     public ParquetEngineFactory(Supplier<RepositoriesService> repositories) {
+        this(repositories, () -> null);
+    }
+
+    /** @param cache the cache of byte ranges of the files, which supplies {@code null} when the node has none */
+    public ParquetEngineFactory(Supplier<RepositoriesService> repositories, Supplier<ParquetBlobCache> cache) {
         this.repositories = repositories;
+        this.cache = cache;
     }
 
     @Override
@@ -49,7 +56,7 @@ public final class ParquetEngineFactory implements EngineFactory {
             throw new UncheckedIOException("failed to attach the Parquet files to shard " + config.getShardId(), e);
         }
         // the engine opens the segments, and each segment keeps the files that it finds in the context
-        ParquetObjects objects = ParquetReadContext.repositories(repositories, ProjectId.DEFAULT);
+        ParquetObjects objects = ParquetReadContext.repositories(repositories, ProjectId.DEFAULT, cache);
         return ParquetReadContext.with(objects, () -> new ParquetReadOnlyEngine(config));
     }
 

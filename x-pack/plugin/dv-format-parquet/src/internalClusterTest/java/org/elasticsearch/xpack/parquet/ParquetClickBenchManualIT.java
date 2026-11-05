@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.parquet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
@@ -17,6 +18,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.encryption.EncryptionPlugin;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.parquet.docvalues.ClickBenchResultCheck;
 import org.elasticsearch.xpack.parquet.docvalues.ParquetBackedSettings;
+import org.elasticsearch.xpack.parquet.docvalues.ParquetBlobCache;
 import org.elasticsearch.xpack.parquet.mount.MountParquetAction;
 import org.elasticsearch.xpack.parquet.mount.ParquetMountRequest;
 import org.elasticsearch.xpack.parquet.mount.PreviewParquetAction;
@@ -69,25 +72,104 @@ public class ParquetClickBenchManualIT extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean forceSingleDataPath() {
+        // the shared cache is not allowed on a node with several data paths
+        return true;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateParquetDocValues.class, DataStreamsPlugin.class, EncryptionPlugin.class, EsqlPlugin.class);
+        return List.of(
+            LocalStateParquetDocValues.class,
+            DataStreamsPlugin.class,
+            EncryptionPlugin.class,
+            EsqlPlugin.class,
+            S3RepositoryPlugin.class
+        );
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         String file = System.getProperty("tests.parquet.hits");
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        // The test cluster gives every node a random number of 1 to 4 processors, which sizes the esql_worker pool and so decides how many
+        // drivers run at once. The timings of a manual run must use the cores of the machine (or -Dtests.parquet.processors=<n>).
+        settings.put(
+            EsExecutors.NODE_PROCESSORS_SETTING.getKey(),
+            Integer.parseInt(System.getProperty("tests.parquet.processors", Integer.toString(Runtime.getRuntime().availableProcessors())))
+        );
         // ClickBench Q42 reads the rows after the first 10,000, which ES|QL only returns when the result may be larger
         settings.put("esql.query.result_truncation_max_size", 20_000);
         if (Booleans.parseBoolean(System.getProperty("tests.parquet.noQueryCache", "false"))) {
             // to find out whether a wrong result depends on the cached result of a filter
             settings.put("indices.queries.cache.size", "0b");
         }
+        String cache = System.getProperty("tests.parquet.cache", "");
+        if (cache.isEmpty() == false) {
+            // the node-local cache of byte ranges, which needs a size, because the shared cache is off on a node without the right role
+            settings.put(ParquetBlobCache.CACHE_SIZE.getKey(), cache);
+            String regionSize = System.getProperty("tests.parquet.regionSize", "");
+            if (regionSize.isEmpty() == false) {
+                // the region and the range size of the cache: a column chunk of 1 to 3 MB fits better in a small region
+                settings.put(ParquetBlobCache.CACHE_REGION_SIZE.getKey(), regionSize);
+            }
+        }
+        if (s3()) {
+            // the anonymous setting of repository-s3 exists only on this prototype branch; the bucket is public
+            settings.put("s3.client.default.anonymous", true).put("s3.client.default.region", "eu-central-1");
+        }
         if (file != null && file.isEmpty() == false) {
             // the repository location must be below path.repo
             settings.put(Environment.PATH_REPO_SETTING.getKey(), PathUtils.get(file).getParent().toString());
         }
         return settings.build();
+    }
+
+    /**
+     * Registers the read-only repository {@code clickbench}: the directory of the file as an {@code fs} repository, or with
+     * {@code -Dtests.parquet.s3=true} the public bucket of ClickBench as an {@code s3} repository (the client of the node is anonymous,
+     * see {@link #nodeSettings}), so that the same tests run against S3. In that mode {@code tests.parquet.hits} only has to end in
+     * {@code hits.parquet}, and the file is read from the bucket.
+     */
+    private static void registerRepository(Path hits) {
+        Settings.Builder repository = Settings.builder().put("readonly", true);
+        if (s3()) {
+            repository.put("bucket", "clickhouse-public-datasets").put("base_path", "hits_compatible");
+        } else {
+            repository.put("location", hits.getParent());
+        }
+        assertAcked(
+            ESIntegTestCase.client()
+                .admin()
+                .cluster()
+                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "clickbench")
+                .setType(s3() ? "s3" : "fs")
+                .setSettings(repository)
+        );
+    }
+
+    /** What the cache of the node has written and missed so far, after a run of a query. */
+    private void logCache(String name, int run) {
+        if (cacheEnabled()) {
+            var stats = internalCluster().getInstance(ParquetBlobCache.class).stats();
+            LOGGER.info(
+                "--> [{}] run [{}] cache: written [{}] MB, writes [{}], misses [{}], evictions [{}]",
+                name,
+                run,
+                stats.writeBytes() >> 20,
+                stats.writeCount(),
+                stats.missCount(),
+                stats.evictCount()
+            );
+        }
+    }
+
+    private static boolean cacheEnabled() {
+        return System.getProperty("tests.parquet.cache", "").isEmpty() == false;
+    }
+
+    private static boolean s3() {
+        return Booleans.parseBoolean(System.getProperty("tests.parquet.s3", "false"));
     }
 
     private static List<List<Object>> esql(String query) {
@@ -142,14 +224,7 @@ public class ParquetClickBenchManualIT extends ESIntegTestCase {
     public void testClickBenchQueriesOverTheMountedFile() throws Exception {
         Path hits = hits();
         internalCluster().startNode();
-        assertAcked(
-            ESIntegTestCase.client()
-                .admin()
-                .cluster()
-                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "clickbench")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", hits.getParent()).put("readonly", true))
-        );
+        registerRepository(hits);
         long start = System.nanoTime();
         assertAcked(
             prepareCreate("hits").setSettings(
@@ -215,14 +290,7 @@ public class ParquetClickBenchManualIT extends ESIntegTestCase {
     /** Starts a node, registers the directory of the file as a repository and mounts the file as the data stream {@code hits}. */
     private void mountThroughApi(Path hits) throws Exception {
         internalCluster().startNode();
-        assertAcked(
-            ESIntegTestCase.client()
-                .admin()
-                .cluster()
-                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "clickbench")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", hits.getParent()).put("readonly", true))
-        );
+        registerRepository(hits);
         Map<String, Object> body = Map.of(
             "repository",
             "clickbench",
@@ -263,7 +331,18 @@ public class ParquetClickBenchManualIT extends ESIntegTestCase {
 
     public void testMountApiOverTheWholeFile() throws Exception {
         mountThroughApi(hits());
+        // a second pass shows what the cache of the node (-Dtests.parquet.cache=<size>) saves
+        int passes = Integer.parseInt(System.getProperty("tests.parquet.passes", "1"));
+        for (int pass = 0; pass < passes; pass++) {
+            LOGGER.info("--> pass [{}]", pass);
+            assertTheMount();
+            if (cacheEnabled()) {
+                LOGGER.info("--> the cache after pass [{}]: {}", pass, internalCluster().getInstance(ParquetBlobCache.class).stats());
+            }
+        }
+    }
 
+    private static void assertTheMount() {
         assertEquals(List.of(List.of(ROWS)), esql("FROM hits | STATS c = COUNT(*)"));
         assertEquals(
             List.of(List.of("2013-07-01T20:00:00.000Z", "2013-07-31T19:59:59.000Z")),
@@ -382,14 +461,7 @@ public class ParquetClickBenchManualIT extends ESIntegTestCase {
         List<Object> cases = (List<Object>) XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false).get("cases");
         Path hits = hits();
         internalCluster().startNode();
-        assertAcked(
-            ESIntegTestCase.client()
-                .admin()
-                .cluster()
-                .preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "clickbench")
-                .setType("fs")
-                .setSettings(Settings.builder().put("location", hits.getParent()).put("readonly", true))
-        );
+        registerRepository(hits);
         Map<String, Object> mountBody = Map.of(
             "repository",
             "clickbench",
@@ -425,13 +497,18 @@ public class ParquetClickBenchManualIT extends ESIntegTestCase {
                 continue;
             }
             if (Booleans.parseBoolean(System.getProperty("tests.parquet.profile", "false"))) {
-                try (
-                    EsqlQueryResponse response = client().execute(
-                        EsqlQueryAction.INSTANCE,
-                        new EsqlQueryRequest().query((String) expected.get("esql")).profile(true)
-                    ).actionGet(5, TimeUnit.MINUTES)
-                ) {
-                    LOGGER.info("--> PROFILE [{}] {}", name, response.profile());
+                // the first execution warms the cache and the file, and only the second is logged
+                for (int execution = 0; execution < 2; execution++) {
+                    try (
+                        EsqlQueryResponse response = client().execute(
+                            EsqlQueryAction.INSTANCE,
+                            new EsqlQueryRequest().query((String) expected.get("esql")).profile(true)
+                        ).actionGet(5, TimeUnit.MINUTES)
+                    ) {
+                        if (execution == 1) {
+                            LOGGER.info("--> PROFILE [{}] {}", name, response.profile());
+                        }
+                    }
                 }
             }
             for (int run = 0; run < repeat; run++) {
@@ -482,6 +559,7 @@ public class ParquetClickBenchManualIT extends ESIntegTestCase {
                         problem == null ? "VALID" : "INVALID: " + problem,
                         (System.nanoTime() - start) / 1_000_000
                     );
+                    logCache(name, run);
                     if (problem != null) {
                         LOGGER.info(
                             "--> [{}] run [{}] ACTUAL ROWS {} EXPECTED ROWS {}",

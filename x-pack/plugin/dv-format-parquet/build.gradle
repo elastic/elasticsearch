@@ -16,7 +16,7 @@ esplugin {
   name = 'dv-format-parquet'
   description = 'A Lucene doc values format that serves numeric and binary doc values from Parquet files in an object store'
   classname = 'org.elasticsearch.xpack.parquet.ParquetDocValuesPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPlugins = ['x-pack-core', 'blob-cache']
 }
 
 base {
@@ -31,6 +31,8 @@ tasks.withType(JavaCompile).configureEach {
 dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
+  // the local disk cache for the byte ranges of the files (the same cache that searchable snapshots and stateless use)
+  compileOnly project(xpackModule('blob-cache'))
 
   // Plugins do not share jars, so we bundle our own copy of the Parquet reader (the same recipe as esql-datasource-parquet).
   // We cannot extend esql-datasource-parquet for it, because that plugin extends x-pack-esql and a node must not need ESQL
@@ -61,9 +63,15 @@ dependencies {
   internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
   // the mount creates a data stream, which the data streams module serves
   internalClusterTestImplementation project(':modules:data-streams')
+  internalClusterTestImplementation project(xpackModule('blob-cache'))
   // the integration tests write the Parquet files that they mount with the helper of the unit tests
   internalClusterTestImplementation sourceSets.test.output
   internalClusterTestImplementation "org.locationtech.jts:jts-core:${versions.jts}"
+  // a mount reads its files through the S3 repository, which the tests run against the S3 fixture
+  internalClusterTestImplementation project(':modules:repository-s3')
+  internalClusterTestImplementation project(':test:fixtures:s3-fixture')
+  internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
+  internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }
 
 tasks.named("dependencyLicenses").configure {

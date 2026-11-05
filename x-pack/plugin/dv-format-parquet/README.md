@@ -82,7 +82,7 @@ Two groups of tests are off by default:
 ## What is not done yet
 
 - Column types: float, double, boolean and decimal columns are unmapped, nested columns are not supported, and `DELTA_*` encodings, `ZSTD` and `LZ4` are not decoded.
-- Reads: the whole column chunk is read per iterator (no page index, because ClickBench does not have one), there is no block cache yet, and there is no bulk read path.
+- Reads: the whole column chunk is read per iterator (no page index, because ClickBench does not have one), and there is no bulk read path. A node-local disk cache of byte ranges exists (`ParquetBlobCache`, on top of `SharedBlobCacheService` of the `blob-cache` plugin). It is off unless `xpack.parquet.cache.size` is set (and `xpack.parquet.cache.region_size`, default 16 MB, can be smaller), it has its own file `parquet_cache` in the data path, so it can live next to the cache of searchable snapshots, and the node needs that much free disk space and one data path. When the cache cannot be created the node logs a warning and reads go straight to the repository.
 - Skippers: one level, per row group. Per-page levels would need the column index.
 - Repositories: only `fs` is tested. S3 (listing permission for the file length) needs a spike.
 - Mounts: no mounting into an existing data stream, no rollover decision, `ProjectId.DEFAULT` is a TODO, and we have not designed the privileges for the mount actions yet.

@@ -48,12 +48,12 @@ public final class ParquetReadContext {
     }
 
     /** The files of the registered repositories of a node. */
-    static ParquetObjects repositories(Supplier<RepositoriesService> repositories, ProjectId projectId) {
-        return (location, length) -> RepositoryParquetObject.open(
-            repositories.get(),
-            projectId,
-            RepositoryLocation.parse(location),
-            length
-        );
+    static ParquetObjects repositories(Supplier<RepositoriesService> repositories, ProjectId projectId, Supplier<ParquetBlobCache> cache) {
+        return (location, length) -> {
+            ParquetObject object = RepositoryParquetObject.open(repositories.get(), projectId, RepositoryLocation.parse(location), length);
+            ParquetBlobCache blobCache = cache.get();
+            // without a cache a read goes to the repository every time
+            return blobCache == null ? object : new CachedParquetObject(object, blobCache);
+        };
     }
 }

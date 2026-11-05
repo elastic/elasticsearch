@@ -1309,7 +1309,7 @@ public class LocalExecutionPlanner {
             return null;
         }
         // The bound of the request carries over to the batches of shards that run later
-        SharedMinCompetitive.Supplier supplier = sortBound == null
+        SharedMinCompetitive.Supplier supplier = sortBound == null || sortBound.sharedWith(orders.size()) == false
             ? null
             : sortBound.minCompetitive(sortField.name(), blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
         if (supplier == null) {

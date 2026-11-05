@@ -342,7 +342,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         this.perShardCollectorProvider = perShardCollectorProvider;
         // The other sort keys only order the rows that tie on the first one, so the bound only needs the first key
         if (sortBound != null
-            && sorts.isEmpty() == false
+            && sortBound.sharedWith(sorts.size())
             && sorts.getFirst() instanceof FieldSortBuilder field
             && (field.missing() == null || "_last".equals(field.missing()) || "_first".equals(field.missing()))) {
             this.boundField = field.getFieldName();

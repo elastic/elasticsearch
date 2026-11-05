@@ -21,11 +21,16 @@ import java.util.List;
  * of shards. The rows behind the bound are part of the output, so a shard whose values of that key can't beat it can't add
  * to the top N, whatever its other keys.
  * <p>
+ * Only the operators that sort on every key of the request's top N use it. Local optimization drops the keys that are
+ * constant within a batch, such as a {@code constant_keyword}, but they still order the rows of different batches.
+ * <p>
  * A top N pushed to Lucene offers the last value of each full per-shard top N, and skips the shards that can't beat it. A
  * top N that runs after the source keeps its {@link SharedMinCompetitive} here for the whole request, so the sources of the
  * later batches filter with it from the start.
  */
 public final class SharedSortBound implements Releasable {
+    private final int sortKeys;
+
     private String field;
     private boolean ascending;
     private DateFieldMapper.Resolution resolution;
@@ -36,6 +41,20 @@ public final class SharedSortBound implements Releasable {
     private String minCompetitiveField;
     private SharedMinCompetitive.Supplier minCompetitive;
     private SharedMinCompetitive heldMinCompetitive;
+
+    /**
+     * @param sortKeys the number of sort keys of the request's top N
+     */
+    public SharedSortBound(int sortKeys) {
+        this.sortKeys = sortKeys;
+    }
+
+    /**
+     * Whether an operator that sorts on {@code keys} sort keys shares this bound.
+     */
+    public boolean sharedWith(int keys) {
+        return keys == sortKeys;
+    }
 
     /**
      * Offers the first sort key, on {@code field}, of the last row of a full top N.

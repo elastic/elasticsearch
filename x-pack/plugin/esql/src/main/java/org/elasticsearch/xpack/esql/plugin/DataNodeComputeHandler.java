@@ -1229,7 +1229,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             return;
         }
         // Shared by the batches of shards, and released once all of them are done
-        final SharedSortBound sortBound = ShardTimestampOrder.sharesTopNBound(request.plan()) ? new SharedSortBound() : null;
+        final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
+        final SharedSortBound sortBound = sortKeys > 0 ? new SharedSortBound(sortKeys) : null;
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),

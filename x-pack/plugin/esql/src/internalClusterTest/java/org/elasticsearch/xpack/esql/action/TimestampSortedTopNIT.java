@@ -11,15 +11,19 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -39,6 +43,11 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
     private static final int LIMIT = 10;
 
     private final List<Long> timestamps = new ArrayList<>();
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), ConstantKeywordMapperPlugin.class);
+    }
 
     @Before
     public void populate() {
@@ -161,6 +170,74 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
         assertFalse(bulk.get().hasFailures());
         EsqlQueryRequest request = new EsqlQueryRequest();
         request.query(query);
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse response = run(request)) {
+            List<Object> rows = new ArrayList<>();
+            response.values().forEachRemaining(row -> rows.add(row.next()));
+            assertThat(rows, equalTo(List.of("a")));
+        }
+    }
+
+    /**
+     * A {@code constant_keyword} with a different value in each index is dropped from the sort keys of each batch, but it still
+     * orders the rows of different batches, so the batches can't share a bound on the remaining keys. Both indices hold the
+     * most recent {@code t1}, and only {@code tenant} picks the winner.
+     */
+    public void testConstantSecondaryKey() throws Exception {
+        assertConstantKey("SORT t1 DESC, tenant ASC", 0);
+    }
+
+    public void testConstantSecondaryKeyAfterTheSource() throws Exception {
+        assertConstantKey("WHERE LENGTH(message) > 0 | SORT t1 DESC, tenant ASC", 0);
+    }
+
+    /**
+     * The other index holds more recent rows, but {@code tenant} sorts first.
+     */
+    public void testConstantFirstKey() throws Exception {
+        assertConstantKey("SORT tenant ASC, t1 DESC", 1_000);
+    }
+
+    public void testConstantFirstKeyAfterTheSource() throws Exception {
+        assertConstantKey("WHERE LENGTH(message) > 0 | SORT tenant ASC, t1 DESC", 1_000);
+    }
+
+    /**
+     * The rows of the other index are {@code newer} millis more recent than those of the winning index.
+     */
+    private void assertConstantKey(String sort, long newer) throws Exception {
+        String node = internalCluster().getRandomDataNodeName();
+        // The index holding the winning row is the oldest, so it runs last
+        createSingleShardIndex(
+            "tenants-winning",
+            node,
+            "t1",
+            "type=date",
+            "message",
+            "type=keyword",
+            "tenant",
+            "type=constant_keyword,value=a"
+        );
+        createSingleShardIndex(
+            "tenants-other",
+            node,
+            "t1",
+            "type=date",
+            "message",
+            "type=keyword",
+            "tenant",
+            "type=constant_keyword,value=b"
+        );
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int d = 0; d < DOCS_PER_INDEX; d++) {
+            long t1 = 1_000_000L - d;
+            bulk.add(client().prepareIndex("tenants-winning").setSource("t1", Instant.ofEpochMilli(t1).toString(), "message", "m"));
+            bulk.add(client().prepareIndex("tenants-other").setSource("t1", Instant.ofEpochMilli(t1 + newer).toString(), "message", "m"));
+        }
+        assertFalse(bulk.get().hasFailures());
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM tenants-* | " + sort + " | LIMIT 1 | KEEP tenant");
         request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()));
         request.acceptedPragmaRisks(true);
         try (EsqlQueryResponse response = run(request)) {

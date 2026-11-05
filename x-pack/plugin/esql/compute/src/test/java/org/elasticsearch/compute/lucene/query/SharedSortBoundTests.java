@@ -28,13 +28,13 @@ public class SharedSortBoundTests extends ESTestCase {
     );
 
     public void testNothingOffered() {
-        SharedSortBound bound = new SharedSortBound();
+        SharedSortBound bound = new SharedSortBound(1);
         assertFalse(bound.canSkip(FIELD, false, Resolution.MILLISECONDS, 0, 10));
         assertFalse(bound.canSkip(FIELD, true, Resolution.MILLISECONDS, 0, 10));
     }
 
     public void testDescendingKeepsTheHighestOffer() {
-        SharedSortBound bound = new SharedSortBound();
+        SharedSortBound bound = new SharedSortBound(1);
         bound.offer(FIELD, false, Resolution.MILLISECONDS, 100);
         bound.offer(FIELD, false, Resolution.MILLISECONDS, 50);
         assertTrue(bound.canSkip(FIELD, false, Resolution.MILLISECONDS, 0, 99));
@@ -43,7 +43,7 @@ public class SharedSortBoundTests extends ESTestCase {
     }
 
     public void testAscendingKeepsTheLowestOffer() {
-        SharedSortBound bound = new SharedSortBound();
+        SharedSortBound bound = new SharedSortBound(1);
         bound.offer(FIELD, true, Resolution.MILLISECONDS, 50);
         bound.offer(FIELD, true, Resolution.MILLISECONDS, 100);
         assertTrue(bound.canSkip(FIELD, true, Resolution.MILLISECONDS, 51, 200));
@@ -52,14 +52,14 @@ public class SharedSortBoundTests extends ESTestCase {
     }
 
     public void testShardsWithoutValues() {
-        SharedSortBound bound = new SharedSortBound();
+        SharedSortBound bound = new SharedSortBound(1);
         bound.offer(FIELD, false, Resolution.MILLISECONDS, 100);
         assertTrue(bound.canSkip(FIELD, false, Resolution.MILLISECONDS, Long.MAX_VALUE, Long.MIN_VALUE));
         assertFalse(bound.canSkip(FIELD, false, Resolution.MILLISECONDS, Long.MIN_VALUE, Long.MAX_VALUE));
     }
 
     public void testOtherKeysDontCompare() {
-        SharedSortBound bound = new SharedSortBound();
+        SharedSortBound bound = new SharedSortBound(1);
         bound.offer(FIELD, false, Resolution.MILLISECONDS, 100);
         assertFalse(bound.canSkip("other", false, Resolution.MILLISECONDS, 0, 10));
         assertFalse(bound.canSkip(FIELD, true, Resolution.MILLISECONDS, 200, 300));
@@ -67,7 +67,7 @@ public class SharedSortBoundTests extends ESTestCase {
     }
 
     public void testOffersForOtherKeysDisableTheBound() {
-        SharedSortBound bound = new SharedSortBound();
+        SharedSortBound bound = new SharedSortBound(1);
         bound.offer(FIELD, false, Resolution.MILLISECONDS, 100);
         bound.offer("other", false, Resolution.MILLISECONDS, 100);
         assertFalse(bound.canSkip(FIELD, false, Resolution.MILLISECONDS, 0, 10));
@@ -77,7 +77,7 @@ public class SharedSortBoundTests extends ESTestCase {
 
     public void testMinCompetitiveOutlivesItsOperators() {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (SharedSortBound bound = new SharedSortBound()) {
+        try (SharedSortBound bound = new SharedSortBound(1)) {
             SharedMinCompetitive.Supplier supplier = bound.minCompetitive(FIELD, breaker, KEYS);
             assertSame(supplier, bound.minCompetitive(FIELD, breaker, KEYS));
             // The operators of a first batch publish a bound and close
@@ -92,9 +92,16 @@ public class SharedSortBoundTests extends ESTestCase {
         }
     }
 
+    public void testSharedWithTheSameNumberOfSortKeys() {
+        SharedSortBound bound = new SharedSortBound(2);
+        assertTrue(bound.sharedWith(2));
+        // a batch whose local optimization dropped a constant key
+        assertFalse(bound.sharedWith(1));
+    }
+
     public void testInvalidate() {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
-        try (SharedSortBound bound = new SharedSortBound()) {
+        try (SharedSortBound bound = new SharedSortBound(1)) {
             bound.offer(FIELD, false, Resolution.MILLISECONDS, 100);
             assertNotNull(bound.minCompetitive(FIELD, breaker, KEYS));
             bound.invalidate();

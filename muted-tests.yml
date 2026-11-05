@@ -339,9 +339,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/45_knn_search_byte/Test nonexistent field is match none}
   issue: https://github.com/elastic/elasticsearch/issues/162766
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/162945
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
@@ -508,31 +505,11 @@ tests:
   - :x-pack:plugin:logsdb:javaRestTest
   method: testHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/164408
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecPrometheusK8sIncreaseIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
-  method: test {csv-spec:prometheus-k8s-increase.increase_of_long_no_grouping_promql}
-  issue: https://github.com/elastic/elasticsearch/issues/164421
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesIncreaseIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
   issue: https://github.com/elastic/elasticsearch/issues/164423
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesPromqlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
-  method: test {csv-spec:k8s-timeseries-promql.increase_on_plain_numeric_long}
-  issue: https://github.com/elastic/elasticsearch/issues/164425
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesPromqlIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
-  method: test {csv-spec:k8s-timeseries-promql.rate_small_window_no_set_operator}
-  issue: https://github.com/elastic/elasticsearch/issues/164427
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationUnmappedNullifyIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:unmapped-nullify.maxOverTimeOfKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/164433
 - class: org.elasticsearch.cluster.SimpleClusterStateIT
   tasks:
   - :server:internalClusterTest
@@ -572,3 +549,22 @@ tests:
   - :modules:repository-azure:test
   method: testContentsChangeWhileStreaming
   issue: https://github.com/elastic/elasticsearch/issues/164636
+- class: org.elasticsearch.xpack.inference.external.http.ByteArrayFlowPublisherTests
+  tasks:
+  - :x-pack:plugin:inference:test
+  method: testCompletionIsWithheldUntilDemandIsAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/164701
+- class: org.elasticsearch.xpack.stateless.engine.translog.TranslogUploadHedgeIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testNormalAndHedgeUploadsWithRandomDelays
+  issue: https://github.com/elastic/elasticsearch/issues/164751
+- class: org.elasticsearch.xpack.esql.action.ExternalWorkerFirstStateIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testWorkerWithoutAnyAppliedStateIsHeldBack
+  issue: https://github.com/elastic/elasticsearch/issues/164755
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  tasks:
+  - :qa:smoke-test-multinode:yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/164771

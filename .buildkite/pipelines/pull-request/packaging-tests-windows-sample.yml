@@ -2,6 +2,22 @@ config:
   skip-labels:
     - ">test-mute"
     - ":Delivery/Packaging"
+  # Only run for changes that can affect the packages. Otherwise this sample runs in the merge queue (see
+  # .buildkite/scripts/merge-queue/pipeline.ts); the full matrices run with :Delivery/Packaging and in periodic-packaging.
+  any-included-regions:
+    - ^distribution/.*
+    - ^qa/packaging/.*
+    - ^\.ci/scripts/packaging-test\..*
+    - ^\.buildkite/pipelines/pull-request/packaging-.*
+    # Security auto-configuration and the certificate tools are exercised by the packaging tests
+    - ^x-pack/plugin/security/cli/.*
+    # Bundled JDK version
+    - ^build-tools-internal/version\.properties$
+    - ^build-tools/src/main/java/org/elasticsearch/gradle/(Distribution|ElasticsearchDistribution).*
+    - ^build-tools/src/main/java/org/elasticsearch/gradle/distribution/.*
+    - ^build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/(distribution|docker)/.*
+    - ^build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/(DistributionArchive|DockerBase|InternalDistribution|Jdk|SymbolicLinkPreservingTar).*
+    - ^build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/test/DistroTestPlugin\.java$
 steps:
   - group: packaging-tests-windows-sample
     steps:

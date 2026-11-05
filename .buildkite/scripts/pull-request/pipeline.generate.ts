@@ -2,6 +2,19 @@ import { stringify } from "yaml";
 import { execSync } from "child_process";
 
 import { generatePipelines } from "./pipeline.ts";
+import { getSnapshotBwcVersions, setIncludedSnapshotBwcVersions, setSnapshotBwcPinArgs } from "./bwc-versions.ts";
+import { DraClient } from "../bwc-snapshots/dra.ts";
+import { loadSnapshotBwcPins, storeFromEnv } from "../bwc-snapshots/known-good.ts";
+
+// Pin bwc snapshot jobs to the last DRA builds that passed bwc tests, and leave out versions that have none yet.
+// Read once so every job of this build agrees.
+const bwcPins = await loadSnapshotBwcPins(
+  getSnapshotBwcVersions(),
+  storeFromEnv(),
+  new DraClient(process.env["BWC_DRA_BASE_URL"]),
+);
+setSnapshotBwcPinArgs(bwcPins.pinArgs);
+setIncludedSnapshotBwcVersions(bwcPins.includedVersions);
 
 const pipelines = generatePipelines();
 

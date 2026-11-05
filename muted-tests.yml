@@ -231,6 +231,30 @@ tests:
   - :server:internalClusterTest
   method: testLocalAbort
   issue: https://github.com/elastic/elasticsearch/issues/163861
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  tasks:
+  - :qa:mixed-cluster:v8.19.24#mixedClusterTest
+  method: test {yaml=aggregations/terms/Unmapped dates}
+  issue: https://github.com/elastic/elasticsearch/issues/164021
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/163488
+- class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
+  tasks:
+  - :x-pack:plugin:inference:internalClusterTest
+  method: testDeletesRemovedEndpoints_GivenSingleEndpointIsRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/164048
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  tasks:
+  - :x-pack:qa:full-cluster-restart:v8.3.3#bwcTest
+  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/151923
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcSecurityIT
+  tasks:
+  - :x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/164747
 
 # Examples:
 #

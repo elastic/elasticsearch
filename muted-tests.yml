@@ -567,3 +567,8 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testNormalAndHedgeUploadsWithRandomDelays
   issue: https://github.com/elastic/elasticsearch/issues/164751
+- class: org.elasticsearch.xpack.esql.action.ExternalWorkerFirstStateIT
+  tasks:
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testWorkerWithoutAnyAppliedStateIsHeldBack
+  issue: https://github.com/elastic/elasticsearch/issues/164755

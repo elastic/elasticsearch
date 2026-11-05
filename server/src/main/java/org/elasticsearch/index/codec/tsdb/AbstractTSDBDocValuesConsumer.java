@@ -1254,12 +1254,21 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             }
         } else {
             final SortedNumericDocValues values = valuesProducer.getSortedNumeric(field);
-            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                final long firstValue = values.nextValue();
-                final int valueCount = values.docValueCount();
-                builder.add(doc, firstValue, valueCount);
-                for (int i = 1; i < valueCount; ++i) {
-                    builder.addValue(values.nextValue());
+            // Iterate a single-valued field directly: through the wrapper, the call to the underlying iterator is
+            // shared with every other user of the wrapper in the JVM and ends up megamorphic.
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                for (int doc = singleton.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = singleton.nextDoc()) {
+                    builder.add(doc, singleton.longValue(), 1);
+                }
+            } else {
+                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                    final long firstValue = values.nextValue();
+                    final int valueCount = values.docValueCount();
+                    builder.add(doc, firstValue, valueCount);
+                    for (int i = 1; i < valueCount; ++i) {
+                        builder.addValue(values.nextValue());
+                    }
                 }
             }
         }

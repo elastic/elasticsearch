@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Status of an {@link Operator}.
@@ -24,6 +25,15 @@ import java.io.IOException;
  * @param status Status as reported by the {@link Operator}.
  */
 public record OperatorStatus(String operator, @Nullable Operator.Status status) implements Writeable, ToXContentObject {
+
+    public static final ProfileSchema<OperatorStatus> PROFILE_SCHEMA = ProfileSchema.of(OperatorStatus.class, (builder, value, params) -> {
+        builder.startObject();
+        builder.field("operator", value.operator);
+        if (value.status != null) {
+            builder.field("status", value.status);
+        }
+        return builder.endObject();
+    }).required("operator", ProfileSchema.string()).optional("status", ProfileSchema.dynamicObject(Map.of())).build();
 
     public static OperatorStatus readFrom(StreamInput in) throws IOException {
         return new OperatorStatus(in.readString(), in.readOptionalNamedWriteable(Operator.Status.class));
@@ -37,12 +47,7 @@ public record OperatorStatus(String operator, @Nullable Operator.Status status) 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("operator", operator);
-        if (status != null) {
-            builder.field("status", status);
-        }
-        return builder.endObject();
+        return PROFILE_SCHEMA.write(builder, this, params);
     }
 
     @Override

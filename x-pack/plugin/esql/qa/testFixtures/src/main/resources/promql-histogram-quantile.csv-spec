@@ -168,3 +168,18 @@ warningRegex:.*histogram_quantile: input vector has no le label; no buckets to e
 
 result:double | step:datetime | _timeseries:keyword
 ;
+
+// histogram_quantile above a label_replace that adds a label to the bucket aggregate: the quantile regroups on every label
+// but `le`, so the derived `team` becomes part of the result identity alongside `job`.
+histogram_quantile_over_label_replace_new_label
+required_capability: promql_command_v0
+required_capability: promql_histogram_quantile
+required_capability: promql_label_functions_v2
+PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:10:00.000Z" result=(round(histogram_quantile(0.5, label_replace(sum by (job, le) (request_duration_seconds_bucket), "team", "team-$1", "job", "(.+)")), 0.001))
+| SORT job;
+
+result:double      | step:datetime            | job:keyword | team:keyword
+1.5                | 2024-05-10T00:10:00.000Z | api         | team-api
+2.167              | 2024-05-10T00:10:00.000Z | repair      | team-repair
+1.333              | 2024-05-10T00:10:00.000Z | worker      | team-worker
+;

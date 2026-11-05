@@ -11,7 +11,6 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -21,7 +20,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
@@ -35,7 +33,6 @@ import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.Set;
-import java.util.concurrent.Executor;
 
 import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.pipelineIdsForResource;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -47,7 +44,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
-    private final Executor executor;
     private final ProjectResolver projectResolver;
 
     @Inject
@@ -68,26 +64,16 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             actionFilters,
             DeleteInferenceEndpointAction.Request::new,
             DeleteInferenceEndpointAction.Response::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.executor(UTILITY_THREAD_POOL_NAME)
         );
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
-        this.executor = threadPool.executor(UTILITY_THREAD_POOL_NAME);
         this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(
         Task task,
-        DeleteInferenceEndpointAction.Request request,
-        ClusterState state,
-        ActionListener<DeleteInferenceEndpointAction.Response> masterListener
-    ) {
-        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        executor.execute(ActionRunnable.wrap(masterListener, l -> doExecuteForked(request, state, l)));
-    }
-
-    private void doExecuteForked(
         DeleteInferenceEndpointAction.Request request,
         ClusterState state,
         ActionListener<DeleteInferenceEndpointAction.Response> masterListener

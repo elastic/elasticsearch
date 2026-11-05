@@ -11,7 +11,6 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -66,8 +65,7 @@ public abstract class TransportBroadcastAction<
         Writeable.Reader<ShardRequest> shardRequestReader,
         Executor executor
     ) {
-        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, transportService, actionFilters, requestReader, executor);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -88,11 +86,6 @@ public abstract class TransportBroadcastAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        executor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, listener)));
-    }
-
-    protected void doExecuteForked(Task task, Request request, ActionListener<Response> listener) {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         new AsyncBroadcastAction(task, request, listener).start();
     }

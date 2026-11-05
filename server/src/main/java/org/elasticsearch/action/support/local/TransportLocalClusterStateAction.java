@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
@@ -54,8 +53,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         ClusterService clusterService,
         Executor executor
     ) {
-        // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(actionName, actionFilters, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, actionFilters, taskManager, executor);
         this.clusterService = clusterService;
         this.executor = executor;
     }
@@ -88,8 +86,11 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         if (task instanceof CancellableTask cancellableTask && cancellableTask.notifyIfCancelled(listener)) {
             return;
         }
-        // Workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        executor.execute(ActionRunnable.wrap(listener, l -> localClusterStateOperation(task, request, state, l)));
+        try {
+            localClusterStateOperation(task, request, state, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private void waitForClusterUnblock(
@@ -121,11 +122,14 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                if (waitComplete.getAsBoolean() == false) {
-                    return;
-                }
-                logger.trace("retrying with cluster state version [{}]", state.version());
-                innerDoExecute(task, request, listener, state);
+                // ClusterStateObserver callbacks may run on the applier thread; hop back to the action executor.
+                executor.execute(ActionRunnable.wrap(listener, l -> {
+                    if (waitComplete.getAsBoolean() == false) {
+                        return;
+                    }
+                    logger.trace("retrying with cluster state version [{}]", state.version());
+                    innerDoExecute(task, request, l, state);
+                }));
             }
 
             @Override

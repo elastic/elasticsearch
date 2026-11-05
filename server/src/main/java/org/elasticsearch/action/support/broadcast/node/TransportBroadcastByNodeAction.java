@@ -112,8 +112,7 @@ public abstract class TransportBroadcastByNodeAction<
         Executor executor,
         boolean canTripCircuitBreaker
     ) {
-        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, executor);
 
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -245,12 +244,6 @@ public abstract class TransportBroadcastByNodeAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        request.mustIncRef();
-        executor.execute(ActionRunnable.wrapReleasing(listener, request::decRef, l -> doExecuteForked(task, request, listener)));
-    }
-
-    private void doExecuteForked(Task task, Request request, ActionListener<Response> listener) {
         assert Transports.assertNotTransportThread("O(#shards) work must always fork to an appropriate executor");
         final var clusterState = clusterService.state();
 

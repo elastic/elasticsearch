@@ -17,7 +17,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -129,8 +127,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         IndexNameExpressionResolver indexNameExpressionResolver,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
-        // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            NAME,
+            transportService,
+            actionFilters,
+            FieldCapabilitiesRequest::new,
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
+        );
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -188,16 +191,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     }
 
     public <R extends ActionResponse> void executeRequest(
-        Task task,
-        FieldCapabilitiesRequest request,
-        LinkedRequestExecutor<R> linkedRequestExecutor,
-        ActionListener<R> listener
-    ) {
-        // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, linkedRequestExecutor, l)));
-    }
-
-    private <R extends ActionResponse> void doExecuteForked(
         Task task,
         FieldCapabilitiesRequest request,
         LinkedRequestExecutor<R> linkedRequestExecutor,

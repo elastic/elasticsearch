@@ -54,6 +54,9 @@ import javax.inject.Inject;
  * soft ordering: it moves long tasks (and what they depend on) forward in the execution plan, but a worker that has
  * nothing else ready still takes a short task.
  *
+ * <p>When part tasks are requested, test tasks that start clusters are also limited by {@link CiHeavyTestThrottle}.
+ * Run-first tasks then take the throttle's slots first, longest first.
+ *
  * <p>The {@code bcUpgradeTest} suite works the same way with {@code bcUpgradeTest} in place of {@code check}.
  * Splitting it by class is safe because each upgrade test class starts and upgrades its own cluster.
  */
@@ -91,6 +94,33 @@ public abstract class CiPartsPlugin implements Plugin<Project> {
         for (Suite suite : SUITES) {
             apply(project, suite, assignmentService(project, suite).get(), extension, taskNames);
         }
+        if (SUITES.stream().anyMatch(suite -> requestedParts(suite, taskNames).isEmpty() == false)) {
+            throttleHeavyTests(project);
+        }
+    }
+
+    /**
+     * Part tasks are what CI runs, so only then are test tasks that start clusters limited to
+     * {@link CiHeavyTestThrottle}'s share of the workers; other builds (a developer's, say) are not throttled.
+     */
+    private void throttleHeavyTests(Project project) {
+        int maxWorkers = project.getGradle().getStartParameter().getMaxWorkerCount();
+        Provider<String> override = getProviders().systemProperty(CiHeavyTestThrottle.MAX_PARALLEL_PROPERTY);
+        int limit = override.isPresent() ? Integer.parseInt(override.get()) : CiHeavyTestThrottle.defaultLimit(maxWorkers);
+        if (limit < 0) {
+            throw new IllegalArgumentException(CiHeavyTestThrottle.MAX_PARALLEL_PROPERTY + " must not be negative but was " + limit);
+        }
+        if (limit == 0) {
+            return;
+        }
+        Provider<CiHeavyTestThrottle> throttle = project.getGradle()
+            .getSharedServices()
+            .registerIfAbsent("ciHeavyTestThrottle", CiHeavyTestThrottle.class, spec -> spec.getMaxParallelUsages().set(limit));
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            if (CiHeavyTestThrottle.isHeavy(test.getName())) {
+                test.usesService(throttle);
+            }
+        });
     }
 
     private Provider<CiPartsBuildService> assignmentService(Project project, Suite suite) {

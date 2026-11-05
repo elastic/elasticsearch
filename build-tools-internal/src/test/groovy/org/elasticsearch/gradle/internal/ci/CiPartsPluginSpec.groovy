@@ -154,6 +154,37 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         added("precommitThing") == [] as Set
     }
 
+    def "cluster tests are throttled when part tasks are requested"() {
+        given:
+        project.gradle.startParameter.taskNames = taskNames
+        project.gradle.startParameter.maxWorkerCount = 16
+        if (override != null) {
+            System.setProperty(CiHeavyTestThrottle.MAX_PARALLEL_PROPERTY, override)
+        }
+
+        when:
+        applyPluginUnderTest(project)
+        def registration = project.gradle.sharedServices.registrations.findByName("ciHeavyTestThrottle")
+
+        then:
+        (registration?.maxParallelUsages?.get()) == expectedLimit
+        usesThrottle("internalClusterTest") == (expectedLimit != null)
+        usesThrottle("yamlRestTest") == (expectedLimit != null)
+        // unit tests are never throttled
+        usesThrottle("test") == false
+
+        cleanup:
+        System.clearProperty(CiHeavyTestThrottle.MAX_PARALLEL_PROPERTY)
+
+        where:
+        taskNames              | override || expectedLimit
+        ["checkPart2"]         | null     || 8
+        ["bcUpgradeTestPart1"] | null     || 8
+        ["checkPart2"]         | "3"      || 3
+        ["checkPart2"]         | "0"      || null
+        ["check"]              | null     || null
+    }
+
     def "requested parts are read from checkPart task requests"() {
         expect:
         CiPartsPlugin.requestedParts(CiPartsPlugin.CHECK, ["checkPart3", ":server:checkPart12", "check", "checkPart", "checkPart2x", "bcUpgradeTestPart1"]) == [3, 12] as Set
@@ -249,6 +280,11 @@ class CiPartsPluginSpec extends AbstractProjectBuilderPluginSpec {
         names.every { n -> kept.findIndexOf { it.contains("${n}.class".toString()) } == kept.findIndexOf { it.contains("${n}\$Inner.class".toString()) } }
         kept.every { it.contains("org/foo/resource.txt") }
         kept.every { it.size() > 50 }
+    }
+
+    private boolean usesThrottle(String taskName) {
+        def task = project.tasks.getByName(taskName)
+        return task.requiredServices.elements.any { it.get() instanceof CiHeavyTestThrottle }
     }
 
     /** The tasks {@code taskName} should run after, other than its project's jar task. */

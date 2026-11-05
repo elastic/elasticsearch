@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.ci;
 
 import org.junit.Test;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -136,6 +137,70 @@ public class CiPartPlannerTests {
     }
 
     @Test
+    public void testHeavyTestLimitSpreadsClusterTestsAcrossParts() {
+        // plenty of workers, so only the one-cluster-test-at-a-time limit makes the cluster tests compete
+        CiPartPlanner.Config config = new CiPartPlanner.Config(2, 8, Map.of(), List.of(), 0, 1, 0);
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
+            Map.of(
+                ":a:javaRestTest",
+                300.0,
+                ":b:javaRestTest",
+                300.0,
+                ":c:yamlRestTest",
+                300.0,
+                ":d:yamlRestTest",
+                300.0,
+                ":a:test",
+                350.0,
+                ":b:test",
+                350.0
+            ),
+            Map.of(),
+            Map.of()
+        );
+        CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
+        Map<Integer, Integer> clusterTestsPerPart = new HashMap<>();
+        for (String task : List.of(":a:javaRestTest", ":b:javaRestTest", ":c:yamlRestTest", ":d:yamlRestTest")) {
+            clusterTestsPerPart.merge(assignment.partOfTest(task), 1, Integer::sum);
+        }
+        assertThat(clusterTestsPerPart, equalTo(Map.of(1, 2, 2, 2)));
+        // two cluster tests one after another in each part
+        for (double minutes : CiPartPlanner.estimatedMinutes(assignment, config, durations)) {
+            assertThat(minutes, equalTo(10.0));
+        }
+    }
+
+    @Test
+    public void testEveryShardPaysTheTaskOverhead() {
+        // 600 s of work plus 60 s of fixed cost per execution: two shards are 360 s each, not 330
+        CiPartPlanner.Config config = new CiPartPlanner.Config(
+            2,
+            8,
+            Map.of(":x:javaRestTest", new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.CLASS)),
+            List.of(),
+            0,
+            0,
+            60
+        );
+        CiPartPlanner.Durations durations = new CiPartPlanner.Durations(Map.of(":x:javaRestTest", 660.0), Map.of(), Map.of());
+        CiPartAssignment assignment = CiPartPlanner.plan(config, durations);
+        for (double minutes : CiPartPlanner.estimatedMinutes(assignment, config, durations)) {
+            assertThat(minutes, equalTo(6.0));
+        }
+        // a measured overhead for the task wins over the default, and shard estimates are work only
+        CiPartPlanner.Durations measured = new CiPartPlanner.Durations(
+            Map.of(":x:javaRestTest", 660.0),
+            Map.of(":x:javaRestTest#0", 420.0, ":x:javaRestTest#1", 120.0),
+            Map.of(),
+            Map.of(":x:javaRestTest", 120.0)
+        );
+        double[] minutes = CiPartPlanner.estimatedMinutes(CiPartPlanner.plan(config, measured), config, measured);
+        Arrays.sort(minutes);
+        assertThat(minutes[0], equalTo(4.0));
+        assertThat(minutes[1], equalTo(9.0));
+    }
+
+    @Test
     public void testShardsOfOneTaskGoToDifferentPartsWhileThereAreParts() {
         // the two short shards would fit next to each other behind the long task's part, but they are split to run in parallel
         CiPartPlanner.Config config = new CiPartPlanner.Config(
@@ -165,7 +230,9 @@ public class CiPartPlannerTests {
             4,
             Map.of(":c:test", new CiPartAssignment.Split(2, CiPartAssignment.SplitBy.CLASS)),
             List.of(),
-            300
+            300,
+            0,
+            0
         );
         CiPartPlanner.Durations durations = new CiPartPlanner.Durations(
             Map.of(":a:test", 400.0, ":b:test", 900.0, ":c:test", 1200.0, ":d:test", 100.0),

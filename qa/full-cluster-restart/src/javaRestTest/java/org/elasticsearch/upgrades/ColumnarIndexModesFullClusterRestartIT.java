@@ -100,6 +100,68 @@ public class ColumnarIndexModesFullClusterRestartIT extends ParameterizedFullClu
         testDataStream("fcr-logsdb-columnar", "logsdb_columnar");
     }
 
+    public void testColumnarExplicitIdOnBackingIndex() throws Exception {
+        testExplicitIdOnBackingIndex("fcr-columnar-explicit-id", "columnar");
+    }
+
+    public void testLogsdbColumnarExplicitIdOnBackingIndex() throws Exception {
+        testExplicitIdOnBackingIndex("fcr-logsdb-columnar-explicit-id", "logsdb_columnar");
+    }
+
+    /**
+     * Index requests with an explicit {@code _id} are allowed on a backing index with sequence numbers disabled, as an {@code if_seq_no}
+     * can't be set on it. Backing indices created before sequence numbers were disabled explicitly at index creation have the setting
+     * disabled only through its default, which the request validation in {@code TransportBulkAction} has to honour too. This runs
+     * against a backing index created by the old cluster, which is the one that can lack the explicit setting.
+     */
+    private void testExplicitIdOnBackingIndex(String dataStream, String indexMode) throws Exception {
+        if (isRunningAgainstOldCluster()) {
+            assumeTrue(
+                "the old cluster does not support columnar index modes",
+                clusterHasCapability("PUT", "/{index}", List.of(), List.of("columnar_index_modes")).orElse(false)
+            );
+            putTemplate(dataStream, indexMode);
+            assertOK(client().performRequest(new Request("PUT", "/_data_stream/" + dataStream)));
+            bulkIndex(dataStream, 0, DOCS_PER_BULK);
+            ensureGreen(dataStream);
+        } else {
+            assumeTrue("the old cluster did not support columnar index modes", dataStreamExists(dataStream));
+            String oldBackingIndex = backingIndices(dataStream).getFirst();
+            ensureGreen(dataStream);
+
+            // overwrite a document with the _id the data stream generated for it
+            Request search = new Request("POST", "/" + oldBackingIndex + "/_search");
+            search.setJsonEntity("{\"size\": 1}");
+            String existingId = ObjectPath.evaluate(entityAsMap(client().performRequest(search)), "hits.hits.0._id");
+            Request overwrite = new Request("PUT", "/" + oldBackingIndex + "/_doc/" + existingId);
+            overwrite.addParameter("refresh", "true");
+            overwrite.setJsonEntity(doc(0));
+            Map<String, Object> overwritten = entityAsMap(client().performRequest(overwrite));
+            assertThat(overwritten.toString(), ObjectPath.evaluate(overwritten, "result"), equalTo("updated"));
+
+            // index a new document with an explicit _id
+            Request create = new Request("PUT", "/" + oldBackingIndex + "/_doc/explicit-id");
+            create.addParameter("refresh", "true");
+            create.setJsonEntity(doc(DOCS_PER_BULK));
+            Map<String, Object> created = entityAsMap(client().performRequest(create));
+            assertThat(created.toString(), ObjectPath.evaluate(created, "result"), equalTo("created"));
+
+            // the same through the bulk API
+            Request bulk = new Request("POST", "/" + oldBackingIndex + "/_bulk");
+            bulk.addParameter("refresh", "true");
+            bulk.setJsonEntity(Strings.format("""
+                {"index":{"_id":"%s"}}
+                %s
+                {"index":{"_id":"explicit-id-bulk"}}
+                %s
+                """, existingId, doc(0), doc(DOCS_PER_BULK + 1)));
+            Map<String, Object> bulkResponse = entityAsMap(client().performRequest(bulk));
+            assertThat("bulk response: " + bulkResponse, ObjectPath.evaluate(bulkResponse, "errors"), is(false));
+
+            assertCount(oldBackingIndex, DOCS_PER_BULK + 2);
+        }
+    }
+
     private void testDataStream(String dataStream, String indexMode) throws Exception {
         Map<String, Object> license = entityAsMap(client().performRequest(new Request("GET", "/_license")));
         assertThat(ObjectPath.evaluate(license, "license.type"), equalTo(licenseType()));

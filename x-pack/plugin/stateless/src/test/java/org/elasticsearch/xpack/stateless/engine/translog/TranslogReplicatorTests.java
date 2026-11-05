@@ -1662,6 +1662,27 @@ public class TranslogReplicatorTests extends ESTestCase {
         assertThat(uploads.get(), equalTo(1));
     }
 
+    public void testConsistencyCheckDurationIsRecorded() throws Exception {
+        ObjectStoreService objectStoreService = mock(ObjectStoreService.class);
+        when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+        doAnswer(invocation -> {
+            invocation.<Runnable>getArgument(3).run();
+            invocation.<ActionListener<Void>>getArgument(4).onResponse(null);
+            return null;
+        }).when(objectStoreService).uploadTranslogFile(any(), any(), any(), any(), any());
+
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        safeGet(syncOneOperation(Settings.EMPTY, objectStoreService, meterRegistry, unused -> {}, unused -> {}));
+
+        // the sync listener is completed only after the consistency check finished, which is when its duration is recorded
+        assertThat(
+            meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, TranslogReplicator.TRANSLOG_UPLOAD_CONSISTENCY_CHECK_DURATION_HISTOGRAM)
+                .size(),
+            equalTo(1)
+        );
+    }
+
     // test that when one of the two uploads (normal or hedge) has completed the upload the translog file is not yet deleted while the other
     // upload is still ongoing, but is deleted once both have finished
     public void testTranslogFileIsDeletedOnlyAfterBothUploadsComplete() throws Exception {

@@ -230,15 +230,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/155327
-- class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/159774
-- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/159773
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/160368
 - class: org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormatTests
   method: testRandomWithUpdatesAndGraph
   issue: https://github.com/elastic/elasticsearch/issues/160422
@@ -269,9 +260,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667
-- class: org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycleTests
-  method: testLifecycleEnabledByDefaultSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/161848
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/161494
@@ -313,9 +301,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecPrometheusK8sIT
   method: test {csv-spec:prometheus-k8s.derivative_of_gauge_metric_promql}
   issue: https://github.com/elastic/elasticsearch/issues/162491
-- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
-  method: testOptimizeMultipleVersions
-  issue: https://github.com/elastic/elasticsearch/issues/162517
 - class: org.elasticsearch.search.heappressure.TopHitsLeafCollectorHeapPressureIT
   issue: https://github.com/elastic/elasticsearch/issues/162932
 - class: org.elasticsearch.xpack.enrich.heappressure.EnrichDistinctKeysHeapPressureIT
@@ -333,15 +318,9 @@ tests:
 - class: org.elasticsearch.xpack.analytics.topmetrics.TopMetricsColumnarIT
   method: testKeywordMissingMetricOnTopDocumentOnColumnarIndex
   issue: https://github.com/elastic/elasticsearch/issues/162510
-- class: org.elasticsearch.xpack.wildcard.search.WildcardAutomatonBreakerIT
-  method: testAutomatonStaysChargedUntilSearchContextReleased
-  issue: https://github.com/elastic/elasticsearch/issues/162754
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=search.vectors/45_knn_search_byte/Test nonexistent field is match none}
   issue: https://github.com/elastic/elasticsearch/issues/162766
-- class: org.elasticsearch.xpack.esql.qa.single_node.CrossIndexModeGenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/162945
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDownsampleResumesAfterPersistentTaskRemoved
   issue: https://github.com/elastic/elasticsearch/issues/162858
@@ -375,11 +354,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache
   issue: https://github.com/elastic/elasticsearch/issues/163325
-- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
-  tasks:
-  - :x-pack:plugin:slm:internalClusterTest
-  method: testSLMRetentionAfterRestore
-  issue: https://github.com/elastic/elasticsearch/issues/163334
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -488,36 +462,11 @@ tests:
   - :test:external-modules:test-esql-heap-attack:javaRestTest
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/164383
-- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
-  tasks:
-  - :x-pack:plugin:security:test
-  method: testVerifiesHostnameOfIpLiteralUrl
-  issue: https://github.com/elastic/elasticsearch/issues/164387
-- class: org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClientTests
-  tasks:
-  - :x-pack:plugin:security:test
-  method: testPinnedFingerprintVerifiesHostnameOfIpLiteralUrl
-  issue: https://github.com/elastic/elasticsearch/issues/164389
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  tasks:
-  - :x-pack:plugin:logsdb:javaRestTest
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/164392
-- class: org.elasticsearch.xpack.logsdb.qa.LogsDbSubobjectsFalseVersusLogsDbColumnarRestIT
-  tasks:
-  - :x-pack:plugin:logsdb:javaRestTest
-  method: testHistogramAggregation
-  issue: https://github.com/elastic/elasticsearch/issues/164408
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlCurrentCoordinatorSpecK8sTimeseriesIncreaseIT
   tasks:
   - :x-pack:plugin:esql:qa:server:mixed-cluster:v9.6.0#csvSpecTestsCurrentCoordinator
   method: test {csv-spec:k8s-timeseries-increase.increase_of_expression_promql}
   issue: https://github.com/elastic/elasticsearch/issues/164423
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationUnmappedNullifyIT
-  tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:unmapped-nullify.maxOverTimeOfKeyword}
-  issue: https://github.com/elastic/elasticsearch/issues/164433
 - class: org.elasticsearch.cluster.SimpleClusterStateIT
   tasks:
   - :server:internalClusterTest
@@ -557,36 +506,42 @@ tests:
   - :modules:repository-azure:test
   method: testContentsChangeWhileStreaming
   issue: https://github.com/elastic/elasticsearch/issues/164636
-- class: org.elasticsearch.xpack.inference.external.http.ByteArrayFlowPublisherTests
+- class: org.elasticsearch.xpack.stateless.engine.translog.TranslogUploadHedgeIT
   tasks:
-  - :x-pack:plugin:inference:test
-  method: testCompletionIsWithheldUntilDemandIsAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/164701
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesAvgOverTimeIT
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testNormalAndHedgeUploadsWithRandomDelays
+  issue: https://github.com/elastic/elasticsearch/issues/164751
+- class: org.elasticsearch.xpack.esql.action.ExternalWorkerFirstStateIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_integer}
-  issue: https://github.com/elastic/elasticsearch/issues/164718
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesAvgOverTimeIT
+  - :x-pack:plugin:esql:internalClusterTest
+  method: testWorkerWithoutAnyAppliedStateIsHeldBack
+  issue: https://github.com/elastic/elasticsearch/issues/164755
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:k8s-timeseries-avg-over-time.avg_over_time_of_double_no_grouping}
-  issue: https://github.com/elastic/elasticsearch/issues/164720
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesMaxOverTimeIT
+  - :qa:smoke-test-multinode:yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/164771
+- class: org.elasticsearch.compute.lucene.read.FieldPresenceOperatorTests
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  issue: https://github.com/elastic/elasticsearch/issues/164722
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesMinOverTimeIT
+  - :x-pack:plugin:esql:compute:test
+  method: testSimpleCircuitBreaking
+  issue: https://github.com/elastic/elasticsearch/issues/164801
+- class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionForceDocSequenceTests
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  issue: https://github.com/elastic/elasticsearch/issues/164724
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesSumOverTimeIT
+  - :x-pack:plugin:esql:compute:test
+  method: testLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/164825
+- class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:k8s-timeseries-sum-over-time.sum_over_time_of_integer}
-  issue: https://github.com/elastic/elasticsearch/issues/164726
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecApproximationK8sTimeseriesSumOverTimeIT
+  - :x-pack:plugin:esql:compute:test
+  method: testLoadAll
+  issue: https://github.com/elastic/elasticsearch/issues/164827
+- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
   tasks:
-  - :x-pack:plugin:esql:qa:server:single-node:csvSpecTests
-  method: test {csv-spec:k8s-timeseries-sum-over-time.sum_over_time_of_double_no_grouping}
-  issue: https://github.com/elastic/elasticsearch/issues/164728
+  - :server:test
+  method: testReconstructedDotProductApproximatesTrueDotProduct
+  issue: https://github.com/elastic/elasticsearch/issues/164839
+- class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesStringIT
+  tasks:
+  - :x-pack:plugin:esql:qa:server:single-node:javaRestTest
+  method: testCaseInsensitiveEquality {UNMAPPED_CONTAINER}
+  issue: https://github.com/elastic/elasticsearch/issues/164863

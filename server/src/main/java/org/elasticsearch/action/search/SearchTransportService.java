@@ -31,13 +31,10 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -543,7 +540,7 @@ public class SearchTransportService {
             logger.trace("releasing search context [{}], [{}]", request.id(), freed);
             channel.sendResponse(SearchFreeContextResponse.of(freed));
         };
-        final Executor freeContextExecutor = buildFreeContextExecutor(transportService);
+        final Executor freeContextExecutor = searchService.getFreeContextExecutor();
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             freeContextExecutor,
@@ -895,32 +892,6 @@ public class SearchTransportService {
         final long size = bytes.length();
         breaker.addEstimateBytesAndMaybeBreak(size, "fetch");
         return new ReleasableBytesReference(bytes, () -> Releasables.close(bytes, () -> breaker.addWithoutBreaking(-size)));
-    }
-
-    private static Executor buildFreeContextExecutor(TransportService transportService) {
-        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner(
-            "free_context",
-            1,
-            transportService.getThreadPool().generic()
-        );
-        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                try (releasable) {
-                    r.run();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (r instanceof AbstractRunnable abstractRunnable) {
-                    abstractRunnable.onFailure(e);
-                }
-                // should be impossible, GENERIC pool doesn't reject anything
-                logger.error("unexpected failure running " + r, e);
-                assert false : new AssertionError("unexpected failure running " + r, e);
-            }
-        });
     }
 
     /**

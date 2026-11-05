@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -60,8 +59,9 @@ import java.util.function.Consumer;
  * having to call it again. Each operation is a state machine over {@link IndexTaskPhase}: every phase is idempotent and its
  * outcome is persisted before the next one starts, so a new master continues where the previous one stopped.
  * <p>
- * The master only orchestrates: it creates the target index, creates and (re)assigns one shard task per source shard, and
- * finalizes the target index once every shard task completed. The shard work runs on the nodes that hold the source shards.
+ * The master only orchestrates: it creates the target index, creates one shard task per source shard, releases the tasks of
+ * nodes that left, retries or fails the failed ones, and finalizes the target index once every shard task completed. The
+ * shard work runs on the nodes that hold the source shards, which claim the tasks themselves when they have a free slot.
  * <p>
  * Work is triggered when this node becomes master, when nodes leave or the routing changes, periodically every
  * {@link #RECONCILE_INTERVAL_SETTING}, and when a retry is due. At most one reconciliation per operation runs at a time.
@@ -118,6 +118,10 @@ public class DownsampleOrchestrator implements ClusterStateListener {
      * The source index of every operation this master knows is active, for {@link #activeSourceIndices}.
      */
     private final Map<Operation, Index> activeSources = new ConcurrentHashMap<>();
+    /**
+     * The time spent in each phase by the operations this master drives, logged when they finish.
+     */
+    private final Map<Operation, PhaseTimings> timings = new ConcurrentHashMap<>();
     private volatile boolean isMaster;
     private volatile Scheduler.Cancellable periodicReconcile;
 
@@ -172,6 +176,7 @@ public class DownsampleOrchestrator implements ClusterStateListener {
                 scheduled.cancel();
             }
             activeSources.clear();
+            timings.clear();
             // the requests waiting here are retried on the new master, where they join the same operations
             for (Operation operation : waiters.keySet()) {
                 List<ActionListener<IndexTaskDoc>> waiting = waiters.remove(operation);
@@ -405,12 +410,33 @@ public class DownsampleOrchestrator implements ClusterStateListener {
             IndexTaskDoc doc = written.doc();
             track(doc);
             logger.debug("downsample [{}]: phase [{}] attempt [{}]", targetIndex, doc.phase(), doc.attempt());
+            final long now = threadPool.absoluteTimeInMillis();
+            final Operation operation = new Operation(doc.projectId(), targetIndex);
+            final PhaseTimings phaseTimings = timings.computeIfAbsent(operation, k -> new PhaseTimings(current.doc(), now));
+            phaseTimings.transition(doc.phase(), now);
+            if (doc.phase().isTerminal()) {
+                timings.remove(operation);
+            }
+            final TimeValue took = TimeValue.timeValueMillis(now - doc.createdAt());
             if (doc.phase() == IndexTaskPhase.FAILED) {
-                logger.warn("downsample [{}] of project [{}] failed: [{}]", targetIndex, doc.projectId(), doc.lastError());
+                logger.warn(
+                    "downsample [{}] of project [{}] failed after [{}] ({}): [{}]",
+                    targetIndex,
+                    doc.projectId(),
+                    took,
+                    phaseTimings.summary(),
+                    doc.lastError()
+                );
                 completeWaiters(doc);
                 done.onResponse(null);
             } else if (doc.phase().isTerminal()) {
-                logger.info("downsample [{}] of project [{}] completed", targetIndex, doc.projectId());
+                logger.info(
+                    "downsample [{}] of project [{}] completed in [{}] ({})",
+                    targetIndex,
+                    doc.projectId(),
+                    took,
+                    phaseTimings.summary()
+                );
                 completeWaiters(doc);
                 done.onResponse(null);
             } else {
@@ -513,7 +539,7 @@ public class DownsampleOrchestrator implements ClusterStateListener {
                 );
                 store.forMaster()
                     .createShardTask(
-                        ShardTaskDoc.newTask(doc.projectId(), doc.targetIndex(), targetUuid, params),
+                        ShardTaskDoc.newTask(doc.projectId(), doc.targetIndex(), targetUuid, params, doc.createdAt()),
                         refs.acquire(ignored -> {})
                     );
             }
@@ -555,9 +581,6 @@ public class DownsampleOrchestrator implements ClusterStateListener {
     private void planShardTasks(IndexTaskDoc doc, List<Versioned<ShardTaskDoc>> tasks, ActionListener<IndexTaskDoc> listener) {
         final ClusterState state = clusterService.state();
         final Set<String> nodes = state.nodes().getNodes().keySet();
-        final Set<String> shuttingDown = state.metadata().nodeShutdowns().getAllNodeIds();
-        final IndexRoutingTable sourceRouting = state.routingTable(doc.projectId()).index(tasks.get(0).doc().sourceShardId().getIndex());
-        final Map<String, Integer> load = ShardTaskPlanner.load(tasks.stream().map(Versioned::doc).toList());
         final List<ShardTaskDoc> planned = new ArrayList<>(tasks.size());
         final List<Runnable> writes = new ArrayList<>();
         final AtomicBoolean writeFailed = new AtomicBoolean();
@@ -580,21 +603,10 @@ public class DownsampleOrchestrator implements ClusterStateListener {
         }))) {
             for (Versioned<ShardTaskDoc> task : tasks) {
                 ShardTaskDoc current = task.doc();
-                List<String> candidates = ShardTaskPlanner.candidateNodes(
-                    sourceRouting == null ? null : sourceRouting.shard(current.shard()),
-                    load,
-                    shuttingDown
-                );
-                ShardTaskDoc next = ShardTaskPlanner.plan(current, nodes, candidates, MAX_SHARD_TASK_ATTEMPTS);
+                ShardTaskDoc next = ShardTaskPlanner.plan(current, nodes, MAX_SHARD_TASK_ATTEMPTS);
                 if (next == null) {
                     planned.add(current);
                     continue;
-                }
-                if (current.status().isOwnedByNode()) {
-                    load.merge(current.assignedNode(), -1, Integer::sum);
-                }
-                if (next.status().isOwnedByNode()) {
-                    load.merge(next.assignedNode(), 1, Integer::sum);
                 }
                 planned.add(next);
                 ActionListener<Void> writeRef = refs.acquire();

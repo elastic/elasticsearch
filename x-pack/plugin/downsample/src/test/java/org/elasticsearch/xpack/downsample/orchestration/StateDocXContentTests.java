@@ -61,7 +61,7 @@ public class StateDocXContentTests extends ESTestCase {
             progress.setTotalShardDocCount(between(1, 100));
             progress.addNumReceived(between(0, 100));
         }
-        ShardTaskDoc running = doc.assignTo("node-1", false).running(randomUUID(), ShardTaskDoc.progressOf(progress));
+        ShardTaskDoc running = doc.claimBy("node-1", randomUUID(), ShardTaskDoc.progressOf(progress));
         assertThat(roundTrip(running, ShardTaskDoc::fromXContent), equalTo(running));
 
         ShardTaskDoc failed = running.failedOnNode("boom", randomBoolean(), ShardTaskDoc.progressOf(progress));

@@ -21,11 +21,13 @@ import java.util.Objects;
  * Summary:
  * <ul>
  *     <li>The master owns the index task document and all its phase transitions.</li>
- *     <li>The master creates shard task documents, and (re)assigns, unassigns or fails them; each of these increments the
- *     epoch, which fences the node that held the task.</li>
- *     <li>A node may only write a shard task document assigned to it at the epoch it holds, may only move it to
- *     {@code RUNNING}, {@code COMPLETED} (from {@code RUNNING} only) or {@code FAILED}, and may not change its identity,
- *     owner, epoch or attempt.</li>
+ *     <li>The master creates shard task documents, and releases, retries or fails them; each of these increments the
+ *     epoch, which fences the node that held the task. The master never gives a task to a node.</li>
+ *     <li>A node may claim an {@code UNASSIGNED} shard task for itself only, which moves it to {@code RUNNING} at the next
+ *     epoch. Whether the node is eligible (holds a copy of the source shard, is not shutting down) is checked by the store
+ *     against the cluster state, since it is not part of the document.</li>
+ *     <li>A node may only write a shard task document it owns at the epoch it holds, may only move it to {@code RUNNING},
+ *     {@code COMPLETED} or {@code FAILED}, and may not change its identity, owner, epoch or attempt.</li>
  * </ul>
  */
 public final class StateTransitions {
@@ -91,24 +93,44 @@ public final class StateTransitions {
         );
         check(next.attempt() >= current.attempt(), "the attempt count cannot decrease");
         switch (next.status()) {
-            case ASSIGNED -> check(next.assignedNode() != null, "an assigned shard task needs a node");
             case UNASSIGNED -> check(next.assignedNode() == null, "an unassigned shard task cannot have a node");
             case FAILED -> check(next.retriable() == false, "the master can only fail a shard task for good");
             case RUNNING, COMPLETED -> throw new IllegalStateException(
-                "only the assigned node can move a shard task to [" + next.status() + "]"
+                "only the owning node can move a shard task to [" + next.status() + "]"
             );
         }
+    }
+
+    /**
+     * A node claims an unassigned shard task: it becomes its owner and starts running it, at the next epoch.
+     *
+     * @param nodeId the id of the node that claims, the only node it may claim for
+     */
+    public static void validateNodeClaim(String nodeId, ShardTaskDoc current, ShardTaskDoc next) {
+        Objects.requireNonNull(current, "a node cannot create a shard task");
+        check(
+            current.status() == ShardTaskStatus.UNASSIGNED,
+            "shard task [%s] is [%s], only an unassigned shard task can be claimed",
+            current.id(),
+            current.status()
+        );
+        checkSameTask(current, next);
+        check(nodeId.equals(next.assignedNode()), "node [%s] can only claim shard task [%s] for itself", nodeId, current.id());
+        check(next.status() == ShardTaskStatus.RUNNING, "a claimed shard task must be [RUNNING], got [%s]", next.status());
+        check(next.runId() != null, "a running shard task needs a run id");
+        check(next.epoch() == current.epoch() + 1, "a claim must increment the epoch, from [%s] got [%s]", current.epoch(), next.epoch());
+        check(current.attempt() == next.attempt(), "a node cannot change the attempt count");
     }
 
     /**
      * A node writes a shard task document.
      *
      * @param nodeId    the id of the node that writes
-     * @param heldEpoch the epoch at which this node was given the task, i.e. the one its local run was started with
+     * @param heldEpoch the epoch at which this node claimed the task, i.e. the one its local run was started with
      */
     public static void validateNodeShardTaskWrite(String nodeId, long heldEpoch, ShardTaskDoc current, ShardTaskDoc next) {
         Objects.requireNonNull(current, "a node cannot create a shard task");
-        check(nodeId.equals(current.assignedNode()), "shard task [%s] is not assigned to node [%s]", current.id(), nodeId);
+        check(nodeId.equals(current.assignedNode()), "shard task [%s] is not owned by node [%s]", current.id(), nodeId);
         check(
             current.epoch() == heldEpoch,
             "shard task [%s] is at epoch [%s], the node holds epoch [%s]",
@@ -123,19 +145,10 @@ public final class StateTransitions {
         check(current.attempt() == next.attempt(), "a node cannot change the attempt count");
         switch (next.status()) {
             case RUNNING -> check(next.runId() != null, "a running shard task needs a run id");
-            // the node marks the task running before it starts the indexer, so only a running task can complete
-            case COMPLETED -> check(
-                current.status() == ShardTaskStatus.RUNNING,
-                "shard task [%s] is [%s], only a running shard task can complete",
-                current.id(),
-                current.status()
-            );
-            // a node can fail a task it has not marked running yet, e.g. when the source shard is already gone
-            case FAILED -> {
+            // a node owns only running tasks (it claims a task by marking it running), so it completes or fails from there
+            case COMPLETED, FAILED -> {
             }
-            case UNASSIGNED, ASSIGNED -> throw new IllegalStateException(
-                "only the master can move a shard task to [" + next.status() + "]"
-            );
+            case UNASSIGNED -> throw new IllegalStateException("only the master can move a shard task to [" + next.status() + "]");
         }
     }
 
@@ -144,6 +157,7 @@ public final class StateTransitions {
         check(current.targetIndex().equals(next.targetIndex()), "the target index cannot change");
         check(current.targetIndexUuid().equals(next.targetIndexUuid()), "the target index uuid cannot change");
         check(current.params().equals(next.params()), "the shard task params cannot change");
+        check(current.createdAt() == next.createdAt(), "the creation time cannot change");
         check(
             current.sourceShardId().getIndex().getUUID().equals(next.sourceShardId().getIndex().getUUID()),
             "the source index uuid cannot change"

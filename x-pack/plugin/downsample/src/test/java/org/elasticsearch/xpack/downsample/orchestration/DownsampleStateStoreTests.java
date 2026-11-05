@@ -10,19 +10,26 @@ package org.elasticsearch.xpack.downsample.orchestration;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore.Versioned;
 import org.junit.Before;
@@ -32,6 +39,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.downsample.orchestration.OrchestrationTestUtils.newIndexTask;
@@ -40,8 +48,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Exercises {@link DownsampleStateStore} against a real system index: the mappings accept the documents, writes are
@@ -189,52 +199,129 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
         assertThat(found.get(0).doc().sourceShardId().getIndex().getUUID(), equalTo(doc.sourceShardId().getIndex().getUUID()));
     }
 
-    public void testNodeRunsItsTaskAndIsFencedOnReassignment() {
-        String targetUuid = createTargetIndex("target");
+    public void testNodeClaimsRunsAndIsFencedOnRelease() {
+        String targetUuid = createIndexWithUuid("target");
+        ShardId source = new ShardId(new Index("source", createIndexWithUuid("source")), 0);
         String localNode = store.forLocalNode().nodeId();
-        Versioned<ShardTaskDoc> created = createShardTask(newShardTask(project, "target", targetUuid));
-        Versioned<ShardTaskDoc> assigned = masterUpdateShardTask(created, created.doc().assignTo(localNode, false));
-        long heldEpoch = assigned.doc().epoch();
+        createShardTask(newShardTask(project, "target", targetUuid, source, 1));
 
         refresh();
-        List<Versioned<ShardTaskDoc>> mine = findMyShardTasks();
-        assertThat(mine, hasSize(1));
-        Versioned<ShardTaskDoc> seen = mine.get(0);
-        Versioned<ShardTaskDoc> running = nodeUpdateShardTask(seen, seen.doc().running(randomUUID(), Map.of()), heldEpoch);
+        List<Versioned<ShardTaskDoc>> claimable = findClaimableShardTasks(10);
+        assertThat(claimable, hasSize(1));
+        Versioned<ShardTaskDoc> running = claim(claimable.get(0));
+        assertThat(running.doc().status(), equalTo(ShardTaskStatus.RUNNING));
+        assertThat(running.doc().assignedNode(), equalTo(localNode));
+        long heldEpoch = running.doc().epoch();
+        assertThat(heldEpoch, equalTo(1L));
+
+        refresh();
+        assertThat(findClaimableShardTasks(10), empty());
+        assertThat(findMyShardTasks(), hasSize(1));
         Versioned<ShardTaskDoc> progressed = nodeUpdateShardTask(
             running,
             running.doc().withProgress(Map.of("in_num_docs_received", 5)),
             heldEpoch
         );
 
-        // the master reassigns the task while the node still holds the previous version
-        Versioned<ShardTaskDoc> reassigned = masterUpdateShardTask(progressed, progressed.doc().assignTo("another-node", true));
+        // the master releases the task (e.g. it saw the node leave) while the node still holds the previous version
+        Versioned<ShardTaskDoc> released = masterUpdateShardTask(progressed, progressed.doc().unassign());
         PlainActionFuture<Versioned<ShardTaskDoc>> staleWrite = new PlainActionFuture<>();
         store.forLocalNode().updateShardTask(progressed, progressed.doc().completed(Map.of()), heldEpoch, staleWrite);
         assertVersionConflict(staleWrite);
 
         // after re-reading, the node sees it lost the task and the store refuses the write
-        Optional<Versioned<ShardTaskDoc>> reread = call(l -> store.forLocalNode().getShardTask(project, reassigned.doc().id(), l));
-        assertThat(reread, equalTo(Optional.of(reassigned)));
+        Optional<Versioned<ShardTaskDoc>> reread = call(l -> store.forLocalNode().getShardTask(project, released.doc().id(), l));
+        assertThat(reread, equalTo(Optional.of(released)));
         PlainActionFuture<Versioned<ShardTaskDoc>> lostTask = new PlainActionFuture<>();
-        store.forLocalNode().updateShardTask(reassigned, reassigned.doc().completed(Map.of()), heldEpoch, lostTask);
-        assertRejected(lostTask, "is not assigned to node");
+        store.forLocalNode().updateShardTask(released, released.doc().completed(Map.of()), heldEpoch, lostTask);
+        assertRejected(lostTask, "is not owned by node");
 
+        // the released task can be claimed again, at a new epoch that fences the old run
         refresh();
         assertThat(findMyShardTasks(), empty());
+        claimable = findClaimableShardTasks(10);
+        assertThat(claimable, hasSize(1));
+        assertThat(claim(claimable.get(0)).doc().epoch(), equalTo(heldEpoch + 2));
     }
 
-    public void testNodeCannotWriteWhenTargetIndexIsGone() {
-        String localNode = store.forLocalNode().nodeId();
+    public void testOnlyOneClaimWins() {
+        String targetUuid = createIndexWithUuid("target");
+        ShardId source = new ShardId(new Index("source", createIndexWithUuid("source")), 0);
+        Versioned<ShardTaskDoc> created = createShardTask(newShardTask(project, "target", targetUuid, source, 1));
+        claim(created);
+        PlainActionFuture<Versioned<ShardTaskDoc>> second = new PlainActionFuture<>();
+        store.forLocalNode().claimShardTask(created, randomUUID(), Map.of(), second);
+        assertVersionConflict(second);
+    }
+
+    public void testClaimableTasksComeOldestFirst() {
+        String sourceUuid = createIndexWithUuid("source", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).build());
+        String olderUuid = createIndexWithUuid("older");
+        String newerUuid = createIndexWithUuid("newer");
+        for (int shard = 0; shard < 2; shard++) {
+            ShardId source = new ShardId(new Index("source", sourceUuid), shard);
+            createShardTask(newShardTask(project, "newer", newerUuid, source, 2_000));
+            createShardTask(newShardTask(project, "older", olderUuid, source, 1_000));
+        }
+        // a task of an index this node holds no copy of is not claimable here
+        createShardTask(newShardTask(project, "other", randomUUID()));
+        refresh();
+
+        List<Versioned<ShardTaskDoc>> claimable = findClaimableShardTasks(3);
+        assertThat(
+            claimable.stream().map(t -> t.doc().targetIndex() + "/" + t.doc().shard()).toList(),
+            equalTo(List.of("older/0", "older/1", "newer/0"))
+        );
+    }
+
+    public void testNodeCannotClaimWithoutLocalCopyOrTarget() {
+        // the source shard is not on this node
+        Versioned<ShardTaskDoc> elsewhere = createShardTask(newShardTask(project, "target", createIndexWithUuid("target")));
+        PlainActionFuture<Versioned<ShardTaskDoc>> noCopy = new PlainActionFuture<>();
+        store.forLocalNode().claimShardTask(elsewhere, randomUUID(), Map.of(), noCopy);
+        assertRejected(noCopy, "does not exist");
+
+        ShardId source = new ShardId(new Index("source", createIndexWithUuid("source")), 0);
         if (randomBoolean()) {
             // an index with the same name but another uuid, as after a delete and re-create
-            createTargetIndex("target");
+            createIndexWithUuid("other-target");
         }
-        Versioned<ShardTaskDoc> created = createShardTask(newShardTask(project, "target", randomUUID()));
-        Versioned<ShardTaskDoc> assigned = masterUpdateShardTask(created, created.doc().assignTo(localNode, false));
+        Versioned<ShardTaskDoc> noTarget = createShardTask(newShardTask(project, "other-target", randomUUID(), source, 1));
         PlainActionFuture<Versioned<ShardTaskDoc>> write = new PlainActionFuture<>();
-        store.forLocalNode().updateShardTask(assigned, assigned.doc().running(randomUUID(), Map.of()), assigned.doc().epoch(), write);
+        store.forLocalNode().claimShardTask(noTarget, randomUUID(), Map.of(), write);
         assertRejected(write, "does not exist");
+    }
+
+    public void testNodeMarkedForShutdownCannotClaim() {
+        String targetUuid = createIndexWithUuid("target");
+        ShardId source = new ShardId(new Index("source", createIndexWithUuid("source")), 0);
+        ShardTaskDoc task = newShardTask(project, "target", targetUuid, source, 1);
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        String localNode = state.nodes().getLocalNodeId();
+        assertThat(DownsampleStateStore.whyCannotClaim(state, localNode, task), nullValue());
+        assertThat(DownsampleStateStore.locallySearchableIndexUuids(state, localNode), hasItem(source.getIndex().getUUID()));
+
+        ClusterState shuttingDown = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Map.of(
+                                localNode,
+                                SingleNodeShutdownMetadata.builder()
+                                    .setNodeId(localNode)
+                                    .setNodeEphemeralId(state.nodes().getLocalNode().getEphemeralId())
+                                    .setReason(getTestName())
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                                    .build()
+                            )
+                        )
+                    )
+            )
+            .build();
+        assertThat(DownsampleStateStore.whyCannotClaim(shuttingDown, localNode, task), containsString("marked for shutdown"));
     }
 
     // ---- typed wrappers, so the generic future helper can infer its type ----
@@ -267,13 +354,29 @@ public class DownsampleStateStoreTests extends ESSingleNodeTestCase {
         return call(l -> store.forLocalNode().updateShardTask(current, next, heldEpoch, l));
     }
 
+    private List<Versioned<ShardTaskDoc>> findClaimableShardTasks(int size) {
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        Set<String> local = DownsampleStateStore.locallySearchableIndexUuids(state, state.nodes().getLocalNodeId());
+        return call(l -> store.forLocalNode().findClaimableShardTasks(project, local, size, l));
+    }
+
+    private Versioned<ShardTaskDoc> claim(Versioned<ShardTaskDoc> unassigned) {
+        return call(l -> store.forLocalNode().claimShardTask(unassigned, randomUUID(), Map.of(), l));
+    }
+
     private List<Versioned<ShardTaskDoc>> findMyShardTasks() {
         return call(l -> store.forLocalNode().findMyShardTasks(project, l));
     }
 
-    private String createTargetIndex(String name) {
-        createIndex(name);
-        return getInstanceFromNode(ClusterService.class).state().metadata().getProject().index(name).getIndexUUID();
+    /**
+     * Creates an index with one shard on this node, and returns its uuid.
+     */
+    private String createIndexWithUuid(String name) {
+        return createIndexWithUuid(name, Settings.EMPTY);
+    }
+
+    private String createIndexWithUuid(String name, Settings settings) {
+        return createIndex(name, settings, (XContentBuilder) null).getMetadata().getIndexUUID();
     }
 
     private void refresh() {

@@ -67,7 +67,38 @@ final class OrchestrationTestUtils {
             new Index("source-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT), randomUUID()),
             between(0, 4)
         );
-        return ShardTaskDoc.newTask(projectId, targetIndex, targetIndexUuid, randomParams(targetIndex, sourceShardId));
+        return newShardTask(projectId, targetIndex, targetIndexUuid, sourceShardId, randomLongBetween(1, 1_000_000));
+    }
+
+    static ShardTaskDoc newShardTask(
+        ProjectId projectId,
+        String targetIndex,
+        String targetIndexUuid,
+        ShardId sourceShardId,
+        long createdAt
+    ) {
+        return ShardTaskDoc.newTask(projectId, targetIndex, targetIndexUuid, randomParams(targetIndex, sourceShardId), createdAt);
+    }
+
+    /**
+     * A copy of the shard task with the given ownership fields, to build documents that no legal transition produces.
+     */
+    static ShardTaskDoc withOwnership(ShardTaskDoc doc, ShardTaskStatus status, String node, long epoch, int attempt, String runId) {
+        return new ShardTaskDoc(
+            doc.projectId(),
+            doc.targetIndex(),
+            doc.targetIndexUuid(),
+            doc.params(),
+            doc.createdAt(),
+            status,
+            node,
+            epoch,
+            attempt,
+            doc.lastError(),
+            doc.retriable(),
+            runId,
+            doc.progress()
+        );
     }
 
     static IndexTaskDoc newIndexTask(String targetIndex) {

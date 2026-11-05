@@ -27,6 +27,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -40,6 +43,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -48,9 +52,13 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
@@ -62,7 +70,7 @@ import static org.elasticsearch.xpack.downsample.orchestration.DownsampleStateIn
 /**
  * The only way to read and write {@link DownsampleStateIndex}. Access is split by role so that a caller can only reach the
  * operations its role allows: {@link #forMaster()} for the orchestration on the elected master, {@link #forLocalNode()} for
- * the node that runs shard tasks. Every write is validated with {@link StateTransitions} and sent as a compare-and-set
+ * the node that claims and runs shard tasks. Every write is validated with {@link StateTransitions} and sent as a compare-and-set
  * (a create, or an index with {@code if_seq_no} / {@code if_primary_term}), so a concurrent change makes the write fail with a
  * {@link VersionConflictEngineException} instead of being overwritten; the caller then re-reads and re-decides.
  * <p>
@@ -298,21 +306,73 @@ public class DownsampleStateStore {
         }
 
         /**
-         * The shard tasks of a project this node currently owns. Near real time: a recent assignment can be missing, a recent
-         * reassignment can still show up, so confirm with {@link #getShardTask} before acting on a removal.
+         * The shard tasks of a project this node currently owns. Near real time: a recent claim can be missing, a recent release
+         * can still show up, so confirm with {@link #getShardTask} before acting on a removal.
          */
         public void findMyShardTasks(ProjectId projectId, ActionListener<List<Versioned<ShardTaskDoc>>> listener) {
             BoolQueryBuilder query = QueryBuilders.boolQuery()
                 .filter(QueryBuilders.termQuery(DOC_TYPE_FIELD, SHARD_TASK_DOC_TYPE))
                 .filter(QueryBuilders.termQuery(ShardTaskDoc.ASSIGNED_NODE.getPreferredName(), nodeId))
-                .filter(
-                    QueryBuilders.termsQuery(
-                        ShardTaskDoc.STATUS.getPreferredName(),
-                        ShardTaskStatus.ASSIGNED.name(),
-                        ShardTaskStatus.RUNNING.name()
-                    )
-                );
+                .filter(QueryBuilders.termQuery(ShardTaskDoc.STATUS.getPreferredName(), ShardTaskStatus.RUNNING.name()));
             search(projectId, query, ShardTaskDoc::fromXContent, listener);
+        }
+
+        /**
+         * Up to {@code size} unassigned shard tasks of a project on the given source indices, oldest operation first, so that
+         * the operations requested first finish first. Near real time: a task can show up after it was claimed, the claim then
+         * fails on the compare-and-set.
+         *
+         * @param sourceIndexUuids the source indices this node holds shards of; tasks of other indices cannot be claimed here
+         */
+        public void findClaimableShardTasks(
+            ProjectId projectId,
+            Collection<String> sourceIndexUuids,
+            int size,
+            ActionListener<List<Versioned<ShardTaskDoc>>> listener
+        ) {
+            if (sourceIndexUuids.isEmpty() || size <= 0) {
+                listener.onResponse(List.of());
+                return;
+            }
+            BoolQueryBuilder query = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(DOC_TYPE_FIELD, SHARD_TASK_DOC_TYPE))
+                .filter(QueryBuilders.termQuery(ShardTaskDoc.STATUS.getPreferredName(), ShardTaskStatus.UNASSIGNED.name()))
+                .filter(QueryBuilders.termsQuery(IndexTaskDoc.SOURCE_INDEX_UUID.getPreferredName(), sourceIndexUuids));
+            search(
+                projectId,
+                new SearchSourceBuilder().query(query)
+                    .size(size)
+                    .sort(IndexTaskDoc.CREATED_AT.getPreferredName(), SortOrder.ASC)
+                    .sort(ShardTaskDoc.SHARD.getPreferredName(), SortOrder.ASC),
+                false,
+                ShardTaskDoc::fromXContent,
+                listener
+            );
+        }
+
+        /**
+         * Claims an unassigned shard task for this node and marks it running, in one compare-and-set. Only allowed while this
+         * node holds a started, searchable copy of the source shard, since the shard is read locally, and is not marked for
+         * shutdown, so that a node about to leave does not pick up new work.
+         *
+         * @param runId    identifies the local run that will execute the task
+         * @param progress the initial counters of that run
+         */
+        public void claimShardTask(
+            Versioned<ShardTaskDoc> current,
+            String runId,
+            Map<String, Object> progress,
+            ActionListener<Versioned<ShardTaskDoc>> listener
+        ) {
+            ActionListener.run(listener, l -> {
+                ShardTaskDoc next = current.doc().claimBy(nodeId, runId, progress);
+                StateTransitions.validateNodeClaim(nodeId, current.doc(), next);
+                String ineligible = whyCannotClaim(clusterService.state(), nodeId, next);
+                if (ineligible != null) {
+                    throw new IllegalStateException("node [" + nodeId + "] cannot claim shard task [" + next.id() + "]: " + ineligible);
+                }
+                write(next, current, l);
+            });
         }
 
         /**
@@ -354,10 +414,58 @@ public class DownsampleStateStore {
         }
 
         private boolean targetIndexExists(ProjectId projectId, String name, String uuid) {
-            ProjectMetadata project = clusterService.state().metadata().projects().get(projectId);
-            IndexMetadata indexMetadata = project == null ? null : project.index(name);
-            return indexMetadata != null && indexMetadata.getIndexUUID().equals(uuid);
+            return DownsampleStateStore.targetIndexExists(clusterService.state(), projectId, name, uuid);
         }
+    }
+
+    /**
+     * Why the given node cannot claim the given shard task in this cluster state, or {@code null} if it can.
+     */
+    @Nullable
+    public static String whyCannotClaim(ClusterState state, String nodeId, ShardTaskDoc task) {
+        if (state.metadata().nodeShutdowns().contains(nodeId)) {
+            return "the node is marked for shutdown";
+        }
+        if (targetIndexExists(state, task.projectId(), task.targetIndex(), task.targetIndexUuid()) == false) {
+            return "target index [" + task.targetIndex() + "] with uuid [" + task.targetIndexUuid() + "] does not exist";
+        }
+        if (state.metadata().projects().containsKey(task.projectId()) == false) {
+            return "project [" + task.projectId() + "] does not exist";
+        }
+        IndexRoutingTable sourceRouting = state.routingTable(task.projectId()).index(task.sourceShardId().getIndex());
+        if (sourceRouting == null) {
+            return "source index [" + task.sourceShardId().getIndex() + "] does not exist";
+        }
+        for (ShardRouting copy : sourceRouting.shard(task.shard()).activeShards()) {
+            if (nodeId.equals(copy.currentNodeId()) && copy.started() && copy.isSearchable()) {
+                return null;
+            }
+        }
+        return "the node does not hold a started, searchable copy of [" + task.sourceShardId() + "]";
+    }
+
+    /**
+     * The uuids of the indices this node holds a started, searchable shard copy of: the source indices whose shard tasks it can
+     * claim.
+     */
+    public static Set<String> locallySearchableIndexUuids(ClusterState state, String nodeId) {
+        RoutingNode node = state.getRoutingNodes().node(nodeId);
+        if (node == null) {
+            return Set.of();
+        }
+        Set<String> uuids = new HashSet<>();
+        for (ShardRouting copy : node) {
+            if (copy.started() && copy.isSearchable()) {
+                uuids.add(copy.index().getUUID());
+            }
+        }
+        return uuids;
+    }
+
+    private static boolean targetIndexExists(ClusterState state, ProjectId projectId, String name, String uuid) {
+        ProjectMetadata project = state.metadata().projects().get(projectId);
+        IndexMetadata indexMetadata = project == null ? null : project.index(name);
+        return indexMetadata != null && indexMetadata.getIndexUUID().equals(uuid);
     }
 
     private static void ensureSameDoc(StateDoc current, StateDoc next) {
@@ -409,17 +517,33 @@ public class DownsampleStateStore {
         }), l -> client.get(request, l));
     }
 
+    /**
+     * Searches all the matching documents, failing if there are more than {@link #MAX_SEARCH_HITS}.
+     */
     private <T extends StateDoc> void search(
         ProjectId projectId,
         BoolQueryBuilder query,
         CheckedFunction<XContentParser, T, IOException> parser,
         ActionListener<List<Versioned<T>>> listener
     ) {
-        SearchRequest request = new SearchRequest(INDEX_NAME).source(
-            new SearchSourceBuilder().query(query).size(MAX_SEARCH_HITS).seqNoAndPrimaryTerm(true).trackTotalHits(true)
-        );
+        search(projectId, new SearchSourceBuilder().query(query).size(MAX_SEARCH_HITS).trackTotalHits(true), true, parser, listener);
+    }
+
+    /**
+     * Searches the first {@code source.size()} matching documents.
+     *
+     * @param failOnMore whether to fail if more documents match, for callers that need all of them
+     */
+    private <T extends StateDoc> void search(
+        ProjectId projectId,
+        SearchSourceBuilder source,
+        boolean failOnMore,
+        CheckedFunction<XContentParser, T, IOException> parser,
+        ActionListener<List<Versioned<T>>> listener
+    ) {
+        SearchRequest request = new SearchRequest(INDEX_NAME).source(source.seqNoAndPrimaryTerm(true));
         inProject(projectId, ActionListener.<SearchResponse>wrap(response -> {
-            if (response.getHits().getTotalHits() != null && response.getHits().getTotalHits().value() > MAX_SEARCH_HITS) {
+            if (failOnMore && response.getHits().getTotalHits() != null && response.getHits().getTotalHits().value() > MAX_SEARCH_HITS) {
                 throw new IllegalStateException(
                     "found more than [" + MAX_SEARCH_HITS + "] downsample state documents, pagination is not supported yet"
                 );

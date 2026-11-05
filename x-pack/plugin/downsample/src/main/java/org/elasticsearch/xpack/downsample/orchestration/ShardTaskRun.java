@@ -28,16 +28,17 @@ import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 /**
- * One local run of a shard task on the node it is assigned to. It is the {@link ShardTaskReporter} of the indexer, and it is the
+ * One local run of a shard task on the node that owns it. It is the {@link ShardTaskReporter} of the indexer, and it is the
  * only writer of the shard task document on this node while it runs:
  * <ol>
- *     <li>it marks the task {@code RUNNING} with a new run id, then starts the indexer;</li>
+ *     <li>it claims the unassigned task, or resumes a task this node already owns (e.g. after a restart), by marking it
+ *     {@code RUNNING} with a new run id, then starts the indexer. A claim that loses the race to another node ends the run;</li>
  *     <li>after every bulk of the indexer it writes the progress, coalesced: at most one write in flight, the newest counters
  *     are written next;</li>
  *     <li>when the indexer is done it writes {@code COMPLETED} or {@code FAILED} with the final counters.</li>
  * </ol>
  * The writes are serialized, each one a compare-and-set on the version of the previous one. On a version conflict the run
- * re-reads the document: if the task is still assigned to this node at the same epoch (a benign concurrent write) it retries,
+ * re-reads the document: if the task is still owned by this node at the same epoch (a benign concurrent write) it retries,
  * otherwise the task was taken away (fenced) and the run cancels itself without writing. A run that cannot write its final
  * state is simply dropped: the task stays {@code RUNNING} on this node, so the poller starts it again.
  */
@@ -50,12 +51,14 @@ final class ShardTaskRun implements ShardTaskReporter {
     private final ProjectId projectId;
     private final String docId;
     private final long epoch;
+    private final boolean claim;
     private final String runId = UUIDs.randomBase64UUID();
     private final DownsampleShardTaskParams params;
     private final DownsampleShardProgress progress;
     private final Consumer<ShardTaskRun> onDone;
     private final AtomicBoolean done = new AtomicBoolean();
     private volatile boolean cancelled;
+    private volatile boolean started;
 
     // the write queue, guarded by this
     private Versioned<ShardTaskDoc> current;
@@ -67,14 +70,22 @@ final class ShardTaskRun implements ShardTaskReporter {
     private record PendingWrite(UnaryOperator<ShardTaskDoc> change, ActionListener<Void> listener) {}
 
     /**
-     * @param seen   the shard task as found by the poller, assigned to this node
+     * @param seen   the shard task as found by the poller: unassigned, to claim, or running on this node, to resume
      * @param onDone called once when the run is over, whatever the outcome
      */
     ShardTaskRun(DownsampleStateStore.NodeView store, Versioned<ShardTaskDoc> seen, Consumer<ShardTaskRun> onDone) {
         this.store = store;
         this.projectId = seen.doc().projectId();
         this.docId = seen.doc().id();
-        this.epoch = seen.doc().epoch();
+        this.claim = switch (seen.doc().status()) {
+            case UNASSIGNED -> true;
+            case RUNNING -> false;
+            case COMPLETED, FAILED -> throw new IllegalArgumentException(
+                "shard task [" + docId + "] is [" + seen.doc().status() + "], there is nothing to run"
+            );
+        };
+        // a claim moves the task to the next epoch
+        this.epoch = claim ? seen.doc().epoch() + 1 : seen.doc().epoch();
         this.params = seen.doc().params();
         this.progress = new DownsampleShardProgress(params.shardId(), params.indexStartTimeMillis(), params.indexEndTimeMillis());
         this.onDone = onDone;
@@ -102,10 +113,20 @@ final class ShardTaskRun implements ShardTaskReporter {
     }
 
     /**
-     * Marks the task running, then runs the indexer with {@code indexer}, which must notify its listener when the indexer is done.
+     * Whether the run owns the task in the state index: its claim or resume write succeeded. Until then the document does not show
+     * this run, so it cannot be judged by it.
+     */
+    boolean hasStarted() {
+        return started;
+    }
+
+    /**
+     * Claims or resumes the task, then runs the indexer with {@code indexer}, which must notify its listener when the indexer is
+     * done.
      */
     void start(Consumer<ActionListener<Void>> indexer) {
-        enqueue(doc -> doc.running(runId, ShardTaskDoc.progressOf(progress)), WriteKind.START, ActionListener.wrap(ignored -> {
+        ActionListener<Void> onStarted = ActionListener.wrap(ignored -> {
+            started = true;
             if (cancelled) {
                 finishLocally();
                 return;
@@ -115,7 +136,24 @@ final class ShardTaskRun implements ShardTaskReporter {
         }, e -> {
             logger.debug(() -> Strings.format("downsample shard task [%s] of project [%s]: could not start", docId, projectId), e);
             finishLocally();
-        }));
+        });
+        if (claim == false) {
+            enqueue(doc -> doc.running(runId, ShardTaskDoc.progressOf(progress)), WriteKind.START, onStarted);
+            return;
+        }
+        final Versioned<ShardTaskDoc> unassigned;
+        synchronized (this) {
+            assert writing == false : "the claim of shard task [" + docId + "] must be the first write";
+            writing = true;
+            unassigned = current;
+        }
+        // no retry on a conflict: the task changed since it was found, most likely another node claimed it first
+        store.claimShardTask(unassigned, runId, ShardTaskDoc.progressOf(progress), ActionListener.runAfter(ActionListener.wrap(written -> {
+            synchronized (this) {
+                current = written;
+            }
+            onStarted.onResponse(null);
+        }, onStarted::onFailure), this::writeDone));
     }
 
     /**
@@ -198,7 +236,7 @@ final class ShardTaskRun implements ShardTaskReporter {
     // ---- serialized writes ----
 
     private enum WriteKind {
-        /** marks the task running, before the indexer starts, so nothing else is in flight */
+        /** marks a task this node already owns running, before the indexer starts, so nothing else is in flight */
         START,
         /** coalesced, and dropped once the run is finishing or cancelled */
         PROGRESS,
@@ -286,7 +324,7 @@ final class ShardTaskRun implements ShardTaskReporter {
                 }
                 write(change, listener, conflicts + 1);
             } else {
-                // reassigned, unassigned, failed by the master, or deleted
+                // released, claimed by another node, failed by the master, or deleted
                 cancel();
                 listener.onFailure(conflict);
             }

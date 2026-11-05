@@ -147,8 +147,8 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
     }
 
     /**
-     * The node running a shard task leaves: the master gives the task to the other node holding a copy of the source shard, at a
-     * new epoch and without counting an attempt, and the operation completes.
+     * The node running a shard task leaves: the master releases the task, the other node holding a copy of the source shard claims
+     * it, at a new epoch and without counting an attempt, and the operation completes.
      */
     public void testDataNodeLossWhileShardTaskRuns() throws Exception {
         String master = internalCluster().startMasterOnlyNode();
@@ -182,8 +182,8 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
 
     /**
      * The node running a shard task leaves while the master fails over, and only the new master can notice: the old master's
-     * reassignment never lands (its writes to the state index are parked), so the new master's first reconciliation must see that
-     * the task is on a node that is gone, and reassign it.
+     * release never lands (its writes to the state index are parked), so the new master's first reconciliation must see that the
+     * task is on a node that is gone, and release it for the other node to claim.
      */
     public void testDataNodeLossDuringMasterFailover() throws Exception {
         List<String> masters = internalCluster().startMasterOnlyNodes(3);
@@ -204,7 +204,7 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
         assertBusy(() -> assertThat(targetShardNodes(), everyItem(equalTo(otherNode))));
         ParkingPlugin.parkingNodes.remove(otherNode);
 
-        // the old master sees the node leave and tries to reassign the task, but that write is parked and never lands
+        // the old master sees the node leave and tries to release the task, but that write is parked and never lands
         ParkingPlugin.stateWriteParkingNodes.add(oldMaster);
         internalCluster().stopNode(taskNode);
         assertBusy(() -> assertThat(ParkingPlugin.parkedStateWrites, not(hasSize(0))));
@@ -214,7 +214,7 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
         ShardTaskDoc completed = shardTasks(1).get(0).doc();
         assertThat(completed.status(), equalTo(ShardTaskStatus.COMPLETED));
         assertThat(nodeName(completed.assignedNode()), equalTo(otherNode));
-        assertThat("only the new master reassigned the task", completed.epoch(), equalTo(running.epoch() + 1));
+        assertThat("only the new master released the task, then it was claimed", completed.epoch(), equalTo(running.epoch() + 2));
         assertThat(completed.attempt(), equalTo(0));
         assertCompleteTarget(1);
     }
@@ -263,10 +263,10 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
     }
 
     /**
-     * The master takes a task away from a node whose run is still going (as it does when it believes the node is gone, e.g. after a
-     * network partition), and that run goes on concurrently with the new one on another node: it is fenced (its writes fail on the
-     * epoch, or its poller confirms the task is no longer its), and the target still holds every bucket exactly once, since both
-     * runs create the same documents and the second creation of a bucket is rejected.
+     * The master releases a task of a node whose run is still going (as it does when it believes the node is gone, e.g. after a
+     * network partition), and that run goes on concurrently with the new one of whichever node claims the task next: it is fenced
+     * (its writes fail on the epoch, or its poller confirms the task is no longer its), and the target still holds every bucket
+     * exactly once, since both runs create the same documents and the second creation of a bucket is rejected.
      */
     public void testReassignedRunIsFencedWithoutDuplicates() throws Exception {
         String master = internalCluster().startMasterOnlyNode();
@@ -278,23 +278,21 @@ public class DownsampleSystemIndexDisruptionIT extends DownsamplingIntegTestCase
         assertBusy(() -> assertThat(ParkingPlugin.parked, hasSize(1)));
         Versioned<ShardTaskDoc> running = shardTasks(1).get(0);
         String taskNode = nodeName(running.doc().assignedNode());
-        String otherNode = dataNodes.stream().filter(n -> n.equals(taskNode) == false).findFirst().orElseThrow();
-        String otherNodeId = internalCluster().clusterService(otherNode).localNode().getId();
 
-        // the master's decision, made directly: the task goes to the other node at the next epoch
-        ParkingPlugin.parkingNodes.remove(otherNode);
-        PlainActionFuture<Versioned<ShardTaskDoc>> reassigned = new PlainActionFuture<>();
+        // the master's decision, made directly: the task is released at the next epoch, for any node with a copy to claim
+        PlainActionFuture<Versioned<ShardTaskDoc>> released = new PlainActionFuture<>();
         internalCluster().getCurrentMasterNodeInstance(DownsampleStateStore.class)
             .forMaster()
-            .updateShardTask(running, running.doc().assignTo(otherNodeId, false), reassigned);
-        reassigned.actionGet(TEST_REQUEST_TIMEOUT);
-        // the old run, released, now runs its indexer concurrently with the new run
+            .updateShardTask(running, running.doc().unassign(), released);
+        released.actionGet(TEST_REQUEST_TIMEOUT);
+        // the old run now runs its indexer concurrently with the new run, which is not parked
+        ParkingPlugin.parkingNodes.clear();
         ParkingPlugin.release();
 
         assertTrue(downsample.actionGet(TimeValue.timeValueMinutes(2)).isAcknowledged());
         ShardTaskDoc completed = shardTasks(1).get(0).doc();
-        assertThat("the new run, not the fenced one, completed the task", completed.assignedNode(), equalTo(otherNodeId));
-        assertThat(completed.epoch(), equalTo(running.doc().epoch() + 1));
+        assertThat("a new run, not the fenced one, completed the task", completed.runId(), not(equalTo(running.doc().runId())));
+        assertThat("released, then claimed", completed.epoch(), equalTo(running.doc().epoch() + 2));
         assertCompleteTarget(1);
         assertBusy(() -> assertThat("the fenced run stopped", activeRuns(taskNode), equalTo(0)));
     }

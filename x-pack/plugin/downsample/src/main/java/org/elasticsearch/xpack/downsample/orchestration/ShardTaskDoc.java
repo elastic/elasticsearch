@@ -30,20 +30,22 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * The state of the downsampling of one source shard. The master creates and (re)assigns it; the assigned node reports on it.
+ * The state of the downsampling of one source shard. The master creates it, releases it when its node is gone, retries or fails it;
+ * a node with a free slot and a copy of the source shard claims it, runs it and reports on it.
  *
- * @param targetIndex     the name of the downsampled index
  * @param projectId       the project of the source and target indices, and of the state index that holds this document
+ * @param targetIndex     the name of the downsampled index
  * @param targetIndexUuid the uuid of the downsampled index, so a reused index name never adopts this task
  * @param params          what to downsample; its source {@link ShardId} carries the source index uuid
+ * @param createdAt       epoch millis when the operation was requested: nodes claim older tasks first
  * @param status          see {@link ShardTaskStatus}
- * @param assignedNode    the id of the node that owns the task, {@code null} when unassigned
- * @param epoch           fencing token, incremented by the master every time it takes the task away from a node (assign,
- *                        unassign, fail), so a node holding an older epoch can no longer write
+ * @param assignedNode    the id of the node that claimed the task, {@code null} when unassigned
+ * @param epoch           fencing token, incremented every time the task changes owner (claimed by a node, released, retried or
+ *                        failed by the master), so a node holding an older epoch can no longer write
  * @param attempt         how many times the task was retried
  * @param lastError       the last failure, if any
  * @param retriable       whether the last failure can be retried
- * @param runId           identifies one local run on the assigned node, it changes when the node restarts the run
+ * @param runId           identifies one local run on the owning node, it changes when the node restarts the run
  * @param progress        the counters of the latest run, as in the task status API; opaque, never read back by the code
  */
 public record ShardTaskDoc(
@@ -51,6 +53,7 @@ public record ShardTaskDoc(
     String targetIndex,
     String targetIndexUuid,
     DownsampleShardTaskParams params,
+    long createdAt,
     ShardTaskStatus status,
     @Nullable String assignedNode,
     long epoch,
@@ -79,14 +82,15 @@ public record ShardTaskDoc(
             (String) a[1],
             (String) a[2],
             withSourceIndexUuid((DownsampleShardTaskParams) a[5], (String) a[3], (Integer) a[4]),
-            ShardTaskStatus.valueOf((String) a[6]),
-            (String) a[7],
-            (Long) a[8],
-            (Integer) a[9],
-            (String) a[10],
-            a[11] != null && (Boolean) a[11],
-            (String) a[12],
-            (Map<String, Object>) a[13]
+            (Long) a[6],
+            ShardTaskStatus.valueOf((String) a[7]),
+            (String) a[8],
+            (Long) a[9],
+            (Integer) a[10],
+            (String) a[11],
+            a[12] != null && (Boolean) a[12],
+            (String) a[13],
+            (Map<String, Object>) a[14]
         )
     );
 
@@ -97,6 +101,7 @@ public record ShardTaskDoc(
         PARSER.declareString(constructorArg(), IndexTaskDoc.SOURCE_INDEX_UUID);
         PARSER.declareInt(constructorArg(), SHARD);
         PARSER.declareObject(constructorArg(), (p, c) -> DownsampleShardTaskParams.fromXContent(p), PARAMS);
+        PARSER.declareLong(constructorArg(), IndexTaskDoc.CREATED_AT);
         PARSER.declareString(constructorArg(), STATUS);
         PARSER.declareString(optionalConstructorArg(), ASSIGNED_NODE);
         PARSER.declareLong(constructorArg(), EPOCH);
@@ -120,14 +125,21 @@ public record ShardTaskDoc(
     }
 
     /**
-     * A new, unassigned task for one shard of the source index.
+     * A new, unassigned task for one shard of the source index, of an operation requested at {@code createdAt}.
      */
-    public static ShardTaskDoc newTask(ProjectId projectId, String targetIndex, String targetIndexUuid, DownsampleShardTaskParams params) {
+    public static ShardTaskDoc newTask(
+        ProjectId projectId,
+        String targetIndex,
+        String targetIndexUuid,
+        DownsampleShardTaskParams params,
+        long createdAt
+    ) {
         return new ShardTaskDoc(
             projectId,
             targetIndex,
             targetIndexUuid,
             params,
+            createdAt,
             ShardTaskStatus.UNASSIGNED,
             null,
             0L,
@@ -158,99 +170,93 @@ public record ShardTaskDoc(
     // ---- master transitions, each takes the task away from whichever node held it, so each increments the epoch ----
 
     /**
-     * Assigns (or reassigns) the task to a node. A retry also counts an attempt.
-     */
-    public ShardTaskDoc assignTo(String nodeId, boolean isRetry) {
-        return new ShardTaskDoc(
-            projectId,
-            targetIndex,
-            targetIndexUuid,
-            params,
-            ShardTaskStatus.ASSIGNED,
-            Objects.requireNonNull(nodeId),
-            epoch + 1,
-            isRetry ? attempt + 1 : attempt,
-            lastError,
-            false,
-            null,
-            null
-        );
-    }
-
-    /**
-     * Takes the task away from its node without giving it to another one, e.g. when no node holds the source shard.
+     * Releases the task of a node that left the cluster, so another node can claim it. Not an attempt: like a persistent task, a
+     * shard task survives any number of node restarts.
      */
     public ShardTaskDoc unassign() {
-        return new ShardTaskDoc(
-            projectId,
-            targetIndex,
-            targetIndexUuid,
-            params,
-            ShardTaskStatus.UNASSIGNED,
-            null,
+        return copy(ShardTaskStatus.UNASSIGNED, null, epoch + 1, attempt, lastError, false, null, null);
+    }
+
+    /**
+     * Makes a task that failed with a retriable error claimable again, counting an attempt.
+     */
+    public ShardTaskDoc retry() {
+        return copy(ShardTaskStatus.UNASSIGNED, null, epoch + 1, attempt + 1, lastError, false, null, null);
+    }
+
+    /**
+     * Fails the task for good, e.g. when the retries are exhausted.
+     */
+    public ShardTaskDoc failedByMaster(String error) {
+        return copy(ShardTaskStatus.FAILED, assignedNode, epoch + 1, attempt, error, false, runId, progress);
+    }
+
+    // ---- node transitions ----
+
+    /**
+     * A node claims an unassigned task and starts running it, in one write: it becomes the owner, at the next epoch.
+     */
+    public ShardTaskDoc claimBy(String nodeId, String newRunId, Map<String, Object> newProgress) {
+        return copy(
+            ShardTaskStatus.RUNNING,
+            Objects.requireNonNull(nodeId),
             epoch + 1,
             attempt,
             lastError,
             false,
-            null,
-            null
+            Objects.requireNonNull(newRunId),
+            newProgress
         );
     }
 
     /**
-     * Fails the task for good, e.g. when the retries are exhausted or the target index is gone.
+     * The owner starts a new run of a task it already runs (e.g. after it restarted). The owner, epoch and attempt do not change.
      */
-    public ShardTaskDoc failedByMaster(String error) {
-        return new ShardTaskDoc(
-            projectId,
-            targetIndex,
-            targetIndexUuid,
-            params,
-            ShardTaskStatus.FAILED,
-            assignedNode,
-            epoch + 1,
-            attempt,
-            error,
-            false,
-            runId,
-            progress
-        );
-    }
-
-    // ---- node transitions, they never change the owner, the epoch or the attempt ----
-
     public ShardTaskDoc running(String newRunId, Map<String, Object> newProgress) {
-        return withNodeState(ShardTaskStatus.RUNNING, Objects.requireNonNull(newRunId), newProgress, lastError, retriable);
+        return copy(
+            ShardTaskStatus.RUNNING,
+            assignedNode,
+            epoch,
+            attempt,
+            lastError,
+            retriable,
+            Objects.requireNonNull(newRunId),
+            newProgress
+        );
     }
 
     public ShardTaskDoc withProgress(Map<String, Object> newProgress) {
-        return withNodeState(status, runId, newProgress, lastError, retriable);
+        return copy(status, assignedNode, epoch, attempt, lastError, retriable, runId, newProgress);
     }
 
     public ShardTaskDoc completed(Map<String, Object> finalProgress) {
-        return withNodeState(ShardTaskStatus.COMPLETED, runId, finalProgress, lastError, false);
+        return copy(ShardTaskStatus.COMPLETED, assignedNode, epoch, attempt, lastError, false, runId, finalProgress);
     }
 
     public ShardTaskDoc failedOnNode(String error, boolean isRetriable, Map<String, Object> finalProgress) {
-        return withNodeState(ShardTaskStatus.FAILED, runId, finalProgress, error, isRetriable);
+        return copy(ShardTaskStatus.FAILED, assignedNode, epoch, attempt, error, isRetriable, runId, finalProgress);
     }
 
-    private ShardTaskDoc withNodeState(
+    private ShardTaskDoc copy(
         ShardTaskStatus newStatus,
-        String newRunId,
-        Map<String, Object> newProgress,
+        String newAssignedNode,
+        long newEpoch,
+        int newAttempt,
         String error,
-        boolean isRetriable
+        boolean isRetriable,
+        String newRunId,
+        Map<String, Object> newProgress
     ) {
         return new ShardTaskDoc(
             projectId,
             targetIndex,
             targetIndexUuid,
             params,
+            createdAt,
             newStatus,
-            assignedNode,
-            epoch,
-            attempt,
+            newAssignedNode,
+            newEpoch,
+            newAttempt,
             error,
             isRetriable,
             newRunId,
@@ -305,6 +311,7 @@ public record ShardTaskDoc(
         builder.field(IndexTaskDoc.SOURCE_INDEX_UUID.getPreferredName(), params.shardId().getIndex().getUUID());
         builder.field(SHARD.getPreferredName(), shard());
         builder.field(PARAMS.getPreferredName(), params);
+        builder.field(IndexTaskDoc.CREATED_AT.getPreferredName(), createdAt);
         builder.field(STATUS.getPreferredName(), status.name());
         if (assignedNode != null) {
             builder.field(ASSIGNED_NODE.getPreferredName(), assignedNode);

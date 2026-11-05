@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Drives downsample operations through {@link DownsampleOrchestrator} on a single node with a real time series source index.
@@ -99,20 +100,19 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
         IndexMetadata source = createSource(shards);
         requestDownsample(source);
 
-        List<Versioned<ShardTaskDoc>> assigned = awaitShardTasks(shards, ShardTaskStatus.ASSIGNED);
-        String localNode = store.forLocalNode().nodeId();
-        assertThat(assigned.stream().map(t -> t.doc().assignedNode()).toList(), everyItem(equalTo(localNode)));
+        // the master leaves the tasks to the nodes to claim
+        List<Versioned<ShardTaskDoc>> unassigned = awaitShardTasks(shards, ShardTaskStatus.UNASSIGNED);
+        assertThat(unassigned.stream().map(t -> t.doc().assignedNode()).toList(), everyItem(nullValue()));
         IndexMetadata target = index(TARGET);
         assertThat(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(target.getSettings()), equalTo(DownsampleTaskStatus.STARTED));
         assertTrue(target.isHidden());
-        assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.RUN_SHARDS));
+        assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.RUN_SHARDS)));
         assertThat(indexTask().doc().targetIndexUuid(), equalTo(target.getIndexUUID()));
 
-        // play the node: run and complete every shard task
-        for (Versioned<ShardTaskDoc> task : assigned) {
-            long epoch = task.doc().epoch();
-            Versioned<ShardTaskDoc> running = nodeWrite(task, task.doc().running(randomUUID(), Map.of()), epoch);
-            nodeWrite(running, running.doc().completed(Map.of("in_num_docs_received", 1)), epoch);
+        // play the node: claim, run and complete every shard task
+        for (Versioned<ShardTaskDoc> task : unassigned) {
+            Versioned<ShardTaskDoc> running = claim(task);
+            nodeWrite(running, running.doc().completed(Map.of("in_num_docs_received", 1)), running.doc().epoch());
         }
 
         assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.DONE)));
@@ -126,15 +126,15 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
     public void testRetriesAFailedShardTask() throws Exception {
         IndexMetadata source = createSource(1);
         requestDownsample(source);
-        Versioned<ShardTaskDoc> task = awaitShardTasks(1, ShardTaskStatus.ASSIGNED).get(0);
-        long epoch = task.doc().epoch();
-        Versioned<ShardTaskDoc> running = nodeWrite(task, task.doc().running(randomUUID(), Map.of()), epoch);
+        Versioned<ShardTaskDoc> running = claim(awaitShardTasks(1, ShardTaskStatus.UNASSIGNED).get(0));
+        long epoch = running.doc().epoch();
         nodeWrite(running, running.doc().failedOnNode("bulk failure", true, Map.of()), epoch);
 
-        // the master gives the task another attempt, here on the same (only) node at a new epoch
+        // the master makes the task claimable again, for another attempt at a new epoch
         assertBusy(() -> {
             ShardTaskDoc retried = shardTasks(1).get(0).doc();
-            assertThat(retried.status(), equalTo(ShardTaskStatus.ASSIGNED));
+            assertThat(retried.status(), equalTo(ShardTaskStatus.UNASSIGNED));
+            assertThat(retried.assignedNode(), nullValue());
             assertThat(retried.attempt(), equalTo(1));
             assertThat(retried.epoch(), equalTo(epoch + 1));
             assertThat(retried.lastError(), equalTo("bulk failure"));
@@ -145,10 +145,8 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
     public void testNonRetriableShardFailureFailsTheOperation() throws Exception {
         IndexMetadata source = createSource(1);
         requestDownsample(source);
-        Versioned<ShardTaskDoc> task = awaitShardTasks(1, ShardTaskStatus.ASSIGNED).get(0);
-        long epoch = task.doc().epoch();
-        Versioned<ShardTaskDoc> running = nodeWrite(task, task.doc().running(randomUUID(), Map.of()), epoch);
-        nodeWrite(running, running.doc().failedOnNode("cannot parse", false, Map.of()), epoch);
+        Versioned<ShardTaskDoc> running = claim(awaitShardTasks(1, ShardTaskStatus.UNASSIGNED).get(0));
+        nodeWrite(running, running.doc().failedOnNode("cannot parse", false, Map.of()), running.doc().epoch());
 
         assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.FAILED)));
         assertThat(indexTask().doc().lastError(), containsString("cannot parse"));
@@ -173,7 +171,8 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
     public void testTargetDeletedWhileRunningFailsTheOperation() throws Exception {
         IndexMetadata source = createSource(1);
         requestDownsample(source);
-        awaitShardTasks(1, ShardTaskStatus.ASSIGNED);
+        awaitShardTasks(1, ShardTaskStatus.UNASSIGNED);
+        assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.RUN_SHARDS)));
         assertAcked(client().admin().indices().prepareDelete(TARGET));
         assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.FAILED)));
         assertThat(indexTask().doc().lastError(), containsString("target index [" + TARGET + "]"));
@@ -185,7 +184,7 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
         int shards = between(1, 3);
         IndexMetadata source = createSource(shards);
         requestDownsample(source);
-        awaitShardTasks(shards, ShardTaskStatus.ASSIGNED);
+        awaitShardTasks(shards, ShardTaskStatus.UNASSIGNED);
 
         poll();
 
@@ -208,8 +207,10 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
     public void testResumesARunningTaskWithoutALocalRun() throws Exception {
         IndexMetadata source = createSource(1);
         requestDownsample(source);
-        Versioned<ShardTaskDoc> task = awaitShardTasks(1, ShardTaskStatus.ASSIGNED).get(0);
-        nodeWrite(task, task.doc().running("before-restart", Map.of()), task.doc().epoch());
+        Versioned<ShardTaskDoc> task = awaitShardTasks(1, ShardTaskStatus.UNASSIGNED).get(0);
+        PlainActionFuture<Versioned<ShardTaskDoc>> claimed = new PlainActionFuture<>();
+        store.forLocalNode().claimShardTask(task, "before-restart", Map.of(), claimed);
+        claimed.actionGet(TimeValue.timeValueSeconds(10));
 
         poll();
 
@@ -277,11 +278,9 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
      */
     public void testFailedPhaseIsRetriedWithBackoff() throws Exception {
         requestDownsample(createSource(1));
-        Versioned<ShardTaskDoc> task = awaitShardTasks(1, ShardTaskStatus.ASSIGNED).get(0);
+        Versioned<ShardTaskDoc> running = claim(awaitShardTasks(1, ShardTaskStatus.UNASSIGNED).get(0));
         setTargetReadOnly(true);
-        long epoch = task.doc().epoch();
-        Versioned<ShardTaskDoc> running = nodeWrite(task, task.doc().running(randomUUID(), Map.of()), epoch);
-        nodeWrite(running, running.doc().completed(Map.of()), epoch);
+        nodeWrite(running, running.doc().completed(Map.of()), running.doc().epoch());
 
         assertBusy(() -> {
             IndexTaskDoc retrying = indexTask().doc();
@@ -305,11 +304,9 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
      */
     public void testOperationFailsAfterMaxPhaseAttempts() throws Exception {
         requestDownsample(createSource(1));
-        Versioned<ShardTaskDoc> task = awaitShardTasks(1, ShardTaskStatus.ASSIGNED).get(0);
+        Versioned<ShardTaskDoc> running = claim(awaitShardTasks(1, ShardTaskStatus.UNASSIGNED).get(0));
         setTargetReadOnly(true);
-        long epoch = task.doc().epoch();
-        Versioned<ShardTaskDoc> running = nodeWrite(task, task.doc().running(randomUUID(), Map.of()), epoch);
-        nodeWrite(running, running.doc().completed(Map.of()), epoch);
+        nodeWrite(running, running.doc().completed(Map.of()), running.doc().epoch());
 
         assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.FAILED)), 60, TimeUnit.SECONDS);
         IndexTaskDoc failed = indexTask().doc();
@@ -325,7 +322,7 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
      */
     public void testOperationFailsAfterItsDeadline() throws Exception {
         requestDownsample(createSource(1), TimeValue.timeValueSeconds(2));
-        awaitShardTasks(1, ShardTaskStatus.ASSIGNED);
+        awaitShardTasks(1, ShardTaskStatus.UNASSIGNED);
 
         assertBusy(() -> assertThat(indexTask().doc().phase(), equalTo(IndexTaskPhase.FAILED)));
         assertThat(indexTask().doc().lastError(), containsString("deadline"));
@@ -359,7 +356,8 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
                 } else {
                     completion.onFailure(failure);
                 }
-            }
+            },
+            0
         );
     }
 
@@ -464,6 +462,10 @@ public class DownsampleOrchestratorTests extends ESSingleNodeTestCase {
     private Versioned<IndexTaskDoc> indexTask() {
         Optional<Versioned<IndexTaskDoc>> task = call(l -> store.forMaster().getIndexTask(ProjectId.DEFAULT, TARGET, l));
         return task.orElseThrow();
+    }
+
+    private Versioned<ShardTaskDoc> claim(Versioned<ShardTaskDoc> unassigned) {
+        return call(l -> store.forLocalNode().claimShardTask(unassigned, randomUUID(), Map.of(), l));
     }
 
     private Versioned<ShardTaskDoc> nodeWrite(Versioned<ShardTaskDoc> current, ShardTaskDoc next, long heldEpoch) {

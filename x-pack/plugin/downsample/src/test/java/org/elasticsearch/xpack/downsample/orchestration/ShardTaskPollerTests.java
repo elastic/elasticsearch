@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample.orchestration;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,14 +34,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
- * The node side: how {@link ShardTaskPoller} and {@link ShardTaskRun} react to what they find in the state index, in particular when
- * a task is taken away from the node while it runs (fencing) and when the poller's near real time search is stale.
+ * The node side: how {@link ShardTaskPoller} and {@link ShardTaskRun} claim and run tasks, in particular when a claim loses a race,
+ * when a task is taken away from the node while it runs (fencing) and when the poller's near real time search is stale.
  * <p>
  * The poller under test is not the node's (which polls every hour here, so it stays out of the way): it is driven by the tests, and
  * its indexer is a fake that records each run, so the tests decide when and how a run completes.
@@ -52,6 +55,7 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
     private DownsampleStateStore store;
     private ShardTaskPoller poller;
     private final List<Tuple<ShardTaskRun, ActionListener<Void>>> started = new CopyOnWriteArrayList<>();
+    private Index source;
     private String targetUuid;
 
     @Override
@@ -71,43 +75,60 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
     public void setUpPoller() {
         assumeTrue("the system index path needs the feature flag", DownsampleStateIndex.FEATURE_FLAG.isEnabled());
         store = getInstanceFromNode(DownsampleStateStore.class);
-        poller = new ShardTaskPoller(
-            client(),
-            store,
-            getInstanceFromNode(ClusterService.class),
-            getInstanceFromNode(ThreadPool.class),
-            getInstanceFromNode(ProjectResolver.class),
-            false,
-            (run, completion) -> started.add(new Tuple<>(run, completion))
-        );
-        createIndex("target");
-        targetUuid = getInstanceFromNode(ClusterService.class).state().metadata().getProject().index("target").getIndexUUID();
+        poller = newPoller(0);
+        // every shard of the source index is on this node, so this node can claim all of their tasks
+        source = createIndex("source", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build()).index();
+        targetUuid = createIndex("target").index().getUUID();
     }
 
-    public void testRunsAndCompletesItsTask() throws Exception {
-        Versioned<ShardTaskDoc> assigned = assignedToThisNode();
+    public void testClaimsRunsAndCompletesATask() throws Exception {
+        Versioned<ShardTaskDoc> unassigned = unassignedTask(0);
         poll();
         ShardTaskRun run = awaitStarted(1);
-        ShardTaskDoc running = read(assigned).doc();
+        ShardTaskDoc running = read(unassigned).doc();
         assertThat(running.status(), equalTo(ShardTaskStatus.RUNNING));
+        assertThat(running.assignedNode(), equalTo(nodeId()));
+        assertThat(running.epoch(), equalTo(unassigned.doc().epoch() + 1));
         assertThat(running.runId(), equalTo(run.runId()));
+        assertThat(run.epoch(), equalTo(running.epoch()));
 
         completeRun(0, l -> l.onResponse(null));
-        assertBusy(() -> assertThat(read(assigned).doc().status(), equalTo(ShardTaskStatus.COMPLETED)));
+        assertBusy(() -> assertThat(read(unassigned).doc().status(), equalTo(ShardTaskStatus.COMPLETED)));
         assertBusy(() -> assertThat(poller.activeRuns(), equalTo(0)));
     }
 
     public void testReportsWhetherAFailureIsRetriable() throws Exception {
-        Versioned<ShardTaskDoc> assigned = assignedToThisNode();
+        Versioned<ShardTaskDoc> unassigned = unassignedTask(0);
         poll();
         awaitStarted(1);
         boolean retriable = randomBoolean();
         completeRun(0, l -> l.onFailure(new DownsampleShardIndexerException("bulk failure", retriable)));
         assertBusy(() -> {
-            ShardTaskDoc failed = read(assigned).doc();
+            ShardTaskDoc failed = read(unassigned).doc();
             assertThat(failed.status(), equalTo(ShardTaskStatus.FAILED));
             assertThat(failed.retriable(), equalTo(retriable));
         });
+    }
+
+    /**
+     * The task was claimed (here by another run, as it could be by another node) between the search and the claim: the claim loses
+     * the compare-and-set, nothing runs.
+     */
+    public void testLostClaimRunsNothing() throws Exception {
+        Versioned<ShardTaskDoc> unassigned = unassignedTask(0);
+        PlainActionFuture<Versioned<ShardTaskDoc>> otherClaim = new PlainActionFuture<>();
+        store.forLocalNode().claimShardTask(unassigned, "other-run", Map.of(), otherClaim);
+        Versioned<ShardTaskDoc> claimedElsewhere = otherClaim.actionGet(TimeValue.timeValueSeconds(10));
+
+        // the claim of this run is based on the version the search returned
+        AtomicBoolean done = new AtomicBoolean();
+        List<ActionListener<Void>> indexer = new CopyOnWriteArrayList<>();
+        ShardTaskRun run = new ShardTaskRun(store.forLocalNode(), unassigned, finished -> done.set(true));
+        run.start(indexer::add);
+        assertBusy(() -> assertTrue(done.get()));
+        assertThat(indexer, empty());
+        assertFalse(run.hasStarted());
+        assertThat(read(unassigned), equalTo(claimedElsewhere));
     }
 
     /**
@@ -115,7 +136,7 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
      * time read shows it is still ours, so the run goes on.
      */
     public void testMissingSearchHitDoesNotCancelTheRun() throws Exception {
-        Versioned<ShardTaskDoc> assigned = assignedToThisNode();
+        Versioned<ShardTaskDoc> unassigned = unassignedTask(0);
         poll();
         ShardTaskRun run = awaitStarted(1);
 
@@ -124,97 +145,195 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
         assertThat(poller.activeRuns(), equalTo(1));
 
         completeRun(0, l -> l.onResponse(null));
-        assertBusy(() -> assertThat(read(assigned).doc().status(), equalTo(ShardTaskStatus.COMPLETED)));
+        assertBusy(() -> assertThat(read(unassigned).doc().status(), equalTo(ShardTaskStatus.COMPLETED)));
     }
 
     /**
-     * A stale hit with an older epoch of the task (here: from before the task was taken away and given back) must not replace
-     * the current run with one that is fenced from the start.
+     * A stale hit with an older epoch of the task (here: from before the task was released and claimed again by this node) must
+     * not replace the current run with one that is fenced from the start.
      */
     public void testStaleHitDoesNotReplaceTheRun() throws Exception {
-        Versioned<ShardTaskDoc> firstAssignment = assignedToThisNode();
-        Versioned<ShardTaskDoc> unassigned = masterWrite(firstAssignment, firstAssignment.doc().unassign());
-        Versioned<ShardTaskDoc> reassigned = masterWrite(unassigned, unassigned.doc().assignTo(nodeId(), true));
+        Versioned<ShardTaskDoc> unassigned = unassignedTask(0);
         poll();
-        ShardTaskRun run = awaitStarted(1);
-        assertThat(run.epoch(), equalTo(reassigned.doc().epoch()));
+        awaitStarted(1);
+        Versioned<ShardTaskDoc> firstClaim = read(unassigned);
+        masterWrite(firstClaim, firstClaim.doc().unassign());
+        reconcile(List.of());
+        assertThat(poller.activeRuns(), equalTo(0));
 
-        reconcile(List.of(firstAssignment));
+        poll();
+        ShardTaskRun run = awaitStarted(2);
+        assertThat(run.epoch(), equalTo(firstClaim.doc().epoch() + 2));
+
+        reconcile(List.of(firstClaim));
         assertFalse(run.isCancelled());
-        assertThat("no run was started for the stale hit", started, hasSize(1));
+        assertThat("no run was started for the stale hit", started, hasSize(2));
         assertThat(poller.activeRuns(), equalTo(1));
     }
 
     /**
-     * The master took the task away: once a real time read confirms it, the run is cancelled, and it writes nothing when its
+     * The master released the task: once a real time read confirms it, the run is cancelled, and it writes nothing when its
      * indexer completes.
      */
-    public void testReassignedTaskIsCancelledAfterConfirmation() throws Exception {
-        Versioned<ShardTaskDoc> assigned = assignedToThisNode();
+    public void testReleasedTaskIsCancelledAfterConfirmation() throws Exception {
+        Versioned<ShardTaskDoc> unassigned = unassignedTask(0);
         poll();
         ShardTaskRun run = awaitStarted(1);
-        Versioned<ShardTaskDoc> reassigned = masterWrite(read(assigned), read(assigned).doc().assignTo("another-node", false));
+        Versioned<ShardTaskDoc> released = masterWrite(read(unassigned), read(unassigned).doc().unassign());
 
         reconcile(List.of());
         assertTrue(run.isCancelled());
         assertThat(poller.activeRuns(), equalTo(0));
 
         completeRun(0, l -> l.onResponse(null));
-        assertThat("the cancelled run did not write", read(assigned), equalTo(reassigned));
+        assertThat("the cancelled run did not write", read(unassigned), equalTo(released));
     }
 
     /**
-     * The master took the task away, and the run finds out by itself on its next write (a progress write after a bulk): the version
+     * The master released the task, and the run finds out by itself on its next write (a progress write after a bulk): the version
      * conflict, confirmed by a real time read, fences it.
      */
     public void testRunIsFencedByItsNextWrite() throws Exception {
-        Versioned<ShardTaskDoc> assigned = assignedToThisNode();
+        Versioned<ShardTaskDoc> unassigned = unassignedTask(0);
         poll();
         ShardTaskRun run = awaitStarted(1);
-        Versioned<ShardTaskDoc> reassigned = masterWrite(read(assigned), read(assigned).doc().assignTo("another-node", false));
+        Versioned<ShardTaskDoc> released = masterWrite(read(unassigned), read(unassigned).doc().unassign());
 
         run.onBulkCompleted();
         assertBusy(() -> assertTrue(run.isCancelled()));
 
         completeRun(0, l -> l.onResponse(null));
-        assertThat("the fenced run did not write", read(assigned), equalTo(reassigned));
+        assertThat("the fenced run did not write", read(unassigned), equalTo(released));
     }
 
     /**
-     * A run started from an older version of a task that is still ours at the same epoch (e.g. from a stale search hit, after an
-     * earlier run of this node marked it running): its first write conflicts, the real time read shows the task is still ours, so
+     * A run resumed from an older version of a task that is still ours at the same epoch (e.g. from a stale search hit, after an
+     * earlier run of this node wrote progress): its first write conflicts, the real time read shows the task is still ours, so
      * it retries and goes on.
      */
     public void testBenignConflictIsRetried() throws Exception {
-        Versioned<ShardTaskDoc> assigned = assignedToThisNode();
+        Versioned<ShardTaskDoc> claimed = claimedByThisNode(0, "earlier-run");
         PlainActionFuture<Versioned<ShardTaskDoc>> earlierRun = new PlainActionFuture<>();
-        store.forLocalNode().updateShardTask(assigned, assigned.doc().running("earlier-run", Map.of()), assigned.doc().epoch(), earlierRun);
+        store.forLocalNode()
+            .updateShardTask(claimed, claimed.doc().withProgress(Map.of("in_num_docs_received", 1)), claimed.doc().epoch(), earlierRun);
         earlierRun.actionGet(TimeValue.timeValueSeconds(10));
 
         List<ActionListener<Void>> indexer = new CopyOnWriteArrayList<>();
-        ShardTaskRun run = new ShardTaskRun(store.forLocalNode(), assigned, finished -> {});
+        ShardTaskRun run = new ShardTaskRun(store.forLocalNode(), claimed, finished -> {});
         run.start(indexer::add);
         assertBusy(() -> assertThat(indexer, hasSize(1)));
         assertFalse(run.isCancelled());
-        assertThat(read(assigned).doc().runId(), equalTo(run.runId()));
+        assertThat(read(claimed).doc().runId(), equalTo(run.runId()));
 
         indexer.get(0).onResponse(null);
-        assertBusy(() -> assertThat(read(assigned).doc().status(), equalTo(ShardTaskStatus.COMPLETED)));
+        assertBusy(() -> assertThat(read(claimed).doc().status(), equalTo(ShardTaskStatus.COMPLETED)));
+    }
+
+    /**
+     * A node claims no more shard tasks than it can run at the same time (by default the size of the downsample thread pool): the
+     * others stay unassigned, claimable by any node, and this node claims one as soon as a run finished.
+     */
+    public void testClaimsAtMostItsLimit() throws Exception {
+        poller = newPoller(2);
+        List<Versioned<ShardTaskDoc>> tasks = List.of(unassignedTask(0), unassignedTask(1), unassignedTask(2));
+        poll();
+        awaitStarted(2);
+        assertThat(poller.activeRuns(), equalTo(2));
+        assertThat("one task waits for a free slot", count(tasks, ShardTaskStatus.UNASSIGNED), equalTo(1L));
+
+        completeRun(0, l -> l.onResponse(null));
+        // the finished run frees a slot and makes the poller look again right away
+        awaitStarted(3);
+        assertBusy(() -> assertThat(poller.activeRuns(), equalTo(2)));
+        assertThat(count(tasks, ShardTaskStatus.UNASSIGNED), equalTo(0L));
+    }
+
+    /**
+     * Tasks are claimed oldest operation first, so the operations requested first finish first.
+     */
+    public void testClaimsOldestFirst() throws Exception {
+        poller = newPoller(1);
+        Versioned<ShardTaskDoc> newer = unassignedTask(0, 2_000);
+        Versioned<ShardTaskDoc> older = unassignedTask(1, 1_000);
+        poll();
+        ShardTaskRun run = awaitStarted(1);
+        assertThat(run.docId(), equalTo(older.doc().id()));
+        assertThat(read(newer).doc().status(), equalTo(ShardTaskStatus.UNASSIGNED));
+    }
+
+    /**
+     * With a single free slot, a task this node already runs (e.g. after a restart) is resumed before new ones are claimed, even
+     * older ones.
+     */
+    public void testResumesOwnTasksBeforeClaiming() throws Exception {
+        poller = newPoller(1);
+        Versioned<ShardTaskDoc> unassigned = unassignedTask(0, 1_000);
+        Versioned<ShardTaskDoc> wasRunning = claimedByThisNode(1, "before-restart");
+
+        poll();
+        ShardTaskRun run = awaitStarted(1);
+        assertThat(run.docId(), equalTo(wasRunning.doc().id()));
+        assertThat(run.epoch(), equalTo(wasRunning.doc().epoch()));
+        assertThat(read(unassigned).doc().status(), equalTo(ShardTaskStatus.UNASSIGNED));
+    }
+
+    /**
+     * A task of a source shard this node holds no copy of is left for the nodes that do.
+     */
+    public void testDoesNotClaimTasksOfShardsItDoesNotHold() throws Exception {
+        Versioned<ShardTaskDoc> elsewhere = createUnassigned(new ShardId(new Index("source-elsewhere", randomUUID()), 0), 1);
+        poll();
+        assertThat(started, empty());
+        assertThat(read(elsewhere).doc().status(), equalTo(ShardTaskStatus.UNASSIGNED));
     }
 
     // ---- helpers ----
 
-    private Versioned<ShardTaskDoc> assignedToThisNode() {
+    private ShardTaskPoller newPoller(int maxConcurrentRuns) {
+        return new ShardTaskPoller(
+            client(),
+            store,
+            getInstanceFromNode(ClusterService.class),
+            getInstanceFromNode(ThreadPool.class),
+            getInstanceFromNode(ProjectResolver.class),
+            false,
+            (run, completion) -> started.add(new Tuple<>(run, completion)),
+            maxConcurrentRuns
+        );
+    }
+
+    private Versioned<ShardTaskDoc> unassignedTask(int shard) {
+        return unassignedTask(shard, 1);
+    }
+
+    private Versioned<ShardTaskDoc> unassignedTask(int shard, long createdAt) {
+        return createUnassigned(new ShardId(source, shard), createdAt);
+    }
+
+    private Versioned<ShardTaskDoc> createUnassigned(ShardId sourceShard, long createdAt) {
         ShardTaskDoc doc = ShardTaskDoc.newTask(
             PROJECT,
             "target",
             targetUuid,
-            OrchestrationTestUtils.randomParams("target", new ShardId(new Index("source", randomUUID()), 0))
+            OrchestrationTestUtils.randomParams("target", sourceShard),
+            createdAt
         );
         PlainActionFuture<Versioned<ShardTaskDoc>> created = new PlainActionFuture<>();
         store.forMaster().createShardTask(doc, created);
-        Versioned<ShardTaskDoc> unassigned = created.actionGet(TimeValue.timeValueSeconds(10));
-        return masterWrite(unassigned, unassigned.doc().assignTo(nodeId(), false));
+        return created.actionGet(TimeValue.timeValueSeconds(10));
+    }
+
+    /**
+     * A task an earlier run of this node claimed, as found after this node restarted.
+     */
+    private Versioned<ShardTaskDoc> claimedByThisNode(int shard, String earlierRunId) {
+        PlainActionFuture<Versioned<ShardTaskDoc>> claimed = new PlainActionFuture<>();
+        store.forLocalNode().claimShardTask(unassignedTask(shard), earlierRunId, Map.of(), claimed);
+        return claimed.actionGet(TimeValue.timeValueSeconds(10));
+    }
+
+    private long count(List<Versioned<ShardTaskDoc>> tasks, ShardTaskStatus status) {
+        return tasks.stream().filter(t -> read(t).doc().status() == status).count();
     }
 
     private Versioned<ShardTaskDoc> masterWrite(Versioned<ShardTaskDoc> current, ShardTaskDoc next) {

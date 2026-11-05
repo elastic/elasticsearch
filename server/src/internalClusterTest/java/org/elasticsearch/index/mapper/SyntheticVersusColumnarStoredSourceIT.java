@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryInfo;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.After;
 
 import java.util.HashMap;
 import java.util.List;
@@ -47,6 +49,12 @@ import static org.hamcrest.Matchers.greaterThan;
  * (both using {@code columnar} index mode) return identical {@code _source} for every document.
  */
 public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
+
+    @After
+    public void resetRebalancing() {
+        // indexAndFetchSources disables rebalancing; the persistent cluster setting must not leak out of the test.
+        updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));
+    }
 
     @Override
     protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
@@ -275,7 +283,6 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
      * the original source and never exercise this path.
      */
     private void assertIgnoredContains(String index, String fieldName) {
-        internalCluster().ensureAtLeastNumDataNodes(2);
         setReplicaCount(1, index);
         ensureGreen(index);
         var replicaRecoveredOperations = indicesAdmin().prepareRecoveries(index)
@@ -343,8 +350,12 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         Map<String, ?> document,
         boolean useTimeSeriesDocValuesFormat
     ) {
-        // ESIntegTestCase randomizes the replica count and the translog flush threshold. Pin both: assertIgnoredContains adds the replica
-        // only after indexing, and an intervening flush would let it recover by copying files instead of replaying operations.
+        // assertIgnoredContains adds a replica only after indexing, so that the replica must recover by replaying operations. For that:
+        // - start the second data node up front and disable rebalancing, otherwise a primary could relocate after indexing, and the
+        // relocation force-flushes the document into a commit that the replica then copies instead of replaying operations;
+        // - pin the replica count and the translog flush threshold, which ESIntegTestCase randomizes (a flush has the same effect).
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        updateClusterSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none"));
         var syntheticSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
@@ -362,6 +373,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("test_synthetic").setMapping(mappingXContent).setSettings(syntheticSettings));
         assertAcked(prepareCreate("test_columnar_stored").setMapping(mappingXContent).setSettings(columnarStoredSettings));
+        ensureGreen("test_synthetic", "test_columnar_stored");
 
         prepareIndex("test_synthetic").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         prepareIndex("test_columnar_stored").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();

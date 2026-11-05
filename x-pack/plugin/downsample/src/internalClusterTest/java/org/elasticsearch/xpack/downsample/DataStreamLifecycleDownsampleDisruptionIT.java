@@ -42,6 +42,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends DownsamplingInteg
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
             // TODO: under node restarts the coordinator can release a shard's batch while the primary still reads it ("batch already
             // closed"). The downsample target index takes the TSDB batch default, so batch indexing is turned off cluster-wide.
+            // Randomize batch indexing here once https://github.com/elastic/elasticsearch/pull/164377 is merged.
             .put(BatchIndexingEnabled.BATCH_INDEXING.getKey(), false)
             .build();
     }

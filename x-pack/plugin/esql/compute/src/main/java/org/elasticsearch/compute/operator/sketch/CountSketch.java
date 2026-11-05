@@ -28,7 +28,7 @@ package org.elasticsearch.compute.operator.sketch;
  */
 public final class CountSketch {
     public static final int SLOTS_PER_BUCKET = 4;
-    private static final int LONGS_PER_BUCKET = 2 * SLOTS_PER_BUCKET;
+    static final int LONGS_PER_BUCKET = 2 * SLOTS_PER_BUCKET;
     private static final long PHI = 0x9E3779B97F4A7C15L;
     private static final long ONE = 1L << 32;
     private static final long LOW_MASK = 0xFFFFFFFFL;
@@ -52,6 +52,25 @@ public final class CountSketch {
         return buckets;
     }
 
+    /** The table, for the proof, which reads every sketch in a tight loop. See the class comment for the layout. */
+    long[] table() {
+        return table;
+    }
+
+    /**
+     * The meta word {@code (count << 32) | error} of {@code key}, or {@code 0} if it is not tracked.
+     */
+    long find(long key) {
+        final int base = bucketOf(key) * LONGS_PER_BUCKET;
+        for (int i = base; i < base + LONGS_PER_BUCKET; i += 2) {
+            long meta = table[i + 1];
+            if (meta != 0 && table[i] == key) {
+                return meta;
+            }
+        }
+        return 0;
+    }
+
     public long ramBytes() {
         return (long) table.length * Long.BYTES;
     }
@@ -63,8 +82,44 @@ public final class CountSketch {
         return (int) ((key * PHI) >>> shift);
     }
 
+    /**
+     * The slot of the key that was counted last, or {@code -1}. Rows with the same key are often next to each other, because the
+     * index is sorted, and a row that repeats the previous key can be counted without hashing and without reading the bucket.
+     * The slot still holds that key, because no other key was counted since.
+     */
+    private int lastIdx = -1;
+    private long lastKey;
+
     /** Count one row of {@code key}. */
     public void add(long key) {
+        if (lastIdx >= 0 && key == lastKey) {
+            table[lastIdx + 1] += ONE;
+            return;
+        }
+        lastIdx = insert(key);
+        lastKey = key;
+    }
+
+    /** Count the first {@code count} keys of {@code keys}, in order. Same as calling {@link #add} for each. */
+    public void addAll(long[] keys, int count) {
+        final long[] t = table;
+        long last = lastKey;
+        int idx = lastIdx;
+        for (int r = 0; r < count; r++) {
+            final long key = keys[r];
+            if (idx >= 0 && key == last) {
+                t[idx + 1] += ONE;
+            } else {
+                idx = insert(key);
+                last = key;
+            }
+        }
+        lastKey = last;
+        lastIdx = idx;
+    }
+
+    /** Count one row of {@code key} and return the index of the slot that holds it. */
+    private int insert(long key) {
         final long[] t = table;
         final int base = bucketOf(key) * LONGS_PER_BUCKET;
         int empty = -1;
@@ -78,7 +133,7 @@ public final class CountSketch {
                 }
             } else if (t[i] == key) {
                 t[i + 1] = meta + ONE;
-                return;
+                return i;
             } else {
                 long count = meta >>> 32;
                 if (count < minCount) {
@@ -90,10 +145,11 @@ public final class CountSketch {
         if (empty >= 0) {
             t[empty] = key;
             t[empty + 1] = ONE;
-        } else {
-            t[min] = key;
-            t[min + 1] = ((minCount + 1) << 32) | minCount;
+            return empty;
         }
+        t[min] = key;
+        t[min + 1] = ((minCount + 1) << 32) | minCount;
+        return min;
     }
 
     /**

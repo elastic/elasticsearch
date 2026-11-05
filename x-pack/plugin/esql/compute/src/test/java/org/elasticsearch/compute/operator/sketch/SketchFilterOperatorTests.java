@@ -232,6 +232,122 @@ public class SketchFilterOperatorTests extends ESTestCase {
         }
     }
 
+    /** {@code addAll} must leave the sketch exactly as {@code add} would, also when a run of equal keys spans two calls. */
+    public void testAddAllGivesTheSameSketchAsAdd() {
+        List<Long> keys = new ArrayList<>();
+        while (keys.size() < 50_000) {
+            long key = randomBoolean() ? randomIntBetween(0, 50) : randomIntBetween(0, 20_000);
+            for (int i = randomIntBetween(1, 6); i > 0; i--) {
+                keys.add(key);
+            }
+        }
+        CountSketch one = new CountSketch(256);
+        CountSketch bulk = new CountSketch(256);
+        long[] all = keys.stream().mapToLong(Long::longValue).toArray();
+        for (long k : all) {
+            one.add(k);
+        }
+        for (int start = 0; start < all.length;) {
+            int length = Math.min(all.length - start, randomIntBetween(0, 700));
+            bulk.addAll(java.util.Arrays.copyOfRange(all, start, start + length), length);
+            start += length;
+        }
+        assertThat(tracked(bulk), equalTo(tracked(one)));
+        for (int b = 0; b < one.buckets(); b++) {
+            assertThat(bulk.cmin(b), equalTo(one.cmin(b)));
+        }
+    }
+
+    private static Map<Long, List<Long>> tracked(CountSketch sketch) {
+        Map<Long, List<Long>> m = new HashMap<>();
+        sketch.forEachTracked((bucket, key, count, error) -> m.put(key, List.of(count, error)));
+        return m;
+    }
+
+    /**
+     * The proof must give the same decision and the same candidates as its definition: {@code lo(k)} is the sum of {@code c - e},
+     * {@code hi(k)} adds the bucket bound for the drivers that do not track {@code k}, {@code L} is the N-th largest {@code lo},
+     * and the bound for untracked keys is the largest bucket sum of {@code c_min}.
+     */
+    public void testProofMatchesItsDefinition() {
+        int passes = 0;
+        for (int trial = 0; trial < 60; trial++) {
+            int drivers = between(1, 6);
+            int slots = randomFrom(64, 256, 1024);
+            int topN = between(1, 10);
+            CountSketch[] sketches = new CountSketch[drivers];
+            for (int d = 0; d < drivers; d++) {
+                sketches[d] = new CountSketch(slots);
+            }
+            int heavy = between(0, 15);
+            long[] heavyCounts = new long[heavy];
+            for (int h = 0; h < heavy; h++) {
+                heavyCounts[h] = between(50, 3000);
+            }
+            int rows = between(1_000, 60_000);
+            for (int i = 0; i < rows; i++) {
+                long key;
+                if (heavy > 0 && randomInt(3) == 0) {
+                    key = 1_000_000L + randomIntBetween(0, heavy - 1);
+                } else {
+                    key = randomIntBetween(0, between(100, 30_000));
+                }
+                sketches[randomInt(drivers - 1)].add(key);
+            }
+            // reference
+            int buckets = sketches[0].buckets();
+            long bound = 0;
+            for (int b = 0; b < buckets; b++) {
+                long sum = 0;
+                for (CountSketch s : sketches) {
+                    sum += s.cmin(b);
+                }
+                bound = Math.max(bound, sum);
+            }
+            Map<Long, Long> lo = new HashMap<>();
+            for (CountSketch s : sketches) {
+                s.forEachTracked((bucket, key, count, error) -> lo.merge(key, count - error, Long::sum));
+            }
+            boolean expectedPass = false;
+            java.util.Set<Long> expected = new java.util.HashSet<>();
+            if (lo.size() >= topN) {
+                long lowest = lo.values().stream().sorted(java.util.Comparator.reverseOrder()).skip(topN - 1).findFirst().get();
+                expectedPass = lowest > bound;
+                if (expectedPass) {
+                    for (long key : lo.keySet()) {
+                        long hi = 0;
+                        for (CountSketch s : sketches) {
+                            long meta = s.find(key);
+                            hi += meta != 0 ? meta >>> 32 : s.cmin(s.bucketOf(key));
+                        }
+                        if (hi >= lowest) {
+                            expected.add(key);
+                        }
+                    }
+                }
+            }
+            SketchFilterBarrier barrier = new SketchFilterBarrier(topN, 1_000_000, Long.MAX_VALUE);
+            for (int d = 0; d < drivers; d++) {
+                barrier.register();
+            }
+            for (CountSketch s : sketches) {
+                assertFalse(barrier.isDecided());
+                barrier.arrive(s);
+            }
+            assertTrue(barrier.isDecided());
+            assertThat("trial " + trial, barrier.filtering(), equalTo(expectedPass));
+            if (expectedPass) {
+                passes++;
+                LongSet candidates = barrier.candidates();
+                assertThat("trial " + trial, candidates.size(), equalTo(expected.size()));
+                for (long key : expected) {
+                    assertTrue("trial " + trial + " key " + key, candidates.contains(key));
+                }
+            }
+        }
+        assertThat("the test should cover passing proofs", passes, org.hamcrest.Matchers.greaterThan(3));
+    }
+
     public void testSketchBoundsHoldForRandomInput() {
         int slots = 256;
         CountSketch sketch = new CountSketch(slots);

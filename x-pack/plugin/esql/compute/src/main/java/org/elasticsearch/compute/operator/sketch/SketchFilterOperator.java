@@ -82,6 +82,7 @@ public final class SketchFilterOperator implements Operator {
     private boolean arrived;
     private boolean closed;
     private int[] positions = new int[0];
+    private long[] keys = new long[0];
 
     private long rowsReceived;
     private long rowsEmitted;
@@ -108,7 +109,8 @@ public final class SketchFilterOperator implements Operator {
             if (barrier.aborted() || sketchPage(page) == false) {
                 giveUp();
             } else {
-                counted = page.ramBytesUsedByBlocks();
+                // An estimate that does not walk the blocks: this runs once per page and the exact size is not needed for the limit.
+                counted = (long) page.getPositionCount() * Long.BYTES * page.getBlockCount();
                 if (barrier.tryBuffer(counted) == false) {
                     counted = 0;
                     giveUp();
@@ -125,11 +127,13 @@ public final class SketchFilterOperator implements Operator {
         if (vector == null) {
             return false; // nulls or multivalued positions
         }
-        final CountSketch s = sketch;
         final int count = vector.getPositionCount();
-        for (int i = 0; i < count; i++) {
-            s.add(vector.getLong(i));
+        if (keys.length < count) {
+            keys = new long[count];
         }
+        // Copy to an array first: the loop below then reads a plain array instead of calling a vector of some unknown class per row.
+        vector.copyTo(0, keys, 0, count);
+        sketch.addAll(keys, count);
         return true;
     }
 
@@ -197,15 +201,20 @@ public final class SketchFilterOperator implements Operator {
     /** Keep only the rows of candidate keys. Returns null if no row is left. Takes ownership of {@code page}. */
     private Page filter(Page page) {
         final LongSet candidates = barrier.candidates();
-        final LongVector keys = ((LongBlock) page.getBlock(keyChannel)).asVector();
-        assert keys != null : "pages were checked when they were buffered";
-        final int count = keys.getPositionCount();
+        final LongVector keyVector = ((LongBlock) page.getBlock(keyChannel)).asVector();
+        assert keyVector != null : "pages were checked when they were buffered";
+        final int count = keyVector.getPositionCount();
         if (positions.length < count) {
             positions = new int[count];
         }
+        if (this.keys.length < count) {
+            this.keys = new long[count];
+        }
+        final long[] values = this.keys;
+        keyVector.copyTo(0, values, 0, count);
         int kept = 0;
         for (int i = 0; i < count; i++) {
-            if (candidates.contains(keys.getLong(i))) {
+            if (candidates.contains(values[i])) {
                 positions[kept++] = i;
             }
         }

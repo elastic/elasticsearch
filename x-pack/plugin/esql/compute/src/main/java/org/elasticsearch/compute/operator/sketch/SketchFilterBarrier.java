@@ -152,6 +152,17 @@ public final class SketchFilterBarrier {
 
     /**
      * Merge the sketches and apply the proof. Returns the candidates, or {@code null} if the proof does not pass.
+     * <p>
+     * It never builds a map of all the tracked keys, which is too slow for 20 sketches of 64K slots, and it runs while every
+     * other driver waits. It uses two facts instead.
+     * <ul>
+     * <li>{@code lo(k)} is at most {@code drivers * max c} over the slots of {@code k}. So all keys with {@code lo(k) >= drivers * c1}
+     * have a slot with {@code c >= c1}. Taking the keys of the slots with {@code c >= c1} as seeds, and computing their exact
+     * {@code lo}, gives the exact N-th largest {@code lo}, as soon as it is at least {@code drivers * c1}.</li>
+     * <li>{@code hi(k) = sumCmin(b) + sum over the drivers that track k of (c - cmin_d(b))}, and {@code sumCmin(b) <= B}. A candidate
+     * has {@code hi(k) >= L}, so the sum of the excesses {@code c - cmin_d(b)} of its slots is at least {@code L - B}, and one slot
+     * has an excess of at least {@code (L - B) / drivers}. Such slots are rare.</li>
+     * </ul>
      */
     private LongSet decide() {
         final List<CountSketch> ds;
@@ -160,44 +171,33 @@ public final class SketchFilterBarrier {
         }
         final int drivers = ds.size();
         final int buckets = ds.get(0).buckets();
-        long tracked = 0;
         for (CountSketch s : ds) {
             if (s.buckets() != buckets) {
                 throw new IllegalStateException("sketches have different sizes");
             }
         }
-        // sumCmin[b] = sum over drivers of cmin_d(b). cmin[d][b] is kept to subtract the drivers that track a key.
-        final int[][] cmin = new int[drivers][buckets];
+        // The bound for a key that no driver tracks: the largest sum over the drivers of the c_min of a bucket.
         final long[] sumCmin = new long[buckets];
-        long bound = 0;
-        for (int d = 0; d < drivers; d++) {
+        for (CountSketch s : ds) {
             for (int b = 0; b < buckets; b++) {
-                int c = ds.get(d).cmin(b);
-                cmin[d][b] = c;
-                sumCmin[b] += c;
+                sumCmin[b] += s.cmin(b);
             }
         }
-        for (int b = 0; b < buckets; b++) {
-            bound = Math.max(bound, sumCmin[b]);
+        long bound = 0;
+        for (long v : sumCmin) {
+            bound = Math.max(bound, v);
         }
-        for (CountSketch s : ds) {
-            tracked += (long) s.buckets() * CountSketch.SLOTS_PER_BUCKET;
-        }
-        final UnionMap union = new UnionMap(tracked);
-        for (int d = 0; d < drivers; d++) {
-            final int[] driverCmin = cmin[d];
-            ds.get(d).forEachTracked((bucket, key, count, error) -> union.add(key, count - error, count, driverCmin[bucket]));
-        }
-        if (union.size < topN) {
-            logger.debug("sketch proof failed: only [{}] tracked keys for top [{}]", union.size, topN);
+        final long lowest = nthLargestLowerBound(ds);
+        if (lowest < 0) {
+            logger.debug("sketch proof failed: could not find the [{}]-th lower bound", topN);
             return null;
         }
-        final long lowest = union.nthLargestLow(topN);
         if (lowest <= bound) {
             logger.debug("sketch proof failed: lowest top lower bound [{}] is not above the bound [{}]", lowest, bound);
             return null;
         }
-        final long[] found = union.candidates(lowest, sumCmin, ds.get(0), maxCandidates);
+        final long minExcess = Math.max(1, (lowest - bound + drivers - 1) / drivers);
+        final long[] found = candidates(ds, lowest, minExcess);
         if (found == null) {
             logger.debug("sketch proof failed: more than [{}] candidates", maxCandidates);
             return null;
@@ -206,86 +206,189 @@ public final class SketchFilterBarrier {
         return new LongSet(found);
     }
 
-    /**
-     * Open addressing map from a key to the sums over the drivers that track it. Zero is a valid key, so a separate
-     * {@code used} array marks the cells.
-     */
-    private static final class UnionMap {
-        private static final long MIX = 0x9E3779B97F4A7C15L;
-        private final long[] keys;
-        private final boolean[] used;
-        private final long[] low;
-        private final long[] highTracked;
-        private final long[] trackedCmin;
-        private final int shift;
-        private int size;
+    /** At most this many seed keys. More means the sketches are too flat for the proof to be worth it. */
+    private static final int MAX_SEEDS = 1 << 20;
 
-        UnionMap(long expected) {
-            long wanted = Math.max(16, expected + expected / 2);
-            if (wanted > (1 << 30)) {
-                throw new IllegalArgumentException("too many tracked keys [" + expected + "]");
+    /**
+     * The exact N-th largest lower bound over all tracked keys, or {@code -1} if it cannot be found cheaply.
+     */
+    private long nthLargestLowerBound(List<CountSketch> ds) {
+        final int drivers = ds.size();
+        long c1 = 1024;
+        for (int attempt = 0; attempt < 24; attempt++) {
+            KeyMap seeds = collectSeeds(ds, c1);
+            if (seeds == null) {
+                c1 *= 2; // too many seeds
+                continue;
             }
-            int capacity = Integer.highestOneBit((int) wanted - 1) << 1;
-            this.keys = new long[capacity];
-            this.used = new boolean[capacity];
-            this.low = new long[capacity];
-            this.highTracked = new long[capacity];
-            this.trackedCmin = new long[capacity];
-            this.shift = 64 - Integer.numberOfTrailingZeros(capacity);
+            if (seeds.size >= topN) {
+                long lowest = seeds.nthLargestLow(topN);
+                if (lowest >= drivers * c1 || c1 == 1) {
+                    return lowest;
+                }
+            } else if (c1 == 1) {
+                return -1;
+            }
+            c1 = Math.max(1, c1 / 2);
+        }
+        return -1;
+    }
+
+    /** The distinct keys of the slots with {@code c >= minCount}, with their exact lower bound. Null if there are too many. */
+    private static KeyMap collectSeeds(List<CountSketch> ds, long minCount) {
+        final KeyMap seeds = new KeyMap();
+        for (CountSketch sketch : ds) {
+            final long[] t = sketch.table();
+            for (int i = 0; i < t.length; i += 2) {
+                long meta = t[i + 1];
+                if (meta != 0 && (meta >>> 32) >= minCount) {
+                    long key = t[i];
+                    if (seeds.contains(key) == false) {
+                        seeds.add(key, lowerBound(ds, key));
+                        if (seeds.size > MAX_SEEDS) {
+                            return null;
+                        }
+                    }
+                }
+            }
+        }
+        return seeds;
+    }
+
+    /** The keys with {@code hi >= lowest}, found among the slots with an excess over their bucket bound of at least minExcess. */
+    private long[] candidates(List<CountSketch> ds, long lowest, long minExcess) {
+        final KeyMap seen = new KeyMap();
+        long[] out = new long[16];
+        int n = 0;
+        for (CountSketch sketch : ds) {
+            final long[] t = sketch.table();
+            for (int base = 0; base < t.length; base += CountSketch.LONGS_PER_BUCKET) {
+                final long cmin = bucketCmin(t, base);
+                for (int i = base; i < base + CountSketch.LONGS_PER_BUCKET; i += 2) {
+                    long meta = t[i + 1];
+                    if (meta != 0 && (meta >>> 32) - cmin >= minExcess) {
+                        long key = t[i];
+                        if (seen.contains(key) == false) {
+                            seen.add(key, 0);
+                            if (upperBound(ds, key) >= lowest) {
+                                if (n == maxCandidates) {
+                                    return null;
+                                }
+                                if (n == out.length) {
+                                    out = Arrays.copyOf(out, Math.min(maxCandidates, out.length * 2));
+                                }
+                                out[n++] = key;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return Arrays.copyOf(out, n);
+    }
+
+    private static long bucketCmin(long[] t, int base) {
+        long min = Long.MAX_VALUE;
+        for (int i = base; i < base + CountSketch.LONGS_PER_BUCKET; i += 2) {
+            long meta = t[i + 1];
+            if (meta == 0) {
+                return 0;
+            }
+            min = Math.min(min, meta >>> 32);
+        }
+        return min;
+    }
+
+    /** The sum over the drivers that track {@code key} of {@code c - e}. */
+    private static long lowerBound(List<CountSketch> ds, long key) {
+        long lo = 0;
+        for (CountSketch s : ds) {
+            long meta = s.find(key);
+            if (meta != 0) {
+                lo += (meta >>> 32) - (meta & 0xFFFFFFFFL);
+            }
+        }
+        return lo;
+    }
+
+    /** The sum over the drivers of {@code c} where the driver tracks {@code key}, and of the bucket bound where it does not. */
+    private static long upperBound(List<CountSketch> ds, long key) {
+        final int bucket = ds.get(0).bucketOf(key);
+        long hi = 0;
+        for (CountSketch s : ds) {
+            long meta = s.find(key);
+            hi += meta != 0 ? meta >>> 32 : s.cmin(bucket);
+        }
+        return hi;
+    }
+
+    /** A growing set of keys with a value each. Zero is a valid key, so a separate {@code used} array marks the cells. */
+    private static final class KeyMap {
+        private static final long MIX = 0x9E3779B97F4A7C15L;
+        private long[] keys = new long[1024];
+        private long[] lows = new long[1024];
+        private boolean[] used = new boolean[1024];
+        private int shift = 64 - 10;
+        int size;
+
+        boolean contains(long key) {
+            return used[indexOf(key)];
         }
 
-        void add(long key, long lo, long hi, long cmin) {
+        void add(long key, long low) {
+            int i = indexOf(key);
+            if (used[i]) {
+                return;
+            }
+            used[i] = true;
+            keys[i] = key;
+            lows[i] = low;
+            if (++size * 2 > keys.length) {
+                grow();
+            }
+        }
+
+        private int indexOf(long key) {
             final int mask = keys.length - 1;
             int i = (int) (Long.rotateLeft(key * MIX, 17) >>> shift);
             while (used[i] && keys[i] != key) {
                 i = (i + 1) & mask;
             }
-            if (used[i] == false) {
-                used[i] = true;
-                keys[i] = key;
-                size++;
+            return i;
+        }
+
+        private void grow() {
+            final long[] oldKeys = keys;
+            final long[] oldLows = lows;
+            final boolean[] oldUsed = used;
+            keys = new long[oldKeys.length * 2];
+            lows = new long[oldKeys.length * 2];
+            used = new boolean[oldKeys.length * 2];
+            shift--;
+            for (int j = 0; j < oldKeys.length; j++) {
+                if (oldUsed[j]) {
+                    int i = indexOf(oldKeys[j]);
+                    used[i] = true;
+                    keys[i] = oldKeys[j];
+                    lows[i] = oldLows[j];
+                }
             }
-            low[i] += lo;
-            highTracked[i] += hi;
-            trackedCmin[i] += cmin;
         }
 
         long nthLargestLow(int n) {
             final long[] top = new long[n]; // ascending, top[0] is the smallest of the n largest
             Arrays.fill(top, Long.MIN_VALUE);
             for (int i = 0; i < keys.length; i++) {
-                if (used[i] && low[i] > top[0]) {
+                if (used[i] && lows[i] > top[0]) {
                     int j = 0;
-                    while (j + 1 < n && top[j + 1] < low[i]) {
+                    while (j + 1 < n && top[j + 1] < lows[i]) {
                         top[j] = top[j + 1];
                         j++;
                     }
-                    top[j] = low[i];
+                    top[j] = lows[i];
                 }
             }
             return top[0];
-        }
-
-        @Nullable
-        long[] candidates(long lowest, long[] sumCmin, CountSketch bucketFunction, int max) {
-            long[] out = new long[Math.min(max, 64)];
-            int n = 0;
-            for (int i = 0; i < keys.length; i++) {
-                if (used[i] == false) {
-                    continue;
-                }
-                long hi = highTracked[i] + sumCmin[bucketFunction.bucketOf(keys[i])] - trackedCmin[i];
-                if (hi >= lowest) {
-                    if (n == max) {
-                        return null;
-                    }
-                    if (n == out.length) {
-                        out = Arrays.copyOf(out, Math.min(max, out.length * 2));
-                    }
-                    out[n++] = keys[i];
-                }
-            }
-            return Arrays.copyOf(out, n);
         }
     }
 }

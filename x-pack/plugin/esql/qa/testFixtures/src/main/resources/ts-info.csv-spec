@@ -261,3 +261,21 @@ network.total_cost     | "{""cluster"":""prod"",""pod"":""one"",""region"":""[eu
 network.total_cost     | "{""cluster"":""prod"",""pod"":""three"",""region"":""[eu, us]""}"
 network.total_cost     | "{""cluster"":""prod"",""pod"":""two"",""region"":""[eu, us]""}"
 ;
+
+tsInfoValuesDimensionFieldsByMetric
+required_capability: ts_info_command
+TS k8s | TS_INFO | WHERE metric_type == "counter" | STATS dims = VALUES(dimension_fields) BY metric_name, metric_type | SORT metric_name;
+
+dims:keyword           | metric_name:keyword    | metric_type:keyword
+[cluster, pod, region] | network.total_bytes_in | counter
+[cluster, pod, region] | network.total_cost     | counter
+;
+
+tsInfoValuesDimensionFieldsByMetricStackedFilters
+required_capability: ts_info_command
+TS k8s | TS_INFO | WHERE metric_name LIKE "network.*" | WHERE metric_type == "gauge" | STATS dims = VALUES(dimension_fields) BY metric_name | SORT metric_name;
+
+dims:keyword           | metric_name:keyword
+[cluster, pod, region] | network.eth0.rx
+[cluster, pod, region] | network.eth0.tx
+;

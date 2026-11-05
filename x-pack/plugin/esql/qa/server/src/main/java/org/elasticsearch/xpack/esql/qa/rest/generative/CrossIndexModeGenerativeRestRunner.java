@@ -221,10 +221,17 @@ public abstract class CrossIndexModeGenerativeRestRunner extends GenerativeRestT
 
     /**
      * Returns the settings applied on top of each dataset's own settings when creating the
-     * candidate-side index. Default: {@code index.mode=columnar}.
+     * candidate-side index. Default: {@code index.mode=columnar}, with batch indexing disabled.
+     *
+     * <p>Batch indexing is switched off because columnar indices enable it by default, and the ESCF batch path
+     * does not preserve the lexical form of floating-point numbers: a {@code keyword} sub-field of a {@code double}
+     * is built from the parsed double, so {@code -2.30} becomes {@code -2.3}. That is a known difference between the
+     * indexing paths, not a columnar storage bug, and it would fail every run at the first {@code FROM} over the
+     * employees datasets. See <a href="https://github.com/elastic/elasticsearch/issues/163555">#163555</a>. Remove
+     * the override once that issue is fixed.
      */
     protected Settings candidateSettings() {
-        return Settings.builder().put("index.mode", "columnar").build();
+        return Settings.builder().put("index.mode", "columnar").put("index.batch_indexing", false).build();
     }
 
     // -----------------------------------------------------------------------------------------

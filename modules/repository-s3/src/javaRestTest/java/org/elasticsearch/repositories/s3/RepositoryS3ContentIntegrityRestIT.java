@@ -20,7 +20,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
@@ -37,13 +36,21 @@ import org.junit.rules.TestRule;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.DATA_SIZE_FORCING_MULTIPART_UPLOADS;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.MULTIPART_BUFFER_SIZE;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.SINGLE_SHARD_INDEX_SETTINGS;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.UNINDEXED_PAYLOAD_MAPPING;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.assertNoChecksumRequestHeaders;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.assertSomeChecksumRequestHeader;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.createSnapshotAndAssertSuccess;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.deleteSnapshotAndAssertOk;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.indexIncompressibleData;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -89,24 +96,11 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         TEST_CONFIGS = List.copyOf(testConfigs);
     }
 
-    /// Test configs for which the fixture saw an UploadPart request, so tests can prove they really exercised multipart uploads.
+    /**
+     * Test configs for which the fixture saw an UploadPart request. The fixture only checks the headers of the requests it sees, so
+     * without this a test that never sent a part would pass without checking the multipart path at all.
+     */
     private static final Set<String> CONFIGS_WITH_UPLOAD_PART_REQUESTS = ConcurrentHashMap.newKeySet();
-
-    private static void assertNoChecksumRequestHeaders(Set<String> requestHeaderNames) {
-        for (final var headerName : requestHeaderNames) {
-            final var lowerCaseName = headerName.toLowerCase(Locale.ROOT);
-            assertFalse("unexpected header [" + headerName + "]", lowerCaseName.startsWith("x-amz-checksum-"));
-            assertNotEquals("unexpected header [" + headerName + "]", "x-amz-trailer", lowerCaseName);
-            assertNotEquals("unexpected header [" + headerName + "]", "x-amz-sdk-checksum-algorithm", lowerCaseName);
-        }
-    }
-
-    private static void assertChecksumRequestHeadersPresent(Set<String> requestHeaderNames) {
-        final var hasChecksumHeader = requestHeaderNames.stream()
-            .map(headerName -> headerName.toLowerCase(Locale.ROOT))
-            .anyMatch(headerName -> headerName.startsWith("x-amz-checksum-") || headerName.equals("x-amz-trailer"));
-        assertTrue("expected a checksum header or trailer declaration in " + requestHeaderNames, hasChecksumHeader);
-    }
 
     private static final class ContentIntegrityS3HttpFixture extends S3HttpFixture {
         ContentIntegrityS3HttpFixture(TestTlsCertificate tlsCertificate) {
@@ -145,14 +139,14 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                     if (testConfig.unsafelyOmitRequestBodyChecksums) {
                         assertNoChecksumRequestHeaders(exchange.getRequestHeaders().keySet());
                     } else {
-                        assertChecksumRequestHeadersPresent(exchange.getRequestHeaders().keySet());
+                        assertSomeChecksumRequestHeader(exchange.getRequestHeaders().keySet());
                     }
                     if (request.isUploadPartRequest()) {
                         CONFIGS_WITH_UPLOAD_PART_REQUESTS.add(testConfig.toString());
                     }
                 }
                 if (request.isMultiObjectDeleteRequest()) {
-                    // DeleteObjects requires a checksum so it must carry one whatever the setting says
+                    // The S3 API requires a checksum on DeleteObjects, so unsafely_omit_request_body_checksums must never remove it
                     assertThat(exchange.getRequestHeaders().getFirst("x-amz-checksum-crc32"), notNullValue());
                     assertThat(exchange.getRequestHeaders().getFirst("x-amz-sdk-checksum-algorithm"), equalTo("CRC32"));
                 }
@@ -257,31 +251,21 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         );
         final var indexName = randomIdentifier();
         final var snapshotName = randomIdentifier();
-        try (var ignored = repository.register(s -> Settings.builder().put(s).put("buffer_size", "5mb").build())) {
-            createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build(), """
-                {"properties":{"payload":{"type":"object","enabled":false}}}""");
-            // random text doesn't compress, so the stored fields file ends up larger than the 5mb buffer and has to be sent in parts
-            final int batches = 4;
-            final int docsPerBatch = 300;
-            for (int batch = 0; batch < batches; batch++) {
-                final var bulk = new StringBuilder();
-                for (int doc = 0; doc < docsPerBatch; doc++) {
-                    bulk.append("{\"index\":{}}\n{\"payload\":{\"text\":\"").append(randomAlphaOfLength(8000)).append("\"}}\n");
-                }
-                final var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
-                bulkRequest.setJsonEntity(bulk.toString());
-                assertFalse(assertOKAndCreateObjectPath(client().performRequest(bulkRequest)).evaluate("errors"));
-            }
+        // forget any part seen earlier, so this test has to be the one that sends them
+        CONFIGS_WITH_UPLOAD_PART_REQUESTS.remove(testConfig.toString());
+        try (
+            var ignored = repository.register(
+                s -> Settings.builder().put(s).put("buffer_size", MULTIPART_BUFFER_SIZE.getStringRep()).build()
+            )
+        ) {
+            createIndex(indexName, SINGLE_SHARD_INDEX_SETTINGS, UNINDEXED_PAYLOAD_MAPPING);
+            indexIncompressibleData(client(), indexName, DATA_SIZE_FORCING_MULTIPART_UPLOADS);
 
-            final var createSnapshotRequest = new Request("PUT", "/_snapshot/" + repository.repositoryName() + "/" + snapshotName);
-            createSnapshotRequest.addParameter("wait_for_completion", "true");
-            final var response = assertOKAndCreateObjectPath(client().performRequest(createSnapshotRequest));
-            assertEquals("SUCCESS", response.evaluate("snapshot.state"));
-            assertThat(response.evaluate("snapshot.shards.failed"), equalTo(0));
+            createSnapshotAndAssertSuccess(client(), repository.repositoryName(), snapshotName);
             assertThat(CONFIGS_WITH_UPLOAD_PART_REQUESTS, hasItem(testConfig.toString()));
 
-            // deleting the snapshot sends a DeleteObjects request, which must carry its checksum whatever the setting says
-            assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repository.repositoryName() + "/" + snapshotName)));
+            // deleting the snapshot sends a DeleteObjects request, which the fixture checks still carries its checksum
+            deleteSnapshotAndAssertOk(client(), repository.repositoryName(), snapshotName);
         }
     }
 
@@ -342,14 +326,23 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 : (chunkedEncoding ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
         }
 
-        /// Without the setting the client sends a checksum with every upload, so the body hash header is either a SHA-256 of the body or
-        /// the streaming value for the scheme and signing mode. With it the client sends no checksum, so there is no footer. That
-        /// leaves the unsigned payload marker over unsigned HTTPS, signed chunks without a footer when chunked, and a SHA-256 of the
-        /// body when chunked encoding is disabled.
+        /// What the {@code x-amz-content-sha256} header of an upload must look like for this config, which depends on whether the client
+        /// is sending a checksum trailer with the body.
         Matcher<String> getExpectedUploadContentSha256HeaderMatcher() {
-            if (unsafelyOmitRequestBodyChecksums == false) {
-                return anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(getExpectedUploadContentSha256Header()));
-            }
+            return unsafelyOmitRequestBodyChecksums
+                ? expectedUploadContentSha256HeaderWithoutChecksum()
+                : expectedUploadContentSha256HeaderWithChecksum();
+        }
+
+        /// With a checksum the header is the streaming value for the scheme and signing mode, which includes the trailer, or a SHA-256
+        /// of the body.
+        private Matcher<String> expectedUploadContentSha256HeaderWithChecksum() {
+            return anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(getExpectedUploadContentSha256Header()));
+        }
+
+        /// With no checksum there's no trailer, so the header is the unsigned marker over unsigned HTTPS, signed chunks with no footer
+        /// when chunked, and a SHA-256 of the body when chunked encoding is disabled.
+        private Matcher<String> expectedUploadContentSha256HeaderWithoutChecksum() {
             if (https && alwaysSignRequests == false) {
                 return equalTo("UNSIGNED-PAYLOAD");
             }

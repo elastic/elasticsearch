@@ -16,7 +16,6 @@ import fixture.s3.S3HttpHandler;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.sun.net.httpserver.HttpHandler;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -28,15 +27,21 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.DATA_SIZE_FORCING_MULTIPART_UPLOADS;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.MULTIPART_BUFFER_SIZE;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.SINGLE_SHARD_INDEX_SETTINGS;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.UNINDEXED_PAYLOAD_MAPPING;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.assertNoChecksumRequestHeaders;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.createSnapshotAndAssertSuccess;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.deleteSnapshotAndAssertOk;
+import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.indexIncompressibleData;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -91,7 +96,7 @@ public class RepositoryS3RequestChecksumCalculationRestIT extends ESRestTestCase
                     }
                 }
                 if (request.isMultiObjectDeleteRequest()) {
-                    // DeleteObjects requires a checksum, so the operator's property can't remove it
+                    // The S3 API requires a checksum on DeleteObjects, so the node wide property can't remove it either
                     assertThat(exchange.getRequestHeaders().getFirst("x-amz-checksum-crc32"), notNullValue());
                     assertThat(exchange.getRequestHeaders().getFirst("x-amz-sdk-checksum-algorithm"), equalTo("CRC32"));
                     sawDeleteObjects.set(true);
@@ -100,15 +105,6 @@ public class RepositoryS3RequestChecksumCalculationRestIT extends ESRestTestCase
             };
         }
     };
-
-    private static void assertNoChecksumRequestHeaders(Set<String> requestHeaderNames) {
-        for (final var headerName : requestHeaderNames) {
-            final var lowerCaseName = headerName.toLowerCase(Locale.ROOT);
-            assertFalse("unexpected header [" + headerName + "]", lowerCaseName.startsWith("x-amz-checksum-"));
-            assertNotEquals("unexpected header [" + headerName + "]", "x-amz-trailer", lowerCaseName);
-            assertNotEquals("unexpected header [" + headerName + "]", "x-amz-sdk-checksum-algorithm", lowerCaseName);
-        }
-    }
 
     private static void assertNotTrailerValue(String contentSha256Header) {
         assertThat(contentSha256Header, notNullValue());
@@ -164,29 +160,17 @@ public class RepositoryS3RequestChecksumCalculationRestIT extends ESRestTestCase
         final var indexName = randomIdentifier();
         final var snapshotName = randomIdentifier();
         try (
-            var ignored = repository.register(s -> repositorySettings.apply(Settings.builder().put(s).put("buffer_size", "5mb").build()))
+            var ignored = repository.register(
+                s -> repositorySettings.apply(Settings.builder().put(s).put("buffer_size", MULTIPART_BUFFER_SIZE.getStringRep()).build())
+            )
         ) {
-            createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build(), """
-                {"properties":{"payload":{"type":"object","enabled":false}}}""");
-            // random text doesn't compress, so the stored fields file ends up larger than the 5mb buffer and has to be sent in parts
-            for (int batch = 0; batch < 4; batch++) {
-                final var bulk = new StringBuilder();
-                for (int doc = 0; doc < 300; doc++) {
-                    bulk.append("{\"index\":{}}\n{\"payload\":{\"text\":\"").append(randomAlphaOfLength(8000)).append("\"}}\n");
-                }
-                final var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
-                bulkRequest.setJsonEntity(bulk.toString());
-                assertFalse(assertOKAndCreateObjectPath(client().performRequest(bulkRequest)).evaluate("errors"));
-            }
+            createIndex(indexName, SINGLE_SHARD_INDEX_SETTINGS, UNINDEXED_PAYLOAD_MAPPING);
+            indexIncompressibleData(client(), indexName, DATA_SIZE_FORCING_MULTIPART_UPLOADS);
 
-            final var createSnapshotRequest = new Request("PUT", "/_snapshot/" + repository.repositoryName() + "/" + snapshotName);
-            createSnapshotRequest.addParameter("wait_for_completion", "true");
-            final var response = assertOKAndCreateObjectPath(client().performRequest(createSnapshotRequest));
-            assertEquals("SUCCESS", response.evaluate("snapshot.state"));
-            assertThat(response.evaluate("snapshot.shards.failed"), equalTo(0));
+            createSnapshotAndAssertSuccess(client(), repository.repositoryName(), snapshotName);
             assertTrue("expected the snapshot to send at least one UploadPart", sawUploadPart.get());
 
-            assertOK(client().performRequest(new Request("DELETE", "/_snapshot/" + repository.repositoryName() + "/" + snapshotName)));
+            deleteSnapshotAndAssertOk(client(), repository.repositoryName(), snapshotName);
             assertTrue("expected the snapshot delete to send DeleteObjects", sawDeleteObjects.get());
         }
     }

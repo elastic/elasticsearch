@@ -127,6 +127,15 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> READ_BOOST_PROFILES_PATTERN = Set.of("cluster:monitor/boost/profile/*");
     // Explain is granted here although its response currently includes the resolved profile
     private static final Set<String> READ_BOOST_RULES_PATTERN = Set.of("cluster:monitor/boost/rule/*", "cluster:monitor/boost/explain");
+    private static final Set<String> MANAGE_BOOST_PROFILES_PATTERN = Set.of(
+        "cluster:monitor/boost/profile/*",
+        "cluster:admin/boost/profile/*"
+    );
+    private static final Set<String> MANAGE_BOOST_RULES_PATTERN = Set.of(
+        "cluster:monitor/boost/rule/*",
+        "cluster:monitor/boost/explain",
+        "cluster:admin/boost/rule/*"
+    );
 
     private static final Set<String> MANAGE_PROJECT_ROUTING_PATTERN = Set.of(
         "cluster:monitor/project/*",
@@ -299,6 +308,14 @@ public class ClusterPrivilegeResolver {
         READ_BOOST_PROFILES_PATTERN
     );
     public static final NamedClusterPrivilege READ_BOOST_RULES = new ActionClusterPrivilege("read_boost_rules", READ_BOOST_RULES_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_BOOST_PROFILES = new ActionClusterPrivilege(
+        "manage_boost_profiles",
+        MANAGE_BOOST_PROFILES_PATTERN
+    );
+    public static final NamedClusterPrivilege MANAGE_BOOST_RULES = new ActionClusterPrivilege(
+        "manage_boost_rules",
+        MANAGE_BOOST_RULES_PATTERN
+    );
     public static final NamedClusterPrivilege READ_PIPELINE = new ActionClusterPrivilege("read_pipeline", READ_PIPELINE_PATTERN);
     public static final NamedClusterPrivilege READ_PROJECT_ROUTING = new ActionClusterPrivilege(
         "read_project_routing",
@@ -487,6 +504,8 @@ public class ClusterPrivilegeResolver {
             MANAGE_INGEST_PIPELINES,
             READ_BOOST_PROFILES,
             READ_BOOST_RULES,
+            MANAGE_BOOST_PROFILES,
+            MANAGE_BOOST_RULES,
             READ_PIPELINE,
             READ_PROJECT_ROUTING,
             TRANSPORT_CLIENT,

@@ -2389,6 +2389,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             // whether the region was read again after the fill that brought it in (see markReaccessed). Written without
             // synchronization: it only ever goes from false to true, and a stale read only delays the observation.
             boolean reaccessed;
+            // set when a demand read asks for this region while it is still waiting for its slot, so that a region created by a
+            // speculative fill is not blamed for evictions that a search is in fact waiting on
+            volatile boolean demandWaiting;
+
+            /**
+             * @return the kind of fill that needs this entry's slot: demand as soon as a demand read waits for it, whatever kind of
+             * fill created the entry
+             */
+            RegionFillOrigin slotRequestOrigin() {
+                return demandWaiting ? RegionFillOrigin.Demand : origin;
+            }
 
             LFUCacheEntry(CacheFileRegion<KeyType> chunk, long lastAccessed, RegionFillOrigin origin, long createdAtMillis) {
                 super(chunk);
@@ -2512,6 +2523,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
             // checks using volatile, double locking is fine, as long as we assign io last.
             if (entry.chunk.volatileIO() == null) {
+                if (origin == RegionFillOrigin.Demand) {
+                    entry.demandWaiting = true;
+                }
                 synchronized (entry.chunk) {
                     if (entry.chunk.volatileIO() == null && entry.chunk.isEvicted() == false) {
                         return initChunk(entry);
@@ -3058,7 +3072,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                 try {
                                     unlinkAndRemoveForEviction(entry);
                                 } finally {
-                                    onPressureEviction(entry, incoming.origin);
+                                    onPressureEviction(entry, incoming.slotRequestOrigin());
                                 }
                             }
                         }

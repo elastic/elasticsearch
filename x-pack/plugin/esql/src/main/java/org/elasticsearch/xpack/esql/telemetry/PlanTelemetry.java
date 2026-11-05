@@ -38,6 +38,7 @@ public class PlanTelemetry {
     private final Map<String, Integer> viewSettings = new HashMap<>();
     private final Map<String, Set<String>> viewResolvedSettings = new HashMap<>();
     private Integer linkedProjectsCount = null;
+    private LeadingCommand leadingCommand = LeadingCommand.UNKNOWN;
     private final Set<String> externalStorageTypes = new TreeSet<>();
     private final Set<String> externalFormats = new TreeSet<>();
 
@@ -56,6 +57,17 @@ public class PlanTelemetry {
 
     public void linkedProjectsCount(int linkedProjectsCount) {
         this.linkedProjectsCount = linkedProjectsCount;
+    }
+
+    public void leadingCommand(LeadingCommand leadingCommand) {
+        this.leadingCommand = leadingCommand;
+    }
+
+    /**
+     * The query's first source command, or {@link LeadingCommand#UNKNOWN} until the query is parsed.
+     */
+    public LeadingCommand leadingCommand() {
+        return leadingCommand;
     }
 
     public Integer linkedProjectsCount() {

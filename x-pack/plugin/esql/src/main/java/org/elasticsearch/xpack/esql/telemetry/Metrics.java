@@ -45,6 +45,8 @@ public class Metrics {
     }
 
     protected static final String QUERIES_PREFIX = "queries.";
+    protected static final String ENTRY_POINTS_PREFIX = "entry_points.";
+    protected static final String LEADING_COMMANDS_PREFIX = "leading_commands.";
     protected static final String FEATURES_PREFIX = "features.";
     protected static final String SETTINGS_PREFIX = "settings.";
     protected static final String RESOLVED_SETTINGS_PREFIX = "resolved_settings.";
@@ -53,8 +55,10 @@ public class Metrics {
     protected static final String FUNC_PREFIX = "functions.";
     protected static final String TOOK_PREFIX = "took.";
 
-    // map that holds total/failed counters for each client type (rest, kibana)
+    // map that holds total/failed counters for each client type (each known Elastic product, other, rest)
     private final Map<QueryMetric, Map<OperationType, CounterMetric>> opsByTypeMetrics;
+    private final Map<QueryEntryPoint, Map<OperationType, CounterMetric>> opsByEntryPointMetrics;
+    private final Map<LeadingCommand, Map<OperationType, CounterMetric>> opsByLeadingCommandMetrics;
     // map that holds one counter per esql query "feature" (eval, sort, limit, where....)
     private final Map<FeatureMetric, CounterMetric> featuresMetrics;
     // map that holds one counter per esql query setting (unmapped_fields, time_zone, etc.)
@@ -92,16 +96,9 @@ public class Metrics {
     public Metrics(EsqlFunctionRegistry functionRegistry, boolean isSnapshot, boolean isServerless) {
         this.functionRegistry = functionRegistry.snapshotRegistry();
         this.classToFunctionName = initClassToFunctionType();
-        Map<QueryMetric, Map<OperationType, CounterMetric>> qMap = new LinkedHashMap<>();
-        for (QueryMetric metric : QueryMetric.values()) {
-            Map<OperationType, CounterMetric> metricsMap = Maps.newLinkedHashMapWithExpectedSize(OperationType.values().length);
-            for (OperationType type : OperationType.values()) {
-                metricsMap.put(type, new CounterMetric());
-            }
-
-            qMap.put(metric, Collections.unmodifiableMap(metricsMap));
-        }
-        opsByTypeMetrics = Collections.unmodifiableMap(qMap);
+        opsByTypeMetrics = initOpsMetrics(QueryMetric.values());
+        opsByEntryPointMetrics = initOpsMetrics(QueryEntryPoint.values());
+        opsByLeadingCommandMetrics = initOpsMetrics(LeadingCommand.values());
 
         Map<FeatureMetric, CounterMetric> fMap = Maps.newLinkedHashMapWithExpectedSize(FeatureMetric.values().length);
         for (FeatureMetric featureMetric : FeatureMetric.values()) {
@@ -118,6 +115,18 @@ public class Metrics {
         viewResolvedSettingsMetrics = initResolvedSettingsMetrics(applicableViewSettings);
 
         functionMetrics = initFunctionMetrics();
+    }
+
+    private static <E extends Enum<E>> Map<E, Map<OperationType, CounterMetric>> initOpsMetrics(E[] values) {
+        Map<E, Map<OperationType, CounterMetric>> map = new LinkedHashMap<>();
+        for (E value : values) {
+            Map<OperationType, CounterMetric> metricsMap = Maps.newLinkedHashMapWithExpectedSize(OperationType.values().length);
+            for (OperationType type : OperationType.values()) {
+                metricsMap.put(type, new CounterMetric());
+            }
+            map.put(value, Collections.unmodifiableMap(metricsMap));
+        }
+        return Collections.unmodifiableMap(map);
     }
 
     private static Map<String, CounterMetric> initSettingsMetrics(List<QuerySettingDef<?>> settings) {
@@ -171,6 +180,28 @@ public class Metrics {
      */
     public void failed(QueryMetric metric) {
         inc(metric, OperationType.FAILED);
+    }
+
+    /**
+     * Increments the "total" counter of the API the query came in on. Called once per query.
+     */
+    public void total(QueryEntryPoint entryPoint) {
+        opsByEntryPointMetrics.get(entryPoint).get(OperationType.TOTAL).inc();
+    }
+
+    public void failed(QueryEntryPoint entryPoint) {
+        opsByEntryPointMetrics.get(entryPoint).get(OperationType.FAILED).inc();
+    }
+
+    /**
+     * Increments the "total" counter of the query's first source command. Called once per query, when it finishes.
+     */
+    public void total(LeadingCommand leadingCommand) {
+        opsByLeadingCommandMetrics.get(leadingCommand).get(OperationType.TOTAL).inc();
+    }
+
+    public void failed(LeadingCommand leadingCommand) {
+        opsByLeadingCommandMetrics.get(leadingCommand).get(OperationType.FAILED).inc();
     }
 
     private void inc(QueryMetric metric, OperationType op) {
@@ -247,6 +278,9 @@ public class Metrics {
             }
         }
 
+        opsCounters(counters, ENTRY_POINTS_PREFIX, opsByEntryPointMetrics);
+        opsCounters(counters, LEADING_COMMANDS_PREFIX, opsByLeadingCommandMetrics);
+
         // features metrics
         for (Entry<FeatureMetric, CounterMetric> entry : featuresMetrics.entrySet()) {
             counters.inc(FEATURES_PREFIX + entry.getKey().toString(), entry.getValue().count());
@@ -265,6 +299,18 @@ public class Metrics {
         tookMetrics.counters(TOOK_PREFIX, counters);
 
         return counters;
+    }
+
+    private static <E extends Enum<E>> void opsCounters(
+        Counters counters,
+        String prefix,
+        Map<E, Map<OperationType, CounterMetric>> metrics
+    ) {
+        for (Entry<E, Map<OperationType, CounterMetric>> entry : metrics.entrySet()) {
+            for (OperationType type : OperationType.values()) {
+                counters.inc(prefix + entry.getKey() + "." + type, entry.getValue().get(type).count());
+            }
+        }
     }
 
     private static void settingsCounters(Counters counters, String prefix, Map<String, CounterMetric> metrics) {

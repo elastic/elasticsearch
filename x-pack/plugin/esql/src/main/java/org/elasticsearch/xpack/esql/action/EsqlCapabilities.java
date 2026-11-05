@@ -4695,6 +4695,23 @@ public class EsqlCapabilities {
          */
         UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
 
+        /**
+         * The usage information for ESQL counts queries by the Elastic product in {@code X-elastic-product-origin}: one
+         * {@code queries.<product>} per known product origin, {@code queries.other} for any other origin, and {@code queries.rest}
+         * for a request without the header. Before this, every query was counted as {@code rest}.
+         */
+        USAGE_QUERIES_BY_CLIENT,
+
+        /**
+         * Does the usage information for ESQL count queries by the API they came in on ({@code entry_points.<entry_point>})?
+         */
+        USAGE_ENTRY_POINTS,
+
+        /**
+         * Does the usage information for ESQL count queries by their first source command ({@code leading_commands.<command>})?
+         */
+        USAGE_LEADING_COMMANDS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

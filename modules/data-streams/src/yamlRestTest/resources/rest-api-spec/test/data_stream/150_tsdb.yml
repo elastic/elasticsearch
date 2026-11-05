@@ -1463,12 +1463,13 @@ multi value dimensions:
       search:
         index: k9s
         body:
-          size: 0
+          size: 10
           aggs:
             tsids:
               terms:
                 field: _tsid
 
+  - match: { hits.total.value: 3 }
   - length: { aggregations.tsids.buckets: 3 } # only the order of the dim1 attribute is different, yet we expect to have two distinct time series
 
   - do:

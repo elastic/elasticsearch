@@ -205,6 +205,114 @@ steps:
           signal_reason: agent_stop
         - exit_status: "1"
           limit: 1
+  - label: part7
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart7
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-highmem-16
+      preemptible: true
+      spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+    retry:
+      manual:
+        reason: Retry with smart test selection if desired
+        allowed: true
+        permit_on_passed: false
+      automatic:
+        - limit: 2
+          exit_status: "-1"
+          signal_reason: none
+        - limit: 3
+          exit_status: "47"
+          signal_reason: none
+        - limit: 2
+          signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
+  - label: part8
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart8
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-highmem-16
+      preemptible: true
+      spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+    retry:
+      manual:
+        reason: Retry with smart test selection if desired
+        allowed: true
+        permit_on_passed: false
+      automatic:
+        - limit: 2
+          exit_status: "-1"
+          signal_reason: none
+        - limit: 3
+          exit_status: "47"
+          signal_reason: none
+        - limit: 2
+          signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
+  - label: part9
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart9
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-highmem-16
+      preemptible: true
+      spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+    retry:
+      manual:
+        reason: Retry with smart test selection if desired
+        allowed: true
+        permit_on_passed: false
+      automatic:
+        - limit: 2
+          exit_status: "-1"
+          signal_reason: none
+        - limit: 3
+          exit_status: "47"
+          signal_reason: none
+        - limit: 2
+          signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
+  - label: part10
+    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-file-fingerprints checkPart10
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n4-highmem-16
+      preemptible: true
+      spotZones: "asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c"
+      diskType: hyperdisk-balanced
+      buildDirectory: /dev/shm/bk
+    retry:
+      manual:
+        reason: Retry with smart test selection if desired
+        allowed: true
+        permit_on_passed: false
+      automatic:
+        - limit: 2
+          exit_status: "-1"
+          signal_reason: none
+        - limit: 3
+          exit_status: "47"
+          signal_reason: none
+        - limit: 2
+          signal_reason: agent_stop
+        - exit_status: "1"
+          limit: 1
 
   - group: bwc-snapshots
     steps:

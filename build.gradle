@@ -16,6 +16,7 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
+import org.elasticsearch.gradle.internal.ci.GenerateCiPartAssignmentTask
 import org.elasticsearch.gradle.internal.checks.ValidateBuildGradleScriptsTask
 import org.elasticsearch.gradle.util.GradleUtils
 
@@ -354,14 +355,9 @@ allprojects {
     }
   }
 
+  // checkPartN and bcUpgradeTestPartN are registered by the elasticsearch.ci-parts plugin from the checked-in
+  // assignments in .ci/test-parts. The project-path split below only still drives the bwc parts.
   def splitForCI = { proj, partString ->
-    proj.tasks.register("check$partString") {
-      dependsOn 'check'
-      withReleaseBuild {
-        dependsOn 'assemble'
-      }
-    }
-
     proj.tasks.addRule("Pattern: v<BWC_VERSION>#bwcTest$partString") { name ->
       if (name.endsWith("#bwcTest$partString")) {
         proj.project.getTasks().register(name) {
@@ -369,16 +365,13 @@ allprojects {
         }
       }
     }
-
-    proj.tasks.register("bcUpgradeTest$partString") {
-      dependsOn tasks.matching { it.name == 'bcUpgradeTest' }
-      withReleaseBuild {
-        dependsOn 'assemble'
-      }
-    }
   }
 
   plugins.withId('lifecycle-base') {
+    apply plugin: 'elasticsearch.ci-parts'
+    withReleaseBuild {
+      ciParts.includeAssemble = true
+    }
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
         splitForCI(project, "Part4")
@@ -535,9 +528,6 @@ tasks.named("precommit") {
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')
 }
 
-tasks.named("checkPart1").configure {
-}
-
 tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).configure {
   scriptFiles.from(fileTree(project.layout.settingsDirectory) {
     include "**/build.gradle"
@@ -567,6 +557,22 @@ tasks.register("validateBuildGradleScripts", ValidateBuildGradleScriptsTask).con
       'distribution/build.gradle::6',
     ],
   ])
+}
+
+tasks.register("generateCiPartAssignment", GenerateCiPartAssignmentTask) {
+  group = 'build'
+  description = 'Regenerates .ci/test-parts/assignment.json from config.json and durations.json.'
+  configFile = layout.settingsDirectory.file('.ci/test-parts/config.json')
+  durationsFile = layout.settingsDirectory.file('.ci/test-parts/durations.json')
+  assignmentFile = layout.settingsDirectory.file('.ci/test-parts/assignment.json')
+}
+
+tasks.register("generateBcUpgradeTestPartAssignment", GenerateCiPartAssignmentTask) {
+  group = 'build'
+  description = 'Regenerates .ci/test-parts/bc-upgrade/assignment.json from config.json and durations.json.'
+  configFile = layout.settingsDirectory.file('.ci/test-parts/bc-upgrade/config.json')
+  durationsFile = layout.settingsDirectory.file('.ci/test-parts/bc-upgrade/durations.json')
+  assignmentFile = layout.settingsDirectory.file('.ci/test-parts/bc-upgrade/assignment.json')
 }
 
 tasks.register("checkBuildLogic").configure {

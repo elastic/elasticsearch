@@ -1,0 +1,19 @@
+{
+  "parts": 6,
+  "workers": 4,
+  "antiAffinity": [],
+  "splits": {
+    ":qa:rolling-upgrade:bcUpgradeTest": {
+      "by": "class",
+      "count": 5
+    },
+    ":x-pack:plugin:logsdb:qa:rolling-upgrade:bcUpgradeTest": {
+      "by": "class",
+      "count": 4
+    },
+    ":x-pack:qa:rolling-upgrade:bcUpgradeTest": {
+      "by": "class",
+      "count": 5
+    }
+  }
+}

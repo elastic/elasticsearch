@@ -1998,8 +1998,9 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
 }
 
 tasks.register('verifyDocsLuceneVersion') {
+  // resolved at configuration time: the configuration cache can't call project methods at execution
+  File docsVersionsFile = file('Versions.asciidoc')
   doFirst {
-    File docsVersionsFile = file('Versions.asciidoc')
     List<String> versionLines = docsVersionsFile.readLines('UTF-8')
     String docsLuceneVersion = null
     for (String line : versionLines) {

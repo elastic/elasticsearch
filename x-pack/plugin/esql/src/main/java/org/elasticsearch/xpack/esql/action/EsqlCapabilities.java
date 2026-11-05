@@ -521,9 +521,10 @@ public class EsqlCapabilities {
         /**
          * Fields absorbed into the implicit {@code _unmapped} sink of a strict columnar index load under {@code SET unmapped_fields="load"}
          * from the sink's doc values. As for a key of a mapped flattened field, they are keywords and their values are sorted and
-         * deduplicated. A field below a nested object is still read from {@code _source}.
+         * deduplicated. A field below a nested object is still read from {@code _source}. V2: the sink is opted into with a root
+         * {@code dynamic: flattened}, which the test datasets set and a node of the first version rejects.
          */
-        FLATTENED_UNMAPPED_SINK_LOAD(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
+        FLATTENED_UNMAPPED_SINK_LOAD_V2(FlattenedFieldMapper.UNMAPPED_FIELDS_FEATURE_FLAG),
 
         /**
          * Support for the {@code flattened} data type in ES|QL, which loads flattened fields as JSON objects.
@@ -4693,6 +4694,24 @@ public class EsqlCapabilities {
          * where it can query that field, or matches every document for the filter to check.
          */
         UNMAPPED_FIELDS_RESOLVED_BY_SHARD,
+
+        /**
+         * Loading a field that a pushed down {@code ROUND_TO} (or the {@code DATE_TRUNC} / {@code BUCKET} date histograms rewritten
+         * to it) also buckets no longer assumes the source query filtered out the documents without a value. The pushdown runs one
+         * query per rounding point plus one for the documents without a value, and older nodes only looked at the first of them.
+         * On an index whose doc values read nulls column-at-a-time (such as {@code columnar}) that failed the query, or the whole
+         * node when assertions are enabled.
+         */
+        FIX_NULLS_FILTERED_WITH_QUERY_AND_TAGS_PUSHDOWN,
+
+        /**
+         * The implicit {@code @timestamp} of an aggregation, e.g. in {@code rate()} or {@code latest()}, resolves to the
+         * {@code @timestamp} of the {@code STATS} input, even when a grouping of the same {@code STATS} is named
+         * {@code @timestamp}. Before, {@code STATS rate(x) BY @timestamp = TBUCKET(1 minute)} read the time bucket as the
+         * sample timestamp and returned wrong values that changed between runs.
+         * See: <a href="https://github.com/elastic/elasticsearch/issues/164599">#164599</a>
+         */
+        FIX_IMPLICIT_TIMESTAMP_SHADOWED_BY_GROUPING,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

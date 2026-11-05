@@ -74,7 +74,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
             List<AggResult> singlePassResult = runAggregation(driverContext(), pages, Integer.MAX_VALUE);
             assertThat(singlePassResult, not(empty()));
             List<AggResult> partitioningResult = runAggregation(driverContext(), pages, between(128, 1024));
-            assertThat(partitioningResult, equalTo(singlePassResult));
+            assertAggregatedResults(singlePassResult, partitioningResult);
         } finally {
             Releasables.close(pages);
         }
@@ -95,7 +95,7 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
             assertThat(partitioningResult, not(empty()));
             // if succeeds, then the result should be the same as single pass
             List<AggResult> singlePassResult = runAggregation(driverContext(), pages, Integer.MAX_VALUE);
-            assertThat(partitioningResult, equalTo(singlePassResult));
+            assertAggregatedResults(singlePassResult, partitioningResult);
         } catch (CircuitBreakingException e) {
             assertThat(e.getMessage(), containsString("cranky breaker"));
         } finally {
@@ -132,6 +132,10 @@ public abstract class PartitionedGroupingAggregatorFunctionTestCase extends Grou
             pages.set(i, new Page(blocks));
         }
         return pages;
+    }
+
+    protected void assertAggregatedResults(List<AggResult> singlePassResult, List<AggResult> partitioningResult) {
+        assertThat(partitioningResult, equalTo(singlePassResult));
     }
 
     record Key(Long longKey, Integer intKey) implements Comparable<Key> {

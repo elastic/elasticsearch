@@ -505,7 +505,16 @@ public class IndexResolver {
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
         for (FieldCapabilitiesIndexResponse ir : indexResponses) {
             allEmpty &= ir.get().isEmpty();
-            indexProperties.put(ir.getIndexName(), new IndexProperties(ir.getIndexMode(), ir.getNumberOfShards()));
+            indexProperties.put(
+                ir.getIndexName(),
+                IndexProperties.fromShardSample(
+                    ir.getIndexMode(),
+                    ir.getNumberOfShards(),
+                    ir.getShardDocCount(),
+                    ir.getShardSizeInBytes(),
+                    ir.getFieldStats()
+                )
+            );
             var split = RemoteClusterAware.splitIndexName(ir.getIndexName());
             concreteIndices.computeIfAbsent(split.getClusterGroupingKey(), k -> new ArrayList<>()).add(split.indexExpression());
         }
@@ -850,6 +859,8 @@ public class IndexResolver {
         request.setMergeResults(false);
         request.includeResolvedTo(includeResolvedTo);
         request.projectRouting(projectRouting);
+        // per-field stats feed the cost-based optimizer's estimates for index relations
+        request.includeFieldStats(true);
         return new EsqlResolveFieldsRequest(request);
     }
 

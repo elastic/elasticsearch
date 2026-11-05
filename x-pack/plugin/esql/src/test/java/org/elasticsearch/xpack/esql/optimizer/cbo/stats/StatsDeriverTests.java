@@ -7,15 +7,21 @@
 
 package org.elasticsearch.xpack.esql.optimizer.cbo.stats;
 
+import org.elasticsearch.action.fieldcaps.IndexFieldStats;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.index.IndexProperties;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -26,6 +32,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -123,6 +130,89 @@ public class StatsDeriverTests extends ESTestCase {
         assertEquals(100, rows.value(), 0);
         assertEquals(100, rows.upperBound(), 0);
         assertEquals(Provenance.DEFAULT, rows.provenance());
+    }
+
+    public void testEsRelationRowsSumIndexDocCounts() {
+        Attribute field = attribute("value");
+        EsRelation relation = esRelation(
+            field,
+            Map.of("a", new IndexProperties(IndexMode.STANDARD, 2, 300, 9_000), "b", new IndexProperties(IndexMode.STANDARD, 1, 200, 4_000))
+        );
+
+        PlanStats stats = new StatsDeriver().derive(relation).get(relation);
+
+        assertEquals(500, stats.rows().value(), 0);
+        assertEquals(Provenance.METADATA, stats.rows().provenance());
+        assertEquals(500 * Long.BYTES, stats.bytes().value(), 0);
+    }
+
+    public void testEsRelationRowsUnknownIfAnyIndexLacksDocCount() {
+        Attribute field = attribute("value");
+        EsRelation relation = esRelation(
+            field,
+            Map.of("a", new IndexProperties(IndexMode.STANDARD, 2, 300, 9_000), "b", new IndexProperties(IndexMode.STANDARD, 1))
+        );
+
+        PlanStats stats = new StatsDeriver().derive(relation).get(relation);
+
+        assertTrue(stats.rows().isUnknown());
+        assertTrue(stats.bytes().isUnknown());
+    }
+
+    public void testEsRelationColumnsFromFieldStats() {
+        Attribute field = keywordField("id");
+        EsRelation relation = esRelation(
+            field,
+            Map.of(
+                "a",
+                new IndexProperties(IndexMode.STANDARD, 1, 300, 9_000, Map.of("id", new IndexFieldStats(270, 300, 3_000, null, null))),
+                "b",
+                new IndexProperties(IndexMode.STANDARD, 1, 200, 4_000, Map.of("id", new IndexFieldStats(200, 200, 2_000, null, null)))
+            )
+        );
+
+        PlanStats stats = new StatsDeriver().derive(relation).get(relation);
+        ColumnStats column = stats.columns().get(field.id());
+
+        assertEquals(500, stats.rows().value(), 0);
+        // 10 bytes per value plus the offset a decoded string carries
+        assertEquals(14, column.averageBytes().value(), 0);
+        assertEquals(30.0 / 500, column.nullFraction().value(), 1e-9);
+        assertEquals(1, column.averageValuesPerRow().value(), 0);
+        assertTrue(column.ndv().isUnknown());
+        assertThat(stats.bytes().value(), lessThan(500.0 * DataType.KEYWORD.estimatedSize()));
+    }
+
+    public void testEsRelationColumnUnknownIfAnyIndexLacksFieldStats() {
+        Attribute field = keywordField("id");
+        EsRelation relation = esRelation(
+            field,
+            Map.of(
+                "a",
+                new IndexProperties(IndexMode.STANDARD, 1, 300, 9_000, Map.of("id", new IndexFieldStats(300, 300, 3_000, null, null))),
+                "b",
+                new IndexProperties(IndexMode.STANDARD, 1, 200, 4_000)
+            )
+        );
+
+        PlanStats stats = new StatsDeriver().derive(relation).get(relation);
+
+        assertEquals(StatsSupport.withDefaultWidth(field).averageBytes(), stats.columns().get(field.id()).averageBytes());
+        assertTrue(stats.columns().get(field.id()).nullFraction().isUnknown());
+    }
+
+    private static EsRelation esRelation(Attribute field, Map<String, IndexProperties> indexProperties) {
+        List<String> indices = List.copyOf(indexProperties.keySet());
+        Map<String, List<String>> byCluster = Map.of("", indices);
+        return new EsRelation(Source.EMPTY, "test", IndexMode.STANDARD, byCluster, byCluster, indexProperties, List.of(field));
+    }
+
+    private static Attribute keywordField(String name) {
+        return new FieldAttribute(
+            Source.EMPTY,
+            name,
+            new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
     }
 
     private static Attribute attribute(String name) {

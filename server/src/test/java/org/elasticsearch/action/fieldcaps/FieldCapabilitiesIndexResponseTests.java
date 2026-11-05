@@ -45,7 +45,10 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                     randomFrom(IndexMode.availableModes()),
                     between(1, 100),
                     randomLongBetween(1, Long.MAX_VALUE),
-                    randomLongBetween(1, Long.MAX_VALUE)
+                    randomLongBetween(1, Long.MAX_VALUE),
+                    randomLongBetween(-1, Long.MAX_VALUE),
+                    randomLongBetween(-1, Long.MAX_VALUE),
+                    randomFieldStats()
                 )
             );
         }
@@ -80,6 +83,10 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         long settingsVersion2 = randomValueOtherThan(settingsVersion1, () -> randomLongBetween(1, Long.MAX_VALUE));
         long mappingVersion1 = randomLongBetween(1, Long.MAX_VALUE);
         long mappingVersion2 = randomValueOtherThan(mappingVersion1, () -> randomLongBetween(1, Long.MAX_VALUE));
+        long docCount1 = randomLongBetween(-1, Long.MAX_VALUE);
+        long docCount2 = randomValueOtherThan(docCount1, () -> randomLongBetween(-1, Long.MAX_VALUE));
+        long sizeInBytes1 = randomLongBetween(-1, Long.MAX_VALUE);
+        long sizeInBytes2 = randomValueOtherThan(sizeInBytes1, () -> randomLongBetween(-1, Long.MAX_VALUE));
         List<FieldCapabilitiesIndexResponse> responses = List.of(
             new FieldCapabilitiesIndexResponse(
                 "index_a",
@@ -89,7 +96,10 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 indexMode,
                 shards1,
                 settingsVersion1,
-                mappingVersion1
+                mappingVersion1,
+                docCount1,
+                sizeInBytes1,
+                randomFieldStats()
             ),
             new FieldCapabilitiesIndexResponse(
                 "index_b",
@@ -99,7 +109,10 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 indexMode,
                 shards2,
                 settingsVersion2,
-                mappingVersion2
+                mappingVersion2,
+                docCount2,
+                sizeInBytes2,
+                randomFieldStats()
             )
         );
 
@@ -125,7 +138,19 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
      */
     public void testOldVersionDefaultsShardCountToZero() throws IOException {
         List<FieldCapabilitiesIndexResponse> responses = List.of(
-            new FieldCapabilitiesIndexResponse("idx", null, randomFieldCaps(), true, IndexMode.STANDARD, between(1, 100), 1, 1)
+            new FieldCapabilitiesIndexResponse(
+                "idx",
+                null,
+                randomFieldCaps(),
+                true,
+                IndexMode.STANDARD,
+                between(1, 100),
+                1,
+                1,
+                10,
+                100,
+                Map.of("field", new IndexFieldStats(1, 1, 1, null, null))
+            )
         );
 
         // Simulate an old node: write without shard counts.
@@ -142,6 +167,9 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         assertThat(result.get(0).getNumberOfShards(), equalTo(0));
         assertThat(result.get(0).getIndexSettingsVersion(), equalTo(0L));
         assertThat(result.get(0).getMappingVersion(), equalTo(0L));
+        assertThat(result.get(0).getShardDocCount(), equalTo(-1L));
+        assertThat(result.get(0).getShardSizeInBytes(), equalTo(-1L));
+        assertThat(result.get(0).getFieldStats(), equalTo(Map.of()));
     }
 
     static Map<String, IndexFieldCapabilities> randomFieldCaps() {
@@ -211,5 +239,24 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
             responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode, 0, 0, 0));
         }
         return responses;
+    }
+
+    static Map<String, IndexFieldStats> randomFieldStats() {
+        Map<String, IndexFieldStats> stats = new HashMap<>();
+        for (int i = 0; i < between(0, 5); i++) {
+            Number min = randomBoolean() ? null : randomBoolean() ? (Number) randomLong() : (Number) randomDouble();
+            Number max = randomBoolean() ? null : randomBoolean() ? (Number) randomLong() : (Number) randomDouble();
+            stats.put(
+                randomAlphaOfLength(5),
+                new IndexFieldStats(
+                    randomLongBetween(-1, Long.MAX_VALUE),
+                    randomLongBetween(-1, Long.MAX_VALUE),
+                    randomLongBetween(-1, Long.MAX_VALUE),
+                    min,
+                    max
+                )
+            );
+        }
+        return stats;
     }
 }

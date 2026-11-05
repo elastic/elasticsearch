@@ -54,7 +54,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             indexFilter,
             nowInMillis,
             runtimeFields,
-            true
+            true,
+            randomBoolean()
         );
     }
 
@@ -108,7 +109,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeFieldStats()
                 );
             }
             case 1 -> {
@@ -122,7 +124,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeFieldStats()
                 );
             }
             case 2 -> {
@@ -136,7 +139,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeFieldStats()
                 );
             }
             case 3 -> {
@@ -150,7 +154,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     indexFilter,
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeFieldStats()
                 );
             }
             case 4 -> {
@@ -164,7 +169,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     nowInMillis,
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeFieldStats()
                 );
             }
             case 5 -> {
@@ -180,7 +186,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     runtimeFields,
-                    true
+                    true,
+                    instance.includeFieldStats()
                 );
             }
             case 6 -> {
@@ -194,7 +201,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeFieldStats()
                 );
             }
             case 7 -> {
@@ -208,7 +216,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.indexFilter(),
                     instance.nowInMillis(),
                     instance.runtimeFields(),
-                    true
+                    true,
+                    instance.includeFieldStats()
                 );
             }
             case 8 -> {

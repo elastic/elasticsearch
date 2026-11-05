@@ -324,7 +324,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         curr.getIndexMode(),
                         resp.getNumberOfShards(),
                         resp.getIndexSettingsVersion(),
-                        resp.getMappingVersion()
+                        resp.getMappingVersion(),
+                        resp.getShardDocCount(),
+                        resp.getShardSizeInBytes(),
+                        resp.getFieldStats()
                     );
                 }
             }
@@ -338,16 +341,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
                     mergedCaps.putAll(b.get());
                     // Same index, same shard count — keep a's count.
-                    return new FieldCapabilitiesIndexResponse(
-                        a.getIndexName(),
-                        a.getIndexMappingHash(),
-                        mergedCaps,
-                        true,
-                        a.getIndexMode(),
-                        a.getNumberOfShards(),
-                        a.getIndexSettingsVersion(),
-                        a.getMappingVersion()
-                    );
+                    return a.withIndexNameAndFields(a.getIndexName(), a.getIndexMappingHash(), mergedCaps, true);
                 });
             }
             if (fieldCapTask.isCancelled()) {
@@ -445,18 +439,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                         String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
-                        handleIndexResponse.accept(
-                            new FieldCapabilitiesIndexResponse(
-                                indexName,
-                                resp.getIndexMappingHash(),
-                                resp.get(),
-                                resp.canMatch(),
-                                resp.getIndexMode(),
-                                resp.getNumberOfShards(),
-                                resp.getIndexSettingsVersion(),
-                                resp.getMappingVersion()
-                            )
-                        );
+                        handleIndexResponse.accept(resp.withIndexName(indexName));
                     }
                     for (FieldCapabilitiesFailure failure : response.getFailures()) {
                         Exception ex = failure.getException();
@@ -688,6 +671,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
         remoteRequest.includeEmptyFields(request.includeEmptyFields());
+        remoteRequest.includeFieldStats(request.includeFieldStats());
         remoteRequest.includeResolvedTo(request.includeResolvedTo() || resolveCrossProject);
         return remoteRequest;
     }
@@ -977,7 +961,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(
+                    indicesService,
+                    request.includeEmptyFields(),
+                    request.includeFieldStats()
+                );
                 Predicate<String> fieldNameFilter;
                 try {
                     fieldNameFilter = Regex.simpleMatcher(request.fields());

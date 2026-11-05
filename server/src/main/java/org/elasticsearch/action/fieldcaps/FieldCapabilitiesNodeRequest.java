@@ -40,6 +40,7 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
     private final long nowInMillis;
     private final Map<String, Object> runtimeFields;
     private final boolean includeEmptyFields;
+    private final boolean includeFieldStats;
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
@@ -52,6 +53,7 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         nowInMillis = in.readLong();
         runtimeFields = in.readGenericMap();
         includeEmptyFields = in.readBoolean();
+        includeFieldStats = in.getTransportVersion().supports(FieldCapabilitiesIndexResponse.SHARD_DOC_STATS_VERSION) && in.readBoolean();
     }
 
     FieldCapabilitiesNodeRequest(
@@ -65,6 +67,21 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         Map<String, Object> runtimeFields,
         boolean includeEmptyFields
     ) {
+        this(shardIds, fields, filters, allowedTypes, originalIndices, indexFilter, nowInMillis, runtimeFields, includeEmptyFields, false);
+    }
+
+    FieldCapabilitiesNodeRequest(
+        List<ShardId> shardIds,
+        String[] fields,
+        String[] filters,
+        String[] allowedTypes,
+        OriginalIndices originalIndices,
+        QueryBuilder indexFilter,
+        long nowInMillis,
+        Map<String, Object> runtimeFields,
+        boolean includeEmptyFields,
+        boolean includeFieldStats
+    ) {
         this.shardIds = Objects.requireNonNull(shardIds);
         this.fields = fields;
         this.filters = filters;
@@ -74,6 +91,7 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         this.nowInMillis = nowInMillis;
         this.runtimeFields = runtimeFields;
         this.includeEmptyFields = includeEmptyFields;
+        this.includeFieldStats = includeFieldStats;
     }
 
     public String[] fields() {
@@ -122,6 +140,10 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         return includeEmptyFields;
     }
 
+    public boolean includeFieldStats() {
+        return includeFieldStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -134,6 +156,9 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
         out.writeLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
         out.writeBoolean(includeEmptyFields);
+        if (out.getTransportVersion().supports(FieldCapabilitiesIndexResponse.SHARD_DOC_STATS_VERSION)) {
+            out.writeBoolean(includeFieldStats);
+        }
     }
 
     @Override
@@ -190,12 +215,13 @@ class FieldCapabilitiesNodeRequest extends UntypedActionRequest implements Indic
             && Objects.equals(originalIndices, that.originalIndices)
             && Objects.equals(indexFilter, that.indexFilter)
             && Objects.equals(runtimeFields, that.runtimeFields)
-            && includeEmptyFields == that.includeEmptyFields;
+            && includeEmptyFields == that.includeEmptyFields
+            && includeFieldStats == that.includeFieldStats;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, includeEmptyFields);
+        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, includeEmptyFields, includeFieldStats);
         result = 31 * result + shardIds.hashCode();
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);

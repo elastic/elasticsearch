@@ -51,9 +51,8 @@ public class EsRelation extends LeafPlan implements ClassifiedAs.Index {
     /**
      * Per-index properties keyed by concrete index name, sourced from {@code _field_caps} during
      * index resolution. Consumers must treat a missing entry (or a zero
-     * {@link IndexProperties#numberOfShards()} value) as "unknown". The shard count is not yet
-     * consumed by the planner — it is plumbed here as planning-time metadata for future use
-     * (e.g. parallelism / cost estimation).
+     * {@link IndexProperties#numberOfShards()} value) as "unknown". The cost-based optimizer reads
+     * {@link IndexProperties#docCount()} as the relation's row count estimate.
      */
     private final Map<String, IndexProperties> indexProperties; // keyed by concrete index name
     private final List<Attribute> attrs;

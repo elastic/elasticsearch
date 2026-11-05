@@ -28,15 +28,19 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -54,16 +58,23 @@ import java.util.function.Predicate;
  * helper class performs the core shard operation for the field capabilities action.
  */
 class FieldCapabilitiesFetcher {
+    private static final Logger logger = LogManager.getLogger(FieldCapabilitiesFetcher.class);
     private final IndicesService indicesService;
     private final boolean includeEmptyFields;
+    private final boolean includeFieldStats;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
     private static final boolean enableFieldHasValue = Booleans.parseBoolean(
         System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
     );
 
     FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields) {
+        this(indicesService, includeEmptyFields, false);
+    }
+
+    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields, boolean includeFieldStats) {
         this.indicesService = indicesService;
         this.includeEmptyFields = includeEmptyFields;
+        this.includeFieldStats = includeFieldStats;
     }
 
     FieldCapabilitiesIndexResponse fetch(
@@ -129,6 +140,7 @@ class FieldCapabilitiesFetcher {
         );
         var indexMode = searchExecutionContext.getIndexSettings().getMode();
         final int numberOfShards = searchExecutionContext.getIndexSettings().getNumberOfShards();
+        final DocsStats docsStats = shardDocsStats(indexService, shardId);
         if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
             return new FieldCapabilitiesIndexResponse(
                 shardId.getIndexName(),
@@ -138,7 +150,10 @@ class FieldCapabilitiesFetcher {
                 indexMode,
                 numberOfShards,
                 settingsVersion,
-                mappingVersion
+                mappingVersion,
+                docsStats == null ? -1 : docsStats.getCount(),
+                docsStats == null ? -1 : docsStats.getTotalSizeInBytes(),
+                Map.of()
             );
         }
 
@@ -169,7 +184,10 @@ class FieldCapabilitiesFetcher {
                     indexMode,
                     numberOfShards,
                     settingsVersion,
-                    mappingVersion
+                    mappingVersion,
+                    docsStats == null ? -1 : docsStats.getCount(),
+                    docsStats == null ? -1 : docsStats.getTotalSizeInBytes(),
+                    fieldStats(task, shardId, indexService, searchExecutionContext, existing.keySet())
                 );
             }
         }
@@ -194,8 +212,58 @@ class FieldCapabilitiesFetcher {
             indexMode,
             numberOfShards,
             settingsVersion,
-            mappingVersion
+            mappingVersion,
+            docsStats == null ? -1 : docsStats.getCount(),
+            docsStats == null ? -1 : docsStats.getTotalSizeInBytes(),
+            fieldStats(task, shardId, indexService, searchExecutionContext, responseMap.keySet())
         );
+    }
+
+    /**
+     * Per-field stats of the local shard copy for the returned fields, if the request asked for them. They come from a
+     * dedicated searcher because the field caps searcher is only opened when there is an index filter. Like the doc
+     * stats this is only a hint, so failures leave the stats out rather than failing field caps.
+     */
+    private Map<String, IndexFieldStats> fieldStats(
+        CancellableTask task,
+        ShardId shardId,
+        IndexService indexService,
+        SearchExecutionContext context,
+        Collection<String> fields
+    ) {
+        if (includeFieldStats == false || fields.isEmpty()) {
+            return Map.of();
+        }
+        IndexShard indexShard = indexService.getShardOrNull(shardId.id());
+        if (indexShard == null) {
+            return Map.of();
+        }
+        try (Engine.Searcher statsSearcher = indexShard.acquireSearcher("field_caps_stats")) {
+            return FieldStatsCollector.collect(statsSearcher.getIndexReader(), context, fields, task);
+        } catch (TaskCancelledException e) {
+            throw e;
+        } catch (IOException | RuntimeException e) {
+            logger.trace(() -> "failed to read field stats for [" + shardId + "]", e);
+            return Map.of();
+        }
+    }
+
+    /**
+     * Doc stats of the local shard copy, sent back as a cheap size hint for callers that plan queries (e.g., ES|QL's cost-based
+     * optimizer). Returns {@code null} if the shard cannot report them, since a missing hint must never fail field caps.
+     */
+    @Nullable
+    private static DocsStats shardDocsStats(IndexService indexService, ShardId shardId) {
+        IndexShard indexShard = indexService.getShardOrNull(shardId.id());
+        if (indexShard == null) {
+            return null;
+        }
+        try {
+            return indexShard.docStats();
+        } catch (RuntimeException e) {
+            logger.trace(() -> "failed to read doc stats for [" + shardId + "]", e);
+            return null;
+        }
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(

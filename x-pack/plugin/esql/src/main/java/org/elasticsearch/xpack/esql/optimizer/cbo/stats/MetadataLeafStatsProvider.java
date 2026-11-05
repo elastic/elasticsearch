@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
@@ -34,28 +35,53 @@ final class MetadataLeafStatsProvider implements LeafStatsProvider {
         if (leaf instanceof Row row) {
             return row(row);
         }
+        if (leaf instanceof EsRelation relation) {
+            return esRelation(relation);
+        }
         return unknown(leaf.output());
     }
 
     private static PlanStats external(ExternalRelation relation) {
         SourceMetadata metadata = relation.metadata();
-        SourceStatistics statistics = SourceStatisticsSerializer.fromSource(metadata);
+        return fromStatistics(
+            relation.output(),
+            SourceStatisticsSerializer.fromSource(metadata),
+            metadata.sampleBytes(),
+            metadata.sampleRows()
+        );
+    }
+
+    /**
+     * Stats of a leaf from source-level statistics, shared by external sources and indices so both are estimated the
+     * same way.
+     */
+    private static PlanStats fromStatistics(List<Attribute> output, SourceStatistics statistics, long sampleBytes, long sampleRows) {
         Estimate rows = statistics == null ? Estimate.UNKNOWN : estimate(statistics.rowCount());
         Estimate bytes = statistics == null ? Estimate.UNKNOWN : estimate(statistics.sizeInBytes());
-        Map<NameId, ColumnStats> columns = externalColumns(relation.output(), statistics, rows);
+        Map<NameId, ColumnStats> columns = externalColumns(output, statistics, rows);
         Estimate averageRowBytes;
         if (rows.isUnknown() == false && bytes.isUnknown() == false && rows.value() > 0) {
             averageRowBytes = Estimate.metadata(bytes.value() / rows.value());
-        } else if (metadata.sampleBytes() > 0 && metadata.sampleRows() > 0) {
-            double sampleWidth = (double) metadata.sampleBytes() / metadata.sampleRows();
+        } else if (sampleBytes > 0 && sampleRows > 0) {
+            double sampleWidth = (double) sampleBytes / sampleRows;
             averageRowBytes = Estimate.sampled(sampleWidth, Math.max(1, sampleWidth / 4));
         } else {
-            averageRowBytes = StatsSupport.averageRowBytes(relation.output(), columns);
+            averageRowBytes = StatsSupport.averageRowBytes(output, columns);
         }
         if (bytes.isUnknown()) {
             bytes = StatsSupport.bytes(rows, averageRowBytes);
         }
         return new PlanStats(rows, averageRowBytes, columns, bytes);
+    }
+
+    /**
+     * Row count from the per-index doc counts that field caps reported, unknown if any concrete index lacks one. The
+     * relation size is left unknown so bytes come from the column widths rather than the on-disk size: compressed doc
+     * values and ordinals can be much smaller than the decoded blocks the plan holds, and underestimating lets a build
+     * side fail at runtime. Column widths come from the per-field stats where field caps reported them.
+     */
+    private static PlanStats esRelation(EsRelation relation) {
+        return fromStatistics(relation.output(), IndexSourceStatistics.of(relation), 0, 0);
     }
 
     private static Map<NameId, ColumnStats> externalColumns(List<Attribute> output, SourceStatistics statistics, Estimate rows) {

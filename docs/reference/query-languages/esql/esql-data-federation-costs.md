@@ -22,6 +22,6 @@ To understand, estimate, and reduce these charges, refer to the page for your st
 
 ## Elastic costs [elastic-costs]
 
-Elastic doesn't charge separately for Data Federation queries yet.
+Elastic doesn't charge separately for Data Federation queries during the technical preview.
 
 On {{ech}}, federated queries use your deployment's capacity and data transfer like any other query. For details, refer to [Cloud Hosted deployment billing dimensions](docs-content://deploy-manage/cloud-organization/billing/cloud-hosted-deployment-billing-dimensions.md).

@@ -19,7 +19,8 @@ import static org.hamcrest.Matchers.not;
 
 /**
  * What the tests that watch the checksums on S3 uploads have in common, which is deciding whether a request declares a checksum. Every
- * method uses the same rule so "none" and "some" can't drift apart.
+ * method decides what counts as a checksum header with the same rule, so a request is either checksum-free or not. The "no checksum" and
+ * "some checksum" assertions can never both fail for the same headers.
  */
 final class S3ChecksumRestTestSupport {
 

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.optimizer.cbo.explain.DecisionRef;
 import org.elasticsearch.xpack.esql.optimizer.cbo.explain.DecisionReport;
 import org.elasticsearch.xpack.esql.optimizer.cbo.explain.Delta;
 import org.elasticsearch.xpack.esql.optimizer.cbo.explain.Exclusion;
+import org.elasticsearch.xpack.esql.optimizer.cbo.explain.ExclusionCode;
 import org.elasticsearch.xpack.esql.optimizer.cbo.explain.FitCheck;
 import org.elasticsearch.xpack.esql.optimizer.cbo.explain.FitMethod;
 import org.elasticsearch.xpack.esql.optimizer.cbo.explain.NamedEstimate;
@@ -257,6 +258,17 @@ final class ExplainBuilder {
         boolean anomaly = false;
         Set<String> seen = new LinkedHashSet<>();
         seen.add(point.chosen());
+        String reason = enumeration.reason();
+        List<Exclusion> excluded = enumeration.excluded();
+        if (mode == DecisionMode.GATED && winner.alternative().kind() == OperatorKind.AGGREGATE) {
+            reason = search.gatedReason(winner);
+            excluded = new ArrayList<>(enumeration.excluded());
+            for (Alternative alternative : enumeration.alternatives()) {
+                if (seen.add(alternative.label())) {
+                    excluded.add(new Exclusion(alternative.label(), ExclusionCode.UNKNOWN_STATISTICS, reason));
+                }
+            }
+        }
         for (Alternative alternative : enumeration.alternatives()) {
             if (seen.add(alternative.label()) == false) {
                 continue;
@@ -278,7 +290,7 @@ final class ExplainBuilder {
             anchor.add(anchor(attribute));
         }
         Outcome outcome = conflicting(point) ? new Outcome(OutcomeStatus.CONFLICT, null, CONFLICT_REASON, null, null) : null;
-        String summary = summary(point.chosen(), mode, enumeration, alternatives);
+        String summary = summary(point.chosen(), mode, reason, excluded, alternatives);
         return new DecisionReport(
             point.id(),
             point.kind().name(),
@@ -293,7 +305,7 @@ final class ExplainBuilder {
             estimateBasis(inputs),
             inputs,
             alternatives,
-            enumeration.excluded(),
+            excluded,
             anomaly,
             finite(chosen, alternatives) ? null : NOT_FINITE_WARNING
         );
@@ -593,23 +605,29 @@ final class ExplainBuilder {
         return true;
     }
 
-    private static String summary(String chosen, DecisionMode mode, Enumeration enumeration, List<AlternativeReport> alternatives) {
+    private static String summary(
+        String chosen,
+        DecisionMode mode,
+        @Nullable String reason,
+        List<Exclusion> excluded,
+        List<AlternativeReport> alternatives
+    ) {
         return switch (mode) {
             case COST_BASED -> costBasedSummary(chosen, alternatives);
-            case FORCED -> chosen + " forced by " + enumeration.reason() + ".";
+            case FORCED -> chosen + " forced by " + reason + ".";
             case GATED -> {
                 List<String> names = new ArrayList<>();
-                for (Exclusion exclusion : enumeration.excluded()) {
+                for (Exclusion exclusion : excluded) {
                     names.add(exclusion.name());
                 }
                 yield chosen
                     + " kept: "
-                    + enumeration.reason()
+                    + reason
                     + (names.isEmpty() ? "." : ", so " + joinNames(names) + (names.size() == 1 ? " was" : " were") + " not costed.");
             }
-            case INELIGIBLE -> enumeration.reason() == null
+            case INELIGIBLE -> reason == null
                 ? chosen + " is the only legal strategy."
-                : chosen + " is the only legal strategy: " + enumeration.reason() + ".";
+                : chosen + " is the only legal strategy: " + reason + ".";
             case FIT_FALLBACK -> "All alternatives failed fit checks; " + chosen + " used as the safe fallback.";
         };
     }

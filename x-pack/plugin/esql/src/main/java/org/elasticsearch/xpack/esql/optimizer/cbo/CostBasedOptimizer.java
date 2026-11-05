@@ -649,12 +649,12 @@ public final class CostBasedOptimizer {
                 );
             }
             if (aggregateEvidenceKnown(group, aggregate) == false) {
-                String reason = "input rows are unknown";
+                // Both modes are enumerated, but evaluateAggregate keeps only the one gatedMode picks for each child.
                 return new Enumeration(
-                    List.of(aggregateAlternative(AggMode.COORDINATOR, false)),
-                    List.of(new Exclusion(AggMode.DISTRIBUTED.name(), ExclusionCode.UNKNOWN_STATISTICS, reason)),
+                    List.of(aggregateAlternative(AggMode.COORDINATOR, false), aggregateAlternative(AggMode.DISTRIBUTED, false)),
+                    List.of(),
                     DecisionMode.GATED,
-                    reason
+                    "input rows are unknown"
                 );
             }
             return new Enumeration(
@@ -914,6 +914,10 @@ public final class CostBasedOptimizer {
                 );
             }
 
+            if (enumeration(group).mode() == DecisionMode.GATED && alternative.aggregateMode() != gatedMode(child)) {
+                return null;
+            }
+
             if (alternative.aggregateMode() == AggMode.DISTRIBUTED
                 && groupAttributes == null
                 && child.delivered() instanceof SourcePartitioning == false) {
@@ -926,6 +930,29 @@ public final class CostBasedOptimizer {
 
             Delivered output = aggregateHash(aggregate, groupAttributes);
             return new Evaluation(output, workerLanes, aggregateDistributedCost(inputStats, child, aggregate), 1, true);
+        }
+
+        /**
+         * The mode a gated aggregate uses when its input statistics are unknown, so cost cannot compare the two. The input's
+         * existing distribution decides instead. Input straight from the source stays on the coordinator, as rule-based
+         * planning does. Input a shuffle below has already spread across the worker lanes stays distributed: gathering it
+         * would undo that shuffle and funnel every row through one node, which is the risk the shuffle was paying to avoid.
+         */
+        static AggMode gatedMode(Winner child) {
+            return switch (child.delivered()) {
+                case SourcePartitioning source -> AggMode.COORDINATOR;
+                case HashPartitioning hash -> AggMode.DISTRIBUTED;
+                case ArbitraryPartitioning arbitrary -> AggMode.DISTRIBUTED;
+                case SinglePartitioning single -> throw new IllegalStateException("bug: aggregate over a single lane runs in place");
+            };
+        }
+
+        /** The reason a gated aggregate kept the mode {@link #gatedMode} picked for its input. */
+        String gatedReason(Winner winner) {
+            String reason = enumeration(winner.group()).reason();
+            return gatedMode(winner.children().get(0)) == AggMode.DISTRIBUTED
+                ? reason + " and a shuffle below already spread the input across the workers"
+                : reason + " and the input comes straight from the source";
         }
 
         private Part aggregateInPlaceCost(PlanStats inputStats, long lanes, Aggregate aggregate) {

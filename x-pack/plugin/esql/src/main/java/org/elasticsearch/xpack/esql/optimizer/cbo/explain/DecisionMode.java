@@ -18,7 +18,10 @@ public enum DecisionMode {
     COST_BASED,
     /** A pragma fixed the alternative. */
     FORCED,
-    /** Statistics the comparison needs are unknown, so the incumbent was kept. */
+    /**
+     * Statistics the comparison needs are unknown, so cost cannot pick. Aggregates keep the distribution their input already
+     * has; other operators keep the incumbent.
+     */
     GATED,
     /** Only one alternative is legal for this plan shape, feature gate, or transport version. */
     INELIGIBLE,

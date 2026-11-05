@@ -239,6 +239,54 @@ public class CostBasedOptimizerExplainTests extends ESTestCase {
         assertThat(decision.summary(), endsWith(", so BROADCAST and PARTITIONED were not costed."));
     }
 
+    public void testGatedAggregateStaysDistributedAfterShuffle() {
+        Attribute leftKey = attribute("probe_key");
+        Attribute rightKey = attribute("build_key");
+        Attribute person = attribute("person");
+        EsRelation probe = new EsRelation(
+            Source.EMPTY,
+            "probe",
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            List.of(leftKey, person)
+        );
+        SubqueryLookupJoin join = subqueryJoin(probe, relation("build", rightKey), leftKey, rightKey);
+        Aggregate aggregate = new Aggregate(Source.EMPTY, join, List.of(person), List.of(person));
+        Map<LogicalPlan, PlanStats> statistics = new IdentityHashMap<>();
+        statistics.put(join.left(), stats(100_000_000, 8_000_000_000d, 80));
+        statistics.put(join.right(), stats(50_000_000, 4_000_000_000d, 80));
+
+        PlanDecisions decisions = explain(aggregate, statistics, Settings.EMPTY);
+
+        assertEquals(JoinStrategy.PARTITIONED, decisions.join(join).orElseThrow());
+        assertEquals(AggMode.DISTRIBUTED, decisions.aggregate(aggregate.aggregates()).orElseThrow());
+        DecisionReport decision = decisions.report().decisions().get(0);
+        assertEquals(AggregateDistributionDecisionKind.NAME, decision.kind());
+        assertEquals(DecisionMode.GATED, decision.mode());
+        assertEquals(List.of(), decision.alternatives());
+        String reason = "input rows are unknown and a shuffle below already spread the input across the workers";
+        assertEquals(List.of(new Exclusion("COORDINATOR", ExclusionCode.UNKNOWN_STATISTICS, reason)), decision.excluded());
+        assertEquals("DISTRIBUTED kept: " + reason + ", so COORDINATOR was not costed.", decision.summary());
+    }
+
+    public void testGatedAggregateOverSourceStaysOnCoordinator() {
+        Attribute key = attribute("key");
+        EsRelation source = relation("source", key);
+        Aggregate aggregate = new Aggregate(Source.EMPTY, source, List.of(key), List.of(key));
+        Map<LogicalPlan, PlanStats> statistics = new IdentityHashMap<>();
+        statistics.put(source, stats(Estimate.UNKNOWN, Estimate.UNKNOWN, Estimate.UNKNOWN));
+
+        PlanDecisions decisions = explain(aggregate, statistics, Settings.EMPTY);
+
+        assertEquals(AggMode.COORDINATOR, decisions.aggregate(aggregate.aggregates()).orElseThrow());
+        DecisionReport decision = decisions.report().decisions().get(0);
+        assertEquals(DecisionMode.GATED, decision.mode());
+        String reason = "input rows are unknown and the input comes straight from the source";
+        assertEquals(List.of(new Exclusion("DISTRIBUTED", ExclusionCode.UNKNOWN_STATISTICS, reason)), decision.excluded());
+    }
+
     public void testForcedByPragma() {
         Attribute leftKey = attribute("probe_key");
         Attribute rightKey = attribute("build_key");

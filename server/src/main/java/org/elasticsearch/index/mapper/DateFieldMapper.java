@@ -474,6 +474,20 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
+        public void normalize(MapperBuilderContext context) {
+            super.normalize(context);
+            disallowMalformedDataStreamTimestamp(context);
+        }
+
+        private void disallowMalformedDataStreamTimestamp(MapperBuilderContext context) {
+            if (DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(context.buildFullName(leafName()))
+                && context.isDataStream()
+                && ignoreMalformed.isConfigured() == false) {
+                ignoreMalformed.setValue(false);
+            }
+        }
+
+        @Override
         public DateFieldMapper build(MapperBuilderContext context) {
             final String fullFieldName = context.buildFullName(leafName());
             IndexType indexType = indexType(fullFieldName);
@@ -508,11 +522,7 @@ public final class DateFieldMapper extends FieldMapper {
             );
 
             Long nullTimestamp = parseNullValue(ft);
-            if (ft.name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                && context.isDataStream()
-                && ignoreMalformed.isConfigured() == false) {
-                ignoreMalformed.setValue(false);
-            }
+            disallowMalformedDataStreamTimestamp(context);
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.get();
             return new DateFieldMapper(

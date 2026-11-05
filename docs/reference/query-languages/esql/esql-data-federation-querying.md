@@ -63,7 +63,7 @@ The general query performance advice in [optimize {{esql}} query performance](es
 {{es}} caches dataset metadata on each node so that repeated queries against the same dataset don't discover files and read file metadata again each time:
 
 - **File listings** are reused for a fixed time before {{es}} lists the storage again. A file added to or removed from the bucket becomes visible once the listing expires.
-- **Inferred schemas** are invalidated when the underlying file changes. 
+- **Inferred schemas** are invalidated when the underlying file changes.
   - {applies_to}`stack: preview 9.6+` Additionally, a schema is reused for at most 20 minutes by default.
 - {applies_to}`stack: preview 9.6+` **Footers of columnar files**, such as Parquet footers, are kept while queries keep reading them, and dropped 5 minutes after the last read by default. Footer entries are keyed by the object's version, so a file overwritten in place is read with its new footer. Objects without a version aren't footer-cached.
 
@@ -96,11 +96,16 @@ When sources have different schemas, columns that do not exist in a given source
 - {applies_to}`stack: preview 9.6+` Use `METADATA _name` and `METADATA _class`. `_name` returns the dataset name for dataset rows and the index name for index rows. `_class` returns `index` or `dataset`, so a query can tell the two apart without knowing the names in advance. `_index` returns `null` for dataset rows, because a dataset is not an index.
 - {applies_to}`stack: experimental =9.5` Use `METADATA _index`, which returns the dataset name for dataset rows. `_class` and `_name` are not available.
 
+A view definition can also read from a dataset. For how datasets behave inside views, refer to [](/reference/query-languages/esql/esql-views.md#data-federation-datasets).
+
 ### Match datasets with wildcards
 ```{applies_to}
-stack: preview 9.6+
+stack: preview 9.6+, experimental =9.5
 ```
 
+::::{applies-switch}
+
+:::{applies-item} stack: preview 9.6+
 By default, a wildcard does not match datasets. `FROM speedtest_data` reads the dataset, while `FROM speedtest*` resolves to indices, data streams, aliases, and views only. Registering a dataset therefore does not change what an existing wildcard query reads.
 
 To let wildcards discover datasets, enable the `wildcards_match_datasets` query setting:
@@ -111,6 +116,13 @@ FROM speedtest*
 ```
 
 You can also send it in the `_query` request body as `"settings": {"wildcards_match_datasets": true}`, or change the cluster-wide default with [`esql.query.settings.wildcards_match_datasets`](esql-data-federation-cluster-settings.md#query-defaults). A value set in the query overrides the request body, which overrides the cluster default.
+:::
+
+:::{applies-item} stack: experimental =9.5
+A wildcard also matches datasets, so registering a dataset can change what an existing wildcard query reads.
+:::
+
+::::
 
 ## Use metadata columns
 
@@ -163,6 +175,7 @@ The following search functions are available for datasets:
 |---|---|
 | [`MATCH`](functions-operators/search-functions/match.md) | {applies_to}`stack: preview 9.6+, experimental =9.5` |
 | [`MATCH_PHRASE`](functions-operators/search-functions/match_phrase.md) | {applies_to}`stack: preview 9.6+` |
+| [`KNN`](functions-operators/dense-vector-functions/knn.md) on a `dense_vector` column | {applies_to}`stack: preview 9.6+` |
 | `_score` for dataset rows | {applies_to}`stack: preview 9.6+` |
 
 ## Limitations
@@ -177,7 +190,8 @@ The limitations below include operations that require structures available only 
 | `LOOKUP JOIN`, with a dataset as the lookup target | A dataset works as the left (source) side of the join. The lookup target must be an {{es}} index. | `LOOKUP JOIN against a dataset is not supported; dataset(s) requested: [...]` |
 | `TS` (time series) | A time-series source must be an {{es}} index. | `TS command is not supported for datasets; dataset(s) requested: [...]` |
 | Search functions | Search functions work on datasets as runtime search functions, scanning values row by row without an inverted index. Availability varies by version. Refer to the [availability table](#use-search-functions). | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
-| `KNN` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
+| `KNN` {applies_to}`stack: experimental =9.5` | `KNN` requires a vector field from an index mapping, which a dataset does not have. | `… cannot operate on [<field>], which is not a field from an index mapping (the source is a federated data source, not an index)` |
+| `KNN` {applies_to}`stack: preview 9.6+` | `KNN` performs an exact search over every row instead of an approximate search. Dataset columns don't map to `dense_vector`, so create one at query time with [`TO_DENSE_VECTOR`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md) or with the [`DENSE_VECTOR`](commands/dense-vector.md) command. | |
 | More than 8 sources in one `FROM` {applies_to}`stack: experimental =9.5` | A `FROM` that includes datasets runs one execution branch per resolved source, up to a limit of 8 branches. Query fewer sources together. | |
 | More sources in one `FROM` than `max_branch_count_per_merge` allows {applies_to}`stack: preview 9.6+` | A `FROM` that includes datasets runs one execution branch per resolved source. The limit is the `esql.query.max_branch_count_per_merge` cluster setting (default 8). Query fewer sources together, or raise the limit. | |
 | A column with conflicting types across sources | When you query a dataset together with other sources and the same column has types that cannot be reconciled, the query fails rather than returning mixed types. | `Column [<name>] has conflicting data types in subqueries` |
@@ -204,11 +218,13 @@ Unexpected nulls in query results
 Slow queries
 :   Add [`KEEP`](/reference/query-languages/esql/commands/keep.md) to select only the columns you need, add a [`WHERE`](/reference/query-languages/esql/commands/where.md) filter, and add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md). For Parquet datasets, these push down to the reader and can significantly reduce the amount of data read from storage. Check the number of files your dataset's resource path resolves to. Large file counts increase query planning time.
 
+    {applies_to}`stack: preview 9.6+, experimental =9.5` To end a long query against a dataset and get the rows produced so far, run it as an [async query](/reference/query-languages/esql/esql-rest.md#esql-rest-async-query) and stop it with the async stop API. The response returns those rows with `is_partial: true`. If the query already finished, the response has `is_partial: false`.
+
 503 error when creating a data source with credentials
 :   {{es}} encrypts credentials before storing them. If the cluster state encryption key is not available, the request returns `503 SERVICE_UNAVAILABLE`. Refer to [credential encryption](esql-data-federation-security.md#credential-encryption) for details.
 
-503 error while nodes join the cluster
-:   A node that has just joined the cluster, or that has not yet applied a recent dataset change, cannot run a query's external reads until it catches up. {{es}} sends the reads to another node when one is available; otherwise the node waits to catch up. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query, or increase [`esql.external.worker_ready_timeout`](esql-data-federation-cluster-settings.md#esql-external-worker-ready-timeout).
+503 error after changing a dataset or adding a node {applies_to}`stack: preview 9.7+`
+:   A node that has not yet applied a recent dataset change, or that has just joined the cluster, cannot read external data until it catches up. {{es}} waits briefly for it. If it does not catch up in time, the query fails with a retryable `503` error whose `external_condition` is `worker_not_ready`. Retry the query.
 
 $$$unknown-index-dataset$$$
 

@@ -14,11 +14,14 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.options.Option;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -44,6 +47,14 @@ public abstract class MergeTodoReportTask extends DefaultTask {
     /** Merged CSV report with the same rows as {@link #getOutputJson()}. */
     @OutputFile
     public abstract RegularFileProperty getOutputCsv();
+
+    /**
+     * Accepted on the root task so {@code :todoReport --include-untracked} is a valid command.
+     * Module tasks use this value unless they were given the option themselves.
+     */
+    @Input
+    @Option(option = "include-untracked", description = "Include comments in files git does not track")
+    public abstract Property<Boolean> getIncludeUntracked();
 
     @TaskAction
     public void merge() {

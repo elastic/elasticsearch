@@ -9,8 +9,10 @@
 
 package org.elasticsearch.gradle.internal.todo;
 
-import java.io.IOException;
-import java.io.InputStream;
+import org.gradle.process.ExecOperations;
+
+import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -19,7 +21,6 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,30 +41,8 @@ public final class GitBlame {
      * @param authorEmail  author email without angle brackets
      * @param authoredAt   ISO-8601 author time with the author offset
      * @param authoredDate calendar date of {@code authoredAt} in that offset
-     * @param blameStatus  {@code ok} or {@code uncommitted}
      */
-    public record Line(String commit, String authorName, String authorEmail, String authoredAt, String authoredDate, String blameStatus) {}
-
-    /** {@code git} is not on the path. */
-    public static final class GitRequiredException extends RuntimeException {
-        GitRequiredException(Throwable cause) {
-            super("git is required to attribute TODO and FIXME comments", cause);
-        }
-    }
-
-    /** The working tree is not a git repository, so the report cannot attribute comments. */
-    public static final class NotARepositoryException extends RuntimeException {
-        NotARepositoryException(String stderr) {
-            super("todoReport requires a git checkout: " + stderr.trim());
-        }
-    }
-
-    /** {@code git blame} failed for a reason other than an untracked file. */
-    public static final class BlameFailedException extends RuntimeException {
-        BlameFailedException(Path file, String detail) {
-            super("git blame failed for " + file + ": " + detail.trim());
-        }
-    }
+    public record Line(String commit, String authorName, String authorEmail, String authoredAt, String authoredDate) {}
 
     /** The file is not in HEAD, so every marker in it is untracked. */
     public static final class UntrackedFileException extends RuntimeException {
@@ -75,49 +54,29 @@ public final class GitBlame {
     private GitBlame() {}
 
     /**
-     * Blames {@code file} from {@code workingDirectory}. Throws {@link UntrackedFileException} when
-     * git reports that the path is not in HEAD. Throws when git is missing or the directory is not a repository.
+     * Blames {@code file} from {@code workingDirectory}. {@code git ls-files} prints the path when the
+     * file is tracked and nothing when it is not; an empty listing throws {@link UntrackedFileException}
+     * and blame is not run. A missing git binary or a directory that is not a repository fails the
+     * Gradle exec.
      */
-    public static Map<Integer, Line> blame(Path workingDirectory, Path file) throws IOException, InterruptedException {
-        ProcessBuilder builder = new ProcessBuilder("git", "blame", "-w", "--line-porcelain", "--", file.toString());
-        builder.directory(workingDirectory.toFile());
-        Process process;
-        try {
-            process = builder.start();
-        } catch (IOException e) {
-            if (e.getMessage() != null && e.getMessage().contains("Cannot run program")) {
-                throw new GitRequiredException(e);
-            }
-            throw e;
+    public static Map<Integer, Line> blame(ExecOperations execOperations, Path workingDirectory, Path file) {
+        String tracked = runGit(execOperations, workingDirectory, "git", "ls-files", "--", file.toString());
+        if (tracked.isBlank()) {
+            throw new UntrackedFileException(file);
         }
-        AtomicReference<IOException> drainFailure = new AtomicReference<>();
-        byte[][] errBytes = new byte[1][];
-        Thread drain = new Thread(() -> {
-            try (InputStream stderr = process.getErrorStream()) {
-                errBytes[0] = stderr.readAllBytes();
-            } catch (IOException e) {
-                drainFailure.set(e);
-            }
-        }, "git-blame-stderr");
-        drain.setDaemon(true);
-        drain.start();
-        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        int exitCode = process.waitFor();
-        drain.join();
-        if (drainFailure.get() != null) {
-            throw drainFailure.get();
-        }
-        String stderr = new String(errBytes[0] == null ? new byte[0] : errBytes[0], StandardCharsets.UTF_8);
-        if (exitCode != 0) {
-            if (stderr.contains("not a git repository")) {
-                throw new NotARepositoryException(stderr);
-            }
-            if (stderr.contains("no such path")) {
-                throw new UntrackedFileException(file);
-            }
-            throw new BlameFailedException(file, stderr.isBlank() ? "exit " + exitCode : stderr);
-        }
-        return parsePorcelain(output);
+        String blamed = runGit(execOperations, workingDirectory, "git", "blame", "-w", "--line-porcelain", "--", file.toString());
+        return parsePorcelain(blamed);
+    }
+
+    private static String runGit(ExecOperations execOperations, Path workingDirectory, String... args) {
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        execOperations.exec(spec -> {
+            spec.setCommandLine((Object[]) args);
+            spec.setWorkingDir(workingDirectory.toFile());
+            spec.setStandardOutput(stdout);
+            spec.setErrorOutput(OutputStream.nullOutputStream());
+        });
+        return stdout.toString(StandardCharsets.UTF_8);
     }
 
     /**
@@ -174,8 +133,7 @@ public final class GitBlame {
             author,
             email,
             authored.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
-            authored.toLocalDate().toString(),
-            uncommitted ? "uncommitted" : "ok"
+            authored.toLocalDate().toString()
         );
     }
 

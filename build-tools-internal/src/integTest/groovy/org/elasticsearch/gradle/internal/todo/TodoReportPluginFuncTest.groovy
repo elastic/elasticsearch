@@ -84,6 +84,51 @@ public class Foo {
         fixme.commit != todo.commit
     }
 
+    def "omits untracked files unless include-untracked is set"() {
+        given:
+        def server = subProject(":server")
+        server << """
+            apply plugin: 'java'
+            plugins.apply(org.elasticsearch.gradle.internal.todo.TodoReportPlugin)
+        """
+        def tracked = file("server/src/main/java/org/example/Foo.java")
+        tracked.text = """package org.example;
+public class Foo {
+    // TODO: tracked
+}
+"""
+        def untracked = file("server/src/main/java/org/example/Bar.java")
+        untracked.text = """package org.example;
+public class Bar {
+    // TODO: not tracked
+}
+"""
+        git("init")
+        git("config", "user.email", "ada@example.com")
+        git("config", "user.name", "Ada Lovelace")
+        git("config", "commit.gpgsign", "false")
+        git("config", "core.autocrlf", "false")
+        git("add", "server/src/main/java/org/example/Foo.java")
+        git("commit", "-m", "add tracked")
+
+        when:
+        def skipped = gradleRunner(":server:todoReport").build()
+
+        then:
+        skipped.task(":server:todoReport").outcome == TaskOutcome.SUCCESS
+        def without = new groovy.json.JsonSlurper().parse(file("server/build/reports/todo-report/todos.json"))
+        without.items.collect { it.message } == ["tracked"]
+
+        when:
+        def included = gradleRunner(":server:todoReport", "--include-untracked").build()
+
+        then:
+        included.task(":server:todoReport").outcome == TaskOutcome.SUCCESS
+        def withUntracked = new groovy.json.JsonSlurper().parse(file("server/build/reports/todo-report/todos.json"))
+        withUntracked.items.collect { it.message }.sort() == ["not tracked", "tracked"]
+        withUntracked.items.find { it.message == "not tracked" }.blameStatus == "untracked"
+    }
+
     private void git(String... args) {
         def process = new ProcessBuilder(["git", *args]).directory(projectDir).redirectErrorStream(true).start()
         def text = process.inputStream.getText("UTF-8")

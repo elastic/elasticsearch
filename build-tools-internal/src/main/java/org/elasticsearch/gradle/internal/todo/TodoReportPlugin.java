@@ -42,6 +42,7 @@ public class TodoReportPlugin implements Plugin<Project> {
             t.getProjectDirectory().set(project.getLayout().getProjectDirectory().getAsFile().getAbsolutePath());
             t.getSettingsDirectory().set(project.getLayout().getSettingsDirectory().getAsFile().getAbsolutePath());
             t.getMarkers().set(extension.getMarkers());
+            t.getIncludeUntracked().convention(false);
             t.getOutputFile().set(project.getLayout().getBuildDirectory().file("reports/todo-report/todos.json"));
         });
         File buildDirectory = project.getLayout().getBuildDirectory().get().getAsFile();

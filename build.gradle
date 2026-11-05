@@ -673,6 +673,7 @@ tasks.register("spotlessApply").configure {
 tasks.register('todoReport', MergeTodoReportTask) { merge ->
   group = 'reporting'
   description = 'Write a repo-wide TODO and FIXME report as JSON and CSV'
+  includeUntracked.convention(false)
   outputJson.set(project.layout.buildDirectory.file('reports/todo-report/todos.json'))
   outputCsv.set(project.layout.buildDirectory.file('reports/todo-report/todos.csv'))
   // Wired when this task is configured, so a build that does not ask for the report
@@ -682,6 +683,10 @@ tasks.register('todoReport', MergeTodoReportTask) { merge ->
       def moduleReport = sub.tasks.named('todoReport', TodoReportTask)
       merge.dependsOn(moduleReport)
       merge.reportFiles.from(moduleReport.flatMap { it.outputFile })
+      // convention, not set: a module invoked directly can still pass --include-untracked
+      moduleReport.configure {
+        includeUntracked.convention(merge.includeUntracked)
+      }
     }
   }
 }

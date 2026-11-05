@@ -23,6 +23,8 @@ import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.options.Option;
+import org.gradle.process.ExecOperations;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,10 +34,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+
+import javax.inject.Inject;
 
 /**
  * Writes this project's to-do and fix-me comments, with git blame, to a JSON file.
@@ -72,12 +72,22 @@ public abstract class TodoReportTask extends DefaultTask {
     @Input
     public abstract ListProperty<String> getMarkers();
 
+    /**
+     * When false, files git does not track are omitted. Pass {@code --include-untracked} to keep them.
+     */
+    @Input
+    @Option(option = "include-untracked", description = "Include comments in files git does not track")
+    public abstract Property<Boolean> getIncludeUntracked();
+
     /** This module's JSON report. */
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
+    @Inject
+    protected abstract ExecOperations getExecOperations();
+
     @TaskAction
-    public void report() throws IOException, InterruptedException {
+    public void report() throws IOException {
         Path projectDirectory = Path.of(getProjectDirectory().get());
         Path settingsDirectory = Path.of(getSettingsDirectory().get());
         List<String> markers = getMarkers().get();
@@ -102,59 +112,45 @@ public abstract class TodoReportTask extends DefaultTask {
         );
     }
 
-    private List<TodoEntry> blame(Path projectDirectory, Path settingsDirectory, Map<Path, List<TodoCommentParser.Hit>> hitsByFile)
-        throws InterruptedException {
+    private List<TodoEntry> blame(Path projectDirectory, Path settingsDirectory, Map<Path, List<TodoCommentParser.Hit>> hitsByFile) {
         if (hitsByFile.isEmpty()) {
             return List.of();
         }
-        int threads = Math.max(1, Math.min(hitsByFile.size(), Runtime.getRuntime().availableProcessors()));
-        ExecutorService pool = Executors.newFixedThreadPool(threads);
-        try {
-            String module = getModulePath().get();
-            List<Future<List<TodoEntry>>> futures = new ArrayList<>();
-            for (Map.Entry<Path, List<TodoCommentParser.Hit>> entry : hitsByFile.entrySet()) {
-                futures.add(pool.submit(() -> entriesFor(settingsDirectory, projectDirectory, module, entry.getKey(), entry.getValue())));
-            }
-            List<TodoEntry> items = new ArrayList<>();
-            for (Future<List<TodoEntry>> future : futures) {
-                items.addAll(future.get());
-            }
-            return items;
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause() == null ? e : e.getCause();
-            if (cause instanceof RuntimeException runtime) {
-                throw runtime;
-            }
-            if (cause instanceof IOException io) {
-                throw new GradleException("Failed to blame TODO comments", io);
-            }
-            if (cause instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new GradleException("Failed to blame TODO comments", cause);
-        } finally {
-            pool.shutdownNow();
+        String module = getModulePath().get();
+        boolean includeUntracked = getIncludeUntracked().get();
+        ExecOperations execOperations = getExecOperations();
+        List<TodoEntry> items = new ArrayList<>();
+        for (Map.Entry<Path, List<TodoCommentParser.Hit>> entry : hitsByFile.entrySet()) {
+            items.addAll(
+                entriesFor(execOperations, settingsDirectory, projectDirectory, module, entry.getKey(), entry.getValue(), includeUntracked)
+            );
         }
+        return items;
     }
 
     private static List<TodoEntry> entriesFor(
+        ExecOperations execOperations,
         Path settingsDirectory,
         Path projectDirectory,
         String module,
         Path file,
-        List<TodoCommentParser.Hit> hits
-    ) throws IOException, InterruptedException {
+        List<TodoCommentParser.Hit> hits,
+        boolean includeUntracked
+    ) {
         Map<Integer, GitBlame.Line> blamed;
         try {
-            blamed = GitBlame.blame(settingsDirectory, file);
+            blamed = GitBlame.blame(execOperations, settingsDirectory, file);
         } catch (GitBlame.UntrackedFileException e) {
-            return untracked(settingsDirectory, projectDirectory, module, file, hits);
+            if (includeUntracked) {
+                return untracked(settingsDirectory, projectDirectory, module, file, hits);
+            }
+            return List.of();
         }
         List<TodoEntry> entries = new ArrayList<>();
         for (TodoCommentParser.Hit hit : hits) {
             GitBlame.Line line = blamed.get(hit.line());
             if (line == null) {
-                throw new GitBlame.BlameFailedException(file, "no blame for line " + hit.line());
+                throw new GradleException("git blame failed for " + file + ": no blame for line " + hit.line());
             }
             entries.add(entry(settingsDirectory, projectDirectory, module, file, hit, line));
         }
@@ -214,7 +210,7 @@ public abstract class TodoReportTask extends DefaultTask {
             line.authoredAt(),
             line.authoredDate(),
             line.commit(),
-            line.blameStatus()
+            line.commit() == null ? "uncommitted" : "ok"
         );
     }
 }

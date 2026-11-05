@@ -1020,6 +1020,15 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         assertThat(EsqlCCSUtils.concreteIndexRequested("*"), equalTo(false));
     }
 
+    public void testConcreteIndexRequestedWithEmptySegments() {
+        // empty segments must not cause StringIndexOutOfBoundsException
+        assertThat(EsqlCCSUtils.concreteIndexRequested(",logs*"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("logs*,,metrics*"), equalTo(false));
+        assertThat(EsqlCCSUtils.concreteIndexRequested(",logs"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested("logs*,,metrics"), equalTo(true));
+        assertThat(EsqlCCSUtils.concreteIndexRequested(","), equalTo(false));
+    }
+
     public void testInitCrossClusterState() {
         final TestIndicesExpressionGrouper indicesGrouper = new TestIndicesExpressionGrouper();
 

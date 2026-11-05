@@ -97,12 +97,7 @@ public class TransportResolveClusterAction extends HandledTransportAction<Resolv
     @Override
     protected void doExecute(Task task, ResolveClusterActionRequest request, ActionListener<ResolveClusterActionResponse> listener) {
         if (ccsCheckCompatibility) {
-            try {
-                checkCCSVersionCompatibility(request);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
+            checkCCSVersionCompatibility(request);
         }
 
         assert task instanceof CancellableTask;

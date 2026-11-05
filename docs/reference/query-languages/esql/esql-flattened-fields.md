@@ -221,8 +221,9 @@ rather than pushed to the index.
 [`TO_DENSE_VECTOR`](functions-operators/type-conversion-functions/to_dense_vector.md) to cast a hex-encoded byte vector,
 or the [`DENSE_VECTOR`](commands/dense-vector.md) command to generate embeddings from the extracted text.
 
-In 9.6.0, passing an inline `TO_DENSE_VECTOR` conversion as the `KNN` field argument doesn't return correct results.
-As a workaround, use `EVAL` to create the `dense_vector` column first and pass that column to `KNN`.
+In 9.6.0, passing an inline `TO_DENSE_VECTOR` conversion as the `KNN` field argument returns no rows or fails
+([#163402](https://github.com/elastic/elasticsearch/issues/163402)). As a workaround, use `EVAL` to create the
+`dense_vector` column first and pass that column to `KNN`.
 For details, refer to [known issues](/release-notes/known-issues.md#elasticsearch-9.6.0-known-issues).
 
 ## Related resources [esql-flattened-fields-related]

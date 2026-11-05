@@ -122,8 +122,12 @@ In both cases, {{esql}} cannot use a Lucene index on `unmapped`, so it must read
 
 For the full list of restrictions, refer to the [`SET unmapped_fields`](directives/set.md#esql-unmapped_fields) reference.
 
-* {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga` `MATCH` can search a loaded field.
-* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `MATCH_PHRASE` can search a loaded field.
+### Search loaded fields [esql-unmapped-fields-search]
+
+Search functions can search a loaded field:
+
+- {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga` `MATCH`
+- {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `MATCH_PHRASE`
 
 Because the loaded values have no index behind them, this is a
 [runtime search](/reference/query-languages/esql/esql-runtime-search.md): it scans values row by row, and analyzes

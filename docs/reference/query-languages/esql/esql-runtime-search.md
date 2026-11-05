@@ -62,7 +62,7 @@ issued when it occurs.
 * {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` A `dense_vector` expression, such as the
   embeddings that `DENSE_VECTOR` generates or a value converted with
   [`TO_DENSE_VECTOR`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md).
-  `KNN` on an inline `TO_DENSE_VECTOR` of a field returns no rows or fails
+  In 9.6.0, `KNN` on an inline `TO_DENSE_VECTOR` of a field returns no rows or fails
   ([#163402](https://github.com/elastic/elasticsearch/issues/163402)). Convert the field with `EVAL` first, and
   search the resulting column.
 * A field converted to `text` or `keyword` when it is not already of that type, for example `TO_TEXT` on a `keyword`
@@ -348,9 +348,9 @@ generates or a value converted with
 [`TO_DENSE_VECTOR`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md),
 it runs an exact search instead: it compares the query vector with the vector in every row that reaches it.
 
-`KNN` on an inline `TO_DENSE_VECTOR` of a field, like `KNN(TO_DENSE_VECTOR(hex), [64, 0, 0])`, returns no rows or
-fails ([#163402](https://github.com/elastic/elasticsearch/issues/163402)). Convert the field with `EVAL` first, and
-search the resulting column.
+In 9.6.0, `KNN` on an inline `TO_DENSE_VECTOR` of a field, like `KNN(TO_DENSE_VECTOR(hex), [64, 0, 0])`, returns no
+rows or fails ([#163402](https://github.com/elastic/elasticsearch/issues/163402)). Convert the field with `EVAL`
+first, and search the resulting column.
 
 ### Find the nearest neighbors [esql-runtime-search-knn-nearest]
 
@@ -403,4 +403,4 @@ the number of matches. To keep it fast:
 * [Search functions](/reference/query-languages/esql/functions-operators/search-functions.md): the full-text search functions in {{esql}}.
 * [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md): the function reference, including its behavior on `dense_vector` expressions.
 * [Full-text search limitations](/reference/query-languages/esql/limitations.md#esql-limitations-full-text-search): what runtime search and searches on indexed fields don't support.
-* [Search and filter with {{esql}}](/reference/query-languages/esql/esql-search-tutorial.md): a hands-on tutorial, including searching computed values and [`KNN` on `dense_vector` expressions](/reference/query-languages/esql/esql-search-tutorial.md#knn-on-dense_vector-expressions).
+* [{{esql}} for search tutorial](/reference/query-languages/esql/esql-search-tutorial.md): hands-on examples, including searching computed values and [`KNN` on `dense_vector` expressions](/reference/query-languages/esql/esql-search-tutorial.md#knn-on-dense_vector-expressions).

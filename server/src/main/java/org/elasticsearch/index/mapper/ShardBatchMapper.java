@@ -41,7 +41,7 @@ import java.util.function.IntPredicate;
  * <ol>
  *     <li>{@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)} runs once per batch. It walks the
  *     schema leaves and binds each column to a {@link FieldMapper} (or records {@code null} for
- *     columns that are silently ignored under a {@code dynamic=false} parent). Leaves that belong to a
+ *     columns that are silently ignored under an {@code enabled=false} prefix). Leaves that belong to a
  *     {@link FieldMapper#resolvesColumnGroup() group mapper} (e.g. {@code flattened}) are accumulated
  *     separately in {@link BatchMapperResolution#columnGroups()}. Any configuration
  *     outside the v1 support matrix — runtime fields, index-time scripts, dynamic mapping,
@@ -64,7 +64,7 @@ public final class ShardBatchMapper {
      * Result of {@link #resolveMappers(SourceSchema, MappingLookup, IndexSettings)}.
      *
      * <p>{@code columnMappers} holds one entry per schema leaf; a {@code null} entry means the column is
-     * silently ignored (nearest parent has {@code dynamic=false}) or the leaf is owned by a group mapper
+     * silently ignored (it lies under an {@code enabled=false} prefix) or the leaf is owned by a group mapper
      * and will be dispatched via {@code columnGroups} instead.
      *
      * <p>{@code columnGroups} holds one entry per group mapper (e.g. {@code flattened}), ordered by the
@@ -172,7 +172,7 @@ public final class ShardBatchMapper {
                 if (group instanceof ColumnGroupLookup.Conflict(FieldMapper mapper, String ownerPath)) {
                     // The document nests values beneath a leaf field. The sequential path reports this as a document
                     // parsing error, so fall back and let it do so rather than treating the leaf as unmapped, which
-                    // under a dynamic=false prefix would silently drop the value.
+                    // could silently drop the value.
                     logger.debug(
                         "batch indexing disabled: leaf [{}] nests under the [{}] field mapper at [{}]",
                         fullPath,
@@ -206,22 +206,20 @@ public final class ShardBatchMapper {
                 }
                 final ObjectMapper.Dynamic parentDynamic = findNearestParentDynamic(fullPath, lookup);
                 if (parentDynamic == ObjectMapper.Dynamic.FALSE) {
+                    // Only an enabled: false prefix lets the batch path drop the leaf: the sequential path skips everything under it.
+                    // Under dynamic: false the sequential path can keep values the batch path cannot see. An array of objects is packed
+                    // into one column named after the array, so {"obj":[{"field":1}]} arrives here as the unmapped leaf [obj] and
+                    // dropping it would lose a mapped obj.field. With synthetic source outside strict-columnar modes the value is also
+                    // copied into _ignored_source. dynamic: false is being phased out on strict-columnar indices, so fall back.
+                    if (lookup.getMapping().getRoot().isUnderDisabledPrefix(fullPath) == false) {
+                        logger.debug("batch indexing disabled: unmapped leaf [{}] under dynamic=false", fullPath);
+                        return null;
+                    }
+                    // ponytail: a field mapped under an enabled: false prefix ("off.x") is dropped in an array of objects; tracked apart.
                     // The sequential path rejects an unmapped field that matches routing_path rather than dropping it,
                     // so fall back and let it raise the error with its own token location.
                     if (matchesRoutingPath(fullPath, indexSettings)) {
                         logger.debug("batch indexing disabled: unmapped leaf [{}] matches routing_path", fullPath);
-                        return null;
-                    }
-                    // The sequential path copies the value of an unmapped leaf under dynamic: false into _ignored_source, when it
-                    // records ignored source for this index at all, so that synthetic source still returns it. The batch path writes no
-                    // such entry, so
-                    // dropping the leaf here would lose the value; leave those batches to the sequential path. Where it does not
-                    // capture (stored source, strict-columnar modes), the value stays in _source and dropping the leaf is correct.
-                    if (sequentialPathCapturesDynamicFalseLeaves(lookup, indexSettings)) {
-                        logger.debug(
-                            "batch indexing disabled: unmapped leaf [{}] under dynamic=false is kept in _ignored_source",
-                            fullPath
-                        );
                         return null;
                     }
                     columnMappers[leaf] = null;
@@ -315,17 +313,6 @@ public final class ShardBatchMapper {
         // The root fallback comes from getRootDynamic, the same value the sequential path seeds its root context with.
         final ObjectMapper.Dynamic rootFallback = ObjectMapper.Dynamic.getRootDynamic(lookup);
         return lookup.getMapping().getRoot().resolveDynamic(leafPath, rootFallback);
-    }
-
-    /**
-     * Mirrors {@link DocumentParserContext#canAddIgnoredField()}, minus the per-document {@code recordedSource} part, which can
-     * only make the sequential path capture less. When this is {@code true} the sequential path writes
-     * {@code _ignored_source} for values it would otherwise drop; refusing slightly more than needed is always safe.
-     */
-    private static boolean sequentialPathCapturesDynamicFalseLeaves(MappingLookup lookup, IndexSettings indexSettings) {
-        return lookup.isSourceSynthetic()
-            && indexSettings.getSkipIgnoredSourceWrite() == false
-            && indexSettings.getMode().isStrictColumnar() == false;
     }
 
     /**

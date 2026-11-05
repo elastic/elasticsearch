@@ -484,8 +484,30 @@ public class RootObjectMapper extends ObjectMapper {
      * @return the resolved dynamic value
      */
     public Dynamic resolveDynamic(String fullPath, Dynamic fallback) {
-        if (prefixProperties.isEmpty()) {
+        PrefixProperties pp = closestDynamicPrefix(fullPath);
+        if (pp == null) {
             return fallback;
+        }
+        if (Boolean.FALSE.equals(pp.enabled())) {
+            return Dynamic.FALSE; // disabled ancestor always wins
+        }
+        return pp.dynamic();
+    }
+
+    /**
+     * Whether {@link #resolveDynamic} resolves {@code fullPath} to {@link Dynamic#FALSE} because of an {@code enabled:false} prefix rather
+     * than a {@code dynamic:false} one. The sequential path then skips the field like every other value under that prefix.
+     */
+    public boolean isUnderDisabledPrefix(String fullPath) {
+        PrefixProperties pp = closestDynamicPrefix(fullPath);
+        return pp != null && Boolean.FALSE.equals(pp.enabled());
+    }
+
+    /** The closest prefix of {@code fullPath} (or {@code fullPath} itself) that sets {@code dynamic} or {@code enabled:false}, if any. */
+    @Nullable
+    private PrefixProperties closestDynamicPrefix(String fullPath) {
+        if (prefixProperties.isEmpty()) {
+            return null;
         }
         // headMap(fullPath, inclusive=true) limits candidates to prefixes <= fullPath in sort order.
         // Iterating in descending order finds the longest (closest) matching prefix first.
@@ -499,13 +521,10 @@ public class RootObjectMapper extends ObjectMapper {
             }
             String prefix = entry.getKey();
             if (fullPath.equals(prefix) || fullPath.startsWith(prefix + ".")) {
-                if (Boolean.FALSE.equals(pp.enabled())) {
-                    return Dynamic.FALSE; // disabled ancestor always wins
-                }
-                return pp.dynamic();
+                return pp;
             }
         }
-        return fallback;
+        return null;
     }
 
     // package-private accessor used by tests and MappingLookup → FieldTypeLookup for prefix-based resolution

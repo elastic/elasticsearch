@@ -80,6 +80,13 @@ public record IvfSegmentConfig(
         public static final int DEFAULT_TRAINING_ITERATIONS = 0;
         public static final int DEFAULT_TRAINING_FACTOR = 10;
 
+        /*
+         * The tier constants below, together with forDims, decide what new segments of existing indices look like when
+         * the user leaves the bits unset, because those are not stored in the mapping. Once ASH ships, changing any of
+         * them requires selecting the table by IndexVersion. IvfSegmentConfigTests#testAshForDimsDerivesBitsAndProjectedDims
+         * pins the current table.
+         */
+
         /**
          * Vector dimension below which {@link #forDims} does not reduce the dimension at all and encodes each dimension
          * with {@link #LOW_DIMS_BITS_PER_DIM} bit. There is little to gain from projecting such small vectors.
@@ -88,10 +95,11 @@ public record IvfSegmentConfig(
         public static final int LOW_DIMS_BITS_PER_DIM = 1;
 
         /**
-         * Vector dimension at and above which {@link #forDims} projects more aggressively and spends more bits on each
+         * Vector dimension above which {@link #forDims} projects more aggressively and spends more bits on each
          * projected dimension. At these sizes building and applying the projection dominates indexing cost, and
          * {@link #HIGH_DIMS_BITS_PER_DIM} bits over {@link #HIGH_DIMS_PROJECTED_DIMS_FRACTION} of the dimensions keeps
-         * the per-vector size of 1-bit OSQ while projecting to fewer dimensions.
+         * the per-vector size of 1-bit OSQ while projecting to fewer dimensions. At exactly this dimension the default
+         * fraction reaches {@link #DEFAULT_MAX_PROJECTED_DIMS}, so it stays in the middle tier.
          */
         public static final int HIGH_DIMS_THRESHOLD = 2048;
         public static final int HIGH_DIMS_BITS_PER_DIM = 4;
@@ -171,13 +179,17 @@ public record IvfSegmentConfig(
          * from the dimension. Each of the three size tiers spends about one bit per original dimension:
          * <ul>
          *     <li>below {@link #LOW_DIMS_THRESHOLD}: {@link #LOW_DIMS_BITS_PER_DIM} bit, no reduction</li>
-         *     <li>from {@link #LOW_DIMS_THRESHOLD} up to but excluding {@link #HIGH_DIMS_THRESHOLD}:
+         *     <li>from {@link #LOW_DIMS_THRESHOLD} up to and including {@link #HIGH_DIMS_THRESHOLD}:
          *     {@link #DEFAULT_BITS_PER_DIM} bits over {@link #DEFAULT_PROJECTED_DIMS_FRACTION} of the dimensions</li>
-         *     <li>from {@link #HIGH_DIMS_THRESHOLD} up: {@link #HIGH_DIMS_BITS_PER_DIM} bits over
+         *     <li>above {@link #HIGH_DIMS_THRESHOLD}: {@link #HIGH_DIMS_BITS_PER_DIM} bits over
          *     {@link #HIGH_DIMS_PROJECTED_DIMS_FRACTION} of the dimensions</li>
          * </ul>
          * The number of projected dimensions always follows from {@code dims} alone, so that changing {@code bitsPerDim}
          * on a field never changes the shape of its projection.
+         * <p>
+         * The returned configuration fixes the number of projected dimensions exactly, as {@link #maxProjectedDims} with a
+         * {@link #projectedDimsFraction} of 1, so it is only valid for vectors of {@code dims} dimensions:
+         * {@link #projectedDims} gives a wrong answer for any other dimension.
          *
          * @param dims the vector dimension of the field
          * @param bitsPerDim the bits per projected dimension the user configured, or {@code null} to derive them
@@ -198,7 +210,7 @@ public record IvfSegmentConfig(
             if (dims < LOW_DIMS_THRESHOLD) {
                 return LOW_DIMS_BITS_PER_DIM;
             }
-            return dims >= HIGH_DIMS_THRESHOLD ? HIGH_DIMS_BITS_PER_DIM : DEFAULT_BITS_PER_DIM;
+            return dims > HIGH_DIMS_THRESHOLD ? HIGH_DIMS_BITS_PER_DIM : DEFAULT_BITS_PER_DIM;
         }
 
         /**
@@ -210,7 +222,7 @@ public record IvfSegmentConfig(
             if (dims < LOW_DIMS_THRESHOLD) {
                 return dims;
             }
-            float fraction = dims >= HIGH_DIMS_THRESHOLD ? HIGH_DIMS_PROJECTED_DIMS_FRACTION : DEFAULT_PROJECTED_DIMS_FRACTION;
+            float fraction = dims > HIGH_DIMS_THRESHOLD ? HIGH_DIMS_PROJECTED_DIMS_FRACTION : DEFAULT_PROJECTED_DIMS_FRACTION;
             int target = Math.min(DEFAULT_MAX_PROJECTED_DIMS, (int) (dims * fraction));
             int aligned = Math.max(
                 PROJECTED_DIMS_ALIGNMENT,
@@ -221,7 +233,8 @@ public record IvfSegmentConfig(
 
         /**
          * Returns the number of dimensions vectors of {@code originalDim} dimensions are projected to under this
-         * configuration.
+         * configuration: {@code min(maxProjectedDims, (int) (originalDim * projectedDimsFraction))}. For a configuration
+         * from {@link #forDims}, only the dimension it was built for gives a meaningful answer.
          */
         public int projectedDims(int originalDim) {
             return Math.min(maxProjectedDims, (int) (originalDim * projectedDimsFraction));

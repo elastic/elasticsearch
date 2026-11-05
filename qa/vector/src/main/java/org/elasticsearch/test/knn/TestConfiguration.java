@@ -88,8 +88,8 @@ public record TestConfiguration(
     DatasetConfig datasetConfig,
     int numDeletedDocs,
     long deleteSeed,
-    float projectedDimsFraction,
-    int maxProjectedDims,
+    Float projectedDimsFraction,
+    Integer maxProjectedDims,
     String quantizationType
 ) {
 
@@ -495,8 +495,9 @@ public record TestConfiguration(
         private long deleteSeed = 1751900822751L;
         private List<Boolean> exact = List.of(Boolean.FALSE);
         private List<Boolean> exactQuantized = List.of(Boolean.FALSE);
-        private float projectedDimsFraction = 0.5f;
-        private int maxProjectedDims = 1024;
+        // unset means ASH derives the bits and projected dims from the vector dimension, as the mapping does by default
+        private Float projectedDimsFraction = null;
+        private Integer maxProjectedDims = null;
         private String quantizationType = "osq";
 
         /**

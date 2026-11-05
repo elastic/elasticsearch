@@ -2242,7 +2242,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             );
                         }
                     } else {
-                        if (QuantEncoding.isValidBits(quantizeBits.byteValue()) == false) {
+                        // check the range before narrowing, so that e.g. 257 is not accepted as 1
+                        if (quantizeBits < 0
+                            || quantizeBits > Byte.MAX_VALUE
+                            || QuantEncoding.isValidBits(quantizeBits.byteValue()) == false) {
                             throw new IllegalArgumentException(
                                 "'bits' must be 1, 2, 4 or 7, got: " + quantizeBits + " for field [" + fieldName + "]"
                             );
@@ -3164,7 +3167,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                         : IvfMergeConfigResolver.useCodecDefault();
                     return new ESNextDiskBBQVectorsFormat(
-                        QuantEncoding.fromBits(osqBits()),
+                        QuantEncoding.fromBits((byte) defaultedBits()),
                         clusterSize,
                         ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,
@@ -3185,7 +3188,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? IvfAutoCalibration.mergeConfigResolver(clusterSize, autoCalibrationProfile())
                     : IvfMergeConfigResolver.useCodecDefault();
                 return new ES950DiskBBQVectorsFormat(
-                    QuantEncoding.fromBits(osqBits()),
+                    QuantEncoding.fromBits((byte) defaultedBits()),
                     clusterSize,
                     ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
@@ -3201,7 +3204,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             } else {
                 return new ES940DiskBBQVectorsFormat(
-                    ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(osqBits()),
+                    ES940DiskBBQVectorsFormat.QuantEncoding.fromBits((byte) defaultedBits()),
                     clusterSize,
                     ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
@@ -3335,25 +3338,26 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         /**
-         * Returns the bits for the OSQ formats. An ASH field written with an OSQ format, as happens when ASH is not
-         * available to the index, keeps the ASH default when its bits are not configured.
+         * Returns the configured bits, or when they are not configured, the fixed ASH default rather than one derived
+         * from the vector dimension. This is what fields written with an OSQ format use, including ASH fields that fall
+         * back to one, see {@link #usesAshFormat}.
          */
-        public byte osqBits() {
-            return (byte) (bits != null ? bits : IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM);
+        public int defaultedBits() {
+            return bits != null ? bits : IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM;
         }
 
         /**
          * Returns the bits a field with {@code dims} dimensions is quantized with: the configured bits, or for ASH
          * without configured bits, those derived from the dimension. When the dimension is not known yet, no vectors
          * have been indexed, and the ASH default is returned. An ASH field that falls back to an OSQ format, see
-         * {@link #usesAshFormat}, is quantized with {@link #osqBits}.
+         * {@link #usesAshFormat}, is quantized with {@link #defaultedBits}.
          */
         public int effectiveBits(@Nullable Integer dims) {
             if (bits != null) {
                 return bits;
             }
             if (usesAshFormat() == false || dims == null) {
-                return osqBits();
+                return defaultedBits();
             }
             return IvfSegmentConfig.AshConfig.defaultBitsPerDim(dims);
         }

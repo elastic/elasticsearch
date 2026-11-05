@@ -59,7 +59,11 @@ public sealed interface AshConfigResolver {
 
         @Override
         public IvfSegmentConfig.AshConfig resolve(int dims) {
-            return IvfSegmentConfig.AshConfig.forDims(dims, bitsPerDim, queryBitsPerDim);
+            IvfSegmentConfig.AshConfig config = IvfSegmentConfig.AshConfig.forDims(dims, bitsPerDim, queryBitsPerDim);
+            // the config fixes the projected dims for exactly this dimension, see AshConfig#forDims
+            assert config.projectedDims(dims) == IvfSegmentConfig.AshConfig.defaultProjectedDims(dims)
+                : "config " + config + " projects " + dims + " dims to " + config.projectedDims(dims);
+            return config;
         }
     }
 }

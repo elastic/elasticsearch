@@ -230,6 +230,11 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
      * field) is skipped, and a {@code null} result causes the caller to fall back to training W.
      */
     private float[] inheritProjectionMatrix(FieldInfo fieldInfo, MergeState mergeState) {
+        int originalDim = fieldInfo.getVectorDimension();
+        IvfSegmentConfig.AshConfig config = ashConfig(fieldInfo);
+        if (inheritsProjection(config, originalDim) == false) {
+            return null;
+        }
         List<SizedProjectionMatrix> candidates = new ArrayList<>();
         for (int i = 0; i < mergeState.knnVectorsReaders.length; i++) {
             KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
@@ -257,8 +262,16 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
                 candidates.add(new SizedProjectionMatrix(matrix, size));
             }
         }
-        int originalDim = fieldInfo.getVectorDimension();
-        return selectInheritedProjectionMatrix(originalDim, ashConfig(fieldInfo).projectedDims(originalDim), candidates);
+        return selectInheritedProjectionMatrix(originalDim, config.projectedDims(originalDim), candidates);
+    }
+
+    /**
+     * Returns whether merging a field under {@code config} should seed its projection from an input segment. Without
+     * dimensionality reduction and without Procrustes iterations the projection is a seeded random rotation, the same
+     * in every segment, so there is nothing to inherit and the input segments' matrices are not loaded at all.
+     */
+    static boolean inheritsProjection(IvfSegmentConfig.AshConfig config, int originalDim) {
+        return config.projectedDims(originalDim) != originalDim || config.trainingIterations() > 0;
     }
 
     /**
@@ -272,8 +285,12 @@ public class ESNextDiskASHVectorsWriter extends IVFVectorsWriter<FlatCentroidInd
      * if none is suitable. Prefers the candidate from the segment with the most vectors so W is seeded
      * from the best-trained source. Skips random (non-learned) projections from transient flush segments
      * — inheriting a random rotation would carry it into the merged segment — and skips matrices whose
-     * shape does not match {@code expectedDim} and {@code expectedProjectedDims}, as happens when the
-     * input segments were written with a different projection.
+     * shape does not match {@code expectedDim} and {@code expectedProjectedDims}.
+     * <p>
+     * A shape mismatch is a valid situation rather than an error: the projected dimensions follow from the vector
+     * dimension and the configuration, and segments written with another configuration can meet in a merge, such
+     * as segments from snapshot builds before projected dimensions were derived from the vector dimension, or from a
+     * fixed {@link IvfSegmentConfig.AshConfig}. Such a merge trains a new projection instead.
      */
     static float[] selectInheritedProjectionMatrix(int expectedDim, int expectedProjectedDims, List<SizedProjectionMatrix> candidates) {
         float[] best = null;

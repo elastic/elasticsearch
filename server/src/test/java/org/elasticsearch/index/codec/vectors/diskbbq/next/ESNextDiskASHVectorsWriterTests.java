@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
 import org.elasticsearch.index.codec.vectors.ash.AshProjectionMatrix;
+import org.elasticsearch.index.codec.vectors.diskbbq.IvfSegmentConfig;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -84,6 +85,23 @@ public class ESNextDiskASHVectorsWriterTests extends ESTestCase {
             new ESNextDiskASHVectorsWriter.SizedProjectionMatrix(rightProjectedDims, 10)
         );
         assertSame(rightProjectedDims.wT(), ESNextDiskASHVectorsWriter.selectInheritedProjectionMatrix(4, 2, candidates));
+    }
+
+    public void testInheritsProjectionOnlyWhenThereIsSomethingToInherit() {
+        // without reduction and without Procrustes iterations the projection is the same seeded rotation everywhere
+        int smallDims = randomIntBetween(1, IvfSegmentConfig.AshConfig.LOW_DIMS_THRESHOLD - 1);
+        assertFalse(ESNextDiskASHVectorsWriter.inheritsProjection(IvfSegmentConfig.AshConfig.forDims(smallDims, null, 4), smallDims));
+        var fullRotation = IvfSegmentConfig.AshConfig.of(2, 4, 1.0f, Integer.MAX_VALUE);
+        assertFalse(ESNextDiskASHVectorsWriter.inheritsProjection(fullRotation, 768));
+
+        // Procrustes iterations refine even a full rotation
+        var refinedRotation = new IvfSegmentConfig.AshConfig(1.0f, Integer.MAX_VALUE, 2, 4, 2, 10);
+        assertTrue(ESNextDiskASHVectorsWriter.inheritsProjection(refinedRotation, 768));
+
+        // a reduced projection is learned from the data
+        int dims = randomIntBetween(IvfSegmentConfig.AshConfig.LOW_DIMS_THRESHOLD, 4096);
+        assertTrue(ESNextDiskASHVectorsWriter.inheritsProjection(IvfSegmentConfig.AshConfig.forDims(dims, null, 4), dims));
+        assertTrue(ESNextDiskASHVectorsWriter.inheritsProjection(IvfSegmentConfig.AshConfig.defaults(), 768));
     }
 
     public void testReturnsNullWhenAllDimensionMismatch() {

@@ -43,6 +43,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.gpu.codec.ES92GpuHnswSQVectorsFormat;
 import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.codec.vectors.diskbbq.AshConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.CalibrationAwareReader;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.IvfAutoCalibration;
@@ -233,13 +234,24 @@ public class KnnIndexTester {
                 suffix.add(isAsh ? "ash" : "ivf");
                 suffix.add(Integer.toString(args.ivfClusterSize()));
                 if (isAsh) {
-                    int bits = args.quantizeBits() != null ? args.quantizeBits() : 2;
-                    suffix.add(Integer.toString(bits));
+                    if (usesDimsDerivedAsh(args)) {
+                        // keep indices with the configuration derived from the vector dimension apart from fixed ones
+                        suffix.add("dims");
+                        if (args.quantizeBits() != null) {
+                            suffix.add(Integer.toString(args.quantizeBits()));
+                        }
+                    } else {
+                        int bits = args.quantizeBits() != null ? args.quantizeBits() : 2;
+                        suffix.add(Integer.toString(bits));
+                    }
                     if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != 4) {
                         suffix.add("q" + args.queryQuantizeBits());
                     }
-                    if (args.projectedDimsFraction() != 0.5f) {
+                    if (args.projectedDimsFraction() != null && args.projectedDimsFraction() != 0.5f) {
                         suffix.add("p" + String.format(Locale.ROOT, "%.2f", args.projectedDimsFraction()));
+                    }
+                    if (args.maxProjectedDims() != null && args.maxProjectedDims() != 1024) {
+                        suffix.add("m" + args.maxProjectedDims());
                     }
                 } else {
                     suffix.add(
@@ -276,6 +288,29 @@ public class KnnIndexTester {
         return INDEX_DIR + "/" + args.docVectors().getFirst().getFileName() + "-" + String.join("-", suffix) + ".index";
     }
 
+    /**
+     * Whether ASH derives its bits and projected dims from the vector dimension, as the mapping does by default. That is
+     * the case unless the projection is configured, with {@code projected_dims_fraction} or {@code max_projected_dims}.
+     */
+    static boolean usesDimsDerivedAsh(TestConfiguration args) {
+        return args.projectedDimsFraction() == null && args.maxProjectedDims() == null;
+    }
+
+    static AshConfigResolver ashConfigResolver(TestConfiguration args) {
+        int queryBits = Objects.requireNonNullElse(args.queryQuantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM);
+        if (usesDimsDerivedAsh(args)) {
+            return AshConfigResolver.dimsDerived(args.quantizeBits(), queryBits);
+        }
+        return AshConfigResolver.fixed(
+            IvfSegmentConfig.AshConfig.of(
+                Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM),
+                queryBits,
+                Objects.requireNonNullElse(args.projectedDimsFraction(), IvfSegmentConfig.AshConfig.DEFAULT_PROJECTED_DIMS_FRACTION),
+                Objects.requireNonNullElse(args.maxProjectedDims(), IvfSegmentConfig.AshConfig.DEFAULT_MAX_PROJECTED_DIMS)
+            )
+        );
+    }
+
     static Codec createCodec(TestConfiguration args, ExecutorService mergeExec, ExecutorService quantExec) {
         final KnnVectorsFormat format;
         Integer quantizeBits = args.quantizeBits();
@@ -294,19 +329,8 @@ public class KnnIndexTester {
                 String sliceField = args.usesSlicedIvf() ? SliceIndexing.SLICE_KEY_FIELD_NAME : null;
 
                 if (isAsh) {
-                    int bitsPerDim = Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM);
-                    int queryBits = Objects.requireNonNullElse(
-                        args.queryQuantizeBits(),
-                        IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM
-                    );
-                    var ashConfig = IvfSegmentConfig.AshConfig.of(
-                        bitsPerDim,
-                        queryBits,
-                        args.projectedDimsFraction(),
-                        args.maxProjectedDims()
-                    );
                     yield new ESNextDiskASHVectorsFormat(
-                        ashConfig,
+                        ashConfigResolver(args),
                         args.ivfClusterSize(),
                         centroidsPerParentCluster,
                         elementType,
@@ -870,13 +894,8 @@ public class KnnIndexTester {
         switch (args.indexType()) {
             case IVF:
                 if (QuantizationType.fromString(args.quantizationType()) == QuantizationType.ASH) {
-                    // AshConfig.of validates bitsPerDim, queryBitsPerDim, and projectedDimsFraction
-                    IvfSegmentConfig.AshConfig.of(
-                        Objects.requireNonNullElse(args.quantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_BITS_PER_DIM),
-                        Objects.requireNonNullElse(args.queryQuantizeBits(), IvfSegmentConfig.AshConfig.DEFAULT_QUERY_BITS_PER_DIM),
-                        args.projectedDimsFraction(),
-                        args.maxProjectedDims()
-                    );
+                    // resolving validates bitsPerDim, queryBitsPerDim and, when configured, the projection
+                    ashConfigResolver(args).resolve(IvfSegmentConfig.AshConfig.LOW_DIMS_THRESHOLD);
                 } else {
                     if (args.quantizeBits() == null) {
                         throw new IllegalArgumentException("IVF index type requires quantize_bits to be set");

@@ -112,7 +112,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ESNextDiskBBQVectorsFormat(
-                            QuantEncoding.fromBits(diskbbq.osqBits()),
+                            QuantEncoding.fromBits((byte) diskbbq.defaultedBits()),
                             clusterSize,
                             ESNextDiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                             elementType,
@@ -132,7 +132,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                             ? IvfAutoCalibration.mergeConfigResolver(clusterSize, diskbbq.autoCalibrationProfile())
                             : IvfMergeConfigResolver.useCodecDefault();
                         return new ES950DiskBBQVectorsFormat(
-                            QuantEncoding.fromBits(diskbbq.osqBits()),
+                            QuantEncoding.fromBits((byte) diskbbq.defaultedBits()),
                             clusterSize,
                             ES950DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                             elementType,
@@ -148,7 +148,7 @@ public class DiskBBQPlugin extends Plugin implements InternalVectorFormatProvide
                         );
                     }
                     return new ES940DiskBBQVectorsFormat(
-                        ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(diskbbq.osqBits()),
+                        ES940DiskBBQVectorsFormat.QuantEncoding.fromBits((byte) diskbbq.defaultedBits()),
                         clusterSize,
                         ES940DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                         elementType,

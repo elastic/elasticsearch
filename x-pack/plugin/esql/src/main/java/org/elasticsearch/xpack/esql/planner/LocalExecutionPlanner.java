@@ -1010,7 +1010,7 @@ public class LocalExecutionPlanner {
         context.lastVisitedTopN.set(topNExec);
         final Integer rowSize = topNExec.estimatedRowSize();
         LuceneMinCompetitiveTimestampTopN luceneMinCompetitivePilot = context.plannerSettings().minCompetitiveTimestampOptimizationEnabled()
-            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx(), context.sortBound())
+            ? tryBuildLuceneMinCompetitiveTimestampTopN(topNExec, context.blockFactory, context.foldCtx())
             : null;
         if (luceneMinCompetitivePilot != null) {
             context.luceneMinCompetitivePilot.set(luceneMinCompetitivePilot);
@@ -1274,20 +1274,19 @@ public class LocalExecutionPlanner {
     /**
      * Path B pilot: wire {@link SharedMinCompetitive} between engine {@code TopNOperator} and
      * {@code LuceneSourceOperator} for {@code TopN → (Project|Filter|FieldExtract)* → EsQuery}
-     * with a {@code @timestamp}-like first sort key. The other keys only order the rows that tie on it.
+     * with a single {@code @timestamp}-like sort key.
      */
     @Nullable
     private static LuceneMinCompetitiveTimestampTopN tryBuildLuceneMinCompetitiveTimestampTopN(
         TopNExec topNExec,
         BlockFactory blockFactory,
-        FoldContext foldCtx,
-        @Nullable SharedSortBound sortBound
+        FoldContext foldCtx
     ) {
         List<Order> orders = topNExec.order();
-        if (orders.isEmpty()) {
+        if (orders.size() != 1) {
             return null;
         }
-        Order order = orders.getFirst();
+        Order order = orders.get(0);
         if (order.child() instanceof FieldAttribute fa == false) {
             return null;
         }
@@ -1308,13 +1307,10 @@ public class LocalExecutionPlanner {
         if (esQuery.queryBuilderAndTags().size() != 1) {
             return null;
         }
-        // The bound of the request carries over to the batches of shards that run later
-        SharedMinCompetitive.Supplier supplier = sortBound == null || sortBound.sharedWith(orders.size()) == false
-            ? null
-            : sortBound.minCompetitive(sortField.name(), blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
-        if (supplier == null) {
-            supplier = new SharedMinCompetitive.Supplier(blockFactory.breaker(), topNExec.minCompetitiveKeyConfig());
-        }
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            topNExec.minCompetitiveKeyConfig()
+        );
         int topCount = ((Number) topNExec.limit().fold(foldCtx)).intValue();
         SharedGlobalTopK.Supplier globalTopKSupplier = topCount > 0
             ? new SharedGlobalTopK.Supplier(blockFactory.breaker(), topCount, supplier)

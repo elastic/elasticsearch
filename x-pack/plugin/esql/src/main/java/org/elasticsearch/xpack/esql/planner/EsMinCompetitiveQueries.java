@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
@@ -70,14 +69,7 @@ public class EsMinCompetitiveQueries {
         long minCompetitiveValue = ((LongBlock) minBlock).getLong(0);
 
         boolean includeMinCompetitive = minCompetitive.keyConfigs().size() > 1;
-        boolean asc = minCompetitive.keyConfigs().getFirst().asc();
-        if (ft instanceof DateFieldMapper.DateFieldType date) {
-            // The bound is in the resolution of the field, which the generic range query would parse as millis
-            return asc
-                ? date.rangeQuery(null, minCompetitiveValue, includeMinCompetitive, includeMinCompetitive, ctx)
-                : date.rangeQuery(minCompetitiveValue, null, includeMinCompetitive, includeMinCompetitive, ctx);
-        }
-        if (asc) {
+        if (minCompetitive.keyConfigs().getFirst().asc()) {
             return ft.rangeQuery(null, minCompetitiveValue, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);
         }
         return ft.rangeQuery(minCompetitiveValue, null, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);

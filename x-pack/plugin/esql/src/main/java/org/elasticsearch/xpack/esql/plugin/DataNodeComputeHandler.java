@@ -43,7 +43,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -1228,16 +1227,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         if (externalSink == null) {
             return;
         }
-        // Shared by the batches of shards, and released once all of them are done
+        // Shared by the batches of shards
         final int sortKeys = ShardTimestampOrder.sharedSortKeys(request.plan());
         final SharedSortBound sortBound = sortKeys > 0 ? new SharedSortBound(sortKeys) : null;
         try (
             ComputeListener computeListener = new ComputeListener(
                 computeService.cancelQueryOnFailure(task),
-                ActionListener.runAfter(
-                    listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures)),
-                    () -> Releasables.close(sortBound)
-                )
+                listener.map(profiles -> new DataNodeComputeResponse(profiles, shardLevelFailures))
             )
         ) {
             var parentListener = computeListener.acquireAvoid();

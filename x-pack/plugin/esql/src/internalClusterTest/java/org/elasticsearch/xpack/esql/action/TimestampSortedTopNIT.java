@@ -82,22 +82,6 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * A filter that can't run in Lucene keeps the sort out of Lucene too. The top N then filters the sources by its bound.
-     */
-    public void testSortAfterTheSource() {
-        List<Long> expected = timestamps.stream().sorted(Comparator.reverseOrder()).limit(LIMIT).toList();
-        assertTopN("FROM events-* | WHERE LENGTH(message) > 0 | SORT @timestamp DESC | LIMIT " + LIMIT + " | KEEP @timestamp", expected);
-    }
-
-    public void testSecondarySortAfterTheSource() {
-        List<Long> expected = timestamps.stream().sorted(Comparator.reverseOrder()).limit(LIMIT).toList();
-        assertTopN(
-            "FROM events-* | WHERE LENGTH(message) > 0 | SORT @timestamp DESC, message ASC | LIMIT " + LIMIT + " | KEEP @timestamp",
-            expected
-        );
-    }
-
-    /**
      * Documents without {@code @timestamp} sort first when descending, so a shard holding some is never skipped, however old.
      */
     public void testNullsFirst() {
@@ -152,10 +136,6 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
         assertTiesOnTheFirstKey("FROM ties-* | SORT t1 DESC, message ASC | LIMIT 1 | KEEP message");
     }
 
-    public void testTiesOnTheFirstKeyAfterTheSource() throws Exception {
-        assertTiesOnTheFirstKey("FROM ties-* | WHERE LENGTH(message) > 0 | SORT t1 DESC, message ASC | LIMIT 1 | KEEP message");
-    }
-
     private void assertTiesOnTheFirstKey(String query) throws Exception {
         String node = internalCluster().getRandomDataNodeName();
         // The index holding the winning row is the oldest, so it runs last
@@ -188,19 +168,11 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
         assertConstantKey("SORT t1 DESC, tenant ASC", 0);
     }
 
-    public void testConstantSecondaryKeyAfterTheSource() throws Exception {
-        assertConstantKey("WHERE LENGTH(message) > 0 | SORT t1 DESC, tenant ASC", 0);
-    }
-
     /**
      * The other index holds more recent rows, but {@code tenant} sorts first.
      */
     public void testConstantFirstKey() throws Exception {
         assertConstantKey("SORT tenant ASC, t1 DESC", 1_000);
-    }
-
-    public void testConstantFirstKeyAfterTheSource() throws Exception {
-        assertConstantKey("WHERE LENGTH(message) > 0 | SORT tenant ASC, t1 DESC", 1_000);
     }
 
     /**
@@ -244,48 +216,6 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
             List<Object> rows = new ArrayList<>();
             response.values().forEachRemaining(row -> rows.add(row.next()));
             assertThat(rows, equalTo(List.of("a")));
-        }
-    }
-
-    /**
-     * The bound of a {@code date_nanos} key is in nanoseconds, the resolution of the field.
-     */
-    public void testDateNanosAfterTheSource() throws Exception {
-        assertDateNanos("WHERE LENGTH(message) > 0 | SORT ts DESC");
-    }
-
-    public void testDateNanosSecondarySortAfterTheSource() throws Exception {
-        assertDateNanos("WHERE LENGTH(message) > 0 | SORT ts DESC, message ASC");
-    }
-
-    private void assertDateNanos(String sort) throws Exception {
-        String node = internalCluster().getRandomDataNodeName();
-        createSingleShardIndex("nanos", node, "ts", "type=date_nanos", "message", "type=keyword");
-        List<Long> nanos = new ArrayList<>();
-        for (int batch = 0; batch < 4; batch++) {
-            // several segments, so the bound of the first ones filters the others
-            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (int d = 0; d < DOCS_PER_INDEX; d++) {
-                long value = 1_700_000_000_000_000_000L + randomLongBetween(0, 3_600_000_000_000L);
-                nanos.add(value);
-                Instant instant = Instant.ofEpochSecond(0, value);
-                bulk.add(client().prepareIndex("nanos").setSource("ts", instant.toString(), "message", "m" + d));
-            }
-            assertFalse(bulk.get().hasFailures());
-        }
-        List<String> expected = nanos.stream()
-            .sorted(Comparator.reverseOrder())
-            .limit(LIMIT)
-            .map(n -> Instant.ofEpochSecond(0, n).toString())
-            .toList();
-        EsqlQueryRequest request = new EsqlQueryRequest();
-        request.query("FROM nanos | " + sort + " | LIMIT " + LIMIT + " | KEEP ts");
-        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1).build()));
-        request.acceptedPragmaRisks(true);
-        try (EsqlQueryResponse response = run(request)) {
-            List<String> actual = new ArrayList<>();
-            response.values().forEachRemaining(row -> actual.add(Instant.parse((String) row.next()).toString()));
-            assertThat(actual, equalTo(expected));
         }
     }
 

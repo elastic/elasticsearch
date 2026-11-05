@@ -7,14 +7,7 @@
 
 package org.elasticsearch.compute.lucene.query;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-
-import java.util.List;
 
 /**
  * The competitive bound of a top N on its first sort key, shared by the operators of a data-node request across its batches
@@ -24,11 +17,9 @@ import java.util.List;
  * Only the operators that sort on every key of the request's top N use it. Local optimization drops the keys that are
  * constant within a batch, such as a {@code constant_keyword}, but they still order the rows of different batches.
  * <p>
- * A top N pushed to Lucene offers the last value of each full per-shard top N, and skips the shards that can't beat it. A
- * top N that runs after the source keeps its {@link SharedMinCompetitive} here for the whole request, so the sources of the
- * later batches filter with it from the start.
+ * A top N pushed to Lucene offers the last value of each full per-shard top N, and skips the shards that can't beat it.
  */
-public final class SharedSortBound implements Releasable {
+public final class SharedSortBound {
     private final int sortKeys;
 
     private String field;
@@ -37,10 +28,6 @@ public final class SharedSortBound implements Releasable {
     private long value;
     private boolean offered;
     private boolean disabled;
-
-    private String minCompetitiveField;
-    private SharedMinCompetitive.Supplier minCompetitive;
-    private SharedMinCompetitive heldMinCompetitive;
 
     /**
      * @param sortKeys the number of sort keys of the request's top N
@@ -94,37 +81,9 @@ public final class SharedSortBound implements Releasable {
     }
 
     /**
-     * The {@link SharedMinCompetitive} of a top N on {@code field} with these keys, kept for the whole request, or
-     * {@code null} if the request already has one for another key or the bound was invalidated.
-     */
-    @Nullable
-    public synchronized SharedMinCompetitive.Supplier minCompetitive(
-        String field,
-        CircuitBreaker breaker,
-        List<SharedMinCompetitive.KeyConfig> keys
-    ) {
-        if (disabled) {
-            return null;
-        }
-        if (minCompetitive == null) {
-            minCompetitiveField = field;
-            minCompetitive = new SharedMinCompetitive.Supplier(breaker, keys);
-            // Keeps the bound between batches, when no operator holds it
-            heldMinCompetitive = minCompetitive.get();
-        }
-        return minCompetitiveField.equals(field) && minCompetitive.keyConfigs().equals(keys) ? minCompetitive : null;
-    }
-
-    /**
      * Stops sharing the bound, for instance because the rows behind it may never be delivered.
      */
     public synchronized void invalidate() {
         disabled = true;
-    }
-
-    @Override
-    public synchronized void close() {
-        Releasables.close(heldMinCompetitive);
-        heldMinCompetitive = null;
     }
 }

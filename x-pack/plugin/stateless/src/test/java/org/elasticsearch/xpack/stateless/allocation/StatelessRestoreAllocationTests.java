@@ -38,7 +38,6 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -135,7 +134,6 @@ public class StatelessRestoreAllocationTests extends ESAllocationTestCase {
             info::get,
             sizes::get,
             new StatelessShardRoutingRoleStrategy(),
-            MeterRegistry.NOOP,
             clusterSettings
         );
         service.setExistingShardsAllocators(Map.of("stateless", new StatelessExistingShardsAllocator(clusterSettings)));

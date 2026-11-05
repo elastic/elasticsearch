@@ -15,79 +15,16 @@ import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongHistogram;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.Arrays;
-import java.util.Map;
-import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
-
-/// Observes shard state transitions during allocation rounds, logging them, emitting APM timing metrics and forwarding them as
-/// shard movement events to the configured [ShardMovementListener].
+/// Observes shard state transitions during allocation rounds, logging them and forwarding them as shard movement events to the
+/// configured [ShardMovementListener].
 class ShardChangesObserver implements RoutingChangesObserver {
     private static final Logger logger = LogManager.getLogger(ShardChangesObserver.class);
 
-    static final String UNASSIGNED_TO_INITIALIZING_METRIC = "es.allocator.shards.unassigned_to_initializing.duration.histogram";
-    static final String UNASSIGNED_TO_STARTED_METRIC = "es.allocator.shards.unassigned_to_started.duration.histogram";
-    static final String RELOCATION_STARTED_METRIC = "es.allocator.shards.relocation_started.total";
-    static final String SHARD_INITIALIZING_METRIC = "es.allocator.shards.initializing.total";
-
-    private static final Map<UnassignedInfo.Reason, Map<String, Object>> PRIMARY_ATTRIBUTES = buildAttributesByReason(true);
-    private static final Map<UnassignedInfo.Reason, Map<String, Object>> REPLICA_ATTRIBUTES = buildAttributesByReason(false);
-
-    private static Map<UnassignedInfo.Reason, Map<String, Object>> buildAttributesByReason(boolean primary) {
-        return Arrays.stream(UnassignedInfo.Reason.values())
-            .collect(Collectors.toUnmodifiableMap(r -> r, r -> Map.of("es_shard_primary", primary, "es_shard_reason", r.name())));
-    }
-
-    // Relocations are rare and the telemetry client builds its own attributes from this map on every call, so it is not worth caching
-    private static Map<String, Object> relocationAttributes(MoveReason reason, boolean primary) {
-        return Map.of(
-            "es_relocation_reason",
-            reason.type().reason(),
-            "es_can_remain_decider",
-            reason.canRemainDecider() == null ? "missing" : reason.canRemainDecider(),
-            "es_shard_primary",
-            primary
-        );
-    }
-
-    private final LongHistogram unassignedToInitializingDuration;
-    private final LongHistogram unassignedToStartedDuration;
-    private final LongCounter shardInitializingCounter;
-    private final LongCounter relocationStartedCounter;
-    private final LongSupplier currentTimeMillisSupplier;
     private final ShardMovementListener listener;
 
-    ShardChangesObserver(MeterRegistry meterRegistry, ShardMovementListener listener) {
-        this(meterRegistry, System::currentTimeMillis, listener);
-    }
-
-    ShardChangesObserver(MeterRegistry meterRegistry, LongSupplier currentTimeMillisSupplier, ShardMovementListener listener) {
+    ShardChangesObserver(ShardMovementListener listener) {
         this.listener = listener;
-        this.unassignedToInitializingDuration = meterRegistry.registerLongHistogram(
-            UNASSIGNED_TO_INITIALIZING_METRIC,
-            "Duration a shard spent in UNASSIGNED state before being assigned to a node",
-            "ms"
-        );
-        this.unassignedToStartedDuration = meterRegistry.registerLongHistogram(
-            UNASSIGNED_TO_STARTED_METRIC,
-            "Total duration from when a shard became UNASSIGNED to when it became STARTED",
-            "ms"
-        );
-        this.shardInitializingCounter = meterRegistry.registerLongCounter(
-            SHARD_INITIALIZING_METRIC,
-            "Total number of shards moved from UNASSIGNED to INITIALIZING by the allocator",
-            "{shard}"
-        );
-        this.relocationStartedCounter = meterRegistry.registerLongCounter(
-            RELOCATION_STARTED_METRIC,
-            "Total number of shard relocations started by the allocator",
-            "{shard}"
-        );
-        this.currentTimeMillisSupplier = currentTimeMillisSupplier;
     }
 
     @Override
@@ -98,13 +35,6 @@ class ShardChangesObserver implements RoutingChangesObserver {
             initializedShard.recoverySource().getType(),
             initializedShard.currentNodeId()
         );
-        UnassignedInfo info = unassignedShard.unassignedInfo();
-        if (info != null) {
-            long durationMillis = currentTimeMillisSupplier.getAsLong() - info.unassignedTimeMillis();
-            final var attrs = attributes(info, initializedShard);
-            unassignedToInitializingDuration.record(Math.max(0, durationMillis), attrs);
-            shardInitializingCounter.incrementBy(1, attrs);
-        }
         listener.shardInitialized(unassignedShard, initializedShard);
     }
 
@@ -116,12 +46,6 @@ class ShardChangesObserver implements RoutingChangesObserver {
             initializingShard.recoverySource().getType(),
             startedShard.currentNodeId()
         );
-        // Relocation target shards have no unassignedInfo
-        UnassignedInfo info = initializingShard.unassignedInfo();
-        if (info != null) {
-            long durationMillis = currentTimeMillisSupplier.getAsLong() - info.unassignedTimeMillis();
-            unassignedToStartedDuration.record(Math.max(0, durationMillis), attributes(info, startedShard));
-        }
         listener.shardStarted(initializingShard, startedShard);
     }
 
@@ -134,7 +58,6 @@ class ShardChangesObserver implements RoutingChangesObserver {
             startedShard.currentNodeId(),
             targetRelocatingShard.currentNodeId()
         );
-        relocationStartedCounter.incrementBy(1, relocationAttributes(reason, startedShard.primary()));
         listener.relocationStarted(startedShard, targetRelocatingShard, reason);
     }
 
@@ -156,9 +79,5 @@ class ShardChangesObserver implements RoutingChangesObserver {
 
     private static String shardIdentifier(ShardRouting shardRouting) {
         return shardRouting.shardId().toString() + '[' + (shardRouting.primary() ? 'P' : 'R') + ']';
-    }
-
-    private static Map<String, Object> attributes(UnassignedInfo info, ShardRouting shard) {
-        return (shard.primary() ? PRIMARY_ATTRIBUTES : REPLICA_ATTRIBUTES).get(info.reason());
     }
 }

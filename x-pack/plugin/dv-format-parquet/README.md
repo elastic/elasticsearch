@@ -56,7 +56,88 @@ The body keys are:
 
 Behind the scenes a mounted index carries three index settings, which we do not expect users to set by hand: `index.parquet.repository`, `index.parquet.pieces` (`path#firstRowGroup+count`, comma separated) and `index.parquet.fields` (`field:column[:conversion]`). When several files go into one index, `ParquetFileInfo#requireCompatibleWith` checks that the schemas of the mapped columns agree. On a warm local file the mount of the 100-million-row ClickBench `hits.parquet` (226 row groups) takes about 1.1 s, because mounting only reads footers.
 
+## Architecture: from a mount request to a doc values read
+
+The plugin has three moments in which it does something, and they run in different places: the mount request plans indices and reads footers, the start of a shard attaches stub segments, and a query reads column chunks. Nothing in the first two moments reads data, and only the third one touches the object store for values. The picture below shows the pieces and who calls whom; the sections after it follow the three moments.
+
+```
+                      mount request (the node that handles it)
+  POST _parquet/_mount ──► ParquetMountSpec ──► ParquetMountAnalysis ──► MountPlanner
+                                                   │ footers only          │ pieces per index
+                                                   ▼                       ▼
+                                          ParquetFooterReader     ParquetMappingDeriver
+                                                   │                       │
+                                                   ▼                       ▼
+                                  RepositoryParquetObject      template, indices (index.parquet.* settings),
+                                       (BlobContainer)         alias, MigrateToDataStreamAction
+
+                      shard start (every node that holds a copy)
+  EnginePlugin ──► ParquetEngineFactory ──► attachIfEmpty: ParquetFooterReader ──► ExternalFilePiece + ColumnBinding
+                          │                                                        │
+                          │                      ExternalParquetCodecReader ──► IndexWriter#addIndexes (ParquetAttachCodec)
+                          │                                                        │ ParquetDocValuesConsumer#merge
+                          ▼                                                        ▼
+                  ParquetReadOnlyEngine  ◄───────── commit ────────────  stub segment: .dvm (ParquetMetaFile)
+
+                      query (search thread or ES|QL driver thread)
+  Lucene opens the segment ──► ParquetDocValuesFormat (SPI) ──► ParquetDocValuesProducer
+        ParquetNumericDocValues / ParquetBinaryDocValues ──► ColumnChunkReader ──► PageDecompressor ──► LongPageDecoder / BytesPageDecoder
+                                                                  │ readRange(chunk)
+                                                                  ▼
+        ParquetObject ──► CachedParquetObject ──► ParquetBlobCache (SharedBlobCacheService, file parquet_cache)
+              │                                        │ miss: one ranged read of the page-aligned range
+              ▼                                        ▼
+        RepositoryParquetObject ───────────► BlobContainer#readBlob(position, length)  (an fs or s3 repository)
+```
+
+### What the mount request decides, and why it never reads data
+
+`TransportMountParquetAction` and `TransportPreviewParquetAction` call `ParquetMountAnalysis.analyze`, which opens each file through `RepositoryParquetObject` and reads only its footer with `ParquetFooterReader` (typically one request for a footer under 512 KB, and two for a larger one such as the 2.4 MB footer of ClickBench). From the footers, `ParquetMappingDeriver` derives the mapping (a `keyword` with `multi_value: false` for a string, a numeric or `date` field for an integer, and everything else reported as unmapped with a reason), and `MountPlanner` cuts the files into "pieces", each a whole file or a range of row groups, so that one backing index never exceeds `max_rows_per_index` and always ends on a row-group border. The mount then creates its own template, the backing indices (one shard each, with the three `index.parquet.*` settings that name the repository, the pieces and the field-to-column bindings), an alias, and migrates the alias to a data stream, and it removes what it created when a step fails. A preview runs the same analysis and creates nothing, which is why it is cheap.
+
+### What happens when a shard starts, and what a stub segment holds
+
+The plugin selects `ParquetEngineFactory` for every index that has `index.parquet.repository` set. When the store holds a commit without segments, the factory re-reads the footers (the only place that does, so that opening a segment later costs no request), builds one `ExternalFilePiece` per piece and one `ColumnBinding` per mapped field, and hands an `ExternalParquetCodecReader` to `IndexWriter#addIndexes` with `ParquetAttachCodec`. The reader has one document per row and no stored fields, postings, points or norms; the writer asks `ParquetDocValuesConsumer` to merge its producer, and the consumer copies the reference and reads no value. The result is a regular segment whose only data file is the `.dvm` written by `ParquetMetaFile`, with three parts:
+
+- the bindings of fields to columns, with the Lucene doc values type that each field is served as and the conversion (for example `seconds_to_millis`) that turns file values into field values;
+- the file pieces: the location (never credentials), the length of the file at attach time, the number of rows before the piece in the index, and the rows of each row group;
+- a snapshot of the footer per served column: type, whether the column is `REQUIRED`, the offset, size and codec of each chunk, and the minimum, maximum and null count per row group (the format is at version 1).
+
+Replicas get the stub through peer recovery and a restart reopens it, so attach runs once per primary. Because the stubs are attached in row order and never merge, the `_id` of a document is its row number, which is also its docID in the index reader, and `ParquetReadOnlyEngine` resolves a `get` that way instead of looking in postings that do not exist.
+
+### How a doc values read finds its bytes
+
+Lucene resolves the format by name through SPI when it opens a stub segment, and the format gives no hook for context, so the engine runs the open inside `ParquetReadContext.with(...)`, a thread-local that hands the segment its `ParquetObjects` (the files of the registered repositories). `ParquetMetaFile` then builds a `ParquetDocValuesProducer`, which opens the files at that moment and not at search time, because `BlobStoreRepository#blobStore()` must not be called on a search thread. A segment that is opened elsewhere, for example by a tool that does not know about these files, can be described but cannot read a value.
+
+For each field the producer returns a `ParquetNumericDocValues` (`INT32`, `INT64`) or `ParquetBinaryDocValues` (`BYTE_ARRAY`) iterator. A document is a row, so `ColumnChunkReader` finds the row group that holds it, fetches the whole column chunk of that row group with one `readRange`, and walks the page headers from the start of the chunk because many files have no offset or column index. It skips pages that end before the target without decompressing them, decompresses the target page (`PageDecompressor`: `UNCOMPRESSED`, `SNAPPY`, `GZIP`), and a decoder (`LongPageDecoder` or `BytesPageDecoder`, with `RleBitPackedDecoder` for dictionary indices and definition levels) turns it into values. The iterators are not thread safe, so every iterator owns its reader and its buffers, and a value (a `BytesRef`) is only valid until the iterator moves on.
+
+Alongside the values, `ParquetDocValuesSkipper` gives every integer field a one-level skipper with one interval per row group, built from the footer statistics. Range queries, sorts and `DateFieldType#isFieldWithinQuery` use it to skip row groups without reading the file. We only declare a skipper when the statistics make the value counts exact, and a group without a usable statistic gets the widest range, which is slower and never wrong.
+
+### Where the bytes come from: repository, cache, and the threads that wait
+
+`ParquetObject` is the one abstraction between the reader and the storage: a location, a length and a ranged read. `RepositoryParquetObject` implements it over the `BlobContainer` of a registered repository, below the base path of that repository (`RepositoryLocation` rejects any path that escapes it), so credentials, retries and client settings stay in the repository and the plugin carries no cloud SDK. The length of a file comes from one listing of its directory, because the blob API has no length call; this is why a repository must allow listing.
+
+When `xpack.parquet.cache.size` is set, the plugin wraps every object in `CachedParquetObject`, which sends reads through `ParquetBlobCache`. That is a thin layer on `SharedBlobCacheService` of the `blob-cache` plugin with its own file (`parquet_cache`) and its own settings, so it can live next to the cache of searchable snapshots. A read asks for exactly the page-aligned range that the reader needs, and a miss fetches that range with one ranged read of the repository. Without the setting, or when the cache cannot be created (the node logs a warning), reads go straight to the repository.
+
+A read blocks the calling thread: a search thread or an ES|QL driver thread waits inside the Lucene scorer, and cache fetches run on the generic thread pool. There is no prefetch, so a cold read costs one network round trip per chunk, and with ES|QL doc partitioning several slices of one row group each read the same chunk, which only the cache removes. That is also why a warm run over S3 is about as fast as a warm local run, and why an uncached remote scan is slow.
+
+### Why the pieces are the way they are
+
+| Choice | What we did | Why, and what it costs |
+|---|---|---|
+| Creating segments without a writer | `IndexWriter#addIndexes(CodecReader)` with a codec reader over the file | It works with the stock `IndexWriter` and costs about 14 KB and a few milliseconds per million rows; the cost is a one-time attach per primary. |
+| Choosing the engine | `ReadOnlyEngine` subclass through `EnginePlugin`, format found by SPI name | No hook in the codec of Elasticsearch is needed; a mounted index is read-only by construction. |
+| Reading remote bytes | The `BlobContainer` of a registered repository | Credentials and retries stay in the repository; it needs listing permission for the file length. |
+| Reading Parquet | Own footer reader and page decoders, bundled `parquet-hadoop-bundle` without Hadoop, pure-Java Snappy | A node must not need ES\|QL (the `esql-datasource-parquet` plugin extends it) or Hadoop to open a segment; the cost is that we decode only what we implemented. |
+| Unit of a read | The whole column chunk of one row group | Many files have no page index, and a request per page would be far too chatty; the cost is that a point lookup in a wide column reads a whole chunk. |
+| The cache | Our own instance of the shared cache, with its own file and settings | It does not depend on node roles and cannot clash with searchable snapshots; the cost is a second cache file on the node. |
+
+### What we assume, and what happens when it breaks
+
+We assume that a Parquet file never changes after it is mounted. The length at attach time is stored in the segment and the cache key is the location plus the length, so a file that changes length is detected on some paths, but we do not check content and a same-length rewrite would serve stale or wrong values. Opening a shard makes no request to the object store, so a missing file or repository fails the read and not the open. Snapshots of a mounted index do not contain the data, and every node that holds a copy needs the plugin and access to the repository.
+
 ## How the code is laid out
+
+The architecture section above names the classes by their job; this is how they sit in packages.
 
 - `org.elasticsearch.xpack.parquet`: `ParquetDocValuesPlugin` only. It depends on both packages below.
 - `...parquet.mount`: the mount and preview actions (`Transport*`, `Rest*`), `ParquetMountSpec` (strict body parsing), `MountPlanner`, `ParquetMappingDeriver` and `ParquetMountAnalysis`. It depends on `docvalues`.

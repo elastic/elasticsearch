@@ -53,8 +53,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -144,8 +146,10 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.CancelledChildRequestListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
@@ -160,6 +164,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -489,6 +494,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final TaskManager taskManager;
 
+    private final Executor freeContextExecutor;
+
+    /**
+     * Reader contexts by the request that opened them, so that they can be freed if that request is cancelled, see
+     * {@link #freeReaderContextsOpenedBy}.
+     */
+    private final Map<OpeningRequest, Set<ShardSearchContextId>> contextsByOpeningRequest = ConcurrentCollections.newConcurrentMap();
+
+    private final CancelledChildRequestListener freeOnCancelledRequest = this::freeReaderContextsOpenedBy;
+
+    private record OpeningRequest(TaskId parentTaskId, long requestId) {}
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -516,6 +533,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.executorSelector = executorSelector;
         this.tracer = tracer;
         this.taskManager = taskManager;
+        this.freeContextExecutor = buildFreeContextExecutor(threadPool, settings);
         this.onlinePrewarmingService = onlinePrewarmingService;
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -757,11 +775,102 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return task == null ? 0L : task.getId();
     }
 
+    /**
+     * Records the request that opened {@code readerContext}, so that {@link #freeReaderContextsOpenedBy} can free it.
+     */
+    private void trackOpeningRequest(ShardSearchRequest request, ReaderContext readerContext) {
+        if (request.getParentTask().isSet() == false || request.getRequestId() <= 0) {
+            return;
+        }
+        final OpeningRequest openingRequest = new OpeningRequest(request.getParentTask(), request.getRequestId());
+        final ShardSearchContextId contextId = readerContext.id();
+        contextsByOpeningRequest.compute(openingRequest, (k, contextIds) -> {
+            final Set<ShardSearchContextId> ids = contextIds == null ? new HashSet<>() : contextIds;
+            ids.add(contextId);
+            return ids;
+        });
+        readerContext.addOnClose(() -> contextsByOpeningRequest.computeIfPresent(openingRequest, (k, contextIds) -> {
+            contextIds.remove(contextId);
+            return contextIds.isEmpty() ? null : contextIds;
+        }));
+    }
+
+    /**
+     * Frees the contexts opened by a request its parent has cancelled. The parent only cancels a request it treats as failed, so it won't
+     * use the context ids in the response, for example because it couldn't read the response.
+     */
+    private void freeReaderContextsOpenedBy(TaskId parentTaskId, long requestId) {
+        final Set<ShardSearchContextId> contextIds = contextsByOpeningRequest.remove(new OpeningRequest(parentTaskId, requestId));
+        if (contextIds == null) {
+            return;
+        }
+        // Usually called on a transport thread, and closing a reader may do IO.
+        freeContextExecutor.execute(() -> {
+            for (ShardSearchContextId contextId : contextIds) {
+                try {
+                    freeReaderContext(contextId, "opening request cancelled");
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> format(
+                            "failed to free reader context [%s] opened by cancelled request [%d] of parent task [%s]",
+                            contextId,
+                            requestId,
+                            parentTaskId
+                        ),
+                        e
+                    );
+                }
+            }
+        });
+    }
+
+    /**
+     * Frees reader contexts on the generic pool, at most half as many at once as there are processors, since freeing may do IO. The
+     * {@code free_context} handlers and the cleanup of cancelled requests share it, so that together they stay within that limit.
+     */
+    public Executor getFreeContextExecutor() {
+        return freeContextExecutor;
+    }
+
+    // package-private for testing
+    static int freeContextConcurrency(Settings settings) {
+        return Math.max(1, EsExecutors.allocatedProcessors(settings) / 2);
+    }
+
+    private static Executor buildFreeContextExecutor(ThreadPool threadPool, Settings settings) {
+        final ThrottledTaskRunner throttledTaskRunner = new ThrottledTaskRunner(
+            "free_context",
+            freeContextConcurrency(settings),
+            threadPool.generic()
+        );
+        return r -> throttledTaskRunner.enqueueTask(new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    r.run();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (r instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onFailure(e);
+                }
+                // should be impossible, GENERIC pool doesn't reject anything
+                logger.error("unexpected failure running " + r, e);
+                assert false : new AssertionError("unexpected failure running " + r, e);
+            }
+        });
+    }
+
     @Override
-    protected void doStart() {}
+    protected void doStart() {
+        taskManager.registerCancelledChildRequestListener(freeOnCancelledRequest);
+    }
 
     @Override
     protected void doStop() {
+        taskManager.unregisterCancelledChildRequestListener(freeOnCancelledRequest);
         for (final ReaderContext context : activeReaders.values()) {
             freeReaderContext(context.id(), "search service stopping");
         }
@@ -1699,9 +1808,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Returns the reader context that {@code request} names, or registers a new one for its shard. A new context serves a
-     * single search: {@link #findReaderContext} finds it, the reaper frees it once it was unused for its keep-alive, and
-     * removing the index or stopping the node frees it. Its keep-alive is the one of the request, or
-     * {@code search.default_keep_alive}. Callers outside the search phases free it with {@link #freeReaderContext}.
+     * single search: {@link #findReaderContext} finds it, and completing the search, removing the index, or stopping the node frees it.
+     * <p>
+     * The reaper will clean it up if none of those things happen in time, which is needed in the case of a client executing a scroll search
+     * which crashes before it reaches the last page. The reaper also defends against bugs within Elasticsearch which prevent a search from
+     * completing, but such bugs should still be reported and fixed.
+     * <p>
+     * Its keep-alive is the one of the request, or {@code search.default_keep_alive}.
+     * <p>
+     * Callers outside the search phases free it with {@link #freeReaderContext}.
      *
      * @param task the task that opens the context, logged when the context opens and closes. May be {@code null}.
      */
@@ -1815,6 +1930,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.addOnClose(() -> searchOperationListener.onFreeScrollContext(finalReaderContext));
             }
             readerContext.addOnClose(() -> searchOperationListener.onFreeReaderContext(finalReaderContext));
+            // Also tracks a context re-created for a retryable PIT, since its new id is only in the response too.
+            trackOpeningRequest(request, finalReaderContext);
             putReaderContext(finalReaderContext);
             readerContext = null;
             logOpened(finalReaderContext);
@@ -1887,8 +2004,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Opens the reader context for given shardId. The newly opened reader context will be keep
-     * until the {@code keepAlive} elapsed unless it is manually released.
+     * Opens the reader context for given shardId. The newly opened reader context is expected to be explicitly closed by the caller (which
+     * may ultimately be an external REST client) but we also impose a {@code keepAlive} timeout to defend against client crashes, network
+     * failures which prevent delivering the context ID to the caller, and caller bugs.
      */
     public void openReaderContext(
         ShardId shardId,
@@ -1899,6 +2017,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         openReaderContext(shardId, keepAlive, null, splitShardCountSummary, listener);
     }
 
+    /**
+     * Opens the reader context for given shardId. The newly opened reader context is expected to be explicitly closed by the caller (which
+     * may ultimately be an external REST client) but we also impose a {@code keepAlive} timeout to defend against client crashes, network
+     * failures which prevent delivering the context ID to the caller, and caller bugs.
+     */
     public void openReaderContext(
         ShardId shardId,
         TimeValue keepAlive,
@@ -2657,6 +2780,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     int getRelocationMapSize() {
         return this.activeReaders.relocationMapSize();
+    }
+
+    /**
+     * Returns the number of requests whose opened contexts this SearchService tracks, for testing
+     */
+    int getOpeningRequestCount() {
+        return contextsByOpeningRequest.size();
     }
 
     /**

@@ -322,6 +322,32 @@ public class IntBlockTests extends BlockTestCase<IntBlock, IntBlock.Builder, Int
         }
     }
 
+    /**
+     * Sorted positions with more than a handful of values are searched with a binary search, which must only match
+     * the values of the position itself.
+     */
+    public void testHasValueInLargeSortedPositions() {
+        int valuesPerPosition = 20;
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(2 * valuesPerPosition)) {
+            builder.mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
+            for (int p = 0; p < 2; p++) {
+                builder.beginPositionEntry();
+                for (int i = 0; i < valuesPerPosition; i++) {
+                    builder.appendInt(p * 100 + i);
+                }
+                builder.endPositionEntry();
+            }
+            try (IntBlock block = builder.build()) {
+                for (int p = 0; p < 2; p++) {
+                    for (int i = 0; i < valuesPerPosition; i++) {
+                        assertTrue(block.hasValue(p, p * 100 + i));
+                        assertFalse(block.hasValue(1 - p, p * 100 + i));
+                    }
+                }
+            }
+        }
+    }
+
     @Override
     protected void assertAdditionalInvariants(IntBlock block, List<List<Integer>> expected) {
         assertThat(block.valueMaxByteSize(), equalTo(block instanceof ConstantNullBlock ? 0 : Integer.BYTES));

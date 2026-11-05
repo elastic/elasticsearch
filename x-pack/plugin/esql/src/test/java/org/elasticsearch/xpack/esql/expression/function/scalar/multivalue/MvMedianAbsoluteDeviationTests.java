@@ -26,6 +26,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTestCase {
     public MvMedianAbsoluteDeviationTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -122,7 +123,44 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
             )
         );
 
+        // Any NaN makes the MAD NaN, which is rejected to null like a non-finite median or MAD
+        cases.add(nonFiniteCase(List.of(Double.NaN, Double.NaN, 1.0), Double.NaN));
+        cases.add(nonFiniteCase(List.of(Double.NaN, 1.0, 2.0), Double.NaN));
+        cases.add(nonFiniteCase(List.of(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, 1.0), Double.POSITIVE_INFINITY));
+        cases.add(nonFiniteCase(List.of(Double.NEGATIVE_INFINITY, 0.0, Double.POSITIVE_INFINITY), Double.POSITIVE_INFINITY));
+        cases.add(nonFiniteCase(Double.NaN, Double.NaN));
+        cases.add(nonFiniteCase(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY));
+        cases.add(nonFiniteCase(Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY));
+
+        // An infinite value away from the median leaves the MAD finite
+        cases.add(
+            new TestCaseSupplier(
+                "mv_median_absolute_deviation(<1.0, 2.0, Infinity>)",
+                List.of(DataType.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(1.0, 2.0, Double.POSITIVE_INFINITY), DataType.DOUBLE, "field")),
+                    "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                    DataType.DOUBLE,
+                    equalTo(1.0)
+                )
+            )
+        );
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases);
+    }
+
+    private static TestCaseSupplier nonFiniteCase(Object field, double reported) {
+        return new TestCaseSupplier(
+            "mv_median_absolute_deviation(<" + field + ">)",
+            List.of(DataType.DOUBLE),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(field, DataType.DOUBLE, "field")),
+                "MvMedianAbsoluteDeviation[field=Attribute[channel=0]]",
+                DataType.DOUBLE,
+                nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: " + reported)
+        );
     }
 
     /**

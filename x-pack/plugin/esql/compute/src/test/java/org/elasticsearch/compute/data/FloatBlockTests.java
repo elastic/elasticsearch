@@ -293,6 +293,35 @@ public class FloatBlockTests extends BlockTestCase<FloatBlock, FloatBlock.Builde
         }
     }
 
+    /**
+     * Sorted positions with more than a handful of values are searched with a binary search, which must match the
+     * linear search: only the values of the position itself match, {@code -0.0} matches {@code 0.0} and {@code NaN}
+     * matches nothing.
+     */
+    public void testHasValueInLargeSortedPositions() {
+        int valuesPerPosition = 20;
+        try (FloatBlock.Builder builder = blockFactory().newFloatBlockBuilder(2 * valuesPerPosition)) {
+            builder.mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
+            for (int p = 0; p < 2; p++) {
+                builder.beginPositionEntry();
+                for (int i = 0; i < valuesPerPosition; i++) {
+                    builder.appendFloat(p * 100 + i);
+                }
+                builder.endPositionEntry();
+            }
+            try (FloatBlock block = builder.build()) {
+                for (int p = 0; p < 2; p++) {
+                    for (int i = 0; i < valuesPerPosition; i++) {
+                        assertTrue(block.hasValue(p, p * 100 + i));
+                        assertFalse(block.hasValue(1 - p, p * 100 + i));
+                    }
+                    assertFalse(block.hasValue(p, Float.NaN));
+                }
+                assertTrue(block.hasValue(0, -0.0f));
+            }
+        }
+    }
+
     @Override
     protected void assertAdditionalInvariants(FloatBlock block, List<List<Float>> expected) {
         assertThat(block.valueMaxByteSize(), equalTo(block instanceof ConstantNullBlock ? 0 : Float.BYTES));

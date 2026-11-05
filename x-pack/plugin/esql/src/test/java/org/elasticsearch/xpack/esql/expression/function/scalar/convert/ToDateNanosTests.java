@@ -126,6 +126,17 @@ public class ToDateNanosTests extends AbstractConfigurationFunctionTestCase {
                 "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
+        TestCaseSupplier.unary(
+            suppliers,
+            "ToDateNanosFromDoubleEvaluator[in=" + read + "]",
+            List.of(new TestCaseSupplier.TypedDataSupplier("<NaN>", () -> Double.NaN, DataType.DOUBLE)),
+            DataType.DATE_NANOS,
+            d -> null,
+            d -> List.of(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [NaN] out of [long] range"
+            )
+        );
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             "ToDateNanosFromStringEvaluator[in=" + read + ", formatter=format[strict_date_optional_time_nanos] locale[]]",

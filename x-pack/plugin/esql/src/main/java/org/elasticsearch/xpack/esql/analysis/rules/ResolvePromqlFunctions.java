@@ -127,6 +127,11 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         if (metadata == PromqlBuiltinFunctionDefinitions.LIMIT_RATIO) {
             validateLimitRatio(unresolved, extraParams);
         }
+        if (metadata == PromqlBuiltinFunctionDefinitions.TOPK
+            || metadata == PromqlBuiltinFunctionDefinitions.BOTTOMK
+            || metadata == PromqlBuiltinFunctionDefinitions.LIMITK) {
+            validateLimitK(unresolved, extraParams);
+        }
         if (grouping != null) {
             if (metadata.functionType() != FunctionType.ACROSS_SERIES_AGGREGATION
                 && metadata.functionType() != FunctionType.ACROSS_SERIES_REDUCTION) {
@@ -285,6 +290,32 @@ public class ResolvePromqlFunctions extends ParameterizedAnalyzerRule<PromqlComm
         if (folded instanceof Number == false) {
             throw new VerificationException(
                 List.of(Failure.fail(unresolved, "expected numeric ratio in call to function [{}], got [{}]", name, folded))
+            );
+        }
+    }
+
+    /**
+     * Validates the {@code k} argument of {@code topk}, {@code bottomk} and {@code limitk} at analysis time.
+     * <p>
+     * Like Prometheus, a {@code k} below one (including {@code -Inf}) is valid and selects nothing, while
+     * {@code NaN} and a {@code k} that overflows int64 (including {@code +Inf}) are rejected.
+     */
+    private static void validateLimitK(UnresolvedPromqlFunction unresolved, List<Expression> extraParams) {
+        String name = unresolved.functionName();
+        if (extraParams.isEmpty() || extraParams.getFirst().fold(FoldContext.small()) instanceof Number == false) {
+            return;
+        }
+        double k = ((Number) extraParams.getFirst().fold(FoldContext.small())).doubleValue();
+        if (k < 1) {
+            return;
+        }
+        if (Double.isNaN(k)) {
+            throw new VerificationException(List.of(Failure.fail(unresolved, "k in call to function [{}] must not be NaN", name)));
+        }
+        // Prometheus compares against the largest double below 2^63.
+        if (k >= Math.nextDown(0x1p63)) {
+            throw new VerificationException(
+                List.of(Failure.fail(unresolved, "k in call to function [{}] overflows int64, got [{}]", name, k))
             );
         }
     }

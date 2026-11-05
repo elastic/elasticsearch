@@ -257,6 +257,19 @@ public class ToIntegerTests extends AbstractScalarFunctionTestCase {
                 "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [integer] range"
             )
         );
+
+        // NaN has no integer value
+        TestCaseSupplier.unary(
+            suppliers,
+            unaryEvaluatorName("Double", "dbl"),
+            List.of(new TestCaseSupplier.TypedDataSupplier("<NaN>", () -> Double.NaN, DataType.DOUBLE)),
+            DataType.INTEGER,
+            d -> null,
+            d -> List.of(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [NaN] out of [integer] range"
+            )
+        );
     }
 
     /**

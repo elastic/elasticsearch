@@ -572,32 +572,45 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             value = dateWithTypeToString((Long) value, right().dataType());
             format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
+        DataType fieldType = attribute.dataType();
         if (this instanceof GreaterThan) {
-            return new RangeQuery(source(), name, value, false, null, false, format, zoneId);
+            return new RangeQuery(source(), name, zeroBound(fieldType, value, true, false), false, null, false, format, zoneId);
         }
         if (this instanceof GreaterThanOrEqual) {
-            return new RangeQuery(source(), name, value, true, null, false, format, zoneId);
+            return new RangeQuery(source(), name, zeroBound(fieldType, value, true, true), true, null, false, format, zoneId);
         }
         if (this instanceof LessThan) {
-            return new RangeQuery(source(), name, null, false, value, false, format, zoneId);
+            return new RangeQuery(source(), name, null, false, zeroBound(fieldType, value, false, false), false, format, zoneId);
         }
         if (this instanceof LessThanOrEqual) {
-            return new RangeQuery(source(), name, null, false, value, true, format, zoneId);
+            return new RangeQuery(source(), name, null, false, zeroBound(fieldType, value, false, true), true, format, zoneId);
         }
         if (this instanceof Equals || this instanceof NotEquals) {
             name = LucenePushdownPredicates.pushableAttributeName(attribute);
-            if (this instanceof NotEquals && attribute.dataType().isNumeric()) {
+            if (this instanceof NotEquals && fieldType.isNumeric()) {
                 return new BoolQuery(
                     source(),
                     false,
-                    new RangeQuery(source(), name, null, false, value, false, format, zoneId),
-                    new RangeQuery(source(), name, value, false, null, false, format, zoneId)
+                    new RangeQuery(source(), name, null, false, zeroBound(fieldType, value, false, false), false, format, zoneId),
+                    new RangeQuery(source(), name, zeroBound(fieldType, value, true, false), false, null, false, format, zoneId)
                 );
             }
             Query query;
             if (isDateLiteralComparison) {
                 // dates equality uses a range query because it's the one that has a "format" parameter
                 query = new RangeQuery(source(), name, value, true, value, true, format, zoneId);
+            } else if (isZeroOnRationalField(fieldType, value)) {
+                // a term query matches only the zero of the literal's sign
+                query = new RangeQuery(
+                    source(),
+                    name,
+                    zeroBound(fieldType, value, true, true),
+                    true,
+                    zeroBound(fieldType, value, false, true),
+                    true,
+                    format,
+                    zoneId
+                );
             } else {
                 query = new TermQuery(source(), name, value);
             }
@@ -612,6 +625,22 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             right().nodeString(),
             toString()
         );
+    }
+
+    /**
+     * Adapts a range bound so the pushed down query compares {@code -0.0} and {@code +0.0} as equal, like evaluation does.
+     * Lucene orders {@code -0.0} below {@code +0.0} on floating-point fields, so a zero bound has to be the zero that makes
+     * an inclusive bound take in both zeros and an exclusive bound leave both out.
+     */
+    public static Object zeroBound(DataType fieldType, Object bound, boolean lower, boolean inclusive) {
+        if (isZeroOnRationalField(fieldType, bound)) {
+            return lower == inclusive ? -0.0 : 0.0;
+        }
+        return bound;
+    }
+
+    public static boolean isZeroOnRationalField(DataType fieldType, Object value) {
+        return fieldType.isRationalNumber() && value instanceof Number n && n.doubleValue() == 0;
     }
 
     private Query translateOutOfRangeComparisons() {
@@ -636,7 +665,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         }
 
         if (Double.isNaN(((Number) value).doubleValue())) {
-            return new MatchAll(source()).negate(source());
+            // NaN is unequal to every value and every other comparison with it is false
+            return this instanceof NotEquals ? new MatchAll(source()) : new MatchAll(source()).negate(source());
         }
 
         boolean matchAllOrNone;

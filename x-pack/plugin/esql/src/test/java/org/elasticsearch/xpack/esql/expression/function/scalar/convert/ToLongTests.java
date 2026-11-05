@@ -247,6 +247,19 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
                 "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
+
+        // NaN has no long value
+        TestCaseSupplier.unary(
+            suppliers,
+            unaryEvaluatorName("Double", "dbl"),
+            List.of(new TestCaseSupplier.TypedDataSupplier("<NaN>", () -> Double.NaN, DataType.DOUBLE)),
+            DataType.LONG,
+            d -> null,
+            d -> List.of(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [NaN] out of [long] range"
+            )
+        );
     }
 
     /**

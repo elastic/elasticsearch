@@ -172,7 +172,7 @@ class ValuesFloatAggregator {
             } else if (hasValue(groupId) == false) {
                 firstValues.set(groupId, v);
                 trackGroupId(groupId);
-            } else if (firstValues.get(groupId) != v) {
+            } else if (Float.floatToIntBits(firstValues.get(groupId)) != Float.floatToIntBits(v)) {
                 nextValues.add(groupId, v);
             }
         }

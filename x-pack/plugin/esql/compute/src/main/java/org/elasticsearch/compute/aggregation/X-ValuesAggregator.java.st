@@ -276,7 +276,13 @@ $else$
             } else if (hasValue(groupId) == false) {
                 firstValues.set(groupId, v);
                 trackGroupId(groupId);
+$if(float)$
+            } else if (Float.floatToIntBits(firstValues.get(groupId)) != Float.floatToIntBits(v)) {
+$elseif(double)$
+            } else if (Double.doubleToLongBits(firstValues.get(groupId)) != Double.doubleToLongBits(v)) {
+$else$
             } else if (firstValues.get(groupId) != v) {
+$endif$
                 nextValues.add(groupId, v);
             }
 $endif$

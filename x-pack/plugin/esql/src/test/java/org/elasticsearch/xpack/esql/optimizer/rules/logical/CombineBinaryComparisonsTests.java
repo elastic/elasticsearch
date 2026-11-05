@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -59,6 +60,24 @@ public class CombineBinaryComparisonsTests extends ESTestCase {
         And and = new And(EMPTY, lte, lt);
         Expression exp = combine(and);
         assertEquals(exp, and);
+    }
+
+    // a >= 0.0 AND a > -0.0 -> a > -0.0
+    public void testCombineBinaryComparisonsSignedZerosAreEqual() {
+        FieldAttribute fa = getFieldAttribute("a", DOUBLE);
+        GreaterThan gt = greaterThanOf(fa, new Literal(EMPTY, -0.0, DOUBLE));
+
+        Expression exp = combine(new And(EMPTY, greaterThanOrEqualOf(fa, new Literal(EMPTY, 0.0, DOUBLE)), gt));
+        assertEquals(gt, exp);
+    }
+
+    // a != 0.0 AND a <= -0.0 -> a < -0.0
+    public void testCombineBinaryComparisonsNotEqualsZeroAndLessThanOrEqualNegativeZero() {
+        FieldAttribute fa = getFieldAttribute("a", DOUBLE);
+        Literal negativeZero = new Literal(EMPTY, -0.0, DOUBLE);
+
+        Expression exp = combine(new And(EMPTY, notEqualsOf(fa, new Literal(EMPTY, 0.0, DOUBLE)), lessThanOrEqualOf(fa, negativeZero)));
+        assertEquals(lessThanOf(fa, negativeZero), exp);
     }
 
     // a <= 6 AND a < 5 -> a < 5

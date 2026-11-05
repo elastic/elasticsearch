@@ -11,6 +11,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -19,6 +22,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,6 +58,58 @@ public class InStaticTests extends ESTestCase {
         assertTrue((Boolean) in.fold(FoldContext.small()));
         in = new In(EMPTY, ONE, Arrays.asList(TWO, NULL, THREE));
         assertNull(in.fold(FoldContext.small()));
+    }
+
+    /**
+     * {@code x IN (a, b)} means {@code x == a OR x == b}, so for doubles {@code NaN} matches nothing, not even itself, and
+     * {@code -0.0} matches {@code 0.0}. {@link #testZeroPushesDownAsBothZeros} covers the same for the pushed down query.
+     */
+    public void testDoublesMatchLikeEquals() {
+        assertFalse((Boolean) new In(EMPTY, L(Double.NaN), Arrays.asList(L(Double.NaN), L(1.0))).fold(FoldContext.small()));
+        assertTrue((Boolean) new In(EMPTY, L(-0.0), Arrays.asList(L(0.0), L(1.0))).fold(FoldContext.small()));
+        assertTrue((Boolean) new In(EMPTY, L(0.0), Arrays.asList(L(-0.0), L(1.0))).fold(FoldContext.small()));
+    }
+
+    /**
+     * Numeric fields only index finite values, so a non-finite value in the list can never match. It must not reach the
+     * terms query either, which rejects non-finite values and would fail the whole query.
+     */
+    public void testNonFiniteDoublesPushDownAsNoMatch() {
+        In in = new In(
+            EMPTY,
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("field", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Arrays.asList(L(1.0), L(Double.NaN), L(Double.POSITIVE_INFINITY), L(Double.NEGATIVE_INFINITY))
+        );
+        var query = in.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+        Query matchNone = new MatchAll(EMPTY).negate(EMPTY);
+        assertEquals(
+            new BoolQuery(EMPTY, false, List.of(matchNone, matchNone, matchNone, new TermsQuery(EMPTY, "field", Set.of(1.0)))),
+            query
+        );
+    }
+
+    /**
+     * Lucene keeps {@code -0.0} apart from {@code 0.0}, so a zero in the list must push down as both zeros to match what
+     * evaluation does, whatever the literal's sign or type.
+     */
+    public void testZeroPushesDownAsBothZeros() {
+        In in = new In(
+            EMPTY,
+            new FieldAttribute(
+                Source.EMPTY,
+                "field",
+                new EsField("field", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            Arrays.asList(L(1.0), randomFrom(L(0.0), L(-0.0), L(0)))
+        );
+        assertEquals(
+            new TermsQuery(EMPTY, "field", Set.of(1.0, -0.0, 0.0)),
+            in.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER)
+        );
     }
 
     public void testConvertedNull() {

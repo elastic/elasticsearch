@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -42,6 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.zeroBound;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
@@ -241,6 +243,10 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (isNaN(lower) || isNaN(upper)) {
+            // No value is ordered relative to NaN, while Lucene sorts NaN above +Infinity
+            return new MatchAll(source()).negate(source());
+        }
         if (value instanceof FieldExtract fe) {
             Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
             if (keyedName.isPresent()) {
@@ -272,6 +278,10 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
             hi = br.utf8ToString();
         }
         return new RangeQuery(source(), keyedName, lo, includeLower, hi, includeUpper, /* format */ null, /* zoneId */ null);
+    }
+
+    private static boolean isNaN(Expression bound) {
+        return literalValueOf(bound) instanceof Double d && d.isNaN();
     }
 
     private RangeQuery translate(TranslatorHandler handler) {
@@ -336,6 +346,9 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
             if (u instanceof Long ul) {
                 u = unsignedLongAsNumber(ul);
             }
+        } else {
+            l = zeroBound(dataType, l, true, includeLower());
+            u = zeroBound(dataType, u, false, includeUpper());
         }
         logger.trace("Building range query with format string [{}]", format);
         return new RangeQuery(source(), handler.nameOf(value), l, includeLower(), u, includeUpper(), format, zoneId);

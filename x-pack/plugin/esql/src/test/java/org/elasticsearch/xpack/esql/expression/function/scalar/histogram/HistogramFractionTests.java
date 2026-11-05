@@ -211,6 +211,32 @@ public class HistogramFractionTests extends AbstractScalarFunctionTestCase {
         assertEquals(tdigest.size(), HistogramFraction.process(tdigest, tdigestRange, null, newTDigestArrays()), 0.0);
     }
 
+    /**
+     * Infinite bounds lie below or above every value, like they do for exponential histograms.
+     */
+    public void testTDigestInfiniteBounds() {
+        TDigestHolder tdigest = randomValueOtherThanMany(t -> t.size() == 0, EsqlTestUtils::randomTDigest);
+        Integer decimals = randomBoolean() ? null : 0;
+        double negInf = Double.NEGATIVE_INFINITY;
+        double posInf = Double.POSITIVE_INFINITY;
+        MemoryTrackingTDigestArrays tdigestArrays = newTDigestArrays();
+        assertEquals(
+            tdigest.size(),
+            HistogramFraction.process(tdigest, new DoubleRangeBlockBuilder.DoubleRange(negInf, posInf), decimals, tdigestArrays),
+            0.0
+        );
+        assertEquals(
+            0.0,
+            HistogramFraction.process(tdigest, new DoubleRangeBlockBuilder.DoubleRange(negInf, negInf), decimals, tdigestArrays),
+            0.0
+        );
+        assertEquals(
+            0.0,
+            HistogramFraction.process(tdigest, new DoubleRangeBlockBuilder.DoubleRange(posInf, posInf), decimals, tdigestArrays),
+            0.0
+        );
+    }
+
     public void testExponentialHistogramFractionsAreAdditive() {
         int decimals = randomIntBetween(-5, 50);
         ExponentialHistogram exponentialHistogram = randomValueOtherThanMany(

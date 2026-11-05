@@ -230,14 +230,25 @@ public class HistogramFraction extends EsqlScalarFunction implements OptionalArg
             if (totalNumValues == 0) {
                 return 0.0;
             }
-            double lowerCount = scratch.cdf(bucket.from()) * totalNumValues;
-            double upperCount = scratch.cdf(bucket.to()) * totalNumValues;
+            double lowerCount = rank(scratch, bucket.from(), totalNumValues);
+            double upperCount = rank(scratch, bucket.to(), totalNumValues);
             if (decimals == null) {
                 return upperCount - lowerCount;
             } else {
                 return Maths.round(upperCount, decimals).doubleValue() - Maths.round(lowerCount, decimals).doubleValue();
             }
         }
+    }
+
+    private static double rank(TDigest digest, double value, long totalNumValues) {
+        // TDigest#cdf rejects infinities, which lie below or above every value of the digest
+        if (value == Double.NEGATIVE_INFINITY) {
+            return 0;
+        }
+        if (value == Double.POSITIVE_INFINITY) {
+            return totalNumValues;
+        }
+        return digest.cdf(value) * totalNumValues;
     }
 
     @Override

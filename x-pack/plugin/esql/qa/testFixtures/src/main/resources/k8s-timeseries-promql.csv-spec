@@ -2489,6 +2489,18 @@ PROMQL index=k8s step=1h result=(topk(0, network.total_bytes_in{cluster="prod"})
 result:double | step:datetime            | _timeseries:keyword
 ;
 
+// k=-Inf: like any k below one, Prometheus returns an empty result.
+topk_k_negative_infinity
+required_capability: promql_command_v0
+required_capability: promql_topk
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_topk_out_of_range_k
+PROMQL index=k8s step=1h result=(topk(-Inf, network.total_bytes_in{cluster="prod"}))
+| SORT result DESC;
+
+result:double | step:datetime            | _timeseries:keyword
+;
+
 // k far larger than any reasonable series count: still returns every series, still ranked. Note: k values near
 // Integer.MAX_VALUE trip ES|QL's circuit breaker (TopNBy's execution pre-sizes a buffer proportional to k, not
 // to the actual row count) - unlike Prometheus, which has no such ceiling. See TOPK's stdDivergence.

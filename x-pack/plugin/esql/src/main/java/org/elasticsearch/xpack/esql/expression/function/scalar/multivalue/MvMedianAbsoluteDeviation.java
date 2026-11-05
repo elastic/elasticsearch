@@ -93,7 +93,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction implem
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (PlannerUtils.toElementType(field().dataType())) {
-            case DOUBLE -> new MvMedianAbsoluteDeviationDoubleEvaluator.Factory(fieldEval);
+            case DOUBLE -> new MvMedianAbsoluteDeviationDoubleEvaluator.Factory(source(), fieldEval);
             case INT -> new MvMedianAbsoluteDeviationIntEvaluator.Factory(fieldEval);
             case LONG -> field().dataType() == DataType.UNSIGNED_LONG
                 ? new MvMedianAbsoluteDeviationUnsignedLongEvaluator.Factory(fieldEval)
@@ -234,7 +234,13 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction implem
         public int count;
     }
 
-    @MvEvaluator(extraName = "Double", finish = "finish", ascending = "ascending", single = "single")
+    @MvEvaluator(
+        extraName = "Double",
+        finish = "finish",
+        ascending = "ascending",
+        single = "single",
+        warnExceptions = { ArithmeticException.class }
+    )
     static void process(Doubles doubles, double v) {
         if (doubles.values.length < doubles.count + 1) {
             doubles.values = ArrayUtil.grow(doubles.values, doubles.count + 1);
@@ -246,7 +252,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction implem
         try {
             double median = doubleMedianOf(doubles);
             for (int i = 0; i < doubles.count; i++) {
-                double value = doubles.values[i];
+                double value = rejectNaN(doubles.values[i]);
                 // Double differences between median and the values may potentially result in +/-Infinity.
                 // As we use that value just to sort, the MAD should remain finite.
                 doubles.values[i] = value > median ? value - median : median - value;
@@ -271,7 +277,7 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction implem
             int middle = firstValue + count / 2;
             double median = count % 2 == 1 ? values.getDouble(middle) : (values.getDouble(middle - 1) / 2 + values.getDouble(middle) / 2);
             for (int i = 0; i < count; i++) {
-                double value = values.getDouble(firstValue + i);
+                double value = rejectNaN(values.getDouble(firstValue + i));
                 // Double differences between median and the values may potentially result in +/-Infinity.
                 // As we use that value just to sort, the MAD should remain finite.
                 doubles.values[i] = value > median ? value - median : median - value;
@@ -283,7 +289,19 @@ public class MvMedianAbsoluteDeviation extends AbstractMultivalueFunction implem
     }
 
     static double single(double value) {
+        // the deviation of a non-finite value from itself is NaN
+        NumericUtils.asFiniteNumber(value);
         return 0.;
+    }
+
+    /**
+     * A {@code NaN} input makes the MAD {@code NaN}, but sorting would otherwise move it past the medians and hide it.
+     */
+    private static double rejectNaN(double value) {
+        if (Double.isNaN(value)) {
+            throw new ArithmeticException("not a finite double number: " + value);
+        }
+        return value;
     }
 
     static double doubleMedianOf(Doubles doubles) {

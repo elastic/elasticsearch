@@ -8,14 +8,23 @@
 package org.elasticsearch.xpack.esql.expression.predicate;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
+import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -230,5 +239,60 @@ public class RangeTests extends ESTestCase {
 
     private static DataType randomTextType() {
         return randomFrom(KEYWORD, TEXT);
+    }
+
+    /**
+     * No value is ordered relative to {@code NaN}, so a range bounded by it is empty and must push down as a query matching
+     * nothing, whichever bound it is.
+     */
+    public void testNaNBoundPushdown() {
+        FieldAttribute field = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", randomFrom(DOUBLE, INTEGER), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        Literal nan = new Literal(Source.EMPTY, Double.NaN, DOUBLE);
+        Literal one = new Literal(Source.EMPTY, 1.0, DOUBLE);
+        Query matchNone = new MatchAll(Source.EMPTY).negate(Source.EMPTY);
+        for (Literal[] bounds : new Literal[][] {
+            { nan, one },
+            { one, nan },
+            { nan, nan },
+            { nan, Literal.NULL },
+            { Literal.NULL, nan } }) {
+            Range range = new Range(Source.EMPTY, field, bounds[0], randomBoolean(), bounds[1], randomBoolean(), null);
+            assertEquals(matchNone, range.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER));
+        }
+    }
+
+    /**
+     * Lucene orders {@code -0.0} below {@code 0.0} on floating-point fields, while evaluation compares them as equal, so a zero
+     * bound must push down as the zero that makes an inclusive bound take in both zeros and an exclusive bound leave both out.
+     */
+    public void testZeroBoundPushdown() {
+        FieldAttribute field = new FieldAttribute(
+            Source.EMPTY,
+            "field",
+            new EsField("field", DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        for (boolean includeLower : new boolean[] { true, false }) {
+            for (boolean includeUpper : new boolean[] { true, false }) {
+                Literal lower = randomFrom(new Literal(Source.EMPTY, 0.0, DOUBLE), new Literal(Source.EMPTY, -0.0, DOUBLE));
+                Literal upper = randomFrom(new Literal(Source.EMPTY, 0.0, DOUBLE), new Literal(Source.EMPTY, -0.0, DOUBLE));
+                Range range = new Range(Source.EMPTY, field, lower, includeLower, upper, includeUpper, null);
+                assertEquals(
+                    new RangeQuery(
+                        Source.EMPTY,
+                        "field",
+                        includeLower ? -0.0 : 0.0,
+                        includeLower,
+                        includeUpper ? 0.0 : -0.0,
+                        includeUpper,
+                        null
+                    ),
+                    range.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER)
+                );
+            }
+        }
     }
 }

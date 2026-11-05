@@ -306,7 +306,7 @@ public final class DataTypeConverter {
     }
 
     public static int safeToInt(double x) {
-        if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE) {
+        if (x > Integer.MAX_VALUE || x < Integer.MIN_VALUE || Double.isNaN(x)) {
             throw new InvalidArgumentException("[{}] out of [integer] range", x);
         }
         // cast is safe, double can represent all of int's range
@@ -314,7 +314,7 @@ public final class DataTypeConverter {
     }
 
     public static long safeDoubleToLong(double x) {
-        if (x >= DOUBLE_TO_LONG_UPPER_BOUND || x < Long.MIN_VALUE) {
+        if (x >= DOUBLE_TO_LONG_UPPER_BOUND || x < Long.MIN_VALUE || Double.isNaN(x)) {
             throw new InvalidArgumentException("[{}] out of [long] range", x);
         }
         return Math.round(x);

@@ -44,6 +44,9 @@ import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class PropagateEqualsTests extends ESTestCase {
+    private static final Literal ZERO = new Literal(EMPTY, 0.0, DataType.DOUBLE);
+    private static final Literal NEGATIVE_ZERO = new Literal(EMPTY, -0.0, DataType.DOUBLE);
+
     private Expression propagateEquals(BinaryLogic e) {
         return new PropagateEquals().rule(e, unboundLogicalOptimizerContext());
     }
@@ -312,5 +315,28 @@ public class PropagateEqualsTests extends ESTestCase {
 
         Expression exp = propagateEquals(new And(EMPTY, eq1, r));
         assertEquals(eq1, exp);
+    }
+
+    // a == 0.0 AND a == -0.0 -> nop, as both match either zero
+    public void testPropagateEquals_signedZerosAreEqualInConjunction() {
+        FieldAttribute fa = getFieldAttribute("a", DataType.DOUBLE);
+        And and = new And(EMPTY, equalsOf(fa, ZERO), equalsOf(fa, NEGATIVE_ZERO));
+
+        assertEquals(and, propagateEquals(and));
+    }
+
+    // a == 0.0 AND a > -0.0 -> FALSE
+    public void testPropagateEquals_equalsZeroAndGreaterThanNegativeZero() {
+        FieldAttribute fa = getFieldAttribute("a", DataType.DOUBLE);
+
+        assertEquals(FALSE, propagateEquals(new And(EMPTY, equalsOf(fa, ZERO), greaterThanOf(fa, NEGATIVE_ZERO))));
+    }
+
+    // a == -0.0 OR a < 0.0 -> a <= 0.0
+    public void testPropagateEquals_equalsNegativeZeroOrLessThanZero() {
+        FieldAttribute fa = getFieldAttribute("a", DataType.DOUBLE);
+
+        Expression exp = propagateEquals(new Or(EMPTY, equalsOf(fa, NEGATIVE_ZERO), lessThanOf(fa, ZERO)));
+        assertEquals(lessThanOrEqualOf(fa, ZERO), exp);
     }
 }

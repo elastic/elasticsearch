@@ -65,6 +65,7 @@ public class ToDatetimeTests extends AbstractConfigurationFunctionTestCase {
         doubleCase().doubles(lowerDouble, upperDouble).expectedFromDouble(Double::longValue);
         doubleWarningCase().doubles(Double.NEGATIVE_INFINITY, lowerDouble).build(suppliers);
         doubleWarningCase().doubles(upperDouble, Double.POSITIVE_INFINITY).build(suppliers);
+        doubleWarningCase().testCases(new TestCaseSupplier.TypedDataSupplier("<NaN>", () -> Double.NaN, DataType.DOUBLE)).build(suppliers);
 
         stringWarningCase().strings().build(suppliers);
         stringCase().testCases(

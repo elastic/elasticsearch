@@ -99,11 +99,16 @@ public final class Comparisons {
     }
 
     private static Integer compare(Number l, Number r) {
+        // Double.compare and Float.compare order -0.0 below 0.0, while evaluation treats them as equal
         if (l instanceof Double || r instanceof Double) {
-            return Double.compare(l.doubleValue(), r.doubleValue());
+            double ld = l.doubleValue();
+            double rd = r.doubleValue();
+            return ld == rd ? 0 : Double.compare(ld, rd);
         }
         if (l instanceof Float || r instanceof Float) {
-            return Float.compare(l.floatValue(), r.floatValue());
+            float lf = l.floatValue();
+            float rf = r.floatValue();
+            return lf == rf ? 0 : Float.compare(lf, rf);
         }
         if (l instanceof BigInteger || r instanceof BigInteger) {
             return asBigInteger(l).compareTo(asBigInteger(r));

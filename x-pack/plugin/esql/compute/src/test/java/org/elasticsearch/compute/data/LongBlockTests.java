@@ -287,6 +287,32 @@ public class LongBlockTests extends BlockTestCase<LongBlock, LongBlock.Builder, 
         }
     }
 
+    /**
+     * Sorted positions with more than a handful of values are searched with a binary search, which must only match
+     * the values of the position itself.
+     */
+    public void testHasValueInLargeSortedPositions() {
+        int valuesPerPosition = 20;
+        try (LongBlock.Builder builder = blockFactory().newLongBlockBuilder(2 * valuesPerPosition)) {
+            builder.mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
+            for (int p = 0; p < 2; p++) {
+                builder.beginPositionEntry();
+                for (int i = 0; i < valuesPerPosition; i++) {
+                    builder.appendLong(p * 100 + i);
+                }
+                builder.endPositionEntry();
+            }
+            try (LongBlock block = builder.build()) {
+                for (int p = 0; p < 2; p++) {
+                    for (int i = 0; i < valuesPerPosition; i++) {
+                        assertTrue(block.hasValue(p, p * 100 + i));
+                        assertFalse(block.hasValue(1 - p, p * 100 + i));
+                    }
+                }
+            }
+        }
+    }
+
     @Override
     protected void assertAdditionalInvariants(LongBlock block, List<List<Long>> expected) {
         assertThat(block.valueMaxByteSize(), equalTo(block instanceof ConstantNullBlock ? 0 : Long.BYTES));

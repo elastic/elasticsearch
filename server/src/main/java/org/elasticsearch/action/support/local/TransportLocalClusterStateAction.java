@@ -78,19 +78,15 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
                 waitForClusterUnblock(task, request, listener, state, clusterBlockException);
             }
         } else {
-            innerDoExecute(task, request, listener, state);
+            ActionListener.run(listener, l -> innerDoExecute(task, request, l, state));
         }
     }
 
-    private void innerDoExecute(Task task, Request request, ActionListener<Response> listener, ClusterState state) {
+    private void innerDoExecute(Task task, Request request, ActionListener<Response> listener, ClusterState state) throws Exception {
         if (task instanceof CancellableTask cancellableTask && cancellableTask.notifyIfCancelled(listener)) {
             return;
         }
-        try {
-            localClusterStateOperation(task, request, state, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        localClusterStateOperation(task, request, state, listener);
     }
 
     private void waitForClusterUnblock(

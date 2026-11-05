@@ -17,8 +17,8 @@ import org.elasticsearch.blobcache.BlobCacheMetrics.RegionFillOrigin;
  * relative to the number of regions, approximates how much more capacity would have kept the region resident.
  * <p>
  * Keys are 64-bit fingerprints (see {@link #fingerprint}), so two distinct regions may share an entry; a collision only
- * causes a spurious re-fetch to be reported. All memory is preallocated, between 27 and 35 bytes per entry (see {@link #MAX_BYTES_PER_ENTRY}), and every operation
- * is O(1) so that it can run under the cache monitor.
+ * causes a spurious re-fetch to be reported. All memory is preallocated, between 27 and 35 bytes per entry (see
+ * {@link #MAX_BYTES_PER_ENTRY}), and every operation is O(1) so that it can run under the cache monitor.
  * <p>
  * Not thread-safe: callers must hold the {@link SharedBlobCacheService} monitor.
  */

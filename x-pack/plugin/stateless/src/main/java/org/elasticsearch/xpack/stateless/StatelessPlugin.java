@@ -318,6 +318,11 @@ public class StatelessPlugin extends Plugin
         false,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT = boolSetting(
+        IndexSettings.COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT_SETTING_NAME,
+        false,
+        Setting.Property.NodeScope
+    );
     public static final Setting<Boolean> DATA_STREAMS_LIFECYCLE_ONLY_MODE = boolSetting(
         DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME,
         true,
@@ -1406,6 +1411,7 @@ public class StatelessPlugin extends Plugin
             STATELESS_ENABLED,
             DATA_STREAMS_LIFECYCLE_ONLY_MODE,
             BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED,
+            COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT,
             FAILURE_STORE_REFRESH_INTERVAL_SETTING,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,

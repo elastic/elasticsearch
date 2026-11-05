@@ -28,6 +28,7 @@ import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.translog.Translog;
@@ -334,6 +335,36 @@ public class IndexSettingsTests extends ESTestCase {
 
         assertTrue(settings.updateIndexMetadata(newIndexMeta("index", indexSettings(numShards, numReplicas + 1).build())));
         assertEquals(43, indexValue.get());
+    }
+
+    public void testCombineDynamicMappingUpdatesDefaultsToOff() {
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        assertFalse(settings.isCombineDynamicMappingUpdates());
+    }
+
+    public void testCombineDynamicMappingUpdatesNodeDefault() {
+        Settings nodeSettings = Settings.builder().put(IndexSettings.COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT_SETTING_NAME, true).build();
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), nodeSettings);
+        assertTrue(settings.isCombineDynamicMappingUpdates());
+
+        // an explicit index setting wins over the node default
+        Settings disabled = Settings.builder().put(MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey(), false).build();
+        settings = new IndexSettings(newIndexMeta("index", disabled), nodeSettings);
+        assertFalse(settings.isCombineDynamicMappingUpdates());
+    }
+
+    public void testCombineDynamicMappingUpdatesDynamicUpdateFallsBackToNodeDefault() {
+        Settings nodeSettings = Settings.builder().put(IndexSettings.COMBINE_DYNAMIC_MAPPING_UPDATES_BY_DEFAULT_SETTING_NAME, true).build();
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), nodeSettings);
+        assertTrue(settings.isCombineDynamicMappingUpdates());
+
+        String key = MapperService.INDEX_MAPPING_COMBINE_DYNAMIC_UPDATES_SETTING.getKey();
+        assertTrue(settings.updateIndexMetadata(newIndexMeta("index", Settings.builder().put(key, false).build())));
+        assertFalse(settings.isCombineDynamicMappingUpdates());
+
+        // removing the index setting restores the node default
+        assertTrue(settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY)));
+        assertTrue(settings.isCombineDynamicMappingUpdates());
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {

@@ -111,7 +111,8 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
     protected void doClose() {}
 
     private void scheduleNextPoll() {
-        if (lifecycle.started()) {
+        // not lifecycle.started(): doStart() runs before the lifecycle moves to started
+        if (lifecycle.stoppedOrClosed() == false) {
             scheduledPoll = threadPool.schedule(
                 () -> poll(ActionListener.running(this::scheduleNextPoll)),
                 pollInterval,

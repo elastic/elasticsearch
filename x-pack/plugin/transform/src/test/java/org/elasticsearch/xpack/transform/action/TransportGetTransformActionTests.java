@@ -14,8 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.document.DocumentField;
@@ -37,6 +39,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.time.RemainingTime;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction.TransformIdCollector;
 import org.junit.After;
 import org.junit.Before;
@@ -48,11 +52,13 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.transform.action.TransportGetTransformAction.TRANSFORM_ID_PAGE_SIZE;
+import static org.elasticsearch.xpack.transform.action.TransportGetTransformAction.respondWithoutDanglingTaskCheckOnFailure;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportGetTransformActionTests extends ESTestCase {
 
@@ -168,6 +174,53 @@ public class TransportGetTransformActionTests extends ESTestCase {
         var e = expectThrows(ElasticsearchTimeoutException.class, () -> collect(client, task(), () -> TimeValue.ZERO));
         assertThat(e.getMessage(), containsString("Timed out after [30s] while collecting transform ids"));
         assertThat(client.searches, empty());
+    }
+
+    public void testDanglingTaskCheckTimeoutReturnsConfigsWithWarning() {
+        var withoutCheck = new GetTransformAction.Response(List.of(), 2, null);
+        var future = new PlainActionFuture<GetTransformAction.Response>();
+
+        respondWithoutDanglingTaskCheckOnFailure("_all", task(), withoutCheck, future).onFailure(
+            new ElasticsearchTimeoutException("timed out")
+        );
+
+        assertThat(future.actionGet(), sameInstance(withoutCheck));
+        assertWarnings(TransformMessages.REST_WARN_DANGLING_TASK_CHECK_TIMED_OUT);
+    }
+
+    public void testDanglingTaskCheckFailureReturnsConfigsWithWarning() {
+        var withoutCheck = new GetTransformAction.Response(List.of(), 2, null);
+        var future = new PlainActionFuture<GetTransformAction.Response>();
+
+        respondWithoutDanglingTaskCheckOnFailure("_all", task(), withoutCheck, future).onFailure(
+            new SearchPhaseExecutionException("query", "all shards failed", ShardSearchFailure.EMPTY_ARRAY)
+        );
+
+        assertThat(future.actionGet(), sameInstance(withoutCheck));
+        assertWarnings(TransformMessages.REST_WARN_DANGLING_TASK_CHECK_FAILED);
+    }
+
+    public void testDanglingTaskCheckFailureAfterCancellationFailsRequest() {
+        var task = task();
+        TaskCancelHelper.cancel(task, "test");
+        var future = new PlainActionFuture<GetTransformAction.Response>();
+
+        respondWithoutDanglingTaskCheckOnFailure("_all", task, new GetTransformAction.Response(List.of(), 2, null), future).onFailure(
+            new TaskCancelledException("cancelled")
+        );
+
+        expectThrows(TaskCancelledException.class, future::actionGet);
+    }
+
+    public void testDanglingTaskCheckSuccessPassesThrough() {
+        var withCheck = new GetTransformAction.Response(List.of(), 2, null);
+        var future = new PlainActionFuture<GetTransformAction.Response>();
+
+        respondWithoutDanglingTaskCheckOnFailure("_all", task(), new GetTransformAction.Response(List.of(), 2, null), future).onResponse(
+            withCheck
+        );
+
+        assertThat(future.actionGet(), sameInstance(withCheck));
     }
 
     private static Set<String> collect(TransformIdSearchClient client, CancellableTask task, RemainingTime remainingTime) {

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -26,6 +27,8 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
@@ -69,6 +72,8 @@ import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TY
 public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig, Request, Response> {
 
     static final int TRANSFORM_ID_PAGE_SIZE = 1_000;
+
+    private static final Logger logger = LogManager.getLogger(TransportGetTransformAction.class);
 
     private static final String DANGLING_TASK_ERROR_MESSAGE_FORMAT =
         "Found task for transform [%s], but no configuration for it. To delete this transform use DELETE with force=true.";
@@ -127,37 +132,30 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = listener.delegateFailureAndWrap((l, r) -> {
             List<TransformConfig> configs = applyDisplayDefault ? withLocalOnlyDisplayDefault(r.results()) : r.results();
             if (request.checkForDanglingTasks()) {
-                // dangling tasks are only diagnostic, so when collecting the ids takes too long, return the configs without that check
-                ActionListener<Response> skipDanglingTaskCheckOnTimeout = l.delegateResponse((ll, e) -> {
-                    if (e instanceof ElasticsearchTimeoutException) {
-                        logger.debug("skipping the dangling task check for [{}]: {}", request.getId(), e.getMessage());
-                        ll.onResponse(new Response(configs, r.count(), null));
-                    } else {
-                        ll.onFailure(e);
-                    }
-                });
+                // AbstractGetResourcesRequest#createTask always creates a CancellableTask
+                var cancellableTask = (CancellableTask) task;
                 getAllTransformIds(
                     request,
                     r,
-                    // AbstractGetResourcesRequest#createTask always creates a CancellableTask
-                    (CancellableTask) task,
+                    cancellableTask,
                     parentTaskId,
                     timeout,
                     remainingTime,
-                    skipDanglingTaskCheckOnTimeout.delegateFailureAndWrap((ll, transformConfigIds) -> {
-                        var errors = TransformTask.findTransformTasks(request.getId(), projectResolver.getProjectMetadata(clusterState))
-                            .stream()
-                            .map(PersistentTasksCustomMetadata.PersistentTask::getId)
-                            .filter(not(transformConfigIds::contains))
-                            .map(
-                                transformId -> new Response.Error(
-                                    "dangling_task",
-                                    Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId)
+                    respondWithoutDanglingTaskCheckOnFailure(request.getId(), cancellableTask, new Response(configs, r.count(), null), l)
+                        .delegateFailureAndWrap((ll, transformConfigIds) -> {
+                            var errors = TransformTask.findTransformTasks(request.getId(), projectResolver.getProjectMetadata(clusterState))
+                                .stream()
+                                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                                .filter(not(transformConfigIds::contains))
+                                .map(
+                                    transformId -> new Response.Error(
+                                        "dangling_task",
+                                        Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId)
+                                    )
                                 )
-                            )
-                            .toList();
-                        ll.onResponse(new Response(configs, r.count(), errors.isEmpty() ? null : errors));
-                    })
+                                .toList();
+                            ll.onResponse(new Response(configs, r.count(), errors.isEmpty() ? null : errors));
+                        })
                 );
             } else {
                 l.onResponse(new Response(configs, r.count(), null));
@@ -166,6 +164,32 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
         // Step 1: Search for all the transform configs matching the request.
         searchResources(request, parentTaskId, searchTransformConfigsListener);
+    }
+
+    /**
+     * The dangling task check is diagnostic, so when it fails (for example by timing out or hitting unavailable shards) the configs are
+     * still returned, with a warning header in place of the check's result and the cause logged. Cancellation still fails the request.
+     */
+    static ActionListener<Response> respondWithoutDanglingTaskCheckOnFailure(
+        String transformId,
+        CancellableTask task,
+        Response withoutDanglingTaskCheck,
+        ActionListener<Response> listener
+    ) {
+        return listener.delegateResponse((l, e) -> {
+            if (task.isCancelled()) {
+                l.onFailure(e);
+                return;
+            }
+            if (e instanceof ElasticsearchTimeoutException) {
+                logger.debug(() -> Strings.format("Timed out checking for dangling tasks of transform [%s]", transformId), e);
+                HeaderWarning.addWarning(TransformMessages.REST_WARN_DANGLING_TASK_CHECK_TIMED_OUT);
+            } else {
+                logger.warn(() -> Strings.format("Failed to check for dangling tasks of transform [%s]", transformId), e);
+                HeaderWarning.addWarning(TransformMessages.REST_WARN_DANGLING_TASK_CHECK_FAILED);
+            }
+            l.onResponse(withoutDanglingTaskCheck);
+        });
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.Before;
 
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -269,8 +271,20 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         verifyGetResponse(getTransformEndpoint() + "_all?from=1&size=0", 2, expectedErrors);
         // timeout=-1 means no timeout, so the dangling task check still runs
         verifyGetResponse(getTransformEndpoint() + "_all?size=0&timeout=-1", 2, expectedErrors);
-        // once the timeout has passed, the configs are returned without the dangling task check
-        verifyGetResponse(getTransformEndpoint() + "_all?size=0&timeout=1nanos", 2, null);
+        // once the timeout has passed, the configs are returned without the dangling task check, and with a warning
+        {
+            var request = createRequestWithAuth(
+                "GET",
+                getTransformEndpoint() + "_all?size=0&timeout=1nanos",
+                BASIC_AUTH_VALUE_TRANSFORM_USER
+            );
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            var response = client().performRequest(request);
+            assertThat(response.getWarnings(), contains(TransformMessages.REST_WARN_DANGLING_TASK_CHECK_TIMED_OUT));
+            var transforms = entityAsMap(response);
+            assertThat(XContentMapValues.extractValue("count", transforms), is(equalTo(2)));
+            assertThat(XContentMapValues.extractValue("errors", transforms), is(nullValue()));
+        }
         verifyGetResponse(getTransformEndpoint() + "pivot_1,pivot_2", 2, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_1", 1, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_2", 1, null);

@@ -56,7 +56,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -478,7 +477,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                         bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
                     }
 
-                    boolean redactSeqNo = IndexSettings.sequenceNumbersDisabled(indexMetadata.getSettings(), clusterService.getSettings());
+                    boolean redactSeqNo = indexMetadata.sequenceNumbersDisabled(clusterService.getSettings());
                     // Releases the batch when its shard request completes, ahead of the ref that may start the next phase.
                     undispatchedBatches.remove(shardId);
                     Releasable ref = bulkItemRequestCompleteRefCount.acquire();

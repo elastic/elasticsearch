@@ -562,3 +562,8 @@ tests:
   - :x-pack:plugin:inference:test
   method: testCompletionIsWithheldUntilDemandIsAvailable
   issue: https://github.com/elastic/elasticsearch/issues/164701
+- class: org.elasticsearch.xpack.stateless.engine.translog.TranslogUploadHedgeIT
+  tasks:
+  - :x-pack:plugin:stateless:internalClusterTest
+  method: testNormalAndHedgeUploadsWithRandomDelays
+  issue: https://github.com/elastic/elasticsearch/issues/164751

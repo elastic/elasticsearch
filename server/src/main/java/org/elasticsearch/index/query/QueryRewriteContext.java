@@ -11,6 +11,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
+import org.elasticsearch.action.search.SearchPhaseFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -55,6 +56,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -85,6 +87,8 @@ public class QueryRewriteContext {
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
+    // Added to from the responses of searches that run during the rewrite, which complete on arbitrary threads.
+    private final List<SearchPhaseFailure> phaseFailures = new CopyOnWriteArrayList<>();
     protected final Map<QueryRewriteAsyncAction<?, ?>, List<Consumer<?>>> uniqueAsyncActions = new HashMap<>();
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
@@ -513,6 +517,18 @@ public class QueryRewriteContext {
      */
     public void setParentTask(TaskId parentTaskId) {
         this.parentTaskId = parentTaskId;
+    }
+
+    /**
+     * Records failures of search phases that ran as part of this rewrite, for example a reranker that failed in a search run by a
+     * compound retriever. They did not fail the search, and are added to the final search response by the coordinating node.
+     */
+    public void addPhaseFailures(List<SearchPhaseFailure> failures) {
+        phaseFailures.addAll(failures);
+    }
+
+    public List<SearchPhaseFailure> phaseFailures() {
+        return phaseFailures;
     }
 
     /**

@@ -73,6 +73,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchResponseTests extends ESTestCase {
@@ -108,6 +109,7 @@ public class SearchResponseTests extends ESTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             null,
@@ -907,6 +909,7 @@ public class SearchResponseTests extends ESTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             null,
@@ -1073,6 +1076,91 @@ public class SearchResponseTests extends ESTestCase {
             }
         } finally {
             searchResponse.decRef();
+        }
+    }
+
+    private static List<SearchPhaseFailure> randomPhaseFailures() {
+        return randomList(0, 3, () -> new SearchPhaseFailure(randomAlphaOfLength(8), new IllegalStateException(randomAlphaOfLength(12))));
+    }
+
+    public void testPhaseFailuresSerializationRoundTrip() throws IOException {
+        List<SearchPhaseFailure> phaseFailures = randomPhaseFailures();
+        SearchResponse searchResponse = SearchResponseUtils.response().phaseFailures(phaseFailures).build();
+        try {
+            SearchResponse deserialized = copyWriteable(
+                searchResponse,
+                writableRegistry(),
+                SearchResponse::new,
+                TransportVersion.current()
+            );
+            try {
+                assertThat(deserialized.getPhaseFailures().size(), equalTo(phaseFailures.size()));
+                for (int i = 0; i < phaseFailures.size(); i++) {
+                    assertThat(deserialized.getPhaseFailures().get(i).phase(), equalTo(phaseFailures.get(i).phase()));
+                    assertThat(
+                        deserialized.getPhaseFailures().get(i).cause().getMessage(),
+                        equalTo(phaseFailures.get(i).cause().getMessage())
+                    );
+                }
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    public void testPhaseFailuresDroppedForOlderTransportVersion() throws IOException {
+        SearchResponse searchResponse = SearchResponseUtils.response().phaseFailures(randomPhaseFailures()).build();
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(SearchResponse.SEARCH_PHASE_FAILURES);
+        try {
+            SearchResponse deserialized = copyWriteable(searchResponse, writableRegistry(), SearchResponse::new, oldVersion);
+            try {
+                assertThat(deserialized.getPhaseFailures(), empty());
+            } finally {
+                deserialized.decRef();
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    public void testPhaseFailuresXContent() throws IOException {
+        List<SearchPhaseFailure> phaseFailures = randomPhaseFailures();
+        SearchResponse response = SearchResponseUtils.response().phaseFailures(phaseFailures).build();
+        BytesReference bytes;
+        try {
+            bytes = toShuffledXContent(ChunkedToXContent.wrapAsToXContent(response), XContentType.JSON, EMPTY_PARAMS, randomBoolean());
+        } finally {
+            response.decRef();
+        }
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+            Map<String, Object> map = parser.map();
+            if (phaseFailures.isEmpty()) {
+                assertFalse(map.containsKey(SearchResponse.PHASE_FAILURES.getPreferredName()));
+            } else {
+                List<?> failures = (List<?>) map.get(SearchResponse.PHASE_FAILURES.getPreferredName());
+                assertThat(failures.size(), equalTo(phaseFailures.size()));
+                for (int i = 0; i < failures.size(); i++) {
+                    Map<?, ?> failure = (Map<?, ?>) failures.get(i);
+                    assertThat(failure.get("phase"), equalTo(phaseFailures.get(i).phase()));
+                    Map<?, ?> reason = (Map<?, ?>) failure.get("reason");
+                    assertThat(reason.get("type"), equalTo("illegal_state_exception"));
+                    assertThat(reason.get("reason"), equalTo(phaseFailures.get(i).cause().getMessage()));
+                }
+            }
+        }
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), bytes)) {
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
+            try {
+                assertThat(parsed.getPhaseFailures().size(), equalTo(phaseFailures.size()));
+                for (int i = 0; i < phaseFailures.size(); i++) {
+                    assertThat(parsed.getPhaseFailures().get(i).phase(), equalTo(phaseFailures.get(i).phase()));
+                }
+            } finally {
+                parsed.decRef();
+            }
         }
     }
 

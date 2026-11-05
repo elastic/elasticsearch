@@ -234,6 +234,7 @@ public final class SearchResponseMerger implements Releasable {
         // the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
+        List<SearchPhaseFailure> phaseFailures = new ArrayList<>();
         Map<String, SearchProfileShardResult> shardProfileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
@@ -252,6 +253,7 @@ public final class SearchResponseMerger implements Releasable {
             mergedDirectoryMetrics = mergedDirectoryMetrics.merge(searchResponse.getDirectoryMetrics());
 
             Collections.addAll(failures, searchResponse.getShardFailures());
+            phaseFailures.addAll(searchResponse.getPhaseFailures());
 
             shardProfileResults.putAll(searchResponse.getSearchProfileShardResults());
 
@@ -347,6 +349,7 @@ public final class SearchResponseMerger implements Releasable {
                 skippedShards,
                 tookInMillis,
                 shardFailures,
+                phaseFailures,
                 clusters,
                 null,
                 topHitsToRelease,

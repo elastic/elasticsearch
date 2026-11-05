@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -101,6 +102,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
     protected final Map<String, AliasFilter> aliasFilter;
     protected final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
+    protected final List<SearchPhaseFailure> phaseFailures = new CopyOnWriteArrayList<>();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps;
     protected final SearchTimeProvider timeProvider;
@@ -443,6 +445,14 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         }
     }
 
+    /**
+     * Records a coordinator-side failure that is not bound to a shard and did not stop results from being returned.
+     * It is reported in the {@code phase_failures} section of the search response.
+     */
+    void addPhaseFailure(String phase, Exception cause) {
+        phaseFailures.add(new SearchPhaseFailure(phase, cause));
+    }
+
     protected ShardSearchFailure[] buildShardFailures() {
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures == null) {
@@ -684,6 +694,7 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
             skippedCount,
             buildTookInMillis(),
             failures,
+            List.copyOf(phaseFailures),
             clusters,
             searchContextId,
             request.source(),

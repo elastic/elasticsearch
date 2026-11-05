@@ -1048,6 +1048,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                                 0,
                                 0,
                                 ShardSearchFailure.EMPTY_ARRAY,
+                                List.of(),
                                 SearchResponse.Clusters.EMPTY,
                                 null,
                                 null,
@@ -1337,6 +1338,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                         0,
                         0,
                         ShardSearchFailure.EMPTY_ARRAY,
+                        List.of(),
                         SearchResponse.Clusters.EMPTY,
                         // copy the pit from the request
                         searchRequest.pointInTimeBuilder() != null

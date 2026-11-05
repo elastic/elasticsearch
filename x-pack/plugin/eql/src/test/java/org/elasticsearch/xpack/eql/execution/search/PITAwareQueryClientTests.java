@@ -270,6 +270,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 searchRequest.pointInTimeBuilder().getEncodedId(),
                 null,

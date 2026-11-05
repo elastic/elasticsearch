@@ -988,6 +988,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,

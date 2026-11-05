@@ -304,6 +304,49 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
     }
 
+    public void testMergePhaseFailures() throws InterruptedException {
+        SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                0,
+                SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+                searchTimeProvider,
+                emptyReduceContextBuilder(),
+                SearchCoordinatorContext.none(),
+                mergerBreaker()
+            )
+        ) {
+            List<String> expectedPhases = new ArrayList<>();
+            for (int i = 0; i < numResponses; i++) {
+                SearchResponseUtils.SearchResponseBuilder builder = SearchResponseUtils.response()
+                    .shards(1, 1, 0)
+                    .clusters(SearchResponse.Clusters.EMPTY);
+                if (randomBoolean()) {
+                    String phase = "phase_" + i;
+                    expectedPhases.add(phase);
+                    builder.phaseFailures(new SearchPhaseFailure(phase, new IllegalStateException("failure " + i)));
+                }
+                SearchResponse searchResponse = builder.build();
+                try {
+                    addResponse(merger, searchResponse);
+                } finally {
+                    searchResponse.decRef();
+                }
+            }
+            awaitResponsesAdded();
+            SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+            try {
+                assertThat(
+                    mergedResponse.getPhaseFailures().stream().map(SearchPhaseFailure::phase).toList(),
+                    containsInAnyOrder(expectedPhases.toArray(String[]::new))
+                );
+            } finally {
+                mergedResponse.decRef();
+            }
+        }
+    }
+
     public void testMergeShardFailuresNullShardTarget() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
         try (
@@ -979,6 +1022,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             0,
             0,
             ShardSearchFailure.EMPTY_ARRAY,
+            List.of(),
             SearchResponse.Clusters.EMPTY,
             null,
             topHits,
@@ -1783,6 +1827,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                 0,
                 0,
                 new ShardSearchFailure[] { failure },
+                List.of(),
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,

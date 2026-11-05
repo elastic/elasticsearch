@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -101,11 +100,6 @@ public class DroppedShardResponseIT extends ESIntegTestCase {
             @Override
             public Executor executor() {
                 return handler.executor();
-            }
-
-            @Override
-            public Releasable reserveResponseBytes(int bytes) {
-                return handler.reserveResponseBytes(bytes);
             }
 
             @Override

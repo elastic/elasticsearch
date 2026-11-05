@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -165,6 +166,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTime
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
@@ -1514,7 +1516,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
                 case AbstractSubqueryJoin sj -> resolveSubqueryJoin(sj);
-                case FillNull f -> resolveFillNull(f, childrenOutput, context);
+                case FillNull f -> resolveFillNull(f, context);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case Row row -> resolveRow(row);
@@ -1674,7 +1676,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (i < aggsIndexLimit) { // Skip resolving references to groupings in the aggs if no groupings are resolved yet.
                         maybeResolvedAgg = (NamedExpression) maybeResolvedAgg.transformUp(UnresolvedAttribute.class, ua -> {
                             Expression ne = ua;
-                            Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                            // The implicit @timestamp of an aggregation is the @timestamp of the rows it aggregates. A grouping
+                            // named @timestamp must not shadow it, unlike an explicit reference to @timestamp.
+                            Attribute maybeResolved = ua instanceof UnresolvedTimestamp
+                                ? maybeResolveAttribute(ua, childrenOutput)
+                                : maybeResolveAttribute(ua, resolvedList);
                             // An item in aggregations can reference to groupings explicitly, if groupings are not resolved yet and
                             // maybeResolved is not resolved, return the original UnresolvedAttribute, so that it has another chance
                             // to get resolved in the next iteration.
@@ -1709,7 +1715,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
 
-            return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings());
+            return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings(), p.timeout());
         }
 
         private LogicalPlan resolveDenseVector(DenseVector p, List<Attribute> childrenOutput) {
@@ -2207,7 +2213,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         attrType = attrType.noCounter();
                     }
                     // use the current union branch's source as the source of the alias, instead of the original FieldAttribute's source.
-                    aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType)));
+                    // Preserve synthetic so a sibling null-fill of a synthetic merge column (e.g. a union-type
+                    // $$field$converted_to$type cast) stays invisible to planWithoutSyntheticAttributes. IN-subquery
+                    // marks are not merge columns (MergePlan.outputUnion skips them) and do not reach this path.
+                    aliases.add(new Alias(source, attr.name(), new Literal(source, null, attrType), null, attr.synthetic()));
                 }
 
                 // materialize the unmapped fields in this branch's own source relation so they surface in its output
@@ -2240,14 +2249,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     || (subPlanColumns.equals(mergeColumns) == false
                         && subqueryReferencingIndexWithEmptyMapping(mergePlan, logicalPlan, mergeColumns) == false)) {
                     changed = true;
-                    List<Attribute> newOutput = new ArrayList<>();
-                    for (String attrName : mergeColumns) {
-                        for (Attribute subAttr : logicalPlan.output()) {
-                            if (attrName.equals(subAttr.name())) {
-                                newOutput.add(subAttr);
-                            }
-                        }
-                    }
+                    List<Attribute> newOutput = alignToMergeColumns(mergeColumns, logicalPlan.output());
                     if (mergeColumns.isEmpty()) {
                         // When mergeColumns is empty (all branches only have no-fields), resolveKeep with empty
                         // projections would resolve to all child output including no-fields. Create a Project with
@@ -2288,6 +2290,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     )
                     : toReferenceAttributesPreservingIds(outputUnion, mergePlan.output())
             );
+        }
+
+        /**
+         * Picks the attributes of a merge branch's output in {@code mergeColumns} order. The branch output is indexed by name once
+         * so the cost is linear in the schema width: a merge over thousands of columns would otherwise rescan the branch output for
+         * every merge column, saturating the analysis thread pool (#163560). A plan's output never repeats a name, so each merge
+         * column matches at most one branch attribute.
+         */
+        static List<Attribute> alignToMergeColumns(List<String> mergeColumns, List<Attribute> branchOutput) {
+            Map<String, Attribute> branchAttributesByName = HashMap.newHashMap(branchOutput.size());
+            for (Attribute attr : branchOutput) {
+                Attribute previous = branchAttributesByName.put(attr.name(), attr);
+                assert previous == null : "duplicate attribute name [" + attr.name() + "] in merge branch output " + branchOutput;
+            }
+            List<Attribute> aligned = new ArrayList<>(mergeColumns.size());
+            for (String name : mergeColumns) {
+                Attribute match = branchAttributesByName.get(name);
+                if (match != null) {
+                    aligned.add(match);
+                }
+            }
+            return aligned;
         }
 
         /*
@@ -2591,38 +2615,56 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveFillNull(FillNull fillNull, List<Attribute> childrenOutput, AnalyzerContext context) {
+        private LogicalPlan resolveFillNull(FillNull fillNull, AnalyzerContext context) {
             FillNull result = fillNull;
-            // A bare `ON *` names nothing and so needs no resolution. Otherwise resolve the explicit names and
-            // KEEP-style wildcard patterns against the child output - including names co-listed with a `*`, so a typo is
-            // still reported - de-duplicating overlapping targets (by NameId, via the LinkedHashSet); a name or pattern
-            // that matches nothing stays unresolved so the Verifier reports it.
+            // A bare `ON *` names nothing and so needs no resolution. Otherwise the targets as written are resolved now and again
+            // whenever the child changes, so a pattern also matches a field that unmapped_fields loads below for a later command.
             if (fillNull.targetFields().isEmpty() == false) {
-                LinkedHashSet<NamedExpression> resolved = new LinkedHashSet<>();
-                for (NamedExpression target : fillNull.targetFields()) {
-                    if (target instanceof UnresolvedAttribute ua && ua.customMessage()) {
-                        // A name / pattern that already failed to resolve on an earlier pass carries a custom "no match"
-                        // message. Re-resolving it would return an empty list (see potentialCandidatesIfNoMatchesFound),
-                        // which would silently drop the target and collapse to the all-columns form. Keep it instead so
-                        // the Verifier reports it. This also covers UnresolvedPattern (a subtype of UnresolvedAttribute).
-                        resolved.add(ua);
-                    } else if (target instanceof UnresolvedNamePattern up) {
-                        resolved.addAll(resolveAgainstList(up, childrenOutput));
-                    } else if (target instanceof UnresolvedAttribute ua) {
-                        resolved.addAll(resolveAgainstList(ua, childrenOutput));
-                    } else {
-                        resolved.add(target);
+                var resolver = fillNull.targetResolver();
+                if (resolver == null) {
+                    List<NamedExpression> written = fillNull.targetFields();
+                    Map<NamedExpression, NameId> patternIds = new IdentityHashMap<>();
+                    for (NamedExpression target : written) {
+                        if (target instanceof UnresolvedNamePattern) {
+                            patternIds.put(target, new NameId());
+                        }
                     }
+                    resolver = input -> resolveFillNullTargets(written, patternIds, input);
                 }
-                result = fillNull.withTargetFields(new ArrayList<>(resolved));
+                result = fillNull.withTargetResolver(resolver);
             }
-            // Supply the query Configuration, which is what derives the fill aliases, in the same post-order ResolveRefs
-            // pass that builds the output so downstream consumers see the filled schema. Every later rebuild re-derives
-            // them from the current child output (see FillNull#rebuildFillNullWithFields), so this happens once.
             if (result.inputsResolved() && result.expressionsResolved() == false) {
                 result = result.withConfiguration(context.configuration());
             }
             return result;
+        }
+
+        // Names co-listed with a `*` are resolved too, so a typo is still reported; a name or pattern that matches nothing stays unresolved
+        // so the Verifier reports it.
+        private static List<NamedExpression> resolveFillNullTargets(
+            List<NamedExpression> targets,
+            Map<NamedExpression, NameId> patternIds,
+            List<Attribute> childOutput
+        ) {
+            LinkedHashSet<NamedExpression> resolved = new LinkedHashSet<>();
+            for (NamedExpression target : targets) {
+                if (target instanceof UnresolvedNamePattern up) {
+                    // A pattern that matches nothing comes back under a new id each time; pin it so re-resolving an unchanged child
+                    // does not change the plan.
+                    for (Attribute matched : resolveAgainstList(up, childOutput)) {
+                        resolved.add(
+                            matched instanceof UnresolvedAttribute ua
+                                ? new UnresolvedPattern(ua.source(), ua.qualifier(), ua.name(), patternIds.get(up), ua.unresolvedMessage())
+                                : matched
+                        );
+                    }
+                } else if (target instanceof UnresolvedAttribute ua) {
+                    resolved.addAll(resolveAgainstList(ua, childOutput));
+                } else {
+                    resolved.add(target);
+                }
+            }
+            return new ArrayList<>(resolved);
         }
 
         public static FieldAttribute unmappedKeyword(Attribute attribute) {
@@ -3665,7 +3707,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (limits.isEmpty()) {
                 limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a
                 // default
-                if (isTsAggregate == false) {
+                // With a limit in the exemplars setting, the result of the metrics query is replaced by at most that many exemplars,
+                // so the default limit doesn't apply to what the query returns.
+                boolean exemplarsLimited = QuerySettings.EXEMPLARS.get(context.configuration().resolvedSettings()).limit() != null;
+                if (isTsAggregate == false && exemplarsLimited == false) {
                     HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
                 }
             } else {

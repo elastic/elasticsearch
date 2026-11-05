@@ -386,6 +386,14 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Whether the rewritten query is turned into a Lucene query on the spot and never stored on the request, so it can contain
+     * {@link TransientQueryBuilder}s.
+     */
+    public boolean allowsTransientQueries() {
+        return false;
+    }
+
+    /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
      * In case unmapped fields are allowed, null is returned when the field is not mapped.

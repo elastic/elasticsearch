@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
@@ -387,6 +387,7 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
      */
     private static LogicalPlan withoutMergeAlignment(LogicalPlan branch) {
         LogicalPlan plan = branch;
+        // TODO: This use of source() for decision making is not ideal and can lead to problems. Source is for logging only.
         while ((plan.getClass() == Project.class || plan instanceof Eval) && plan.source().equals(((UnaryPlan) plan).child().source())) {
             plan = ((UnaryPlan) plan).child();
         }
@@ -454,10 +455,25 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
     // being aligned after applying the changes.
     /**
      * Update the merge's top Projects in the subplans, and correspondingly, its output, to account for newly introduced aliases.
+     * A view branch is left alone: this rule adds nothing inside one, only a fill atop it ({@link #nullFillViewOutput}), which
+     * widens the branch's output by itself. Its top Project may also be the view body's own KEEP/DROP/RENAME, analysed without
+     * this scope's setting, which must keep hiding (or renaming) what it does.
      */
     private static MergePlan patchMergePlan(MergePlan mergePlan) {
-        Holder<Boolean> changed = new Holder<>(false);
-        MergePlan transformed = (MergePlan) mergePlan.transformDownSkipBranch((plan, skip) -> {
+        List<LogicalPlan> children = mergePlan.children();
+        List<LogicalPlan> newChildren = new ArrayList<>(children.size());
+        boolean changed = false;
+        for (int i = 0; i < children.size(); i++) {
+            LogicalPlan child = children.get(i);
+            LogicalPlan newChild = ViewUtils.isViewBody(mergePlan, i) ? child : patchBranchTopProject(child);
+            changed |= newChild != child;
+            newChildren.add(newChild);
+        }
+        return changed ? ((MergePlan) mergePlan.replaceChildren(newChildren)).refreshOutput() : mergePlan;
+    }
+
+    private static LogicalPlan patchBranchTopProject(LogicalPlan branch) {
+        return branch.transformDownSkipBranch((plan, skip) -> {
             if (plan instanceof Project project) {
                 skip.set(true); // process top Project only (merge-injected)
                 // Only a merge-injected alignment Project (exact class; resolveMergePlan emits plain Projects) may
@@ -470,15 +486,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
                 // Project, and match on that instead.
                 if (plan.getClass() == Project.class) {
                     plan = patchMergeProject(project);
-                    if (plan != project) {
-                        changed.set(Boolean.TRUE);
-                    }
                 }
             }
             return plan;
         });
-
-        return changed.get() ? transformed.refreshOutput() : mergePlan;
     }
 
     /**
@@ -493,6 +504,10 @@ public class ResolveUnmapped extends ParameterizedRule<LogicalPlan, LogicalPlan,
         if (projectOutput.equals(childOutput) == false) {
             List<Attribute> delta = new ArrayList<>(childOutput);
             delta.removeAll(projectOutput);
+            // MarkJoin marks sit under the alignment Project but are not merge columns (MergePlan.outputUnion skips them). Letting them
+            // through here makes ResolveRefs drop them on the next pass and this rule add them back — a Resolution-batch loop that hits
+            // the 100-rule limit. Cast synthetics stay.
+            delta.removeIf(InSubqueryResolver::isInSubquerySynthetic);
             if (delta.isEmpty() == false) {
                 project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
             }

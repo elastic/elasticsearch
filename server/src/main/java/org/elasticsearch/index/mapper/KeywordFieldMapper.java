@@ -50,6 +50,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -243,6 +244,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             script
         );
         private final Parameter<Boolean> dimension;
+        // A dimension inherited from a parent object has always been applied after the layout of the field was decided, so it
+        // takes no part in choosing between postings and a doc values skipper.
+        private boolean dimensionInherited;
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
@@ -627,7 +631,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             if (fieldtype.equals(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES) == false) {
                 // NOTE: override index options only if we are not using a sparse doc values index (and we use an inverted index)
-                fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
+                fieldtype.setIndexOptions(TextParams.toIndexOptions(indexedForLayout(), this.indexOptions.getValue()));
             }
             if (fieldtype.equals(Defaults.FIELD_TYPE)) {
                 // deduplicate in the common default case to save some memory
@@ -641,8 +645,24 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private boolean shouldUseTimeSeriesSkipper() {
             return docValuesParameters.getValue().enabled()
-                && indexed.get() == false
-                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get());
+                && indexedForLayout() == false
+                && useTimeSeriesDocValuesSkippers(indexSettings, dimension.get() && dimensionInherited == false);
+        }
+
+        private boolean indexedForLayout() {
+            return indexed.isSet()
+                ? indexed.getValue()
+                : Parameter.defaultIndexed(indexSettings, dimension.get() && dimensionInherited == false);
+        }
+
+        @Override
+        public void normalize(MapperBuilderContext context) {
+            // super.normalize() sets the inherited dimension, so we need to check it here
+            // before we call the super method.
+            if (dimension.get() == false && inheritDimensionParameterFromParentObject(context)) {
+                dimensionInherited = true;
+            }
+            super.normalize(context);
         }
 
         // TODO: for columnar the default should be based on the soon the built skipper mapping attribute.
@@ -657,7 +677,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private boolean shouldUseStandardSkipper() {
             return docValuesParameters().enabled()
-                && indexed.get() == false
+                && indexedForLayout() == false
                 && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.STANDARD_INDEXES_USE_SKIPPERS)
                 && indexSettings.useDocValuesSkipper();
         }
@@ -668,6 +688,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
+
+    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var utf8Bytes = (XContentString.UTF8Bytes) v;
+        b.utf8Value(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
+    };
 
     public static final class KeywordFieldType extends TextFamilyFieldType {
 
@@ -2039,7 +2065,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             // Without the codec, all-null docs emit counts but no binary blob, so binaryDvs and dvCounts are decoupled;
             // a columnar field writes a payload for every shape and emits no counts column at all.
             // Each builder owns its buffers, so every finished column is registered for release with the batch.
-            if (terms != null && terms.isEmpty() == false) {
+            if (ColumnarPayloadColumn.shouldEmitTermsColumn(terms, valuelessDocs)) {
                 addOwnedBinaryColumn(ctx, terms, docCount, fieldType().name(), fieldType);
             }
             if (binaryDvs != null && binaryDvs.isEmpty() == false) {
@@ -2329,9 +2355,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), OFFSETS_FALLBACK);
             } else if (value == null) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+            } else {
+                // The value tripped ignore_above: a field that records offsets has doc values, so that is the only reason a non-null
+                // value is not indexed. It gets no slot, but is recorded so that the _ignored_source fallback for oversized offsets
+                // can carry it; the field's own storage of ignored values is suppressed by an _ignored_source entry.
+                var utfBytes = value.bytes();
+                context.getOffSetContext()
+                    .recordIgnored(
+                        offsetsFieldName,
+                        XContentDataHelper.encodeString(new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()))
+                    );
             }
         }
     }

@@ -67,6 +67,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.querydsl.query.QueryWarnings;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.IOUtils;
@@ -596,6 +597,19 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             Block.MvOrdering.UNORDERED,
             Block.MvOrdering.UNORDERED
         );
+    }
+
+    /**
+     * Rows that left their node number their origins, not the shard contexts of this node. Reading them here would read
+     * whatever shard has their number.
+     */
+    public void testRejectsDocumentsThatLeftTheirNode() {
+        DriverContext driverContext = driverContext();
+        try (Operator operator = simple().get(driverContext)) {
+            Page page = new Page(RandomBlock.randomDetachedDocBlock(driverContext.blockFactory(), between(1, 10), between(1, 3)).block());
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> operator.addInput(page));
+            assertThat(e.getMessage(), equalTo("[ValuesSourceReaderOperator] can't read a detached DocVector"));
+        }
     }
 
     public void testLoadAllInOnePageShuffled() {

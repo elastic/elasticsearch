@@ -234,24 +234,19 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
      * {@code GET /{index}/_termvectors/{id}} routes through {@code TransportSingleShardAction},
      * which can reach an INITIALIZING shard (routing state; the node-local {@code IndexShardState}
      * is {@code RECOVERING}). It then hits the read-allowed-states check in {@code IndexShard},
-     * which throws {@link IllegalIndexShardStateException} (HTTP 404). That is wrapped by the
-     * transport action in a plain {@code ElasticsearchException("failed to execute term vector
-     * request")} before being surfaced to the caller.
-     *
-     * <p>The wrapping matters: {@code ElasticsearchException#status()} only defers to a cause's
-     * status when the exception implements {@code ElasticsearchWrapperException}. A plain
-     * {@code ElasticsearchException} does not, so it reports its own default —
-     * {@code INTERNAL_SERVER_ERROR} (500) — regardless of the wrapped cause's 404. That 500 is
-     * what actually reaches the REST layer; the inner 404 is only visible by inspecting the cause
-     * directly, which no real client does.
+     * which throws {@link IllegalIndexShardStateException} (HTTP 404). Because that exception is
+     * recognized as a shard-not-available exception, {@code TransportSingleShardAction} fails with
+     * {@link NoShardAvailableActionException} (HTTP 503 SERVICE_UNAVAILABLE) when no other shard
+     * copy is available.
      */
-    public void testTermVectorsWhileRestoringReturnsInternalServerError() throws Exception {
+    public void testTermVectorsWhileRestoringReturnsServiceUnavailable() throws Exception {
         blockAndStartRestore(REPO, SNAPSHOT, INDEX);
         try {
-            Exception e = expectThrows(Exception.class, client().prepareTermVectors(INDEX, DOC_ID));
-            assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-            assertThat(e.getCause(), instanceOf(IllegalIndexShardStateException.class));
-            assertThat(((IllegalIndexShardStateException) e.getCause()).status(), equalTo(RestStatus.NOT_FOUND));
+            NoShardAvailableActionException e = expectThrows(
+                NoShardAvailableActionException.class,
+                client().prepareTermVectors(INDEX, DOC_ID)
+            );
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);
         }
@@ -765,9 +760,13 @@ public class RestoringShardIT extends AbstractSnapshotIntegTestCase {
             for (var item : resp) {
                 assertThat(item.isFailed(), equalTo(true));
                 Exception cause = item.getFailure().getCause();
-                assertThat(ExceptionsHelper.status(cause), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-                assertThat(cause.getCause(), instanceOf(IllegalIndexShardStateException.class));
-                assertThat(((IllegalIndexShardStateException) cause.getCause()).status(), equalTo(RestStatus.NOT_FOUND));
+                assertThat(ExceptionsHelper.status(cause), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+                assertThat(ExceptionsHelper.unwrapCause(cause), instanceOf(NoShardAvailableActionException.class));
+                assertThat(ExceptionsHelper.unwrapCause(cause.getCause()), instanceOf(IllegalIndexShardStateException.class));
+                assertThat(
+                    ((IllegalIndexShardStateException) ExceptionsHelper.unwrapCause(cause.getCause())).status(),
+                    equalTo(RestStatus.NOT_FOUND)
+                );
             }
         } finally {
             unblockAndDeleteRestoringIndex(REPO, INDEX);

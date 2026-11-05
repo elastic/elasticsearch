@@ -284,6 +284,8 @@ to BM25 scores, which are on a different scale.
 A runtime search after `FORK` or a `FROM` with subqueries filters rows but does not contribute to `_score` unless
 it can be pushed into the branches. Refer to [#161746](https://github.com/elastic/elasticsearch/issues/161746).
 
+#### When a runtime search score is visible [esql-runtime-search-scoring-visibility]
+
 A runtime search contributes to `_score` only after it runs. Filtering on `_score` after the search sees its score:
 
 ```esql
@@ -373,7 +375,7 @@ setting changes the default.
 
 When the query requests `METADATA _score`, a runtime `KNN` adds the similarity between the two vectors, scaled to a
 relevance score and multiplied by `boost`, to `_score`. It contributes to `_score` only after it runs, the same way as a
-[full-text runtime search](#esql-runtime-search-scoring).
+[full-text runtime search](#esql-runtime-search-scoring-visibility).
 
 ### Options [esql-runtime-search-knn-options]
 

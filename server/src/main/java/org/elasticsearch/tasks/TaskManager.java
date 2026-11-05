@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -95,6 +96,8 @@ public class TaskManager implements ClusterStateApplier {
 
     private final List<AddedTaskListener> addedTaskListeners = new CopyOnWriteArrayList<>();
 
+    private final TaskAdmissionPolicy admissionPolicy;
+
     // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this(settings, threadPool, taskHeaders, Tracer.NOOP);
@@ -102,17 +105,25 @@ public class TaskManager implements ClusterStateApplier {
 
     // For testing (especially the creating a random node ID, which some tests rely on)
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
-        this(settings, threadPool, taskHeaders, tracer, UUIDs.randomBase64UUID());
+        this(settings, threadPool, taskHeaders, tracer, UUIDs.randomBase64UUID(), TaskAdmissionPolicy.NOOP);
     }
 
     // TODO Both of the above overloads should be moved to the test package.
 
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer, String nodeId) {
+    public TaskManager(
+        Settings settings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders,
+        Tracer tracer,
+        String nodeId,
+        TaskAdmissionPolicy admissionPolicy
+    ) {
         this.threadPool = threadPool;
         this.taskHeaders = Set.copyOf(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.tracer = tracer;
         this.nodeId = nodeId;
+        this.admissionPolicy = Objects.requireNonNull(admissionPolicy);
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -154,6 +165,7 @@ public class TaskManager implements ClusterStateApplier {
                 headers.put(key, httpHeader);
             }
         }
+        admissionPolicy.admit(action);
         Task task = request.createTask(
             new TaskId(nodeId, taskIdGenerator.incrementAndGet()),
             type,
@@ -215,7 +227,7 @@ public class TaskManager implements ClusterStateApplier {
             final Task task;
             try {
                 task = register(type, action.actionName, request);
-            } catch (TaskCancelledException e) {
+            } catch (TaskCancelledException | EsRejectedExecutionException e) {
                 Releasables.close(unregisterChildNode);
                 throw e;
             }
@@ -359,6 +371,7 @@ public class TaskManager implements ClusterStateApplier {
             }
         } finally {
             tracer.stopTrace(task); // stop trace if started / known by tracer
+            admissionPolicy.onRemoved(task);
             for (RemovedTaskListener listener : removedTaskListeners) {
                 listener.onRemoved(task);
             }

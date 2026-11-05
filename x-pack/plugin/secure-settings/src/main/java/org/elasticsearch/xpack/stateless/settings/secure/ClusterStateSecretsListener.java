@@ -28,8 +28,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Reloads {@link ReloadablePlugin}s when secure settings in cluster state change: reserved-state secrets ({@link ClusterSecrets}) and,
  * when the secure settings API is enabled, API-set values ({@link SecureSettingsMetadata}).
- * <p>Once API-set values exist, reloads go through {@link SecureSettingsReloader}, which merges every source and reloads off the
- * cluster applier thread. Without API-set values, {@link ClusterSecrets} changes reload the plugins with reserved state only.
+ * <p>With the API enabled, every reload goes through {@link SecureSettingsReloader}, which merges every source and reloads off the
+ * cluster applier thread, one reload at a time. With the API disabled, {@link ClusterSecrets} changes reload the plugins with reserved
+ * state only, on the applier thread.
  */
 public final class ClusterStateSecretsListener implements ClusterStateListener {
 
@@ -41,11 +42,6 @@ public final class ClusterStateSecretsListener implements ClusterStateListener {
     private ReloadablePlugin reloadCallback;
 
     private final AtomicBoolean requiresCleanup = new AtomicBoolean(true);
-
-    /**
-     * The API-set values last handed to {@link #reloader}, so unchanged values aren't reloaded again on every cluster state.
-     */
-    private SecureSettingsMetadata submittedApiSettings;
 
     public ClusterStateSecretsListener(ClusterService clusterService, Environment environment) {
         this(clusterService, environment, null);
@@ -87,15 +83,11 @@ public final class ClusterStateSecretsListener implements ClusterStateListener {
 
         if (reloader != null) {
             SecureSettingsReloader.Sources sources = SecureSettingsReloader.Sources.of(state);
-            if (sources.apiSettings() != null || submittedApiSettings != null) {
-                if (clusterSecretsChanged
-                    || Objects.equals(sources.apiSettings(), submittedApiSettings) == false
-                    || reloader.retryNeeded()) {
-                    submittedApiSettings = sources.apiSettings();
-                    reloader.reloadAsync(sources);
-                }
-                return;
+            SecureSettingsMetadata previousApiSettings = SecureSettingsReloader.Sources.of(event.previousState()).apiSettings();
+            if (clusterSecretsChanged || Objects.equals(sources.apiSettings(), previousApiSettings) == false || reloader.retryNeeded()) {
+                reloader.reloadAsync(sources);
             }
+            return;
         }
 
         if (currentSecrets == null) {

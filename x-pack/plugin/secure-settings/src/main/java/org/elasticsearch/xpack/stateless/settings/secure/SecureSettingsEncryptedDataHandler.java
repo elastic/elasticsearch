@@ -38,6 +38,10 @@ public final class SecureSettingsEncryptedDataHandler implements EncryptedDataHa
         return current != null && current.settings().values().stream().anyMatch(Objects::nonNull);
     }
 
+    /**
+     * A dropped value keeps its name with a {@code null} value, like {@link #onDestructiveReset}, so it never falls back to a keystore
+     * value. The custom is therefore never removed, even if every value is dropped.
+     */
     @Override
     public SecureSettingsMetadata reEncrypt(SecureSettingsMetadata current, UnaryOperator<EncryptedData> rewrapper) {
         if (current == null || current.settings().isEmpty()) {
@@ -47,14 +51,8 @@ public final class SecureSettingsEncryptedDataHandler implements EncryptedDataHa
         boolean changed = false;
         for (Map.Entry<String, EncryptedData> entry : current.settings().entrySet()) {
             EncryptedData existing = entry.getValue();
-            if (existing == null) {
-                rebuilt.put(entry.getKey(), null);
-                continue;
-            }
-            EncryptedData rewrapped = rewrapper.apply(existing);
-            if (rewrapped != null) {
-                rebuilt.put(entry.getKey(), rewrapped);
-            }
+            EncryptedData rewrapped = existing == null ? null : rewrapper.apply(existing);
+            rebuilt.put(entry.getKey(), rewrapped);
             changed |= rewrapped != existing;
         }
         return changed ? new SecureSettingsMetadata(rebuilt) : current;

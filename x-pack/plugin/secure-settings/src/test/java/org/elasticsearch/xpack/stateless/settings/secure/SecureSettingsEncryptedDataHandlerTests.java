@@ -37,6 +37,16 @@ public class SecureSettingsEncryptedDataHandlerTests extends ESTestCase {
         assertThat(result.settings().get("wiped"), nullValue());
     }
 
+    public void testReEncryptKeepsNameOfDroppedValue() {
+        SecureSettingsMetadata current = new SecureSettingsMetadata(Map.of("a", randomEncryptedData(), "b", randomEncryptedData()));
+
+        SecureSettingsMetadata result = handler.reEncrypt(current, data -> null);
+
+        assertThat(result.settings().keySet(), equalTo(current.settings().keySet()));
+        assertTrue(result.settings().values().stream().allMatch(v -> v == null));
+        assertFalse(handler.hasData(result));
+    }
+
     public void testReEncryptReturnsSameInstanceWhenUnchanged() {
         SecureSettingsMetadata current = new SecureSettingsMetadata(Map.of("a", randomEncryptedData()));
         assertThat(handler.reEncrypt(current, data -> data), sameInstance(current));

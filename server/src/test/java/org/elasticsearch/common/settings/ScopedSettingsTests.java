@@ -1526,4 +1526,11 @@ public class ScopedSettingsTests extends ESTestCase {
             assertTrue(target.keys().isEmpty());
         }
     }
+
+    public void testSecureSettingRejectsUpdateConsumer() {
+        Setting<SecureString> secure = SecureSetting.secureString("foo.secure", null, Property.Dynamic);
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, Set.of(secure));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> settings.addSettingsUpdateConsumer(secure, v -> {}));
+        assertThat(e.getMessage(), equalTo("secure setting [foo.secure] cannot have a settings update consumer"));
+    }
 }

@@ -14,22 +14,35 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSecrets;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureClusterStateSettings;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -197,6 +210,102 @@ public class ClusterStateSecretsListenerTests extends ESTestCase {
         listener.clusterChanged(new ClusterChangedEvent("test", current, previous));
 
         verify(reloadablePlugin).reload(any(Settings.class));
+    }
+
+    /**
+     * With the API enabled, a {@link ClusterSecrets} change reloads through the reloader: off the applier thread and with the keystore.
+     */
+    public void testWithReloaderClusterSecretsChangeReloadsAsyncWithKeystore() {
+        ReloaderFixture fixture = new ReloaderFixture();
+        ClusterState previous = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodesMasterLocal()).build();
+        ClusterState current = ClusterState.builder(previous)
+            .putCustom(ClusterSecrets.TYPE, new ClusterSecrets(1L, SecureClusterStateSettings.EMPTY))
+            .incrementVersion()
+            .build();
+
+        fixture.listener.clusterChanged(new ClusterChangedEvent("test", current, previous));
+        assertThat(fixture.reloadedValues, empty());
+        fixture.taskQueue.runAllTasks();
+
+        assertThat(fixture.reloadedValues, contains("keystore"));
+    }
+
+    public void testWithReloaderReloadsOnlyWhenApiSettingsChange() {
+        ReloaderFixture fixture = new ReloaderFixture();
+        ClusterState initial = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodesMasterLocal()).build();
+        ClusterState withApi = withApiSettings(initial, fixture.apiSettings("api"));
+        ClusterState unrelatedChange = ClusterState.builder(withApi).incrementVersion().build();
+        ClusterState removed = withApiSettings(unrelatedChange, null);
+
+        fixture.applyAndRun(withApi, initial);
+        fixture.applyAndRun(unrelatedChange, withApi);
+        fixture.applyAndRun(removed, unrelatedChange);
+
+        assertThat(fixture.reloadedValues, contains("api", "keystore"));
+    }
+
+    public void testWithReloaderRetriesOnNextStateWhileDecryptionFails() {
+        ReloaderFixture fixture = new ReloaderFixture();
+        ClusterState initial = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodesMasterLocal()).build();
+        ClusterState withApi = withApiSettings(initial, fixture.apiSettings("api"));
+        ClusterState unrelatedChange = ClusterState.builder(withApi).incrementVersion().build();
+        fixture.encryptionService.available = false;
+
+        fixture.applyAndRun(withApi, initial);
+        assertThat(fixture.reloadedValues, empty());
+
+        fixture.encryptionService.available = true;
+        fixture.applyAndRun(unrelatedChange, withApi);
+        assertThat(fixture.reloadedValues, contains("api"));
+    }
+
+    private static ClusterState withApiSettings(ClusterState state, SecureSettingsMetadata apiSettings) {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(state.metadata().getProject(ProjectId.DEFAULT));
+        if (apiSettings == null) {
+            project.removeCustom(SecureSettingsMetadata.TYPE);
+        } else {
+            project.putCustom(SecureSettingsMetadata.TYPE, apiSettings);
+        }
+        return ClusterState.builder(state).putProjectMetadata(project).incrementVersion().build();
+    }
+
+    private static class ReloaderFixture {
+        static final Setting<SecureString> SETTING = SecureSetting.secureString("test.secret", null);
+
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final FakeEncryptionService encryptionService = new FakeEncryptionService();
+        final List<String> reloadedValues = new ArrayList<>();
+        final ClusterStateSecretsListener listener;
+
+        ReloaderFixture() {
+            MockSecureSettings keystore = new MockSecureSettings();
+            keystore.setString(SETTING.getKey(), "keystore");
+            SecureSettingsReloader reloader = new SecureSettingsReloader(
+                Settings.EMPTY,
+                keystore,
+                encryptionService,
+                taskQueue.getThreadPool().generic()
+            );
+            Environment environment = mock(Environment.class);
+            when(environment.settings()).thenReturn(Settings.EMPTY);
+            listener = new ClusterStateSecretsListener(mock(ClusterService.class), environment, reloader);
+            ReloadablePlugin recording = settings -> {
+                try (SecureString value = SETTING.get(settings)) {
+                    reloadedValues.add(value.length() == 0 ? null : value.toString());
+                }
+            };
+            reloader.setReloadCallback(recording);
+            listener.setReloadCallback(recording);
+        }
+
+        SecureSettingsMetadata apiSettings(String value) {
+            return new SecureSettingsMetadata(Map.of(SETTING.getKey(), encryptionService.encrypt(value.getBytes(StandardCharsets.UTF_8))));
+        }
+
+        void applyAndRun(ClusterState current, ClusterState previous) {
+            listener.clusterChanged(new ClusterChangedEvent("test", current, previous));
+            taskQueue.runAllTasks();
+        }
     }
 
     private static DiscoveryNodes discoveryNodesMasterLocal() {

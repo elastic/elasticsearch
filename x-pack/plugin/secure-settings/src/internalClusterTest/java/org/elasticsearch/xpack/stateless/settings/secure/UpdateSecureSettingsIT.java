@@ -58,6 +58,7 @@ public class UpdateSecureSettingsIT extends ESIntegTestCase {
 
     private static final String DYNAMIC = "test.secure_settings_api.dynamic";
     private static final String STATIC = "test.secure_settings_api.static";
+    private static final String OPERATOR = "test.secure_settings_api.operator";
 
     @BeforeClass
     public static void checkFeatureFlagEnabled() {
@@ -213,6 +214,18 @@ public class UpdateSecureSettingsIT extends ESIntegTestCase {
             () -> updateSecureSettings(Map.of("test.secure_settings_api.*", new SecureString("value".toCharArray())))
         );
         assertThat(unknown.getMessage(), containsString("is not recognized"));
+
+        IllegalArgumentException operatorOnly = expectThrows(
+            IllegalArgumentException.class,
+            () -> updateSecureSettings(Map.of(OPERATOR, new SecureString("value".toCharArray())))
+        );
+        assertThat(operatorOnly.getMessage(), containsString("operator-only secure setting [" + OPERATOR + "]"));
+
+        IllegalArgumentException empty = expectThrows(
+            IllegalArgumentException.class,
+            () -> updateSecureSettings(Map.of(DYNAMIC, new SecureString(new char[0])))
+        );
+        assertThat(empty.getMessage(), containsString("cannot be empty"));
     }
 
     private void updateSecureSettings(Map<String, SecureString> settings) {
@@ -244,12 +257,13 @@ public class UpdateSecureSettingsIT extends ESIntegTestCase {
 
         static final Setting<SecureString> DYNAMIC_SETTING = SecureSetting.secureString(DYNAMIC, null, Setting.Property.Dynamic);
         static final Setting<SecureString> STATIC_SETTING = SecureSetting.secureString(STATIC, null);
+        static final Setting<SecureString> OPERATOR_SETTING = SecureSetting.secureString(OPERATOR, null, Setting.Property.OperatorDynamic);
 
         volatile String lastValue;
 
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(DYNAMIC_SETTING, STATIC_SETTING);
+            return List.of(DYNAMIC_SETTING, STATIC_SETTING, OPERATOR_SETTING);
         }
 
         @Override

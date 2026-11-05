@@ -115,6 +115,11 @@ public class RestClusterUpdateSettingsActionTests extends RestActionTestCase {
             {"persistent": {"test.secure": "s3cr3t", "test.regular": 2}}"""), "cannot also set regular settings");
     }
 
+    public void testRejectsNonObjectSection() {
+        assertBadRequest(request("https", """
+            {"persistent": "test.secure"}"""), "[persistent] must be an object");
+    }
+
     public void testRejectsWhenClusterDoesNotSupportFeature() {
         clusterSupportsFeature = false;
         assertBadRequest(request("https", """

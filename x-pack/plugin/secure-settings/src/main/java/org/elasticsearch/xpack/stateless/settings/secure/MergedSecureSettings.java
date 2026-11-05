@@ -94,15 +94,23 @@ final class MergedSecureSettings implements SecureSettings {
 
     /**
      * Secure setting values held in memory: decrypted API-set values for the duration of a reload, or a copy of the keystore.
+     * <p>Like the keystore, values can't be read after {@link #close()}, but digests can.
      */
     static final class InMemory implements SecureSettings {
 
-        static final InMemory EMPTY = new InMemory(Map.of());
-
         private final Map<String, byte[]> values;
+        private final Map<String, byte[]> digests;
+        private volatile boolean closed;
 
         InMemory(Map<String, byte[]> values) {
             this.values = Map.copyOf(values);
+            Map<String, byte[]> digests = new HashMap<>(values.size());
+            values.forEach((name, value) -> digests.put(name, MessageDigests.sha256().digest(value)));
+            this.digests = Map.copyOf(digests);
+        }
+
+        static InMemory empty() {
+            return new InMemory(Map.of());
         }
 
         /**
@@ -135,24 +143,32 @@ final class MergedSecureSettings implements SecureSettings {
 
         @Override
         public SecureString getString(String setting) {
-            byte[] value = values.get(setting);
+            byte[] value = openValue(setting);
             return value == null ? null : new SecureString(CharArrays.utf8BytesToChars(value));
         }
 
         @Override
         public InputStream getFile(String setting) {
-            byte[] value = values.get(setting);
+            byte[] value = openValue(setting);
             return value == null ? null : new ByteArrayInputStream(value);
         }
 
         @Override
         public byte[] getSHA256Digest(String setting) {
-            byte[] value = values.get(setting);
-            return value == null ? null : MessageDigests.sha256().digest(value);
+            byte[] digest = digests.get(setting);
+            return digest == null ? null : digest.clone();
+        }
+
+        private byte[] openValue(String setting) {
+            if (closed) {
+                throw new IllegalStateException("secure settings have already been closed");
+            }
+            return values.get(setting);
         }
 
         @Override
         public void close() {
+            closed = true;
             values.values().forEach(value -> Arrays.fill(value, (byte) 0));
         }
 

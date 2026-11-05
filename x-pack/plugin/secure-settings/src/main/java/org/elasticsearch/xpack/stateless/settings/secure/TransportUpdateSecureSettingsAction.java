@@ -113,11 +113,12 @@ public class TransportUpdateSecureSettingsAction extends TransportMasterNodeActi
         if (featureService.clusterHasFeature(state, UpdateSecureSettingsAction.SECURE_SETTINGS_API) == false) {
             throw new IllegalArgumentException("secure settings cannot be set until all nodes in the cluster support it");
         }
-        for (String name : request.settingNames()) {
-            validateSettable(name);
-        }
-        final Map<String, EncryptedData> updates = encrypt(request.settings());
         final ProjectId projectId = projectResolver.getProjectId();
+        if (ProjectId.DEFAULT.equals(projectId) == false) {
+            throw new IllegalArgumentException("secure settings can only be set in the default project");
+        }
+        request.settings().forEach(this::validate);
+        final Map<String, EncryptedData> updates = encrypt(request.settings());
         final AckedClusterStateUpdateTask updateTask = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -142,7 +143,10 @@ public class TransportUpdateSecureSettingsAction extends TransportMasterNodeActi
         taskQueue.submitTask("update-secure-settings " + request.settingNames(), updateTask, updateTask.timeout());
     }
 
-    private void validateSettable(String name) {
+    /**
+     * Dependencies between settings aren't checked: they can be met by a node's keystore, which the master can't see.
+     */
+    private void validate(String name, SecureString value) {
         final Setting<?> setting = clusterService.getClusterSettings().get(name);
         if (setting instanceof SecureSetting<?> == false) {
             throw new IllegalArgumentException("secure setting [" + name + "] is not recognized");
@@ -152,6 +156,9 @@ public class TransportUpdateSecureSettingsAction extends TransportMasterNodeActi
         }
         if (setting.isOperatorOnly()) {
             throw new IllegalArgumentException("operator-only secure setting [" + name + "] cannot be set through the API yet");
+        }
+        if (value != null && value.length() == 0) {
+            throw new IllegalArgumentException("secure setting [" + name + "] cannot be empty; set it to null to remove it");
         }
     }
 

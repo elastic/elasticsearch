@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.settings.secure;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.settings.ClusterSecrets;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureClusterStateSettings;
@@ -17,12 +18,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
-import org.elasticsearch.xpack.encryption.spi.EncryptionService;
-import org.elasticsearch.xpack.encryption.spi.EncryptionServiceState;
-import org.elasticsearch.xpack.encryption.spi.EncryptionServiceUnavailableException;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -35,6 +34,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SecureSettingsReloaderTests extends ESTestCase {
@@ -108,23 +108,75 @@ public class SecureSettingsReloaderTests extends ESTestCase {
         assertThat(reloadedValues, contains("new"));
     }
 
-    public void testReloadWithKeystoreKeepsPreviousKeystoreWhenApiValuesCannotBeDecrypted() throws Exception {
+    /**
+     * The new keystore may hold the password the encryption service needs, so plugins must still get it when decryption fails.
+     */
+    public void testReloadWithKeystoreReloadsWithoutApiValuesWhenTheyCannotBeDecrypted() throws Exception {
         SecureSettingsReloader reloader = reloader(keystore("old"));
+        SecureSettingsMetadata apiSettings = apiSettings("api");
+        SecureSettingsReloader.Sources sources = new SecureSettingsReloader.Sources(null, apiSettings);
+        encryptionService.available = false;
+        List<String> reloadSecureSettingsValues = new ArrayList<>();
+
+        reloader.reloadWithKeystore(keystore("new"), sources, settings -> {
+            reloadSecureSettingsValues.add(value(settings));
+            encryptionService.available = true;
+        });
+
+        assertThat("API-set name must not fall back to the keystore", reloadSecureSettingsValues, contains((String) null));
+        assertTrue(reloader.retryNeeded());
+        taskQueue.runAllTasks();
+        assertThat(reloadedValues, contains("api"));
+        assertFalse(reloader.retryNeeded());
+    }
+
+    public void testValuesCannotBeReadAfterReload() {
+        List<Settings> retained = new ArrayList<>();
+        SecureSettingsReloader retaining = new SecureSettingsReloader(
+            Settings.EMPTY,
+            keystore("keystore"),
+            encryptionService,
+            taskQueue.getThreadPool().generic()
+        );
+        retaining.setReloadCallback(retained::add);
+
+        retaining.reloadAsync(new SecureSettingsReloader.Sources(null, apiSettings("api")));
+        taskQueue.runAllTasks();
+
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> SETTING.get(retained.getFirst()));
+        assertThat(e.getMessage(), equalTo("secure settings have already been closed"));
+        assertThat(((SecureSetting<?>) SETTING).getSecretDigest(retained.getFirst()), notNullValue());
+    }
+
+    public void testUnavailableEncryptionWarnsOnce() {
+        SecureSettingsReloader reloader = reloader(keystore("keystore"));
         SecureSettingsMetadata apiSettings = apiSettings("api");
         encryptionService.available = false;
 
-        expectThrows(
-            EncryptionServiceUnavailableException.class,
-            () -> reloader.reloadWithKeystore(
-                keystore("new"),
-                new SecureSettingsReloader.Sources(null, apiSettings),
-                settings -> fail("must not reload")
-            )
-        );
-
-        reloader.reloadAsync(new SecureSettingsReloader.Sources(null, null));
-        taskQueue.runAllTasks();
-        assertThat(reloadedValues, contains("old"));
+        try (var mockLog = MockLog.capture(SecureSettingsReloader.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "first failure",
+                    SecureSettingsReloader.class.getCanonicalName(),
+                    Level.WARN,
+                    "Cannot decrypt secure settings [test.secret] set through the API*"
+                )
+            );
+            reloader.reloadAsync(new SecureSettingsReloader.Sources(null, apiSettings));
+            taskQueue.runAllTasks();
+            mockLog.assertAllExpectationsMatched();
+        }
+        try (var mockLog = MockLog.capture(SecureSettingsReloader.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("later failures", SecureSettingsReloader.class.getCanonicalName(), Level.WARN, "*")
+            );
+            for (int i = 0; i < 3; i++) {
+                reloader.reloadAsync(new SecureSettingsReloader.Sources(null, apiSettings));
+                taskQueue.runAllTasks();
+            }
+            mockLog.assertAllExpectationsMatched();
+        }
+        assertThat(reloadedValues, empty());
     }
 
     public void testRetryNeededWhileApiValuesCannotBeDecrypted() {
@@ -175,28 +227,6 @@ public class SecureSettingsReloaderTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.format("""
             {"string_secrets": {"%s": "%s"}}""", SETTING.getKey(), value))) {
             return new ClusterSecrets(1L, SecureClusterStateSettings.fromXContent(parser));
-        }
-    }
-
-    /**
-     * Stands in for the encryption plugin's AES-GCM service, which needs a project encryption key; the reloader only depends on
-     * decryption returning the plaintext or throwing while the service is unavailable.
-     */
-    private static class FakeEncryptionService implements EncryptionService {
-
-        volatile boolean available = true;
-
-        @Override
-        public EncryptedData encrypt(byte[] bytes) {
-            return new EncryptedData("test-key", bytes.clone());
-        }
-
-        @Override
-        public byte[] decrypt(EncryptedData encryptedData) {
-            if (available == false) {
-                throw new EncryptionServiceUnavailableException(EncryptionServiceState.DISABLED);
-            }
-            return encryptedData.payload().clone();
         }
     }
 }

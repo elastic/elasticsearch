@@ -90,7 +90,7 @@ final class SecureSettingsReloader {
             }
         };
         try {
-            this.keystore = keystore == null ? MergedSecureSettings.InMemory.EMPTY : MergedSecureSettings.InMemory.copyOf(keystore);
+            this.keystore = keystore == null ? MergedSecureSettings.InMemory.empty() : MergedSecureSettings.InMemory.copyOf(keystore);
         } catch (GeneralSecurityException | IOException e) {
             throw new IllegalStateException("failed to read the keystore", e);
         }
@@ -104,7 +104,8 @@ final class SecureSettingsReloader {
     }
 
     /**
-     * Whether the last cluster state reload could not decrypt the API-set values, so a later cluster state should reload again.
+     * Whether the last reload could not decrypt the API-set values because encryption was unavailable, so a later cluster state
+     * should reload again.
      */
     boolean retryNeeded() {
         return retryNeeded;
@@ -118,18 +119,21 @@ final class SecureSettingsReloader {
         clusterStateReloads.onNewInput(sources);
     }
 
+    /**
+     * If the API-set values can't be decrypted, plugins are not reloaded, so they keep the values they have.
+     */
     private void reloadFromClusterState(Sources sources) {
         synchronized (mutex) {
+            Set<String> wiped = new HashSet<>();
+            MergedSecureSettings.InMemory apiValues;
             try {
-                reload(sources, keystore, reloadCallback);
-                retryNeeded = false;
-            } catch (EncryptionKeyNotYetAvailableException | EncryptionServiceUnavailableException e) {
-                retryNeeded = true;
-                logger.warn(
-                    "Cannot decrypt secure settings {} set through the API, will retry on the next cluster state update: {}",
-                    sources.apiSettings().settings().keySet(),
-                    e.getMessage()
-                );
+                apiValues = decrypt(sources.apiSettings(), wiped);
+            } catch (RuntimeException e) {
+                onDecryptionFailure(sources, e);
+                return;
+            }
+            try (apiValues) {
+                reloadCallback.reload(mergedSettings(sources, apiValues, wiped, keystore));
             } catch (Exception e) {
                 logger.warn("Failed to reload secure settings from cluster state", e);
             }
@@ -137,39 +141,60 @@ final class SecureSettingsReloader {
     }
 
     /**
-     * Replaces the keystore copy with {@code newKeystore} and reloads {@code reloadablePlugins} with it and {@code sources}. If the
-     * API-set values can't be decrypted, nothing is reloaded and the previous keystore copy is kept.
+     * Replaces the keystore copy with {@code newKeystore} and reloads {@code reloadablePlugins} with it and {@code sources}.
+     * <p>If the API-set values can't be decrypted, plugins are still reloaded, without those values, and a cluster state reload is
+     * queued to add them back. The new keystore may hold the password the encryption service needs to decrypt them, and plugins only
+     * see it through this reload.
      */
     void reloadWithKeystore(SecureSettings newKeystore, Sources sources, ReloadablePlugin reloadablePlugins) throws Exception {
         MergedSecureSettings.InMemory copy = MergedSecureSettings.InMemory.copyOf(newKeystore);
+        boolean decrypted = true;
         synchronized (mutex) {
-            MergedSecureSettings.InMemory apiValues;
-            Set<String> wiped = new HashSet<>();
-            try {
-                apiValues = decrypt(sources.apiSettings(), wiped);
-            } catch (Exception e) {
-                copy.close();
-                throw e;
-            }
             MergedSecureSettings.InMemory previous = keystore;
             keystore = copy;
             previous.close();
-            try (apiValues) {
-                reloadablePlugins.reload(mergedSettings(sources, apiValues, wiped, copy));
+            Set<String> hidden = new HashSet<>();
+            MergedSecureSettings.InMemory apiValues;
+            try {
+                apiValues = decrypt(sources.apiSettings(), hidden);
+            } catch (RuntimeException e) {
+                onDecryptionFailure(sources, e);
+                decrypted = false;
+                apiValues = MergedSecureSettings.InMemory.empty();
+                hidden.addAll(sources.apiSettings().settings().keySet());
             }
+            try (MergedSecureSettings.InMemory values = apiValues) {
+                reloadablePlugins.reload(mergedSettings(sources, values, hidden, copy));
+            }
+        }
+        if (decrypted == false && reloadCallback != null) {
+            reloadAsync(sources);
         }
     }
 
-    private void reload(Sources sources, SecureSettings keystoreValues, ReloadablePlugin target) throws Exception {
-        Set<String> wiped = new HashSet<>();
-        try (MergedSecureSettings.InMemory apiValues = decrypt(sources.apiSettings(), wiped)) {
-            target.reload(mergedSettings(sources, apiValues, wiped, keystoreValues));
+    private void onDecryptionFailure(Sources sources, RuntimeException e) {
+        Set<String> names = sources.apiSettings().settings().keySet();
+        if (e instanceof EncryptionKeyNotYetAvailableException || e instanceof EncryptionServiceUnavailableException) {
+            if (retryNeeded) {
+                logger.debug("Still cannot decrypt secure settings {} set through the API: {}", names, e.getMessage());
+            } else {
+                logger.warn(
+                    "Cannot decrypt secure settings {} set through the API, will retry on the next cluster state update: {}",
+                    names,
+                    e.getMessage()
+                );
+            }
+            retryNeeded = true;
+        } else {
+            retryNeeded = false;
+            logger.warn("Failed to decrypt secure settings {} set through the API", names, e);
         }
     }
 
     private MergedSecureSettings.InMemory decrypt(@Nullable SecureSettingsMetadata apiSettings, Set<String> wiped) {
         if (apiSettings == null) {
-            return MergedSecureSettings.InMemory.EMPTY;
+            retryNeeded = false;
+            return MergedSecureSettings.InMemory.empty();
         }
         Map<String, byte[]> decrypted = new HashMap<>();
         try {
@@ -184,19 +209,20 @@ final class SecureSettingsReloader {
             new MergedSecureSettings.InMemory(decrypted).close();
             throw e;
         }
+        retryNeeded = false;
         return new MergedSecureSettings.InMemory(decrypted);
     }
 
-    private Settings mergedSettings(Sources sources, SecureSettings apiValues, Set<String> wiped, SecureSettings keystoreValues) {
+    private Settings mergedSettings(Sources sources, SecureSettings apiValues, Set<String> hidden, SecureSettings keystoreValues) {
         List<SecureSettings> layers = new ArrayList<>();
-        Set<String> hidden = new HashSet<>(wiped);
+        Set<String> hiddenNames = new HashSet<>(hidden);
         if (sources.clusterSecrets() != null) {
             SecureSettings reserved = sources.clusterSecrets().getSettings();
             layers.add(reserved);
-            hidden.removeAll(reserved.getSettingNames());
+            hiddenNames.removeAll(reserved.getSettingNames());
         }
         layers.add(apiValues);
         layers.add(keystoreValues);
-        return Settings.builder().put(nodeSettings, false).setSecureSettings(new MergedSecureSettings(layers, hidden)).build();
+        return Settings.builder().put(nodeSettings, false).setSecureSettings(new MergedSecureSettings(layers, hiddenNames)).build();
     }
 }

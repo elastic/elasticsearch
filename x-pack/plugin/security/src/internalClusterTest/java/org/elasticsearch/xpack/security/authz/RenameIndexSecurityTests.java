@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
@@ -36,6 +38,7 @@ import java.util.Map;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -75,6 +78,18 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
             + "\n"
             + "ds_only:"
             + hashed
+            + "\n"
+            + "esc_secret:"
+            + hashed
+            + "\n"
+            + "esc_ds:"
+            + hashed
+            + "\n"
+            + "esc_dls:"
+            + hashed
+            + "\n"
+            + "esc_fls:"
+            + hashed
             + "\n";
     }
 
@@ -85,7 +100,11 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
             + "rename_source_only:rename_source_only\n"
             + "rename_none:rename_none\n"
             + "ds_manage:ds_manage\n"
-            + "ds_only:ds_only\n";
+            + "ds_only:ds_only\n"
+            + "esc_secret:esc_secret\n"
+            + "esc_ds:esc_ds\n"
+            + "esc_dls:esc_dls\n"
+            + "esc_fls:esc_fls\n";
     }
 
     @Override
@@ -112,6 +131,33 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
               indices:
                 - names: 'logs'
                   privileges: [ manage ]
+            esc_secret:
+              indices:
+                - names: 'secret-*'
+                  privileges: [ manage ]
+                - names: 'public-*'
+                  privileges: [ read, manage ]
+            esc_ds:
+              indices:
+                - names: 'logs'
+                  privileges: [ manage ]
+                - names: 'public-*'
+                  privileges: [ read, manage ]
+            esc_dls:
+              indices:
+                - names: 'dlsr-src*'
+                  privileges: [ read, manage ]
+                  query: '{"term": {"visible": true}}'
+                - names: 'dlsr-dst*'
+                  privileges: [ read, manage ]
+            esc_fls:
+              indices:
+                - names: 'flsr-src*'
+                  privileges: [ read, manage ]
+                  field_security:
+                    grant: [ visible ]
+                - names: 'flsr-dst*'
+                  privileges: [ read, manage ]
             """;
     }
 
@@ -224,6 +270,68 @@ public class RenameIndexSecurityTests extends SecurityIntegTestCase {
         // and the lease is still there
         final var leases = indicesAdmin().prepareStats("new-private").get().getShards()[0].getRetentionLeaseStats().retentionLeases();
         assertTrue(leases.contains("private-lease"));
+    }
+
+    /**
+     * A rename carries the data of an index to another name, so the new name must not give more access than the old one does. A user
+     * who may only manage {@code secret-*} must not be able to move an index under a name they can read.
+     */
+    public void testCannotRenameAnIndexToANameWithMorePermissions() {
+        createIndex("secret-1", 1, 0, false);
+        indexDoc("secret-1", "1", "field", "value");
+        refresh("secret-1");
+
+        assertRefusedForMorePermissions(() -> rename(clientAs("esc_secret"), "secret-1", "public-secret-1"));
+        assertTrue(indexExists("secret-1"));
+        assertFalse(indexExists("public-secret-1"));
+    }
+
+    /** Authorized through the data stream name, a backing index has the permissions of the data stream, not of its own name. */
+    public void testCannotRenameABackingIndexToANameWithMorePermissions() throws Exception {
+        createDataStream("logs");
+        final String backingIndex = backingIndices("logs").get(0).getName();
+
+        assertRefusedForMorePermissions(() -> rename(clientAs("esc_ds"), backingIndex, "public-logs-1"));
+        assertTrue(indexExists(backingIndex));
+        assertFalse(indexExists("public-logs-1"));
+    }
+
+    /** As for adding an alias, a user whose access to the index is restricted by document level security may not rename it. */
+    public void testCannotRenameAnIndexWithDocumentLevelSecurity() {
+        createIndex("dlsr-src-1", 1, 0, false);
+        indexDoc("dlsr-src-1", "1", "visible", false);
+        refresh("dlsr-src-1");
+
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> rename(clientAs("esc_dls"), "dlsr-src-1", "dlsr-dst-1")
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("field or document level security"));
+        assertTrue(indexExists("dlsr-src-1"));
+        assertFalse(indexExists("dlsr-dst-1"));
+    }
+
+    /** As for adding an alias, a user whose access to the index is restricted by field level security may not rename it. */
+    public void testCannotRenameAnIndexWithFieldLevelSecurity() {
+        createIndex("flsr-src-1", 1, 0, false);
+        indexDoc("flsr-src-1", "1", "visible", "v", "secret", "s");
+        refresh("flsr-src-1");
+
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> rename(clientAs("esc_fls"), "flsr-src-1", "flsr-dst-1")
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("field or document level security"));
+        assertTrue(indexExists("flsr-src-1"));
+        assertFalse(indexExists("flsr-dst-1"));
+    }
+
+    private static void assertRefusedForMorePermissions(org.elasticsearch.core.CheckedRunnable<Exception> rename) {
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, rename::run);
+        assertThat(e.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(e.getMessage(), containsString("the new name has more permissions than the index"));
     }
 
     private Client clientAs(String user) {

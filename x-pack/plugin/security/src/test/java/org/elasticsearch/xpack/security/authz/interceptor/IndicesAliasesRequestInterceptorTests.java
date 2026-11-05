@@ -221,4 +221,83 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             plainActionFuture.actionGet();
         }
     }
+
+    private IndicesAliasesRequestInterceptor interceptorFor(ThreadContext threadContext, boolean dlsFlsEnabled) {
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(Settings.EMPTY, Set.of(XPackSettings.AUDIT_ENABLED)));
+        return new IndicesAliasesRequestInterceptor(
+            threadContext,
+            new AuditTrailService(null, licenseState, clusterService),
+            dlsFlsEnabled
+        );
+    }
+
+    /** A rename is held to the rule for aliases for its source: document or field level security on it refuses the request. */
+    public void testRenameOfAnIndexWithDlsOrFlsIsRefused() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        IndicesAccessControl accessControl = new IndicesAccessControl(
+            true,
+            Collections.singletonMap(
+                "source",
+                new IndicesAccessControl.IndexAccessControl(
+                    FieldPermissions.DEFAULT,
+                    DocumentPermissions.filteredBy(Collections.singleton(new BytesArray(randomAlphaOfLengthBetween(2, 8))))
+                )
+            )
+        );
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
+        IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+            IndicesAliasesRequest.AliasActions.renameIndex().index("source").newIndex("target")
+        );
+        RequestInfo requestInfo = new RequestInfo(
+            AuthenticationTestHelper.builder().build(),
+            request,
+            TransportIndicesAliasesAction.NAME,
+            null
+        );
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
+            interceptorFor(threadContext, true).intercept(requestInfo, mock(AuthorizationEngine.class), EmptyAuthorizationInfo.INSTANCE)
+                .addListener(future);
+            future.actionGet();
+        });
+        assertEquals(
+            "Renaming an index is not allowed for users who have field or document level security enabled on one of the indices",
+            e.getMessage()
+        );
+    }
+
+    /** With an authorization engine of its own the names alone are handed over: the source, and the new name as the alias. */
+    @SuppressWarnings("unchecked")
+    public void testRenameIsCheckedByACustomEngineLikeAnAlias() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(new IndicesAccessControl(true, Collections.emptyMap()));
+        IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAliasAction(
+            IndicesAliasesRequest.AliasActions.renameIndex().index("source").newIndex("target")
+        );
+        RequestInfo requestInfo = new RequestInfo(
+            AuthenticationTestHelper.builder().build(),
+            request,
+            TransportIndicesAliasesAction.NAME,
+            null
+        );
+        AuthorizationEngine engine = mock(AuthorizationEngine.class);
+        doAnswer(invocationOnMock -> {
+            assertEquals(Map.of("source", java.util.List.of("target")), invocationOnMock.getArguments()[2]);
+            ((ActionListener<AuthorizationResult>) invocationOnMock.getArguments()[3]).onResponse(AuthorizationResult.deny());
+            return null;
+        }).when(engine)
+            .validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(), anyActionListener());
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
+            interceptorFor(threadContext, false).intercept(requestInfo, engine, EmptyAuthorizationInfo.INSTANCE).addListener(future);
+            future.actionGet();
+        });
+        assertEquals("Renaming an index is not allowed when the new name has more permissions than the index", e.getMessage());
+    }
 }

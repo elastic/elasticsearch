@@ -398,23 +398,31 @@ cluster that has never renamed one, it returns the identifier it was given.
 Costs: the first snapshot after a rename is a full upload, and the old-name
 snapshots hold their own copy of the data until they are deleted.
 
-### T6. Security authorizes both names, nothing more
+### T6. Security authorizes both names and holds a rename to the rule for aliases
 
 A `rename_index` action reports both the current and the new name through
-`indices()`, so the caller needs `manage` on both. That is the same bar as
-creating the destination and deleting the source. Because the rename runs as
-`indices:admin/aliases`, a role cannot grant alias management without
-granting rename; nothing is lost, since both already require `manage`.
-Document-level and field-level security rules are attached to index name
-patterns, so a rename can move an index into or out of a user's DLS/FLS scope
-exactly as creating it under that name would.
+`indices()`, so the caller needs `manage` on both, as `indices:admin/aliases`
+requires. That is not enough on its own, and it is not the same bar as creating
+the destination and deleting the source: those two do not carry the data across,
+and a rename does. A user with `manage` on `secret-*` and `read` and `manage` on
+`public-*` could move `secret-1` to `public-secret-1` and read it there, or move
+an index out of the scope of a document or field level security rule. Adding an
+alias is held to two rules for exactly this reason, and
+`IndicesAliasesRequestInterceptor` applies both to a rename, with the new name
+playing the part of the alias: the request is refused if the source is covered by
+document or field level security, and refused if what the role allows under the
+new name is more than it allows for the source. For a data stream backing index
+the allowed actions of the data stream count for the source, since that is how
+the user may be authorized for it. A custom authorization engine is given the
+source and the new name, as it is for an alias. A user with `manage` on both names
+and nothing else on either, the case that remains, can still rename.
+`RenameIndexSecurityTests` covers the model, including the refusals.
 
 For a data stream backing index, `manage` on the data stream covers the
 source name, as any backing index privilege does; the destination name does
 not exist yet and belongs to no data stream, so it must be matched by a role
 pattern directly. After the rename the index is still the data stream's
 backing index, so access through the data stream name continues.
-`RenameIndexSecurityTests` covers the model.
 
 Document and field level security is applied to a shard by the name of its
 index. The reader of a shard keeps the name the shard had when it was created,
@@ -423,6 +431,10 @@ reader's name found no restrictions after a rename and returned the reader
 unwrapped. `SecurityIndexReaderWrapper` now looks the permissions up by the
 index's current name first and by the reader's name second
 (`RenameIndexDlsFlsTests`).
+
+Not covered: `DotPrefixValidator` filters index creation, auto-creation and
+templates but not a rename, so a rename can produce a dot-prefixed name that
+those paths would refuse.
 
 ### T7. Cross-cluster replication follows by UUID across a rename
 

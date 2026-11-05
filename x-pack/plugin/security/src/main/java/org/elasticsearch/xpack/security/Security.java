@@ -1230,7 +1230,12 @@ public class Security extends Plugin
         dlsFlsEnabled.set(XPackSettings.DLS_FLS_ENABLED.get(settings));
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, auditTrailService, dlsFlsEnabled.get()),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get()),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get(), indexName -> {
+                final var abstraction = projectResolver.getProjectMetadata(clusterService.state()).getIndicesLookup().get(indexName);
+                return abstraction != null && abstraction.getParentDataStream() != null
+                    ? abstraction.getParentDataStream().getName()
+                    : null;
+            }),
             new DatasetDatasourceRequestInterceptor(threadPool.getThreadContext(), auditTrailService)
         );
 

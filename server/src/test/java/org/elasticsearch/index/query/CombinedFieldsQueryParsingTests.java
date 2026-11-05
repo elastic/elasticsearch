@@ -13,10 +13,10 @@ import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -245,11 +245,7 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
         Query actual = combinedFieldsQuery("dogs cats", "synonym1", "synonym2").operator(Operator.AND).toQuery(context);
 
         Query expected = new BooleanQuery.Builder().add(
-            new CombinedFieldQuery.Builder("synonym1").addField("synonym1")
-                .addField("synonym2")
-                .addField("dog")
-                .addField("dogs")
-                .build(),
+            new CombinedFieldQuery.Builder("synonym1").addField("synonym1").addField("synonym2").addField("dog").addField("dogs").build(),
             BooleanClause.Occur.MUST
         )
             .add(
@@ -338,7 +334,12 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
         Query expected = new BooleanQuery.Builder().add(
             new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1").addField(quickTerm.utf8ToString()).build(),
             BooleanClause.Occur.SHOULD
-        ).add(new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1").addField(foxTerm.utf8ToString()).build(), BooleanClause.Occur.SHOULD).build();
+        )
+            .add(
+                new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1").addField(foxTerm.utf8ToString()).build(),
+                BooleanClause.Occur.SHOULD
+            )
+            .build();
         assertEquals(expected, query);
 
         query = combinedFieldsQuery("the quick fox").field("stopwords1")
@@ -346,11 +347,17 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
             .zeroTermsQuery(zeroTermsQuery)
             .toQuery(context);
         expected = new BooleanQuery.Builder().add(
-            new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1").addField("stopwords2").addField(quickTerm.utf8ToString()).build(),
+            new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1")
+                .addField("stopwords2")
+                .addField(quickTerm.utf8ToString())
+                .build(),
             BooleanClause.Occur.SHOULD
         )
             .add(
-                new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1").addField("stopwords2").addField(foxTerm.utf8ToString()).build(),
+                new CombinedFieldQuery.Builder("stopwords1").addField("stopwords1")
+                    .addField("stopwords2")
+                    .addField(foxTerm.utf8ToString())
+                    .build(),
                 BooleanClause.Occur.SHOULD
             )
             .build();

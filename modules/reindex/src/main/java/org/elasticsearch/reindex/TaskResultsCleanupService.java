@@ -34,7 +34,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
@@ -130,11 +129,7 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         tryStartCleanup(state);
     }
 
-    synchronized void tryStartCleanup(ClusterState state) {
-        if (lifecycle.stoppedOrClosed()) {
-            return;
-        }
-
+    void tryStartCleanup(ClusterState state) {
         // .tasks is created lazily, so a project without it (or without an assigned primary) is simply skipped
         final List<ProjectId> projectsOnLocalNode = state.metadata().projects().keySet().stream().filter(project -> {
             final IndexAbstraction index = state.projectState(project).metadata().getIndicesLookup().get(TASK_INDEX);
@@ -148,34 +143,66 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
             return localNodeId.equals(indexRouting.shard(0).primaryShard().currentNodeId());
         }).toList();
 
-        if (projectsOnLocalNode.isEmpty()) {
-            this.projectsToCleanup = List.of();
-            stopCleanup();
-        } else {
-            this.projectsToCleanup = List.copyOf(projectsOnLocalNode);
-            if (isCleanupRunning == false) {
-                isCleanupRunning = true;
-                executeNextCleanup();
-            }
+        if (updateProjectsAndMarkRunning(projectsOnLocalNode)) {
+            // outside the lock, see executeNextCleanup; it rechecks isCleanupRunning in case a stop got in between
+            logger.debug("starting task results cleanup for projects {}", projectsToCleanup);
+            executeNextCleanup();
         }
     }
 
-    synchronized void executeNextCleanup() {
-        if (isCleanupRunning) {
-            try (var refs = new RefCountingListener(ActionListener.running(this::scheduleNextCleanup))) {
-                for (ProjectId project : projectsToCleanup) {
-                    cleanupIndex(project, refs.acquire());
-                }
+    /**
+     * Records which projects this node should clean up and, if there are any, marks the cleanup as running.
+     *
+     * @return whether the caller must now start the first cleanup, which is the case only when this call is what turned the cleanup from
+     *         stopped to running. Starting it is left to the caller so that it happens outside the lock.
+     */
+    private synchronized boolean updateProjectsAndMarkRunning(List<ProjectId> projectsOnLocalNode) {
+        if (lifecycle.stoppedOrClosed()) {
+            return false;
+        }
+        if (projectsOnLocalNode.isEmpty()) {
+            this.projectsToCleanup = List.of();
+            stopCleanup();
+            return false;
+        }
+        this.projectsToCleanup = List.copyOf(projectsOnLocalNode);
+        final boolean wasRunning = isCleanupRunning;
+        isCleanupRunning = true;
+        return wasRunning == false;
+    }
+
+    void executeNextCleanup() {
+        final Collection<ProjectId> projects;
+        synchronized (this) {
+            if (isCleanupRunning == false) {
+                return;
+            }
+            projects = projectsToCleanup;
+        }
+        logger.debug("running task results cleanup for [{}] project(s)", projects.size());
+        try (var refs = new RefCountingListener(ActionListener.running(this::scheduleNextCleanup))) {
+            for (ProjectId project : projects) {
+                cleanupIndex(project, refs.acquire());
             }
         }
     }
 
     private void cleanupIndex(ProjectId projectId, ActionListener<Void> listener) {
-        final DeleteByQueryRequest toDelete = buildDeleteRequest(System.currentTimeMillis(), retentionPeriod);
+        // read once, so the logged value is the one the request was built from if the setting changes concurrently
+        final TimeValue retention = retentionPeriod;
+        final DeleteByQueryRequest toDelete = buildDeleteRequest(System.currentTimeMillis(), retention);
+        logger.trace("deleting task results older than [{}] from [{}] in project [{}]", retention, TASK_INDEX, projectId);
         projectResolver.executeOnProject(
             projectId,
             () -> clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(response -> {
-                logger.debug("deleted [{}] expired task results from [{}] in project [{}]", response.getDeleted(), TASK_INDEX, projectId);
+                logger.debug(
+                    "deleted [{}] expired task results from [{}] in project [{}] in [{}], skipped [{}] version conflicts",
+                    response.getDeleted(),
+                    TASK_INDEX,
+                    projectId,
+                    response.getTook(),
+                    response.getVersionConflicts()
+                );
                 listener.onResponse(null);
             }, e -> {
                 logger.warn(() -> "failed to delete expired task results from [" + TASK_INDEX + "] in project [" + projectId + "]", e);
@@ -189,7 +216,6 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
         final DeleteByQueryRequest request = new DeleteByQueryRequest(TASK_INDEX).setQuery(
             QueryBuilders.rangeQuery(TASK_START_TIME_IN_MILLIS_PATH).lte(cutoffInMillis)
         );
-        // A conflict means the result was rewritten after it was matched; leave it for the next run.
         request.setAbortOnVersionConflict(false);
         return request;
     }
@@ -197,12 +223,16 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
     synchronized void scheduleNextCleanup() {
         if (isCleanupRunning) {
             try {
-                cancellable = threadPool.schedule(this::executeNextCleanup, cleanupInterval, threadPool.generic());
+                final TimeValue interval = cleanupInterval;
+                logger.debug("scheduling the next task results cleanup in [{}]", interval);
+                cancellable = threadPool.schedule(this::executeNextCleanup, interval, threadPool.generic());
+                logger.debug("scheduled the next task results cleanup in [{}]", interval);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug("failed to schedule next task results cleanup; shutting down", e);
                 } else {
-                    throw e;
+                    logger.warn("failed to schedule next task results cleanup; will retry on the next cluster state change", e);
+                    isCleanupRunning = false;
                 }
             }
         }
@@ -210,10 +240,12 @@ public class TaskResultsCleanupService extends AbstractLifecycleComponent implem
 
     synchronized void stopCleanup() {
         if (isCleanupRunning) {
+            logger.debug("stopping task results cleanup");
             if (cancellable != null && cancellable.isCancelled() == false) {
                 cancellable.cancel();
             }
             isCleanupRunning = false;
+            logger.debug("stopped task results cleanup");
         }
     }
 }

@@ -248,6 +248,48 @@ public class TimestampSortedTopNIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
+     * The bound of a {@code date_nanos} key is in nanoseconds, the resolution of the field.
+     */
+    public void testDateNanosAfterTheSource() throws Exception {
+        assertDateNanos("WHERE LENGTH(message) > 0 | SORT ts DESC");
+    }
+
+    public void testDateNanosSecondarySortAfterTheSource() throws Exception {
+        assertDateNanos("WHERE LENGTH(message) > 0 | SORT ts DESC, message ASC");
+    }
+
+    private void assertDateNanos(String sort) throws Exception {
+        String node = internalCluster().getRandomDataNodeName();
+        createSingleShardIndex("nanos", node, "ts", "type=date_nanos", "message", "type=keyword");
+        List<Long> nanos = new ArrayList<>();
+        for (int batch = 0; batch < 4; batch++) {
+            // several segments, so the bound of the first ones filters the others
+            BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int d = 0; d < DOCS_PER_INDEX; d++) {
+                long value = 1_700_000_000_000_000_000L + randomLongBetween(0, 3_600_000_000_000L);
+                nanos.add(value);
+                Instant instant = Instant.ofEpochSecond(0, value);
+                bulk.add(client().prepareIndex("nanos").setSource("ts", instant.toString(), "message", "m" + d));
+            }
+            assertFalse(bulk.get().hasFailures());
+        }
+        List<String> expected = nanos.stream()
+            .sorted(Comparator.reverseOrder())
+            .limit(LIMIT)
+            .map(n -> Instant.ofEpochSecond(0, n).toString())
+            .toList();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM nanos | " + sort + " | LIMIT " + LIMIT + " | KEEP ts");
+        request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1).build()));
+        request.acceptedPragmaRisks(true);
+        try (EsqlQueryResponse response = run(request)) {
+            List<String> actual = new ArrayList<>();
+            response.values().forEachRemaining(row -> actual.add(Instant.parse((String) row.next()).toString()));
+            assertThat(actual, equalTo(expected));
+        }
+    }
+
+    /**
      * Creates an index on {@code node}, and waits for the clock to pass its creation date, so that the indices created next
      * are more recent.
      */

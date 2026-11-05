@@ -122,15 +122,12 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                // Claim before scheduling so a rejection's onFailure cannot race with timeout/cancel.
                 if (waitComplete.getAsBoolean() == false) {
                     return;
                 }
+                logger.trace("retrying with cluster state version [{}]", state.version());
                 // ClusterStateObserver callbacks may run on the applier thread; hop back to the action executor.
-                executor.execute(ActionRunnable.wrap(listener, l -> {
-                    logger.trace("retrying with cluster state version [{}]", state.version());
-                    innerDoExecute(task, request, l, state);
-                }));
+                executor.execute(ActionRunnable.wrap(listener, l -> innerDoExecute(task, request, l, state)));
             }
 
             @Override

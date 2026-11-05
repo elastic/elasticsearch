@@ -182,29 +182,17 @@ mapping.
 
 #### Indexed `text` fields searched at runtime [esql-runtime-search-analyzers-indexed]
 
-An indexed `text` field is sometimes searched at runtime, such as when `MV_EXPAND` expands it, or when it is not mapped the
-same way across every index the query reads. Its values are then analyzed with the values analyzer of the column, not
-the analyzer its mapping declares (`standard`, unless the `analyzer` option is passed to `TO_TEXT` to declare a different 
-one). In contrast, if a search against a field can use its index, it uses the analyzer from its mapping.
+An indexed `text` field is sometimes searched at runtime, such as after `MV_EXPAND` expands it, or when it is not
+mapped the same way across every index the query reads. Its values are then analyzed with the values analyzer of the
+column, which is `standard` unless `TO_TEXT` declares another, not with the analyzer from its mapping. A search that
+can use the field's index uses the analyzer from its mapping.
 
 :::{warning}
 This substitution is silent. A field whose mapping declares an analyzer other than `standard` is searched differently
 depending on where in the query it is searched, and the query succeeds while matching a different set of rows.
-
-After `MV_EXPAND`, either search the field before the command, or declare the analyzer again with `TO_TEXT`
-afterward, which is allowed once the column is no longer an indexed field:
-
-```esql
-FROM books
-| MV_EXPAND author
-| EVAL a = TO_TEXT(author, {"analyzer": "whitespace"})
-| WHERE MATCH(a, "Tolkien")
-```
-
-A field that is mapped differently across indices has no such remedy: `TO_TEXT` rejects the `analyzer` option on
-it, because it is still a field from an index mapping. Search it only where `standard` gives the results you need,
-or map it the same way in every index.
 :::
+
+##### After `MV_EXPAND` [esql-runtime-search-analyzers-mv-expand]
 
 Which column `MV_EXPAND` expanded decides how a field is searched. Both of these queries expand `author`, which a book
 can have several of, but only the first searches the expanded column, and so runs at runtime:
@@ -225,7 +213,25 @@ FROM books
 | WHERE MATCH(title, "Tolkien")
 ```
 
-A column output by `FORK` is not index-backed either, but there a mapped `text` field is rejected rather than searched
+To search the expanded field with the analyzer from its mapping, either search it before `MV_EXPAND`, or declare the
+analyzer again with `TO_TEXT` afterward, which is allowed once the column is no longer an indexed field:
+
+```esql
+FROM books
+| MV_EXPAND author
+| EVAL a = TO_TEXT(author, {"analyzer": "whitespace"})
+| WHERE MATCH(a, "Tolkien")
+```
+
+##### Fields mapped differently across indices [esql-runtime-search-analyzers-multi-index]
+
+A field that is mapped differently across the indices the query reads has no such remedy: `TO_TEXT` rejects the
+`analyzer` option on it, because it is still a field from an index mapping. Search it only where `standard` gives
+the results you need, or map it the same way in every index.
+
+##### After `FORK` [esql-runtime-search-analyzers-fork]
+
+A column output by `FORK` is not index-backed either, but a mapped `text` field in it is rejected rather than searched
 with a substituted analyzer. Declare the analyzer on the merged column to search it, which is allowed because the
 merged column is no longer an indexed field, or search the field inside the `FORK` branches instead:
 

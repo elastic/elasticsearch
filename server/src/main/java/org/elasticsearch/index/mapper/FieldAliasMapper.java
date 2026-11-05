@@ -147,6 +147,11 @@ public final class FieldAliasMapper extends Mapper {
         }
 
         @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject(leafName()).field("type", CONTENT_TYPE).field(Names.PATH, path).endObject();
+        }
+
+        @Override
         public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
             if (incoming instanceof FieldAliasMapper.Builder == false) {
                 throw new IllegalArgumentException(

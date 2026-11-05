@@ -282,7 +282,8 @@ public class InternalUsersTests extends ESTestCase {
             ".kibana-notifications*",
             ".context-engine-session-events*",
             ".context-engine-session-memory*",
-            ".serverless-recovery-history"
+            ".serverless-recovery-history",
+            ".serverless-shard-movement-history"
         );
         for (var group : role.indices().groups()) {
             if (group.allowRestrictedIndices()) {

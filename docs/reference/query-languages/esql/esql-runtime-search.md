@@ -339,8 +339,14 @@ On an indexed `dense_vector` field, `KNN` runs an approximate search in the vect
 expression, such as the embeddings that [`DENSE_VECTOR`](/reference/query-languages/esql/commands/dense-vector.md)
 generates or a value converted with
 [`TO_DENSE_VECTOR`](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md),
-it runs an exact search instead: it compares the query vector with the vector in every row that reaches it. `KNN` on
-an expression needs a `LIMIT` after it. To get the nearest neighbors, sort by `_score` and then limit the results:
+it runs an exact search instead: it compares the query vector with the vector in every row that reaches it.
+
+### Find the nearest neighbors [esql-runtime-search-knn-nearest]
+
+`KNN` on an expression needs a `LIMIT` after it. To get the nearest neighbors, sort by `_score` and then limit the
+results. This query embeds the `description` of each post in the `cooking_blog` index from the
+[search tutorial](/reference/query-languages/esql/esql-search-tutorial.md#knn-on-dense_vector-expressions), and
+returns the 10 nearest to the query vector:
 
 ```esql
 FROM cooking_blog METADATA _score
@@ -350,11 +356,22 @@ FROM cooking_blog METADATA _score
 | LIMIT 10
 ```
 
+`DENSE_VECTOR` adds an implicit limit of 1000 rows by default, applied before it runs, so `KNN` compares at most
+those 1000 rows, not the whole index. The
+[`esql.command.dense_vector.limit`](/reference/query-languages/esql/commands/dense-vector.md#resource-controls)
+setting changes the default.
+
+### Scoring [esql-runtime-search-knn-scoring]
+
 When the query requests `METADATA _score`, a runtime `KNN` adds the similarity between the two vectors, scaled to a
 relevance score and multiplied by `boost`, to `_score`. It contributes to `_score` only after it runs, the same way as a
-[full-text runtime search](#esql-runtime-search-scoring). The `similarity_function` option picks the similarity
-metric, and the `similarity` option drops rows below a threshold. For the options a runtime `KNN` supports, how it
-picks a default metric, and the vectors it skips with a warning, refer to the
+[full-text runtime search](#esql-runtime-search-scoring).
+
+### Options [esql-runtime-search-knn-options]
+
+The `similarity_function` option picks the similarity metric, and the `similarity` option drops rows below a
+threshold. For the options a runtime `KNN` supports, how it picks a default metric, and the vectors it skips with a
+warning, refer to the
 [`KNN` function reference](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md).
 
 ## Performance [esql-runtime-search-performance]

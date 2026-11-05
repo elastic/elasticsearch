@@ -100,6 +100,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private TestThreadPool threadPool;
     private TransportService mockTransportService;
     private RecordingMeterRegistry meterRegistry;
+    /** The attributes the actions created by {@code createAction} record their search response metrics with. */
+    private Map<String, Object> searchRequestAttributes = Map.of();
 
     @After
     public void cleanTransportService() {
@@ -241,7 +243,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             searchResponseMetrics,
-            Map.of(),
+            searchRequestAttributes,
             false
         ) {
             @Override
@@ -932,41 +934,42 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     public void testRecordStoreMetricsReportsCacheMissWaitInMilliseconds() {
         // 3.5 ms: a fractional millisecond must survive, a long histogram would have recorded 3
-        List<Measurement> measurements = recordCacheMissWait(Map.of(AbstractSearchAsyncAction.CACHE_MISS_WAIT_NANOS_ENTRY_KEY, "3500000"));
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait("3500000"));
         assertThat(measurements, hasSize(1));
         assertTrue(measurements.get(0).isDouble());
         assertThat(measurements.get(0).getDouble(), equalTo(3.5));
     }
 
     public void testRecordStoreMetricsSkipsCacheMissWaitWhenAbsent() {
-        // the stateless metric omits the entry when the request did not wait
-        assertThat(recordCacheMissWait(Map.of(), Map.of("some_other_entry", "3500000")), empty());
-    }
-
-    public void testRecordStoreMetricsIgnoresUnusableCacheMissWait() {
-        // telemetry must not fail the search, and a negative wait is not a measurement
+        // the blob store cache omits the entry when the request did not wait, and an entry of another metric is not a wait
         assertThat(
             recordCacheMissWait(
-                Map.of(AbstractSearchAsyncAction.CACHE_MISS_WAIT_NANOS_ENTRY_KEY, "not a number"),
-                Map.of(AbstractSearchAsyncAction.CACHE_MISS_WAIT_NANOS_ENTRY_KEY, "-1")
+                directoryMetricsOf(new DirectoryMetricsTests.Counter()),
+                directoryMetricsOf(new DirectoryMetricsTests.MetricWithEntry("other", "some_other_entry", "3500000"))
             ),
             empty()
         );
     }
 
     public void testRecordStoreMetricsRecordsCacheMissWaitOfZeroNanos() {
-        List<Measurement> measurements = recordCacheMissWait(Map.of(AbstractSearchAsyncAction.CACHE_MISS_WAIT_NANOS_ENTRY_KEY, "0"));
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait("0"));
         assertThat(measurements, hasSize(1));
         assertThat(measurements.get(0).getDouble(), equalTo(0.0));
     }
 
+    public void testRecordStoreMetricsRecordsCacheMissWaitWithSearchRequestAttributes() {
+        // the attributes the other search response metrics carry, so the wait can be broken down the same way
+        searchRequestAttributes = Map.of("query_type", "match_all", "target", "datastream");
+        List<Measurement> measurements = recordCacheMissWait(cacheMissWait("1000000"));
+        assertThat(measurements, hasSize(1));
+        assertThat(measurements.get(0).attributes(), equalTo(searchRequestAttributes));
+    }
+
     /**
-     * Runs {@code recordStoreMetrics} once for each of {@code entriesPerCall}, on metrics that carry those entries, and returns
-     * everything recorded to the cache miss wait histogram. A single action is used for all calls, because each {@code createAction}
-     * replaces the test's thread pool.
+     * Runs {@code recordStoreMetrics} once for each of {@code calls}, and returns everything recorded to the cache miss wait
+     * histogram. A single action is used for all calls, because each {@code createAction} replaces the test's thread pool.
      */
-    @SafeVarargs
-    private List<Measurement> recordCacheMissWait(Map<String, String>... entriesPerCall) {
+    private List<Measurement> recordCacheMissWait(DirectoryMetrics... calls) {
         try (ArraySearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(1)) {
             AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(
                 new SearchRequest(),
@@ -975,38 +978,27 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 true,
                 new AtomicLong()
             );
-            for (Map<String, String> entries : entriesPerCall) {
-                DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
-                builder.add("entry_metric", new EntryMetric("entry_metric", entries));
-                action.recordStoreMetrics(builder.build());
+            for (DirectoryMetrics directoryMetrics : calls) {
+                action.recordStoreMetrics(directoryMetrics);
             }
             return meterRegistry.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, CACHE_MISS_WAIT_HISTOGRAM_NAME);
         }
     }
 
     /**
-     * A pluggable metric that reports fixed entries. It stands in for the blob store cache metric of the stateless plugin, which
-     * is not on the classpath of this module.
+     * Metrics that report a cache miss wait the way the blob store cache of the stateless plugin does, which is not on the classpath
+     * of this module.
      */
-    private static class EntryMetric extends DirectoryMetricsTests.Counter {
-        private final String name;
-        private final Map<String, String> entries;
+    private static DirectoryMetrics cacheMissWait(String waitNanos) {
+        return directoryMetricsOf(
+            new DirectoryMetricsTests.MetricWithEntry("blob_store_cache", DirectoryMetrics.CACHE_MISS_WAIT_NANOS_ENTRY_KEY, waitNanos)
+        );
+    }
 
-        EntryMetric(String name, Map<String, String> entries) {
-            super(0);
-            this.name = name;
-            this.entries = entries;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return name;
-        }
-
-        @Override
-        public Map<String, String> entries() {
-            return entries;
-        }
+    private static DirectoryMetrics directoryMetricsOf(DirectoryMetricsTests.Counter metric) {
+        DirectoryMetrics.Builder builder = new DirectoryMetrics.Builder();
+        builder.add(metric.getWriteableName(), metric);
+        return builder.build();
     }
 
     private static DirectoryMetrics storeMetrics(long bytesRead) {

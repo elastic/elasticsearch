@@ -737,28 +737,11 @@ public abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult
         recordCacheMissWait(directoryMetrics);
     }
 
-    /**
-     * Key under which the blob store cache reports the time the request waited on cache misses, in nanoseconds. It is the
-     * same entry that becomes part of the search metrics response header, and it is defined as
-     * {@code BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER} in the stateless plugin, which this class cannot
-     * reference. {@code CacheMissWaitTimeHeaderIT} fails if the two drift apart.
-     */
-    static final String CACHE_MISS_WAIT_NANOS_ENTRY_KEY = "cache_miss_wait_nanos";
-
     private void recordCacheMissWait(DirectoryMetrics directoryMetrics) {
         // the entry is absent when the request did not wait, so only requests that waited are recorded
-        String waitNanos = directoryMetrics.entries().get(CACHE_MISS_WAIT_NANOS_ENTRY_KEY);
-        if (waitNanos == null) {
-            return;
-        }
-        try {
-            long nanos = Long.parseLong(waitNanos);
-            if (nanos >= 0) {
-                searchResponseMetrics.recordCacheMissWait(nanos, searchRequestAttributes);
-            }
-        } catch (NumberFormatException e) {
-            // telemetry must never fail a search
-            logger.debug(() -> format("ignoring non-numeric [%s] value [%s]", CACHE_MISS_WAIT_NANOS_ENTRY_KEY, waitNanos), e);
+        String waitNanos = directoryMetrics.entries().get(DirectoryMetrics.CACHE_MISS_WAIT_NANOS_ENTRY_KEY);
+        if (waitNanos != null) {
+            searchResponseMetrics.recordCacheMissWait(Long.parseLong(waitNanos), searchRequestAttributes);
         }
     }
 

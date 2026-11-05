@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.Measurement;
@@ -107,8 +106,7 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
         Map<String, Long> coldCacheMetrics = searchAndCollectDirectoryMetrics(indexName);
         assertThat(coldCacheMetrics, hasKey(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER));
         assertThat(coldCacheMetrics.get(BlobStoreCacheDirectoryMetrics.CACHE_MISS_WAIT_NANOS_HEADER), greaterThan(0L));
-        // the same value reaches the APM metric, in milliseconds. The coordinator reads it from the header entry by its name, so this
-        // also fails if the key in BlobStoreCacheDirectoryMetrics and the one in AbstractSearchAsyncAction drift apart
+        // the same value reaches the APM metric, in milliseconds
         List<Measurement> coldWaitMeasurements = cacheMissWaitMeasurements();
         assertThat(coldWaitMeasurements, hasSize(1));
         assertThat(
@@ -159,22 +157,15 @@ public class CacheMissWaitTimeHeaderIT extends AbstractBlobCacheMetricsIntegTest
     private static List<Measurement> cacheMissWaitMeasurements() {
         List<Measurement> measurements = new ArrayList<>();
         for (String nodeName : internalCluster().getNodeNames()) {
-            measurements.addAll(getTestTelemetryPlugin(nodeName).getDoubleHistogramMeasurement(CACHE_MISS_WAIT_HISTOGRAM_NAME));
+            measurements.addAll(getTelemetryPlugin(nodeName).getDoubleHistogramMeasurement(CACHE_MISS_WAIT_HISTOGRAM_NAME));
         }
         return measurements;
     }
 
     private static void resetTelemetry() {
         for (String nodeName : internalCluster().getNodeNames()) {
-            getTestTelemetryPlugin(nodeName).resetMeter();
+            getTelemetryPlugin(nodeName).resetMeter();
         }
-    }
-
-    private static TestTelemetryPlugin getTestTelemetryPlugin(String nodeName) {
-        return internalCluster().getInstance(PluginsService.class, nodeName)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
     }
 
     private static Map<String, Long> parseDirectoryMetrics(SearchResponse searchResponse) {

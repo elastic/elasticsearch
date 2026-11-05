@@ -34,6 +34,13 @@ import java.util.stream.Collectors;
 public class DirectoryMetrics implements ToXContentFragment, Writeable {
     public static final DirectoryMetrics EMPTY = new DirectoryMetrics(Map.of());
 
+    /**
+     * Key of the {@link #entries()} entry that reports how long a request waited on blob store cache misses, as a whole number of
+     * nanoseconds. The blob store cache of the stateless plugin reports it, and only for requests that waited. It is declared here so
+     * that the search code in this module reads the same key the plugin writes, without depending on the plugin.
+     */
+    public static final String CACHE_MISS_WAIT_NANOS_ENTRY_KEY = "cache_miss_wait_nanos";
+
     public interface PluggableMetrics<T extends PluggableMetrics<T>> extends ToXContentObject, NamedWriteable {
         /**
          * A delta object that measures the delta of the metric between invoking the delta method and

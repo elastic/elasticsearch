@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -157,6 +158,17 @@ final class S3ClientSettings {
         PREFIX,
         "use_throttle_retries",
         key -> Setting.boolSetting(key, true, Property.NodeScope, Property.Deprecated)
+    );
+
+    /**
+     * PROTOTYPE, only on the {@code parquet_doc_value_format} branch and not meant for {@code main}: send unsigned (anonymous) requests,
+     * so that a client can read a public bucket such as the ClickBench one without any AWS credentials. It applies only when no access
+     * key is configured for the client. The default is false, and {@code ./gradlew run} sets it to true on this branch.
+     */
+    static final Setting.AffixSetting<Boolean> ANONYMOUS = Setting.affixKeySetting(
+        PREFIX,
+        "anonymous",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
     );
 
     /** Whether the s3 client should use path style access. */
@@ -536,6 +548,10 @@ final class S3ClientSettings {
                 }
                 if (sessionToken.length() != 0) {
                     throw new IllegalArgumentException("Missing access key and secret key for s3 client [" + clientName + "]");
+                }
+                if (getConfigValue(settings, clientName, ANONYMOUS)) {
+                    // PROTOTYPE: the SDK does not sign a request that carries anonymous credentials
+                    return AnonymousCredentialsProvider.create().resolveCredentials();
                 }
                 return null;
             }

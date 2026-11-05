@@ -29,6 +29,10 @@ testClusters.register("runTask") {
       // Not enabled by default in the build, otherwise all integration tests will download the databases from our geoip download service:
       systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
       setting 'xpack.security.enabled', 'true'
+      // PROTOTYPE, only on the parquet_doc_value_format branch and not meant for main: read the public ClickBench bucket without credentials.
+      // The anonymous setting exists only in the prototype change of repository-s3 on this branch.
+      setting 's3.client.default.anonymous', 'true'
+      setting 's3.client.default.region', 'eu-central-1'
       keystore 'bootstrap.password', 'password'
       keystore 'cluster.state.encryption.password.local-dev', 'local-dev-password'
       keystore 'cluster.state.encryption.active_password_id', 'local-dev'

@@ -157,11 +157,17 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
             var split = indexMetadata.getReshardingMetadata().getSplit();
 
             if (split.isTargetShard(shardId)) {
-                // A split target in `DONE` no longer recovers from its source. Once the other remaining source shards are
-                // done the resharding metadata could be removed regardless of this shard's routing, which would leave a
-                // `RESHARD_SPLIT` recovery source without a matching split target. Once resharding completes, this shard
-                // can be allocated as a regular empty primary.
-                if (split.targetStateAtLeast(shardId, IndexReshardingState.Split.TargetShardState.DONE)) {
+                // A split target only recovers from its source in `CLONE`. Past that, a `RESHARD_SPLIT` recovery resumes
+                // the split from the target's own data.
+                // We still allow `HANDOFF` as an exception: a target that fails during its first recovery in `HANDOFF`
+                // keeps its `RESHARD_SPLIT` recovery source, so `allocate_stale_primary` rejects it and this is the only
+                // command that can force its allocation.
+                // From `SPLIT` onwards the target has always been started, so `allocate_stale_primary` covers it. In
+                // `DONE`, a `RESHARD_SPLIT` recovery source could also outlive the resharding metadata, which is removed
+                // once the remaining source shards are done, regardless of this shard's routing. Once resharding completes,
+                // this shard can be allocated as a regular empty primary.
+                if (split.targetStateAtLeast(shardId, IndexReshardingState.Split.TargetShardState.SPLIT)) {
+                    final boolean done = split.targetStateAtLeast(shardId, IndexReshardingState.Split.TargetShardState.DONE);
                     return explainOrThrowRejectedCommand(
                         explain,
                         allocation,
@@ -169,8 +175,10 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
                             + index
                             + "]["
                             + shardId
-                            + "] is not allowed, this is a split target that has already completed its split, retry once "
-                            + "resharding of the index has finished"
+                            + "] is not allowed, this is a split target in state ["
+                            + split.getTargetShardState(shardId)
+                            + "], use [allocate_stale_primary] to allocate it from its existing data"
+                            + (done ? " or retry once resharding of the index has finished" : "")
                     );
                 }
                 var sourceShard = new ShardId(shardRouting.index(), split.sourceShard(shardId));

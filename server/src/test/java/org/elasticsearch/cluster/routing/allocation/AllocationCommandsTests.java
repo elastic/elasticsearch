@@ -753,6 +753,15 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .build()
         );
 
+        // The target has never been started, and is either still in CLONE or HANDOFF.
+        IndexReshardingMetadata reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
+        if (randomBoolean()) {
+            reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(
+                new ShardId(indexName, "_na_", 1),
+                IndexReshardingState.Split.TargetShardState.HANDOFF
+            );
+        }
+
         Metadata metadata = Metadata.builder()
             .put(
                 ProjectMetadata.builder(projectId)
@@ -761,7 +770,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                             .settings(settings(IndexVersion.current()))
                             .numberOfShards(2)
                             .numberOfReplicas(1)
-                            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(1, 2))
+                            .reshardingMetadata(reshardingMetadata)
                             .putInSyncAllocationIds(0, Collections.singleton("asdf"))
                             .putInSyncAllocationIds(1, Collections.emptySet())
                     )
@@ -795,9 +804,95 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         assertEquals(RecoverySource.Type.RESHARD_SPLIT, newRouting.recoverySource().getType());
     }
 
+    public void testAllocateEmptyPrimaryRejectedForSplitStateSplitTarget() {
+        final String indexName = randomIndexName();
+        final AllocationService allocation = createAllocationService();
+        final ClusterState clusterState = failedStartedSplitTargetState(
+            allocation,
+            indexName,
+            IndexReshardingState.Split.TargetShardState.SPLIT
+        );
+
+        final var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> allocation.reroute(
+                clusterState,
+                new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand(indexName, 1, "node1", true, projectId)),
+                false,
+                false,
+                false,
+                ActionListener.noop()
+            )
+        );
+        assertThat(e.getMessage(), containsString("is not allowed, this is a split target in state [SPLIT]"));
+        assertThat(e.getMessage(), containsString("use [allocate_stale_primary]"));
+        assertThat(e.getMessage(), not(containsString("retry once resharding of the index has finished")));
+
+        // The target has been started before, so it can be force-allocated from its existing data instead.
+        final ClusterState newState = allocation.reroute(
+            clusterState,
+            new AllocationCommands(new AllocateStalePrimaryAllocationCommand(indexName, 1, "node1", true, projectId)),
+            false,
+            false,
+            false,
+            ActionListener.noop()
+        ).clusterState();
+        final var shardId = new ShardId(clusterState.metadata().getProject(projectId).index(indexName).getIndex(), 1);
+        final var newRouting = newState.getRoutingNodes().node("node1").getByShardId(shardId);
+        assertTrue(newRouting.initializing());
+        assertEquals(RecoverySource.Type.EXISTING_STORE, newRouting.recoverySource().getType());
+    }
+
     public void testAllocateEmptyPrimaryRejectedForDoneSplitTarget() {
         final String indexName = randomIndexName();
         final AllocationService allocation = createAllocationService();
+        final ClusterState clusterState = failedStartedSplitTargetState(
+            allocation,
+            indexName,
+            IndexReshardingState.Split.TargetShardState.DONE
+        );
+        final ShardId shardId = new ShardId(clusterState.metadata().getProject(projectId).index(indexName).getIndex(), 1);
+
+        final AllocationCommands commands = new AllocationCommands(
+            new AllocateEmptyPrimaryAllocationCommand(indexName, shardId.id(), "node1", true, projectId)
+        );
+
+        final var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> allocation.reroute(clusterState, commands, false, false, false, ActionListener.noop())
+        );
+        assertThat(e.getMessage(), containsString("is not allowed, this is a split target in state [DONE]"));
+        assertThat(e.getMessage(), containsString("use [allocate_stale_primary]"));
+        assertThat(e.getMessage(), containsString("retry once resharding of the index has finished"));
+
+        // Once resharding completes and its metadata is removed, the shard is allocated as a regular empty primary.
+        final ClusterState reshardingCompleted = ClusterState.builder(clusterState)
+            .putProjectMetadata(
+                ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
+                    .put(
+                        IndexMetadata.builder(clusterState.metadata().getProject(projectId).index(indexName))
+                            .reshardingMetadata(null)
+                            .build(),
+                        true
+                    )
+            )
+            .build();
+        final ClusterState newState = allocation.reroute(reshardingCompleted, commands, false, false, false, ActionListener.noop())
+            .clusterState();
+        final var newRouting = newState.getRoutingNodes().node("node1").getByShardId(shardId);
+        assertTrue(newRouting.initializing());
+        assertEquals(RecoverySource.Type.EMPTY_STORE, newRouting.recoverySource().getType());
+    }
+
+    /// Builds a cluster state where split target shard 1 was started, went through the split up to `targetState`, and
+    /// then failed. It has no other copy, so it stays unassigned with an `EXISTING_STORE` recovery source.
+    private ClusterState failedStartedSplitTargetState(
+        AllocationService allocation,
+        String indexName,
+        IndexReshardingState.Split.TargetShardState targetState
+    ) {
+        assert targetState == IndexReshardingState.Split.TargetShardState.SPLIT
+            || targetState == IndexReshardingState.Split.TargetShardState.DONE : "split target need to be in a started compatible state";
 
         // Index with one source shard splitting into a new target shard 1.
         final IndexMetadata initialIndexMetadata = IndexMetadata.builder(indexName)
@@ -829,16 +924,18 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertTrue(clusterState.routingTable(projectId).shardRoutingTable(shardId).primaryShard().started());
 
-        // The target goes through the split and reaches DONE, while the source shard has not finished yet.
+        // The target goes through the split up to the given state, while the source shard has not finished yet.
         final IndexMetadata startedIndexMetadata = clusterState.metadata().getProject(projectId).index(indexName);
-        final IndexReshardingMetadata doneReshardingMetadata = startedIndexMetadata.getReshardingMetadata()
-            .transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF)
-            .transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.SPLIT)
-            .transitionSplitTargetToNewState(shardId, IndexReshardingState.Split.TargetShardState.DONE);
+        IndexReshardingMetadata reshardingMetadata = startedIndexMetadata.getReshardingMetadata();
+        for (var state : IndexReshardingState.Split.TargetShardState.values()) {
+            if (state.ordinal() > IndexReshardingState.Split.TargetShardState.CLONE.ordinal() && state.ordinal() <= targetState.ordinal()) {
+                reshardingMetadata = reshardingMetadata.transitionSplitTargetToNewState(shardId, state);
+            }
+        }
         clusterState = ClusterState.builder(clusterState)
             .putProjectMetadata(
                 ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
-                    .put(IndexMetadata.builder(startedIndexMetadata).reshardingMetadata(doneReshardingMetadata).build(), true)
+                    .put(IndexMetadata.builder(startedIndexMetadata).reshardingMetadata(reshardingMetadata).build(), true)
             )
             .build();
 
@@ -858,35 +955,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         final var primary = clusterState.routingTable(projectId).shardRoutingTable(shardId).primaryShard();
         assertTrue(primary.unassigned());
         assertThat(primary.recoverySource().getType(), equalTo(RecoverySource.Type.EXISTING_STORE));
-
-        final AllocationCommands commands = new AllocationCommands(
-            new AllocateEmptyPrimaryAllocationCommand(indexName, shardId.id(), "node1", true, projectId)
-        );
-
-        final ClusterState failedState = clusterState;
-        final var e = expectThrows(
-            IllegalArgumentException.class,
-            () -> allocation.reroute(failedState, commands, false, false, false, ActionListener.noop())
-        );
-        assertThat(e.getMessage(), containsString("is not allowed, this is a split target that has already completed its split"));
-
-        // Once resharding completes and its metadata is removed, the shard is allocated as a regular empty primary.
-        final ClusterState reshardingCompleted = ClusterState.builder(clusterState)
-            .putProjectMetadata(
-                ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
-                    .put(
-                        IndexMetadata.builder(clusterState.metadata().getProject(projectId).index(indexName))
-                            .reshardingMetadata(null)
-                            .build(),
-                        true
-                    )
-            )
-            .build();
-        final ClusterState newState = allocation.reroute(reshardingCompleted, commands, false, false, false, ActionListener.noop())
-            .clusterState();
-        final var newRouting = newState.getRoutingNodes().node("node1").getByShardId(shardId);
-        assertTrue(newRouting.initializing());
-        assertEquals(RecoverySource.Type.EMPTY_STORE, newRouting.recoverySource().getType());
+        return clusterState;
     }
 
     public void testCanceledShardIsInitializedRespectingAllocationDeciders() {

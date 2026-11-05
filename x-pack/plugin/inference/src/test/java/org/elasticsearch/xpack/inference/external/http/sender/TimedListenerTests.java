@@ -206,6 +206,22 @@ public class TimedListenerTests extends ESTestCase {
         assertThat(abortCount.get(), is(0));
     }
 
+    public void testAbortHandler_Runs_WhenOnResponseThrows() {
+        @SuppressWarnings("unchecked")
+        ActionListener<InferenceServiceResults> listener = mock(ActionListener.class);
+        doAnswer(invocation -> { throw new IllegalStateException("cannot consume the response"); }).when(listener).onResponse(any());
+        var timedListener = new TimedListener<>(null, listener, threadPool, INFERENCE_ID);
+
+        var abortCount = new AtomicInteger();
+        timedListener.addAbortHandler(abortCount::incrementAndGet);
+
+        timedListener.getListener().onResponse(mock(InferenceServiceResults.class));
+
+        // nobody consumes the response, so the work backing it is abandoned
+        verify(listener, times(1)).onFailure(any(IllegalStateException.class));
+        assertThat(abortCount.get(), is(1));
+    }
+
     public void testAbortHandler_FailureDoesNotPreventOtherAbortHandlers() {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var timedListener = new TimedListener<>(null, listener, threadPool, INFERENCE_ID);

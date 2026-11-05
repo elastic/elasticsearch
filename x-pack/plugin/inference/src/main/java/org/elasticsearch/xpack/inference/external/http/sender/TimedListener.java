@@ -37,7 +37,7 @@ public class TimedListener<Response> {
 
     private final ActionListener<Response> listenerWithTimeout;
     private final AtomicBoolean completed = new AtomicBoolean();
-    private final SubscribableListener<Boolean> failed = new SubscribableListener<>();
+    private final SubscribableListener<Void> failed = new SubscribableListener<>();
 
     public TimedListener(@Nullable TimeValue timeout, ActionListener<Response> listener, ThreadPool threadPool, String inferenceId) {
         listenerWithTimeout = getListener(
@@ -56,17 +56,13 @@ public class TimedListener<Response> {
     ) {
         ActionListener<Response> notificationListener = ActionListener.notifyOnce(ActionListener.wrap(result -> {
             completed.set(true);
-            try {
-                origListener.onResponse(result);
-            } finally {
-                failed.onResponse(false);
-            }
+            origListener.onResponse(result);
         }, e -> {
             completed.set(true);
             try {
                 origListener.onFailure(e);
             } finally {
-                failed.onResponse(true);
+                failed.onResponse(null);
             }
         }));
 
@@ -93,18 +89,19 @@ public class TimedListener<Response> {
 
     /**
      * Registers an action that aborts work started on behalf of this listener. The action runs once the listener fails (including
-     * timing out), or immediately if it has already failed. It is dropped without running if the listener succeeds, because a
-     * successful response may still be backed by that work (e.g. a streamed response body).
+     * timing out, or the original listener throwing from {@code onResponse}), or immediately if it has already failed. It never runs
+     * if the listener succeeds, because a successful response may still be backed by that work (e.g. a streamed response body).
      *
      * @param abortHandler the action releasing the resources held by the abandoned work, it must be safe to call more than once
      */
     public void addAbortHandler(Runnable abortHandler) {
         Objects.requireNonNull(abortHandler);
-        failed.addListener(ActionListener.wrap(hasFailed -> {
-            if (hasFailed) {
-                abortHandler.run();
-            }
-        }, e -> logger.warn("Failed to abort the work of a failed inference request", e)));
+        failed.addListener(
+            ActionListener.wrap(
+                ignored -> abortHandler.run(),
+                e -> logger.warn("Failed to abort the work of a failed inference request", e)
+            )
+        );
     }
 
     /**

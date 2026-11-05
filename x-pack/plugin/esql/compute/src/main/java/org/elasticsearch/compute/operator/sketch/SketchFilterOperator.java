@@ -87,6 +87,13 @@ public final class SketchFilterOperator implements Operator {
     private long rowsReceived;
     private long rowsEmitted;
 
+    /** Timing for the profile, see {@link #toString}. All are {@link System#nanoTime} values or durations, {@code 0} until set. */
+    private long firstInputNanos;
+    private long arrivedNanos;
+    private long lastOutputNanos;
+    private long sketchNanos;
+    private long filterNanos;
+
     SketchFilterOperator(DriverContext driverContext, int keyChannel, CountSketch sketch, SketchFilterBarrier barrier) {
         this.driverContext = driverContext;
         this.keyChannel = keyChannel;
@@ -104,9 +111,15 @@ public final class SketchFilterOperator implements Operator {
     @Override
     public void addInput(Page page) {
         rowsReceived += page.getPositionCount();
+        if (firstInputNanos == 0) {
+            firstInputNanos = System.nanoTime();
+        }
         long counted = 0;
         if (passthrough == false) {
-            if (barrier.aborted() || sketchPage(page) == false) {
+            final long sketchStart = System.nanoTime();
+            final boolean sketched = barrier.aborted() == false && sketchPage(page);
+            sketchNanos += System.nanoTime() - sketchStart;
+            if (sketched == false) {
                 giveUp();
             } else {
                 // An estimate that does not walk the blocks: this runs once per page and the exact size is not needed for the limit.
@@ -155,6 +168,7 @@ public final class SketchFilterOperator implements Operator {
     private void arrive() {
         if (arrived == false) {
             arrived = true;
+            arrivedNanos = System.nanoTime();
             barrier.arrive(sketch);
         }
     }
@@ -187,12 +201,15 @@ public final class SketchFilterOperator implements Operator {
             barrier.unbuffer(buffered.countedBytes);
             Page page = buffered.page;
             if (filter) {
+                final long filterStart = System.nanoTime();
                 page = filter(page);
+                filterNanos += System.nanoTime() - filterStart;
                 if (page == null) {
                     continue;
                 }
             }
             rowsEmitted += page.getPositionCount();
+            lastOutputNanos = System.nanoTime();
             return page;
         }
         return null;
@@ -257,8 +274,28 @@ public final class SketchFilterOperator implements Operator {
         driverContext.breaker().addWithoutBreaking(-sketchBytes);
     }
 
+    /**
+     * The first three fields are read by tests and by the profile scripts, so they keep their place. The rest is timing: times are
+     * milliseconds since the first operator of the query was built ({@code startEpochMs} is that moment as wall-clock time),
+     * {@code sketchMs} and {@code filterMs} are the time spent counting keys and filtering pages by this operator.
+     */
     @Override
     public String toString() {
-        return "SketchFilterOperator[rowsReceived=" + rowsReceived + ", rowsEmitted=" + rowsEmitted + ", passthrough=" + passthrough + "]";
+        return String.format(
+            java.util.Locale.ROOT,
+            "SketchFilterOperator[rowsReceived=%d, rowsEmitted=%d, passthrough=%s, startEpochMs=%d, firstInputMs=%.1f, arrivedMs=%.1f, "
+                + "decideStartMs=%.1f, decideEndMs=%.1f, lastOutputMs=%.1f, sketchMs=%.1f, filterMs=%.1f]",
+            rowsReceived,
+            rowsEmitted,
+            passthrough,
+            barrier.startEpochMillis(),
+            barrier.millisSinceStart(firstInputNanos),
+            barrier.millisSinceStart(arrivedNanos),
+            barrier.millisSinceStart(barrier.decideStartNanos()),
+            barrier.millisSinceStart(barrier.decideEndNanos()),
+            barrier.millisSinceStart(lastOutputNanos),
+            sketchNanos / 1_000_000.0,
+            filterNanos / 1_000_000.0
+        );
     }
 }

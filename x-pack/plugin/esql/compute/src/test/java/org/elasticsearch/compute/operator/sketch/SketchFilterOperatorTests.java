@@ -153,6 +153,49 @@ public class SketchFilterOperatorTests extends ESTestCase {
         }
     }
 
+    private static double field(String status, String name) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[ \\[]" + name + "=(-?[0-9.]+)").matcher(status);
+        assertTrue(name + " in " + status, m.find());
+        return Double.parseDouble(m.group(1));
+    }
+
+    /** The timing in {@code toString} is what the profile shows, so it must be in the order the events happen in. */
+    public void testTimingIsRecordedInOrder() {
+        long[] rows = skewedRows(100_000);
+        int drivers = 4;
+        var factory = new SketchFilterOperator.Factory(0, 4096, TOP_N, 4096, Long.MAX_VALUE);
+        Operator[] ops = build(factory, drivers);
+        try {
+            run(ops, rows, true, false);
+            double maxArrived = 0;
+            for (Operator op : ops) {
+                String status = op.toString();
+                double firstInput = field(status, "firstInputMs");
+                double arrived = field(status, "arrivedMs");
+                assertThat(status, firstInput >= 0, equalTo(true));
+                assertThat(status, arrived >= firstInput, equalTo(true));
+                assertThat(status, field(status, "sketchMs") > 0, equalTo(true));
+                assertThat(status, field(status, "filterMs") >= 0, equalTo(true));
+                maxArrived = Math.max(maxArrived, arrived);
+            }
+            for (Operator op : ops) {
+                String status = op.toString();
+                double decideStart = field(status, "decideStartMs");
+                double decideEnd = field(status, "decideEndMs");
+                // The proof starts when the last driver has arrived, and the same proof is shown on every operator.
+                assertThat(status, decideStart >= maxArrived, equalTo(true));
+                assertThat(status, decideEnd >= decideStart, equalTo(true));
+                assertThat(status, decideStart, equalTo(field(ops[0].toString(), "decideStartMs")));
+                if (field(status, "rowsEmitted") > 0) {
+                    assertThat(status, field(status, "lastOutputMs") >= decideEnd, equalTo(true));
+                }
+                assertThat(status, field(status, "startEpochMs") > 0, equalTo(true));
+            }
+        } finally {
+            org.elasticsearch.core.Releasables.close(ops);
+        }
+    }
+
     public void testUniformDataIsNotFiltered() {
         long[] rows = new long[50_000];
         for (int i = 0; i < rows.length; i++) {
@@ -271,9 +314,9 @@ public class SketchFilterOperatorTests extends ESTestCase {
      */
     public void testProofMatchesItsDefinition() {
         int passes = 0;
-        for (int trial = 0; trial < 60; trial++) {
-            int drivers = between(1, 6);
-            int slots = randomFrom(64, 256, 1024);
+        for (int trial = 0; trial < 120; trial++) {
+            int drivers = randomBoolean() ? between(1, 6) : between(7, 19);
+            int slots = randomFrom(64, 256, 1024, 4096);
             int topN = between(1, 10);
             CountSketch[] sketches = new CountSketch[drivers];
             for (int d = 0; d < drivers; d++) {

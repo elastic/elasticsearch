@@ -55,6 +55,15 @@ public final class SketchFilterBarrier {
     private volatile LongSet candidates;
 
     /**
+     * Timing, for the profile only. {@code t0} is when the first operator was registered, which is when the drivers are built, a few
+     * milliseconds before they start. The other times are {@link System#nanoTime} values and are shown relative to {@code t0}.
+     */
+    private volatile long t0Nanos;
+    private volatile long t0EpochMillis;
+    private volatile long decideStartNanos;
+    private volatile long decideEndNanos;
+
+    /**
      * @param topN             the {@code N} of {@code LIMIT N}
      * @param maxCandidates    give up if more keys than this can be in the top N, because the filter would not help
      * @param maxBufferedBytes the most bytes of pages that all operators together can hold before the barrier gives up
@@ -70,7 +79,33 @@ public final class SketchFilterBarrier {
 
     /** Count one more operator that will arrive. Called when an operator is built. */
     void register() {
+        if (t0Nanos == 0) {
+            synchronized (this) {
+                if (t0Nanos == 0) {
+                    t0EpochMillis = System.currentTimeMillis();
+                    t0Nanos = System.nanoTime();
+                }
+            }
+        }
         registered.incrementAndGet();
+    }
+
+    /** Milliseconds from the registration of the first operator to {@code nanos}, or {@code -1} if {@code nanos} was never set. */
+    double millisSinceStart(long nanos) {
+        return nanos == 0 ? -1 : (nanos - t0Nanos) / 1_000_000.0;
+    }
+
+    /** The wall-clock time of the registration of the first operator, to line the timing up with a driver profile. */
+    long startEpochMillis() {
+        return t0EpochMillis;
+    }
+
+    long decideStartNanos() {
+        return decideStartNanos;
+    }
+
+    long decideEndNanos() {
+        return decideEndNanos;
     }
 
     /**
@@ -89,6 +124,7 @@ public final class SketchFilterBarrier {
             last = arrived.incrementAndGet() == registered.get();
         }
         if (last) {
+            decideStartNanos = System.nanoTime();
             try {
                 candidates = failed ? null : decide();
             } catch (RuntimeException e) {
@@ -96,6 +132,7 @@ public final class SketchFilterBarrier {
                 logger.warn("sketch proof failed, not filtering", e);
                 candidates = null;
             } finally {
+                decideEndNanos = System.nanoTime();
                 synchronized (this) {
                     sketches.clear();
                 }
@@ -153,51 +190,55 @@ public final class SketchFilterBarrier {
     /**
      * Merge the sketches and apply the proof. Returns the candidates, or {@code null} if the proof does not pass.
      * <p>
-     * It never builds a map of all the tracked keys, which is too slow for 20 sketches of 64K slots, and it runs while every
-     * other driver waits. It uses two facts instead.
-     * <ul>
-     * <li>{@code lo(k)} is at most {@code drivers * max c} over the slots of {@code k}. So all keys with {@code lo(k) >= drivers * c1}
-     * have a slot with {@code c >= c1}. Taking the keys of the slots with {@code c >= c1} as seeds, and computing their exact
-     * {@code lo}, gives the exact N-th largest {@code lo}, as soon as it is at least {@code drivers * c1}.</li>
-     * <li>{@code hi(k) = sumCmin(b) + sum over the drivers that track k of (c - cmin_d(b))}, and {@code sumCmin(b) <= B}. A candidate
-     * has {@code hi(k) >= L}, so the sum of the excesses {@code c - cmin_d(b)} of its slots is at least {@code L - B}, and one slot
-     * has an excess of at least {@code (L - B) / drivers}. Such slots are rare.</li>
-     * </ul>
+     * All sketches use the same bucket function, so a key is in the same bucket of every sketch, and everything the proof needs to
+     * know about a key is in one bucket of each of the {@code drivers} tables. The proof therefore goes through the buckets, not
+     * through a map of all keys, and it runs while every other driver waits, so it must be fast.
+     * <ol>
+     * <li>One sweep over all buckets records, for each bucket: {@code sumCmin}, the sum over the drivers of the bucket's
+     * {@code c_min} (the bound for a key that no driver tracks is the largest one); {@code sumLo}, the sum of {@code c - e} of all
+     * its slots, which is at least {@code lo} of any key in the bucket; and {@code maxHi}, {@code sumCmin} plus the sum of
+     * {@code c - c_min} of all its slots, which is at least {@code hi} of any key in the bucket.</li>
+     * <li>{@code L}, the N-th largest {@code lo}: take the buckets by decreasing {@code sumLo}, group their slots by key, and stop
+     * when the next {@code sumLo} cannot beat the N-th largest found so far. The heavy keys are found first.</li>
+     * <li>The candidates, the keys with {@code hi >= L}: only the buckets with {@code maxHi >= L} need to be grouped.</li>
+     * </ol>
      */
     private LongSet decide() {
         final List<CountSketch> ds;
         synchronized (this) {
             ds = new ArrayList<>(sketches);
         }
-        final int drivers = ds.size();
         final int buckets = ds.get(0).buckets();
-        for (CountSketch s : ds) {
-            if (s.buckets() != buckets) {
+        final long[][] tables = new long[ds.size()][];
+        for (int d = 0; d < tables.length; d++) {
+            if (ds.get(d).buckets() != buckets) {
                 throw new IllegalStateException("sketches have different sizes");
             }
+            tables[d] = ds.get(d).table();
         }
-        // The bound for a key that no driver tracks: the largest sum over the drivers of the c_min of a bucket.
-        final long[] sumCmin = new long[buckets];
-        for (CountSketch s : ds) {
-            for (int b = 0; b < buckets; b++) {
-                sumCmin[b] += s.cmin(b);
-            }
+        if (buckets >= (1 << BUCKET_BITS)) {
+            throw new IllegalStateException("too many buckets [" + buckets + "]");
         }
+        final BucketMerger merger = new BucketMerger(tables);
+        final long[] sumLo = new long[buckets];
+        final long[] maxHi = new long[buckets];
         long bound = 0;
-        for (long v : sumCmin) {
-            bound = Math.max(bound, v);
+        for (int b = 0; b < buckets; b++) {
+            merger.summarize(b);
+            sumLo[b] = merger.sumLo;
+            maxHi[b] = merger.maxHi;
+            bound = Math.max(bound, merger.sumCmin);
         }
-        final long lowest = nthLargestLowerBound(ds);
+        final long lowest = nthLargestLowerBound(merger, sumLo);
         if (lowest < 0) {
-            logger.debug("sketch proof failed: could not find the [{}]-th lower bound", topN);
+            logger.debug("sketch proof failed: fewer than [{}] tracked keys with a lower bound", topN);
             return null;
         }
         if (lowest <= bound) {
             logger.debug("sketch proof failed: lowest top lower bound [{}] is not above the bound [{}]", lowest, bound);
             return null;
         }
-        final long minExcess = Math.max(1, (lowest - bound + drivers - 1) / drivers);
-        final long[] found = candidates(ds, lowest, minExcess);
+        final long[] found = candidates(merger, maxHi, lowest);
         if (found == null) {
             logger.debug("sketch proof failed: more than [{}] candidates", maxCandidates);
             return null;
@@ -206,189 +247,185 @@ public final class SketchFilterBarrier {
         return new LongSet(found);
     }
 
-    /** At most this many seed keys. More means the sketches are too flat for the proof to be worth it. */
-    private static final int MAX_SEEDS = 1 << 20;
+    private static final int BUCKET_BITS = 21;
 
     /**
-     * The exact N-th largest lower bound over all tracked keys, or {@code -1} if it cannot be found cheaply.
+     * The exact N-th largest {@code lo} over all tracked keys, or {@code -1} if there are fewer than N keys with a positive one.
      */
-    private long nthLargestLowerBound(List<CountSketch> ds) {
-        final int drivers = ds.size();
-        long c1 = 1024;
-        for (int attempt = 0; attempt < 24; attempt++) {
-            KeyMap seeds = collectSeeds(ds, c1);
-            if (seeds == null) {
-                c1 *= 2; // too many seeds
-                continue;
+    private long nthLargestLowerBound(BucketMerger merger, long[] sumLo) {
+        final int buckets = sumLo.length;
+        final long[] order = new long[buckets];
+        for (int b = 0; b < buckets; b++) {
+            if (sumLo[b] >= (1L << (63 - BUCKET_BITS))) {
+                throw new IllegalStateException("lower bound too large [" + sumLo[b] + "]");
             }
-            if (seeds.size >= topN) {
-                long lowest = seeds.nthLargestLow(topN);
-                if (lowest >= drivers * c1 || c1 == 1) {
-                    return lowest;
-                }
-            } else if (c1 == 1) {
-                return -1;
-            }
-            c1 = Math.max(1, c1 / 2);
+            order[b] = (sumLo[b] << BUCKET_BITS) | b;
         }
-        return -1;
-    }
-
-    /** The distinct keys of the slots with {@code c >= minCount}, with their exact lower bound. Null if there are too many. */
-    private static KeyMap collectSeeds(List<CountSketch> ds, long minCount) {
-        final KeyMap seeds = new KeyMap();
-        for (CountSketch sketch : ds) {
-            final long[] t = sketch.table();
-            for (int i = 0; i < t.length; i += 2) {
-                long meta = t[i + 1];
-                if (meta != 0 && (meta >>> 32) >= minCount) {
-                    long key = t[i];
-                    if (seeds.contains(key) == false) {
-                        seeds.add(key, lowerBound(ds, key));
-                        if (seeds.size > MAX_SEEDS) {
-                            return null;
-                        }
+        Arrays.sort(order);
+        final long[] top = new long[topN]; // ascending: top[0] is the smallest of the N largest so far
+        Arrays.fill(top, Long.MIN_VALUE);
+        for (int i = buckets - 1; i >= 0; i--) {
+            final long bucketSumLo = order[i] >>> BUCKET_BITS;
+            if (bucketSumLo == 0 || (top[0] != Long.MIN_VALUE && bucketSumLo <= top[0])) {
+                break; // no key in this bucket, or in any later one, can be among the N largest
+            }
+            merger.summarize((int) (order[i] & ((1L << BUCKET_BITS) - 1)));
+            merger.group();
+            for (int g = 0; g < merger.groups; g++) {
+                final long lo = merger.groupLo[g];
+                if (lo > top[0]) {
+                    int j = 0;
+                    while (j + 1 < topN && top[j + 1] < lo) {
+                        top[j] = top[j + 1];
+                        j++;
                     }
+                    top[j] = lo;
                 }
             }
+            merger.reset();
         }
-        return seeds;
+        return top[0] == Long.MIN_VALUE ? -1 : top[0];
     }
 
-    /** The keys with {@code hi >= lowest}, found among the slots with an excess over their bucket bound of at least minExcess. */
-    private long[] candidates(List<CountSketch> ds, long lowest, long minExcess) {
-        final KeyMap seen = new KeyMap();
+    /** The keys with {@code hi >= lowest}, or null if there are more than {@code maxCandidates}. */
+    private long[] candidates(BucketMerger merger, long[] maxHi, long lowest) {
         long[] out = new long[16];
         int n = 0;
-        for (CountSketch sketch : ds) {
-            final long[] t = sketch.table();
-            for (int base = 0; base < t.length; base += CountSketch.LONGS_PER_BUCKET) {
-                final long cmin = bucketCmin(t, base);
-                for (int i = base; i < base + CountSketch.LONGS_PER_BUCKET; i += 2) {
-                    long meta = t[i + 1];
-                    if (meta != 0 && (meta >>> 32) - cmin >= minExcess) {
-                        long key = t[i];
-                        if (seen.contains(key) == false) {
-                            seen.add(key, 0);
-                            if (upperBound(ds, key) >= lowest) {
-                                if (n == maxCandidates) {
-                                    return null;
-                                }
-                                if (n == out.length) {
-                                    out = Arrays.copyOf(out, Math.min(maxCandidates, out.length * 2));
-                                }
-                                out[n++] = key;
-                            }
-                        }
+        for (int b = 0; b < maxHi.length; b++) {
+            if (maxHi[b] < lowest) {
+                continue;
+            }
+            merger.summarize(b);
+            merger.group();
+            for (int g = 0; g < merger.groups; g++) {
+                if (merger.groupHiTracked[g] + merger.sumCmin - merger.groupTrackedCmin[g] >= lowest) {
+                    if (n == maxCandidates) {
+                        return null;
                     }
+                    if (n == out.length) {
+                        out = Arrays.copyOf(out, Math.min(maxCandidates, out.length * 2));
+                    }
+                    out[n++] = merger.groupKey[g];
                 }
             }
+            merger.reset();
         }
         return Arrays.copyOf(out, n);
     }
 
-    private static long bucketCmin(long[] t, int base) {
-        long min = Long.MAX_VALUE;
-        for (int i = base; i < base + CountSketch.LONGS_PER_BUCKET; i += 2) {
-            long meta = t[i + 1];
-            if (meta == 0) {
-                return 0;
+    /**
+     * Reads one bucket from every sketch. {@link #summarize} computes the sums that bound the keys of the bucket without looking at
+     * the keys. {@link #group} then combines the slots with the same key, with a small hash table that is cleared after use, and
+     * fills the {@code group*} arrays: for each key the sum of {@code c - e} ({@code groupLo}), the sum of {@code c}
+     * ({@code groupHiTracked}) and the sum of the bucket {@code c_min} of the drivers that track it ({@code groupTrackedCmin}).
+     * Then {@code hi = groupHiTracked + sumCmin - groupTrackedCmin}: {@code c} where a driver tracks the key and {@code c_min}
+     * where it does not.
+     */
+    private static final class BucketMerger {
+        private static final long MIX = 0xC2B2AE3D27D4EB4FL;
+        private static final long LOW_MASK = 0xFFFFFFFFL;
+        private final long[][] tables;
+        private final long[] cmin;
+        private int base;
+
+        long sumCmin;
+        long sumLo;
+        long maxHi;
+
+        private final int[] cells; // group index + 1, or 0 for a free cell
+        private final int[] used;
+        private final int shift;
+        private int usedCount;
+        int groups;
+        final long[] groupKey;
+        final long[] groupLo;
+        final long[] groupHiTracked;
+        final long[] groupTrackedCmin;
+
+        BucketMerger(long[][] tables) {
+            this.tables = tables;
+            this.cmin = new long[tables.length];
+            int maxEntries = tables.length * CountSketch.SLOTS_PER_BUCKET;
+            int cellCount = Integer.highestOneBit(Math.max(8, maxEntries * 2 - 1)) << 1;
+            this.cells = new int[cellCount];
+            this.used = new int[maxEntries];
+            this.shift = 64 - Integer.numberOfTrailingZeros(cellCount);
+            this.groupKey = new long[maxEntries];
+            this.groupLo = new long[maxEntries];
+            this.groupHiTracked = new long[maxEntries];
+            this.groupTrackedCmin = new long[maxEntries];
+        }
+
+        void summarize(int bucket) {
+            base = bucket * CountSketch.LONGS_PER_BUCKET;
+            long sumC = 0;
+            for (int d = 0; d < tables.length; d++) {
+                final long[] t = tables[d];
+                final long m0 = t[base + 1], m1 = t[base + 3], m2 = t[base + 5], m3 = t[base + 7];
+                final long c = (m0 == 0 || m1 == 0 || m2 == 0 || m3 == 0)
+                    ? 0
+                    : Math.min(Math.min(m0 >>> 32, m1 >>> 32), Math.min(m2 >>> 32, m3 >>> 32));
+                cmin[d] = c;
+                sumC += c;
             }
-            min = Math.min(min, meta >>> 32);
-        }
-        return min;
-    }
-
-    /** The sum over the drivers that track {@code key} of {@code c - e}. */
-    private static long lowerBound(List<CountSketch> ds, long key) {
-        long lo = 0;
-        for (CountSketch s : ds) {
-            long meta = s.find(key);
-            if (meta != 0) {
-                lo += (meta >>> 32) - (meta & 0xFFFFFFFFL);
-            }
-        }
-        return lo;
-    }
-
-    /** The sum over the drivers of {@code c} where the driver tracks {@code key}, and of the bucket bound where it does not. */
-    private static long upperBound(List<CountSketch> ds, long key) {
-        final int bucket = ds.get(0).bucketOf(key);
-        long hi = 0;
-        for (CountSketch s : ds) {
-            long meta = s.find(key);
-            hi += meta != 0 ? meta >>> 32 : s.cmin(bucket);
-        }
-        return hi;
-    }
-
-    /** A growing set of keys with a value each. Zero is a valid key, so a separate {@code used} array marks the cells. */
-    private static final class KeyMap {
-        private static final long MIX = 0x9E3779B97F4A7C15L;
-        private long[] keys = new long[1024];
-        private long[] lows = new long[1024];
-        private boolean[] used = new boolean[1024];
-        private int shift = 64 - 10;
-        int size;
-
-        boolean contains(long key) {
-            return used[indexOf(key)];
-        }
-
-        void add(long key, long low) {
-            int i = indexOf(key);
-            if (used[i]) {
-                return;
-            }
-            used[i] = true;
-            keys[i] = key;
-            lows[i] = low;
-            if (++size * 2 > keys.length) {
-                grow();
-            }
-        }
-
-        private int indexOf(long key) {
-            final int mask = keys.length - 1;
-            int i = (int) (Long.rotateLeft(key * MIX, 17) >>> shift);
-            while (used[i] && keys[i] != key) {
-                i = (i + 1) & mask;
-            }
-            return i;
-        }
-
-        private void grow() {
-            final long[] oldKeys = keys;
-            final long[] oldLows = lows;
-            final boolean[] oldUsed = used;
-            keys = new long[oldKeys.length * 2];
-            lows = new long[oldKeys.length * 2];
-            used = new boolean[oldKeys.length * 2];
-            shift--;
-            for (int j = 0; j < oldKeys.length; j++) {
-                if (oldUsed[j]) {
-                    int i = indexOf(oldKeys[j]);
-                    used[i] = true;
-                    keys[i] = oldKeys[j];
-                    lows[i] = oldLows[j];
-                }
-            }
-        }
-
-        long nthLargestLow(int n) {
-            final long[] top = new long[n]; // ascending, top[0] is the smallest of the n largest
-            Arrays.fill(top, Long.MIN_VALUE);
-            for (int i = 0; i < keys.length; i++) {
-                if (used[i] && lows[i] > top[0]) {
-                    int j = 0;
-                    while (j + 1 < n && top[j + 1] < lows[i]) {
-                        top[j] = top[j + 1];
-                        j++;
+            long lo = 0;
+            long excess = 0;
+            for (int d = 0; d < tables.length; d++) {
+                final long[] t = tables[d];
+                for (int i = base + 1; i < base + CountSketch.LONGS_PER_BUCKET; i += 2) {
+                    final long meta = t[i];
+                    if (meta != 0) {
+                        final long c = meta >>> 32;
+                        lo += c - (meta & LOW_MASK);
+                        excess += c - cmin[d];
                     }
-                    top[j] = lows[i];
                 }
             }
-            return top[0];
+            sumCmin = sumC;
+            sumLo = lo;
+            maxHi = sumC + excess;
+        }
+
+        /** Combine the slots of the bucket last passed to {@link #summarize} by key. Call {@link #reset} when done with the groups. */
+        void group() {
+            groups = 0;
+            for (int d = 0; d < tables.length; d++) {
+                final long[] t = tables[d];
+                for (int i = base; i < base + CountSketch.LONGS_PER_BUCKET; i += 2) {
+                    final long meta = t[i + 1];
+                    if (meta == 0) {
+                        continue;
+                    }
+                    final long key = t[i];
+                    final int mask = cells.length - 1;
+                    int cell = (int) ((key * MIX) >>> shift);
+                    int g;
+                    while ((g = cells[cell]) != 0 && groupKey[g - 1] != key) {
+                        cell = (cell + 1) & mask;
+                    }
+                    if (g == 0) {
+                        g = ++groups;
+                        cells[cell] = g;
+                        used[usedCount++] = cell;
+                        groupKey[g - 1] = key;
+                        groupLo[g - 1] = 0;
+                        groupHiTracked[g - 1] = 0;
+                        groupTrackedCmin[g - 1] = 0;
+                    }
+                    final long c = meta >>> 32;
+                    groupLo[g - 1] += c - (meta & LOW_MASK);
+                    groupHiTracked[g - 1] += c;
+                    groupTrackedCmin[g - 1] += cmin[d];
+                }
+            }
+        }
+
+        void reset() {
+            for (int i = 0; i < usedCount; i++) {
+                cells[used[i]] = 0;
+            }
+            usedCount = 0;
+            groups = 0;
         }
     }
 }

@@ -6,7 +6,7 @@ mapped_pages:
 # How DLS works [es-dls-overview]
 
 :::{important}
-This page pertains to a specific implementation of DLS for Elastic content connectors.
+This page pertains to a specific implementation of DLS for Elastic content crawlers.
 Refer to [Controlling access at the document and field level](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}} DLS feature.
 :::
 

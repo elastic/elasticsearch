@@ -1,4 +1,4 @@
-project: 'Content connectors reference'
+project: 'Content crawlers reference'
 toc:
 - file: index.md
 - file: connector-reference.md

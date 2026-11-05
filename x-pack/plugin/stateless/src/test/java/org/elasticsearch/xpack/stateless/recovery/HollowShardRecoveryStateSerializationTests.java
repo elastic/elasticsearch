@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommitTestUtils;
 import org.elasticsearch.xpack.stateless.engine.HollowCommitMetadata;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
@@ -53,7 +54,29 @@ public class HollowShardRecoveryStateSerializationTests extends AbstractWireSeri
     @Override
     protected HollowShardRecoveryState mutateInstance(HollowShardRecoveryState instance) {
         final var metadata = instance.metadata();
-        final var mutated = switch (between(0, 5)) {
+        final int mutation = between(0, 6);
+        if (mutation == 6) {
+            // the metadata must describe the hollow commit, so a new generation comes with a new commit and its files
+            final var termAndGeneration = new PrimaryTermAndGeneration(
+                instance.commit().primaryTermAndGeneration().primaryTerm(),
+                randomValueOtherThan(metadata.generation(), StatelessCompoundCommitTestUtils::randomNonZeroPositiveLong)
+            );
+            final var commit = randomCompoundCommit(instance.commit().lastCompoundCommit().shardId(), termAndGeneration, true);
+            return new HollowShardRecoveryState(
+                new BatchedCompoundCommit(termAndGeneration, List.of(commit)),
+                new HollowCommitMetadata(
+                    termAndGeneration.generation(),
+                    metadata.userData(),
+                    metadata.id(),
+                    metadata.luceneVersion(),
+                    metadata.numDocs(),
+                    metadata.maxDoc(),
+                    metadata.segmentCount(),
+                    commit.commitFiles().keySet()
+                )
+            );
+        }
+        final var mutated = switch (mutation) {
             case 0 -> {
                 final var userData = new HashMap<>(metadata.userData());
                 userData.put(randomAlphaOfLength(10), randomAlphaOfLength(10));

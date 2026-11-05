@@ -552,7 +552,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 estimatedPerRowSortSize,
                 scoring,
                 directoryBytesRead,
-                singleValueQueryWarnings
+                singleValueQueryWarnings,
+                context.sortBound()
             );
         } else if (esQueryExec.indexMode().isTsdb()) {
             luceneFactory = new TimeSeriesSourceOperator.Factory(

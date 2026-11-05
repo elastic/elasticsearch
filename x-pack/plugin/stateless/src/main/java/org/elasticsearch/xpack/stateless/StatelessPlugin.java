@@ -314,6 +314,11 @@ public class StatelessPlugin extends Plugin
         false,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED = boolSetting(
+        IndexSettings.BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED_SETTING_NAME,
+        false,
+        Setting.Property.NodeScope
+    );
     public static final Setting<Boolean> DATA_STREAMS_LIFECYCLE_ONLY_MODE = boolSetting(
         DataStreamLifecycle.DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME,
         true,
@@ -725,6 +730,7 @@ public class StatelessPlugin extends Plugin
             .put(super.additionalSettings())
             .put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
             .put(DATA_STREAMS_LIFECYCLE_ONLY_MODE.getKey(), true)
+            .put(BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED.getKey(), true)
             .put(FAILURE_STORE_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(30));
         settings.put(DiscoveryModule.ELECTION_STRATEGY_SETTING.getKey(), StatelessElectionStrategy.NAME)
             .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0)
@@ -1400,6 +1406,7 @@ public class StatelessPlugin extends Plugin
         return List.of(
             STATELESS_ENABLED,
             DATA_STREAMS_LIFECYCLE_ONLY_MODE,
+            BLOOM_FILTER_ID_FIELD_WITH_DATA_STREAM_TIMESTAMP_ENABLED,
             FAILURE_STORE_REFRESH_INTERVAL_SETTING,
             ObjectStoreService.TYPE_SETTING,
             ObjectStoreService.BUCKET_SETTING,

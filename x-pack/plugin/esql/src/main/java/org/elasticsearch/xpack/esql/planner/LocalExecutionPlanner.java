@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.Describable;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -85,6 +86,7 @@ import org.elasticsearch.compute.operator.fuse.LinearConfig;
 import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.sketch.SketchFilterOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
 import org.elasticsearch.compute.operator.topn.SharedGlobalTopK;
@@ -179,6 +181,7 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.embedding.EmbeddingOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperator;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.MarkTopCountAggregations;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -758,7 +761,7 @@ public class LocalExecutionPlanner {
         LocalExecutionPlannerContext context,
         boolean allowPartitionedOutput
     ) {
-        var source = plan(aggregate.child(), context);
+        var source = insertSketchFilter(aggregate, plan(aggregate.child(), context), context);
         HashAggregationOperator.ParallelConfig parallelConfig = null;
         if (parallelWorkerExecutor != null) {
             parallelConfig = new HashAggregationOperator.ParallelConfig(
@@ -773,6 +776,40 @@ public class LocalExecutionPlanner {
             );
         }
         return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, parallelConfig, allowPartitionedOutput, context);
+    }
+
+    /**
+     * Put a {@link SketchFilterOperator} in front of a partial {@code COUNT(*) BY key} aggregation that is only read through
+     * {@code SORT count DESC | LIMIT N}. It drops the rows of keys that cannot be in the top {@code N}, once all the drivers have
+     * counted their keys. The proof that this is correct needs one barrier for all the data of the query, so it is only used when
+     * the query runs on a single node over a single shard.
+     */
+    private PhysicalOperation insertSketchFilter(AggregateExec aggregate, PhysicalOperation source, LocalExecutionPlannerContext context) {
+        Integer topCountLimit = aggregate.topCountLimit();
+        if (topCountLimit == null
+            || aggregate.getMode() != AggregatorMode.INITIAL
+            || context.queryPragmas().sketchFilter() == false
+            || context.singleNodeOptimizations() == false
+            || context.shardContexts().size() != 1
+            || MarkTopCountAggregations.countStarAttribute(aggregate) == null) {
+            return source;
+        }
+        Attribute key = Expressions.attribute(aggregate.groupings().getFirst());
+        var keyChannel = key == null ? null : source.layout.get(key.id());
+        if (keyChannel == null) {
+            return source;
+        }
+        QueryPragmas pragmas = context.queryPragmas();
+        return source.with(
+            new SketchFilterOperator.Factory(
+                keyChannel.channel(),
+                pragmas.sketchFilterSlots(),
+                topCountLimit,
+                pragmas.sketchFilterMaxCandidates(),
+                pragmas.sketchFilterMaxBufferBytes()
+            ),
+            source.layout
+        );
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {

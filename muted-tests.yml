@@ -256,6 +256,10 @@ tests:
   - :x-pack:qa:full-cluster-restart:v8.3.3#bwcTest
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/151923
+- class: org.elasticsearch.xpack.sql.qa.security.JdbcSecurityIT
+  tasks:
+  - :x-pack:plugin:sql:qa:server:security:with-ssl:javaRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/164747
 
 # Examples:
 #

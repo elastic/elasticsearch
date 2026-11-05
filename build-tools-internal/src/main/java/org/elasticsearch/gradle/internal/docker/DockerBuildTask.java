@@ -386,45 +386,14 @@ public abstract class DockerBuildTask extends DefaultTask {
                 .anyMatch(any -> any.equals(Architecture.current().dockerPlatform) == false);
         }
 
-        /**
-         * The {@code --output} value that loads the image into the local daemon, keeping normalized timestamps because
-         * the image is published later ({@code docker push} / {@code docker save}). When the builder is the daemon
-         * itself and the daemon uses the containerd image store, {@code type=docker} implies {@code unpack=true},
-         * which conflicts with {@code rewrite-timestamp}, so we export with {@code unpack=false} instead. Other
-         * builders (e.g. {@code docker-container}) stream the image to the client, which loads it into the daemon,
-         * so {@code type=docker} must be kept there: {@code type=image} would only export into the builder.
-         */
         private String daemonExporterSpec(boolean rewriteTimestamps, boolean isCrossPlatform) {
-            if (rewriteTimestamps == false) {
-                return "type=docker";
-            }
-            return timestampRewritingExporterSpec(builderIsDaemon(isCrossPlatform), daemonUsesContainerdImageStore());
-        }
-
-        private static String timestampRewritingExporterSpec(boolean builderIsDaemon, boolean containerdStore) {
-            if (builderIsDaemon && containerdStore) {
-                return "type=image,unpack=false,rewrite-timestamp=true";
-            }
-            return "type=docker,rewrite-timestamp=true";
-        }
-
-        private boolean builderIsDaemon(boolean isCrossPlatform) {
-            // Plain `docker build` ignores `docker buildx use` but honors `BUILDX_BUILDER`, so without the variable it always
-            // uses the daemon's builder. Otherwise, inspect which honors both ways of selecting a builder.
-            final String builderOverride = System.getenv("BUILDX_BUILDER");
-            if (isCrossPlatform == false && (builderOverride == null || builderOverride.isBlank())) {
-                return true;
-            }
-            final String inspect = dockerOutput("buildx", "inspect");
-            if (inspect == null) {
-                return true;
-            }
-            return inspect.lines().anyMatch(line -> line.trim().matches("Driver:\\s+docker"));
-        }
-
-        private boolean daemonUsesContainerdImageStore() {
-            final String info = dockerOutput("info", "--format", "{{ .DriverStatus }}");
-            return info != null && info.contains("io.containerd.snapshotter.v1");
+            return DockerExporter.daemonSpec(
+                rewriteTimestamps,
+                isCrossPlatform,
+                System.getenv("BUILDX_BUILDER"),
+                () -> dockerOutput("buildx", "inspect"),
+                () -> dockerOutput("info", "--format", "{{ .DriverStatus }}")
+            );
         }
 
         /** The stdout of the docker command, or {@code null} if it failed. */

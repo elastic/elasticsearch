@@ -260,9 +260,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessCommitNotificationsIT
   method: testVbccRemainsServableUntilSearchTierNotificationCompletes
   issue: https://github.com/elastic/elasticsearch/issues/161667
-- class: org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycleTests
-  method: testLifecycleEnabledByDefaultSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/161848
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
   method: testReshardWithDisruption
   issue: https://github.com/elastic/elasticsearch/issues/161494
@@ -360,11 +357,6 @@ tests:
   - :x-pack:plugin:stateless:internalClusterTest
   method: testSearchRecoveryContinuesWhenWarmingTimesOutWithDeferredWarmCache
   issue: https://github.com/elastic/elasticsearch/issues/163325
-- class: org.elasticsearch.xpack.slm.SLMSnapshotBlockingIntegTests
-  tasks:
-  - :x-pack:plugin:slm:internalClusterTest
-  method: testSLMRetentionAfterRestore
-  issue: https://github.com/elastic/elasticsearch/issues/163334
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpTests
   tasks:
   - :x-pack:plugin:esql:test
@@ -566,3 +558,8 @@ tests:
   - :x-pack:plugin:esql:compute:test
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/164827
+- class: org.elasticsearch.index.codec.vectors.ash.AsymmetricHashingQuantizerTests
+  tasks:
+  - :server:test
+  method: testReconstructedDotProductApproximatesTrueDotProduct
+  issue: https://github.com/elastic/elasticsearch/issues/164839

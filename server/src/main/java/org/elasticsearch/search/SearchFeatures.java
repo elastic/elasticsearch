@@ -185,7 +185,6 @@ public final class SearchFeatures implements FeatureSpecification {
                 COMPOSITE_AGG_DOC_VALUES_SKIPPER_FIX,
                 COLUMNAR_DEFAULT_FIELD_LENIENCY,
                 INVALID_PIT_ID_BAD_REQUEST,
-                COLUMNAR_DEFAULT_FIELD_LENIENCY,
                 KNN_NESTED_ALIAS_FILTER_ROOT_SCOPE,
                 KNN_FILTER_NESTED_LEVELS,
                 PROFILE_RESCORE

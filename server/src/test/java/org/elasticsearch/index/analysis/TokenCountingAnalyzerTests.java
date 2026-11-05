@@ -101,6 +101,26 @@ public class TokenCountingAnalyzerTests extends ESTestCase {
         assertEquals(0, measurements.size());
     }
 
+    public void testReusesComponentsLikeTheDelegate() throws IOException {
+        try (StandardAnalyzer delegate = new StandardAnalyzer()) {
+            // StandardAnalyzer reuses one chain for all fields, so the counting wrapper must too
+            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, TokenCountingMetrics.NOOP);
+            TokenStream first;
+            try (TokenStream ts = analyzer.tokenStream("field_a", "quick brown fox")) {
+                first = ts;
+            }
+            try (TokenStream ts = analyzer.tokenStream("field_b", "quick brown fox")) {
+                assertSame(first, ts);
+            }
+        }
+    }
+
+    public void testRejectsNamedAnalyzer() {
+        try (NamedAnalyzer named = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer())) {
+            expectThrows(AssertionError.class, () -> new TokenCountingAnalyzer(named, TokenCountingMetrics.NOOP));
+        }
+    }
+
     private TokenCountingMetrics createMetrics() {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         var meterRegistry = telemetryPlugin.getTelemetryProvider(settings).getMeterRegistry();

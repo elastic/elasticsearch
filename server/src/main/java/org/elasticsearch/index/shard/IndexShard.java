@@ -11,7 +11,6 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfos;
@@ -85,6 +84,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.TokenCountingAnalyzer;
+import org.elasticsearch.index.analysis.TokenCountingIndexAnalyzer;
 import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -4109,7 +4109,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Builds the index analyzer, wrapping it with a {@link TokenCountingAnalyzer}
+     * Builds the index analyzer, wrapping each field's analyzer with a {@link TokenCountingAnalyzer}
      * that records the number of tokens produced per field value to the metrics histogram.
      *
      * @param mapperService          the mapper service to use for field analyzer resolution
@@ -4120,16 +4120,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapperService == null) {
             return null;
         }
-        Analyzer baseAnalyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
-            @Override
-            protected Analyzer getWrappedAnalyzer(String fieldName) {
-                return mapperService.indexAnalyzer(
-                    fieldName,
-                    f -> { throw new IllegalArgumentException("Field [" + f + "] has no associated analyzer"); }
-                );
-            }
-        };
-        return new TokenCountingAnalyzer(baseAnalyzer, tokenCountingMetrics);
+        return new TokenCountingIndexAnalyzer(mapperService::mappingLookup, tokenCountingMetrics);
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {

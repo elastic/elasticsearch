@@ -57,6 +57,28 @@ public class StatelessPluginSettingsTests extends ESTestCase {
         assertThat(indexNodeSettings.get(SharedBlobCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()), equalTo("-1"));
     }
 
+    public void testStatelessDefaultSharedCacheGhostSizeRatio() {
+        final String role = randomFrom(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.INDEX_ROLE).roleName();
+        StatelessPlugin statelessNode = new TestUtils.StatelessPluginWithTrialLicense(
+            Settings.builder()
+                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), role)
+                .build()
+        );
+        assertThat(SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.get(statelessNode.additionalSettings()), equalTo(1.0f));
+
+        StatelessPlugin statelessNodeWithManualSetting = new TestUtils.StatelessPluginWithTrialLicense(
+            Settings.builder()
+                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
+                .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), role)
+                .put(SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.getKey(), 0f)
+                .build()
+        );
+        assertFalse(
+            SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.exists(statelessNodeWithManualSetting.additionalSettings())
+        );
+    }
+
     public void testDiskUsageBalanceFactorSettingIsZeroForStateless() {
         var statelessNode = new TestUtils.StatelessPluginWithTrialLicense(
             Settings.builder()

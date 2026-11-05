@@ -571,6 +571,7 @@ public class StatelessPlugin extends Plugin
 
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
+    private final boolean sharedCacheGhostSizeRatioExplicitlySet;
     private final boolean useRealMemoryCircuitBreakerExplicitlySet;
     private final boolean pageCacheReyclerLimitExplicitlySet;
 
@@ -653,6 +654,7 @@ public class StatelessPlugin extends Plugin
         // to the call to #additionalSettings. We only parse out the components that has already been set.
         sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
         sharedCacheMmapExplicitlySet = SharedBlobCacheService.SHARED_CACHE_MMAP.exists(settings);
+        sharedCacheGhostSizeRatioExplicitlySet = SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.exists(settings);
         useRealMemoryCircuitBreakerExplicitlySet = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.exists(settings);
         pageCacheReyclerLimitExplicitlySet = PageCacheRecycler.LIMIT_HEAP_SETTING.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
@@ -759,6 +761,10 @@ public class StatelessPlugin extends Plugin
         }
         if (sharedCacheMmapExplicitlySet == false) {
             settings.put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true);
+        }
+        if (sharedCacheGhostSizeRatioExplicitlySet == false) {
+            // remember as many evicted regions as the cache holds to measure re-fetches from the object store
+            settings.put(SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.getKey(), 1.0f);
         }
         if (useRealMemoryCircuitBreakerExplicitlySet == false) {
             if (hasIndexRole) {

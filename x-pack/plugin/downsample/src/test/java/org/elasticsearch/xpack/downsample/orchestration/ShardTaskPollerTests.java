@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.downsample.DownsampleShardIndexerException;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore.Versioned;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -259,6 +260,25 @@ public class ShardTaskPollerTests extends ESSingleNodeTestCase {
         ShardTaskRun run = awaitStarted(1);
         assertThat(run.docId(), equalTo(older.doc().id()));
         assertThat(read(newer).doc().status(), equalTo(ShardTaskStatus.UNASSIGNED));
+    }
+
+    /**
+     * The search returned a task that was taken in the meantime (here the master failed it, as another node could have claimed it):
+     * the claim loses the compare-and-set, and the free slot goes to the next candidate right away, not at the next poll.
+     */
+    public void testLostClaimMovesOnToTheNextCandidate() throws Exception {
+        poller = newPoller(1);
+        Versioned<ShardTaskDoc> older = unassignedTask(0, 1_000);
+        Versioned<ShardTaskDoc> newer = unassignedTask(1, 2_000);
+        masterWrite(older, older.doc().failedByMaster("taken in the meantime"));
+
+        // the candidates as a stale search would return them
+        poller.claimInOrder(store.forLocalNode(), new ArrayList<>(List.of(newer, older)));
+
+        ShardTaskRun run = awaitStarted(1);
+        assertThat(run.docId(), equalTo(newer.doc().id()));
+        assertThat(read(older).doc().status(), equalTo(ShardTaskStatus.FAILED));
+        assertThat(poller.activeRuns(), equalTo(1));
     }
 
     /**

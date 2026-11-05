@@ -29,9 +29,11 @@ import org.elasticsearch.xpack.downsample.Downsample;
 import org.elasticsearch.xpack.downsample.DownsampleShardPersistentTaskExecutor.DelegatingAction;
 import org.elasticsearch.xpack.downsample.orchestration.DownsampleStateStore.Versioned;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -50,7 +52,7 @@ import java.util.function.BiConsumer;
  *     search hit alone;</li>
  *     <li>with the slots left, it claims unassigned tasks of the source shards it holds a searchable copy of, oldest operation
  *     first, so the operations requested first finish first. A node marked for shutdown claims nothing. Nodes race for a task
- *     with a compare-and-set, the loser skips it.</li>
+ *     with a compare-and-set, the loser moves on to the next candidate right away.</li>
  * </ol>
  * A node only takes the work it can start right away, so a task waits unassigned, claimable by any node with a copy, rather
  * than queued behind a busy node.
@@ -64,7 +66,7 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
 
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.downsample.store.poll_interval",
-        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueSeconds(5),
         TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -86,6 +88,11 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
      */
     private final AtomicBoolean waitingForSlot = new AtomicBoolean();
     private final Map<RunKey, ShardTaskRun> runs = new ConcurrentHashMap<>();
+    /**
+     * The claimable tasks found by the last search that were not claimed yet, oldest operation first; guarded by itself. They may
+     * be stale: each one is checked again, and the claim is a compare-and-set.
+     */
+    private final Deque<Versioned<ShardTaskDoc>> claimCandidates = new ArrayDeque<>();
     private volatile TimeValue pollInterval;
     private volatile Scheduler.Cancellable scheduledPoll;
 
@@ -274,15 +281,38 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
         }
     }
 
-    private void claimInOrder(DownsampleStateStore.NodeView node, List<Versioned<ShardTaskDoc>> claimable) {
-        final ClusterState state = clusterService.state();
+    /**
+     * Replaces the claim candidates with the ones just found, oldest operation first, and claims from them until the slots are full.
+     */
+    void claimInOrder(DownsampleStateStore.NodeView node, List<Versioned<ShardTaskDoc>> claimable) {
         final List<Versioned<ShardTaskDoc>> ordered;
         synchronized (claimable) {
             ordered = claimable.stream().sorted(OLDEST_FIRST).toList();
         }
-        for (Versioned<ShardTaskDoc> task : ordered) {
+        synchronized (claimCandidates) {
+            claimCandidates.clear();
+            claimCandidates.addAll(ordered);
+        }
+        claimNextCandidates(node);
+    }
+
+    /**
+     * Claims the next candidates found by the last search until the slots are full or there are none left. Called again when a
+     * claim is lost to another node, so the slot goes to the next candidate instead of staying idle until the next poll.
+     */
+    private void claimNextCandidates(DownsampleStateStore.NodeView node) {
+        final ClusterState state = clusterService.state();
+        while (true) {
+            final Versioned<ShardTaskDoc> task;
+            synchronized (claimCandidates) {
+                task = claimCandidates.pollFirst();
+            }
+            if (task == null) {
+                return;
+            }
             ShardTaskDoc doc = task.doc();
-            if (runs.containsKey(new RunKey(doc.projectId(), doc.id()))) {
+            RunKey key = new RunKey(doc.projectId(), doc.id());
+            if (runs.containsKey(key)) {
                 continue;
             }
             String ineligible = DownsampleStateStore.whyCannotClaim(state, node.nodeId(), doc);
@@ -290,7 +320,10 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
                 logger.trace("not claiming downsample shard task [{}] of project [{}]: {}", doc.id(), doc.projectId(), ineligible);
                 continue;
             }
-            if (start(node, new RunKey(doc.projectId(), doc.id()), task) == false) {
+            if (start(node, key, task) == false) {
+                synchronized (claimCandidates) {
+                    claimCandidates.addFirst(task);
+                }
                 waitingForSlot.set(true);
                 return;
             }
@@ -325,7 +358,13 @@ public class ShardTaskPoller extends AbstractLifecycleComponent {
 
     private void runFinished(ShardTaskRun finished) {
         runs.remove(new RunKey(finished.projectId(), finished.docId()), finished);
-        if (waitingForSlot.getAndSet(false) && lifecycle.stoppedOrClosed() == false) {
+        if (lifecycle.stoppedOrClosed()) {
+            return;
+        }
+        if (finished.isClaim() && finished.hasStarted() == false) {
+            // the claim was lost (most likely another node claimed the task first): try the next candidate right away
+            threadPool.generic().execute(() -> claimNextCandidates(store.forLocalNode()));
+        } else if (waitingForSlot.getAndSet(false)) {
             threadPool.generic().execute(() -> poll(ActionListener.noop()));
         }
     }

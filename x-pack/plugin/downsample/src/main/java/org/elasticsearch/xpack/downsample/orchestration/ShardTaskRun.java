@@ -113,6 +113,13 @@ final class ShardTaskRun implements ShardTaskReporter {
     }
 
     /**
+     * Whether this run claims the task, as opposed to resuming a task this node already owns.
+     */
+    boolean isClaim() {
+        return claim;
+    }
+
+    /**
      * Whether the run owns the task in the state index: its claim or resume write succeeded. Until then the document does not show
      * this run, so it cannot be judged by it.
      */

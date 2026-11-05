@@ -68,7 +68,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -521,7 +520,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 clusterInfoService,
                 snapshotsInfoService,
                 shardRoutingRoleStrategy,
-                MeterRegistry.NOOP,
                 clusterSettings,
                 shardMovementListener
             );

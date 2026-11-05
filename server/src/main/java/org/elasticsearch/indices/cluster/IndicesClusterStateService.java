@@ -139,7 +139,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     );
 
     /**
-     * Enable / disable local retry functionality on recovery failure.
+     * Enable / disable local retry functionality on recovery failure. When {@code false}, FailureStrategy#RETRY
+     * will be treated as {@link FailureStrategy#FAIL_SEND} by {@link ShardRecoveryListener}.
      */
     public static final Setting<Boolean> INDICES_RECOVERY_LOCAL_RETRY_SETTING = Setting.boolSetting(
         "indices.recovery.local_retry",
@@ -190,15 +191,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         /// exact instance (by reference), and records use value equality.
         final class InFlight implements PendingAllocationState {
             private final long startTimeMillis;
+            private final int localRecoveryRetries;
             private final long primaryTerm;
 
-            InFlight(long startTimeMillis, long primaryTerm) {
+            InFlight(long startTimeMillis, int localRecoveryRetries, long primaryTerm) {
                 this.startTimeMillis = startTimeMillis;
+                this.localRecoveryRetries = localRecoveryRetries;
                 this.primaryTerm = primaryTerm;
             }
 
             long startTimeMillis() {
                 return startTimeMillis;
+            }
+
+            int localRecoveryRetries() {
+                return localRecoveryRetries;
             }
 
             @Override
@@ -210,6 +217,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             public String toString() {
                 return "InFlight{startTimeMillis="
                     + startTimeMillis
+                    + ", localRecoveryRetries="
+                    + localRecoveryRetries
                     + ", primaryTerm="
                     + primaryTerm
                     + ", ticket="
@@ -217,6 +226,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     + '}';
             }
         }
+
+        /// No attempt is currently running; the next [createShard] for this allocation should use
+        /// this retry count. Put on [FailureStrategy#RETRY] in [#handleRecoveryFailure].
+        record AwaitingRecoveryRetry(int localRecoveryRetries, long primaryTerm) implements PendingAllocationState {}
 
         /// Failure has been (or is being) reported to master; will prevent shard creation for this allocation until removed.
         /// Only cleared when shard allocation becomes stale through a cluster state update.
@@ -475,9 +488,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /**
      * Removes pending-allocation-state entries no longer allocated to this node, or re-allocated under a
-     * different allocation id. {@link PendingAllocationState.InFlight} entries are also removed once their
-     * allocation stops initializing, since their lifecycle only makes sense during an in-progress creation
-     * attempt. For {@link PendingAllocationState.FailureReported} entries, either drops the entry once
+     * different allocation id. {@link PendingAllocationState.InFlight} and
+     * {@link PendingAllocationState.AwaitingRecoveryRetry} entries are also removed once their allocation
+     * stops initializing, since their lifecycle only makes sense up until shard is started.
+     * For {@link PendingAllocationState.FailureReported} entries, either drops the entry once
      * master has processed the failure, or resends it if master hasn't yet -- the initial failure report
      * is sent separately, from {@link #createIndicesAndUpdateShards}.
      *
@@ -501,6 +515,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ShardRouting currentRouting = localRoutingNode.getByShardId(key.shardId());
             switch (entry.getValue()) {
                 case PendingAllocationState.InFlight ticket -> evictIfAttemptStale(key, ticket, currentRouting, state);
+                case PendingAllocationState.AwaitingRecoveryRetry ticket -> evictIfAttemptStale(key, ticket, currentRouting, state);
                 case PendingAllocationState.FailureReported ticket -> evictOrResendFailure(key, ticket, currentRouting, state, masterNode);
             }
         }
@@ -1165,7 +1180,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     /// Claims ownership of creating shard identified by `key`. Refuses (and returns empty) if an attempt is
-    /// already creating the shard, or if master already knows this allocation failed.
+    /// already creating the shard, or if master already knows this allocation failed. Carries the retry count
+    /// forward from whatever [PendingAllocationState.AwaitingRecoveryRetry] (or absent) state preceded it.
     private Optional<PendingAllocationState.InFlight> tryClaimInFlight(ShardAllocationKey key, long primaryTerm) {
         assert Thread.holdsLock(this);
         PendingAllocationState current = pendingAllocationStates.get(key);
@@ -1174,9 +1190,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         if (current instanceof PendingAllocationState.InFlight || current instanceof PendingAllocationState.FailureReported) {
             return Optional.empty();
         }
-        var inFlightTicket = new PendingAllocationState.InFlight(threadPool.relativeTimeInMillis(), primaryTerm);
-        pendingAllocationStates.put(key, inFlightTicket);
-        return Optional.of(inFlightTicket);
+        int retries = current instanceof PendingAllocationState.AwaitingRecoveryRetry(var n, var ignoredTerm) ? n : 0;
+        var candidate = new PendingAllocationState.InFlight(threadPool.relativeTimeInMillis(), retries, primaryTerm);
+        pendingAllocationStates.put(key, candidate);
+        return Optional.of(candidate);
     }
 
     private void createShardWhenLockAvailable(
@@ -1206,8 +1223,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 state.nodes().getLocalNode(),
                 sourceNode,
                 state.version(),
-                // No local recovery retry exists yet; a future retry mechanism will supply the real count here.
-                0
+                inFlightTicket.localRecoveryRetries()
             );
             listener.onResponse(true);
         } catch (ShardLockObtainFailedException e) {
@@ -1591,7 +1607,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.getThreadContext(),
                 ActionListener.noop(),
                 listener -> {
-                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e, inFlightTicket);
+                    handleRecoveryFailure(shardRouting, failureStrategy, primaryTerm, e, state, inFlightTicket);
                     listener.onResponse(null);
                 }
             );
@@ -1604,6 +1620,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         FailureStrategy failureStrategy,
         long primaryTerm,
         Exception failure,
+        RecoveryState recoveryState,
         PendingAllocationState.InFlight inFlightTicket
     ) {
         final ShardAllocationKey key = ShardAllocationKey.fromRouting(shardRouting);
@@ -1631,9 +1648,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             || shard.state() == IndexShardState.POST_RECOVERY
             : "found shard in unexpected state despite live ticket: " + shardRouting + " in state " + shard.state();
 
-        // TODO: local recovery retry is not supported yet, so we always fall back to notifying master for a RETRY.
-        // Add recovery retry support (see: elastic/elasticsearch-team#4351)
-        final FailureStrategy finalStrategy = failureStrategy == FailureStrategy.RETRY ? FailureStrategy.FAIL_SEND : failureStrategy;
+        final FailureStrategy finalStrategy = reviseFinalStrategy(shardRouting, failureStrategy);
         final String message = isRecoveryCancellation(failure) ? "recovery cancelled by master" : "failed recovery";
         try {
             CloseUtils.executeDirectly(
@@ -1648,6 +1663,27 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     l
                 )
             );
+
+            if (finalStrategy == FailureStrategy.RETRY) {
+                logger.warn(() -> "retry recovery for shard after failure [" + shardRouting + "]", failure);
+                // Record the retry ticket before scheduling so the next createShard (from this retry path
+                // or the cluster state application) uses the retry context.
+                int bumpedLocalRetries = recoveryState.getLocalRetries() + 1;
+                final var myRetryTicket = new PendingAllocationState.AwaitingRecoveryRetry(bumpedLocalRetries, primaryTerm);
+                boolean replace = pendingAllocationStates.replace(key, inFlightTicket, myRetryTicket);
+                assert replace : "expected our own InFlight ticket still present for " + key;
+
+                // Fork onto cluster state applier thread to retry attempt to create shard
+                clusterService.getClusterApplierService()
+                    .runOnApplierThread("retry recovery " + shardRouting.shardId(), Priority.NORMAL, currentState -> {
+                        retryRecovery(shardRouting, primaryTerm, currentState, key, myRetryTicket);
+                    }, ActionListener.noop());
+            } else if (finalStrategy == FailureStrategy.FAIL_SILENT) {
+                // sendFailShard (which would otherwise overwrite this entry with FailureReported) didn't run,
+                // so nothing else clears this ticket -- there's no further attempt coming for it.
+                logger.debug("{} clearing creating-shard ticket: recovery failure strategy [{}]", key, finalStrategy);
+                pendingAllocationStates.remove(key, inFlightTicket);
+            }
         } catch (Exception e) {
             // should not be possible
             final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
@@ -1664,6 +1700,75 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 key,
                 finalStrategy,
                 cleared ? "cleared InFlight ticket" : "ticket already superseded"
+            );
+        }
+    }
+
+    private FailureStrategy reviseFinalStrategy(ShardRouting shardRouting, FailureStrategy failureStrategy) {
+        if (failureStrategy != FailureStrategy.RETRY) {
+            return failureStrategy;
+        } else if (localRecoveryRetryEnabled == false) {
+            // local recovery retry is disabled
+            return FailureStrategy.FAIL_SEND;
+        } else if (shardRouting.recoverySource().getType().equals(Type.RESHARD_SPLIT)) {
+            // TODO: Remove RESHARD_SPLIT exclusion once local retries support it (elasticsearch-team/#5759)
+            return FailureStrategy.FAIL_SEND;
+        } else {
+            return FailureStrategy.RETRY;
+        }
+    }
+
+    private synchronized void retryRecovery(
+        ShardRouting shardRouting,
+        long primaryTerm,
+        ClusterState currentState,
+        ShardAllocationKey key,
+        PendingAllocationState.AwaitingRecoveryRetry myRetryTicket
+    ) {
+        try {
+            if (lifecycle.started() == false) {
+                logger.debug("{} giving up on recovery retry: node is shutting down", key);
+                return;
+            }
+            // It's enough to check ticket identity here, because any routing/term change
+            // that would make this ticket stale is only ever observed through a cluster-state
+            // apply, which would sweep the ticket (updatePendingAllocationTracker). And that
+            // CS-update + sweep are synchronized which means we cannot race with it here.
+            if (pendingAllocationStates.get(key) != myRetryTicket) {
+                logger.debug("{} giving up on recovery retry: no longer own retry attempt", key);
+                return;
+            }
+
+            final var indexService = indicesService.indexService(shardRouting.index());
+            if (indexService == null) {
+                final var message = "index service unexpectedly not found for " + shardRouting + " during retry";
+                assert false : message;
+                throw new ElasticsearchException(message);
+            }
+
+            if (indexService.getShardOrNull(shardRouting.shardId().id()) != null) {
+                final var message = "index shard unexpectedly found for " + shardRouting + " during retry";
+                assert false : message;
+                throw new ElasticsearchException(message);
+            }
+
+            final ShardRouting currentRouting = getCurrentRouting(key, currentState);
+            assert currentRouting != null : "shard routing is null on create shard retry for " + key;
+            createShard(currentRouting, currentState);
+        } catch (Exception e) {
+            // should not be possible
+            final var wrappedException = new IllegalStateException("unexpected failure in handleRecoveryFailure on " + shardRouting, e);
+            logger.error(wrappedException.getMessage(), e);
+            assert false : e;
+            failAndRemoveShard(
+                shardRouting,
+                primaryTerm,
+                true,
+                "unexpected failure during recovery retry",
+                wrappedException,
+                currentState,
+                shardCloseExecutor,
+                ActionListener.noop()
             );
         }
     }

@@ -135,6 +135,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             FAIL_SEND,
             primaryTerm(shardRouting),
             new Exception("simulated recovery failure"),
+            recoveryStateFor(shardRouting),
             currentInFlight(shardRouting)
         );
 
@@ -296,6 +297,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             FAIL_SEND,
             primaryTerm(shardRouting),
             new Exception("already failed to master"),
+            recoveryStateFor(shardRouting),
             currentInFlight(shardRouting)
         );
         assertTrue(isFailureReported(shardRouting));
@@ -399,6 +401,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     public void testFailureReportedSurvivesWhenStatePersistenceDisabled() {
         ShardRouting shardRouting = applyInitializingPrimary();
         final var inFlight = currentInFlight(shardRouting);
+        final var recoveryState = recoveryStateFor(shardRouting);
 
         // A failure already reported to master for this exact allocation.
         indicesClusterStateService.handleRecoveryFailure(
@@ -406,6 +409,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             FAIL_SEND,
             primaryTerm(shardRouting),
             new Exception("already failed to master"),
+            recoveryState,
             inFlight
         );
         assertTrue(isFailureReported(shardRouting));
@@ -425,6 +429,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
     public void testStaleTicketDoesNotClobberFailureReported() {
         final var shardRouting = applyInitializingPrimary();
         final var inFlight = currentInFlight(shardRouting);
+        final var recoveryState = recoveryStateFor(shardRouting);
 
         // A failure already reported to master for this exact allocation.
         indicesClusterStateService.handleRecoveryFailure(
@@ -432,6 +437,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             FAIL_SEND,
             primaryTerm(shardRouting),
             new Exception("already failed to master"),
+            recoveryState,
             inFlight
         );
         assertTrue(isFailureReported(shardRouting));
@@ -442,6 +448,7 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
             FAIL_SILENT,
             primaryTerm(shardRouting),
             new Exception("stale failure"),
+            recoveryState,
             inFlight
         );
         assertTrue(isFailureReported(shardRouting));
@@ -758,6 +765,12 @@ public class IndicesClusterStateServicePendingAllocationStateTests extends Abstr
         var current = indicesClusterStateService.pendingAllocationStates.get(allocationKey(routing));
         assertThat(current, instanceOf(IndicesClusterStateService.PendingAllocationState.InFlight.class));
         return (IndicesClusterStateService.PendingAllocationState.InFlight) current;
+    }
+
+    private RecoveryState recoveryStateFor(ShardRouting routing) {
+        MockIndexShard shard = indicesService.getShardOrNull(routing.shardId());
+        assertNotNull(shard);
+        return shard.recoveryState();
     }
 
     private boolean isFailureReported(ShardRouting routing) {

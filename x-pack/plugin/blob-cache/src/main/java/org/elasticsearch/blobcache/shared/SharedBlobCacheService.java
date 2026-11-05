@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheMetrics.RegionFillOrigin;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
@@ -333,6 +334,31 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         Setting.Property.NodeScope
     );
 
+    /**
+     * Capacity of the ghost table remembering the regions recently evicted under cache pressure, as a multiple of the number of
+     * regions. The ghost table identifies re-fetches, i.e. regions fetched again from the blob store after the cache had to give
+     * them up, which are reported by {@link BlobCacheMetrics#BLOB_CACHE_REGION_FETCH_TOTAL}. The table costs about 27 bytes of
+     * heap per entry. {@code 0} disables it.
+     */
+    public static final Setting<Float> SHARED_CACHE_GHOST_SIZE_RATIO_SETTING = Setting.floatSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "ghost.size_ratio",
+        0f,
+        0f,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Reads of a region within this window after the demand read that brought it into the cache are considered part of that
+     * same access, since a region serves many small reads; only later reads mark the region as re-accessed (see
+     * {@link BlobCacheMetrics#BLOB_CACHE_PRESSURE_EVICTED_REGIONS_TOTAL}).
+     */
+    public static final Setting<TimeValue> SHARED_CACHE_REACCESS_WINDOW_SETTING = Setting.timeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "reaccess_window",
+        TimeValue.timeValueSeconds(10L),
+        TimeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
     // used in tests
     void computeDecay() {
         if (cache instanceof LFUCache lfuCache) {
@@ -353,7 +379,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     private interface Cache<K, T> extends Releasable {
-        CacheEntry<T> get(K cacheKey, long fileLength, int region, long timestampMillis);
+        CacheEntry<T> get(K cacheKey, long fileLength, int region, long timestampMillis, RegionFillOrigin origin);
 
         /// Returns the entry for the provided `cacheKey` and `region` if it exists and is fully initialized
         /// (i.e. its IO slot has been assigned), or `null` otherwise.
@@ -600,7 +626,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
-        return cache.get(cacheKey, fileLength, region, timestampMillis).chunk;
+        return get(cacheKey, fileLength, region, timestampMillis, RegionFillOrigin.Demand);
+    }
+
+    CacheFileRegion<KeyType> get(KeyType cacheKey, long fileLength, int region, long timestampMillis, RegionFillOrigin origin) {
+        return cache.get(cacheKey, fileLength, region, timestampMillis, origin).chunk;
     }
 
     /**
@@ -691,7 +721,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 listener.onResponse(false);
                 return;
             }
-            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region, timestampMillis);
+            final CacheFileRegion<KeyType> entry = get(
+                cacheKey,
+                blobLength,
+                region,
+                timestampMillis,
+                force ? RegionFillOrigin.ForcedSpeculative : RegionFillOrigin.Speculative
+            );
             entry.populate(regionRange, writer, fetchExecutor, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -789,7 +825,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 listener.onResponse(false);
                 return;
             }
-            final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, region, timestampMillis);
+            final CacheFileRegion<KeyType> entry = get(
+                cacheKey,
+                blobLength,
+                region,
+                timestampMillis,
+                force ? RegionFillOrigin.ForcedSpeculative : RegionFillOrigin.Speculative
+            );
             entry.populate(
                 regionRange,
                 writerWithOffset(writer, Math.toIntExact(range.start() - getRegionStart(region))),
@@ -2339,10 +2381,19 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             LFUCacheEntry next;
             int freq;
             volatile long lastAccessedEpoch;
+            // the kind of fill that brought this region into the cache
+            final RegionFillOrigin origin;
+            // relative time in millis at which this entry was created
+            final long createdAtMillis;
+            // whether the region was read again after the fill that brought it in (see markReaccessed). Written without
+            // synchronization: it only ever goes from false to true, and a stale read only delays the observation.
+            boolean reaccessed;
 
-            LFUCacheEntry(CacheFileRegion<KeyType> chunk, long lastAccessed) {
+            LFUCacheEntry(CacheFileRegion<KeyType> chunk, long lastAccessed, RegionFillOrigin origin, long createdAtMillis) {
                 super(chunk);
                 this.lastAccessedEpoch = lastAccessed;
+                this.origin = origin;
+                this.createdAtMillis = createdAtMillis;
                 // todo: consider whether freq=1 is still right for new entries.
                 // it could risk decaying to level 0 right after and thus potentially be evicted
                 // if the freq 1 LRU chain was short.
@@ -2352,9 +2403,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
 
             void touch() {
+                markReaccessed();
                 long now = epoch.get();
                 if (now > lastAccessedEpoch) {
                     maybePromote(now, this);
+                }
+            }
+
+            /**
+             * Records a demand read of the region. Any demand read of a speculatively filled region counts as a re-access. For a
+             * region brought in by a demand read, the reads within the re-access window are part of the access that filled it.
+             */
+            void markReaccessed() {
+                if (reaccessed == false
+                    && (origin != RegionFillOrigin.Demand || threadPool.relativeTimeInMillis() - createdAtMillis >= reaccessWindowMillis)) {
+                    reaccessed = true;
                 }
             }
         }
@@ -2370,6 +2433,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final long initialDecayPollCount;
 
         private final EvictionPolicy<KeyType> evictionPolicy;
+
+        // remembers the regions recently evicted under pressure to detect re-fetches, null if disabled
+        @Nullable
+        private final RegionGhostTable ghostTable;
+        private final long reaccessWindowMillis;
 
         @SuppressWarnings("unchecked")
         LFUCache(Settings settings, EvictionPolicy<KeyType> evictionPolicy) {
@@ -2391,6 +2459,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             // If EvictionPolicy requires access to FreqLevel[] then we could use some factory here to pass down the freqs array while
             // instantiating the EvictionPolicy, eg. this.evictionPolicy = evictionPolicyFactory.create(FreqLevel[], maxFreq);
             this.evictionPolicy = Objects.requireNonNull(evictionPolicy);
+            final double ghostSizeRatio = SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.get(settings);
+            final long ghostCapacity = Math.min(RegionGhostTable.MAX_CAPACITY, (long) Math.ceil(numRegions * ghostSizeRatio));
+            this.ghostTable = ghostCapacity > 0 ? new RegionGhostTable(Math.toIntExact(ghostCapacity)) : null;
+            this.reaccessWindowMillis = SHARED_CACHE_REACCESS_WINDOW_SETTING.get(settings).millis();
         }
 
         @Override
@@ -2405,7 +2477,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         @Override
-        public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region, long timestampMillis) {
+        public LFUCacheEntry get(KeyType cacheKey, long fileLength, int region, long timestampMillis, RegionFillOrigin origin) {
             final var regionKey = new RegionKey<>(cacheKey, region);
             final long now = epoch.get();
             // try to just get from the map on the fast-path to save instantiating the capturing lambda needed on the slow path
@@ -2418,7 +2490,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     regionKey,
                     key -> new LFUCacheEntry(
                         new CacheFileRegion<KeyType>(SharedBlobCacheService.this, key, effectiveRegionSize, timestampMillis),
-                        now
+                        now,
+                        origin,
+                        threadPool.relativeTimeInMillis()
                     )
                 );
             }
@@ -2431,6 +2505,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             }
             assert assertChunkActiveOrEvicted(entry);
+            if (origin == RegionFillOrigin.Demand) {
+                entry.markReaccessed();
+            }
 
             // existing item, check if we need to promote it
             if (now > entry.lastAccessedEpoch) {
@@ -2455,6 +2532,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 return null;
             }
             assert assertChunkActiveOrEvicted(entry);
+            entry.markReaccessed();
 
             // existing item, check if we need to promote it
             if (now > entry.lastAccessedEpoch) {
@@ -2484,6 +2562,37 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             unlink(entry);
             removeKeyMappingForEntry(entry);
             evictionPolicy.onEvicted(entry.chunk);
+        }
+
+        /**
+         * Called for every region evicted to make room for another one. Forced evictions are not reported: they remove regions
+         * whose data was deleted or is no longer wanted, which will not be fetched again.
+         *
+         * @param evictedBy the kind of fill that needs the slot
+         */
+        private void onPressureEviction(LFUCacheEntry entry, RegionFillOrigin evictedBy) {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            blobCacheMetrics.recordPressureEviction(entry.origin, entry.reaccessed);
+            if (ghostTable != null) {
+                ghostTable.add(ghostKey(entry), threadPool.relativeTimeInMillis(), evictedBy, entry.origin);
+            }
+        }
+
+        private long ghostKey(LFUCacheEntry entry) {
+            return RegionGhostTable.fingerprint(entry.chunk.regionKey.file().hashCode(), entry.chunk.regionKey.region());
+        }
+
+        private void recordRegionFetch(LFUCacheEntry entry, @Nullable RegionGhostTable.Ghost ghost) {
+            if (ghost == null) {
+                blobCacheMetrics.recordRegionFirstFetch(entry.origin);
+            } else {
+                blobCacheMetrics.recordRegionRefetch(
+                    entry.origin,
+                    ghost.evictedBy(),
+                    (double) ghost.evictionsSince() / numRegions,
+                    threadPool.relativeTimeInMillis() - ghost.evictedAtMillis()
+                );
+            }
         }
 
         @Override
@@ -2641,6 +2750,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         private void assignToSlot(LFUCacheEntry entry, SharedBytes.IO freeSlot) {
             assert regionOwners.put(freeSlot, entry.chunk) == null;
+            final RegionGhostTable.Ghost ghost;
             final long afterLockNanoTime;
             final long beforeLockNanoTime = relativeNanosProvider.getAsLong();
             synchronized (SharedBlobCacheService.this) {
@@ -2657,8 +2767,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 // assign io only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
                 entry.chunk.volatileIO(freeSlot);
                 evictionPolicy.onCached(entry.chunk);
+                ghost = ghostTable != null ? ghostTable.remove(ghostKey(entry)) : null;
             }
             blobCacheMetrics.recordLockAcquire(afterLockNanoTime - beforeLockNanoTime, SlotAssignment);
+            if (ghostTable != null) {
+                recordRegionFetch(entry, ghost);
+            }
         }
 
         private void pushEntryToBack(final LFUCacheEntry entry) {
@@ -2926,6 +3040,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                 }
                             } finally {
                                 unlinkAndRemoveForEviction(entry);
+                                onPressureEviction(entry, incoming.origin);
                             }
                         }
                     } finally {
@@ -3008,6 +3123,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
                         unlinkAndRemoveForEviction(entry);
+                        // only called by fills that may not evict above the lowest frequency
+                        onPressureEviction(entry, RegionFillOrigin.Speculative);
                         found = true;
                         break;
                     }

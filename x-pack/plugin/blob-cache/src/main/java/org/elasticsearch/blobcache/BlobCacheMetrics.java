@@ -90,6 +90,32 @@ public class BlobCacheMetrics {
      * {@code miss.total} minus this histogram's count is sentinels plus bypasses.
      */
     public static final String BLOB_CACHE_MISS_AGE = "es.blob_cache.miss.age.histogram";
+    /**
+     * Regions allocated a cache slot, i.e. regions about to be fetched from the blob store, broken down by
+     * {@link #FILL_ORIGIN_ATTRIBUTE_KEY} and by {@link #REFETCH_ATTRIBUTE_KEY}. A region is a re-fetch when it was evicted
+     * under cache pressure recently enough to still be remembered by the ghost table; for re-fetches
+     * {@link #EVICTED_BY_ATTRIBUTE_KEY} tells which kind of fill took its slot. Counted once per region allocation, while
+     * filling a region may take several blob store requests. Only recorded when the ghost table is enabled.
+     */
+    public static final String BLOB_CACHE_REGION_FETCH_TOTAL = "es.blob_cache.region_fetch.total";
+    /**
+     * Number of pressure evictions between the eviction of a re-fetched region and its re-fetch, divided by the number of
+     * regions of the cache. A re-fetch at distance {@code d} would roughly have been avoided by a cache {@code (1 + d)}
+     * times larger. Bounded by the ghost table capacity.
+     */
+    public static final String BLOB_CACHE_REFETCH_EVICTION_DISTANCE = "es.blob_cache.refetch.eviction_distance.histogram";
+    /** Time between the eviction of a re-fetched region and its re-fetch. */
+    public static final String BLOB_CACHE_REFETCH_AGE = "es.blob_cache.refetch.age.histogram";
+    /**
+     * Regions evicted under cache pressure (forced evictions excluded), broken down by the {@link #FILL_ORIGIN_ATTRIBUTE_KEY}
+     * of the evicted region and by {@link #REACCESSED_ATTRIBUTE_KEY}. A region evicted without having been re-accessed is a
+     * one-hit wonder, or for speculative fills a wasted fill.
+     */
+    public static final String BLOB_CACHE_PRESSURE_EVICTED_REGIONS_TOTAL = "es.blob_cache.pressure_evicted_regions.total";
+    public static final String FILL_ORIGIN_ATTRIBUTE_KEY = "es_fill_origin";
+    public static final String REFETCH_ATTRIBUTE_KEY = "es_refetch";
+    public static final String EVICTED_BY_ATTRIBUTE_KEY = "es_evicted_by";
+    public static final String REACCESSED_ATTRIBUTE_KEY = "es_reaccessed";
 
     /** A {@link TimeProvider} with all methods returning {@code 0L}. Used by {@link #NOOP} and by tests. */
     public static final TimeProvider NOOP_TIME_PROVIDER = new TimeProvider() {
@@ -140,6 +166,11 @@ public class BlobCacheMetrics {
     private final DoubleHistogram lockAcquireTime;
     private final DoubleHistogram readAgeHourHistogram;
     private final DoubleHistogram missAgeHourHistogram;
+
+    private final LongCounter regionFetchCounter;
+    private final DoubleHistogram refetchEvictionDistance;
+    private final LongHistogram refetchAge;
+    private final LongCounter pressureEvictedRegions;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
@@ -193,6 +224,16 @@ public class BlobCacheMetrics {
         Free,
         /// Scan exhausted its frequency buckets without freeing a region.
         None
+    }
+
+    /// The kind of fill that brings a region into the cache, as known by the cache when the region is allocated a slot.
+    public enum RegionFillOrigin {
+        /// A read that needs the data (searches, merges, ...), including codec prefetches issued through the read path.
+        Demand,
+        /// A best-effort warming or prefetch that may only evict regions of the lowest frequency.
+        Speculative,
+        /// A warming or prefetch that may evict any region (`force = true`).
+        ForcedSpeculative
     }
 
     /// The call site at which the SharedBlobCacheService monitor was acquired. Lets us attribute lock-wait time to the
@@ -316,6 +357,35 @@ public class BlobCacheMetrics {
                 "hours",
                 TimeRangeBucket.histogramHourBoundaries()
             ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_REGION_FETCH_TOTAL,
+                "The number of regions allocated a cache slot to be fetched, broken down by ["
+                    + FILL_ORIGIN_ATTRIBUTE_KEY
+                    + "] and by whether the region is a re-fetch of a recently evicted region ["
+                    + REFETCH_ATTRIBUTE_KEY
+                    + "]",
+                "regions"
+            ),
+            meterRegistry.registerDoubleHistogram(
+                BLOB_CACHE_REFETCH_EVICTION_DISTANCE,
+                "The number of pressure evictions between the eviction of a re-fetched region and its re-fetch, "
+                    + "as a multiple of the number of cache regions",
+                "cache sizes"
+            ),
+            meterRegistry.registerLongHistogram(
+                BLOB_CACHE_REFETCH_AGE,
+                "The time between the eviction of a re-fetched region and its re-fetch",
+                "seconds"
+            ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_PRESSURE_EVICTED_REGIONS_TOTAL,
+                "The number of regions evicted under cache pressure, broken down by ["
+                    + FILL_ORIGIN_ATTRIBUTE_KEY
+                    + "] and by whether they were re-accessed after being filled ["
+                    + REACCESSED_ATTRIBUTE_KEY
+                    + "]; excludes forced evictions",
+                "regions"
+            ),
             timeProvider
         );
 
@@ -363,6 +433,10 @@ public class BlobCacheMetrics {
         DoubleHistogram lockAcquireTime,
         DoubleHistogram readAgeHourHistogram,
         DoubleHistogram missAgeHourHistogram,
+        LongCounter regionFetchCounter,
+        DoubleHistogram refetchEvictionDistance,
+        LongHistogram refetchAge,
+        LongCounter pressureEvictedRegions,
         TimeProvider timeProvider
     ) {
         this.cacheMissCounter = cacheMissCounter;
@@ -382,6 +456,10 @@ public class BlobCacheMetrics {
         this.lockAcquireTime = lockAcquireTime;
         this.readAgeHourHistogram = readAgeHourHistogram;
         this.missAgeHourHistogram = missAgeHourHistogram;
+        this.regionFetchCounter = regionFetchCounter;
+        this.refetchEvictionDistance = refetchEvictionDistance;
+        this.refetchAge = refetchAge;
+        this.pressureEvictedRegions = pressureEvictedRegions;
         this.timeProvider = timeProvider;
     }
 
@@ -534,6 +612,33 @@ public class BlobCacheMetrics {
     /// @param site the operation that acquired the lock (see [LockAcquireSite])
     public void recordLockAcquire(long elapsedNanos, LockAcquireSite site) {
         lockAcquireTime.record((double) elapsedNanos / 1000, Map.of(LOCK_ACQUIRE_SITE_ATTRIBUTE_KEY, site.name()));
+    }
+
+    /// Record a region allocated a cache slot that was not remembered as recently evicted (see [#BLOB_CACHE_REGION_FETCH_TOTAL]).
+    public void recordRegionFirstFetch(RegionFillOrigin origin) {
+        regionFetchCounter.incrementBy(1L, Map.of(FILL_ORIGIN_ATTRIBUTE_KEY, origin.name(), REFETCH_ATTRIBUTE_KEY, false));
+    }
+
+    /// Record a region allocated a cache slot after having been evicted under cache pressure (see [#BLOB_CACHE_REGION_FETCH_TOTAL]).
+    /// @param origin the kind of fill re-fetching the region
+    /// @param evictedBy the kind of fill that took the slot of the region when it was evicted
+    /// @param evictionDistance pressure evictions between the eviction and the re-fetch, as a multiple of the number of regions
+    /// @param ageMillis time between the eviction and the re-fetch
+    public void recordRegionRefetch(RegionFillOrigin origin, RegionFillOrigin evictedBy, double evictionDistance, long ageMillis) {
+        final Map<String, Object> attributes = Map.of(FILL_ORIGIN_ATTRIBUTE_KEY, origin.name());
+        regionFetchCounter.incrementBy(
+            1L,
+            Map.of(FILL_ORIGIN_ATTRIBUTE_KEY, origin.name(), REFETCH_ATTRIBUTE_KEY, true, EVICTED_BY_ATTRIBUTE_KEY, evictedBy.name())
+        );
+        refetchEvictionDistance.record(evictionDistance, attributes);
+        refetchAge.record(TimeUnit.MILLISECONDS.toSeconds(Math.max(0L, ageMillis)), attributes);
+    }
+
+    /// Record a region evicted under cache pressure (see [#BLOB_CACHE_PRESSURE_EVICTED_REGIONS_TOTAL]).
+    /// @param origin the kind of fill that had brought the evicted region into the cache
+    /// @param reaccessed whether the region was read again after the fill that brought it in
+    public void recordPressureEviction(RegionFillOrigin origin, boolean reaccessed) {
+        pressureEvictedRegions.incrementBy(1L, Map.of(FILL_ORIGIN_ATTRIBUTE_KEY, origin.name(), REACCESSED_ATTRIBUTE_KEY, reaccessed));
     }
 
     public long readCount() {

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheMetrics.RegionFillOrigin;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
@@ -5514,6 +5515,205 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     () -> progressUpdater.accept(length)
                 ),
                 cacheFile.toString()
+            );
+        }
+    }
+
+    private static Settings refetchTrackingSettings(float ghostSizeRatio) {
+        return Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put(SharedBlobCacheService.SHARED_CACHE_GHOST_SIZE_RATIO_SETTING.getKey(), ghostSizeRatio)
+            .put("path.home", createTempDir())
+            .build();
+    }
+
+    private static List<Measurement> regionFetches(RecordingMeterRegistry registry, boolean refetch) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BlobCacheMetrics.BLOB_CACHE_REGION_FETCH_TOTAL)
+            .stream()
+            .filter(m -> m.attributes().get(BlobCacheMetrics.REFETCH_ATTRIBUTE_KEY).equals(refetch))
+            .toList();
+    }
+
+    private static List<Measurement> pressureEvictions(RecordingMeterRegistry registry) {
+        return registry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, BlobCacheMetrics.BLOB_CACHE_PRESSURE_EVICTED_REGIONS_TOTAL);
+    }
+
+    public void testRegionFetchesAreNotRecordedWithoutGhostTable() throws IOException {
+        final Settings settings = refetchTrackingSettings(0f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            for (int region = 0; region < 6; region++) {
+                cacheService.get(cacheKey, size(600), region, irrelevantTimestamp());
+            }
+            cacheService.get(cacheKey, size(600), 0, irrelevantTimestamp());
+            assertThat(
+                recordingMeterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, BlobCacheMetrics.BLOB_CACHE_REGION_FETCH_TOTAL),
+                empty()
+            );
+            // pressure evictions are recorded whether or not the ghost table is enabled
+            assertThat(pressureEvictions(recordingMeterRegistry), hasSize(2));
+        }
+    }
+
+    public void testRefetchIsDetectedAfterPressureEviction() throws IOException {
+        final Settings settings = refetchTrackingSettings(1f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            for (int region = 0; region < 5; region++) {
+                cacheService.get(cacheKey, size(500), region, irrelevantTimestamp());
+            }
+            assertThat(cacheService.freeRegionCount(), is(0));
+            assertThat(regionFetches(recordingMeterRegistry, false), hasSize(5));
+
+            // a forced warm of another blob takes the slot of the oldest region, region 0
+            final var otherKey = generateCacheKey();
+            cacheService.get(otherKey, size(100), 0, irrelevantTimestamp(), RegionFillOrigin.ForcedSpeculative);
+            assertThat(pressureEvictions(recordingMeterRegistry), hasSize(1));
+            assertThat(regionFetches(recordingMeterRegistry, false), hasSize(6));
+            assertThat(
+                regionFetches(recordingMeterRegistry, false).getLast().attributes().get(BlobCacheMetrics.FILL_ORIGIN_ATTRIBUTE_KEY),
+                is(RegionFillOrigin.ForcedSpeculative.name())
+            );
+
+            // reading region 0 again evicts region 1 and is reported as a re-fetch caused by the forced warm
+            cacheService.get(cacheKey, size(500), 0, irrelevantTimestamp());
+            final var refetches = regionFetches(recordingMeterRegistry, true);
+            assertThat(refetches, hasSize(1));
+            assertThat(
+                refetches.getFirst().attributes().get(BlobCacheMetrics.FILL_ORIGIN_ATTRIBUTE_KEY),
+                is(RegionFillOrigin.Demand.name())
+            );
+            assertThat(
+                refetches.getFirst().attributes().get(BlobCacheMetrics.EVICTED_BY_ATTRIBUTE_KEY),
+                is(RegionFillOrigin.ForcedSpeculative.name())
+            );
+            // the eviction of region 1 to make room for region 0 happened after the eviction of region 0
+            final var distances = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_REFETCH_EVICTION_DISTANCE);
+            assertThat(distances, hasSize(1));
+            assertThat(distances.getFirst().getDouble(), is(1.0 / 5));
+            assertThat(
+                recordingMeterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_HISTOGRAM, BlobCacheMetrics.BLOB_CACHE_REFETCH_AGE),
+                hasSize(1)
+            );
+
+            // the ghost is consumed by the re-fetch: evicting and re-reading region 1 is a re-fetch, but not region 0 twice
+            cacheService.get(cacheKey, size(500), 1, irrelevantTimestamp());
+            assertThat(regionFetches(recordingMeterRegistry, true), hasSize(2));
+            assertThat(regionFetches(recordingMeterRegistry, false), hasSize(6));
+        }
+    }
+
+    public void testForcedEvictionsAreNotRefetches() throws IOException {
+        final Settings settings = refetchTrackingSettings(1f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            cacheService.get(cacheKey, size(100), 0, irrelevantTimestamp());
+            assertThat(cacheService.forceEvict(cacheKey::equals), is(1));
+            cacheService.get(cacheKey, size(100), 0, irrelevantTimestamp());
+            assertThat(regionFetches(recordingMeterRegistry, false), hasSize(2));
+            assertThat(regionFetches(recordingMeterRegistry, true), empty());
+            assertThat(pressureEvictions(recordingMeterRegistry), empty());
+        }
+    }
+
+    public void testPressureEvictionsReportWhetherRegionsWereReaccessed() throws IOException {
+        final Settings settings = refetchTrackingSettings(1f);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                new BlobCacheMetrics(recordingMeterRegistry, NOOP_TIME_PROVIDER)
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final long blobLength = size(500);
+            // regions 0 and 1 are filled by demand reads, regions 2 and 3 by warming, region 4 by a demand read
+            cacheService.get(cacheKey, blobLength, 0, irrelevantTimestamp());
+            cacheService.get(cacheKey, blobLength, 1, irrelevantTimestamp());
+            cacheService.get(cacheKey, blobLength, 2, irrelevantTimestamp(), RegionFillOrigin.Speculative);
+            cacheService.get(cacheKey, blobLength, 3, irrelevantTimestamp(), RegionFillOrigin.ForcedSpeculative);
+            cacheService.get(cacheKey, blobLength, 4, irrelevantTimestamp());
+
+            // a read of region 0 within the re-access window is part of the access that filled it
+            cacheService.get(cacheKey, blobLength, 0, irrelevantTimestamp());
+            // any demand read of a warmed region is a re-access, a warming request is not
+            cacheService.get(cacheKey, blobLength, 2, irrelevantTimestamp());
+            cacheService.get(cacheKey, blobLength, 3, irrelevantTimestamp(), RegionFillOrigin.Speculative);
+            // a read of region 1 after the re-access window is a re-access
+            final long reaccessWindowMillis = SharedBlobCacheService.SHARED_CACHE_REACCESS_WINDOW_SETTING.get(settings).millis();
+            taskQueue.scheduleAt(taskQueue.getCurrentTimeMillis() + reaccessWindowMillis, () -> {});
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+            cacheService.get(cacheKey, blobLength, 1, irrelevantTimestamp());
+
+            // evict all five regions, oldest first
+            final var otherKey = generateCacheKey();
+            for (int region = 0; region < 5; region++) {
+                cacheService.get(otherKey, blobLength, region, irrelevantTimestamp());
+            }
+            final var evictions = pressureEvictions(recordingMeterRegistry);
+            assertThat(evictions, hasSize(5));
+            assertThat(
+                evictions.stream().map(m -> m.attributes().get(BlobCacheMetrics.REACCESSED_ATTRIBUTE_KEY)).toList(),
+                equalTo(List.of(false, true, true, false, false))
+            );
+            assertThat(
+                evictions.stream().map(m -> m.attributes().get(BlobCacheMetrics.FILL_ORIGIN_ATTRIBUTE_KEY)).toList(),
+                equalTo(
+                    List.of(
+                        RegionFillOrigin.Demand.name(),
+                        RegionFillOrigin.Demand.name(),
+                        RegionFillOrigin.Speculative.name(),
+                        RegionFillOrigin.ForcedSpeculative.name(),
+                        RegionFillOrigin.Demand.name()
+                    )
+                )
             );
         }
     }

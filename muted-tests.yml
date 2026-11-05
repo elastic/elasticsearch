@@ -564,3 +564,7 @@ tests:
   - :x-pack:plugin:esql:internalClusterTest
   method: testWorkerWithoutAnyAppliedStateIsHeldBack
   issue: https://github.com/elastic/elasticsearch/issues/164755
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  tasks:
+  - :qa:smoke-test-multinode:yamlRestTest
+  issue: https://github.com/elastic/elasticsearch/issues/164771

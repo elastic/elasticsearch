@@ -52,14 +52,17 @@ public class SumDoubleGroupingAggregatorFunctionTests extends PartitionedGroupin
             for (int b = 0; b < blocks.length; b++) {
                 blocks[b] = page.getBlock(b);
             }
+            boolean injectNulls = randomBoolean();
+            boolean injectInfs = randomBoolean();
             try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(page.getPositionCount())) {
                 for (int p = 0; p < page.getPositionCount(); p++) {
-                    if (randomInt(9) == 0) {
+                    int n = randomInt(100);
+                    if (injectNulls && n < 2) {
                         builder.appendNull();
-                    } else if (randomInt(199) == 0) {
+                    } else if (injectInfs && 2 <= n && n < 4) {
                         builder.appendDouble(randomFrom(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.NaN));
                     } else {
-                        builder.appendDouble(original.getDouble(original.getFirstValueIndex(p)));
+                        builder.copyFrom(original, p);
                     }
                 }
                 blocks[1] = builder.build();

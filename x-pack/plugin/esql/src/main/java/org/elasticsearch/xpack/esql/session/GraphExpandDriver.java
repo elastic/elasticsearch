@@ -16,6 +16,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.GraphExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -54,6 +57,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Coordinator-side visited-set BFS for a research snapshot of {@link GraphExpand}.
@@ -62,6 +66,8 @@ import java.util.Set;
  */
 public final class GraphExpandDriver {
 
+    private static final Logger LOGGER = LogManager.getLogger(GraphExpandDriver.class);
+
     public static final int DEFAULT_MAX_HOPS = 3;
 
     private static final Set<String> ALLOWED_OPTIONS = Set.of(
@@ -69,6 +75,8 @@ public final class GraphExpandDriver {
         "direction",
         "hub_degree",
         "max_edges_per_node",
+        "max_edges_per_hop",
+        "hop_fields",
         "max_nodes",
         "max_frontier",
         "exclude"
@@ -87,6 +95,12 @@ public final class GraphExpandDriver {
     private final Attribute matchField;
     private final List<Attribute> targetFields;
     private final boolean multiField;
+    /**
+     * The {@code hop_fields} option: the subset of {@link #targetFields} each hop walks, one
+     * entry per hop with the last entry reused for later hops; empty means every hop walks
+     * every TO field. A hop only issues subplans for its own fields.
+     */
+    private final List<List<Attribute>> hopFields;
     private final List<Attribute> resultAttributes;
     private final DataType nodeType;
     private final int nodeFromIdx;
@@ -102,6 +116,15 @@ public final class GraphExpandDriver {
     private List<Object> frontier = new ArrayList<>();
     /** Depth of the next hop to run (1-based). */
     private int nextHop = 1;
+    /** What the hop subplan in flight walks, for the log line its result completes; null when none is in flight. */
+    @Nullable
+    private String inFlightHop;
+    /** {@link System#nanoTime()} when the hop subplan in flight was handed out. */
+    private long inFlightHopStartedNanos;
+    /** Hop subplans handed out so far, and the time their results took to come back. */
+    private int hopSubPlans;
+    private long hopSubPlanNanos;
+    private final long walkStartedNanos = System.nanoTime();
     /** Admitted edge rows matching {@link #resultAttributes}. */
     private final List<List<Object>> admittedRows = new ArrayList<>();
     private boolean finished;
@@ -160,6 +183,7 @@ public final class GraphExpandDriver {
         this.matchField = matchField;
         this.targetFields = targetFields;
         this.multiField = targetFields.size() > 1;
+        this.hopFields = hopFields(graphExpand, targetFields);
         this.resultAttributes = resultAttributes;
         this.nodeType = targetFields.get(0).dataType();
         this.nodeFromIdx = indexOf(resultAttributes, "node_from");
@@ -203,6 +227,48 @@ public final class GraphExpandDriver {
             result.add(nodeType == DataType.IP ? canonicalIp(v) : v instanceof BytesRef ? v : new BytesRef(v.toString()));
         }
         return result;
+    }
+
+    /**
+     * The {@code hop_fields} option as TO attributes per hop. Each entry names the fields of
+     * one hop, comma separated; every name must be a TO field.
+     */
+    private static List<List<Attribute>> hopFields(GraphExpand ge, List<Attribute> targetFields) {
+        MapExpression options = ge.options();
+        if (options == null) {
+            return List.of();
+        }
+        Expression value = options.keyFoldedMap().get("hop_fields");
+        if (value == null) {
+            return List.of();
+        }
+        Object folded = value.fold(FoldContext.small());
+        List<?> entries = folded instanceof List<?> list ? list : folded == null ? List.of() : List.of(folded);
+        List<List<Attribute>> result = new ArrayList<>(entries.size());
+        for (Object entry : entries) {
+            List<Attribute> fields = new ArrayList<>();
+            for (String name : BytesRefs.toString(entry).split(",")) {
+                String trimmed = name.strip();
+                Attribute field = targetFields.stream().filter(a -> a.name().equals(trimmed)).findFirst().orElse(null);
+                if (field == null) {
+                    throw new IllegalArgumentException("GRAPH EXPAND hop_fields names [" + trimmed + "], which is not a TO field");
+                }
+                fields.add(field);
+            }
+            if (fields.isEmpty()) {
+                throw new IllegalArgumentException("GRAPH EXPAND hop_fields has an entry with no fields");
+            }
+            result.add(fields);
+        }
+        return result;
+    }
+
+    /** The TO fields the hop about to run walks: its {@code hop_fields} entry, else every TO field. */
+    private List<Attribute> currentTargetFields() {
+        if (hopFields.isEmpty()) {
+            return targetFields;
+        }
+        return hopFields.get(Math.min(nextHop, hopFields.size()) - 1);
     }
 
     private Leg initialLeg() {
@@ -287,8 +353,15 @@ public final class GraphExpandDriver {
             finished = true;
             return null;
         }
-        LogicalPlan hopPlan = buildHopPlan(nextHop, frontier, nextLeg, targetFields.get(nextFieldIndex));
+        Attribute targetField = currentTargetFields().get(nextFieldIndex);
+        LogicalPlan hopPlan = buildHopPlan(nextHop, frontier, nextLeg, targetField);
         hopPlan.setOptimized();
+        // One log line per subplan, like the workflow hop step: each hop runs one subplan per
+        // TO field and per leg, so a `both` walk over four fields issues eight per hop.
+        inFlightHop = "hop " + nextHop + " " + nextLeg.name().toLowerCase(Locale.ROOT) + " " + targetField.name();
+        inFlightHopStartedNanos = System.nanoTime();
+        hopSubPlans++;
+        LOGGER.info("GRAPH EXPAND {}: {} frontier values, subplan:\n{}", inFlightHop, frontier.size(), hopPlan);
         return hopPlan;
     }
 
@@ -307,6 +380,12 @@ public final class GraphExpandDriver {
         }
 
         List<List<Object>> rows = extractRows(hopResult);
+        if (inFlightHop != null) {
+            long elapsedNanos = System.nanoTime() - inFlightHopStartedNanos;
+            hopSubPlanNanos += elapsedNanos;
+            LOGGER.info("GRAPH EXPAND {}: {} rows in {} ms", inFlightHop, rows.size(), TimeUnit.NANOSECONDS.toMillis(elapsedNanos));
+            inFlightHop = null;
+        }
 
         if (emptyStart) {
             // The empty start result: finish at once, whatever the direction or TO list.
@@ -332,7 +411,7 @@ public final class GraphExpandDriver {
             }
             pendingFieldRows.addAll(rows);
             nextFieldIndex++;
-            if (nextFieldIndex < targetFields.size()) {
+            if (nextFieldIndex < currentTargetFields().size()) {
                 nextLeg = initialLeg();
                 return mainPlan;
             }
@@ -432,6 +511,16 @@ public final class GraphExpandDriver {
         nextLeg = initialLeg();
         if (untilMatched || frontier.isEmpty() || nextHop > maxHops) {
             finished = true;
+            LOGGER.info(
+                "GRAPH EXPAND finished: {} hops, {} subplans taking {} ms of {} ms, {} rows admitted, {} nodes visited, stop: {}",
+                nextHop - 1,
+                hopSubPlans,
+                TimeUnit.NANOSECONDS.toMillis(hopSubPlanNanos),
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - walkStartedNanos),
+                admittedRows.size(),
+                visited.size(),
+                untilMatched ? "until matched" : frontier.isEmpty() ? "frontier exhausted" : "max hops"
+            );
             LocalRelation results = resultsRelation();
             LogicalPlan replaced = mainPlan.transformUp(GraphExpand.class, ge -> results);
             replaced.setOptimized();
@@ -493,7 +582,19 @@ public final class GraphExpandDriver {
             null,
             false
         );
-        LogicalPlan scanned = new MvExpand(source, graphExpand.edgeRelation(), frontierField, expandedFrontier);
+        // Match at the index first. On an outbound leg the frontier field is the node id, a
+        // single value, so an IN on the stored field is a terms query Lucene answers before any
+        // document is read, and the pointer being non-null is an exists query. The filters kept
+        // above the expands still trim per value, which is what an inbound leg, whose frontier
+        // field is the multi-valued pointer, relies on.
+        Attribute storedPointer = leg == Leg.OUT ? targetField : matchField;
+        List<Expression> indexPredicates = new ArrayList<>(2);
+        if (leg == Leg.OUT) {
+            indexPredicates.add(new In(source, frontierField, literals));
+        }
+        indexPredicates.add(new IsNotNull(source, storedPointer));
+        LogicalPlan edges = new Filter(source, graphExpand.edgeRelation(), Predicates.combineAnd(indexPredicates));
+        LogicalPlan scanned = new MvExpand(source, edges, frontierField, expandedFrontier);
         // The other side of the edge is exploded too, so a multi-valued pointer (an entity's
         // list of relationship targets) yields one edge per value on an outbound leg as well,
         // and UNTIL compares against a single reached id rather than a list. Without STATS
@@ -579,7 +680,14 @@ public final class GraphExpandDriver {
         for (int i = 4; i < resultAttributes.size(); i++) {
             projections.add(attributeByName(eval.output(), resultAttributes.get(i).name()));
         }
-        return new Project(source, eval, projections);
+        LogicalPlan hopPlan = new Project(source, eval, projections);
+        // Rows a hop could never admit are not read: the cap is the smaller of max_edges_per_hop
+        // and what the engine would hold anyway, applied per subplan before the rows travel.
+        Integer maxEdgesPerHop = optionInt("max_edges_per_hop");
+        if (maxEdgesPerHop != null) {
+            hopPlan = new Limit(source, new Literal(source, maxEdgesPerHop, DataType.INTEGER), hopPlan);
+        }
+        return hopPlan;
     }
 
     /**

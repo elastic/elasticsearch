@@ -53,16 +53,19 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
     private static final Set<String> ALLOWED_OPTIONS = Set.of(
         "max_hops",
         "max_edges_per_node",
+        "max_edges_per_hop",
         "hub_degree",
         "max_nodes",
         "max_frontier",
         "direction",
-        "exclude"
+        "exclude",
+        "hop_fields"
     );
 
     private static final Set<String> INTEGER_CAP_OPTIONS = Set.of(
         "max_hops",
         "max_edges_per_node",
+        "max_edges_per_hop",
         "hub_degree",
         "max_nodes",
         "max_frontier"
@@ -370,8 +373,8 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
             }
             if (key.equals("direction")) {
                 verifyDirection(failures, value);
-            } else if (key.equals("exclude")) {
-                verifyExclude(failures, value);
+            } else if (key.equals("exclude") || key.equals("hop_fields")) {
+                verifyStringList(failures, key, value);
             } else if (INTEGER_CAP_OPTIONS.contains(key)) {
                 verifyIntegerCap(failures, key, value);
             }
@@ -383,13 +386,18 @@ public class GraphExpand extends UnaryPlan implements PostAnalysisVerificationAw
      * caps and UNTIL, so nothing beyond an excluded node is visited and no budget is spent
      * on it. A string or a list of strings.
      */
-    private void verifyExclude(Failures failures, Expression value) {
+    /**
+     * {@code exclude} and {@code hop_fields} both take a string or a list of strings: node ids
+     * for the one, comma-separated TO field names per hop for the other. The driver checks
+     * that every hop_fields name is a TO field once the fields are resolved.
+     */
+    private void verifyStringList(Failures failures, String key, Expression value) {
         if ((value instanceof Literal) == false) {
-            failures.add(fail(this, "expected exclude to be a literal, got [" + value.sourceText() + "]"));
+            failures.add(fail(this, "expected " + key + " to be a literal, got [" + value.sourceText() + "]"));
             return;
         }
         if (value.dataType() != DataType.KEYWORD && value.dataType() != DataType.TEXT) {
-            failures.add(fail(this, "GRAPH EXPAND exclude must be a string or a list of strings, got [" + value.sourceText() + "]"));
+            failures.add(fail(this, "GRAPH EXPAND " + key + " must be a string or a list of strings, got [" + value.sourceText() + "]"));
         }
     }
 

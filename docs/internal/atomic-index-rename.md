@@ -371,6 +371,19 @@ that a global-state snapshot carries, and does so before the metadata is built,
 since building already rejects an alias named like its own index
 (`testAliasReusesOriginalSnapshotName`, `testAliasWithTheOriginalNameOfAnotherIndex`).
 
+Leaving an alias out makes the metadata differ from what the cluster has while its
+versions stay the same, and the repository reuses an index metadata blob for any
+later snapshot of the index that computes the same identifier from the UUID and
+versions. An index that was not renamed keeps its repository id, so the next
+snapshot, taken with no further change, would have reused the filtered blob and
+restored the index without the alias, with both snapshots reporting success
+(`testLaterSnapshotKeepsAliasFilteredFromEarlierSnapshot`). Finalization therefore
+reports which indices it adjusted in this way
+(`SnapshotsServiceUtils#indicesWithAdjustedMetadata`, carried by
+`FinalizeSnapshotContext`), and the repository writes their metadata under an
+identifier that is unique to the snapshot, the way it already does for metadata
+adjusted for a resharding in progress.
+
 One more consequence of an index appearing under two ids: the repository finds
 an index metadata blob by an identifier built from the index UUID and the
 versions of its metadata, but the blob lives in the container of one `id`. A

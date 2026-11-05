@@ -46,6 +46,8 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     private final Runnable onDone;
 
+    private final Set<String> indicesWithAdjustedMetadata;
+
     /**
      * @param serializeProjectMetadata serialize only the project metadata of the cluster metadata
      * @param updatedShardGenerations updated shard generations for both live and deleted indices
@@ -68,7 +70,36 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         ActionListener<RepositoryData> listener,
         Runnable onDone
     ) {
+        this(
+            serializeProjectMetadata,
+            updatedShardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            Set.of(),
+            listener,
+            onDone
+        );
+    }
+
+    /**
+     * @param indicesWithAdjustedMetadata the names of the indices whose metadata in {@code clusterMetadata} is not the metadata the
+     *                                    cluster has, so that the repository never reuses it for another snapshot
+     */
+    public FinalizeSnapshotContext(
+        boolean serializeProjectMetadata,
+        UpdatedShardGenerations updatedShardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        IndexVersion repositoryMetaVersion,
+        Set<String> indicesWithAdjustedMetadata,
+        ActionListener<RepositoryData> listener,
+        Runnable onDone
+    ) {
         super(listener);
+        this.indicesWithAdjustedMetadata = indicesWithAdjustedMetadata;
         this.serializeProjectMetadata = serializeProjectMetadata;
         this.updatedShardGenerations = updatedShardGenerations;
         this.repositoryStateId = repositoryStateId;
@@ -96,6 +127,10 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     public IndexVersion repositoryMetaVersion() {
         return repositoryMetaVersion;
+    }
+
+    public Set<String> indicesWithAdjustedMetadata() {
+        return indicesWithAdjustedMetadata;
     }
 
     public Metadata clusterMetadata() {

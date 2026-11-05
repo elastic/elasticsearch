@@ -319,27 +319,15 @@ public class SnapshotsServiceUtils {
      */
     public static ProjectMetadata projectForSnapshot(SnapshotsInProgress.Entry snapshot, ProjectMetadata project) {
         // each index of the snapshot as the cluster has it now, and as the snapshot names it
-        final Map<String, IndexMetadata> metadataBySnapshotName = new HashMap<>();
+        final Map<String, IndexMetadata> metadataBySnapshotName = metadataBySnapshotName(snapshot, project);
         final Map<Index, Index> snapshotNames = new HashMap<>();
-        for (IndexId indexId : snapshot.indices().values()) {
-            // a clone has no live indices: its project is made of the source snapshot's metadata, under the repository names
-            final Index startedAs = snapshot.isClone() ? null : snapshot.indexByName(indexId.getName());
-            final IndexMetadata indexMetadata = startedAs == null ? project.index(indexId.getName()) : project.index(startedAs);
-            if (indexMetadata == null) {
-                assert snapshot.partial() : "Index [" + indexId + "] was deleted during a snapshot but snapshot was not partial.";
-            } else {
-                metadataBySnapshotName.put(indexId.getName(), indexMetadata);
-                snapshotNames.put(indexMetadata.getIndex(), startedAs == null ? indexMetadata.getIndex() : startedAs);
-            }
+        for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
+            final Index startedAs = snapshot.isClone() ? null : snapshot.indexByName(entry.getKey());
+            snapshotNames.put(entry.getValue().getIndex(), startedAs == null ? entry.getValue().getIndex() : startedAs);
         }
         // The names that an index of the snapshot gets back although it no longer has them. An alias with one of these names, which
         // can only have been added since the snapshot started, would clash with the index in the view, so it is left out of it.
-        final Set<String> relabelled = new HashSet<>();
-        for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
-            if (entry.getValue().getIndex().getName().equals(entry.getKey()) == false) {
-                relabelled.add(entry.getKey());
-            }
-        }
+        final Set<String> relabelled = relabelledNames(metadataBySnapshotName);
         final ProjectMetadata.Builder builder;
         if (snapshot.includeGlobalState() == false) {
             // Create a new project state that only includes the index data
@@ -387,6 +375,57 @@ public class SnapshotsServiceUtils {
             }
         }
         return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, project.dataStreamAliases())).build();
+    }
+
+    /**
+     * Each index of the snapshot as the cluster has it now, by the name the snapshot knows it by. The index is found by UUID, since a
+     * rename may have changed its name or given the old one to another index. A clone has no live indices: its project is made of the
+     * source snapshot's metadata, under the repository names.
+     */
+    private static Map<String, IndexMetadata> metadataBySnapshotName(SnapshotsInProgress.Entry snapshot, ProjectMetadata project) {
+        final Map<String, IndexMetadata> result = new HashMap<>();
+        for (IndexId indexId : snapshot.indices().values()) {
+            final Index startedAs = snapshot.isClone() ? null : snapshot.indexByName(indexId.getName());
+            final IndexMetadata indexMetadata = startedAs == null ? project.index(indexId.getName()) : project.index(startedAs);
+            if (indexMetadata == null) {
+                assert snapshot.partial() : "Index [" + indexId + "] was deleted during a snapshot but snapshot was not partial.";
+            } else {
+                result.put(indexId.getName(), indexMetadata);
+            }
+        }
+        return result;
+    }
+
+    private static Set<String> relabelledNames(Map<String, IndexMetadata> metadataBySnapshotName) {
+        final Set<String> relabelled = new HashSet<>();
+        for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
+            if (entry.getValue().getIndex().getName().equals(entry.getKey()) == false) {
+                relabelled.add(entry.getKey());
+            }
+        }
+        return relabelled;
+    }
+
+    /**
+     * The names of the indices whose metadata {@link #projectForSnapshot} changes beyond giving it the name the snapshot knows it by,
+     * by leaving out aliases that would clash. Such metadata is not what the cluster has, yet carries the same versions, which the
+     * repository deduplicates by, so it must not be reused for a later snapshot; see {@code BlobStoreRepository}.
+     */
+    public static Set<String> indicesWithAdjustedMetadata(SnapshotsInProgress.Entry snapshot, ProjectMetadata project) {
+        final Map<String, IndexMetadata> metadataBySnapshotName = metadataBySnapshotName(snapshot, project);
+        final Set<String> relabelled = relabelledNames(metadataBySnapshotName);
+        final Set<String> adjusted = new HashSet<>();
+        if (relabelled.isEmpty() == false) {
+            for (Map.Entry<String, IndexMetadata> entry : metadataBySnapshotName.entrySet()) {
+                for (String alias : entry.getValue().getAliases().keySet()) {
+                    if (relabelled.contains(alias)) {
+                        adjusted.add(entry.getKey());
+                        break;
+                    }
+                }
+            }
+        }
+        return adjusted;
     }
 
     /**

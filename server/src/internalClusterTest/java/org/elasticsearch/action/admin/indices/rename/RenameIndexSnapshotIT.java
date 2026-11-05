@@ -42,6 +42,40 @@ import static org.hamcrest.Matchers.not;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RenameIndexSnapshotIT extends AbstractSnapshotIntegTestCase {
 
+    public void testLaterSnapshotKeepsAliasFilteredFromEarlierSnapshot() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        createRepository("repo", "mock");
+        createIndex("source", indexSettings(1, 0).build(), false);
+        createIndex("other", indexSettings(1, 0).build(), false);
+        indexDoc("source", "1", "field", "source");
+        indexDoc("other", "1", "field", "other");
+        flushAndRefresh("source", "other");
+        blockDataNode("repo", dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshot = startFullSnapshot("repo", "during");
+        waitForBlock(dataNode, "repo");
+        try {
+            rename("source", "renamed");
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("other", "source"));
+        } finally {
+            unblockNode("repo", dataNode);
+        }
+        assertSuccessful(snapshot);
+        createFullSnapshot("repo", "after");
+        assertTrue(clusterService().state().metadata().getProject().index("other").getAliases().containsKey("source"));
+        assertAcked(indicesAdmin().prepareDelete("renamed", "other"));
+        final RestoreSnapshotResponse restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "repo", "after")
+            .setIndices("other")
+            .setWaitForCompletion(true)
+            .get();
+        assertThat(restore.getRestoreInfo().failedShards(), equalTo(0));
+        ensureGreen("other");
+        assertTrue(
+            "the later snapshot must retain the alias present when it was taken",
+            clusterService().state().metadata().getProject().index("other").getAliases().containsKey("source")
+        );
+    }
+
     public void testAliasReusesOriginalSnapshotName() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();

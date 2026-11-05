@@ -291,6 +291,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String RESHARDED_METADATA_IDENTIFIER_PREFIX = "resharded-";
 
     /**
+     * Prefix of the identifier of index metadata that finalization adjusted, for instance by leaving out an alias that clashes with a
+     * name the index got back. See {@link FinalizeSnapshotContext#indicesWithAdjustedMetadata()}.
+     */
+    public static final String ADJUSTED_METADATA_IDENTIFIER_PREFIX = "adjusted-";
+
+    /**
      * @param repositoryGeneration The numeric generation of the {@link RepositoryData} blob.
      * @return The name of the blob holding the corresponding {@link RepositoryData}.
      */
@@ -2050,7 +2056,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 finalizeSnapshotContext.updatedShardGenerations().liveIndices()
                             );
                             if (writeIndexGens) {
-                                if (possiblyAdjustedMetadata.isPresent()) {
+                                final boolean adjustedByFinalization = finalizeSnapshotContext.indicesWithAdjustedMetadata()
+                                    .contains(index.getName());
+                                if (possiblyAdjustedMetadata.isPresent() || adjustedByFinalization) {
                                     // We have adjusted the index metadata and because of that we shouldn't ever deduplicate/reuse it.
                                     //
                                     // It's possible that we are already using the latest identifier
@@ -2071,10 +2079,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     // If multiple snapshots in a row need to adjust the metadata they'll all enter this block
                                     // and write a separate blob every time.
 
-                                    String customIdentifier = RESHARDED_METADATA_IDENTIFIER_PREFIX + UUIDs.base64UUID();
+                                    String customIdentifier = (possiblyAdjustedMetadata.isPresent()
+                                        ? RESHARDED_METADATA_IDENTIFIER_PREFIX
+                                        : ADJUSTED_METADATA_IDENTIFIER_PREFIX) + UUIDs.base64UUID();
                                     String metadataBlobUUID = UUIDs.base64UUID();
                                     INDEX_METADATA_FORMAT.write(
-                                        possiblyAdjustedMetadata.get(),
+                                        possiblyAdjustedMetadata.orElse(indexMetaData),
                                         indexContainer(index),
                                         metadataBlobUUID,
                                         compress

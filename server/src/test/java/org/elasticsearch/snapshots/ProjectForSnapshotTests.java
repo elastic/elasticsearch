@@ -261,4 +261,31 @@ public class ProjectForSnapshotTests extends ESTestCase {
         assertThat(view.index("unrelated").getAliases().containsKey("source"), equalTo(false));
         assertThat(view.index("renamed"), nullValue());
     }
+
+    /**
+     * Only an index whose metadata finalization changed beyond its name counts as adjusted: that is the metadata the repository must
+     * not reuse for a later snapshot, which has the same versions but the alias.
+     */
+    public void testOnlyIndicesWhoseAliasWasLeftOutAreAdjusted() {
+        final Index startedAsSource = new Index("source", "uuid-source");
+        final Index startedAsOther = new Index("other", "uuid-other");
+        final Index startedAsPlain = new Index("plain", "uuid-plain");
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(index("renamed", "uuid-source"), false)
+            .put(IndexMetadata.builder(index("other", "uuid-other")).putAlias(AliasMetadata.builder("source")).build(), false)
+            .put(index("plain", "uuid-plain"), false)
+            .build();
+        final var snapshot = snapshotOf(randomBoolean(), List.of(), startedAsSource, startedAsOther, startedAsPlain);
+
+        assertThat(SnapshotsServiceUtils.indicesWithAdjustedMetadata(snapshot, project), equalTo(Set.of("other")));
+    }
+
+    public void testNoIndexIsAdjustedWithoutARename() {
+        final Index plain = new Index("plain", "uuid-plain");
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.DEFAULT)
+            .put(IndexMetadata.builder(index("plain", "uuid-plain")).putAlias(AliasMetadata.builder("plain-alias")).build(), false)
+            .build();
+
+        assertTrue(SnapshotsServiceUtils.indicesWithAdjustedMetadata(snapshotOf(randomBoolean(), List.of(), plain), project).isEmpty());
+    }
 }

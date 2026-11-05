@@ -2777,6 +2777,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         metaForSnapshot,
                         snapshotInfo,
                         entry.version(),
+                        SnapshotsServiceUtils.indicesWithAdjustedMetadata(entry, meta.getProject(projectId)),
                         ActionListener.runBefore(ActionListener.wrap(updatedRepositoryData -> {
                             assert snapshotInfoStateInvariant : snapshot + " FAILED without future deletion";
                             // get a hold of the listeners for this snapshot here and store them in the future so they can be used

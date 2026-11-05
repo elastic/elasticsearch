@@ -22,9 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-
 /**
  * Lines the branches of a {@link MergePlan} up with the merge's output: every branch has to produce the merge's columns, by name
  * and in the merge's order, because the merge concatenates its branches' pages positionally. A branch that lacks a column gets it
@@ -119,12 +116,11 @@ public final class MergeBranchAlignment {
 
     /**
      * The type of the nulls filling {@code column} in a branch that lacks it: {@link #alignmentDataType} of the column, except for
-     * types that an {@code EVAL} cannot return. {@code UNSUPPORTED} is filled as {@code KEYWORD} and a counter type as its
-     * non-counter counterpart.
+     * a counter type, which is filled as its non-counter counterpart. An {@code UNSUPPORTED} column is filled with nulls typed
+     * {@code UNSUPPORTED}, as the merge's column is.
      */
     public static DataType nullFillType(Attribute column) {
         DataType type = alignmentDataType(column);
-        type = type == UNSUPPORTED ? KEYWORD : type;
         return type.isCounter() ? type.noCounter() : type;
     }
 

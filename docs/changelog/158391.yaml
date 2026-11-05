@@ -2,5 +2,5 @@ area: ES|QL
 issues:
  - 152038
 pr: 158391
-summary: "ESQL:DS: Drain buffered Parquet rows after TopN early-stop"
+summary: Drain buffered Parquet rows after TopN early-stop
 type: bug

@@ -931,11 +931,12 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     public void testSequenceNumbersDisabledDefaultsToFalse() {
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(indexSettings(1, 0).put("index.version.created", IndexVersion.current().id()))
-            .build();
-        assertFalse(metadata.sequenceNumbersDisabled(Settings.EMPTY));
-        assertFalse(metadata.sequenceNumbersDisabled(STATELESS_NODE));
+        Settings.Builder settings = indexSettings(1, 0).put("index.version.created", IndexVersion.current().id());
+        // The result is cached per instance, so each node type needs its own IndexMetadata.
+        IndexMetadata statefulMetadata = IndexMetadata.builder("test").settings(settings).build();
+        IndexMetadata statelessMetadata = IndexMetadata.builder("test").settings(settings).build();
+        assertFalse(statefulMetadata.sequenceNumbersDisabled(Settings.EMPTY));
+        assertFalse(statelessMetadata.sequenceNumbersDisabled(STATELESS_NODE));
     }
 
     public void testSequenceNumbersDisabledExplicitSetting() {
@@ -944,14 +945,13 @@ public class IndexMetadataTests extends ESTestCase {
             IndexVersion.current()
         );
         var disabled = randomBoolean();
-        IndexMetadata metadata = IndexMetadata.builder("test")
-            .settings(
-                indexSettings(1, 0).put("index.version.created", indexVersion.id())
-                    .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled)
-            )
-            .build();
-        assertThat(metadata.sequenceNumbersDisabled(Settings.EMPTY), is(disabled));
-        assertThat(metadata.sequenceNumbersDisabled(STATELESS_NODE), is(disabled));
+        Settings.Builder settings = indexSettings(1, 0).put("index.version.created", indexVersion.id())
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), disabled);
+        // The result is cached per instance, so each node type needs its own IndexMetadata.
+        IndexMetadata statefulMetadata = IndexMetadata.builder("test").settings(settings).build();
+        IndexMetadata statelessMetadata = IndexMetadata.builder("test").settings(settings).build();
+        assertThat(statefulMetadata.sequenceNumbersDisabled(Settings.EMPTY), is(disabled));
+        assertThat(statelessMetadata.sequenceNumbersDisabled(STATELESS_NODE), is(disabled));
     }
 
     public void testSequenceNumbersDisabledDefaultDependsOnNodeSettings() {

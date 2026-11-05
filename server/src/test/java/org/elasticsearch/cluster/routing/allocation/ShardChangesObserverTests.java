@@ -47,7 +47,6 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -65,7 +64,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 @TestLogging(value = "org.elasticsearch.cluster.routing.allocation.ShardChangesObserver:TRACE", reason = "verifies debug level logging")
@@ -310,18 +308,15 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThat(attributes, hasEntry("es_shard_primary", true));
 
         // the event carries the same reason
-        final var relocation = (ShardMovementEvent.RelocationStarted) events.stream()
-            .filter(e -> e instanceof ShardMovementEvent.RelocationStarted)
-            .findFirst()
-            .orElseThrow();
-        assertThat(relocation.shard().currentNodeId(), equalTo("node-1"));
-        assertThat(relocation.target().currentNodeId(), equalTo("node-2"));
-        assertThat(relocation.reason(), equalTo(new MoveReason(MoveType.CANNOT_REMAIN, preserveLabels ? "filter" : null)));
-        assertThat(events.getLast(), instanceOf(ShardMovementEvent.RelocationCompleted.class));
+        final var relocation = sink.events.stream().filter(e -> e.getFirst().equals("relocationStarted")).findFirst().orElseThrow();
+        assertThat(((ShardRouting) relocation.get(1)).currentNodeId(), equalTo("node-1"));
+        assertThat(((ShardRouting) relocation.get(2)).currentNodeId(), equalTo("node-2"));
+        assertThat(relocation.get(3), equalTo(new MoveReason(MoveType.CANNOT_REMAIN, preserveLabels ? "filter" : null)));
+        assertThat(sink.events.getLast().getFirst(), equalTo("relocationCompleted"));
     }
 
     public void testEventsForwardedToSink() {
-        final var observer = new ShardChangesObserver(new RecordingMeterRegistry(), System::currentTimeMillis, events::add);
+        final var observer = new ShardChangesObserver(new RecordingMeterRegistry(), System::currentTimeMillis, sink);
 
         final var shardId = new ShardId("test-index", "_na_", 0);
         final var primary = randomBoolean();
@@ -342,13 +337,13 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         observer.shardFailed(startedShard, unassignedInfo);
 
         assertThat(
-            events,
+            sink.events,
             contains(
-                new ShardMovementEvent.ShardInitialized(unassignedShard, initializingShard),
-                new ShardMovementEvent.ShardStarted(initializingShard, startedShard),
-                new ShardMovementEvent.RelocationStarted(startedShard, targetShard, reason),
-                new ShardMovementEvent.RelocationCompleted(relocatingShard),
-                new ShardMovementEvent.ShardFailed(startedShard, unassignedInfo)
+                List.of("shardInitialized", unassignedShard, initializingShard),
+                List.of("shardStarted", initializingShard, startedShard),
+                List.of("relocationStarted", startedShard, targetShard, reason),
+                List.of("relocationCompleted", relocatingShard),
+                List.of("shardFailed", startedShard, unassignedInfo)
             )
         );
     }
@@ -405,13 +400,13 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         return relocationAfterReroute(indexMetadata, allocationId, settings, clusterPlugins).attributes();
     }
 
-    /** the events emitted by the allocation service built by {@link #relocationAfterReroute} */
-    private final List<ShardMovementEvent> events = new ArrayList<>();
+    /** receives the events emitted by the allocation service built by {@link #relocationAfterReroute} */
+    private final ShardMovementEventSinkTests.RecordingSink sink = new ShardMovementEventSinkTests.RecordingSink();
 
     /**
      * Reroutes a one-shard cluster where the shard starts on node-1 and returns the attributes of the single relocation the allocation
      * service with the given settings and plugins starts, along with the recovery priority the relocating shard was given. The events
-     * emitted along the way are collected in {@link #events}.
+     * emitted along the way are collected by {@link #sink}.
      */
     private RelocationResult relocationAfterReroute(
         IndexMetadata indexMetadata,
@@ -437,7 +432,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             meterRegistry,
             clusterSettings,
-            events::add
+            sink
         );
         allocationService.setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, new TestGatewayAllocator()));
         // not applyStartedShardsUntilNoChange: the relocating shard's priority is gone once the relocation completes

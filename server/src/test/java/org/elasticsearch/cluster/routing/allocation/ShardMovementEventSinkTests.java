@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.routing.MoveReason;
 import org.elasticsearch.cluster.routing.MoveType;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,20 +31,56 @@ public class ShardMovementEventSinkTests extends ESTestCase {
 
     private static final ShardId SHARD_ID = new ShardId("test-index", "_na_", 0);
 
-    public void testCompositeDeliversToAllSinksAndIsolatesFailures() {
-        final var received1 = new ArrayList<ShardMovementEvent>();
-        final var received2 = new ArrayList<ShardMovementEvent>();
-        final ShardMovementEventSink failing = event -> { throw new RuntimeException("boom"); };
-        final var composite = ShardMovementEventSink.composite(List.of(received1::add, failing, received2::add));
+    /**
+     * Records each event as a list of the method name and its arguments
+     */
+    static class RecordingSink implements ShardMovementEventSink {
+        final List<List<Object>> events = new ArrayList<>();
 
-        final var event = new ShardMovementEvent.ShardFailed(
-            shardRoutingBuilder(SHARD_ID, "node-1", true, ShardRoutingState.STARTED).build(),
-            new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)
-        );
-        composite.accept(event);
-        composite.accept(event);
-        assertThat(received1, contains(event, event));
-        assertThat(received2, contains(event, event));
+        @Override
+        public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
+            events.add(List.of("shardInitialized", unassignedShard, initializedShard));
+        }
+
+        @Override
+        public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
+            events.add(List.of("shardStarted", initializingShard, startedShard));
+        }
+
+        @Override
+        public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, MoveReason reason) {
+            events.add(List.of("relocationStarted", startedShard, targetRelocatingShard, reason));
+        }
+
+        @Override
+        public void relocationCompleted(ShardRouting removedRelocationSource) {
+            events.add(List.of("relocationCompleted", removedRelocationSource));
+        }
+
+        @Override
+        public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
+            events.add(List.of("shardFailed", failedShard, unassignedInfo));
+        }
+    }
+
+    public void testCompositeDeliversToAllSinksAndIsolatesFailures() {
+        final var received1 = new RecordingSink();
+        final var received2 = new RecordingSink();
+        final var failing = new ShardMovementEventSink() {
+            @Override
+            public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
+                throw new RuntimeException("boom");
+            }
+        };
+        final var composite = ShardMovementEventSink.composite(List.of(received1, failing, received2));
+
+        final var shard = shardRoutingBuilder(SHARD_ID, "node-1", true, ShardRoutingState.STARTED).build();
+        final var unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null);
+        composite.shardFailed(shard, unassignedInfo);
+        composite.shardFailed(shard, unassignedInfo);
+        final var event = List.of("shardFailed", shard, unassignedInfo);
+        assertThat(received1.events, contains(event, event));
+        assertThat(received2.events, contains(event, event));
     }
 
     public void testCompositeOfNoneIsNoop() {
@@ -60,9 +97,7 @@ public class ShardMovementEventSinkTests extends ESTestCase {
         final var targetShard = shardRoutingBuilder(SHARD_ID, "node-2", true, ShardRoutingState.INITIALIZING).build();
 
         MockLog.assertThatLogger(
-            () -> sink.accept(
-                new ShardMovementEvent.RelocationStarted(startedShard, targetShard, new MoveReason(MoveType.CANNOT_REMAIN, "filter"))
-            ),
+            () -> sink.relocationStarted(startedShard, targetShard, new MoveReason(MoveType.CANNOT_REMAIN, "filter")),
             LoggingShardMovementEventSink.class,
             new MockLog.SeenEventExpectation(
                 "relocation started",
@@ -72,7 +107,7 @@ public class ShardMovementEventSinkTests extends ESTestCase {
             )
         );
         MockLog.assertThatLogger(
-            () -> sink.accept(new ShardMovementEvent.ShardFailed(startedShard, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null))),
+            () -> sink.shardFailed(startedShard, new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null)),
             LoggingShardMovementEventSink.class,
             new MockLog.SeenEventExpectation(
                 "shard failed",

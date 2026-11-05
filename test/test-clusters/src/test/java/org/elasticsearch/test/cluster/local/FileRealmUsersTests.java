@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.cluster.local;
 
+import org.elasticsearch.test.cluster.util.Version;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -16,8 +17,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThrows;
@@ -68,5 +71,46 @@ public class FileRealmUsersTests {
         IllegalStateException e = assertThrows(IllegalStateException.class, () -> FileRealmUsers.readPasswordHash(configDir, "user"));
 
         assertThat(e.getMessage(), containsString("User [user] not found"));
+    }
+
+    @Test
+    public void testCachedHashIsReusedOnlyForTheSameKey() {
+        // a unique password keeps this test independent of hashes other tests in this JVM may have cached
+        String password = "password-" + UUID.randomUUID();
+        FileRealmUsers.HashKey key = new FileRealmUsers.HashKey(Version.fromString("9.1.0"), password, null, null);
+
+        assertThat(FileRealmUsers.cachedPasswordHash(key), is(nullValue()));
+        FileRealmUsers.cachePasswordHash(key, PBKDF2_HASH);
+
+        assertThat(
+            FileRealmUsers.cachedPasswordHash(new FileRealmUsers.HashKey(Version.fromString("9.1.0"), password, null, null)),
+            is(PBKDF2_HASH)
+        );
+        assertThat(
+            FileRealmUsers.cachedPasswordHash(new FileRealmUsers.HashKey(Version.fromString("8.19.0"), password, null, null)),
+            is(nullValue())
+        );
+        assertThat(
+            FileRealmUsers.cachedPasswordHash(new FileRealmUsers.HashKey(Version.fromString("9.1.0"), password, "bcrypt", null)),
+            is(nullValue())
+        );
+        assertThat(
+            FileRealmUsers.cachedPasswordHash(new FileRealmUsers.HashKey(Version.fromString("9.1.0"), password, null, "true")),
+            is(nullValue())
+        );
+        assertThat(
+            FileRealmUsers.cachedPasswordHash(new FileRealmUsers.HashKey(Version.fromString("9.1.0"), password + "x", null, null)),
+            is(nullValue())
+        );
+    }
+
+    @Test
+    public void testFirstCachedHashWins() {
+        FileRealmUsers.HashKey key = new FileRealmUsers.HashKey(Version.fromString("9.1.0"), "password-" + UUID.randomUUID(), null, null);
+
+        FileRealmUsers.cachePasswordHash(key, PBKDF2_HASH);
+        FileRealmUsers.cachePasswordHash(key, "{PBKDF2_STRETCH}10000$b3RoZXI=$b3RoZXI=");
+
+        assertThat(FileRealmUsers.cachedPasswordHash(key), is(PBKDF2_HASH));
     }
 }

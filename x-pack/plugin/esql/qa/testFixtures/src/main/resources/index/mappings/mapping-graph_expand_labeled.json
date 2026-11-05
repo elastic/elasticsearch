@@ -1,0 +1,13 @@
+{
+  "properties": {
+    "source": {
+      "type": "keyword"
+    },
+    "target": {
+      "type": "keyword"
+    },
+    "label": {
+      "type": "keyword"
+    }
+  }
+}

@@ -765,6 +765,7 @@ public class EsqlSession {
                                 finalConfiguration,
                                 foldContext,
                                 new Holder<ApproximationDriver>(),
+                                new Holder<GraphExpandDriver>(),
                                 physicalPlanOptimizer,
                                 planTimeProfile,
                                 l
@@ -832,6 +833,7 @@ public class EsqlSession {
         Configuration configuration,
         FoldContext foldContext,
         Holder<ApproximationDriver> approximation,
+        Holder<GraphExpandDriver> graphExpand,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -865,6 +867,7 @@ public class EsqlSession {
             configuration,
             foldContext,
             approximation,
+            graphExpand,
             executionRunner,
             executionInfo,
             request,
@@ -1080,6 +1083,7 @@ public class EsqlSession {
         Configuration configuration,
         FoldContext foldContext,
         Holder<ApproximationDriver> approximation,
+        Holder<GraphExpandDriver> graphExpand,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
@@ -1088,7 +1092,7 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         var subPlansResults = Collections.newSetFromMap(new IdentityHashMap<LocalRelation, Boolean>());
-        var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, subPlansResults);
+        var subPlan = firstSubPlan(optimizedPlan, configuration, approximation, graphExpand, subPlansResults);
 
         // TODO: merge into one method
         if (subPlan != null) {
@@ -1103,6 +1107,7 @@ public class EsqlSession {
                 configuration,
                 foldContext,
                 approximation,
+                graphExpand,
                 executionInfo,
                 runner,
                 request,
@@ -1316,9 +1321,25 @@ public class EsqlSession {
         LogicalPlan mainPlan,
         Configuration configuration,
         Holder<ApproximationDriver> approximation,
+        Holder<GraphExpandDriver> graphExpand,
         Set<LocalRelation> subPlansResults
     ) {
         SubPlanAndCallback subPlanAndCallback = null;
+
+        // GRAPH EXPAND hops before join subplans: the walk is coordinator state over
+        // repeated edge-index scans, not a SemiJoin already in the plan.
+        if (graphExpand.get() == null) {
+            GraphExpandDriver driver = GraphExpandDriver.create(mainPlan, blockFactory);
+            if (driver != null) {
+                graphExpand.set(driver);
+            }
+        }
+        if (graphExpand.get() != null && graphExpand.get().finished() == false) {
+            LogicalPlan hopPlan = graphExpand.get().firstSubPlan();
+            if (hopPlan != null) {
+                return new SubPlanAndCallback(hopPlan, result -> graphExpand.get().newMainPlan(mainPlan, result), () -> {}, true, false);
+            }
+        }
 
         // Find the first (bottom-up) SemiJoin/InnerJoin/InlineJoin that needs subplan execution.
         // Processing bottom-up ensures inner subplans (e.g. INLINE STATS inside IN subquery)
@@ -1435,6 +1456,7 @@ public class EsqlSession {
         Configuration configuration,
         FoldContext foldContext,
         Holder<ApproximationDriver> approximation,
+        Holder<GraphExpandDriver> graphExpand,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
@@ -1482,7 +1504,7 @@ public class EsqlSession {
                     collectPinnedReads(subPlan.subPlan, pinnedReads);
 
                     // look for the next inlinejoin plan
-                    var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, subPlansResults);
+                    var newSubPlan = firstSubPlan(newMainPlan, configuration, approximation, graphExpand, subPlansResults);
                     LOGGER.debug("Next subplan: {}", newSubPlan != null ? newSubPlan.subPlan() : "null");
 
                     if (newSubPlan == null) {
@@ -1519,6 +1541,7 @@ public class EsqlSession {
                             configuration,
                             foldContext,
                             approximation,
+                            graphExpand,
                             executionInfo,
                             runner,
                             request,

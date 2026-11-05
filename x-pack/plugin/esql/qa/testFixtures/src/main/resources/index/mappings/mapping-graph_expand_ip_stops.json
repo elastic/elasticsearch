@@ -1,0 +1,7 @@
+{
+  "properties": {
+    "addr": {
+      "type": "ip"
+    }
+  }
+}

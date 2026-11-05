@@ -175,44 +175,46 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
         );
         ValueLayout layout = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
-        MemorySegment buffer = Arena.ofAuto().allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
-        byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
-        final int[] docIds = new int[maxPostingListSize];
-        final int[] docDeltas = new int[maxPostingListSize];
-        final int[] clusterOrds = new int[maxPostingListSize];
-        DocIdsWriter idsWriter = new DocIdsWriter();
-        for (int c = 0; c < centroidSupplier.size(); c++) {
-            float[] centroid = centroidSupplier.centroid(c);
-            int[] cluster = assignmentsByCluster[c];
-            long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
-            offsets.add(offset);
-            // write raw centroid for quantizing the query vectors
-            MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
-            MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
-            postingsOutput.writeBytes(byteBuffer, byteBuffer.length);
-            // write centroid dot product for quantizing the query vectors
-            postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
-            int size = cluster.length;
-            // write docIds
-            postingsOutput.writeVInt(size);
-            for (int j = 0; j < size; j++) {
-                docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
-                clusterOrds[j] = j;
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment buffer = arena.allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
+            byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
+            final int[] docIds = new int[maxPostingListSize];
+            final int[] docDeltas = new int[maxPostingListSize];
+            final int[] clusterOrds = new int[maxPostingListSize];
+            DocIdsWriter idsWriter = new DocIdsWriter();
+            for (int c = 0; c < centroidSupplier.size(); c++) {
+                float[] centroid = centroidSupplier.centroid(c);
+                int[] cluster = assignmentsByCluster[c];
+                long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
+                offsets.add(offset);
+                // write raw centroid for quantizing the query vectors
+                MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
+                MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
+                postingsOutput.writeBytes(byteBuffer, byteBuffer.length);
+                // write centroid dot product for quantizing the query vectors
+                postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
+                int size = cluster.length;
+                // write docIds
+                postingsOutput.writeVInt(size);
+                for (int j = 0; j < size; j++) {
+                    docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
+                    clusterOrds[j] = j;
+                }
+                // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
+                new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
+                // encode doc deltas
+                for (int j = 0; j < size; j++) {
+                    docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
+                }
+                onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[clusterOrds[ord]]);
+                byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
+                postingsOutput.writeByte(encoding);
+                bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
+                    // for vector i we write `bulk` size docs or the remaining docs
+                    idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
+                });
+                lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
             }
-            // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
-            new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
-            // encode doc deltas
-            for (int j = 0; j < size; j++) {
-                docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
-            }
-            onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[clusterOrds[ord]]);
-            byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
-            postingsOutput.writeByte(encoding);
-            bulkWriter.writeVectors(onHeapQuantizedVectors, i -> {
-                // for vector i we write `bulk` size docs or the remaining docs
-                idsWriter.writeDocIds(d -> docDeltas[i + d], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
-            });
-            lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
         }
 
         if (logger.isDebugEnabled()) {
@@ -336,49 +338,51 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter<ES920DiskBBQVect
             );
             DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(1, BULK_SIZE, postingsOutput);
             ValueLayout layout = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
-            MemorySegment buffer = Arena.ofAuto().allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
-            byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
-            // write the max posting list size
-            postingsOutput.writeVInt(maxPostingListSize);
-            // write the posting lists
-            final int[] docIds = new int[maxPostingListSize];
-            final int[] docDeltas = new int[maxPostingListSize];
-            final int[] clusterOrds = new int[maxPostingListSize];
-            DocIdsWriter idsWriter = new DocIdsWriter();
-            for (int c = 0; c < centroidSupplier.size(); c++) {
-                float[] centroid = centroidSupplier.centroid(c);
-                int[] cluster = assignmentsByCluster[c];
-                boolean[] isOverspill = isOverspillByCluster[c];
-                long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
-                offsets.add(offset);
-                // write raw centroid for quantizing the query vectors
-                MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
-                MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
-                postingsOutput.writeBytes(byteBuffer, byteBuffer.length);
-                // write centroid dot product for quantizing the query vectors
-                postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
-                // write docIds
-                int size = cluster.length;
-                postingsOutput.writeVInt(size);
-                for (int j = 0; j < size; j++) {
-                    docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
-                    clusterOrds[j] = j;
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment buffer = arena.allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
+                byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
+                // write the max posting list size
+                postingsOutput.writeVInt(maxPostingListSize);
+                // write the posting lists
+                final int[] docIds = new int[maxPostingListSize];
+                final int[] docDeltas = new int[maxPostingListSize];
+                final int[] clusterOrds = new int[maxPostingListSize];
+                DocIdsWriter idsWriter = new DocIdsWriter();
+                for (int c = 0; c < centroidSupplier.size(); c++) {
+                    float[] centroid = centroidSupplier.centroid(c);
+                    int[] cluster = assignmentsByCluster[c];
+                    boolean[] isOverspill = isOverspillByCluster[c];
+                    long offset = postingsOutput.alignFilePointer(Float.BYTES) - fileOffset;
+                    offsets.add(offset);
+                    // write raw centroid for quantizing the query vectors
+                    MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
+                    MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
+                    postingsOutput.writeBytes(byteBuffer, byteBuffer.length);
+                    // write centroid dot product for quantizing the query vectors
+                    postingsOutput.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(centroid, centroid)));
+                    // write docIds
+                    int size = cluster.length;
+                    postingsOutput.writeVInt(size);
+                    for (int j = 0; j < size; j++) {
+                        docIds[j] = floatVectorValues.ordToDoc(cluster[j]);
+                        clusterOrds[j] = j;
+                    }
+                    // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
+                    new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
+                    // encode doc deltas
+                    for (int j = 0; j < size; j++) {
+                        docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
+                    }
+                    byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
+                    postingsOutput.writeByte(encoding);
+                    offHeapQuantizedVectors.reset(size, ord -> isOverspill[clusterOrds[ord]], ord -> cluster[clusterOrds[ord]]);
+                    // write vectors
+                    bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
+                        // for vector i we write `bulk` size docs or the remaining docs
+                        idsWriter.writeDocIds(d -> docDeltas[d + i], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
+                    });
+                    lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
                 }
-                // sort cluster.buffer by docIds values, this way cluster ordinals are sorted by docIds
-                new IntSorter(clusterOrds, i -> docIds[i]).sort(0, size);
-                // encode doc deltas
-                for (int j = 0; j < size; j++) {
-                    docDeltas[j] = j == 0 ? docIds[clusterOrds[j]] : docIds[clusterOrds[j]] - docIds[clusterOrds[j - 1]];
-                }
-                byte encoding = idsWriter.calculateBlockEncoding(i -> docDeltas[i], size, BULK_SIZE);
-                postingsOutput.writeByte(encoding);
-                offHeapQuantizedVectors.reset(size, ord -> isOverspill[clusterOrds[ord]], ord -> cluster[clusterOrds[ord]]);
-                // write vectors
-                bulkWriter.writeVectors(offHeapQuantizedVectors, i -> {
-                    // for vector i we write `bulk` size docs or the remaining docs
-                    idsWriter.writeDocIds(d -> docDeltas[d + i], Math.min(BULK_SIZE, size - i), encoding, postingsOutput);
-                });
-                lengths.add(postingsOutput.getFilePointer() - fileOffset - offset);
             }
 
             if (logger.isDebugEnabled()) {

@@ -129,13 +129,15 @@ public class FlatCentroidIndexWriter {
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
         // let's also write the raw parent centroids
         ValueLayout layout = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
-        MemorySegment buffer = Arena.ofAuto().allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
-        byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
-        for (int i = 0; i < centroidGroups.centroids().length; i++) {
-            float[] centroid = centroidGroups.centroids()[i];
-            MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
-            MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
-            centroidOutput.writeBytes(byteBuffer, byteBuffer.length);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment buffer = arena.allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
+            byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
+            for (int i = 0; i < centroidGroups.centroids().length; i++) {
+                float[] centroid = centroidGroups.centroids()[i];
+                MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
+                MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
+                centroidOutput.writeBytes(byteBuffer, byteBuffer.length);
+            }
         }
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
             CentroidSupplier.fromArray(centroidGroups.centroids, CentroidIndex.NO_INDEX, fieldInfo.getVectorDimension()),
@@ -212,13 +214,15 @@ public class FlatCentroidIndexWriter {
         } else {
             // Write float centroids (4 bytes/dim)
             ValueLayout layout = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
-            MemorySegment buffer = Arena.ofAuto().allocate((long) dimension * Float.BYTES, Float.BYTES);
-            byte[] byteBuffer = new byte[dimension * Float.BYTES];
-            for (int i = 0; i < centroidSupplier.size(); i++) {
-                float[] centroid = centroidSupplier.centroid(i);
-                MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
-                MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
-                centroidOutput.writeBytes(byteBuffer, byteBuffer.length);
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment buffer = arena.allocate((long) dimension * Float.BYTES, Float.BYTES);
+                byte[] byteBuffer = new byte[dimension * Float.BYTES];
+                for (int i = 0; i < centroidSupplier.size(); i++) {
+                    float[] centroid = centroidSupplier.centroid(i);
+                    MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
+                    MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
+                    centroidOutput.writeBytes(byteBuffer, byteBuffer.length);
+                }
             }
         }
     }

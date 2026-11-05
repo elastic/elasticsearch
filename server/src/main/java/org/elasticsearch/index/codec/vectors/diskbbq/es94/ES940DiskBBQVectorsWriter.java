@@ -620,13 +620,15 @@ public class ES940DiskBBQVectorsWriter extends IVFVectorsWriter<ES940DiskBBQVect
         centroidOutput.writeVInt(centroidGroups.maxVectorsPerCentroidLength());
         // let's also write the raw parent centroids
         ValueLayout layout = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
-        MemorySegment buffer = Arena.ofAuto().allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
-        byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
-        for (int i = 0; i < centroidGroups.centroids().length; i++) {
-            float[] centroid = centroidGroups.centroids()[i];
-            MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
-            MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
-            centroidOutput.writeBytes(byteBuffer, byteBuffer.length);
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment buffer = arena.allocate((long) fieldInfo.getVectorDimension() * Float.BYTES, Float.BYTES);
+            byte[] byteBuffer = new byte[fieldInfo.getVectorDimension() * Float.BYTES];
+            for (int i = 0; i < centroidGroups.centroids().length; i++) {
+                float[] centroid = centroidGroups.centroids()[i];
+                MemorySegment.copy(centroid, 0, buffer, layout, 0, centroid.length);
+                MemorySegment.copy(buffer, ValueLayout.JAVA_BYTE, 0, byteBuffer, 0, byteBuffer.length);
+                centroidOutput.writeBytes(byteBuffer, byteBuffer.length);
+            }
         }
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
             CentroidSupplier.fromArray(centroidGroups.centroids, CentroidIndex.NO_INDEX, fieldInfo.getVectorDimension()),

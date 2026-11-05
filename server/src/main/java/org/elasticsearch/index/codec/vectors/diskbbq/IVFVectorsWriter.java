@@ -922,41 +922,43 @@ public abstract class IVFVectorsWriter<CI> extends KnnVectorsWriter {
 
         // Encoding-specific scratch buffers
         ValueLayout floatOrder = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
-        final MemorySegment floatBuffer = encoding == VectorEncoding.FLOAT32
-            ? Arena.ofAuto().allocate((long) dim * Float.BYTES, Float.BYTES)
-            : null;
-        final float[] floatScratch = preconditioner != null ? new float[dim] : null;
-        final byte[] byteScratch = (encoding == VectorEncoding.BYTE && preconditioner != null)
-            ? new byte[dim]
-            : new byte[dim * Float.BYTES];
+        try (Arena arena = Arena.ofConfined()) {
+            final MemorySegment floatBuffer = encoding == VectorEncoding.FLOAT32
+                ? arena.allocate((long) dim * Float.BYTES, Float.BYTES)
+                : null;
+            final float[] floatScratch = preconditioner != null ? new float[dim] : null;
+            final byte[] byteScratch = (encoding == VectorEncoding.BYTE && preconditioner != null)
+                ? new byte[dim]
+                : new byte[dim * Float.BYTES];
 
-        final KnnVectorValues.DocIndexIterator iterator = mergedVectorValues.iterator();
-        for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
-            numVectors++;
-            switch (encoding) {
-                case BYTE -> {
-                    byte[] vector = ((ByteVectorValues) mergedVectorValues).vectorValue(iterator.index());
-                    if (preconditioner != null) {
-                        preconditioner.applyTransformToBytes(vector, byteScratch, floatScratch);
-                        vectorsOut.writeBytes(byteScratch, dim);
-                    } else {
-                        vectorsOut.writeBytes(vector, dim);
+            final KnnVectorValues.DocIndexIterator iterator = mergedVectorValues.iterator();
+            for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
+                numVectors++;
+                switch (encoding) {
+                    case BYTE -> {
+                        byte[] vector = ((ByteVectorValues) mergedVectorValues).vectorValue(iterator.index());
+                        if (preconditioner != null) {
+                            preconditioner.applyTransformToBytes(vector, byteScratch, floatScratch);
+                            vectorsOut.writeBytes(byteScratch, dim);
+                        } else {
+                            vectorsOut.writeBytes(vector, dim);
+                        }
+                    }
+                    case FLOAT32 -> {
+                        float[] vector = ((FloatVectorValues) mergedVectorValues).vectorValue(iterator.index());
+                        if (preconditioner != null) {
+                            preconditioner.applyTransform(vector, floatScratch);
+                            MemorySegment.copy(floatScratch, 0, floatBuffer, floatOrder, 0, dim);
+                        } else {
+                            MemorySegment.copy(vector, 0, floatBuffer, floatOrder, 0, dim);
+                        }
+                        MemorySegment.copy(floatBuffer, ValueLayout.JAVA_BYTE, 0, byteScratch, 0, dim * Float.BYTES);
+                        vectorsOut.writeBytes(byteScratch, byteScratch.length);
                     }
                 }
-                case FLOAT32 -> {
-                    float[] vector = ((FloatVectorValues) mergedVectorValues).vectorValue(iterator.index());
-                    if (preconditioner != null) {
-                        preconditioner.applyTransform(vector, floatScratch);
-                        MemorySegment.copy(floatScratch, 0, floatBuffer, floatOrder, 0, dim);
-                    } else {
-                        MemorySegment.copy(vector, 0, floatBuffer, floatOrder, 0, dim);
-                    }
-                    MemorySegment.copy(floatBuffer, ValueLayout.JAVA_BYTE, 0, byteScratch, 0, dim * Float.BYTES);
-                    vectorsOut.writeBytes(byteScratch, byteScratch.length);
+                if (docsOut != null) {
+                    docsOut.writeInt(iterator.docID());
                 }
-            }
-            if (docsOut != null) {
-                docsOut.writeInt(iterator.docID());
             }
         }
         return numVectors;

@@ -18,12 +18,12 @@ import org.elasticsearch.common.logging.ESLogMessage;
 
 /**
  * Logs every shard movement event as a structured {@link ESLogMessage} at DEBUG. Enable with
- * {@code logger.org.elasticsearch.cluster.routing.allocation.LoggingShardMovementEventSink: DEBUG}. Event fields are prefixed
+ * {@code logger.org.elasticsearch.cluster.routing.allocation.LoggingShardMovementListener: DEBUG}. Event fields are prefixed
  * {@code es.shard.} (the copy concerned) and {@code es.relocation.} (relocation details).
  */
-public class LoggingShardMovementEventSink implements ShardMovementEventSink {
+public class LoggingShardMovementListener implements ShardMovementListener {
 
-    private static final Logger logger = LogManager.getLogger(LoggingShardMovementEventSink.class);
+    private static final Logger logger = LogManager.getLogger(LoggingShardMovementListener.class);
 
     public static final String EVENT_ACTION = "event.action";
     public static final String INDEX = "es.shard.index";

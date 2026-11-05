@@ -19,8 +19,8 @@ import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Receives every change the master makes to the location of a shard copy while computing a new routing table. Plugins register sinks
- * via {@link org.elasticsearch.plugins.ClusterPlugin#getShardMovementEventSinks()}.
+ * Receives every change the master makes to the location of a shard copy while computing a new routing table. Plugins register listeners
+ * via {@link org.elasticsearch.plugins.ClusterPlugin#getShardMovementListeners()}.
  * <p>
  * Events are delivered as they are made, i.e. before the resulting cluster state is published: if publication fails the change is
  * discarded and a later allocation round may report the same event again. The first {@link ShardRouting} argument of each method is
@@ -28,12 +28,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>
  * The methods are called on the master service thread inside the allocation round, so implementations must be non-blocking and cheap:
  * hand the event to a bounded queue and do any I/O elsewhere. Events that cannot be queued should be dropped and counted rather than
- * applying back-pressure to allocation. Implementations must not throw. Nothing is allocated for an event unless a sink needs it, so a
- * sink should check whether it wants the event before building anything from the arguments.
+ * applying back-pressure to allocation. Implementations must not throw. Nothing is allocated for an event unless a listener needs it, so a
+ * listener should check whether it wants the event before building anything from the arguments.
  */
-public interface ShardMovementEventSink {
+public interface ShardMovementListener {
 
-    ShardMovementEventSink NOOP = new ShardMovementEventSink() {};
+    ShardMovementListener NOOP = new ShardMovementListener() {};
 
     /**
      * An unassigned shard copy was assigned to a node. Does not include relocation targets, which are reported by
@@ -63,48 +63,48 @@ public interface ShardMovementEventSink {
     default void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {}
 
     /**
-     * Combines sinks so each receives every event. A sink that throws is skipped for that event and the failure is logged, so one
-     * misbehaving sink cannot affect allocation or the other sinks.
+     * Combines listeners so each receives every event. A listener that throws is skipped for that event and the failure is logged, so one
+     * misbehaving listener cannot affect allocation or the other listeners.
      */
-    static ShardMovementEventSink composite(Collection<? extends ShardMovementEventSink> sinks) {
-        return switch (sinks.size()) {
+    static ShardMovementListener composite(Collection<? extends ShardMovementListener> listeners) {
+        return switch (listeners.size()) {
             case 0 -> NOOP;
-            case 1 -> new SafeSink(sinks.iterator().next());
+            case 1 -> new SafeListener(listeners.iterator().next());
             default -> {
-                final var safeSinks = sinks.stream().map(SafeSink::new).toList();
-                yield new ShardMovementEventSink() {
+                final var safeListeners = listeners.stream().map(SafeListener::new).toList();
+                yield new ShardMovementListener() {
                     @Override
                     public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
-                        for (final var sink : safeSinks) {
-                            sink.shardInitialized(unassignedShard, initializedShard);
+                        for (final var listener : safeListeners) {
+                            listener.shardInitialized(unassignedShard, initializedShard);
                         }
                     }
 
                     @Override
                     public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-                        for (final var sink : safeSinks) {
-                            sink.shardStarted(initializingShard, startedShard);
+                        for (final var listener : safeListeners) {
+                            listener.shardStarted(initializingShard, startedShard);
                         }
                     }
 
                     @Override
                     public void relocationStarted(ShardRouting startedShard, ShardRouting targetRelocatingShard, MoveReason reason) {
-                        for (final var sink : safeSinks) {
-                            sink.relocationStarted(startedShard, targetRelocatingShard, reason);
+                        for (final var listener : safeListeners) {
+                            listener.relocationStarted(startedShard, targetRelocatingShard, reason);
                         }
                     }
 
                     @Override
                     public void relocationCompleted(ShardRouting removedRelocationSource) {
-                        for (final var sink : safeSinks) {
-                            sink.relocationCompleted(removedRelocationSource);
+                        for (final var listener : safeListeners) {
+                            listener.relocationCompleted(removedRelocationSource);
                         }
                     }
 
                     @Override
                     public void shardFailed(ShardRouting failedShard, UnassignedInfo unassignedInfo) {
-                        for (final var sink : safeSinks) {
-                            sink.shardFailed(failedShard, unassignedInfo);
+                        for (final var listener : safeListeners) {
+                            listener.shardFailed(failedShard, unassignedInfo);
                         }
                     }
                 };
@@ -113,15 +113,15 @@ public interface ShardMovementEventSink {
     }
 
     /**
-     * Wraps a sink so that exceptions are logged (at WARN the first time, DEBUG thereafter) rather than propagated.
+     * Wraps a listener so that exceptions are logged (at WARN the first time, DEBUG thereafter) rather than propagated.
      */
-    final class SafeSink implements ShardMovementEventSink {
-        private static final Logger logger = LogManager.getLogger(SafeSink.class);
+    final class SafeListener implements ShardMovementListener {
+        private static final Logger logger = LogManager.getLogger(SafeListener.class);
 
-        private final ShardMovementEventSink delegate;
+        private final ShardMovementListener delegate;
         private final AtomicBoolean warned = new AtomicBoolean();
 
-        SafeSink(ShardMovementEventSink delegate) {
+        SafeListener(ShardMovementListener delegate) {
             this.delegate = delegate;
         }
 
@@ -172,9 +172,9 @@ public interface ShardMovementEventSink {
 
         private void onFailure(Exception e) {
             if (warned.compareAndSet(false, true)) {
-                logger.warn(() -> "shard movement event sink [" + delegate + "] failed, further failures will be logged at DEBUG", e);
+                logger.warn(() -> "shard movement listener [" + delegate + "] failed, further failures will be logged at DEBUG", e);
             } else {
-                logger.debug(() -> "shard movement event sink [" + delegate + "] failed", e);
+                logger.debug(() -> "shard movement listener [" + delegate + "] failed", e);
             }
         }
     }

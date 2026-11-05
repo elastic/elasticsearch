@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.ShardMovementEventSink;
+import org.elasticsearch.cluster.routing.allocation.ShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -151,7 +151,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return createAllocationService(settings, new TestGatewayAllocator(), EmptyClusterInfoService.INSTANCE, snapshotsInfoService);
     }
 
-    public static MockAllocationService createAllocationService(Settings settings, ShardMovementEventSink shardMovementEventSink) {
+    public static MockAllocationService createAllocationService(Settings settings, ShardMovementListener shardMovementListener) {
         final var clusterSettings = createBuiltInClusterSettings(settings);
         return new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings),
@@ -161,7 +161,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterSettings,
-            shardMovementEventSink
+            shardMovementListener
         );
     }
 
@@ -513,7 +513,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             SnapshotsInfoService snapshotsInfoService,
             ShardRoutingRoleStrategy shardRoutingRoleStrategy,
             ClusterSettings clusterSettings,
-            ShardMovementEventSink shardMovementEventSink
+            ShardMovementListener shardMovementListener
         ) {
             super(
                 allocationDeciders,
@@ -523,7 +523,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 shardRoutingRoleStrategy,
                 MeterRegistry.NOOP,
                 clusterSettings,
-                shardMovementEventSink
+                shardMovementListener
             );
             setExistingShardsAllocators(Map.of(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
             this.gatewayAllocator = gatewayAllocator;

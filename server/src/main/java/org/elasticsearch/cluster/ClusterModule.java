@@ -38,11 +38,11 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStr
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
-import org.elasticsearch.cluster.routing.allocation.LoggingShardMovementEventSink;
+import org.elasticsearch.cluster.routing.allocation.LoggingShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.ShardMovementEventSink;
+import org.elasticsearch.cluster.routing.allocation.ShardMovementListener;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -210,7 +210,7 @@ public class ClusterModule extends AbstractModule {
             shardRoutingRoleStrategy,
             telemetryProvider.getMeterRegistry(),
             clusterService.getClusterSettings(),
-            getShardMovementEventSink(clusterPlugins)
+            getShardMovementListener(clusterPlugins)
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
@@ -262,11 +262,11 @@ public class ClusterModule extends AbstractModule {
         };
     }
 
-    static ShardMovementEventSink getShardMovementEventSink(List<ClusterPlugin> clusterPlugins) {
-        final var sinks = new ArrayList<ShardMovementEventSink>();
-        sinks.add(new LoggingShardMovementEventSink());
-        clusterPlugins.forEach(plugin -> sinks.addAll(plugin.getShardMovementEventSinks()));
-        return ShardMovementEventSink.composite(sinks);
+    static ShardMovementListener getShardMovementListener(List<ClusterPlugin> clusterPlugins) {
+        final var listeners = new ArrayList<ShardMovementListener>();
+        listeners.add(new LoggingShardMovementListener());
+        clusterPlugins.forEach(plugin -> listeners.addAll(plugin.getShardMovementListeners()));
+        return ShardMovementListener.composite(listeners);
     }
 
     static ShardRelocationOrder getShardRelocationOrder(List<ClusterPlugin> clusterPlugins, ClusterSettings clusterSettings) {

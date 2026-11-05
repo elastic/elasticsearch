@@ -206,13 +206,15 @@ which can appear anywhere in the query.
 
 ### Runtime search [esql-limitations-full-text-search-runtime]
 
-`MATCH` and the `:` operator {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga`
-and `MATCH_PHRASE` {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga`
-can search expressions and other values that have no index behind them, such as a column computed by `EVAL`.
-[`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md)
-{applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview` can search `dense_vector` expressions the same way.
-This is called
-[runtime search](/reference/query-languages/esql/esql-runtime-search.md), and it has these limitations:
+[Runtime search](/reference/query-languages/esql/esql-runtime-search.md) lets these functions search expressions and
+other values that have no index behind them, such as a column computed by `EVAL`:
+
+* {applies_to}`stack: preview =9.5, ga 9.6+` {applies_to}`serverless: ga` `MATCH` and the `:` operator
+* {applies_to}`stack: ga 9.6+` {applies_to}`serverless: ga` `MATCH_PHRASE`
+* {applies_to}`stack: preview 9.6+` {applies_to}`serverless: preview`
+  [`KNN`](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) on `dense_vector` expressions
+
+Runtime search has these limitations:
 
 * It is usually slower than a search on an indexed field, because it analyzes every row that
   reaches it. Refer to [Performance](/reference/query-languages/esql/esql-runtime-search.md#esql-runtime-search-performance).

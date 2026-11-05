@@ -83,7 +83,8 @@ public class IndexMetadataRamBytesUsedTests extends AbstractAccountableFieldsTes
     @Override
     protected Set<String> fieldsExcludedFromRamBytesUsed() {
         // Shared enum singletons; only the field references are counted in BASE_RAM_BYTES_USED.
-        return Set.of("state", "indexMode");
+        // sequenceNumbersDisabled is a lazily cached autoboxed Boolean, i.e. the shared Boolean.TRUE/FALSE singleton.
+        return Set.of("state", "indexMode", "sequenceNumbersDisabled");
     }
 
     @Override

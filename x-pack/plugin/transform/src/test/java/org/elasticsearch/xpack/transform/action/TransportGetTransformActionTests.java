@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class TransportGetTransformActionTests extends ESTestCase {
 
@@ -85,6 +86,8 @@ public class TransportGetTransformActionTests extends ESTestCase {
             assertThat(search.source().from(), equalTo(-1));
             assertThat(search.source().size(), equalTo(TRANSFORM_ID_PAGE_SIZE));
             assertThat(search.getParentTask(), equalTo(PARENT_TASK_ID));
+            assertThat(search.allowPartialSearchResults(), is(false));
+            assertThat(search.indicesOptions().ignoreUnavailable(), is(true));
         }
     }
 
@@ -114,6 +117,27 @@ public class TransportGetTransformActionTests extends ESTestCase {
         var client = new TransformIdSearchClient(threadPool, transformIds);
 
         assertThat(collect(client, task(), () -> TIMEOUT), equalTo(Set.copyOf(uniqueIds)));
+    }
+
+    /**
+     * A partial page would look like the last page, so a timed out search must fail rather than return the ids collected so far.
+     */
+    public void testTimedOutSearchFails() {
+        var client = new TransformIdSearchClient(threadPool, transformIds(10));
+        client.timedOut = true;
+
+        var e = expectThrows(ElasticsearchTimeoutException.class, () -> collect(client, task(), () -> TIMEOUT));
+        assertThat(e.getMessage(), containsString("Timed out after [30s] while collecting transform ids"));
+        assertThat(client.searches, hasSize(1));
+    }
+
+    public void testSkipsHitsWithoutTransformId() {
+        var transformIds = transformIds(10);
+        var transformIdsAndMissing = new ArrayList<String>(transformIds);
+        transformIdsAndMissing.add(null);
+        var client = new TransformIdSearchClient(threadPool, transformIdsAndMissing);
+
+        assertThat(collect(client, task(), () -> TIMEOUT), equalTo(Set.copyOf(transformIds)));
     }
 
     public void testCancelledTaskDoesNotSearch() {
@@ -168,6 +192,7 @@ public class TransportGetTransformActionTests extends ESTestCase {
     private static class TransformIdSearchClient extends NoOpClient {
         private final List<String> transformIds;
         final List<SearchRequest> searches = new ArrayList<>();
+        boolean timedOut = false;
 
         TransformIdSearchClient(ThreadPool threadPool, List<String> transformIds) {
             super(threadPool);
@@ -202,17 +227,22 @@ public class TransportGetTransformActionTests extends ESTestCase {
             int to = Math.min(from + size, transformIds.size());
             var hits = transformIds.subList(from, to).stream().map(TransformIdSearchClient::hit).toArray(SearchHit[]::new);
             var searchHits = new SearchHits(hits, new TotalHits(transformIds.size(), TotalHits.Relation.EQUAL_TO), 1.0f);
-            var response = SearchResponseUtils.successfulResponse(searchHits);
+            var response = SearchResponseUtils.response(searchHits).timedOut(timedOut).build();
             searchHits.decRef(); // transfer ownership to response
 
             beforeResponse();
             ActionListener.respondAndRelease((ActionListener<SearchResponse>) listener, response);
         }
 
+        /**
+         * A null transform id stands for a config document without an id, which sorts last.
+         */
         private static SearchHit hit(String transformId) {
             var hit = new SearchHit(0);
-            hit.setDocumentField(new DocumentField(TransformField.ID.getPreferredName(), List.of(transformId)));
-            hit.sortValues(new Object[] { new BytesRef(transformId) }, new DocValueFormat[] { DocValueFormat.RAW });
+            if (transformId != null) {
+                hit.setDocumentField(new DocumentField(TransformField.ID.getPreferredName(), List.of(transformId)));
+                hit.sortValues(new Object[] { new BytesRef(transformId) }, new DocValueFormat[] { DocValueFormat.RAW });
+            }
             return hit;
         }
     }

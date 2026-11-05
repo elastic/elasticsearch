@@ -1,5 +1,5 @@
 area: Transform
 issues: []
 pr: 164829
-summary: Break out of dangling task check
+summary: "Fix GET _transform never completing when size is 0, and honour timeout and cancellation in its dangling task check"
 type: bug

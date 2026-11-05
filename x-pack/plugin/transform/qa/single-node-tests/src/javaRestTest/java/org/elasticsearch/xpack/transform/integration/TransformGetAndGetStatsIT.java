@@ -267,6 +267,10 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // size=0 must still page through every transform id to find the dangling task, and terminate
         verifyGetResponse(getTransformEndpoint() + "_all?size=0", 2, expectedErrors);
         verifyGetResponse(getTransformEndpoint() + "_all?from=1&size=0", 2, expectedErrors);
+        // timeout=-1 means no timeout, so the dangling task check still runs
+        verifyGetResponse(getTransformEndpoint() + "_all?size=0&timeout=-1", 2, expectedErrors);
+        // once the timeout has passed, the configs are returned without the dangling task check
+        verifyGetResponse(getTransformEndpoint() + "_all?size=0&timeout=1nanos", 2, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_1,pivot_2", 2, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_1", 1, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_2", 1, null);

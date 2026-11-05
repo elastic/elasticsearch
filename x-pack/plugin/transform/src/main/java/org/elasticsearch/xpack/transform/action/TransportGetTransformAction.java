@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -112,7 +113,9 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         final ClusterState clusterState = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
-        RemainingTime remainingTime = RemainingTime.from(Instant::now, request.timeout());
+        // -1 means no timeout, as in other APIs
+        TimeValue timeout = TimeValue.MINUS_ONE.equals(request.timeout()) ? TimeValue.MAX_VALUE : request.timeout();
+        RemainingTime remainingTime = RemainingTime.from(Instant::now, timeout);
 
         // When CPS is enabled and there are linked projects, unmigrated transforms (no credentialId, no explicit
         // project_routing) display a default of LOCAL_ONLY so users understand their effective search scope.
@@ -124,13 +127,24 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = listener.delegateFailureAndWrap((l, r) -> {
             List<TransformConfig> configs = applyDisplayDefault ? withLocalOnlyDisplayDefault(r.results()) : r.results();
             if (request.checkForDanglingTasks()) {
+                // dangling tasks are only diagnostic, so when collecting the ids takes too long, return the configs without that check
+                ActionListener<Response> skipDanglingTaskCheckOnTimeout = l.delegateResponse((ll, e) -> {
+                    if (e instanceof ElasticsearchTimeoutException) {
+                        logger.debug("skipping the dangling task check for [{}]: {}", request.getId(), e.getMessage());
+                        ll.onResponse(new Response(configs, r.count(), null));
+                    } else {
+                        ll.onFailure(e);
+                    }
+                });
                 getAllTransformIds(
                     request,
                     r,
+                    // AbstractGetResourcesRequest#createTask always creates a CancellableTask
                     (CancellableTask) task,
                     parentTaskId,
+                    timeout,
                     remainingTime,
-                    l.delegateFailureAndWrap((ll, transformConfigIds) -> {
+                    skipDanglingTaskCheckOnTimeout.delegateFailureAndWrap((ll, transformConfigIds) -> {
                         var errors = TransformTask.findTransformTasks(request.getId(), projectResolver.getProjectMetadata(clusterState))
                             .stream()
                             .map(PersistentTasksCustomMetadata.PersistentTask::getId)
@@ -218,6 +232,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         QueryPage<TransformConfig> initialResults,
         CancellableTask task,
         TaskId parentTaskId,
+        TimeValue timeout,
         RemainingTime remainingTime,
         ActionListener<Set<String>> listener
     ) {
@@ -231,7 +246,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                 ExpandedIdsMatcher.tokenizeExpression(request.getResourceId()),
                 task,
                 parentTaskId,
-                request.timeout(),
+                timeout,
                 remainingTime
             ).collect(listener);
         }
@@ -280,13 +295,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
             }
             var pageTimeout = remainingTime.get();
             if (pageTimeout.nanos() <= 0) {
-                listener.onFailure(
-                    new ElasticsearchTimeoutException(
-                        "Timed out after [{}] while collecting transform ids to check for dangling tasks, collected [{}] ids so far",
-                        timeout,
-                        transformIds.size()
-                    )
-                );
+                listener.onFailure(timeoutException(transformIds));
                 return;
             }
 
@@ -300,7 +309,10 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                 .setFetchSource(false)
                 .setTrackTotalHits(false)
                 .addDocValueField(TransformField.ID.getPreferredName())
-                .setQuery(query(idTokens));
+                .setQuery(query(idTokens))
+                .setIndicesOptions(LENIENT_INDICES_OPTIONS)
+                // a partial page would look like the last page and leave transforms out of the ids, reporting them as dangling
+                .setAllowPartialSearchResults(false);
             if (searchAfter != null) {
                 requestBuilder.searchAfter(searchAfter);
             }
@@ -312,9 +324,14 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                 TRANSFORM_ORIGIN,
                 searchRequest,
                 listener.<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
+                    if (searchResponse.isTimedOut()) {
+                        l.onFailure(timeoutException(transformIds));
+                        return;
+                    }
                     var hits = searchResponse.getHits().getHits();
                     for (var hit : hits) {
-                        String transformId = hit.field(TransformField.ID.getPreferredName()).getValue();
+                        DocumentField idField = hit.field(TransformField.ID.getPreferredName());
+                        String transformId = idField == null ? null : idField.getValue();
                         if (org.elasticsearch.common.Strings.isNullOrEmpty(transformId) == false) {
                             transformIds.add(transformId);
                         }
@@ -327,6 +344,14 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                     }
                 }),
                 client::search
+            );
+        }
+
+        private ElasticsearchTimeoutException timeoutException(Set<String> transformIds) {
+            return new ElasticsearchTimeoutException(
+                "Timed out after [{}] while collecting transform ids to check for dangling tasks, collected [{}] ids so far",
+                timeout,
+                transformIds.size()
             );
         }
     }

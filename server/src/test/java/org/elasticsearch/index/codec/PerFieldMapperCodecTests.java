@@ -13,12 +13,14 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene104.Lucene104PostingsFormat;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.columnar.ColumNARDocValuesFormat;
 import org.elasticsearch.columnar.ColumnarFieldType;
 import org.elasticsearch.columnar.string.DictionaryPolicy;
 import org.elasticsearch.columnar.string.StringColumnOptions;
 import org.elasticsearch.columnar.substrate.ChunkBounds;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
@@ -42,11 +44,12 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Function;
 
@@ -281,6 +284,59 @@ public class PerFieldMapperCodecTests extends ESTestCase {
             }
             assertThat(result, (instanceOf(randomSyntheticId ? TSDBSyntheticIdPostingsFormat.class : ES812PostingsFormat.class)));
         }
+    }
+
+    /**
+     * 9_111_0_xx index versions were backported to 9.5 without the default _id postings format change, so on stateful they still use
+     * the ES812 postings format, while stateless uses the default from the original gate.
+     */
+    public void testIdFieldPostingsFormatForBackportedVersionsDependsOnStateless() throws IOException {
+        Settings statelessNode = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        // one temp dir for all the mapper services: a class temp dir only has a limited number of names, and this test runs many times
+        // under the flakiness job
+        Path home = createTempDir();
+        for (IndexVersion backported : List.of(
+            IndexVersions.UPGRADE_TO_LUCENE_10_5_1,
+            IndexVersions.UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5
+        )) {
+            assertThat(idPostingsFormat(home, backported, Settings.EMPTY), instanceOf(ES812PostingsFormat.class));
+        }
+        assertThat(
+            idPostingsFormat(home, IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT, statelessNode),
+            instanceOf(Lucene104PostingsFormat.class)
+        );
+        assertThat(
+            idPostingsFormat(home, IndexVersionUtils.getPreviousVersion(IndexVersions.ID_FIELD_USE_DEFAULT_POSTINGS_FORMAT), statelessNode),
+            instanceOf(ES812PostingsFormat.class)
+        );
+        assertThat(
+            idPostingsFormat(home, IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, Settings.EMPTY),
+            instanceOf(Lucene104PostingsFormat.class)
+        );
+    }
+
+    private PostingsFormat idPostingsFormat(Path home, IndexVersion indexVersion, Settings nodeSettings) throws IOException {
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion)
+            .build();
+        MapperService mapperService = MapperTestUtils.newMapperService(
+            xContentRegistry(),
+            home,
+            indexSettings,
+            nodeSettings,
+            new IndicesModule(List.of()),
+            "test",
+            new Setting<?>[0]
+        );
+        mapperService.merge("type", new CompressedXContent(METRIC_MAPPING), MapperService.MergeReason.MAPPING_UPDATE);
+        PostingsFormat result = new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null).getPostingsFormatForField(
+            "_id"
+        );
+        if (result instanceof ES87BloomFilterPostingsFormat bloomFilterPostingsFormat) {
+            result = bloomFilterPostingsFormat.getPostingsFormats().apply("_id");
+        }
+        return result;
     }
 
     public void testUseDefaultPostingsFormatForIdFieldAfterLucene105() throws IOException {
@@ -646,7 +702,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
      * columns around it are written in.
      */
     public void testVectorDbColumnarIdDocValuesFormat() throws IOException {
-        assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             IndexMode.VECTORDB_COLUMNAR,
             randomColumnarEligibleIndexVersion()
@@ -666,7 +721,6 @@ public class PerFieldMapperCodecTests extends ESTestCase {
      * policies: text still has no dictionary, keyword still has one.
      */
     public void testVectorDbColumnarStringColumnsUseSmallChunks() throws IOException {
-        assumeTrue("vectordb_columnar must be enabled", IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled());
         final PerFieldFormatSupplier supplier = createColumnarFormatSupplier(
             IndexMode.VECTORDB_COLUMNAR,
             randomColumnarEligibleIndexVersion()
@@ -689,10 +743,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
     }
 
     public void testStringColumnOptionsKeepEachFieldsFramingInEveryColumnarMode() throws IOException {
-        final List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR));
-        if (IndexMode.VECTORDB_COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            modes.add(IndexMode.VECTORDB_COLUMNAR);
-        }
+        final List<IndexMode> modes = List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR, IndexMode.VECTORDB_COLUMNAR);
         final String mapping = """
             {
                 "properties": {

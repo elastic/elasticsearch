@@ -102,6 +102,13 @@ public class FoldNullTests extends ESTestCase {
         return new FoldNull().rule(e, unboundLogicalOptimizerContext());
     }
 
+    /**
+     * Applies the rule bottom-up, like the optimizer does, so folded children are visible to their parents.
+     */
+    private Expression foldNullUp(Expression e) {
+        return e.transformUp(this::foldNull);
+    }
+
     public void testBasicNullFolding() {
         assertNullLiteral(foldNull(new Add(EMPTY, L(randomInt()), NULL, TEST_CFG)));
         assertNullLiteral(foldNull(new Round(EMPTY, NULL, null)));
@@ -329,36 +336,17 @@ public class FoldNullTests extends ESTestCase {
         var field = getFieldAttribute("emp_no").withLocation(new Source(1, 24, "emp_no"));
         Equals equals = new Equals(new Source(1, 24, "emp_no == NULL"), field, NULL);
         Not not = new Not(new Source(1, 19, "NOT (emp_no == NULL)"), equals);
-        assertNullLiteral(foldNull(not));
+        assertNullLiteral(foldNullUp(not));
         assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
-    }
-
-    public void testInAllNullListSuggestsIsNull() {
-        var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
-        In in = new In(new Source(1, 12, "emp_no IN (NULL, NULL)"), field, List.of(NULL, NULL));
-        assertSame(in, foldNull(in));
-        assertEquals("emp_no IS NULL", in.nullMisuseAlternative());
-    }
-
-    public void testInNullValueHasNoAlternative() {
-        var field = getFieldAttribute("emp_no");
-        In in = new In(new Source(1, 12, "NULL IN (emp_no, 1)"), NULL, List.of(field, L(1)));
-        assertNullLiteral(foldNull(in));
-        assertNull(in.nullMisuseAlternative());
-    }
-
-    public void testInValueAndNullDoesNotFold() {
-        var field = getFieldAttribute("emp_no");
-        In in = new In(EMPTY, field, List.of(L(1), NULL));
-        assertSame(in, foldNull(in));
-        assertNull(in.nullMisuseAlternative());
     }
 
     public void testNotInAllNullListSuggestsIsNotNull() {
         var field = getFieldAttribute("emp_no").withLocation(new Source(1, 12, "emp_no"));
         In in = new In(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), field, List.of(NULL, NULL));
         Not not = new Not(new Source(1, 12, "emp_no NOT IN (NULL, NULL)"), in);
-        assertNullLiteral(foldNull(not));
+        // FoldNull leaves the all-NULL IN to ConstantFolding (see ConstantFoldingTests#testInAllNullListSuggestsIsNull),
+        // so on its own it does not fold the NOT either.
+        assertSame(not, foldNullUp(not));
         assertEquals("emp_no IS NOT NULL", not.nullMisuseAlternative());
     }
 

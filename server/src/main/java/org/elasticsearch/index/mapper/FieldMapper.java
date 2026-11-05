@@ -1881,7 +1881,12 @@ public abstract class FieldMapper extends Mapper {
             Values.Cardinality columnarCardinality,
             IndexVersion settingsHonoredSince
         ) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(settingsHonoredSince)) {
+            // 9.5 backported a later index version without the change gated on DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS, so a stateful 9.5 index
+            // can be above that gate without ever having honored the settings. This only holds for that gate: other gates may have been
+            // backported.
+            boolean ignoredOnStateful95 = settingsHonoredSince.equals(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS)
+                && IndexSettings.createdInStateful95(indexSettings.getIndexVersionCreated(), indexSettings.isStateless());
+            if (indexSettings.getIndexVersionCreated().onOrAfter(settingsHonoredSince) && ignoredOnStateful95 == false) {
                 return defaultValues(indexSettings, nonColumnarDefault, columnarCardinality);
             }
             if (indexSettings.getMode().isStrictColumnar() == false) {
@@ -2078,7 +2083,10 @@ public abstract class FieldMapper extends Mapper {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
                     super.setValue(backingValue(true, getDefaultValue().cardinality));
                 } else {
-                    super.setValue(Values.DISABLED_LOW_CARDINALITY);
+                    // Cardinality has no meaning when doc values are disabled. If the default is itself disabled, an explicit
+                    // false must equal it so that it merges with an omitted doc_values and is not serialized.
+                    Values defaultValue = getDefaultValue();
+                    super.setValue(defaultValue.enabled ? Values.DISABLED_LOW_CARDINALITY : defaultValue);
                 }
             }
         }

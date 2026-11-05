@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
@@ -270,6 +271,133 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             assertThat(search.isRuntimeSearch(), is(false));
             assertThat(search.field(), instanceOf(FieldAttribute.class));
         }
+    }
+
+    /**
+     * A subquery union whose filter sits above a pipeline breaker over the merge. Unlike the shapes above, the breaker
+     * is above the union rather than in its branches, so the filter stays where it is and searches the merged column.
+     */
+    private static final String UNION_THEN_TOP_N = """
+        FROM (FROM test | WHERE category == 1 %s),
+             (FROM test | WHERE category == 2 %s)
+        | SORT id | LIMIT 5
+        """;
+
+    private static String unionThenTopN(String firstBranch, String secondBranch) {
+        return String.format(Locale.ROOT, UNION_THEN_TOP_N, firstBranch, secondBranch);
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllOnMappedTextField() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var err = error(fullTextAnalyzer().query(unionThenTopN("", "") + "| WHERE match(title, \"data\")"));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
+        // unlike after FORK, declaring an analyzer doesn't work here - TO_TEXT above the subqueries is pushed into them,
+        // where the declaration lands on the mapped field and is rejected
+        assertThat(err, containsString("Search [title] in the subqueries instead."));
+        assertThat(err, not(containsString("TO_TEXT(")));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllWithConflictingAnalyzers() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        var err = error(
+            fullTextAnalyzer().query(
+                unionThenTopN(
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})",
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"simple\"})"
+                ) + "| WHERE match(t, \"data\")"
+            )
+        );
+        assertThat(err, containsString("[MATCH] function cannot search column [t] after subqueries in FROM"));
+        assertThat(err, containsString("its subqueries analyze its values with different analyzers [simple] and [whitespace]"));
+        assertThat(err, containsString("TO_TEXT(t, {\"analyzer\": ...})"));
+        // declaring nothing is declaring the standard analyzer, in whichever order the branches come
+        for (var branches : List.of(
+            List.of("| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})", "| EVAL t = to_text(concat(title, body))"),
+            List.of("| EVAL t = to_text(concat(title, body))", "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})")
+        )) {
+            err = error(fullTextAnalyzer().query(unionThenTopN(branches.get(0), branches.get(1)) + "| WHERE match_phrase(t, \"data\")"));
+            assertThat(err, containsString("different analyzers [standard] and [whitespace]"));
+        }
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllOfMappedAndDeclaredColumn() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // the merged column loses the mapping either way, so the mapped rows are analyzed with standard
+        String declared = "| EVAL title = to_text(concat(title, \"\"), {\"analyzer\": \"whitespace\"})";
+        for (var branches : List.of(List.of("", declared), List.of(declared, ""))) {
+            var err = error(fullTextAnalyzer().query(unionThenTopN(branches.get(0), branches.get(1)) + "| WHERE title : \"data\""));
+            assertThat(err, containsString("[:] operator cannot search column [title] after subqueries in FROM"));
+            assertThat(err, containsString("different analyzers [standard] and [whitespace]"));
+            assertThat(err, containsString("Search [title] in the subqueries instead."));
+            assertThat(err, not(containsString("TO_TEXT(")));
+        }
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllOfForksOnMappedTextField() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // each subquery's column is merged again by its own FORK, so the mapped field sits one merge further down
+        String fork = "| FORK (WHERE id > 0) (WHERE id <= 0)";
+        var err = error(fullTextAnalyzer().query(unionThenTopN(fork, fork) + "| WHERE match(title, \"data\")"));
+        assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
+        assertThat(err, containsString("rather than the analyzer mapped for [title]"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterNestedUnionAllWithConflictingAnalyzers() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // the nested merge disagrees with itself, while its first branch agrees with the outer one's other branch
+        var err = error(fullTextAnalyzer().query("""
+            FROM (FROM (FROM test | WHERE category == 1 | EVAL t = to_text(concat(title, body), {"analyzer": "whitespace"})),
+                       (FROM test | WHERE category == 2 | EVAL t = to_text(concat(title, body), {"analyzer": "simple"}))),
+                 (FROM test | WHERE category == 3 | EVAL t = to_text(concat(title, body), {"analyzer": "whitespace"}))
+            | SORT id | LIMIT 5
+            | WHERE match(t, "data")
+            """));
+        assertThat(err, containsString("[MATCH] function cannot search column [t] after subqueries in FROM"));
+        assertThat(err, containsString("different analyzers [simple] and [whitespace]"));
+    }
+
+    public void testRuntimeTextSearchRejectedAfterUnionAllOfMappedAndStandardDeclaredColumn() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // declaring the standard analyzer in the other branch does not restore the mapped rows' analyzer, whichever
+        // branch comes first and so lends the merged column its declaration
+        String declared = "| EVAL title = to_text(concat(title, \"\"), {\"analyzer\": \"standard\"})";
+        for (var branches : List.of(List.of("", declared), List.of(declared, ""))) {
+            var err = error(fullTextAnalyzer().query(unionThenTopN(branches.get(0), branches.get(1)) + "| WHERE match(title, \"data\")"));
+            assertThat(err, containsString("[MATCH] function cannot search column [title] after subqueries in FROM"));
+            assertThat(err, containsString("rather than the analyzer mapped for [title]"));
+        }
+    }
+
+    public void testRuntimeTextSearchAllowedAfterUnionAllWithInlineDeclaredAnalyzer() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        // the declaration is pushed into the subqueries like any conversion, and lands on a computed column, where it is allowed
+        optimize(
+            fullTextAnalyzer().query(
+                unionThenTopN(
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})",
+                    "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"simple\"})"
+                ) + "| WHERE match(to_text(t, {\"analyzer\": \"whitespace\"}), \"data\")"
+            )
+        );
+    }
+
+    public void testRuntimeTextSearchAllowedAfterUnionAllWithAgreeingAnalyzers() {
+        assumeTrue("requires subquery_in_from_command", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        String declared = "| EVAL t = to_text(concat(title, body), {\"analyzer\": \"whitespace\"})";
+        optimize(fullTextAnalyzer().query(unionThenTopN(declared, declared) + "| WHERE match(t, \"data\")"));
+        // a branch that does not produce the column at all is filled with nulls, which have nothing to analyze
+        optimize(fullTextAnalyzer().query(unionThenTopN(declared, "") + "| WHERE match(t, \"data\")"));
+        // and no branch computing the column without a declaration is the standard analyzer everywhere
+        String undeclared = "| EVAL t = to_text(concat(title, body))";
+        optimize(fullTextAnalyzer().query(unionThenTopN(undeclared, undeclared) + "| WHERE match(t, \"data\")"));
+    }
+
+    public void testRuntimeTextSearchAllowedAfterForkWithInlineDeclaredAnalyzer() {
+        // TO_TEXT declares the analyzer for every row of the merged column right where it is searched, so nothing is
+        // substituted - exactly what the rejection of the undeclared column suggests writing
+        String search = "match(to_text(title, {\"analyzer\": \"whitespace\"}), \"data\")";
+        optimize(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE " + search));
+        optimize(fullTextAnalyzer().query(HYBRID_FORK + "| KEEP title | WHERE match_phrase" + search.substring("match".length())));
     }
 
     public void testRuntimeTextSearchRejectedAfterForkNestedInSubqueryBranch() {

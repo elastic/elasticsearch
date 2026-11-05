@@ -8,8 +8,18 @@
  */
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.DataAccessHint;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileDataHint;
+import org.apache.lucene.store.FileTypeHint;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
@@ -19,6 +29,8 @@ import org.apache.lucene.store.MergeInfo;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.NoLockFactory;
+import org.apache.lucene.store.ReadAdvice;
+import org.apache.lucene.store.ReadOnceHint;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
@@ -53,6 +65,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -104,6 +117,52 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(func.test("foo.dvd", newIOContext(random())));
             assertTrue(func.test("foo.tmp", newIOContext(random())));
             fsDirectoryFactory.preLoadFuncMap.clear();
+        }
+    }
+
+    /**
+     * Sorted flushes read their temporary stored fields index on the flushing thread only, so it must be opened read-once to let
+     * mmap confine it and avoid a shared arena close. This holds whether the hint comes from Lucene or from the directory.
+     */
+    public void testSortedFlushOpensTempStoredFieldsIndexReadOnce() throws IOException {
+        List<IOContext> tempIndexOpens = new CopyOnWriteArrayList<>();
+        FsDirectoryFactory recordingFactory = new FsDirectoryFactory() {
+            @Override
+            public MMapDirectory setMMapFunctions(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
+                super.setMMapFunctions(mMapDirectory, preLoadExtensions);
+                var readAdvice = FsDirectoryFactory.getReadAdviceFunc();
+                // the read advice function sees every mmap open with its context, which is all the test needs to record
+                mMapDirectory.setReadAdvice((name, context) -> {
+                    if (name.contains(".fdx") && name.endsWith(".tmp")) {
+                        tempIndexOpens.add(context);
+                    }
+                    return readAdvice.apply(name, context);
+                });
+                return mMapDirectory;
+            }
+        };
+        Settings settings = Settings.builder()
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", settings);
+        Path tempDir = createTempDir().resolve(idxSettings.getUUID()).resolve("0");
+        Files.createDirectories(tempDir);
+        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(idxSettings.getIndex(), 0));
+        try (Directory directory = recordingFactory.newDirectory(idxSettings, path)) {
+            IndexWriterConfig config = new IndexWriterConfig().setIndexSort(new Sort(new SortField("sort", SortField.Type.LONG)));
+            try (IndexWriter writer = new IndexWriter(directory, config)) {
+                for (int i = 0; i < 10; i++) {
+                    Document doc = new Document();
+                    doc.add(new NumericDocValuesField("sort", 10 - i));
+                    doc.add(new StoredField("stored", i));
+                    writer.addDocument(doc);
+                }
+                writer.commit();
+            }
+        }
+        assertFalse(tempIndexOpens.isEmpty());
+        for (IOContext context : tempIndexOpens) {
+            assertTrue(context.hints().contains(ReadOnceHint.INSTANCE));
         }
     }
 
@@ -235,6 +294,17 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         }
         dir.deleteFile("_sample.vec");
         return direct;
+    }
+
+    public void testReadAdviceInsideCompoundFiles() {
+        var readAdvice = FsDirectoryFactory.getReadAdviceFunc();
+        IOContext storedFields = IOContext.DEFAULT.withHints(FileTypeHint.DATA, DataAccessHint.RANDOM);
+        IOContext vectors = IOContext.DEFAULT.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM);
+
+        assertEquals(Optional.of(ReadAdvice.NORMAL), readAdvice.apply("_0.cfs", storedFields));
+        assertEquals(Optional.of(ReadAdvice.NORMAL), readAdvice.apply("_0.cfs", vectors));
+        assertEquals(Optional.of(ReadAdvice.RANDOM), readAdvice.apply("_0.fdt", storedFields));
+        assertEquals(Optional.of(ReadAdvice.RANDOM), readAdvice.apply("_0.vec", vectors));
     }
 
     public void testOnlyRawVectorFilesGoToTheMergeDelegate() {

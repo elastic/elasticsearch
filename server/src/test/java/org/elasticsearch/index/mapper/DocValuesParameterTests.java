@@ -11,8 +11,11 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -21,6 +24,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
@@ -203,6 +207,65 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                     FieldMapper.DocValuesParameter.Values.OnFailure.FAIL
                 )
             )
+        );
+    }
+
+    /**
+     * 9_111_0_xx index versions were backported to 9.5 without the change that made all mappers honor the index-level
+     * {@code doc_values} settings, so on stateful those indices keep ignoring them, while stateless honors them from the original gate.
+     */
+    public void testDocValuesDefaultsGateForBackportedVersionsDependsOnStateless() {
+        Settings statelessNode = Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build();
+        Settings indexSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(FieldMapper.DOC_VALUES_MULTI_VALUE_SETTING.getKey(), false)
+            .build();
+        for (IndexVersion backported : List.of(
+            IndexVersions.UPGRADE_TO_LUCENE_10_5_1,
+            IndexVersions.UPGRADE_TO_LUCENE_10_5_2_BACKPORT_9_5
+        )) {
+            assertThat(
+                "stateful ignores the setting for " + backported,
+                scaledFloatLikeDefaults(indexSettings, backported, Settings.EMPTY).multiValue(),
+                equalTo(true)
+            );
+        }
+        assertThat(
+            "stateless honors the setting from the original gate",
+            scaledFloatLikeDefaults(indexSettings, IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS, statelessNode).multiValue(),
+            equalTo(false)
+        );
+        assertThat(
+            "stateless ignores the setting before the original gate",
+            scaledFloatLikeDefaults(
+                indexSettings,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS),
+                statelessNode
+            ).multiValue(),
+            equalTo(true)
+        );
+        assertThat(
+            "stateful honors the setting from the first non-backported version",
+            scaledFloatLikeDefaults(indexSettings, IndexVersions.COLUMNAR_DOC_VALUES_CODEC_FEATURE_FLAG, Settings.EMPTY).multiValue(),
+            equalTo(false)
+        );
+    }
+
+    private static FieldMapper.DocValuesParameter.Values scaledFloatLikeDefaults(
+        Settings indexSettings,
+        IndexVersion version,
+        Settings nodeSettings
+    ) {
+        IndexSettings settings = IndexSettingsModule.newIndexSettings(
+            new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE),
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).put(indexSettings).build(),
+            nodeSettings
+        );
+        return FieldMapper.DocValuesParameter.defaultValues(
+            settings,
+            FieldMapper.DocValuesParameter.Values.ENABLED_LOW_CARDINALITY,
+            FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
+            IndexVersions.DOC_VALUES_DEFAULTS_FOR_ALL_MAPPERS
         );
     }
 
@@ -658,7 +721,7 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
     public void testOnFailureIgnoreParsesSuccessfullyForOlderCreatedVersions() throws Exception {
         IndexVersion oldVersion = IndexVersionUtils.randomVersionBetween(
             IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT,
-            IndexVersionUtils.getPreviousVersion(IndexVersion.current())
+            IndexVersionUtils.getPreviousVersion(IndexVersions.DOC_VALUES_TOP_LEVEL_ATTRIBUTES)
         );
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
         MapperService mapperService = createMapperService(

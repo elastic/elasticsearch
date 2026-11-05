@@ -50,6 +50,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.columnar.string.StringBinaryPayload;
 import org.elasticsearch.columnar.string.StringColumnOptions;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -668,6 +669,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
+
+    // The recorded value is the raw UTF-8 value; write it back like the offsets-aware loader does.
+    private static final CheckedBiConsumer<XContentBuilder, Comparable<?>, IOException> OFFSETS_FALLBACK = (b, v) -> {
+        var utf8Bytes = (XContentString.UTF8Bytes) v;
+        b.utf8Value(utf8Bytes.bytes(), utf8Bytes.offset(), utf8Bytes.length());
+    };
 
     public static final class KeywordFieldType extends TextFamilyFieldType {
 
@@ -2330,9 +2337,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         } else if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
+                context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes(), OFFSETS_FALLBACK);
             } else if (value == null) {
-                context.getOffSetContext().recordNull(offsetsFieldName);
+                context.getOffSetContext().recordNull(offsetsFieldName, OFFSETS_FALLBACK);
+            } else {
+                // The value tripped ignore_above: a field that records offsets has doc values, so that is the only reason a non-null
+                // value is not indexed. It gets no slot, but is recorded so that the _ignored_source fallback for oversized offsets
+                // can carry it; the field's own storage of ignored values is suppressed by an _ignored_source entry.
+                var utfBytes = value.bytes();
+                context.getOffSetContext()
+                    .recordIgnored(
+                        offsetsFieldName,
+                        XContentDataHelper.encodeString(new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()))
+                    );
             }
         }
     }

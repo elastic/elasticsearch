@@ -45,6 +45,9 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -759,11 +762,6 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         );
     }
 
-    /**
-     * Verifies BUCKET's contract on histograms without recomputing the expected bucket list: after sorting the
-     * returned ranges, each of them must be populated according to {@link HistogramFraction}, while the gaps
-     * between them and the ranges before the first and after the last bucket must be empty.
-     */
     private static Matcher<Object> histogramResultsMatcher(Object histogram) {
         long histoSize = switch (histogram) {
             case ExponentialHistogram eh -> eh.valueCount();
@@ -773,90 +771,125 @@ public class BucketTests extends AbstractConfigurationFunctionTestCase {
         if (histoSize == 0) {
             return nullValue();
         }
-        return new BaseMatcher<>() {
-            private String mismatch;
+        return new HistogramResultsMatcher(histogram);
+    }
 
-            @Override
-            public boolean matches(Object actual) {
-                List<DoubleRangeBlockBuilder.DoubleRange> buckets = new ArrayList<>();
-                if (actual instanceof DoubleRangeBlockBuilder.DoubleRange bucket) {
-                    buckets.add(bucket);
-                } else if (actual instanceof List<?> list) {
-                    for (Object value : list) {
-                        if (value instanceof DoubleRangeBlockBuilder.DoubleRange bucket) {
-                            buckets.add(bucket);
-                        } else {
-                            mismatch = "contained the non-double_range value [" + value + "]";
-                            return false;
-                        }
-                    }
-                } else {
-                    mismatch = "was not a double_range or a list of double_ranges";
-                    return false;
-                }
-                if (buckets.isEmpty()) {
-                    mismatch = "contained no buckets for a non-empty histogram";
-                    return false;
-                }
-                buckets.sort(null);
-                if (checkEmpty("before the first bucket", -Double.MAX_VALUE, buckets.getFirst().from()) == false) {
-                    return false;
-                }
-                if (checkEmpty("after the last bucket", buckets.getLast().to(), Double.MAX_VALUE) == false) {
-                    return false;
-                }
-                for (int i = 0; i < buckets.size(); i++) {
-                    DoubleRangeBlockBuilder.DoubleRange bucket = buckets.get(i);
-                    if (i > 0) {
-                        DoubleRangeBlockBuilder.DoubleRange previous = buckets.get(i - 1);
-                        if (bucket.from() < previous.to()) {
-                            mismatch = "buckets " + previous + " and " + bucket + " overlap";
-                            return false;
-                        }
-                        if (checkEmpty("between " + previous + " and " + bucket, previous.to(), bucket.from()) == false) {
-                            return false;
-                        }
-                    }
-                    if (fraction(bucket.from(), bucket.to()) <= 0) {
-                        mismatch = "returned the empty bucket " + bucket;
+    /**
+     * Verifies BUCKET's contract on histograms without recomputing the expected bucket list: after sorting the
+     * returned ranges, each of them must be populated according to {@link HistogramFraction}, while the gaps
+     * between them and the ranges before the first and after the last bucket must be empty.
+     * <p>
+     * A full check makes one {@link HistogramFraction} call per returned bucket, and a t-digest can return about
+     * {@link Bucket#MAX_TDIGEST_CANDIDATE_BUCKETS} buckets. {@code testEvaluateInManyThreads} matches the same output
+     * up to 10,000 times on each of 5 threads, and the block tests match it once per position, so an output equal to
+     * one that already passed is accepted without checking it again.
+     */
+    static final class HistogramResultsMatcher extends BaseMatcher<Object> {
+        private final Object histogram;
+        private final Set<Object> verified = ConcurrentHashMap.newKeySet();
+        private final AtomicInteger fullChecks = new AtomicInteger();
+        private String mismatch;
+
+        HistogramResultsMatcher(Object histogram) {
+            this.histogram = histogram;
+        }
+
+        int fullChecks() {
+            return fullChecks.get();
+        }
+
+        @Override
+        public boolean matches(Object actual) {
+            if (actual != null && verified.contains(actual)) {
+                return true;
+            }
+            fullChecks.incrementAndGet();
+            if (check(actual) == false) {
+                return false;
+            }
+            verified.add(actual instanceof List<?> list ? List.copyOf(list) : actual);
+            return true;
+        }
+
+        private boolean check(Object actual) {
+            List<DoubleRangeBlockBuilder.DoubleRange> buckets = new ArrayList<>();
+            if (actual instanceof DoubleRangeBlockBuilder.DoubleRange bucket) {
+                buckets.add(bucket);
+            } else if (actual instanceof List<?> list) {
+                for (Object value : list) {
+                    if (value instanceof DoubleRangeBlockBuilder.DoubleRange bucket) {
+                        buckets.add(bucket);
+                    } else {
+                        mismatch = "contained the non-double_range value [" + value + "]";
                         return false;
                     }
                 }
-                return true;
+            } else {
+                mismatch = "was not a double_range or a list of double_ranges";
+                return false;
             }
-
-            private boolean checkEmpty(String description, double from, double to) {
-                if (from < to && fraction(from, to) != 0) {
-                    mismatch = "the range [" + from + ", " + to + ") " + description + " is not empty";
+            if (buckets.isEmpty()) {
+                mismatch = "contained no buckets for a non-empty histogram";
+                return false;
+            }
+            buckets.sort(null);
+            if (checkEmpty("before the first bucket", -Double.MAX_VALUE, buckets.getFirst().from()) == false) {
+                return false;
+            }
+            if (checkEmpty("after the last bucket", buckets.getLast().to(), Double.MAX_VALUE) == false) {
+                return false;
+            }
+            for (int i = 0; i < buckets.size(); i++) {
+                DoubleRangeBlockBuilder.DoubleRange bucket = buckets.get(i);
+                if (i > 0) {
+                    DoubleRangeBlockBuilder.DoubleRange previous = buckets.get(i - 1);
+                    if (bucket.from() < previous.to()) {
+                        mismatch = "buckets " + previous + " and " + bucket + " overlap";
+                        return false;
+                    }
+                    if (checkEmpty("between " + previous + " and " + bucket, previous.to(), bucket.from()) == false) {
+                        return false;
+                    }
+                }
+                if (fraction(bucket.from(), bucket.to()) <= 0) {
+                    mismatch = "returned the empty bucket " + bucket;
                     return false;
                 }
-                return true;
             }
+            return true;
+        }
 
-            private double fraction(double from, double to) {
-                DoubleRangeBlockBuilder.DoubleRange range = new DoubleRangeBlockBuilder.DoubleRange(from, to);
-                return switch (histogram) {
-                    case ExponentialHistogram eh -> HistogramFraction.process(eh, range, null);
-                    case TDigestHolder td -> HistogramFraction.process(
-                        td,
-                        range,
-                        null,
-                        new MemoryTrackingTDigestArrays(NoopCircuitBreaker.INSTANCE)
-                    );
-                    default -> throw new AssertionError("unexpected histogram [" + histogram + "]");
-                };
+        private boolean checkEmpty(String description, double from, double to) {
+            if (from < to && fraction(from, to) != 0) {
+                mismatch = "the range [" + from + ", " + to + ") " + description + " is not empty";
+                return false;
             }
+            return true;
+        }
 
-            @Override
-            public void describeTo(Description description) {
-                description.appendText("exactly the non-empty double_range buckets of ").appendValue(histogram);
-            }
+        private double fraction(double from, double to) {
+            DoubleRangeBlockBuilder.DoubleRange range = new DoubleRangeBlockBuilder.DoubleRange(from, to);
+            return switch (histogram) {
+                case ExponentialHistogram eh -> HistogramFraction.process(eh, range, null);
+                case TDigestHolder td -> HistogramFraction.process(
+                    td,
+                    range,
+                    null,
+                    new MemoryTrackingTDigestArrays(NoopCircuitBreaker.INSTANCE)
+                );
+                default -> throw new AssertionError("unexpected histogram [" + histogram + "]");
+            };
+        }
 
-            @Override
-            public void describeMismatch(Object item, Description description) {
-                description.appendValue(item).appendText(" ").appendText(mismatch == null ? "did not match" : mismatch);
-            }
-        };
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("exactly the non-empty double_range buckets of ").appendValue(histogram);
+        }
+
+        @Override
+        public void describeMismatch(Object item, Description description) {
+            description.appendValue(item).appendText(" ").appendText(mismatch == null ? "did not match" : mismatch);
+        }
     }
 
     private static TestCaseSupplier.TypedData keywordDateLiteral(String name, DataType type, String date) {

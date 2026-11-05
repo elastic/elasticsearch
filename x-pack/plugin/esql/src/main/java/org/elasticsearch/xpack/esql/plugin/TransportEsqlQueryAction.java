@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
+import org.elasticsearch.compute.operator.ComputeExecutor;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -134,6 +135,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         PlanExecutor planExecutor,
         SearchService searchService,
         ExchangeService exchangeService,
+        ComputeExecutor computeExecutor,
         ClusterService clusterService,
         ViewResolver viewResolver,
         ProjectResolver projectResolver,
@@ -242,7 +244,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         // deadlocks multi-file text reads — a full I/O pool of blocked parsers with no free thread to run the drain
         // that must consume them (see AsyncExternalSourceOperatorFactory + StreamingParallelParsingCoordinator).
         OperatorFactoryRegistry operatorFactoryRegistry = dataSourceModule.createOperatorFactoryRegistry(
-            threadPool.executor(EsqlPlugin.computePool()),
+            computeExecutor,
             externalBlobStoreExecutor()
         );
         this.computeService = new ComputeService(
@@ -250,6 +252,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             enrichLookupService,
             lookupFromIndexService,
             threadPool,
+            computeExecutor,
             bigArrays,
             blockFactoryProvider.blockFactory(),
             operatorFactoryRegistry,

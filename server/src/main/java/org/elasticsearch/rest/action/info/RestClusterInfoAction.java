@@ -53,6 +53,8 @@ import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsReques
 @ServerlessScope(Scope.PUBLIC)
 public class RestClusterInfoAction extends BaseRestHandler {
 
+    private static final Set<String> ALL_SUPPORTED_PARAMETERS = Set.of("target");
+
     static final Map<Metric, Function<NodesStatsResponse, ChunkedToXContent>> RESPONSE_MAPPER = Map.of(
         HTTP,
         nodesStatsResponse -> nodesStatsResponse.getNodes().stream().map(NodeStats::getHttp).reduce(HttpStats.IDENTITY, HttpStats::merge),
@@ -158,4 +160,15 @@ public class RestClusterInfoAction extends BaseRestHandler {
             Map.of(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, Boolean.toString(projectIdResolver.supportsMultipleProjects()))
         );
     }
+
+    @Override
+    public Set<String> supportedQueryParameters() {
+        return EMPTY_PARAMS;
+    }
+
+    @Override
+    public Set<String> allSupportedParameters() {
+        return ALL_SUPPORTED_PARAMETERS;
+    }
+
 }

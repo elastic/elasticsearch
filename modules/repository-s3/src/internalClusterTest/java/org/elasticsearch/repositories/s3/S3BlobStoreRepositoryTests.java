@@ -181,7 +181,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
         if (randomBoolean()) {
             builder.put(
-                S3ClientSettings.UNSAFELY_OMIT_REQUEST_BODY_CHECKSUMS.getConcreteSettingForNamespace("test").getKey(),
+                S3ClientSettings.UNSAFELY_OMIT_OPTIONAL_REQUEST_BODY_CHECKSUMS.getConcreteSettingForNamespace("test").getKey(),
                 randomBoolean()
             );
         }

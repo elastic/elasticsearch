@@ -169,7 +169,7 @@ public class RepositoryS3DeprecationsRestIT extends ESRestTestCase {
         "true",
         "legacy_content_md5",
         "true",
-        "unsafely_omit_request_body_checksums",
+        "unsafely_omit_optional_request_body_checksums",
         "true"
     );
 

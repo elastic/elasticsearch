@@ -194,9 +194,9 @@ final class S3ClientSettings {
      * environment variable, the system property and the profile file still apply.
      */
     @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // temporary workaround for non-compliant stores, must be removed in v10
-    static final Setting.AffixSetting<Boolean> UNSAFELY_OMIT_REQUEST_BODY_CHECKSUMS = Setting.affixKeySetting(
+    static final Setting.AffixSetting<Boolean> UNSAFELY_OMIT_OPTIONAL_REQUEST_BODY_CHECKSUMS = Setting.affixKeySetting(
         PREFIX,
-        "unsafely_omit_request_body_checksums",
+        "unsafely_omit_optional_request_body_checksums",
         key -> Setting.boolSetting(key, false, Property.NodeScope, Property.Deprecated)
     );
 
@@ -323,7 +323,7 @@ final class S3ClientSettings {
     final boolean legacyContentMd5;
 
     /** Whether to make the SDK calculate request checksums only when the S3 API requires them. */
-    final boolean unsafelyOmitRequestBodyChecksums;
+    final boolean unsafelyOmitOptionalRequestBodyChecksums;
 
     private S3ClientSettings(
         AwsCredentials credentials,
@@ -347,7 +347,7 @@ final class S3ClientSettings {
         boolean tenaciousRetriesEnabled,
         boolean alwaysSignRequests,
         boolean legacyContentMd5,
-        boolean unsafelyOmitRequestBodyChecksums
+        boolean unsafelyOmitOptionalRequestBodyChecksums
     ) {
         this.credentials = credentials;
         this.protocol = protocol;
@@ -370,7 +370,7 @@ final class S3ClientSettings {
         this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
         this.alwaysSignRequests = alwaysSignRequests;
         this.legacyContentMd5 = legacyContentMd5;
-        this.unsafelyOmitRequestBodyChecksums = unsafelyOmitRequestBodyChecksums;
+        this.unsafelyOmitOptionalRequestBodyChecksums = unsafelyOmitOptionalRequestBodyChecksums;
     }
 
     /**
@@ -429,10 +429,10 @@ final class S3ClientSettings {
         );
         final boolean newAlwaysSignRequests = getRepoSettingOrDefault(ALWAYS_SIGN_REQUESTS, normalizedSettings, alwaysSignRequests);
         final boolean newLegacyContentMd5 = getRepoSettingOrDefault(LEGACY_CONTENT_MD5, normalizedSettings, legacyContentMd5);
-        final boolean newUnsafelyOmitRequestBodyChecksums = getRepoSettingOrDefault(
-            UNSAFELY_OMIT_REQUEST_BODY_CHECKSUMS,
+        final boolean newUnsafelyOmitOptionalRequestBodyChecksums = getRepoSettingOrDefault(
+            UNSAFELY_OMIT_OPTIONAL_REQUEST_BODY_CHECKSUMS,
             normalizedSettings,
-            unsafelyOmitRequestBodyChecksums
+            unsafelyOmitOptionalRequestBodyChecksums
         );
 
         // Read unused settings too so repository registration emits deprecation warnings for explicit values.
@@ -458,7 +458,7 @@ final class S3ClientSettings {
             && tenaciousRetriesEnabled == newTenaciousRetriesEnabled
             && newAlwaysSignRequests == alwaysSignRequests
             && newLegacyContentMd5 == legacyContentMd5
-            && newUnsafelyOmitRequestBodyChecksums == unsafelyOmitRequestBodyChecksums) {
+            && newUnsafelyOmitOptionalRequestBodyChecksums == unsafelyOmitOptionalRequestBodyChecksums) {
             return this;
         }
         return new S3ClientSettings(
@@ -483,7 +483,7 @@ final class S3ClientSettings {
             newTenaciousRetriesEnabled,
             newAlwaysSignRequests,
             newLegacyContentMd5,
-            newUnsafelyOmitRequestBodyChecksums
+            newUnsafelyOmitOptionalRequestBodyChecksums
         );
     }
 
@@ -598,7 +598,7 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, S3_TENACIOUS_RETRIES_ENABLED_SETTING),
                 getConfigValue(settings, clientName, ALWAYS_SIGN_REQUESTS),
                 getConfigValue(settings, clientName, LEGACY_CONTENT_MD5),
-                getConfigValue(settings, clientName, UNSAFELY_OMIT_REQUEST_BODY_CHECKSUMS)
+                getConfigValue(settings, clientName, UNSAFELY_OMIT_OPTIONAL_REQUEST_BODY_CHECKSUMS)
             );
         }
     }
@@ -632,7 +632,7 @@ final class S3ClientSettings {
             && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled
             && alwaysSignRequests == that.alwaysSignRequests
             && legacyContentMd5 == that.legacyContentMd5
-            && unsafelyOmitRequestBodyChecksums == that.unsafelyOmitRequestBodyChecksums;
+            && unsafelyOmitOptionalRequestBodyChecksums == that.unsafelyOmitOptionalRequestBodyChecksums;
     }
 
     @Override
@@ -658,7 +658,7 @@ final class S3ClientSettings {
             tenaciousRetriesEnabled,
             alwaysSignRequests,
             legacyContentMd5,
-            unsafelyOmitRequestBodyChecksums
+            unsafelyOmitOptionalRequestBodyChecksums
         );
     }
 

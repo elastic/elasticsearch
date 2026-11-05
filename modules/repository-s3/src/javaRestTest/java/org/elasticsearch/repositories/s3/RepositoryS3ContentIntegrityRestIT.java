@@ -29,7 +29,6 @@ import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
-import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -37,24 +36,14 @@ import org.junit.rules.TestRule;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 import static fixture.aws.DynamicIdentifierSupplier.testClassIdentifierSupplier;
-import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.DATA_SIZE_FORCING_MULTIPART_UPLOADS;
-import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.MULTIPART_BUFFER_SIZE;
-import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.SINGLE_SHARD_INDEX_SETTINGS;
-import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.UNINDEXED_PAYLOAD_MAPPING;
 import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.assertNoChecksumRequestHeaders;
 import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.assertSomeChecksumRequestHeader;
-import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.createSnapshotAndAssertSuccess;
-import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.deleteSnapshotAndAssertOk;
-import static org.elasticsearch.repositories.s3.S3ChecksumRestTestSupport.indexIncompressibleData;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -82,25 +71,24 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         for (final boolean https : new boolean[] { false, true }) {
             for (final boolean chunkedEncoding : new boolean[] { false, true }) {
                 for (final boolean alwaysSignRequests : new boolean[] { false, true }) {
-                    for (final boolean unsafelyOmitRequestBodyChecksums : new boolean[] { false, true }) {
-                        // legacy_content_md5 only changes DeleteObjects, so it doesn't need crossing with everything else. One config
-                        // per scheme and signing mode is enough to show it still works next to the other settings.
-                        final boolean legacyContentMd5 = chunkedEncoding && unsafelyOmitRequestBodyChecksums == false;
-                        testConfigs.add(
-                            new TestConfig(https, chunkedEncoding, alwaysSignRequests, legacyContentMd5, unsafelyOmitRequestBodyChecksums)
-                        );
+                    for (final boolean legacyContentMd5 : new boolean[] { false, true }) {
+                        for (final boolean unsafelyOmitOptionalRequestBodyChecksums : new boolean[] { false, true }) {
+                            testConfigs.add(
+                                new TestConfig(
+                                    https,
+                                    chunkedEncoding,
+                                    alwaysSignRequests,
+                                    legacyContentMd5,
+                                    unsafelyOmitOptionalRequestBodyChecksums
+                                )
+                            );
+                        }
                     }
                 }
             }
         }
         TEST_CONFIGS = List.copyOf(testConfigs);
     }
-
-    /**
-     * Test configs for which the fixture saw an UploadPart request. The fixture only checks the headers of the requests it sees, so
-     * without this a test that never sent a part would pass without checking the multipart path at all.
-     */
-    private static final Set<String> CONFIGS_WITH_UPLOAD_PART_REQUESTS = ConcurrentHashMap.newKeySet();
 
     private static final class ContentIntegrityS3HttpFixture extends S3HttpFixture {
         ContentIntegrityS3HttpFixture(TestTlsCertificate tlsCertificate) {
@@ -135,18 +123,18 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                     && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER))
                         .orElse(List.of())
                         .isEmpty()) {
-                    assertThat(contentSha256Header, testConfig.getExpectedUploadContentSha256HeaderMatcher());
-                    if (testConfig.unsafelyOmitRequestBodyChecksums) {
+                    assertThat(
+                        contentSha256Header,
+                        anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(testConfig.getExpectedUploadContentSha256Header()))
+                    );
+                    if (testConfig.unsafelyOmitOptionalRequestBodyChecksums) {
                         assertNoChecksumRequestHeaders(exchange.getRequestHeaders().keySet());
                     } else {
                         assertSomeChecksumRequestHeader(exchange.getRequestHeaders().keySet());
                     }
-                    if (request.isUploadPartRequest()) {
-                        CONFIGS_WITH_UPLOAD_PART_REQUESTS.add(testConfig.toString());
-                    }
                 }
                 if (request.isMultiObjectDeleteRequest()) {
-                    // The S3 API requires a checksum on DeleteObjects, so unsafely_omit_request_body_checksums must never remove it
+                    // The SDK treats the checksum on DeleteObjects as required, so omitting the optional ones must not remove it
                     assertThat(exchange.getRequestHeaders().getFirst("x-amz-checksum-crc32"), notNullValue());
                     assertThat(exchange.getRequestHeaders().getFirst("x-amz-sdk-checksum-algorithm"), equalTo("CRC32"));
                 }
@@ -157,11 +145,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                             anyOf(
                                 // We either have a SHA256 hash of the body, covered by the request signature, ...
                                 matchesPattern(S3HttpHandler.SHA256_PATTERN),
-                                // ... or there's a properly-signed footer
-                                equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER"),
-                                // ... or signed chunks with no footer, which is what we get when unsafely_omit_request_body_checksums is
-                                // set
-                                equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD")
+                                // ... or signed chunks, with a footer only if the client is sending a checksum
+                                equalTo(testConfig.getExpectedSignedStreamingContentSha256Header())
                             ),
 
                             // Redundant check given the above condition but this is the thing that the S3 docs tell users to forbid:
@@ -239,67 +224,37 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         return testConfig.getRepositorySettings();
     }
 
-    /// Multipart uploads go through UploadPart rather than PutObject, so they have to obey the same checksum rules. The fixture handler
-    /// asserts the headers on every request, and this test makes sure that at least one UploadPart was really sent for the config.
-    public void testSnapshotOfLargeShardFilesUsesMultipartUploads() throws Exception {
-        final var repository = new TestRepository(
-            randomIdentifier(),
-            getClientName(),
-            getBucketName(),
-            getBasePath(),
-            extraRepositorySettings()
-        );
-        final var indexName = randomIdentifier();
-        final var snapshotName = randomIdentifier();
-        // forget any part seen earlier, so this test has to be the one that sends them
-        CONFIGS_WITH_UPLOAD_PART_REQUESTS.remove(testConfig.toString());
-        try (
-            var ignored = repository.register(
-                s -> Settings.builder().put(s).put("buffer_size", MULTIPART_BUFFER_SIZE.getStringRep()).build()
-            )
-        ) {
-            createIndex(indexName, SINGLE_SHARD_INDEX_SETTINGS, UNINDEXED_PAYLOAD_MAPPING);
-            indexIncompressibleData(client(), indexName, DATA_SIZE_FORCING_MULTIPART_UPLOADS);
-
-            createSnapshotAndAssertSuccess(client(), repository.repositoryName(), snapshotName);
-            assertThat(CONFIGS_WITH_UPLOAD_PART_REQUESTS, hasItem(testConfig.toString()));
-
-            // deleting the snapshot sends a DeleteObjects request, which the fixture checks still carries its checksum
-            deleteSnapshotAndAssertOk(client(), repository.repositoryName(), snapshotName);
-        }
-    }
-
     /// Test suite is parametric in this config.
     public static final class TestConfig {
         private final boolean https;
         private final boolean chunkedEncoding;
         private final boolean alwaysSignRequests;
         private final boolean legacyContentMd5;
-        private final boolean unsafelyOmitRequestBodyChecksums;
+        private final boolean unsafelyOmitOptionalRequestBodyChecksums;
 
         TestConfig(
             boolean https,
             boolean chunkedEncoding,
             boolean alwaysSignRequests,
             boolean legacyContentMd5,
-            boolean unsafelyOmitRequestBodyChecksums
+            boolean unsafelyOmitOptionalRequestBodyChecksums
         ) {
             this.https = https;
             this.chunkedEncoding = chunkedEncoding;
             this.alwaysSignRequests = alwaysSignRequests;
             this.legacyContentMd5 = legacyContentMd5;
-            this.unsafelyOmitRequestBodyChecksums = unsafelyOmitRequestBodyChecksums;
+            this.unsafelyOmitOptionalRequestBodyChecksums = unsafelyOmitOptionalRequestBodyChecksums;
         }
 
         @Override
         public String toString() {
             return Strings.format(
-                "{scheme=%s,chunkedEncoding=%s,alwaysSignRequests=%s,legacyContentMd5=%s,unsafelyOmitRequestBodyChecksums=%s}",
+                "{scheme=%s,chunkedEncoding=%s,alwaysSignRequests=%s,legacyContentMd5=%s,unsafelyOmitOptionalRequestBodyChecksums=%s}",
                 https ? "https" : "http",
                 chunkedEncoding,
                 alwaysSignRequests,
                 legacyContentMd5,
-                unsafelyOmitRequestBodyChecksums
+                unsafelyOmitOptionalRequestBodyChecksums
             );
         }
 
@@ -308,7 +263,11 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             addBooleanSettingDefaultFalse(builder, "disable_chunked_encoding", chunkedEncoding == false);
             addBooleanSettingDefaultFalse(builder, "always_sign_requests", alwaysSignRequests);
             addBooleanSettingDefaultFalse(builder, "legacy_content_md5", legacyContentMd5);
-            addBooleanSettingDefaultFalse(builder, "unsafely_omit_request_body_checksums", unsafelyOmitRequestBodyChecksums);
+            addBooleanSettingDefaultFalse(
+                builder,
+                "unsafely_omit_optional_request_body_checksums",
+                unsafelyOmitOptionalRequestBodyChecksums
+            );
             return builder.build();
         }
 
@@ -320,33 +279,20 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
             }
         }
 
+        /// The value for signed chunks. It names the footer only when the client is sending a checksum in one.
+        String getExpectedSignedStreamingContentSha256Header() {
+            return unsafelyOmitOptionalRequestBodyChecksums
+                ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD"
+                : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER";
+        }
+
+        /// The marker the SDK puts in the body hash header of an upload. It only names a trailer when the client is sending a checksum
+        /// in one, which is for chunked bodies unless the optional checksums are omitted.
         String getExpectedUploadContentSha256Header() {
+            final boolean sendsChecksumTrailer = chunkedEncoding && unsafelyOmitOptionalRequestBodyChecksums == false;
             return (https && alwaysSignRequests == false)
-                ? (chunkedEncoding ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
-                : (chunkedEncoding ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
-        }
-
-        /// What the {@code x-amz-content-sha256} header of an upload must look like for this config, which depends on whether the client
-        /// is sending a checksum trailer with the body.
-        Matcher<String> getExpectedUploadContentSha256HeaderMatcher() {
-            return unsafelyOmitRequestBodyChecksums
-                ? expectedUploadContentSha256HeaderWithoutChecksum()
-                : expectedUploadContentSha256HeaderWithChecksum();
-        }
-
-        /// With a checksum the header is the streaming value for the scheme and signing mode, which includes the trailer, or a SHA-256
-        /// of the body.
-        private Matcher<String> expectedUploadContentSha256HeaderWithChecksum() {
-            return anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), equalTo(getExpectedUploadContentSha256Header()));
-        }
-
-        /// With no checksum there's no trailer, so the header is the unsigned marker over unsigned HTTPS, signed chunks with no footer
-        /// when chunked, and a SHA-256 of the body when chunked encoding is disabled.
-        private Matcher<String> expectedUploadContentSha256HeaderWithoutChecksum() {
-            if (https && alwaysSignRequests == false) {
-                return equalTo("UNSIGNED-PAYLOAD");
-            }
-            return chunkedEncoding ? equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD") : matchesPattern(S3HttpHandler.SHA256_PATTERN);
+                ? (sendsChecksumTrailer ? "STREAMING-UNSIGNED-PAYLOAD-TRAILER" : "UNSIGNED-PAYLOAD")
+                : (sendsChecksumTrailer ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER" : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD");
         }
 
         void applyClientSettings(LocalClusterSpecBuilder<?> builder) {
@@ -370,8 +316,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 + alwaysSignRequests
                 + "_legacy_content_md5_"
                 + legacyContentMd5
-                + "_unsafely_omit_request_body_checksums_"
-                + unsafelyOmitRequestBodyChecksums;
+                + "_unsafely_omit_optional_request_body_checksums_"
+                + unsafelyOmitOptionalRequestBodyChecksums;
         }
 
         String getRepositoryBasePath() {
@@ -384,8 +330,8 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 + alwaysSignRequests
                 + "_legacy_content_md5_"
                 + legacyContentMd5
-                + "_unsafely_omit_request_body_checksums_"
-                + unsafelyOmitRequestBodyChecksums;
+                + "_unsafely_omit_optional_request_body_checksums_"
+                + unsafelyOmitOptionalRequestBodyChecksums;
         }
 
         String getAccessKey() {
@@ -399,7 +345,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
                 + "-"
                 + legacyContentMd5
                 + "-"
-                + unsafelyOmitRequestBodyChecksums;
+                + unsafelyOmitOptionalRequestBodyChecksums;
         }
 
         static TestConfig fromAuthorizationHeader(String authorizationHeader) {

@@ -165,6 +165,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslateTime
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BranchIdentity;
 import org.elasticsearch.xpack.esql.plan.logical.BranchPlan;
@@ -3686,7 +3687,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (limits.isEmpty()) {
                 limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a
                 // default
-                if (isTsAggregate == false) {
+                // With a limit in the exemplars setting, the result of the metrics query is replaced by at most that many exemplars,
+                // so the default limit doesn't apply to what the query returns.
+                boolean exemplarsLimited = QuerySettings.EXEMPLARS.get(context.configuration().resolvedSettings()).limit() != null;
+                if (isTsAggregate == false && exemplarsLimited == false) {
                     HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
                 }
             } else {

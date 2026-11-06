@@ -78,7 +78,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -2837,16 +2836,16 @@ public final class RestoreService implements ClusterStateApplier {
             IndexMetadata convertedIndexMetadata = convertedIndexMetadataBuilder.build();
 
             try {
-                Mapping mapping;
+                CompressedXContent mappingSource;
                 try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(convertedIndexMetadata)) {
                     // create and validate in-memory mapping
                     mapperService.merge(convertedIndexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
-                    mapping = mapperService.documentMapper().mapping();
+                    mappingSource = mapperService.documentMapper().mappingSource();
                 }
-                if (mapping != null) {
+                if (mappingSource != null) {
                     convertedIndexMetadataBuilder = IndexMetadata.builder(convertedIndexMetadata);
                     // using the recomputed mapping allows stripping some fields that we no longer support (e.g. include_in_all)
-                    convertedIndexMetadataBuilder.putMapping(new MappingMetadata(mapping.toCompressedXContent()));
+                    convertedIndexMetadataBuilder.putMapping(new MappingMetadata(mappingSource));
                     return convertedIndexMetadataBuilder.build();
                 }
             } catch (Exception e) {

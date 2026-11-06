@@ -289,6 +289,11 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         return freq;
     }
 
+    public void testSetIndexOptionsRejectsNull() {
+        var builder = new SparseVectorFieldMapper.Builder("field", IndexVersion.current(), false);
+        expectThrows(NullPointerException.class, () -> builder.setIndexOptions(null));
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());

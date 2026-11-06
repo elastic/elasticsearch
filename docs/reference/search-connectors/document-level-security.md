@@ -3,12 +3,12 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-dls.html
 ---
 
-# Document level security for content connectors [es-dls]
+# Document level security for content crawlers [es-dls]
 
 Document level security (DLS) enables you to restrict access to documents in your Elasticsearch indices according to user and group permissions. This ensures search results only return authorized information for users, based on their permissions.
 
 :::{important}
-This page pertains to a specific implementation of DLS for Elastic content connectors.
+This page pertains to a specific implementation of DLS for Elastic content crawlers.
 Refer to [Controlling access at the document and field level](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md) to learn about the {{es}} DLS feature.
 :::
 
@@ -45,7 +45,7 @@ DLS is available by default when using the following Elastic connectors:
 Note that our standalone products (App Search and Workplace Search) do not use this feature. Workplace Search has its own permissions management system.
 
 
-## Learn more about DLS for content connectors [es-dls-learn-more]
+## Learn more about DLS for content crawlers [es-dls-learn-more]
 
 DLS documentation:
 

@@ -56,7 +56,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -378,7 +377,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 TransportBulkAction.requireSliceRoutingWhenEnabled(docWriteRequest, ia, project::index);
 
                 TransportBulkAction.prohibitCustomRoutingOnDataStream(docWriteRequest, ia);
-                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia, project::index);
+                TransportBulkAction.prohibitAppendWritesInBackingIndices(docWriteRequest, ia, project::index, clusterService.getSettings());
                 docWriteRequest.routing(project.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
 
                 final Index concreteIndex = docWriteRequest.getConcreteWriteIndex(ia, project);
@@ -478,7 +477,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                         bulkShardRequest.setBulkShardBatch(new BulkShardBatch(shardBatch));
                     }
 
-                    boolean redactSeqNo = IndexSettings.DISABLE_SEQUENCE_NUMBERS.get(indexMetadata.getSettings());
+                    boolean redactSeqNo = indexMetadata.sequenceNumbersDisabled(clusterService.getSettings());
                     // Releases the batch when its shard request completes, ahead of the ref that may start the next phase.
                     undispatchedBatches.remove(shardId);
                     Releasable ref = bulkItemRequestCompleteRefCount.acquire();

@@ -201,6 +201,71 @@ public class RootObjectMapper extends ObjectMapper {
             return context.createChildContext(null, dynamic);
         }
 
+        /**
+         * Writes the root-only settings as {@link RootObjectMapper#doXContent} does, statement for statement.
+         */
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            final boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+
+            if (dynamicDateTimeFormatters.explicit() || includeDefaults) {
+                builder.startArray("dynamic_date_formats");
+                for (DateFormatter dateTimeFormatter : dynamicDateTimeFormatters.value()) {
+                    builder.value(dateTimeFormatter.pattern());
+                }
+                builder.endArray();
+            }
+
+            if (dynamicTemplates.explicit() || includeDefaults) {
+                builder.startArray("dynamic_templates");
+                for (DynamicTemplate dynamicTemplate : dynamicTemplates.value()) {
+                    builder.startObject();
+                    builder.field(dynamicTemplate.name(), dynamicTemplate);
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
+
+            if (dateDetection.explicit() || includeDefaults) {
+                builder.field("date_detection", dateDetection.value());
+            }
+            if (numericDetection.explicit() || includeDefaults) {
+                builder.field("numeric_detection", numericDetection.value());
+            }
+
+            if (runtimeFields.isEmpty() == false) {
+                builder.startObject("runtime");
+                List<RuntimeField> sortedRuntimeFields = runtimeFields.values()
+                    .stream()
+                    .sorted(Comparator.comparing(RuntimeField::name))
+                    .toList();
+                for (RuntimeField fieldType : sortedRuntimeFields) {
+                    fieldType.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+
+            if (prefixProperties.isEmpty() == false) {
+                // Sorted by key, because the mapping source is byte-compared across nodes: see the mapper's own comment.
+                builder.startObject("prefix_properties");
+                for (Map.Entry<String, PrefixProperties> entry : new TreeMap<>(prefixProperties).entrySet()) {
+                    PrefixProperties pp = entry.getValue();
+                    builder.startObject(entry.getKey());
+                    if (pp.dynamic() != null) {
+                        builder.field("dynamic", pp.dynamic().name().toLowerCase(Locale.ROOT));
+                    }
+                    if (pp.passthrough() != null) {
+                        builder.field("passthrough", pp.passthrough());
+                    }
+                    if (pp.enabled() != null) {
+                        builder.field("enabled", pp.enabled());
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+        }
+
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             if (context.isStrictColumnar() && enabled.explicit() && enabled.value() == false) {
@@ -792,7 +857,7 @@ public class RootObjectMapper extends ObjectMapper {
         if (str.equalsIgnoreCase("runtime")) {
             throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [runtime]");
         }
-        // Dynamic.FLATTENED is an internal resolved value only; it is not user-settable (Dynamic.valueOf would otherwise accept it).
+        // Dynamic.FLATTENED is accepted only at the root (see ObjectMapper.TypeParser), never per prefix (Dynamic.valueOf would accept it).
         if (str.equalsIgnoreCase("flattened")) {
             throw new MapperParsingException("[prefix_properties." + key + ".dynamic] does not support [flattened]");
         }

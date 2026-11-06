@@ -66,19 +66,23 @@ $$$index-mode-setting$$$ `index.mode` {applies_to}`serverless: ga`
     The `index.mode` setting supports the following values:
 
     `standard` {applies_to}`vectordb: unavailable`
-    :   Standard indexing with default settings. An index uses this default unless an index template sets another mode or it's a `logs-*-*` data stream as described for the `logsdb` value.
+    :   Standard indexing with default settings.
+    :   An index uses this default unless an index template sets another mode or it's a `logs-*-*` data stream as described for the `logsdb` value.
+
+    `columnar` {applies_to}`stack: preview 9.5+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable`
+    :   Turns {{es}} into a full analytical and search columnar store.
+    :   Fields are stored once as doc values. 
+    :   Refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
 
     `logsdb` {applies_to}`vectordb: unavailable`
-    :   Index mode optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md). Data streams whose names match `logs-*-*` use this mode when [LogsDB is enabled](docs-content://manage-data/data-store/data-streams/logs-data-stream.md#logsdb-availability) and neither the create request nor a template sets `index.mode`.
+    :   Optimized for [logs](docs-content://manage-data/data-store/data-streams/logs-data-stream.md).
+    :   Data streams whose names match `logs-*-*` use this mode when [LogsDB is enabled](docs-content://manage-data/data-store/data-streams/logs-data-stream.md#logsdb-availability) and neither the create request nor a template sets `index.mode`.
 
     `logsdb_columnar` {applies_to}`stack: preview 9.5+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable`
-    :   Columnar index mode with logging-oriented defaults, including a default `@timestamp` mapping. For more information, refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
+    :  A [columnar index mode](/reference/elasticsearch/columnar/index.md) with logging-oriented defaults, including a default `@timestamp` mapping.
 
     `time_series` {applies_to}`vectordb: unavailable`
     :   Index mode optimized for storage of metrics, which is applicable only to data streams. For more information, see [Time series index settings](time-series.md).
-
-    `columnar` {applies_to}`stack: preview 9.5+` {applies_to}`elasticsearch: preview` {applies_to}`observability: preview` {applies_to}`security: preview` {applies_to}`vectordb: unavailable`
-    :   Index mode that turns {{es}} into a full analytical and search columnar store. Fields are stored once as doc values with no inverted index or BKD tree by default. For more information, refer to [Columnar index mode](/reference/elasticsearch/columnar/index.md).
 
     `vectordb_document` {applies_to}`stack: ga 9.5` {applies_to}`serverless: ga`
     :   Index mode optimized for vector search use cases. Applies settings and defaults tuned for indexing, merging, and searching dense vector data. For details, see [Index modes for vector search](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-modes).

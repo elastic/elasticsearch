@@ -157,6 +157,11 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
     }
 
     @Override
+    public boolean supportsLookup() {
+        return false;
+    }
+
+    @Override
     public final ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
         throw new UnsupportedOperationException();
     }

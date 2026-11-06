@@ -39,7 +39,8 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator(
-    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") }
+    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "BYTES_REF_BLOCK") },
+    boundedState = true
 )
 public class FirstBytesRefByTimestampAggregator {
     public static String describe() {

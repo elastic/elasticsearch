@@ -117,6 +117,11 @@ public class ToPartialGroupingAggregatorFunction implements GroupingAggregatorFu
     }
 
     @Override
+    public boolean freezeEligible() {
+        return delegate.freezeEligible();
+    }
+
+    @Override
     public void close() {
         Releasables.close(delegate);
     }

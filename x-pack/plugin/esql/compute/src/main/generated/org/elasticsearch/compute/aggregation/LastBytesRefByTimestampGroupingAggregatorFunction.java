@@ -472,6 +472,11 @@ public final class LastBytesRefByTimestampGroupingAggregatorFunction implements 
   }
 
   @Override
+  public boolean freezeEligible() {
+    return true;
+  }
+
+  @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
     sb.append(getClass().getSimpleName()).append("[");

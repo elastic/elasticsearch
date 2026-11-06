@@ -157,6 +157,11 @@ public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next
     }
 
     @Override
+    public boolean freezeEligible() {
+        return next.freezeEligible();
+    }
+
+    @Override
     public void close() {
         Releasables.closeExpectNoException(next, filter);
     }

@@ -43,4 +43,13 @@ public @interface GroupingAggregator {
      * Whether the generated grouping aggregator function support partitioning
      */
     boolean supportsPartitioning() default false;
+
+    /**
+     * Whether the state this aggregator keeps per group stays bounded however many values the group receives, as a
+     * sum, a minimum or a running variance does and a list of values, a top-N or a digest does not. A function whose
+     * state is bounded may have its group set frozen and keep merging rows of known groups within a bounded working
+     * set, which is what a grouping aggregation spilling to disk relies on. An aggregator that supports partitioning
+     * is bounded by construction and need not set this.
+     */
+    boolean boundedState() default false;
 }

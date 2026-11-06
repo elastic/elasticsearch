@@ -258,6 +258,17 @@ public interface GroupingAggregatorFunction extends Releasable {
         return false;
     }
 
+    /**
+     * Whether the state this function keeps per group stays bounded however many values the group receives, so that
+     * a frozen set of groups keeps accepting rows within a bounded working set: what a grouping aggregation that
+     * spills to disk relies on, by freezing its groups and routing the rows of new groups to disk. A function that
+     * partitions is bounded by construction; one whose state grows with the values, a list of values, a top-N, a
+     * digest, is not, and the default says so. Wrappers answer for the function they wrap.
+     */
+    default boolean freezeEligible() {
+        return supportPartitioning();
+    }
+
     interface PartitionedState {
         /**
          * Whether every group of the given partition has value.

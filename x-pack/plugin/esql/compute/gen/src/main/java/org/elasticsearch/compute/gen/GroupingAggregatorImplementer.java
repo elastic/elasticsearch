@@ -111,6 +111,8 @@ public class GroupingAggregatorImplementer {
     private final boolean anyArgumentSupportsVectors;
     private final boolean processNulls;
     private final boolean supportsPartitioning;
+    /** Whether the per-group state is bounded: with {@link #supportsPartitioning} this makes the function freeze-eligible. */
+    private final boolean boundedState;
     private final boolean hasCombinePartition;
     private final boolean hasReadPartition;
     /**
@@ -128,9 +130,11 @@ public class GroupingAggregatorImplementer {
         IntermediateState[] interStateAnno,
         List<TypeMirror> warnExceptions,
         boolean processNulls,
-        boolean supportsPartitioning
+        boolean supportsPartitioning,
+        boolean boundedState
     ) {
         this.declarationType = declarationType;
+        this.boundedState = boundedState;
         this.warnExceptions = warnExceptions;
 
         this.init = requireStaticMethod(
@@ -327,6 +331,9 @@ public class GroupingAggregatorImplementer {
             builder.addMethod(combinePartition());
             builder.addMethod(supportsPartitionCodec());
             builder.addMethod(readPartition());
+        }
+        if (boundedState && supportsPartitioning == false) {
+            builder.addMethod(freezeEligible());
         }
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
@@ -937,6 +944,19 @@ public class GroupingAggregatorImplementer {
 
     private MethodSpec supportPartitioning() {
         return MethodSpec.methodBuilder("supportPartitioning")
+            .addAnnotation(Override.class)
+            .addModifiers(Modifier.PUBLIC)
+            .returns(TypeName.BOOLEAN)
+            .addStatement("return true")
+            .build();
+    }
+
+    /**
+     * Emitted for a declaration with a bounded state that does not partition; one that partitions is eligible through
+     * the interface's default.
+     */
+    private MethodSpec freezeEligible() {
+        return MethodSpec.methodBuilder("freezeEligible")
             .addAnnotation(Override.class)
             .addModifiers(Modifier.PUBLIC)
             .returns(TypeName.BOOLEAN)

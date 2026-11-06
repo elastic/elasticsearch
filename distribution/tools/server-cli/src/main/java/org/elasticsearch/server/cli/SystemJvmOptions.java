@@ -9,6 +9,7 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.UpdateForV10;
@@ -81,6 +82,7 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
+            maybeAddJitCompilerOptions(isHotspot, Build.current().isSnapshot()),
             attachEntitlementAgent(esHome)
         ).flatMap(s -> s).toList();
     }
@@ -160,6 +162,22 @@ final class SystemJvmOptions {
             return Stream.of("-XX:+UnlockDiagnosticVMOptions", "-XX:G1NumCollectionsKeepPinned=10000000");
         }
         return Stream.of();
+    }
+
+    /*
+     * Additional JIT compiler options. These are only applied to snapshot builds running on HotSpot.
+     */
+    static Stream<String> maybeAddJitCompilerOptions(boolean isHotspot, boolean isSnapshot) {
+        if (isHotspot == false || isSnapshot == false) {
+            return Stream.empty();
+        }
+        return Stream.of(
+            // keep the JVM from echoing each compile command to stdout at startup
+            "-XX:CompileCommand=quiet",
+            "-XX:CompileCommand=dontinline,java.nio.*::putArray",
+            "-XX:CompileCommand=dontinline,java.nio.*::putBuffer",
+            "-XX:CompileCommand=dontinline,java.nio.*::getArray"
+        );
     }
 
     private static Stream<String> attachEntitlementAgent(Path esHome) {

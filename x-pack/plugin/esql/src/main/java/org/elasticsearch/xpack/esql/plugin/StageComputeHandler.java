@@ -196,7 +196,8 @@ final class StageComputeHandler {
                         dataSource,
                         null,
                         false,
-                        exchangeWiring
+                        exchangeWiring,
+                        null
                     );
                     var laneListener = computeListener.acquireCompute();
                     try {

@@ -678,7 +678,8 @@ final class StageScheduler {
             null,
             null,
             false,
-            coordinatorWiring
+            coordinatorWiring,
+            null
         );
         ActionListener<DriverCompletionInfo> coordinatorListener = computeListener.acquireCompute();
         try {

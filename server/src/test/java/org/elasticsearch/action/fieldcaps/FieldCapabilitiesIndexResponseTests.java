@@ -44,6 +44,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                     randomBoolean(),
                     randomFrom(IndexMode.availableModes()),
                     between(1, 100),
+                    randomIntBetween(1, Integer.MAX_VALUE),
                     randomLongBetween(1, Long.MAX_VALUE),
                     randomLongBetween(1, Long.MAX_VALUE),
                     randomLongBetween(-1, Long.MAX_VALUE),
@@ -95,6 +96,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 true,
                 indexMode,
                 shards1,
+                randomIntBetween(1, Integer.MAX_VALUE),
                 settingsVersion1,
                 mappingVersion1,
                 docCount1,
@@ -108,6 +110,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 true,
                 indexMode,
                 shards2,
+                randomIntBetween(1, Integer.MAX_VALUE),
                 settingsVersion2,
                 mappingVersion2,
                 docCount2,
@@ -145,6 +148,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
                 true,
                 IndexMode.STANDARD,
                 between(1, 100),
+                randomIntBetween(1, Integer.MAX_VALUE),
                 1,
                 1,
                 10,
@@ -165,6 +169,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
 
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(0).getNumberOfShards(), equalTo(0));
+        assertThat(result.get(0).getCreatedVersion(), equalTo(0));
         assertThat(result.get(0).getIndexSettingsVersion(), equalTo(0L));
         assertThat(result.get(0).getMappingVersion(), equalTo(0L));
         assertThat(result.get(0).getShardDocCount(), equalTo(-1L));
@@ -224,7 +229,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
             var indexMode = randomFrom(IndexMode.availableModes());
             String mappingHash = e.getKey();
             for (String index : e.getValue()) {
-                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, fieldCaps, true, indexMode, 0, 0, 0));
+                responses.add(new FieldCapabilitiesIndexResponse(index, mappingHash, fieldCaps, true, indexMode, 0, 0, 0, 0));
             }
         }
         return responses;
@@ -236,7 +241,7 @@ public class FieldCapabilitiesIndexResponseTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             String index = "index_without_mapping_hash_" + i;
             var indexMode = randomFrom(IndexMode.availableModes());
-            responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode, 0, 0, 0));
+            responses.add(new FieldCapabilitiesIndexResponse(index, null, randomFieldCaps(), randomBoolean(), indexMode, 0, 0, 0, 0));
         }
         return responses;
     }

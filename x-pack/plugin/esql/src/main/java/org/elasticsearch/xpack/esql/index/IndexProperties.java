@@ -45,6 +45,7 @@ import java.util.Objects;
 public record IndexProperties(
     IndexMode indexMode,
     int numberOfShards,
+    int createdVersion,
     long docCount,
     long sizeInBytes,
     Map<String, IndexFieldStats> fieldStats
@@ -55,6 +56,7 @@ public record IndexProperties(
      * Gating point for both {@link #IndexProperties(StreamInput)} and {@link #writeTo(StreamOutput)}.
      */
     public static final TransportVersion SHARD_COUNTS = TransportVersion.fromName("field_caps_number_of_shards");
+    public static final TransportVersion CREATED_VERSION = TransportVersion.fromName("field_caps_index_created_version");
 
     /**
      * Transport version that introduced per-index doc stats via {@code _field_caps}.
@@ -62,11 +64,25 @@ public record IndexProperties(
     public static final TransportVersion DOC_STATS = FieldCapabilitiesIndexResponse.SHARD_DOC_STATS_VERSION;
 
     public IndexProperties(IndexMode indexMode, int numberOfShards) {
-        this(indexMode, numberOfShards, -1, -1);
+        this(indexMode, numberOfShards, 0);
+    }
+
+    public IndexProperties(IndexMode indexMode, int numberOfShards, int createdVersion) {
+        this(indexMode, numberOfShards, createdVersion, -1, -1, Map.of());
     }
 
     public IndexProperties(IndexMode indexMode, int numberOfShards, long docCount, long sizeInBytes) {
         this(indexMode, numberOfShards, docCount, sizeInBytes, Map.of());
+    }
+
+    public IndexProperties(
+        IndexMode indexMode,
+        int numberOfShards,
+        long docCount,
+        long sizeInBytes,
+        Map<String, IndexFieldStats> fieldStats
+    ) {
+        this(indexMode, numberOfShards, 0, docCount, sizeInBytes, fieldStats);
     }
 
     public IndexProperties {
@@ -80,6 +96,7 @@ public record IndexProperties(
     public static IndexProperties fromShardSample(
         IndexMode indexMode,
         int numberOfShards,
+        int createdVersion,
         long shardDocCount,
         long shardSizeInBytes,
         Map<String, IndexFieldStats> shardFieldStats
@@ -94,6 +111,7 @@ public record IndexProperties(
         return new IndexProperties(
             indexMode,
             numberOfShards,
+            createdVersion,
             extrapolate(shardDocCount, numberOfShards),
             extrapolate(shardSizeInBytes, numberOfShards),
             fieldStats
@@ -115,8 +133,10 @@ public record IndexProperties(
         this(
             IndexMode.readFrom(in),
             in.getTransportVersion().supports(SHARD_COUNTS) ? in.readVInt() : 0,
+            in.getTransportVersion().supports(CREATED_VERSION) ? in.readVInt() : 0,
             in.getTransportVersion().supports(DOC_STATS) ? in.readZLong() : -1,
-            in.getTransportVersion().supports(DOC_STATS) ? in.readZLong() : -1
+            in.getTransportVersion().supports(DOC_STATS) ? in.readZLong() : -1,
+            Map.of()
         );
     }
 
@@ -125,13 +145,14 @@ public record IndexProperties(
         return o instanceof IndexProperties that
             && indexMode == that.indexMode
             && numberOfShards == that.numberOfShards
+            && createdVersion == that.createdVersion
             && docCount == that.docCount
             && sizeInBytes == that.sizeInBytes;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexMode, numberOfShards, docCount, sizeInBytes);
+        return Objects.hash(indexMode, numberOfShards, createdVersion, docCount, sizeInBytes);
     }
 
     @Override
@@ -139,6 +160,9 @@ public record IndexProperties(
         IndexMode.writeTo(indexMode, out);
         if (out.getTransportVersion().supports(SHARD_COUNTS)) {
             out.writeVInt(numberOfShards);
+        }
+        if (out.getTransportVersion().supports(CREATED_VERSION)) {
+            out.writeVInt(createdVersion);
         }
         if (out.getTransportVersion().supports(DOC_STATS)) {
             out.writeZLong(docCount);

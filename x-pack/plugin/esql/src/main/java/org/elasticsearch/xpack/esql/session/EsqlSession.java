@@ -499,11 +499,12 @@ public class EsqlSession {
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         int maxCommandCount = request.pragmas().maxCommandCount(flags.maxCommandCount());
+        String maxCommandCountSource = request.pragmas().maxCommandCountLimitSource(EsqlFlags.ESQL_MAX_COMMAND_COUNT.getKey());
         EsqlStatement statement = request.parse(
             parser,
             SettingsValidationContext.from(crossProjectModeDecider),
             inferenceService.inferenceSettings(),
-            maxCommandCount
+            flags
         );
         // Unwrap EXPLAIN right after parsing: Explain is a leaf plan holding the target query as a
         // field rather than a child, so plan traversals do not descend into it. It must be removed
@@ -543,7 +544,7 @@ public class EsqlSession {
         // requires no cluster state — it simply substitutes named subquery bodies for their names.
         // Performing it before replaceViews ensures that LET names never reach field-caps and that
         // view bodies never see the caller's LET scope (parseView is invoked inside replaceViews).
-        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings(), maxCommandCount);
+        parsedPlan = LetResolver.resolve(parsedPlan, statement.letBindings(), maxCommandCount, maxCommandCountSource);
 
         LOGGER.debug("ESQL resolved settings:\n{}", resolved);
         planSnapshot = planSnapshot.withSettings(resolved);
@@ -578,15 +579,23 @@ public class EsqlSession {
             // Resolve the view's own LET bindings before the resolver reads the plan. The statement is what the
             // resolver reads the definition's SET settings from, so the resolved plan has to stay on that statement.
             (query, viewName) -> planningCpu.meteredCpu(() -> {
-                var viewStmt = parser.parseView(query, request.params(), inferenceService.inferenceSettings(), viewName, maxCommandCount);
+                var viewStmt = parser.parseView(
+                    query,
+                    request.params(),
+                    inferenceService.inferenceSettings(),
+                    viewName,
+                    request.pragmas(),
+                    flags
+                );
                 return new EsqlStatement(
-                    LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount),
+                    LetResolver.resolve(viewStmt.plan(), viewStmt.letBindings(), maxCommandCount, maxCommandCountSource),
                     viewStmt.settings(),
                     List.of()
                 );
             }),
             boundaryPreservation,
             maxCommandCount,
+            maxCommandCountSource,
             planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, viewResolution) -> {
                 // Validate: no InSubquery expressions should survive view and subquery resolution.
                 InSubqueryResolver.verify(viewResolution.plan());
@@ -2113,7 +2122,14 @@ public class EsqlSession {
             }
         })
             .<PreAnalysisResult>andThen(
-                (l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), parsed, r, executionInfo, l)
+                (l, r) -> preAnalyzeLookupIndices(
+                    preAnalysis.lookupIndices().iterator(),
+                    parsed,
+                    preAnalysis.needsFieldSemantics(),
+                    r,
+                    executionInfo,
+                    l
+                )
             )
             .andThenApply(r -> {
                 executionInfo.queryProfile().indicesResolutionMarker().stop();
@@ -2186,6 +2202,7 @@ public class EsqlSession {
     private void preAnalyzeLookupIndices(
         Iterator<PreAnalyzer.LookupIndexPattern> lookupIndices,
         LogicalPlan plan,
+        boolean needsFieldSemantics,
         PreAnalysisResult preAnalysisResult,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2193,7 +2210,7 @@ public class EsqlSession {
         forAll(
             lookupIndices,
             preAnalysisResult,
-            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, r, executionInfo, l),
+            (lookupIndex, r, l) -> preAnalyzeLookupIndex(lookupIndex, plan, needsFieldSemantics, r, executionInfo, l),
             listener
         );
     }
@@ -2201,6 +2218,7 @@ public class EsqlSession {
     private void preAnalyzeLookupIndex(
         PreAnalyzer.LookupIndexPattern lookupIndexPattern,
         LogicalPlan plan,
+        boolean needsFieldSemantics,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
         ActionListener<PreAnalysisResult> listener
@@ -2260,6 +2278,7 @@ public class EsqlSession {
         indexResolver.resolveLookupIndices(
             qualifiedPattern,
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
+            needsFieldSemantics,
             // We use the minimum version determined in the main index resolution, because for remote LOOKUP JOIN, we're only considering
             // remote lookup indices in the field caps request - but the coordinating cluster must be considered, too!
             // The main index resolution should already have taken the version of the coordinating cluster into account and this should
@@ -2949,6 +2968,7 @@ public class EsqlSession {
                 preAnalysis.useDenseVectorWhenNotSupported(),
                 preAnalysis.hasTimeSeriesAggregation(),
                 preAnalysis.needsAnalyzerGroups(),
+                preAnalysis.needsFieldSemantics(),
                 trackUnmappedFieldIndices,
                 indicesExpressionGrouper,
                 planningCpu.meteredCpu(listener.delegateFailureAndWrap((l, indexResolution) -> {
@@ -2965,6 +2985,7 @@ public class EsqlSession {
                             preAnalysis.useDenseVectorWhenNotSupported(),
                             false,
                             preAnalysis.needsAnalyzerGroups(),
+                            preAnalysis.needsFieldSemantics(),
                             trackUnmappedFieldIndices,
                             indicesExpressionGrouper,
                             planningCpu.meteredCpu(retryListener)
@@ -3040,6 +3061,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
+            preAnalysis.needsFieldSemantics(),
             trackUnmappedFieldIndices,
             null,
             result.indexViewOrigins(),
@@ -3079,6 +3101,7 @@ public class EsqlSession {
             preAnalysis.useDenseVectorWhenNotSupported(),
             preAnalysis.hasTimeSeriesAggregation(),
             preAnalysis.needsAnalyzerGroups(),
+            preAnalysis.needsFieldSemantics(),
             trackUnmappedFieldIndices,
             routingInfoCapture,
             result.indexViewOrigins(),
@@ -3101,6 +3124,7 @@ public class EsqlSession {
                         preAnalysis.useDenseVectorWhenNotSupported(),
                         false,
                         preAnalysis.needsAnalyzerGroups(),
+                        preAnalysis.needsFieldSemantics(),
                         trackUnmappedFieldIndices,
                         null,
                         result.indexViewOrigins(),

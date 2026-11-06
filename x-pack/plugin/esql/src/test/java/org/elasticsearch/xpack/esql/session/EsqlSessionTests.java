@@ -1202,6 +1202,7 @@ public class EsqlSessionTests extends ESTestCase {
             false,
             false,
             false,
+            false,
             List.of(path),
             List.of()
         );

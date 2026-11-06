@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.DatasetShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn.ExecuteLocation;
 import org.elasticsearch.xpack.esql.plan.logical.Highlight;
@@ -66,6 +67,7 @@ public class PreAnalyzer {
         boolean hasTimeSeriesAggregation,
         boolean requiresAllDimensionFields,
         boolean needsAnalyzerGroups,
+        boolean needsFieldSemantics,
         List<String> externalSourcePaths,
         List<String> inferenceIds
     ) {
@@ -74,6 +76,7 @@ public class PreAnalyzer {
             List.of(),
             List.of(),
             Set.of(),
+            false,
             false,
             false,
             false,
@@ -198,6 +201,8 @@ public class PreAnalyzer {
         requiresAllDimensionFields.set(IndependentSubqueryJoin.anyMatchInMainScope(plan, p -> p instanceof PromqlCommand));
         // Only a HIGHLIGHT analyzing with the mapping analyzers reads which indices use which one; skip the cost otherwise.
         boolean needsAnalyzerGroups = plan.anyMatch(p -> p instanceof Highlight h && h.hasAnalyzerOption() == false);
+        // Only DESCRIBE reads the field semantics; skip building them otherwise.
+        boolean needsFieldSemantics = plan.anyMatch(Describe.class::isInstance);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
@@ -212,6 +217,7 @@ public class PreAnalyzer {
             hasTimeSeriesAggregation.get(),
             requiresAllDimensionFields.get(),
             needsAnalyzerGroups,
+            needsFieldSemantics,
             icebergPaths,
             inferenceIds
         );

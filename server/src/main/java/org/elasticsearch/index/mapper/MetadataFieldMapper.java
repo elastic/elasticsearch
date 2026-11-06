@@ -137,13 +137,28 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         /**
          * Returns true if any parameter has a value that differs from its default.
          */
-        private boolean hasNonDefaultParameters() {
+        protected boolean hasNonDefaultParameters() {
             for (Parameter<?> param : getParameters()) {
                 if (param.isConfigured()) {
                     return true;
                 }
             }
             return false;
+        }
+
+        /**
+         * Writes nothing at all, not an empty object, unless a parameter differs from its default; the built-in
+         * metadata fields are present in a mapping as exactly those absent entries. There is no {@code type}, and
+         * {@code include_defaults} plays no part in the decision, only in how a written parameter is rendered.
+         */
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (hasNonDefaultParameters() == false) {
+                return builder;
+            }
+            builder.startObject(leafName());
+            serializeParameters(builder, params);
+            return builder.endObject();
         }
 
         @Override
@@ -236,7 +251,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             return builder;
         }
         builder.startObject(leafName());
-        mergeBuilder.toXContent(builder, params);
+        mergeBuilder.serializeParameters(builder, params);
         return builder.endObject();
     }
 

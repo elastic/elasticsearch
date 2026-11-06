@@ -25,15 +25,24 @@ public class IndexPropertiesTests extends ESTestCase {
     public void testShardCountAndModeArePreserved() {
         IndexMode mode = randomFrom(IndexMode.availableModes());
         int count = between(0, 1000);
-        IndexProperties props = new IndexProperties(mode, count);
+        int createdVersion = randomIntBetween(1, Integer.MAX_VALUE);
+        IndexProperties props = new IndexProperties(mode, count, createdVersion);
         assertEquals(count, props.numberOfShards());
+        assertEquals(createdVersion, props.createdVersion());
         assertEquals(mode, props.indexMode());
     }
 
     public void testSerializationRoundTripCurrentVersion() throws IOException {
         IndexMode mode = randomFrom(IndexMode.availableModes());
         int count = between(0, 1000);
-        IndexProperties original = new IndexProperties(mode, count, randomLongBetween(-1, Long.MAX_VALUE), randomLongBetween(-1, 1000));
+        IndexProperties original = new IndexProperties(
+            mode,
+            count,
+            randomIntBetween(1, Integer.MAX_VALUE),
+            randomLongBetween(-1, Long.MAX_VALUE),
+            randomLongBetween(-1, 1000),
+            Map.of()
+        );
 
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(TransportVersion.current());
@@ -95,16 +104,16 @@ public class IndexPropertiesTests extends ESTestCase {
     }
 
     public void testFromShardSampleExtrapolatesToIndex() {
-        IndexProperties props = IndexProperties.fromShardSample(IndexMode.STANDARD, 5, 100, 2000, Map.of());
+        IndexProperties props = IndexProperties.fromShardSample(IndexMode.STANDARD, 5, 0, 100, 2000, Map.of());
         assertEquals(500, props.docCount());
         assertEquals(10000, props.sizeInBytes());
     }
 
     public void testFromShardSampleUnknownWithoutShardStatsOrShardCount() {
-        IndexProperties noStats = IndexProperties.fromShardSample(IndexMode.STANDARD, 5, -1, -1, Map.of());
+        IndexProperties noStats = IndexProperties.fromShardSample(IndexMode.STANDARD, 5, 0, -1, -1, Map.of());
         assertEquals(-1, noStats.docCount());
         assertEquals(-1, noStats.sizeInBytes());
-        IndexProperties noShards = IndexProperties.fromShardSample(IndexMode.STANDARD, 0, 100, 2000, Map.of());
+        IndexProperties noShards = IndexProperties.fromShardSample(IndexMode.STANDARD, 0, 0, 100, 2000, Map.of());
         assertEquals(-1, noShards.docCount());
         assertEquals(-1, noShards.sizeInBytes());
     }
@@ -113,6 +122,7 @@ public class IndexPropertiesTests extends ESTestCase {
         IndexProperties props = IndexProperties.fromShardSample(
             IndexMode.STANDARD,
             3,
+            0,
             100,
             2000,
             Map.of("k", new IndexFieldStats(90, 100, 1000, null, null), "n", new IndexFieldStats(100, 100, -1, -5L, 7L))

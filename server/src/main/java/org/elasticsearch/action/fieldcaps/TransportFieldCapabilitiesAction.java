@@ -323,6 +323,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         true,
                         curr.getIndexMode(),
                         resp.getNumberOfShards(),
+                        resp.getCreatedVersion(),
                         resp.getIndexSettingsVersion(),
                         resp.getMappingVersion(),
                         resp.getShardDocCount(),

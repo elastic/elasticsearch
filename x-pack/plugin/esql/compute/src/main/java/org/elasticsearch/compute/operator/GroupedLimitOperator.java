@@ -870,7 +870,9 @@ public class GroupedLimitOperator implements Operator, Accountable {
     private boolean nextPartition() {
         while (++replayPartition < runReader.partitions()) {
             if (runReader.records(replayPartition) > 0) {
-                partitionReader = new PageRunReader(runReader, replayPartition, blockFactory, scope.rootView(), docRefs);
+                // decoded on the I/O thread: the query's factory charges the root view, which any thread may use,
+                // where the driver's factory sits on a local breaker that only the driver thread may touch
+                partitionReader = new PageRunReader(runReader, replayPartition, scope.blockFactory(), scope.rootView(), docRefs);
                 replay = new GroupedLimitOperator(
                     limitPerGroup,
                     keyEncoder.copy(blockFactory),

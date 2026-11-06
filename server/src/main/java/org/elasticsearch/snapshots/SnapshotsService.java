@@ -891,12 +891,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final SnapshotId targetSnapshot = target.getSnapshotId();
         final String localNodeId = clusterService.localNode().getId();
         if (runningShardClones.add(repoShardId)) {
-            repository.cloneShardSnapshot(
-                sourceSnapshot,
-                targetSnapshot,
-                repoShardId,
-                shardStatusBefore.generation(),
-                ActionListener.wrap(
+            ActionListener.run(
+                ActionListener.<ShardSnapshotResult>wrap(
                     shardSnapshotResult -> createAndSubmitRequestToUpdateSnapshotState(
                         target,
                         null,
@@ -933,6 +929,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             () -> runningShardClones.remove(repoShardId)
                         )
                     )
+                ),
+                listener -> repository.cloneShardSnapshot(
+                    sourceSnapshot,
+                    targetSnapshot,
+                    repoShardId,
+                    shardStatusBefore.generation(),
+                    listener
                 )
             );
         }
@@ -3222,6 +3225,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             : "Found leaked RepositoryData write tasks " + repositoriesRunningRepositoryDataWriteTasks + " on [" + localNode + "]";
         assert snapshotDeletionListeners.isEmpty()
             : "Found leaked snapshot delete listeners " + snapshotDeletionListeners + " on [" + localNode + "]";
+        assert runningShardClones.isEmpty() : "Found leaked running shard clones " + runningShardClones + " on [" + localNode + "]";
         return true;
     }
 }

@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.prometheus.rest;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -67,16 +69,36 @@ class PrometheusQueryExemplarsResponseListener implements ActionListener<EsqlQue
      * */
     private static final List<String> EXEMPLAR_LABEL_OBJECTS = List.of("filtered_attributes", "exemplar_labels");
 
+    private static final String BREAKER_LABEL = "prometheus_query_exemplars";
+
+    private static final long STRINGMAP_SHALLOW_RAM_BYTES = RamUsageEstimator.shallowSizeOfInstance(HashMap.class);
+
+    /** The memory of a label in a map of labels, apart from the characters of its name and value. */
+    private static final long STRINGMAP_ENTRY_SHALLOW_RAM_BYTES = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + 2 * (RamUsageEstimator
+        .shallowSizeOfInstance(String.class) + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER);
+
+    /** The memory of a series in the map of exemplars by series, apart from its labels. */
+    private static final long SERIES_SHALLOW_RAM_BYTES = RamUsageEstimator.HASHTABLE_RAM_BYTES_PER_ENTRY + RamUsageEstimator
+        .shallowSizeOfInstance(ArrayList.class) + STRINGMAP_SHALLOW_RAM_BYTES;
+
+    /** The memory of an exemplar in the list of exemplars of its series, apart from its labels. */
+    private static final long EXEMPLAR_SHALLOW_RAM_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.shallowSizeOfInstance(
+        Exemplar.class
+    ) + STRINGMAP_SHALLOW_RAM_BYTES;
+
     private final RestChannel channel;
+    private final CircuitBreaker breaker;
     private final Instant start;
     private final Instant end;
 
     /**
+     * @param breaker accounts for the exemplars held in memory until the response is built
      * @param start the start of the requested time range, inclusive
      * @param end the end of the requested time range, inclusive
      */
-    PrometheusQueryExemplarsResponseListener(RestChannel channel, Instant start, Instant end) {
+    PrometheusQueryExemplarsResponseListener(RestChannel channel, CircuitBreaker breaker, Instant start, Instant end) {
         this.channel = channel;
+        this.breaker = breaker;
         this.start = start;
         this.end = end;
     }
@@ -89,6 +111,7 @@ class PrometheusQueryExemplarsResponseListener implements ActionListener<EsqlQue
                 queryResponse.pages(),
                 queryResponse.columns(),
                 queryResponse.zoneId(),
+                breaker,
                 start,
                 end
             );
@@ -109,11 +132,15 @@ class PrometheusQueryExemplarsResponseListener implements ActionListener<EsqlQue
      * Converts the exemplars, which the exemplars query returns most recent first, into the Prometheus response. The evaluated time
      * range of the query extends before {@code start} by the lookback of its selectors, so the exemplars outside of
      * {@code [start, end]} are dropped here.
+     * <p>
+     * All exemplars are held in memory until the response is built, so they are accounted for in {@code breaker}, which breaks the
+     * request rather than running out of memory if there are too many. The memory is released once the response is built.
      */
     static XContentBuilder convertToPrometheusJson(
         List<Page> pages,
         List<ColumnInfoImpl> columns,
         ZoneId zoneId,
+        CircuitBreaker breaker,
         Instant start,
         Instant end
     ) throws IOException {
@@ -125,32 +152,59 @@ class PrometheusQueryExemplarsResponseListener implements ActionListener<EsqlQue
         long startMillis = start.toEpochMilli();
         long endMillis = end.toEpochMilli();
         Map<Map<String, String>, List<Exemplar>> exemplarsBySeries = new HashMap<>();
-        for (Page page : pages) {
-            for (int position = 0; position < page.getPositionCount(); position++) {
-                Long timestamp = cols.timestamp.readTimestampMillis(page, position);
-                if (timestamp == null || timestamp < startMillis || timestamp > endMillis) {
-                    // due to lookback built-in into to our PROMQL implementation we actually query longer time ranges
-                    // so we make sure to manually filter out the exemplars outside of the desired range
-                    continue;
+        long reservedBytes = 0;
+        try {
+            for (Page page : pages) {
+                for (int position = 0; position < page.getPositionCount(); position++) {
+                    Long timestamp = cols.timestamp.readTimestampMillis(page, position);
+                    if (timestamp == null || timestamp < startMillis || timestamp > endMillis) {
+                        // due to lookback built-in into to our PROMQL implementation we actually query longer time ranges
+                        // so we make sure to manually filter out the exemplars outside of the desired range
+                        continue;
+                    }
+                    Number value = cols.value.readNumber(page, position);
+                    if (value == null) {
+                        continue;
+                    }
+                    Map<String, String> seriesLabels = seriesLabels(
+                        cols.timeseries.readString(page, position),
+                        cols.metricName.readString(page, position)
+                    );
+                    Map<String, String> exemplarLabels = exemplarLabels(
+                        cols.source.readMap(page, position),
+                        cols.traceId.readString(page, position),
+                        cols.spanId.readString(page, position)
+                    );
+                    List<Exemplar> exemplars = exemplarsBySeries.get(seriesLabels);
+                    long bytes = EXEMPLAR_SHALLOW_RAM_BYTES + estimateLabelsRamBytes(exemplarLabels);
+                    if (exemplars == null) {
+                        bytes += SERIES_SHALLOW_RAM_BYTES + estimateLabelsRamBytes(seriesLabels);
+                    }
+                    breaker.addEstimateBytesAndMaybeBreak(bytes, BREAKER_LABEL);
+                    reservedBytes += bytes;
+                    if (exemplars == null) {
+                        exemplars = new ArrayList<>();
+                        exemplarsBySeries.put(seriesLabels, exemplars);
+                    }
+                    exemplars.add(new Exemplar(exemplarLabels, value.doubleValue(), timestamp));
                 }
-                Number value = cols.value.readNumber(page, position);
-                if (value == null) {
-                    continue;
-                }
-                Map<String, String> seriesLabels = seriesLabels(
-                    cols.timeseries.readString(page, position),
-                    cols.metricName.readString(page, position)
-                );
-                Map<String, String> exemplarLabels = exemplarLabels(
-                    cols.source.readMap(page, position),
-                    cols.traceId.readString(page, position),
-                    cols.spanId.readString(page, position)
-                );
-                exemplarsBySeries.computeIfAbsent(seriesLabels, k -> new ArrayList<>())
-                    .add(new Exemplar(exemplarLabels, value.doubleValue(), timestamp));
             }
+            return buildResponse(exemplarsBySeries);
+        } finally {
+            breaker.addWithoutBreaking(-reservedBytes);
         }
-        return buildResponse(exemplarsBySeries);
+    }
+
+    /**
+     * A cheap estimate of the memory of the entries of a map of labels, counting a byte per character like compact Latin-1 strings
+     * do, which is cheaper than {@link RamUsageEstimator#sizeOfMap}.
+     */
+    private static long estimateLabelsRamBytes(Map<String, String> labels) {
+        long bytes = 0;
+        for (Map.Entry<String, String> label : labels.entrySet()) {
+            bytes += STRINGMAP_ENTRY_SHALLOW_RAM_BYTES + label.getKey().length() + label.getValue().length();
+        }
+        return bytes;
     }
 
     /** The response of a query that selects no series. */

@@ -68,6 +68,18 @@ public final class IngestDocument {
     // ResolveResult, and building an error message that is then thrown away) makes that very common situation allocation free.
     private static final Object IGNORED_FAILURE = new Object();
 
+    /**
+     * What {@link #resolve} should do when a path can not be resolved.
+     */
+    private enum Failures {
+        /** Describe the failure, with a {@link ResolveResult}, so that the caller can report it. */
+        REPORT,
+        /** Return {@link #IGNORED_FAILURE} for an error, but still describe an incomplete result, as the caller can make use of that. */
+        IGNORE_ERRORS,
+        /** Return {@link #IGNORED_FAILURE} for any failure, including an incomplete result, as the caller has no use for either. */
+        IGNORE_ALL
+    }
+
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
 
@@ -218,14 +230,12 @@ public final class IngestDocument {
             path,
             context,
             getCurrentAccessPatternSafe(),
-            ignoreMissing
+            ignoreMissing ? Failures.IGNORE_ALL : Failures.REPORT
         );
         if (result == IGNORED_FAILURE) {
             return null;
         } else if (result instanceof ResolveResult failure) {
-            if (ignoreMissing) {
-                return null; // an incomplete result, which isn't something that resolve can ignore on its own, see removeField
-            }
+            assert ignoreMissing == false : "resolve would have ignored this failure";
             // Reconstruct the error message if the resolve result was incomplete
             throw new IllegalArgumentException(
                 Objects.requireNonNullElseGet(failure.errorMessage, () -> Errors.notPresent(path, failure.missingFields))
@@ -416,7 +426,7 @@ public final class IngestDocument {
             path,
             context,
             getCurrentAccessPatternSafe(),
-            ignoreMissing
+            ignoreMissing ? Failures.IGNORE_ERRORS : Failures.REPORT
         );
         if (result == IGNORED_FAILURE) {
             return; // nothing was found, so there's nothing to remove :shrug:
@@ -426,7 +436,7 @@ public final class IngestDocument {
                 leafKey = failure.missingFields + "." + leafKey;
                 context = failure.resolvedObject;
             } else {
-                assert ignoreMissing == false : "resolve would have ignored this failure";
+                assert ignoreMissing == false : "resolve would have ignored this error";
                 throw new IllegalArgumentException(failure.errorMessage);
             }
         } else {
@@ -482,9 +492,9 @@ public final class IngestDocument {
      * <ul>
      * <li>the object that was found (which can be null), if the resolution was successful. This is not wrapped in anything, so that the
      * (by far) most common outcome does not allocate.</li>
-     * <li>{@link #IGNORED_FAILURE}, if the resolution failed and <code>ignoreFailures</code> is true. This is for callers that do not
-     * care why it failed, so there's no need to describe the failure, which would allocate. (There is one exception, an incomplete
-     * result as described by {@link ResolveResult#incomplete}, as the callers that ignore failures can still need that.)</li>
+     * <li>{@link #IGNORED_FAILURE}, if the resolution failed and <code>failures</code> says that the caller does not care why. There is
+     * no need to describe such a failure, which would allocate. An incomplete result (see {@link ResolveResult#incomplete}) is only
+     * ignored if <code>failures</code> is {@link Failures#IGNORE_ALL}, as some callers that ignore errors can still use it.</li>
      * <li>a {@link ResolveResult} describing the failure, otherwise.</li>
      * </ul>
      */
@@ -494,18 +504,22 @@ public final class IngestDocument {
         final String fullPath,
         Object context,
         IngestPipelineFieldAccessPattern accessPattern,
-        boolean ignoreFailures
+        Failures failures
     ) {
         for (int i = 0; i < limit; i++) {
             String pathElement = pathElements[i];
             if (context == null) {
-                return ignoreFailures ? IGNORED_FAILURE : ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
+                return failures != Failures.REPORT
+                    ? IGNORED_FAILURE
+                    : ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
             } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
                 switch (accessPattern) {
                     case CLASSIC -> {
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
-                            return ignoreFailures ? IGNORED_FAILURE : ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                            return failures != Failures.REPORT
+                                ? IGNORED_FAILURE
+                                : ResolveResult.error(Errors.notPresent(fullPath, pathElement));
                         } else {
                             context = object;
                         }
@@ -516,7 +530,7 @@ public final class IngestDocument {
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
-                            return ResolveResult.incomplete(context, pathElement);
+                            return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, pathElement);
                         } else {
                             // Attempt a flexible lookup
                             // Iterate through the remaining elements until we get a hit
@@ -533,7 +547,7 @@ public final class IngestDocument {
                             }
                             if (object == NOT_FOUND) {
                                 // Not found, and out of path elements, return an incomplete result
-                                return ResolveResult.incomplete(context, combinedPath);
+                                return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, combinedPath);
                             }
                         }
                     }
@@ -545,7 +559,9 @@ public final class IngestDocument {
                         Map<String, Object> map = (Map<String, Object>) context;
                         Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
                         if (object == NOT_FOUND) {
-                            return ignoreFailures ? IGNORED_FAILURE : ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                            return failures != Failures.REPORT
+                                ? IGNORED_FAILURE
+                                : ResolveResult.error(Errors.notPresent(fullPath, pathElement));
                         } else {
                             context = object;
                         }
@@ -558,7 +574,7 @@ public final class IngestDocument {
                             context = object;
                         } else if (i == (limit - 1)) {
                             // This is our last path element, return incomplete
-                            return ResolveResult.incomplete(context, pathElement);
+                            return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, pathElement);
                         } else {
                             // Attempt a flexible lookup
                             // Iterate through the remaining elements until we get a hit
@@ -575,7 +591,7 @@ public final class IngestDocument {
                             }
                             if (object == NOT_FOUND) {
                                 // Not found, and out of path elements, return an incomplete result
-                                return ResolveResult.incomplete(context, combinedPath);
+                                return failures == Failures.IGNORE_ALL ? IGNORED_FAILURE : ResolveResult.incomplete(context, combinedPath);
                             }
                         }
                     }
@@ -583,21 +599,25 @@ public final class IngestDocument {
             } else if (context instanceof List<?> list) {
                 if (accessPattern == IngestPipelineFieldAccessPattern.FLEXIBLE) {
                     // Flexible access pattern cannot yet access array values, new syntax must be added.
-                    return ignoreFailures ? IGNORED_FAILURE : ResolveResult.error(Errors.invalidPath(fullPath));
+                    return failures != Failures.REPORT ? IGNORED_FAILURE : ResolveResult.error(Errors.invalidPath(fullPath));
                 }
                 int index;
                 try {
                     index = Integer.parseInt(pathElement);
                 } catch (NumberFormatException e) {
-                    return ignoreFailures ? IGNORED_FAILURE : ResolveResult.error(Errors.notInteger(fullPath, pathElement));
+                    return failures != Failures.REPORT ? IGNORED_FAILURE : ResolveResult.error(Errors.notInteger(fullPath, pathElement));
                 }
                 if (index < 0 || index >= list.size()) {
-                    return ignoreFailures ? IGNORED_FAILURE : ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
+                    return failures != Failures.REPORT
+                        ? IGNORED_FAILURE
+                        : ResolveResult.error(Errors.outOfBounds(fullPath, index, list.size()));
                 } else {
                     context = list.get(index);
                 }
             } else {
-                return ignoreFailures ? IGNORED_FAILURE : ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
+                return failures != Failures.REPORT
+                    ? IGNORED_FAILURE
+                    : ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, context));
             }
         }
         return context;

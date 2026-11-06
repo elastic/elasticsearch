@@ -4,12 +4,18 @@
   "heavyTestLimit": 8,
   "shardOverheadSeconds": 90,
   "runFirstSeconds": 240,
+  "shardTargetSeconds": 720,
+  "maxShards": 8,
+  "pinnedSplits": {
+    ":qa:smoke-test-multinode:yamlRestTest": {
+      "by": "yamlFile",
+      "count": 3
+    }
+  },
   "antiAffinity": [
     [
       ":server:test",
       ":server:internalClusterTest"
     ]
-  ],
-  "shardTargetSeconds": 720,
-  "maxShards": 8
+  ]
 }

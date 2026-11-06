@@ -200,11 +200,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             successfulShards,
             skippedShards,
             tookInMillis,
-            shardFailures.isEmpty() ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+            shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY),
             clusters
         );
     }
 
+    @Deprecated // use List<ShardSearchFailure> instead
     public SearchResponse(
         SearchHits hits,
         InternalAggregations aggregations,
@@ -262,7 +263,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             successfulShards,
             skippedShards,
             tookInMillis,
-            shardFailures.isEmpty() ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+            shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY),
             clusters,
             pointInTimeId,
             source,
@@ -270,6 +271,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         );
     }
 
+    @Deprecated // use List<ShardSearchFailure> instead
     public SearchResponse(
         SearchResponseSections searchResponseSections,
         String scrollId,
@@ -342,7 +344,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             successfulShards,
             skippedShards,
             tookInMillis,
-            shardFailures.isEmpty() ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
+            shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY),
             clusters,
             pointInTimeId,
             topHitsToRelease,
@@ -350,7 +352,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         );
     }
 
-    private SearchResponse(
+    @Deprecated // use List<ShardSearchFailure> instead
+    public SearchResponse(
         SearchHits hits,
         InternalAggregations aggregations,
         Suggest suggest,
@@ -1523,7 +1526,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 0,
                 0,
                 tookInMillis,
-                ShardSearchFailure.EMPTY_ARRAY,
+                List.of(),
                 clusters,
                 null,
                 null,

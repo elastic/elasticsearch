@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -116,29 +115,30 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     public void testMetadataVersion() {
         createIndex("index-1");
         createIndex("index-2");
-        // Fixate the client to hit the same node every time. Otherwise, we might see version inconsistencies between
-        // calls if some node is lagging behind on version.
-        ClusterAdminClient clusterAdmin = client().admin().cluster();
-        long baselineVersion = clusterAdmin.prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().version();
+        long baselineVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().version();
         assertThat(baselineVersion, greaterThan(0L));
+        // Make sure all nodes have applied the latest CS update (shard STARTED)
+        for (String node : internalCluster().getNodeNames()) {
+            awaitClusterState(node, state -> state.metadata().version() >= baselineVersion);
+        }
         assertThat(
-            clusterAdmin.prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-1").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-1").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            clusterAdmin.prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-2").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-2").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            clusterAdmin.prepareState(TEST_REQUEST_TIMEOUT).setIndices("*").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("*").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            clusterAdmin.prepareState(TEST_REQUEST_TIMEOUT).setIndices("not-found").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("not-found").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            clusterAdmin.prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(false).get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(false).get().getState().metadata().version(),
             equalTo(0L)
         );
     }

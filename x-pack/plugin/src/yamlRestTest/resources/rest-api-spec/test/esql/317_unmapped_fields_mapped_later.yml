@@ -19,15 +19,20 @@ setup:
       indices.create:
         index: mapped-later-stored
         body:
-          settings:
-            index:
-              number_of_shards: 1
-              number_of_replicas: 0
           mappings:
             dynamic: false
             properties:
               id:
                 type: keyword
+  # Wait for any replica to be initialized and started before the first document. A replica that is still recovering replays the
+  # translog with the current mapping, so it would hold doc values for "f" and "n" for the first document, and the
+  # result would depend on which copy answers. Not waiting for green: on a single node the replica stays unassigned.
+  - do:
+      cluster.health:
+        index: mapped-later-stored
+        wait_for_status: yellow
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
   - do:
       index:
         index: mapped-later-stored
@@ -65,8 +70,6 @@ setup:
         body:
           settings:
             index:
-              number_of_shards: 1
-              number_of_replicas: 0
               mapping:
                 source:
                   mode: synthetic
@@ -75,6 +78,12 @@ setup:
             properties:
               id:
                 type: keyword
+  - do:
+      cluster.health:
+        index: mapped-later-synthetic
+        wait_for_status: yellow
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
   - do:
       index:
         index: mapped-later-synthetic

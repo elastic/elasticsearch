@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator.sketch;
 
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -34,20 +36,25 @@ import java.util.Deque;
  */
 public final class SketchFilterOperator implements Operator {
     public static final class Factory implements OperatorFactory {
-        private final int keyChannel;
+        private final KeyColumns key;
         private final int sketchSlots;
         private final int topN;
         private final SketchFilterBarrier barrier;
 
+        /** A factory for one {@code long} key column. */
+        public Factory(int keyChannel, int sketchSlots, int topN, int maxCandidates, long maxBufferedBytes) {
+            this(KeyColumns.longKey(keyChannel), sketchSlots, topN, maxCandidates, maxBufferedBytes);
+        }
+
         /**
-         * @param keyChannel       the channel of the {@code long} grouping key
+         * @param key              the grouping key columns
          * @param sketchSlots      the number of sketch slots per driver
          * @param topN             the {@code N} of {@code LIMIT N}
          * @param maxCandidates    the most candidate keys for which filtering is still worth it
          * @param maxBufferedBytes the most bytes of pages that all drivers together can buffer
          */
-        public Factory(int keyChannel, int sketchSlots, int topN, int maxCandidates, long maxBufferedBytes) {
-            this.keyChannel = keyChannel;
+        public Factory(KeyColumns key, int sketchSlots, int topN, int maxCandidates, long maxBufferedBytes) {
+            this.key = key;
             this.sketchSlots = sketchSlots;
             this.topN = topN;
             this.barrier = new SketchFilterBarrier(topN, maxCandidates, maxBufferedBytes);
@@ -56,14 +63,14 @@ public final class SketchFilterOperator implements Operator {
         @Override
         public Operator get(DriverContext driverContext) {
             // Register only after the operator exists: a registered operator that never arrives would block all the others.
-            SketchFilterOperator operator = new SketchFilterOperator(driverContext, keyChannel, new CountSketch(sketchSlots), barrier);
+            SketchFilterOperator operator = new SketchFilterOperator(driverContext, key, new CountSketch(sketchSlots), barrier);
             barrier.register();
             return operator;
         }
 
         @Override
         public String describe() {
-            return "SketchFilterOperator[keyChannel=" + keyChannel + ", sketchSlots=" + sketchSlots + ", topN=" + topN + "]";
+            return "SketchFilterOperator[key=" + key + ", sketchSlots=" + sketchSlots + ", topN=" + topN + "]";
         }
     }
 
@@ -80,7 +87,7 @@ public final class SketchFilterOperator implements Operator {
     }
 
     private final DriverContext driverContext;
-    private final int keyChannel;
+    private final KeyColumns key;
     private final SketchFilterBarrier barrier;
     private final long sketchBytes;
 
@@ -93,6 +100,8 @@ public final class SketchFilterOperator implements Operator {
     private boolean closed;
     private int[] positions = new int[0];
     private long[] keys = new long[0];
+    private int[] firstInts = new int[0];
+    private int[] secondInts = new int[0];
 
     /** Set by {@link #sketchPage}: the Bloom filter of the page that was just counted. */
     private long[] pageBloom;
@@ -110,9 +119,9 @@ public final class SketchFilterOperator implements Operator {
     private long sketchNanos;
     private long filterNanos;
 
-    SketchFilterOperator(DriverContext driverContext, int keyChannel, CountSketch sketch, SketchFilterBarrier barrier) {
+    SketchFilterOperator(DriverContext driverContext, KeyColumns key, CountSketch sketch, SketchFilterBarrier barrier) {
         this.driverContext = driverContext;
-        this.keyChannel = keyChannel;
+        this.key = key;
         this.sketch = sketch;
         this.barrier = barrier;
         this.sketchBytes = sketch.ramBytes();
@@ -160,17 +169,10 @@ public final class SketchFilterOperator implements Operator {
 
     /** Count the keys of a page. Returns false if the page is not supported, so this operator must give up. */
     private boolean sketchPage(Page page) {
-        LongBlock block = page.getBlock(keyChannel);
-        LongVector vector = block.asVector();
-        if (vector == null) {
+        final int count = extractKeys(page);
+        if (count < 0) {
             return false; // nulls or multivalued positions
         }
-        final int count = vector.getPositionCount();
-        if (keys.length < count) {
-            keys = new long[count];
-        }
-        // Copy to an array first: the loop below then reads a plain array instead of calling a vector of some unknown class per row.
-        vector.copyTo(0, keys, 0, count);
         final int shift = PageBloom.shiftFor(count);
         final long[] bloom = PageBloom.create(shift);
         driverContext.breaker().addEstimateBytesAndMaybeBreak((long) bloom.length * Long.BYTES, "sketch_filter");
@@ -178,6 +180,69 @@ public final class SketchFilterOperator implements Operator {
         pageBloom = bloom;
         pageBloomShift = shift;
         return true;
+    }
+
+    /**
+     * Put the key of every row of the page into {@link #keys}, and return the number of rows, or {@code -1} if a key column is not a
+     * plain vector (it has nulls or multivalued positions). The columns are copied to arrays first: the loops then read plain arrays
+     * instead of calling a vector of some unknown class for each row.
+     */
+    private int extractKeys(Page page) {
+        switch (key.kind()) {
+            case LONG -> {
+                final LongVector vector = ((LongBlock) page.getBlock(key.channel())).asVector();
+                if (vector == null) {
+                    return -1;
+                }
+                final int count = vector.getPositionCount();
+                if (keys.length < count) {
+                    keys = new long[count];
+                }
+                vector.copyTo(0, keys, 0, count);
+                return count;
+            }
+            case INT -> {
+                final IntVector vector = ((IntBlock) page.getBlock(key.channel())).asVector();
+                if (vector == null) {
+                    return -1;
+                }
+                final int count = vector.getPositionCount();
+                ensureKeyArrays(count, false);
+                vector.copyTo(0, firstInts, 0, count);
+                for (int i = 0; i < count; i++) {
+                    keys[i] = firstInts[i];
+                }
+                return count;
+            }
+            case INT_PAIR -> {
+                final IntVector first = ((IntBlock) page.getBlock(key.channel())).asVector();
+                final IntVector second = ((IntBlock) page.getBlock(key.secondChannel())).asVector();
+                if (first == null || second == null) {
+                    return -1;
+                }
+                final int count = first.getPositionCount();
+                ensureKeyArrays(count, true);
+                first.copyTo(0, firstInts, 0, count);
+                second.copyTo(0, secondInts, 0, count);
+                for (int i = 0; i < count; i++) {
+                    keys[i] = KeyColumns.pack(firstInts[i], secondInts[i]);
+                }
+                return count;
+            }
+            default -> throw new IllegalStateException("unknown key kind [" + key.kind() + "]");
+        }
+    }
+
+    private void ensureKeyArrays(int count, boolean second) {
+        if (keys.length < count) {
+            keys = new long[count];
+        }
+        if (firstInts.length < count) {
+            firstInts = new int[count];
+        }
+        if (second && secondInts.length < count) {
+            secondInts = new int[count];
+        }
     }
 
     /** Stop sketching and let all pages through. The barrier then decides not to filter. */
@@ -268,20 +333,14 @@ public final class SketchFilterOperator implements Operator {
                 return null;
             }
         }
-        final LongVector keyVector = ((LongBlock) page.getBlock(keyChannel)).asVector();
-        assert keyVector != null : "pages were checked when they were buffered";
-        final int count = keyVector.getPositionCount();
+        final int count = extractKeys(page);
+        assert count >= 0 : "pages were checked when they were buffered";
         if (positions.length < count) {
             positions = new int[count];
         }
-        if (this.keys.length < count) {
-            this.keys = new long[count];
-        }
-        final long[] values = this.keys;
-        keyVector.copyTo(0, values, 0, count);
         int kept = 0;
         for (int i = 0; i < count; i++) {
-            if (candidates.contains(values[i])) {
+            if (candidates.contains(keys[i])) {
                 positions[kept++] = i;
             }
         }

@@ -266,6 +266,135 @@ public class SketchFilterOperatorTests extends ESTestCase {
         }
     }
 
+    /** Two different pairs of int values must never get the same packed key, also for negative and extreme values. */
+    public void testPackedKeysOfIntPairsAreDistinct() {
+        Map<Long, int[]> seen = new HashMap<>();
+        int[] extremes = { Integer.MIN_VALUE, Integer.MIN_VALUE + 1, -1, 0, 1, Integer.MAX_VALUE - 1, Integer.MAX_VALUE };
+        for (int a : extremes) {
+            for (int b : extremes) {
+                assertNull(seen.put(KeyColumns.pack(a, b), new int[] { a, b }));
+            }
+        }
+        for (int i = 0; i < 50_000; i++) {
+            int a = randomBoolean() ? randomInt() : randomIntBetween(-3, 3);
+            int b = randomBoolean() ? randomInt() : randomIntBetween(-3, 3);
+            int[] previous = seen.put(KeyColumns.pack(a, b), new int[] { a, b });
+            if (previous != null) {
+                assertThat(previous, equalTo(new int[] { a, b }));
+            }
+        }
+    }
+
+    /**
+     * A key of two int columns (packed into a long) next to a value column, like {@code STATS COUNT(*), SUM(v) BY a, b}: the rows of
+     * every key that is kept must all be kept, so that its count and its sum are exact, and most rows must be dropped.
+     */
+    public void testIntPairKeysWithAnotherColumnAreFilteredAndExact() {
+        int drivers = 3;
+        List<int[]> rows = new ArrayList<>(); // a, b, v
+        for (int heavy = 0; heavy < TOP_N; heavy++) {
+            for (int i = 0; i < 3_000 + heavy * 200; i++) {
+                rows.add(new int[] { -5 - heavy, 100_000 + heavy, randomIntBetween(0, 50) });
+            }
+        }
+        for (int i = 0; i < 150_000; i++) {
+            rows.add(new int[] { randomIntBetween(-1000, 1000), randomInt(), randomIntBetween(0, 50) });
+        }
+        java.util.Collections.shuffle(rows, random());
+        Map<Long, long[]> truth = new HashMap<>(); // count, sum
+        for (int[] r : rows) {
+            long[] t = truth.computeIfAbsent(KeyColumns.pack(r[0], r[1]), k -> new long[2]);
+            t[0]++;
+            t[1] += r[2];
+        }
+        var factory = new SketchFilterOperator.Factory(KeyColumns.intPairKey(0, 1), 4096, TOP_N, 4096, Long.MAX_VALUE);
+        Operator[] ops = build(factory, drivers);
+        try {
+            int pageSize = 512;
+            for (int start = 0, d = 0; start < rows.size(); start += pageSize, d = (d + 1) % drivers) {
+                int n = Math.min(pageSize, rows.size() - start);
+                int[] a = new int[n];
+                int[] b = new int[n];
+                long[] v = new long[n];
+                for (int i = 0; i < n; i++) {
+                    a[i] = rows.get(start + i)[0];
+                    b[i] = rows.get(start + i)[1];
+                    v[i] = rows.get(start + i)[2];
+                }
+                ops[d].addInput(
+                    new Page(
+                        blockFactory.newIntArrayVector(a, n).asBlock(),
+                        blockFactory.newIntArrayVector(b, n).asBlock(),
+                        blockFactory.newLongArrayVector(v, n).asBlock()
+                    )
+                );
+            }
+            for (Operator op : ops) {
+                op.finish();
+            }
+            Map<Long, long[]> got = new HashMap<>();
+            int rowsOut = 0;
+            for (Operator op : ops) {
+                assertTrue(op.isBlocked().listener().isDone());
+                Page p;
+                while ((p = op.getOutput()) != null) {
+                    org.elasticsearch.compute.data.IntBlock a = p.getBlock(0);
+                    org.elasticsearch.compute.data.IntBlock b = p.getBlock(1);
+                    LongBlock v = p.getBlock(2);
+                    for (int i = 0; i < p.getPositionCount(); i++) {
+                        long[] t = got.computeIfAbsent(KeyColumns.pack(a.getInt(i), b.getInt(i)), k -> new long[2]);
+                        t[0]++;
+                        t[1] += v.getLong(i);
+                        rowsOut++;
+                    }
+                    p.releaseBlocks();
+                }
+            }
+            List<Long> truthTop = truth.values().stream().map(t -> t[0]).sorted(java.util.Comparator.reverseOrder()).limit(TOP_N).toList();
+            List<Long> gotTop = got.values().stream().map(t -> t[0]).sorted(java.util.Comparator.reverseOrder()).limit(TOP_N).toList();
+            assertThat(gotTop, equalTo(truthTop));
+            for (var e : got.entrySet()) {
+                assertThat("count of " + e.getKey(), e.getValue()[0], equalTo(truth.get(e.getKey())[0]));
+                assertThat("sum of " + e.getKey(), e.getValue()[1], equalTo(truth.get(e.getKey())[1]));
+            }
+            assertThat("rows should have been dropped", rowsOut, lessThan(rows.size() / 2));
+        } finally {
+            org.elasticsearch.core.Releasables.close(ops);
+        }
+    }
+
+    /** One int key column with a null in it: that driver gives up, the proof fails, and every row passes. */
+    public void testNullInAnIntKeyMakesEveryDriverPassThrough() {
+        var factory = new SketchFilterOperator.Factory(KeyColumns.intKey(0), 4096, TOP_N, 4096, Long.MAX_VALUE);
+        Operator[] ops = build(factory, 2);
+        try {
+            int[] a = new int[20_000];
+            for (int i = 0; i < a.length; i++) {
+                a[i] = i % 4 == 0 ? randomIntBetween(0, 9) : randomInt();
+            }
+            ops[0].addInput(new Page(blockFactory.newIntArrayVector(a, a.length).asBlock()));
+            try (var builder = blockFactory.newIntBlockBuilder(3)) {
+                builder.appendInt(1).appendNull().appendInt(1);
+                ops[1].addInput(new Page(builder.build()));
+            }
+            ops[0].finish();
+            ops[1].finish();
+            long rowsOut = 0;
+            for (Operator op : ops) {
+                assertTrue(op.isBlocked().listener().isDone());
+                Page p;
+                while ((p = op.getOutput()) != null) {
+                    rowsOut += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+            // The operator with the null key gave up, so the proof failed and every row passes.
+            assertThat(rowsOut, equalTo(20_003L));
+        } finally {
+            org.elasticsearch.core.Releasables.close(ops);
+        }
+    }
+
     public void testUniformDataIsNotFiltered() {
         long[] rows = new long[50_000];
         for (int i = 0; i < rows.length; i++) {

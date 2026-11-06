@@ -235,7 +235,7 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         }
     }
 
-    private IntBlock lookup(BytesRefVector vector) {
+    IntBlock lookup(BytesRefVector vector) {
         BytesRef scratch = new BytesRef();
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
@@ -252,7 +252,7 @@ final class BytesRefBlockHash extends PartitionedBlockHash {
         }
     }
 
-    private IntBlock lookup(BytesRefBlock block) {
+    IntBlock lookup(BytesRefBlock block) {
         return new MultivalueDedupeBytesRef(block).hashLookup(blockFactory, hash);
     }
 

@@ -98,7 +98,7 @@ final class DoubleRangeBlockHash extends BlockHash {
         return ReleasableIterator.single(lookup(castBlock));
     }
 
-    private IntBlock lookup(DoubleRangeBlock block) {
+    IntBlock lookup(DoubleRangeBlock block) {
         return new MultivalueDedupeDoubleRange(block).hashLookup(blockFactory, hash);
     }
 

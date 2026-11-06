@@ -158,7 +158,7 @@ final class LongBlockHash extends PartitionedBlockHash {
         return ReleasableIterator.single(lookup(vector));
     }
 
-    private IntBlock lookup(LongVector vector) {
+    IntBlock lookup(LongVector vector) {
         int positions = vector.getPositionCount();
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
@@ -174,7 +174,7 @@ final class LongBlockHash extends PartitionedBlockHash {
         }
     }
 
-    private IntBlock lookup(LongBlock block) {
+    IntBlock lookup(LongBlock block) {
         return new MultivalueDedupeLong(block).hashLookup(blockFactory, hash);
     }
 

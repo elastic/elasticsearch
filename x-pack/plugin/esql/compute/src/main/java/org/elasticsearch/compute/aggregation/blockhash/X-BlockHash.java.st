@@ -312,7 +312,7 @@ $if(BytesRef)$
 $endif$
 
 $if(hasVector)$
-    private IntBlock lookup($Type$Vector vector) {
+    IntBlock lookup($Type$Vector vector) {
 $if(BytesRef)$
         BytesRef scratch = new BytesRef();
 $endif$
@@ -338,7 +338,7 @@ $endif$
     }
 
 $endif$
-    private IntBlock lookup($Type$Block block) {
+    IntBlock lookup($Type$Block block) {
         return new MultivalueDedupe$Type$(block).hashLookup(blockFactory, hash);
     }
 

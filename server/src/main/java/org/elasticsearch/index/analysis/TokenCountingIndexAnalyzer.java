@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -27,17 +26,16 @@ import java.util.function.Supplier;
  * <p>Lucene caches {@link TokenStreamComponents} per thread on the analyzer that stores them. Wrapping
  * the per-field analyzer as a whole in an {@link org.apache.lucene.analysis.AnalyzerWrapper} would cache
  * a separate analysis chain per field, so instead there is one {@link TokenCountingAnalyzer} per
- * underlying analyzer, shared by all fields that use it. Each wrapper caches its own chain, separate from
- * the one the underlying analyzer caches for other callers, so the number of chains per thread is bounded
- * by the number of analyzers rather than the number of fields.
+ * underlying analyzer, shared by all fields and shards that use it (see {@link TokenCountingMetrics}).
+ * Each wrapper caches its own chain, separate from the one the underlying analyzer caches for other callers,
+ * so the number of chains per thread is bounded by the number of analyzers on the node rather than the
+ * number of fields or shards.
  *
- * <p>The wrappers are discarded whenever the {@link MappingLookup} changes, and their chains are rebuilt
- * on next use. Some mappers build new underlying analyzers each time they are rebuilt during a mapping
- * update (for example text fields with {@code index_phrases} or {@code index_prefixes},
- * {@code search_as_you_type}, {@code completion} and {@code annotated_text}), so wrappers kept across
- * lookups would retain stale analyzers indefinitely. Rebuilding costs one chain per analyzer and indexing
- * thread after each mapping update, which is small compared to the mapping update itself. Discarded
- * wrappers are not closed; they and their cached chains are garbage collected.
+ * <p>The per-field lookups are discarded whenever the {@link MappingLookup} changes, because some mappers
+ * build new underlying analyzers during a mapping update (for example text fields with {@code index_phrases}
+ * or {@code index_prefixes}, {@code search_as_you_type}, {@code completion} and {@code annotated_text}).
+ * Wrappers are held weakly node-wide, so a wrapper and its chains survive while any shard still uses its
+ * analyzer, and are garbage collected, not closed, once none does.
  */
 public final class TokenCountingIndexAnalyzer extends DelegatingAnalyzerWrapper {
 
@@ -97,8 +95,6 @@ public final class TokenCountingIndexAnalyzer extends DelegatingAnalyzerWrapper 
     private final class Wrappers {
         private final MappingLookup lookup;
         private final Map<String, Analyzer> byField = new ConcurrentHashMap<>();
-        // keyed by identity: analyzers don't define equality, and NamedAnalyzer compares names only
-        private final Map<Analyzer, Analyzer> byAnalyzer = new IdentityHashMap<>();
 
         private Wrappers(MappingLookup lookup) {
             this.lookup = lookup;
@@ -113,12 +109,9 @@ public final class TokenCountingIndexAnalyzer extends DelegatingAnalyzerWrapper 
         }
 
         private Analyzer create(String fieldName) {
-            Analyzer analyzer = indexAnalyzer(lookup, fieldName).analyzer();
-            // Runs inside byField.computeIfAbsent. Locks are always taken in that order, and creating a wrapper
-            // doesn't touch byField, so this can't deadlock.
-            synchronized (byAnalyzer) {
-                return byAnalyzer.computeIfAbsent(analyzer, a -> new TokenCountingAnalyzer(a, metrics));
-            }
+            // Runs inside byField.computeIfAbsent and then takes the metrics lock, which never touches byField,
+            // so this can't deadlock.
+            return metrics.wrapperFor(indexAnalyzer(lookup, fieldName).analyzer());
         }
     }
 }

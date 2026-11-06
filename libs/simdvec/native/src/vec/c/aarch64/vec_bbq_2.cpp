@@ -396,68 +396,8 @@ EXPORT void vec_dotd2q2_bulk_sparse_2(
     dotd2q2_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
-EXPORT int64_t vec_dotd2q4_2(
-    const int8_t* a,
-    const int8_t* query,
-    const int32_t length
-) {
-    int64_t lower = dotd1q4_inner(a, query, length/2);
-    int64_t upper = dotd1q4_inner(a + length/2, query, length/2);
-    return lower + (upper << 1);
-}
-
-template <
-    typename TData,
-    const int8_t*(*mapper)(const TData*, const int32_t, const int32_t*, const int32_t),
-    int32_t(*out_mapper)(const int32_t*, const int32_t) = compact_output>
-static inline void dotd2q4_inner_bulk(
-    const TData* a,
-    const int8_t* query,
-    const int32_t length,
-    const int32_t pitch,
-    const int32_t* offsets,
-    const int32_t count,
-    f32_t* results
-) {
-    int c = 0;
-    const int bit_length = length/2;
-    for (; c < count; c++) {
-        const int8_t* a0 = mapper(a, c, offsets, pitch);
-        int64_t lower = dotd1q4_inner(a0, query, bit_length);
-        int64_t upper = dotd1q4_inner(a0 + bit_length, query, bit_length);
-        results[out_mapper(offsets, c)] = (f32_t)(lower + (upper << 1));
-    }
-}
-
-EXPORT void vec_dotd2q4_bulk_2(
-    const int8_t* a,
-    const int8_t* query,
-    const int32_t length,
-    const int32_t count,
-    f32_t* results) {
-    dotd2q4_inner_bulk<int8_t, sequential_mapper>(a, query, length, length, NULL, count, results);
-}
-
-EXPORT void vec_dotd2q4_bulk_masked_2(
-    const int8_t* a,
-    const int8_t* query,
-    const int32_t length,
-    const int32_t pitch,
-    const int32_t mask,
-    const int32_t count,
-    f32_t* results) {
-    dotd2q4_inner_bulk<int8_t, masked_mapper, masked_output>(
-        a, query, length, pitch, &mask, __builtin_popcount((uint32_t)mask), results);
-}
-
-EXPORT void vec_dotd2q4_bulk_sparse_2(
-    const void* const* addresses,
-    const int8_t* query,
-    const int32_t length,
-    const int32_t count,
-    f32_t* results) {
-    dotd2q4_inner_bulk<const int8_t*, sparse_mapper>((const int8_t* const*)addresses, query, length, 0, NULL, count, results);
-}
+// No tier-2 d2q4 kernels: the d2q4 functions resolve to the tier-1 (NEON) kernels on SVE CPUs as well,
+// which are faster than SVE versions on 128-bit SVE.
 
 EXPORT int64_t vec_dotd4q4_2(const int8_t* a, const int8_t* query, const int32_t length) {
     const int32_t bit_length = length / 4;

@@ -83,6 +83,7 @@
           "indexing.delete_total",
           "indexing.index_current",
           "indexing.index_failed_due_to_version_conflict",
+          "indexing.index_failed_due_to_too_many_docs",
           "indexing.index_failed",
           "indexing.index_time",
           "indexing.index_total",

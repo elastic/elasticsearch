@@ -228,6 +228,71 @@ public class MetricsAndTSInfoIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    /** {@code METRICS_INFO} lists every index that holds the series of the cpu metric. */
+    public void testMetricsInfoReportsEachIndexOfTheSameSeries() {
+        createIndicesWithTheSameSeries();
+        assertRowsPerIndexOfTheSameSeries("METRICS_INFO", 1);
+    }
+
+    /** {@code TS_INFO} lists every index that holds each of the three series. */
+    public void testTsInfoReportsEachIndexOfTheSameSeries() {
+        createIndicesWithTheSameSeries();
+        assertRowsPerIndexOfTheSameSeries("TS_INFO", 3);
+    }
+
+    /**
+     * Creates two indices with the same three time series on one node. One driver then reads both shards, so a dedup of
+     * time series across shards would drop the series of the index read second.
+     */
+    private void createIndicesWithTheSameSeries() {
+        Settings settings = Settings.builder()
+            .put("mode", "time_series")
+            .putList("routing_path", List.of("host"))
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.routing.allocation.require._name", internalCluster().getRandomDataNodeName())
+            .build();
+        List<String> indices = List.of("same-series-1", "same-series-2");
+        long timestamp = DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-04-15T00:00:00Z");
+        for (String index : indices) {
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(settings)
+                .setMapping(
+                    "@timestamp",
+                    "type=date",
+                    "host",
+                    "type=keyword,time_series_dimension=true",
+                    "cpu",
+                    "type=double,time_series_metric=gauge"
+                )
+                .get();
+            for (String host : List.of("a", "b", "c")) {
+                client().prepareIndex(index).setSource("@timestamp", timestamp, "host", host, "cpu", 1.0).get();
+            }
+            client().admin().indices().prepareRefresh(index).get();
+        }
+    }
+
+    private void assertRowsPerIndexOfTheSameSeries(String command, long rowsPerIndex) {
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query(
+            "TS same-series-1,same-series-2 | "
+                + command
+                + " | MV_EXPAND data_stream | STATS rows = COUNT(*) BY data_stream | SORT data_stream"
+        );
+        if (canUseQueryPragmas()) {
+            request.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1).build()));
+        }
+        try (var response = run(request)) {
+            assertThat(
+                EsqlTestUtils.getValuesList(response),
+                equalTo(List.of(List.of(rowsPerIndex, "same-series-1"), List.of(rowsPerIndex, "same-series-2")))
+            );
+        }
+    }
+
     public void testMetricsInfo() {
         List<String> statements = List.of(
             "| WHERE @timestamp > \"1970-01-01\" ",

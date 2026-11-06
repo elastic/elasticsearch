@@ -31,13 +31,23 @@ public final class CommitStats implements Writeable, ToXContentFragment {
     private final int numLeaves;
 
     public CommitStats(SegmentInfos segmentInfos) {
-        // clone the map to protect against concurrent changes
-        userData = Map.copyOf(segmentInfos.getUserData());
         // lucene calls the current generation, last generation.
-        generation = segmentInfos.getLastGeneration();
-        id = Base64.getEncoder().encodeToString(segmentInfos.getId());
-        numDocs = Lucene.getNumDocs(segmentInfos);
-        numLeaves = segmentInfos.size();
+        this(
+            segmentInfos.getUserData(),
+            segmentInfos.getLastGeneration(),
+            segmentInfos.getId(),
+            Lucene.getNumDocs(segmentInfos),
+            segmentInfos.size()
+        );
+    }
+
+    public CommitStats(Map<String, String> userData, long generation, byte[] id, int numDocs, int numLeaves) {
+        // clone the map to protect against concurrent changes
+        this.userData = Map.copyOf(userData);
+        this.generation = generation;
+        this.id = Base64.getEncoder().encodeToString(id);
+        this.numDocs = numDocs;
+        this.numLeaves = numLeaves;
     }
 
     CommitStats(StreamInput in) throws IOException {

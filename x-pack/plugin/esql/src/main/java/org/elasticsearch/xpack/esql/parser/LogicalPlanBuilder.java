@@ -24,7 +24,10 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.useragent.api.UserAgentParsedInfo;
 import org.elasticsearch.useragent.api.UserAgentParserRegistry;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.PlanSize;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
@@ -62,6 +65,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
+import org.elasticsearch.xpack.esql.plan.logical.Describe;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -158,9 +162,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public LogicalPlanBuilder(ParsingContext context) {
         super(context);
+        this.planSize = PlanSize.unlimited();
     }
 
     private int queryDepth = 0;
+    private boolean forkSeenInScope = false;
+    private final PlanSize planSize;
 
     /** Commands seen so far in the main query and in all its subqueries, see {@link ParsingContext#maxCommandCount()} */
     private int commandCount = 0;
@@ -496,11 +503,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 context.maxCommandCount()
             );
         }
+        boolean forkSeenInEnclosingScope = forkSeenInScope;
+        forkSeenInScope = false;
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
             plan = processingCommand.apply(plan);
         }
+        forkSeenInScope = forkSeenInEnclosingScope;
         return plan;
     }
 
@@ -822,12 +832,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final ParserUtils.Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
         // Only the first STATS command in a TS query is treated as the time-series aggregation.
-        // After METRICS_INFO or TS_INFO, the output is metadata, not time series data, so use regular Aggregate.
+        // After METRICS_INFO, TS_INFO or DESCRIBE, the output is metadata, not time series data, so use regular Aggregate.
         return input -> {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
             boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
             boolean hasTimeSeries = hasOuterTimeSeries(input);
-            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo);
+            boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo || p instanceof TsInfo || p instanceof Describe);
             if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
                     source(ctx),
@@ -1405,6 +1415,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
+        boolean duplicate = forkSeenInScope;
+        forkSeenInScope = true;
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
         // Hard ceiling: the setting maxValue. The configured cluster setting or pragma is enforced later in Fork.checkBranchCount.
         int maxBranches = QueryPragmas.MAX_BRANCH_COUNT_PER_MERGE_MAX;
@@ -1414,7 +1426,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return input -> {
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
-            return new Fork(source(ctx), subPlans, List.of());
+            Fork fork = new Fork(source(ctx), subPlans, List.of());
+            if (duplicate) {
+                throw new VerificationException(List.of(Failure.fail(fork, Fork.MULTIPLE_FORKS_ERROR)));
+            }
+            planSize.checkPlanWidth(fork, QueryPragmas.MAX_PARSED_BRANCH_COUNT);
+            return fork;
         };
     }
 
@@ -2049,6 +2066,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             valueColumnName,
             new UnresolvedTimestamp(source)
         );
+    }
+
+    @Override
+    public PlanFactory visitDescribeCommand(EsqlBaseParser.DescribeCommandContext ctx) {
+        return input -> new Describe(source(ctx), input);
     }
 
     @Override

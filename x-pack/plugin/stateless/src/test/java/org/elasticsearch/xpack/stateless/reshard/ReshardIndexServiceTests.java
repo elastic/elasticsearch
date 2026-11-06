@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -39,10 +40,13 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -379,6 +383,41 @@ public class ReshardIndexServiceTests extends ESTestCase {
             ReshardIndexService.validateIndex(indexAbstraction, indexMetadata),
             equalTo(ReshardIndexService.ValidationError.INVALID_INDEX_MODE)
         );
+    }
+
+    public void testValidateIndexRejectsIndexBeingRestored() {
+        var projectId = randomProjectIdOrDefault();
+        var index = new Index("restored-index", INDEX_UUID_NA_VALUE);
+        var indexMetadata = indexMetadataWithMode(projectId, index, IndexMode.STANDARD);
+        IndexAbstraction indexAbstraction = projectMetadataWithIndex(projectId, indexMetadata).getIndicesLookup().get(index.getName());
+        var snapshot = new Snapshot(projectId, "repo", new SnapshotId("snap", "snap-uuid"));
+        var restore = new RestoreInProgress.Builder().add(
+            new RestoreInProgress.Entry(
+                "restore-uuid",
+                snapshot,
+                RestoreInProgress.State.STARTED,
+                false,
+                List.of(index.getName()),
+                Map.of()
+            )
+        ).build();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT).putCustom(RestoreInProgress.TYPE, restore).build();
+
+        assertThat(
+            ReshardIndexService.validateIndex(projectId, clusterState, indexAbstraction, indexMetadata),
+            equalTo(ReshardIndexService.ValidationError.RESTORE_IN_PROGRESS)
+        );
+        // A restore of another index, or in another project, does not matter
+        assertThat(
+            ReshardIndexService.validateIndex(
+                randomValueOtherThan(projectId, ESTestCase::randomProjectIdOrDefault),
+                clusterState,
+                indexAbstraction,
+                indexMetadata
+            ),
+            nullValue()
+        );
+        assertThat(ReshardIndexService.validateIndex(projectId, ClusterState.EMPTY_STATE, indexAbstraction, indexMetadata), nullValue());
     }
 
     private static IndexMetadata indexMetadataWithMode(ProjectId projectId, Index index, IndexMode indexMode) {
